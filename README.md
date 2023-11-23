@@ -2,7 +2,7 @@
 
 **Voice transcription, translation (to english) or vocal prompting to GPT model, using OpenAI Whisper API or Web Speech API.**
 
-<img width="573" alt="speech-to-roam visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/d5e340bc-ef7a-4c26-9c09-31b004739c2e">
+![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
 
 
 **Keyboard hotkeys** (available when recording):
