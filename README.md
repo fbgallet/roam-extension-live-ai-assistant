@@ -2,7 +2,8 @@
 
 **Voice transcription, translation (to english) or vocal prompting to GPT model, using OpenAI Whisper API or Web Speech API.**
 
-![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/f89c4278-7cc9-4c0a-889e-20e6f43a3e8a)
+<img width="573" alt="speech-to-roam visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/d5e340bc-ef7a-4c26-9c09-31b004739c2e">
+
 
 **Keyboard hotkeys** (available when recording):
 - Pause/Resume: `Space bar`
