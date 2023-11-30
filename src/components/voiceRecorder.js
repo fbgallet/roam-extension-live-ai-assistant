@@ -227,7 +227,8 @@ function VoiceRecorder(props) {
   };
 
   const handleKeys = async (e) => {
-    if (e.code === "Escape") {
+    console.log(e);
+    if (e.code === "Escape" || e.code === "Backspace") {
       handleBackward();
     }
     if (e.code === "Space") {
@@ -242,8 +243,6 @@ function VoiceRecorder(props) {
 
   // JSX
   const mainProps = {
-    onKeyDown: handleKeys,
-    onClick: () => setIsListening((prevState) => !prevState),
     title: isListening
       ? "Stop/Pause voice recording"
       : "Start/Resume voice recording",
@@ -275,6 +274,8 @@ function VoiceRecorder(props) {
       <span class="bp3-popover-wrapper">
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
+            onKeyDown={handleKeys}
+            onClick={() => setIsListening((prevState) => !prevState)}
             class="bp3-button bp3-minimal bp3-small speech-record-button"
             tabindex="0"
             {...props}
@@ -289,10 +290,14 @@ function VoiceRecorder(props) {
   const jsxLogMainDisplay = (props) => {
     return (
       <div
+        onKeyDown={handleKeys}
+        onClick={() => setIsListening((prevState) => !prevState)}
         class="log-button"
+        tabindex="0"
         style={{ marginRight: isListening ? "0" : "inherit" }}
       >
         <span
+          // onKeyDown={handleKeys}
           class="bp3-icon bp3-icon-shop icon bp3-icon-small"
           style={{
             marginLeft: "2px",
@@ -306,7 +311,7 @@ function VoiceRecorder(props) {
           <span
             //class="log-button"
             // class="bp3-button bp3-minimal bp3-small"
-            onClick={() => setIsListening((prevState) => !prevState)}
+            // onClick={() => setIsListening((prevState) => !prevState)}
             style={{ display: "inline", padding: "0", margin: "0" }}
           >
             Speech-to-Roam
