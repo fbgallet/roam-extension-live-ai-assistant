@@ -4,10 +4,11 @@
 
 ![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
 
+By default, the controls will be inserted in the left sidebar. It's possible to display them in the topbar (always visible).
 
 **Keyboard hotkeys** (available when recording):
 - Pause/Resume: `Space bar`
-- Stop and rewind: `Escape`
+- Stop and rewind: `Escape` or `Backspace`
 - Transcribe: `Enter`
 
 **Commands** (in command panel)
@@ -18,7 +19,7 @@
 
 ### Voice transcription
 - the transcribed text will be inserted at the bottom of the current page or appended to the current focused block.
-- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio.
+- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox browser)
 - by default, the language will be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 
 _⚠️ OpenAI Whisper API is a paid but quite cheap service_
