@@ -5,3 +5,10 @@
 .speech-backward-button:focus {
   outline-width: 0px !important;
 }
+/* .speech-display-button {
+  display: inline;
+} */
+.speech-to-roam-container-left {
+  display: flex;
+  align-items: center;
+}

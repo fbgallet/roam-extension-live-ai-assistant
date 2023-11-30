@@ -26,7 +26,7 @@ export async function transcribeAudio(filename) {
   // });
   if (!openai) return null;
   try {
-    console.log(filename);
+    // console.log(filename);
     const options = {
       file: filename,
       model: "whisper-1",

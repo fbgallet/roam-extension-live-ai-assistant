@@ -20,45 +20,73 @@ export let isTranslateIconDisplayed;
 export let gptModel;
 export let gptCustomModel;
 export let chatRoles;
+let position;
 
 function mountComponent(props) {
-  const container = document.getElementsByClassName(
-    "speech-to-roam-container"
-  )[0];
+  const container = document.querySelector(
+    `.speech-to-roam-container-${position}`
+  );
   if (!props) {
     props = {};
     // props.transcribeOnly = isTranslateIconDisplayed ? false : true;
   }
-  props.mic = getSpeechRecognitionAPI();
+  // Web API speech recognition doesn't work on Electron app nor Firefox browser
+  props.position = position;
+  props.mic =
+    !window.roamAlphaAPI.platform.isDesktop &&
+    navigator.userAgent.indexOf("Firefox") === -1
+      ? getSpeechRecognitionAPI()
+      : null;
   let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
   ReactDOM.render(<App blockUid={currentBlockUid} {...props} />, container);
 }
 
 function unmountComponent() {
-  const node = document.getElementsByClassName("speech-to-roam-container")[0];
+  const node = document.querySelector(`.speech-to-roam-container-${position}`);
   ReactDOM.unmountComponentAtNode(node);
 }
 
 function createContainer() {
-  // const rootPosition =
-  //   document.getElementsByClassName("rm-sync")[0].parentNode.parentNode;
-  const rootPosition = document.getElementsByClassName("rm-topbar")[0];
-  const newSpan = document.createElement("span");
-  newSpan.classList.add("speech-to-roam-container");
-  // rootPosition.parentNode.insertBefore(newSpan, rootPosition);
-  rootPosition.insertBefore(newSpan, rootPosition.firstChild);
+  const rootPosition =
+    position === "top"
+      ? document.querySelector(".rm-topbar")
+      : document.querySelector(".roam-sidebar-content");
+  const newElt = document.createElement("span");
+  newElt.classList.add(`speech-to-roam-container-${position}`);
+  rootPosition.insertBefore(
+    newElt,
+    position === "top"
+      ? rootPosition.firstChild
+      : document.querySelector(".starred-pages-wrapper")
+  );
 }
 
 function removeContainer() {
-  const container = document.getElementsByClassName(
-    "speech-to-roam-container"
-  )[0];
+  const container = document.querySelector(
+    `.speech-to-roam-container-${position}`
+  );
   container.remove();
 }
 
 const panelConfig = {
   tabTitle: "___",
   settings: [
+    {
+      id: "position",
+      name: "Button position",
+      description: "Where do you want to display Speech-to-Roam button ?",
+      action: {
+        type: "select",
+        items: ["topbar", "left sidebar"],
+        onChange: (evt) => {
+          unmountComponent();
+          removeContainer();
+          position = evt === "topbar" ? "top" : "left";
+          createContainer();
+          mountComponent();
+        },
+      },
+    },
     {
       id: "whisper",
       name: "Use Whisper API",
@@ -194,6 +222,12 @@ export default {
     extensionAPI.settings.panel.create(panelConfig);
 
     // get settings from setting panel
+    if (extensionAPI.settings.get("position") === null)
+      extensionAPI.settings.set("position", "left sidebar");
+    position =
+      (await extensionAPI.settings.get("position")) === "topbar"
+        ? "top"
+        : "left";
     if (extensionAPI.settings.get("whisper") === null)
       extensionAPI.settings.set("whisper", true);
     isUsingWhisper = await extensionAPI.settings.get("whisper");
@@ -255,7 +289,7 @@ export default {
     });
 
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: toggle button in top bar",
+      label: "Speech-to-Roam: toggle button visible/hidden",
       callback: () => {
         let recordingButtonElts = document.getElementsByClassName(
           "speech-record-button"

@@ -35,6 +35,7 @@ function VoiceRecorder(props) {
     translateOnly,
     completionOnly,
     mic,
+    position,
   } = props;
   const [isListening, setIsListening] = useState(startRecording ? true : false);
   const [currentBlock, setCurrentBlock] = useState(blockUid);
@@ -104,40 +105,46 @@ function VoiceRecorder(props) {
   }, [isListening]);
 
   const handleListen = async () => {
-    // recognition
+    // recognition if not in Electron App or Firefox browser
     if (isListening) {
-      mic.start();
-      mic.onend = () => {
-        console.log("continue...");
+      if (mic) {
         mic.start();
-      };
+        mic.onend = () => {
+          console.log("continue...");
+          mic.start();
+        };
+      }
 
       // record
       startRec();
     } else {
       // recognition
-      mic.stop();
-      mic.onend = () => {
-        console.log("Stopped Mic on Click");
-      };
+      if (mic) {
+        mic.stop();
+        mic.onend = () => {
+          console.log("Stopped Mic on Click");
+        };
+      }
 
       // record
       await stopRec();
     }
-    mic.onstart = () => {
-      console.log("Mics on");
-    };
-    mic.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0])
-        .map((result) => result.transcript)
-        .join("");
-      console.log(transcript);
-      setinstantVoiceReco(transcript);
-      mic.onerror = (event) => {
-        console.log(event.error);
+    if (mic) {
+      mic.onstart = () => {
+        console.log("Mics on");
       };
-    };
+      mic.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map((result) => result[0])
+          .map((result) => result.transcript)
+          .join("");
+        console.log(transcript);
+        setinstantVoiceReco(transcript);
+        mic.onerror = (event) => {
+          console.log(event.error);
+        };
+      };
+    }
   };
 
   const handleTranscribe = () => {
@@ -168,13 +175,14 @@ function VoiceRecorder(props) {
       return;
     }
     // Transcribe audio
-    let transcribe = instantVoiceReco
-      ? isUsingWhisper && OPENAI_API_KEY
-        ? await openAIvoiceProcessing(recording)
-        : instantVoiceReco
-      : "Nothing has been recorded!";
-    // console.log("SpeechAPI: " + instantVoiceReco);
-    // console.log("Whisper: " + transcribe);
+    let transcribe =
+      instantVoiceReco || recording
+        ? isUsingWhisper && OPENAI_API_KEY
+          ? await openAIvoiceProcessing(recording)
+          : instantVoiceReco
+        : "Nothing has been recorded!";
+    console.log("SpeechAPI: " + instantVoiceReco);
+    if (isUsingWhisper && OPENAI_API_KEY) console.log("Whisper: " + transcribe);
     if (transcribe === null) {
       transcribe =
         instantVoiceReco +
@@ -232,57 +240,133 @@ function VoiceRecorder(props) {
     }
   };
 
-  return (
-    <>
+  // JSX
+  const mainProps = {
+    onKeyDown: handleKeys,
+    onClick: () => setIsListening((prevState) => !prevState),
+    title: isListening
+      ? "Stop/Pause voice recording"
+      : "Start/Resume voice recording",
+  };
+
+  const mainContent = () => {
+    return (
+      <>
+        {isListening ? (
+          <FontAwesomeIcon
+            icon={faRecordVinyl}
+            beatFade
+            style={{ color: "#e00000" }}
+          />
+        ) : (
+          <FontAwesomeIcon
+            icon={faMicrophone}
+            style={{
+              color: "#5c7080",
+            }}
+          />
+        )}
+      </>
+    );
+  };
+
+  const jsxBp3MainDisplay = (props) => {
+    return (
       <span class="bp3-popover-wrapper">
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
-            onKeyDown={handleKeys}
-            onClick={() => setIsListening((prevState) => !prevState)}
             class="bp3-button bp3-minimal bp3-small speech-record-button"
             tabindex="0"
-            title={
-              isListening
-                ? "Stop/Pause voice recording"
-                : "Start/Resume voice recording"
-            }
+            {...props}
           >
-            {isListening ? (
-              <FontAwesomeIcon
-                icon={faRecordVinyl}
-                beatFade
-                style={{ color: "#e00000" }}
-              />
-            ) : (
-              <FontAwesomeIcon
-                icon={faMicrophone}
-                style={{
-                  color: "#5c7080",
-                }}
-              />
-            )}
+            {mainContent()}
           </span>
         </span>
       </span>
-      {(isListening || recording !== null) && (
-        <span class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
-            <span
-              onClick={handleBackward}
-              class="bp3-button bp3-minimal bp3-small speech-backward-button"
-              tabindex="0"
-              style={{ minWidth: "70px" }}
-              title="Rewind and delete the current recording."
-            >
-              <FontAwesomeIcon
-                icon={faBackwardStep}
-                style={{ color: "#5c7080" }}
-              />
-              <Timer time={time} />
-            </span>
+    );
+  };
+
+  const jsxLogMainDisplay = (props) => {
+    return (
+      <div
+        class="log-button"
+        style={{ marginRight: isListening ? "0" : "inherit" }}
+      >
+        <span
+          class="bp3-icon bp3-icon-shop icon bp3-icon-small"
+          style={{
+            marginLeft: "2px",
+            minWidth: "24px",
+          }}
+          {...props}
+        >
+          {mainContent()}
+        </span>
+        {!isListening && recording === null && (
+          <span
+            //class="log-button"
+            // class="bp3-button bp3-minimal bp3-small"
+            onClick={() => setIsListening((prevState) => !prevState)}
+            style={{ display: "inline", padding: "0", margin: "0" }}
+          >
+            Speech-to-Roam
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const timerProps = {
+    onClick: handleBackward,
+    tabindex: "0",
+    style: { minWidth: "65px" },
+    title: "Rewind and delete the current recording.",
+  };
+
+  const timerContent = () => {
+    return (
+      <>
+        <FontAwesomeIcon icon={faBackwardStep} style={{ color: "#5c7080" }} />
+        <Timer time={time} />
+      </>
+    );
+  };
+
+  const jsxBp3TimerWrapper = (props) => {
+    return (
+      <span class="bp3-popover-wrapper">
+        <span aria-haspopup="true" class="bp3-popover-target">
+          <span
+            class="bp3-button bp3-minimal bp3-small speech-backward-button"
+            {...props}
+          >
+            {timerContent()}
           </span>
         </span>
-      )}
+      </span>
+    );
+  };
+  const jsxLogTimerWrapper = (props) => {
+    props.style.display = "flex";
+    props.style.justifyContent = "space-between";
+    props.style.margin = "0";
+    props.style.paddingLeft = "0";
+    return (
+      <span class="log-button" {...props}>
+        {timerContent()}
+      </span>
+    );
+  };
+
+  return (
+    <>
+      {position === "left"
+        ? jsxLogMainDisplay(mainProps)
+        : jsxBp3MainDisplay(mainProps)}
+      {(isListening || recording !== null) &&
+        (position === "left"
+          ? jsxLogTimerWrapper(timerProps)
+          : jsxBp3TimerWrapper(timerProps))}
       {isToDisplay.transcribeIcon && (
         <span class="bp3-popover-wrapper">
           <span aria-haspopup="true" class="bp3-popover-target">
