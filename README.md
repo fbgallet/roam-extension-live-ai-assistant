@@ -17,8 +17,7 @@
 - Speak to GPT assistant
 
 ### Voice transcription
-- While recording, you can pause/resume/rewind to the beginning
-- the transcribed text in your graph will be inserted at the bottom of the current page or appended to the current focused block.
+- the transcribed text will be inserted at the bottom of the current page or appended to the current focused block.
 - if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio.
 - by default, the language will be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 
@@ -33,10 +32,11 @@ To give you an idea, using Whisper for 10 minutes a day for a month equates to 1
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a GPT model, as it only requires asking it to translate into any language.
 
 
-**Speak directly to a GPT model**
+### Speak directly to a GPT model
+- ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
 - model by default is currently gpt-3.5-turbo-1106
 - you can try other chat completion model, or your own fine-tuned models
-- assistant response is inserted as last child of prompt block
+- assistant response is inserted as last child of prompt block (current limitation: the answer is only one long block)
 - additional context and other features to come, stay tuned ! 🚀
 
 _⚠️ OpenAI GPT API is a paid but cheap service_
