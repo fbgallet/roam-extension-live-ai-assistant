@@ -1,3 +1,7 @@
+:root {
+  --icon-color: var(--co-button__icon, #5c7080);
+}
+
 .speech-record-button {
   min-width: 30px !important;
 }
@@ -11,4 +15,23 @@
 .speech-to-roam-container-left {
   display: flex;
   align-items: center;
+  /* padding-top: 4px;
+  padding-bottom: 4px; */
+}
+.speech-to-roam-container-left:has(.digits) {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* .speech-to-roam-container-left > div.log-button {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+} */
+.speech-to-roam-container-left > span.log-button {
+  padding: 0 4px 0 0 !important;
+}
+
+.speech-to-roam-container-left svg:not(.fa-record-vinyl) path,
+.speech-to-roam-container-top svg:not(.fa-record-vinyl) path {
+  fill: var(--icon-color);
 }
