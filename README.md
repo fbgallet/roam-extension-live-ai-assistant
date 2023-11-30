@@ -1,6 +1,6 @@
 # Speech-to-Roam
 
-**Voice transcription, translation (to english) or vocal prompting to GPT model, using OpenAI Whisper API or Web Speech API.**
+**Voice transcription, translation (to english) or vocal prompting to a GPT model, using OpenAI Whisper API or Web Speech API.**
 
 ![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
 
@@ -12,7 +12,7 @@ By default, the controls will be inserted in the left sidebar. It's possible to 
 - Transcribe: `Enter`
 
 **Commands** (in command panel)
-- Toggle on/of Icon in the topbar
+- Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
 - Voice Transcription
 - Translate to english
 - Speak to GPT assistant
@@ -20,7 +20,7 @@ By default, the controls will be inserted in the left sidebar. It's possible to 
 ### Voice transcription
 - the transcribed text will be inserted at the bottom of the current page or appended to the current focused block.
 - if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox browser)
-- by default, the language will be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
+- by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 
 _⚠️ OpenAI Whisper API is a paid but quite cheap service_
 
@@ -35,7 +35,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 ### Speak directly to a GPT model
 - ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
-- model by default is currently gpt-3.5-turbo-1106
+- model by default is currently `gpt-3.5-turbo-1106`
 - you can try other chat completion model, or your own fine-tuned models
 - assistant response is inserted as last child of prompt block (current limitation: the answer is only one long block)
 - additional context and other features to come, stay tuned ! 🚀
