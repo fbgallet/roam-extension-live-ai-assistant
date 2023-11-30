@@ -1,28 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactDOM from "react-dom";
 import {
   faMicrophone,
   faRecordVinyl,
-  faDownload,
   faBackwardStep,
   faWandMagicSparkles,
   faLanguage,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 //import "./App.css";
-import {
-  closeStream,
-  getMediaRecorderStream,
-  getSpeechRecognitionAPI,
-} from "../audio";
+import { closeStream, getMediaRecorderStream } from "../audio";
 import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import { addContentToBlock, insertBlockInCurrentView } from "../utils";
 import { Timer } from "./timer";
 import {
   OPENAI_API_KEY,
   chatRoles,
-  gptCustomModel,
-  gptModel,
   isTranslateIconDisplayed,
   isUsingWhisper,
 } from "..";
@@ -53,9 +45,7 @@ function VoiceRecorder(props) {
   const mediaRecorderRef = useRef(null);
 
   useEffect(() => {
-    console.log("Voice recorder component mounted", props);
-    // removeHotkeysListeners();
-    // document.addEventListener("keypress", onHotkeysPressed);
+    //console.log("Voice recorder component mounted", props);
   }, []);
 
   React.useEffect(() => {
@@ -79,7 +69,7 @@ function VoiceRecorder(props) {
     setCurrentBlock(window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
 
     mediaRecorderRef.current = await getMediaRecorderStream(audioChunk);
-    mediaRecorderRef.current.start();
+    mediaRecorderRef.current.start(1000);
 
     mediaRecorderRef.current.onstop = async (e) => {
       console.log("End to record");
@@ -147,8 +137,44 @@ function VoiceRecorder(props) {
     }
   };
 
-  const handleTranscribe = () => {
-    voiceProcessing(transcribeAudio);
+  const handleBackward = () => {
+    if (isListening) {
+      setIsListening(false);
+    }
+    initialize(time ? false : true);
+  };
+
+  const initialize = (complete = true) => {
+    setTime(0);
+    setinstantVoiceReco("");
+    setRecording(complete ? null : undefined);
+    if (complete) {
+      setIsToDisplay({
+        transcribeIcon: true,
+        translateIcon: isTranslateIconDisplayed || translateOnly,
+        completionIcon: true,
+      });
+      closeStream();
+    }
+    audioChunk.current = [];
+  };
+
+  const handleKeys = async (e) => {
+    if (e.code === "Escape" || e.code === "Backspace") {
+      handleBackward();
+    }
+    if (e.code === "Space") {
+      setIsListening((prevState) => !prevState);
+    }
+    if (e.code === "Enter") {
+      if (!translateOnly) {
+        handleTranscribe();
+      }
+    }
+  };
+
+  const handleTranscribe = async () => {
+    await voiceProcessing(transcribeAudio);
   };
 
   const handleTranslate = async () => {
@@ -167,7 +193,10 @@ function VoiceRecorder(props) {
 
   const voiceProcessing = async (openAIvoiceProcessing, toChain) => {
     if (isListening) {
-      setIsListening((prevState) => !prevState);
+      console.log("is listening");
+      setIsListening(false);
+      await stopRec();
+      // initialize(false);
     }
     if (!recording) {
       setIsListening(false);
@@ -175,6 +204,7 @@ function VoiceRecorder(props) {
       return;
     }
     // Transcribe audio
+    console.log(recording);
     let transcribe =
       instantVoiceReco || recording
         ? isUsingWhisper && OPENAI_API_KEY
@@ -186,9 +216,7 @@ function VoiceRecorder(props) {
     if (transcribe === null) {
       transcribe =
         instantVoiceReco +
-        (toChain
-          ? ""
-          : " (⚠️ native recognition, verify your Whisper API key)");
+        (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
     }
     setinstantVoiceReco("");
     const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
@@ -203,42 +231,6 @@ function VoiceRecorder(props) {
     }
     // const node = document.getElementsByClassName("speech-to-roam-container")[0];
     // ReactDOM.unmountComponentAtNode(node);
-  };
-
-  const handleBackward = () => {
-    if (isListening) {
-      setIsListening(false);
-    }
-    initialize(time ? false : true);
-  };
-
-  const initialize = (complete = true) => {
-    setTime(0);
-    setinstantVoiceReco("");
-    setRecording(complete ? null : undefined);
-    if (complete)
-      setIsToDisplay({
-        transcribeIcon: true,
-        translateIcon: isTranslateIconDisplayed || translateOnly,
-        completionIcon: true,
-      });
-    audioChunk.current = [];
-    closeStream();
-  };
-
-  const handleKeys = async (e) => {
-    console.log(e);
-    if (e.code === "Escape" || e.code === "Backspace") {
-      handleBackward();
-    }
-    if (e.code === "Space") {
-      setIsListening((prevState) => !prevState);
-    }
-    if (e.code === "Enter") {
-      if (!translateOnly) {
-        handleTranscribe();
-      }
-    }
   };
 
   // JSX

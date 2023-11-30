@@ -1,10 +1,3 @@
-// import {
-//   getBlockContentByUid,
-//   getTreeByUid,
-//   processNotesInTree,
-// } from "./utils";
-//import { addObserver, disconnectObserver } from "./observers";
-
 import React from "react";
 import ReactDOM from "react-dom";
 import App from "./App";
@@ -26,6 +19,10 @@ function mountComponent(props) {
   const container = document.querySelector(
     `.speech-to-roam-container-${position}`
   );
+  if (!container) {
+    createContainer();
+    return mountComponent();
+  }
   if (!props) {
     props = {};
     // props.transcribeOnly = isTranslateIconDisplayed ? false : true;
@@ -43,7 +40,7 @@ function mountComponent(props) {
 
 function unmountComponent() {
   const node = document.querySelector(`.speech-to-roam-container-${position}`);
-  ReactDOM.unmountComponentAtNode(node);
+  if (node) ReactDOM.unmountComponentAtNode(node);
 }
 
 function createContainer() {
@@ -65,7 +62,7 @@ function removeContainer() {
   const container = document.querySelector(
     `.speech-to-roam-container-${position}`
   );
-  container.remove();
+  if (container) container.remove();
 }
 
 const panelConfig = {
@@ -109,7 +106,7 @@ const panelConfig = {
           <span>Copy here your OpenAI API key </span>
           <br></br>
           <a href="https://platform.openai.com/api-keys" target="_blank">
-            (Follow this kink to retrieve it or create a new one.)
+            (Follow this link to retrieve it or create a new one.)
           </a>
         </>
       ),

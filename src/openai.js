@@ -38,7 +38,7 @@ export async function transcribeAudio(filename) {
     // let processed = await gptPostProcessing(transcript.text);
     // return processed;
   } catch (error) {
-    console.error(error);
+    console.error(error.message);
     return null;
   }
 }
