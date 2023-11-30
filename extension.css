@@ -22,6 +22,9 @@
   padding-top: 2px;
   padding-bottom: 2px;
 }
+.speech-to-roam-container-left:has(.digits) > div.log-button {
+  padding-right: 0 !important;
+}
 
 /* .speech-to-roam-container-left > div.log-button {
   padding-top: 0 !important;

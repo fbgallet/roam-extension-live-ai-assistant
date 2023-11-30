@@ -307,7 +307,7 @@ function VoiceRecorder(props) {
             //class="log-button"
             // class="bp3-button bp3-minimal bp3-small"
             // onClick={() => setIsListening((prevState) => !prevState)}
-            style={{ display: "inline", padding: "0", margin: "0" }}
+            style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
           >
             Speech-to-Roam
           </span>
@@ -319,7 +319,7 @@ function VoiceRecorder(props) {
   const timerProps = {
     onClick: handleBackward,
     tabindex: "0",
-    style: { minWidth: "55px" },
+    style: { minWidth: "60px" },
     title: "Rewind and delete the current recording.",
   };
 
