@@ -96,18 +96,30 @@ const panelConfig = {
         type: "switch",
         onChange: (evt) => {
           isUsingWhisper = !isUsingWhisper;
+          unmountComponent();
+          mountComponent();
         },
       },
     },
     {
       id: "openaiapi",
       name: "OpenAI API Key",
-      description: "Copy here your OpenAI API key",
+      description: (
+        <>
+          <span>Copy here your OpenAI API key </span>
+          <br></br>
+          <a href="https://platform.openai.com/api-keys" target="_blank">
+            (Follow this kink to retrieve it or create a new one.)
+          </a>
+        </>
+      ),
       action: {
         type: "input",
         onChange: (evt) => {
           OPENAI_API_KEY = evt.target.value;
           initializeOpenAIAPI();
+          unmountComponent();
+          mountComponent();
         },
       },
     },
@@ -223,7 +235,7 @@ export default {
 
     // get settings from setting panel
     if (extensionAPI.settings.get("position") === null)
-      extensionAPI.settings.set("position", "left sidebar");
+      extensionAPI.settings.set("position", "left");
     position =
       (await extensionAPI.settings.get("position")) === "topbar"
         ? "top"
