@@ -7,17 +7,22 @@
 By default, the controls will be inserted in the left sidebar. It's possible to display them in the topbar (always visible).
 
 **Keyboard hotkeys** (available when recording):
-- Pause/Resume: `Space bar`
+
+- Pause/Resume: `Spacebar`
 - Stop and rewind: `Escape` or `Backspace`
-- Transcribe: `Enter`
+- Transcribe: `T or Enter`
+- Translate (in English): `E`
+- Speak to ChatGPT: `C`
 
 **Commands** (in command panel)
+
 - Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
 - Voice Transcription
 - Translate to english
 - Speak to GPT assistant
 
 ### Voice transcription
+
 - the transcribed text will be inserted at the bottom of the current page or appended to the current focused block.
 - if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox browser)
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
@@ -28,12 +33,12 @@ _⚠️ OpenAI Whisper API is a paid but quite cheap service_
 
 To give you an idea, using Whisper for 10 minutes a day for a month equates to 1,8$
 
-
 ### Translation
+
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a GPT model, as it only requires asking it to translate into any language.
 
-
 ### Speak directly to a GPT model
+
 - ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
 - model by default is currently `gpt-3.5-turbo-1106`
 - you can try other chat completion model, or your own fine-tuned models
@@ -41,12 +46,13 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - additional context and other features to come, stay tuned ! 🚀
 
 _⚠️ OpenAI GPT API is a paid but cheap service_
+
 - gpt-3.5
-    - Input: $0.0010 / 1K tokens
-    - Output: $0.0020 / 1K tokens
+  - Input: $0.0010 / 1K tokens
+  - Output: $0.0020 / 1K tokens
 - gpt-4-1106-preview (128k context)
-    - input: $0.01 / 1K tokens
-    - output: $0.03 / 1K tokens
+  - input: $0.01 / 1K tokens
+  - output: $0.03 / 1K tokens
 
 ---
 

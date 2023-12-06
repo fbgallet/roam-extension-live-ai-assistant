@@ -162,14 +162,33 @@ function VoiceRecorder(props) {
   const handleKeys = async (e) => {
     if (e.code === "Escape" || e.code === "Backspace") {
       handleBackward();
+      return;
     }
     if (e.code === "Space") {
       setIsListening((prevState) => !prevState);
+      return;
     }
     if (e.code === "Enter") {
-      if (!translateOnly) {
-        handleTranscribe();
+      if (translateOnly) {
+        handleTranslate();
+        return;
+      } else if (completionOnly) {
+        handleCompletion();
+        return;
       }
+      handleTranscribe();
+    }
+    if (e.key.toLowerCase() === "t") {
+      handleTranscribe();
+      return;
+    }
+    if (e.key.toLowerCase() === "e") {
+      handleTranslate();
+      return;
+    }
+    if (e.key.toLowerCase() === "c") {
+      handleCompletion();
+      return;
     }
   };
 
@@ -191,24 +210,25 @@ function VoiceRecorder(props) {
     });
   };
 
-  const voiceProcessing = async (openAIvoiceProcessing, toChain) => {
-    if (isListening) {
-      console.log("is listening");
-      setIsListening(false);
-      await stopRec();
-      // initialize(false);
-    }
+  const voiceProcessing = async (voiceProcessingCommand, toChain) => {
     if (!recording) {
       setIsListening(false);
       setRecording(null);
       return;
+    }
+    if (isListening) {
+      console.log("is listening");
+      setIsListening(false);
+      await handleListen();
+      // await stopRec();
+      // initialize(false);
     }
     // Transcribe audio
     console.log(recording);
     let transcribe =
       instantVoiceReco || recording
         ? isUsingWhisper && OPENAI_API_KEY
-          ? await openAIvoiceProcessing(recording)
+          ? await voiceProcessingCommand(recording)
           : instantVoiceReco
         : "Nothing has been recorded!";
     console.log("SpeechAPI: " + instantVoiceReco);
@@ -236,8 +256,8 @@ function VoiceRecorder(props) {
   // JSX
   const mainProps = {
     title: isListening
-      ? "Stop/Pause voice recording"
-      : "Start/Resume voice recording",
+      ? "Stop/Pause voice recording (Spacebar)"
+      : "Start/Resume voice recording (Spacebar)",
   };
 
   const mainContent = () => {
@@ -312,7 +332,7 @@ function VoiceRecorder(props) {
     onClick: handleBackward,
     tabindex: "0",
     style: { minWidth: "60px" },
-    title: "Rewind and delete the current recording.",
+    title: "Rewind and delete the current recording (Backspace)",
   };
 
   const timerContent = () => {
@@ -381,7 +401,7 @@ function VoiceRecorder(props) {
           : jsxBp3TimerWrapper(timerProps))}
       {isToDisplay.transcribeIcon &&
         jsxCommandIcon(
-          { title: "Transcribe Voice to Text" },
+          { title: "Transcribe voice to Text (T or Enter)" },
           handleTranscribe,
           () => (
             <>
@@ -391,7 +411,7 @@ function VoiceRecorder(props) {
         )}{" "}
       {isToDisplay.translateIcon &&
         jsxCommandIcon(
-          { title: "Translate Voice to English text" },
+          { title: "Translate voice to English text (E)" },
           handleTranslate,
           () => (
             <>
@@ -402,7 +422,7 @@ function VoiceRecorder(props) {
       {isToDisplay.completionIcon &&
         jsxCommandIcon(
           {
-            title: "Transcribe and use as prompt for a ChatGPT",
+            title: "Speak to ChatGPT (C)",
             style: { minWidth: "30px" },
           },
           handleCompletion,
