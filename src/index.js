@@ -16,12 +16,18 @@ export let chatRoles;
 let position;
 
 function mountComponent(props) {
-  const container = document.querySelector(
+  let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+  let container = document.querySelector(
     `.speech-to-roam-container-${position}`
   );
-  if (!container) {
-    createContainer();
-    return mountComponent();
+
+  if (!container || props?.isInline) {
+    createContainer(
+      props?.isInline,
+      currentBlockUid ? document.activeElement : null
+    );
+    if (!props?.isInline) return mountComponent();
+    else container = document.querySelector(`.speech-to-roam-container-inline`);
   }
   if (!props) {
     props = {};
@@ -34,7 +40,8 @@ function mountComponent(props) {
     navigator.userAgent.indexOf("Firefox") === -1
       ? getSpeechRecognitionAPI()
       : null;
-  let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+
+  console.log("container", container);
   ReactDOM.render(<App blockUid={currentBlockUid} {...props} />, container);
 }
 
@@ -43,13 +50,26 @@ function unmountComponent() {
   if (node) ReactDOM.unmountComponentAtNode(node);
 }
 
-function createContainer() {
-  const rootPosition =
-    position === "top"
-      ? document.querySelector(".rm-topbar")
-      : document.querySelector(".roam-sidebar-content");
+function createContainer(isInline, activeElement) {
+  // console.log("activeElement:", activeElement);
+  if (isInline)
+    activeElement = document.getElementById(
+      "block-input-Ex3lB2F6lbcG2lBxdsJzPNzQXn53-body-outline-12-08-2023-HzvQSfNhv"
+    );
+  console.log(activeElement);
+  const rootPosition = isInline
+    ? activeElement
+    : position === "top"
+    ? document.querySelector(".rm-topbar")
+    : document.querySelector(".roam-sidebar-content");
   const newElt = document.createElement("span");
-  newElt.classList.add(`speech-to-roam-container-${position}`);
+  newElt.classList.add(
+    `speech-to-roam-container-${isInline ? "inline" : position}`
+  );
+  if (isInline) {
+    rootPosition.parentElement.insertBefore(newElt, rootPosition);
+    return;
+  }
   rootPosition.insertBefore(
     newElt,
     position === "top"
@@ -296,6 +316,18 @@ export default {
           : mountComponent();
       },
     });
+
+    // extensionAPI.ui.commandPalette.addCommand({
+    //   label: "Speech-to-Roam: insert inline Speech-to-Roam component",
+    //   callback: () => {
+    //     // console.log(document.activeElement);
+    //     mountComponent({ isInline: true });
+    //     // document.getElementsByClassName("speech-record-button")
+    //     //   ? (unmountComponent(),
+    //     //     mountComponent({ startRecording: true, completionOnly: true }))
+    //     //   : mountComponent();
+    //   },
+    // });
 
     extensionAPI.ui.commandPalette.addCommand({
       label: "Speech-to-Roam: toggle button visible/hidden",

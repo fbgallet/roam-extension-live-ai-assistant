@@ -12,11 +12,24 @@
 /* .speech-display-button {
   display: inline;
 } */
+
+.speech-ui-row1,
+.speech-ui-row2 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  /* padding-top: 4px;
+  padding-bottom: 4px; */
+}
+.speech-to-roam-container-left .speech-ui-row1 {
+  margin-left: 9px;
+}
+
 .speech-to-roam-container-left {
   display: flex;
   align-items: center;
-  /* padding-top: 4px;
-  padding-bottom: 4px; */
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 .speech-to-roam-container-left:has(.digits) {
   padding-top: 2px;
@@ -30,11 +43,68 @@
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 } */
-.speech-to-roam-container-left > span.log-button {
+/* .speech-to-roam-container-left > span.log-button, */
+.speech-to-roam-container-left > .speech-ui-row1 > .log-button {
   padding: 0 4px 0 0 !important;
 }
 
 .speech-to-roam-container-left svg:not(.fa-record-vinyl) path,
 .speech-to-roam-container-top svg:not(.fa-record-vinyl) path {
   fill: var(--icon-color);
+}
+
+.speech-to-roam-container-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  /* padding-top: 4px;
+  padding-bottom: 4px; */
+  margin-right: 20px;
+}
+/* .speech-to-roam-container-inline .bp3-popover-target {
+  margin-right: 15px;
+} */
+.speech-to-roam-container-inline > .bp3-popover-wrapper:nth-child(2) {
+  width: 170px;
+}
+/* .speech-to-roam-container-inline
+  > .bp3-popover-wrapper:nth-child(2):not(:has(.timer)),
+.speech-to-roam-container-inline
+  > .bp3-popover-wrapper:nth-child(3):not(:has(.bp3-button)) {
+  display: none;
+} */
+
+@media (max-width: 768px) {
+  .speech-to-roam-container-top:has(.timer),
+  .speech-to-roam-container-left:has(.timer) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  .speech-to-roam-container-left:has(.timer) {
+    margin-left: 12px;
+  }
+  .speech-to-roam-container-top:has(.timer) {
+    position: relative;
+    top: 20px;
+  }
+  .speech-to-roam-container-top:has(.timer) .speech-ui-row1 {
+    margin-bottom: 7px;
+  }
+  .speech-ui-row1:has(.timer),
+  .speech-ui-row2 {
+    justify-content: flex-start;
+    gap: 5px;
+    scale: 1.25;
+  }
+  .speech-ui-row1:has(.timer) .bp3-icon,
+  .speech-ui-row1:has(.timer) .log-button:nth-child(2),
+  .speech-ui-row2 .bp3-button {
+    padding: 8px !important;
+    gap: 5px;
+  }
+  .speech-to-roam-container-left .speech-ui-row2 {
+    margin-left: 10px;
+  }
 }

@@ -82,7 +82,7 @@ export async function insertBlockInCurrentView(content, order) {
     zoomUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
     // TODO : send a message "Added on DNP page"
   }
-  let newUid = window.roamAlphaAPI.util.generateUID();
+  const newUid = window.roamAlphaAPI.util.generateUID();
   window.roamAlphaAPI.createBlock({
     location: {
       "parent-uid": zoomUid,
