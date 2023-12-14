@@ -2,6 +2,8 @@
 
 **Voice transcription, translation (to english) or vocal prompting to a GPT model, using OpenAI Whisper API or Web Speech API.**
 
+⚠️ this extension works currently on Windows, MacOS and Android but not iOS. Use iOS "Speach to Roam" shortcut instead.
+
 ![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
 
 By default, the controls will be inserted in the left sidebar. It's possible to display them in the topbar (always visible).
