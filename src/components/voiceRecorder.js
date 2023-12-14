@@ -12,12 +12,7 @@ import { closeStream, getMediaRecorderStream } from "../audio";
 import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import { addContentToBlock, insertBlockInCurrentView } from "../utils";
 import { Timer } from "./timer";
-import {
-  OPENAI_API_KEY,
-  chatRoles,
-  isTranslateIconDisplayed,
-  isUsingWhisper,
-} from "..";
+import { chatRoles, isTranslateIconDisplayed, isUsingWhisper } from "..";
 
 function VoiceRecorder(props) {
   let {
@@ -28,6 +23,7 @@ function VoiceRecorder(props) {
     completionOnly,
     mic,
     position,
+    openai,
   } = props;
   const [isListening, setIsListening] = useState(startRecording ? true : false);
   const [currentBlock, setCurrentBlock] = useState(blockUid);
@@ -219,7 +215,7 @@ function VoiceRecorder(props) {
       block: { string: chatRoles.assistant, uid: uid },
     });
     const intervalId = await displaySpinner(uid);
-    const gptResponse = await gptCompletion(prompt);
+    const gptResponse = await gptCompletion(prompt, openai);
     removeSpinner(intervalId);
     addContentToBlock(uid, gptResponse);
   };
@@ -230,7 +226,7 @@ function VoiceRecorder(props) {
       currentElement = document.querySelector(`[id*="${targetUid}"]`);
       spinner = document.createElement("strong");
       spinner.classList.add("speech-spinner");
-      currentElement.appendChild(spinner);
+      if (currentElement) currentElement.appendChild(spinner);
       intervalId = setInterval(() => {
         updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
       }, 600);
@@ -269,14 +265,15 @@ function VoiceRecorder(props) {
     // console.log(recording);
     let targetUid = currentBlock || (await insertBlockInCurrentView(""));
     const intervalId = await displaySpinner(targetUid);
+    const hasKey = openai && openai.key !== "";
     let transcribe =
       instantVoiceReco || recording
-        ? isUsingWhisper && OPENAI_API_KEY
-          ? await voiceProcessingCommand(recording)
+        ? isUsingWhisper && hasKey
+          ? await voiceProcessingCommand(recording, openai)
           : instantVoiceReco
         : "Nothing has been recorded!";
     console.log("SpeechAPI: " + instantVoiceReco);
-    if (isUsingWhisper && OPENAI_API_KEY) console.log("Whisper: " + transcribe);
+    if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
     if (transcribe === null) {
       transcribe =
         instantVoiceReco +

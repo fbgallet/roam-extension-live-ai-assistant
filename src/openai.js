@@ -1,26 +1,24 @@
 import OpenAI from "openai";
 import {
-  OPENAI_API_KEY,
   gptCustomModel,
   gptModel,
   transcriptionLanguage,
   whisperPrompt,
 } from ".";
 
-let openai;
-
-export function initializeOpenAIAPI() {
+export function initializeOpenAIAPI(OPENAI_API_KEY) {
   try {
-    openai = new OpenAI({
+    const openai = new OpenAI({
       apiKey: OPENAI_API_KEY,
       dangerouslyAllowBrowser: true,
     });
+    return openai;
   } catch (error) {
     console.log(error.message);
   }
 }
 
-export async function transcribeAudio(filename) {
+export async function transcribeAudio(filename, openai) {
   // let audioFile = new File([filename], "myaudio.ogg", {
   //   type: "audio/ogg; codecs=opus",
   // });
@@ -43,7 +41,8 @@ export async function transcribeAudio(filename) {
   }
 }
 
-export async function translateAudio(filename) {
+export async function translateAudio(filename, openai) {
+  console.log("openai :>> ", openai);
   if (!openai) return null;
   try {
     const options = {
@@ -62,7 +61,7 @@ export async function translateAudio(filename) {
   }
 }
 
-export async function gptPostProcessing(text) {
+export async function gptPostProcessing(text, openai) {
   console.log("text: ", text);
   try {
     const postProcessedText = await openai.completions.create({
@@ -80,7 +79,7 @@ export async function gptPostProcessing(text) {
   }
 }
 
-export async function gptCompletion(prompt, model, context) {
+export async function gptCompletion(prompt, model, context, openai) {
   try {
     const response = await openai.chat.completions.create({
       model: model || (gptModel === "custom model" ? gptCustomModel : gptModel),

@@ -4,7 +4,7 @@ import App from "./App";
 import { initializeOpenAIAPI, supportedLanguage } from "./openai";
 import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
 
-export let OPENAI_API_KEY = "";
+let OPENAI_API_KEY = "";
 export let isUsingWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
@@ -14,6 +14,7 @@ export let gptModel;
 export let gptCustomModel;
 export let chatRoles;
 let position;
+let openai;
 
 function mountComponent(props) {
   let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -40,9 +41,11 @@ function mountComponent(props) {
     navigator.userAgent.indexOf("Firefox") === -1
       ? getSpeechRecognitionAPI()
       : null;
-
-  console.log("container", container);
-  ReactDOM.render(<App blockUid={currentBlockUid} {...props} />, container);
+  // console.log("container", container);
+  ReactDOM.render(
+    <App openai={openai} blockUid={currentBlockUid} {...props} />,
+    container
+  );
 }
 
 function unmountComponent() {
@@ -52,11 +55,10 @@ function unmountComponent() {
 
 function createContainer(isInline, activeElement) {
   // console.log("activeElement:", activeElement);
-  if (isInline)
-    activeElement = document.getElementById(
-      "block-input-Ex3lB2F6lbcG2lBxdsJzPNzQXn53-body-outline-12-08-2023-HzvQSfNhv"
-    );
-  console.log(activeElement);
+  // if (isInline)
+  //   activeElement = document.getElementById(
+  //     "block-input-Ex3lB2F6lbcG2lBxdsJzPNzQXn53-body-outline-12-08-2023-HzvQSfNhv"
+  //   );
   const rootPosition = isInline
     ? activeElement
     : position === "top"
@@ -133,10 +135,14 @@ const panelConfig = {
       action: {
         type: "input",
         onChange: (evt) => {
-          OPENAI_API_KEY = evt.target.value;
-          initializeOpenAIAPI();
           unmountComponent();
-          mountComponent();
+          setTimeout(() => {
+            OPENAI_API_KEY = evt.target.value;
+            openai = initializeOpenAIAPI(OPENAI_API_KEY);
+          }, 200);
+          setTimeout(() => {
+            mountComponent();
+          }, 200);
         },
       },
     },
@@ -262,42 +268,42 @@ export default {
     extensionAPI.settings.panel.create(panelConfig);
 
     // get settings from setting panel
-    if (extensionAPI.settings.get("position") === null)
+    if ((await extensionAPI.settings.get("position")) === null)
       extensionAPI.settings.set("position", "left");
     position =
       (await extensionAPI.settings.get("position")) === "topbar"
         ? "top"
         : "left";
-    if (extensionAPI.settings.get("whisper") === null)
-      extensionAPI.settings.set("whisper", true);
+    if ((await extensionAPI.settings.get("whisper")) === null)
+      await extensionAPI.settings.set("whisper", true);
     isUsingWhisper = await extensionAPI.settings.get("whisper");
-    if (extensionAPI.settings.get("openaiapi") === null)
+    if ((await extensionAPI.settings.get("openaiapi")) === null)
       extensionAPI.settings.set("openaiapi", "");
     OPENAI_API_KEY = await extensionAPI.settings.get("openaiapi");
-    if (extensionAPI.settings.get("transcriptionLgg") === null)
+    if ((await extensionAPI.settings.get("transcriptionLgg")) === null)
       extensionAPI.settings.set("transcriptionLgg", "");
     transcriptionLanguage = await extensionAPI.settings.get("transcriptionLgg");
-    if (extensionAPI.settings.get("speechLgg") === null)
+    if ((await extensionAPI.settings.get("speechLgg")) === null)
       extensionAPI.settings.set("speechLgg", "Browser default");
     speechLanguage = await extensionAPI.settings.get("speechLgg");
-    if (extensionAPI.settings.get("prompt") === null)
+    if ((await extensionAPI.settings.get("prompt")) === null)
       extensionAPI.settings.set("prompt", "");
     whisperPrompt = await extensionAPI.settings.get("prompt");
-    if (extensionAPI.settings.get("translateIcon") === null)
+    if ((await extensionAPI.settings.get("translateIcon")) === null)
       extensionAPI.settings.set("translateIcon", true);
     isTranslateIconDisplayed = await extensionAPI.settings.get("translateIcon");
-    if (extensionAPI.settings.get("gptModel") === null)
+    if ((await extensionAPI.settings.get("gptModel")) === null)
       extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-1106");
     gptModel = await extensionAPI.settings.get("gptModel");
-    if (extensionAPI.settings.get("gptCustomModel") === null)
+    if ((await extensionAPI.settings.get("gptCustomModel")) === null)
       extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = await extensionAPI.settings.get("gptCustomModel");
-    if (extensionAPI.settings.get("chatRoles") === null)
+    if ((await extensionAPI.settings.get("chatRoles")) === null)
       await extensionAPI.settings.set("chatRoles", "Me: ,AI assistant: ");
     const chatRolesStr =
       (await extensionAPI.settings.get(chatRoles)) || "Me: ,AI assistant: ";
     chatRoles = getRolesFromString(chatRolesStr);
-    initializeOpenAIAPI();
+    if (OPENAI_API_KEY) openai = initializeOpenAIAPI(OPENAI_API_KEY);
     createContainer();
 
     extensionAPI.ui.commandPalette.addCommand({
