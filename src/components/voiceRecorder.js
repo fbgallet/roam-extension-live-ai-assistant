@@ -136,7 +136,7 @@ function VoiceRecorder(props) {
           .map((result) => result[0])
           .map((result) => result.transcript)
           .join("");
-        console.log(transcript);
+        // console.log(transcript);
         setinstantVoiceReco(transcript);
         mic.onerror = (event) => {
           console.log(event.error);
@@ -154,7 +154,6 @@ function VoiceRecorder(props) {
 
   const initialize = (complete = true) => {
     setTime(0);
-    setinstantVoiceReco("");
     setRecording(complete ? null : undefined);
     if (complete) {
       setIsToDisplay({
@@ -165,6 +164,7 @@ function VoiceRecorder(props) {
       closeStream();
     }
     audioChunk.current = [];
+    setinstantVoiceReco("");
   };
 
   const handleKeys = async (e) => {
@@ -234,7 +234,7 @@ function VoiceRecorder(props) {
       intervalId = setInterval(() => {
         updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
       }, 600);
-    }, 100);
+    }, 20);
     return intervalId;
 
     function updateSpinnerText(container, frames) {
@@ -246,8 +246,10 @@ function VoiceRecorder(props) {
 
   const removeSpinner = (intervalId) => {
     clearInterval(intervalId);
+    // setTimeout(() => {
     let spinner = document.querySelector(".speech-spinner");
-    spinner.remove();
+    if (spinner) spinner.remove();
+    // }, 100);
   };
 
   const voiceProcessing = async (voiceProcessingCommand, toChain) => {
@@ -280,7 +282,6 @@ function VoiceRecorder(props) {
         instantVoiceReco +
         (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
     }
-    setinstantVoiceReco("");
     const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);

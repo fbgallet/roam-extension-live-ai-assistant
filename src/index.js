@@ -126,7 +126,7 @@ const panelConfig = {
           <span>Copy here your OpenAI API key </span>
           <br></br>
           <a href="https://platform.openai.com/api-keys" target="_blank">
-            (Follow this link to retrieve it or create a new one.)
+            (Follow this link to generate a new one)
           </a>
         </>
       ),
@@ -143,8 +143,19 @@ const panelConfig = {
     {
       id: "transcriptionLgg",
       name: "Transcription language",
-      description:
-        "You can enter your language code (ISO 639-1) for better transcription (option):",
+      description: (
+        <>
+          <span>Your language code for better transcription (optional)</span>
+          <br></br>
+          e.g.: en, es, fr...{" "}
+          <a
+            href="https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes"
+            target="_blank"
+          >
+            (See ISO 639-1 codes here)
+          </a>
+        </>
+      ),
       action: {
         type: "input",
         onChange: (evt) => {

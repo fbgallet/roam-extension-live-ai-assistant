@@ -88,15 +88,23 @@
   .speech-to-roam-container-top:has(.timer) {
     position: relative;
     top: 20px;
+    z-index: 1;
   }
   .speech-to-roam-container-top:has(.timer) .speech-ui-row1 {
     margin-bottom: 7px;
   }
+  .speech-to-roam-container-top:has(.timer) + .bp3-button {
+    display: none;
+  }
+
   .speech-ui-row1:has(.timer),
   .speech-ui-row2 {
     justify-content: flex-start;
     gap: 5px;
     scale: 1.25;
+  }
+  .speech-ui-row1:has(.timer) > div.log-button {
+    margin-left: 0 !important;
   }
   .speech-ui-row1:has(.timer) .bp3-icon,
   .speech-ui-row1:has(.timer) .log-button:nth-child(2),
