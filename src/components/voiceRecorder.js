@@ -18,6 +18,7 @@ import {
   isTranslateIconDisplayed,
   isUsingWhisper,
 } from "..";
+import MicRecorder from "../mic-recorder.js";
 
 function VoiceRecorder(props) {
   let {
@@ -42,8 +43,13 @@ function VoiceRecorder(props) {
   const [time, setTime] = useState(0);
 
   const audioChunk = useRef([]);
-  const [recording, setRecording] = useState(null);
+  const [recording, setRecording] = useState(true);
   const mediaRecorderRef = useRef(null);
+  const [recorder, setRecorder] = useState(
+    new MicRecorder({
+      bitRate: 128,
+    })
+  );
 
   useEffect(() => {
     //console.log("Voice recorder component mounted", props);
@@ -77,34 +83,34 @@ function VoiceRecorder(props) {
 
     setCurrentBlock(window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
 
-    mediaRecorderRef.current = await getMediaRecorderStream(audioChunk);
-    mediaRecorderRef.current.start(1000);
+    // mediaRecorderRef.current = await getMediaRecorderStream(audioChunk);
+    // mediaRecorderRef.current.start(1000);
 
-    mediaRecorderRef.current.onstop = async (e) => {
-      console.log("End to record");
-      const audioBlob = new Blob(audioChunk.current);
-      // const audioFile = new File([audioBlob], "audio.ogg", {
-      //   type: "audio/ogg; codecs=opus",
-      // });
-      const audioFile = new File(
-        [audioBlob],
-        isSafari ? "audio.m4a" : "audio.webm",
-        {
-          type: isSafari ? "audio/mp4" : "audio/webm",
-        }
-      );
-      console.log("audioFile :>> ", audioFile);
-      setRecording(audioFile);
-    };
+    // mediaRecorderRef.current.onstop = async (e) => {
+    //   console.log("End to record");
+    //   const audioBlob = new Blob(audioChunk.current);
+    //   // const audioFile = new File([audioBlob], "audio.ogg", {
+    //   //   type: "audio/ogg; codecs=opus",
+    //   // });
+    //   const audioFile = new File(
+    //     [audioBlob],
+    //     isSafari ? "audio.m4a" : "audio.webm",
+    //     {
+    //       type: isSafari ? "audio/mp4" : "audio/webm",
+    //     }
+    //   );
+    //   console.log("audioFile :>> ", audioFile);
+    //   setRecording(audioFile);
+    // };
   };
 
   const stopRec = async () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "recording"
-    ) {
-      await mediaRecorderRef.current.stop();
-    }
+    // if (
+    //   mediaRecorderRef.current &&
+    //   mediaRecorderRef.current.state === "recording"
+    // ) {
+    //   await mediaRecorderRef.current.stop();
+    // }
   };
 
   useEffect(() => {
@@ -123,7 +129,15 @@ function VoiceRecorder(props) {
       }
 
       // record
-      startRec();
+      //startRec();
+      recorder
+        .start()
+        .then(() => {
+          console.log("recording");
+        })
+        .catch((e) => {
+          console.error(e);
+        });
     } else {
       // recognition
       if (mic) {
@@ -134,7 +148,16 @@ function VoiceRecorder(props) {
       }
 
       // record
-      await stopRec();
+      //await stopRec();
+      recorder
+        .pause()
+        .then(() => {
+          console.log("in pause");
+        })
+        .catch((e) => {
+          console.error(e);
+        });
+      console.log("recorder after pause:>> ", recorder);
     }
     if (mic) {
       mic.onstart = () => {
@@ -152,6 +175,25 @@ function VoiceRecorder(props) {
         };
       };
     }
+  };
+
+  const getFileOnStop = async () => {
+    console.log("recorder :>> ", recorder);
+    recorder
+      .stop()
+      .getMp3()
+      .then(([buffer, blob]) => {
+        console.log(buffer, blob);
+        const file = new File(buffer, "music.mp3", {
+          type: blob.type,
+          lastModified: Date.now(),
+        });
+        console.log("file :>> ", file);
+        return file;
+      })
+      .catch((e) => {
+        console.error(e);
+      });
   };
 
   const handleBackward = () => {
@@ -276,34 +318,49 @@ function VoiceRecorder(props) {
     }
     // Transcribe audio
     // console.log(recording);
-    let targetUid = currentBlock || (await insertBlockInCurrentView(""));
-    const intervalId = await displaySpinner(targetUid);
-    const hasKey = openai && openai.key !== "";
-    let transcribe =
-      instantVoiceReco || recording
-        ? isUsingWhisper && hasKey
-          ? await voiceProcessingCommand(recording, openai)
-          : instantVoiceReco
-        : "Nothing has been recorded!";
-    console.log("SpeechAPI: " + instantVoiceReco);
-    if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
-    if (transcribe === null) {
-      transcribe =
-        instantVoiceReco +
-        (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
-    }
-    const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
-    removeSpinner(intervalId);
-    addContentToBlock(targetUid, toInsert);
-    // currentBlock
-    //   ? addContentToBlock(currentBlock, toInsert)
-    //   : (newBlock = await insertBlockInCurrentView(toInsert));
-    initialize();
-    if (toChain) {
-      return { prompt: transcribe, location: targetUid };
-    }
-    // const node = document.getElementsByClassName("speech-to-roam-container")[0];
-    // ReactDOM.unmountComponentAtNode(node);
+    // let audioFile = await getFileOnStop();
+    recorder
+      .stop()
+      .getMp3MimeAudioMpeg()
+      .then(async ([buffer, blob]) => {
+        console.log(buffer, blob);
+        const audioFile = new File(buffer, "music.mpeg", {
+          type: blob.type,
+          lastModified: Date.now(),
+        });
+        console.log("file :>> ", audioFile);
+        let targetUid = currentBlock || (await insertBlockInCurrentView(""));
+        const intervalId = await displaySpinner(targetUid);
+        const hasKey = openai && openai.key !== "";
+        let transcribe =
+          instantVoiceReco || audioFile
+            ? isUsingWhisper && hasKey
+              ? await voiceProcessingCommand(audioFile, openai)
+              : instantVoiceReco
+            : "Nothing has been recorded!";
+        console.log("SpeechAPI: " + instantVoiceReco);
+        if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
+        if (transcribe === null) {
+          transcribe =
+            instantVoiceReco +
+            (toChain
+              ? ""
+              : " (⚠️ native recognition, verify your OpenAI API key)");
+        }
+        const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
+        removeSpinner(intervalId);
+        addContentToBlock(targetUid, toInsert);
+        // currentBlock
+        //   ? addContentToBlock(currentBlock, toInsert)
+        //   : (newBlock = await insertBlockInCurrentView(toInsert));
+        initialize();
+        if (toChain) {
+          return { prompt: transcribe, location: targetUid };
+        }
+      })
+      .catch((e) => {
+        console.error(e);
+      });
   };
 
   // JSX
@@ -367,7 +424,7 @@ function VoiceRecorder(props) {
         >
           {mainContent()}
         </span>
-        {!isListening && recording === null && (
+        {!isListening && recorder.activeStream === null && (
           <span
             //class="log-button"
             // class="bp3-button bp3-minimal bp3-small"
@@ -430,7 +487,7 @@ function VoiceRecorder(props) {
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
             onClick={command}
-            disabled={!recording}
+            disabled={!recorder.activeStream}
             class="bp3-button bp3-minimal bp3-small speech-command"
             tabindex="0"
             {...props}
@@ -449,13 +506,13 @@ function VoiceRecorder(props) {
         {position === "left"
           ? jsxLogMainDisplay(mainProps)
           : jsxBp3MainDisplay(mainProps)}
-        {(isListening || recording !== null) &&
+        {(isListening || recorder.activeStream !== null) &&
           (position === "left"
             ? jsxLogTimerWrapper(timerProps)
             : jsxBp3TimerWrapper(timerProps))}
       </div>
       <div class="speech-ui-row2">
-        {(isListening || recording !== null) &&
+        {(isListening || recorder.activeStream !== null) &&
           isToDisplay.transcribeIcon &&
           jsxCommandIcon(
             { title: "Transcribe voice to Text (T or Enter)" },
@@ -466,7 +523,7 @@ function VoiceRecorder(props) {
               </>
             )
           )}{" "}
-        {(isListening || recording !== null) &&
+        {(isListening || recorder.activeStream !== null) &&
           isToDisplay.translateIcon &&
           jsxCommandIcon(
             { title: "Translate voice to English text (E)" },
@@ -477,7 +534,7 @@ function VoiceRecorder(props) {
               </>
             )
           )}
-        {(isListening || recording !== null) &&
+        {(isListening || recorder.activeStream !== null) &&
           isToDisplay.completionIcon &&
           jsxCommandIcon(
             {

@@ -19,10 +19,10 @@ export async function getMediaRecorderStream(audioChunk) {
 }
 
 export function closeStream() {
-  stream.getTracks().forEach((track) => {
-    track.stop();
-    track.enabled = false;
-  });
+  // stream.getTracks().forEach((track) => {
+  //   track.stop();
+  //   track.enabled = false;
+  // });
   const audioContext = new AudioContext();
   audioContext.close;
   const microphone = audioContext.createMediaStreamSource(stream);
