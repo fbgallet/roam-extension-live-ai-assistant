@@ -15,6 +15,10 @@ export let gptCustomModel;
 export let chatRoles;
 let position;
 let openai;
+export let isSafari = /^((?!chrome|android).)*safari/i.test(
+  navigator.userAgent
+);
+console.log("isSafari :>> ", isSafari);
 
 function mountComponent(props) {
   let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];

@@ -1,13 +1,14 @@
-import { speechLanguage } from ".";
+import { isSafari, speechLanguage } from ".";
 
 let stream;
 
 export async function getMediaRecorderStream(audioChunk) {
   const options = {
     audio: true,
+    mimeType: isSafari ? "audio/mp4" : "audio/webm",
   };
   stream = await navigator.mediaDevices.getUserMedia(options);
-  const mediaRecorder = new MediaRecorder(stream);
+  const mediaRecorder = new MediaRecorder(stream, options);
   mediaRecorder.ondataavailable = (e) => {
     if (e.data.size > 0) {
       // save the data

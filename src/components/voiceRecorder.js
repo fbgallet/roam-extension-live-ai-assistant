@@ -12,7 +12,12 @@ import { closeStream, getMediaRecorderStream } from "../audio";
 import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import { addContentToBlock, insertBlockInCurrentView } from "../utils";
 import { Timer } from "./timer";
-import { chatRoles, isTranslateIconDisplayed, isUsingWhisper } from "..";
+import {
+  chatRoles,
+  isSafari,
+  isTranslateIconDisplayed,
+  isUsingWhisper,
+} from "..";
 
 function VoiceRecorder(props) {
   let {
@@ -78,9 +83,17 @@ function VoiceRecorder(props) {
     mediaRecorderRef.current.onstop = async (e) => {
       console.log("End to record");
       const audioBlob = new Blob(audioChunk.current);
-      const audioFile = new File([audioBlob], "audio.ogg", {
-        type: "audio/ogg; codecs=opus",
-      });
+      // const audioFile = new File([audioBlob], "audio.ogg", {
+      //   type: "audio/ogg; codecs=opus",
+      // });
+      const audioFile = new File(
+        [audioBlob],
+        isSafari ? "audio.m4a" : "audio.webm",
+        {
+          type: isSafari ? "audio/mp4" : "audio/webm",
+        }
+      );
+      console.log("audioFile :>> ", audioFile);
       setRecording(audioFile);
     };
   };
