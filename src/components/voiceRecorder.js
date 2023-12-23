@@ -86,8 +86,11 @@ function VoiceRecorder({
     };
   }, [isListening]);
 
-  React.useEffect(() => {
-    if (lastCommand.current === transcribeAudio) voiceProcessing();
+  React.useEffect(async () => {
+    if (lastCommand.current) {
+      if (lastCommand.current === gptCompletion) handleCompletion();
+      else voiceProcessing();
+    }
   }, [defaultRecord]);
 
   // useEffect(() => {
@@ -186,7 +189,7 @@ function VoiceRecorder({
   };
 
   const handleBackward = () => {
-    lastCommand.current = handleBackward;
+    // lastCommand.current = handleBackward;
     console.log("click on backward");
     initialize(time ? false : true);
     if (isListening) {
@@ -197,12 +200,13 @@ function VoiceRecorder({
   const initialize = (complete = true) => {
     if (isSafari) safariRecorder.current.clear();
     else {
+      lastCommand.current = null;
       audioChunk.current = [];
       setDefaultRecord(complete ? null : undefined);
     }
     if (complete) {
       closeStream();
-      lastCommand.current = null;
+
       setIsToDisplay({
         transcribeIcon: true,
         translateIcon: isTranslateIconDisplayed || translateOnly,
@@ -214,22 +218,24 @@ function VoiceRecorder({
     setinstantVoiceReco("");
   };
 
-  const handleTranscribe = async (e) => {
-    // if (e.shiftKey) {
-    //   console.log("shift");
-    // }
+  const handleTranscribe = () => {
     lastCommand.current = transcribeAudio;
-    await voiceProcessing();
+    voiceProcessing();
   };
 
-  const handleTranslate = async () => {
+  const handleTranslate = () => {
     lastCommand.current = translateAudio;
-    await voiceProcessing();
+    voiceProcessing();
   };
 
   const handleCompletion = async () => {
-    lastCommand = gptCompletion;
-    const { prompt, location } = await voiceProcessing();
+    lastCommand.current = gptCompletion;
+    const result = await voiceProcessing();
+    if (!result) return;
+    insertCompletion(result);
+  };
+
+  const insertCompletion = async ({ prompt, location }) => {
     const uid = window.roamAlphaAPI.util.generateUID();
     window.roamAlphaAPI.createBlock({
       location: { "parent-uid": location, order: "last" },
@@ -243,6 +249,7 @@ function VoiceRecorder({
 
   const voiceProcessing = async () => {
     if (isListening) {
+      console.log("still listening");
       setIsListening(false);
       return;
     }
@@ -266,12 +273,12 @@ function VoiceRecorder({
           console.error(e);
         });
     } else {
-      if (defaultRecord) await audioFileProcessing(defaultRecord);
+      return await audioFileProcessing(defaultRecord);
     }
   };
 
   const audioFileProcessing = async (audioFile) => {
-    console.log("file :>> ", audioFile);
+    console.log("audioFile :>> ", audioFile);
     let toChain = false;
     let voiceProcessingCommand = lastCommand.current;
     if (lastCommand.current === gptCompletion) {

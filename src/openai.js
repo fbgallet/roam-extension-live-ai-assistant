@@ -79,7 +79,7 @@ export async function gptPostProcessing(text, openai) {
   }
 }
 
-export async function gptCompletion(prompt, model, context, openai) {
+export async function gptCompletion(prompt, openai, model, context) {
   try {
     const response = await openai.chat.completions.create({
       model: model || (gptModel === "custom model" ? gptCustomModel : gptModel),
