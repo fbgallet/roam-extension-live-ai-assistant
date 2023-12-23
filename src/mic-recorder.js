@@ -11,7 +11,7 @@ class MicRecorder {
       // prevents getting audio from the microphone a few milliseconds after
       // the begining of the recording. It also helps to remove the mouse
       // "click" sound from the output mp3 file.
-      startRecordingAt: 300,
+      startRecordingAt: 150,
       deviceId: null,
     };
 
@@ -150,6 +150,10 @@ class MicRecorder {
     }
 
     return this;
+  }
+
+  clear() {
+    this.lameEncoder.clearBuffer();
   }
 
   /**

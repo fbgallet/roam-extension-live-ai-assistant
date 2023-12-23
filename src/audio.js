@@ -5,24 +5,24 @@ let stream;
 export async function getMediaRecorderStream(audioChunk) {
   const options = {
     audio: true,
-    mimeType: isSafari ? "audio/mp4" : "audio/webm",
+    mimeType: "audio/webm",
   };
   stream = await navigator.mediaDevices.getUserMedia(options);
   const mediaRecorder = new MediaRecorder(stream, options);
   mediaRecorder.ondataavailable = (e) => {
     if (e.data.size > 0) {
       // save the data
-      audioChunk.current.push(e.data);
+      audioChunk.push(e.data);
     }
   };
   return mediaRecorder;
 }
 
 export function closeStream() {
-  // stream.getTracks().forEach((track) => {
-  //   track.stop();
-  //   track.enabled = false;
-  // });
+  stream.getTracks().forEach((track) => {
+    track.stop();
+    track.enabled = false;
+  });
   const audioContext = new AudioContext();
   audioContext.close;
   const microphone = audioContext.createMediaStreamSource(stream);

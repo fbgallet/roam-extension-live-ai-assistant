@@ -10,7 +10,12 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 //import "./App.css";
 import { closeStream, getMediaRecorderStream } from "../audio";
 import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
-import { addContentToBlock, insertBlockInCurrentView } from "../utils";
+import {
+  addContentToBlock,
+  displaySpinner,
+  insertBlockInCurrentView,
+  removeSpinner,
+} from "../utils";
 import { Timer } from "./timer";
 import {
   chatRoles,
@@ -20,19 +25,17 @@ import {
 } from "..";
 import MicRecorder from "../mic-recorder.js";
 
-function VoiceRecorder(props) {
-  let {
-    blockUid,
-    startRecording,
-    transcribeOnly,
-    translateOnly,
-    completionOnly,
-    mic,
-    position,
-    openai,
-  } = props;
+function VoiceRecorder({
+  blockUid,
+  startRecording,
+  transcribeOnly,
+  translateOnly,
+  completionOnly,
+  mic,
+  position,
+  openai,
+}) {
   const [isListening, setIsListening] = useState(startRecording ? true : false);
-  const [currentBlock, setCurrentBlock] = useState(blockUid);
   const [isToDisplay, setIsToDisplay] = useState({
     transcribeIcon: !translateOnly && !completionOnly,
     translateIcon:
@@ -41,15 +44,18 @@ function VoiceRecorder(props) {
   });
   const [instantVoiceReco, setinstantVoiceReco] = useState(null);
   const [time, setTime] = useState(0);
+  const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
+  const [defaultRecord, setDefaultRecord] = useState(null);
 
   const audioChunk = useRef([]);
-  const [recording, setRecording] = useState(true);
   const mediaRecorderRef = useRef(null);
-  const [recorder, setRecorder] = useState(
+  const safariRecorder = useRef(
     new MicRecorder({
       bitRate: 128,
     })
   );
+  let lastCommand = useRef(null);
+  let block = useRef(blockUid);
 
   useEffect(() => {
     //console.log("Voice recorder component mounted", props);
@@ -66,6 +72,8 @@ function VoiceRecorder(props) {
   React.useEffect(() => {
     let interval = null;
 
+    handleListen();
+
     if (isListening) {
       interval = setInterval(() => {
         setTime((time) => time + 10);
@@ -78,46 +86,15 @@ function VoiceRecorder(props) {
     };
   }, [isListening]);
 
-  const startRec = async () => {
-    console.log("Start to record");
+  React.useEffect(() => {
+    if (lastCommand.current === transcribeAudio) voiceProcessing();
+  }, [defaultRecord]);
 
-    setCurrentBlock(window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
+  // useEffect(() => {
+  //   handleListen();
+  // }, [isListening]);
 
-    // mediaRecorderRef.current = await getMediaRecorderStream(audioChunk);
-    // mediaRecorderRef.current.start(1000);
-
-    // mediaRecorderRef.current.onstop = async (e) => {
-    //   console.log("End to record");
-    //   const audioBlob = new Blob(audioChunk.current);
-    //   // const audioFile = new File([audioBlob], "audio.ogg", {
-    //   //   type: "audio/ogg; codecs=opus",
-    //   // });
-    //   const audioFile = new File(
-    //     [audioBlob],
-    //     isSafari ? "audio.m4a" : "audio.webm",
-    //     {
-    //       type: isSafari ? "audio/mp4" : "audio/webm",
-    //     }
-    //   );
-    //   console.log("audioFile :>> ", audioFile);
-    //   setRecording(audioFile);
-    // };
-  };
-
-  const stopRec = async () => {
-    // if (
-    //   mediaRecorderRef.current &&
-    //   mediaRecorderRef.current.state === "recording"
-    // ) {
-    //   await mediaRecorderRef.current.stop();
-    // }
-  };
-
-  useEffect(() => {
-    handleListen();
-  }, [isListening]);
-
-  const handleListen = async () => {
+  const handleListen = () => {
     // recognition if not in Electron App or Firefox browser
     if (isListening) {
       if (mic) {
@@ -127,17 +104,7 @@ function VoiceRecorder(props) {
           mic.start();
         };
       }
-
-      // record
-      //startRec();
-      recorder
-        .start()
-        .then(() => {
-          console.log("recording");
-        })
-        .catch((e) => {
-          console.error(e);
-        });
+      startRec();
     } else {
       // recognition
       if (mic) {
@@ -146,18 +113,7 @@ function VoiceRecorder(props) {
           console.log("Stopped Mic on Click");
         };
       }
-
-      // record
-      //await stopRec();
-      recorder
-        .pause()
-        .then(() => {
-          console.log("in pause");
-        })
-        .catch((e) => {
-          console.error(e);
-        });
-      console.log("recorder after pause:>> ", recorder);
+      stopRec();
     }
     if (mic) {
       mic.onstart = () => {
@@ -177,45 +133,174 @@ function VoiceRecorder(props) {
     }
   };
 
-  const getFileOnStop = async () => {
-    console.log("recorder :>> ", recorder);
-    recorder
-      .stop()
-      .getMp3()
-      .then(([buffer, blob]) => {
-        console.log(buffer, blob);
-        const file = new File(buffer, "music.mp3", {
-          type: blob.type,
-          lastModified: Date.now(),
+  const startRec = async () => {
+    console.log("Start to record");
+
+    block.current = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+
+    if (isSafari) {
+      safariRecorder.current
+        .start()
+        .then(() => {
+          console.log("recording");
+        })
+        .catch((e) => {
+          console.error(e);
         });
-        console.log("file :>> ", file);
-        return file;
-      })
-      .catch((e) => {
-        console.error(e);
-      });
+    } else {
+      mediaRecorderRef.current = await getMediaRecorderStream(
+        audioChunk.current
+      );
+      mediaRecorderRef.current.start();
+
+      mediaRecorderRef.current.onstop = (e) => {
+        console.log("End to record");
+        const audioBlob = new Blob(audioChunk.current);
+        const audioFile = new File([audioBlob], "audio.webm", {
+          type: "audio/webm",
+        });
+        if (audioFile.size) setDefaultRecord(audioFile);
+      };
+    }
+    setAreCommandsToDisplay(true);
+  };
+
+  const stopRec = () => {
+    if (isSafari) {
+      safariRecorder.current
+        .pause()
+        .then(() => {
+          console.log("in pause");
+        })
+        .catch((e) => {
+          console.error(e);
+        });
+    } else {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state === "recording"
+      ) {
+        mediaRecorderRef.current.stop();
+      }
+    }
   };
 
   const handleBackward = () => {
+    lastCommand.current = handleBackward;
+    console.log("click on backward");
+    initialize(time ? false : true);
     if (isListening) {
       setIsListening(false);
     }
-    initialize(time ? false : true);
   };
 
   const initialize = (complete = true) => {
-    setTime(0);
-    setRecording(complete ? null : undefined);
+    if (isSafari) safariRecorder.current.clear();
+    else {
+      audioChunk.current = [];
+      setDefaultRecord(complete ? null : undefined);
+    }
     if (complete) {
+      closeStream();
+      lastCommand.current = null;
       setIsToDisplay({
         transcribeIcon: true,
         translateIcon: isTranslateIconDisplayed || translateOnly,
         completionIcon: true,
       });
-      closeStream();
+      setAreCommandsToDisplay(false);
     }
-    audioChunk.current = [];
+    setTime(0);
     setinstantVoiceReco("");
+  };
+
+  const handleTranscribe = async (e) => {
+    // if (e.shiftKey) {
+    //   console.log("shift");
+    // }
+    lastCommand.current = transcribeAudio;
+    await voiceProcessing();
+  };
+
+  const handleTranslate = async () => {
+    lastCommand.current = translateAudio;
+    await voiceProcessing();
+  };
+
+  const handleCompletion = async () => {
+    lastCommand = gptCompletion;
+    const { prompt, location } = await voiceProcessing();
+    const uid = window.roamAlphaAPI.util.generateUID();
+    window.roamAlphaAPI.createBlock({
+      location: { "parent-uid": location, order: "last" },
+      block: { string: chatRoles.assistant, uid: uid },
+    });
+    const intervalId = await displaySpinner(uid);
+    const gptResponse = await gptCompletion(prompt, openai);
+    removeSpinner(intervalId);
+    addContentToBlock(uid, gptResponse);
+  };
+
+  const voiceProcessing = async () => {
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+    if (!time || (!defaultRecord && !safariRecorder.current.activeStream)) {
+      console.log("no record available");
+      return;
+    }
+    // Transcribe audio
+    if (isSafari) {
+      safariRecorder.current
+        .stop()
+        .getMp3MimeAudioMpeg()
+        .then(async ([buffer, blob]) => {
+          const audioFile = new File(buffer, "music.mpeg", {
+            type: blob.type,
+            lastModified: Date.now(),
+          });
+          audioFileProcessing(audioFile);
+        })
+        .catch((e) => {
+          console.error(e);
+        });
+    } else {
+      if (defaultRecord) await audioFileProcessing(defaultRecord);
+    }
+  };
+
+  const audioFileProcessing = async (audioFile) => {
+    console.log("file :>> ", audioFile);
+    let toChain = false;
+    let voiceProcessingCommand = lastCommand.current;
+    if (lastCommand.current === gptCompletion) {
+      voiceProcessingCommand = transcribeAudio;
+      toChain = true;
+    }
+    let targetUid = block.current || (await insertBlockInCurrentView(""));
+    const intervalId = await displaySpinner(targetUid);
+    const hasKey = openai && openai.key !== "";
+    let transcribe =
+      instantVoiceReco || audioFile
+        ? isUsingWhisper && hasKey
+          ? await voiceProcessingCommand(audioFile, openai)
+          : instantVoiceReco
+        : "Nothing has been recorded!";
+    console.log("SpeechAPI: " + instantVoiceReco);
+    if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
+    if (transcribe === null) {
+      transcribe =
+        instantVoiceReco +
+        (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
+    }
+    const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
+    removeSpinner(intervalId);
+    addContentToBlock(targetUid, toInsert);
+    initialize(true);
+    if (toChain) {
+      return { prompt: transcribe, location: targetUid };
+    }
   };
 
   const handleKeys = async (e) => {
@@ -249,118 +334,6 @@ function VoiceRecorder(props) {
       handleCompletion(e);
       return;
     }
-  };
-
-  const handleTranscribe = async (e) => {
-    // if (e.shiftKey) {
-    //   console.log("shift");
-    // }
-    await voiceProcessing(transcribeAudio);
-  };
-
-  const handleTranslate = async () => {
-    await voiceProcessing(translateAudio);
-  };
-
-  const handleCompletion = async () => {
-    const { prompt, location } = await voiceProcessing(transcribeAudio, true);
-    const uid = window.roamAlphaAPI.util.generateUID();
-    window.roamAlphaAPI.createBlock({
-      location: { "parent-uid": location, order: "last" },
-      block: { string: chatRoles.assistant, uid: uid },
-    });
-    const intervalId = await displaySpinner(uid);
-    const gptResponse = await gptCompletion(prompt, openai);
-    removeSpinner(intervalId);
-    addContentToBlock(uid, gptResponse);
-  };
-
-  const displaySpinner = async (targetUid) => {
-    let currentElement, spinner, intervalId;
-    setTimeout(() => {
-      currentElement = document.querySelector(`[id*="${targetUid}"]`);
-      spinner = document.createElement("strong");
-      spinner.classList.add("speech-spinner");
-      if (currentElement) currentElement.appendChild(spinner);
-      intervalId = setInterval(() => {
-        updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
-      }, 600);
-    }, 20);
-    return intervalId;
-
-    function updateSpinnerText(container, frames) {
-      const currentIndex = frames.indexOf(container.innerText);
-      const nextIndex = currentIndex + 1 < frames.length ? currentIndex + 1 : 0;
-      container.innerText = frames[nextIndex];
-    }
-  };
-
-  const removeSpinner = (intervalId) => {
-    clearInterval(intervalId);
-    // setTimeout(() => {
-    let spinner = document.querySelector(".speech-spinner");
-    if (spinner) spinner.remove();
-    // }, 100);
-  };
-
-  const voiceProcessing = async (voiceProcessingCommand, toChain) => {
-    if (!recording) {
-      setIsListening(false);
-      setRecording(null);
-      return;
-    }
-    if (isListening) {
-      console.log("is listening");
-      setIsListening(false);
-      await handleListen();
-      // await stopRec();
-      // initialize(false);
-    }
-    // Transcribe audio
-    // console.log(recording);
-    // let audioFile = await getFileOnStop();
-    recorder
-      .stop()
-      .getMp3MimeAudioMpeg()
-      .then(async ([buffer, blob]) => {
-        console.log(buffer, blob);
-        const audioFile = new File(buffer, "music.mpeg", {
-          type: blob.type,
-          lastModified: Date.now(),
-        });
-        console.log("file :>> ", audioFile);
-        let targetUid = currentBlock || (await insertBlockInCurrentView(""));
-        const intervalId = await displaySpinner(targetUid);
-        const hasKey = openai && openai.key !== "";
-        let transcribe =
-          instantVoiceReco || audioFile
-            ? isUsingWhisper && hasKey
-              ? await voiceProcessingCommand(audioFile, openai)
-              : instantVoiceReco
-            : "Nothing has been recorded!";
-        console.log("SpeechAPI: " + instantVoiceReco);
-        if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
-        if (transcribe === null) {
-          transcribe =
-            instantVoiceReco +
-            (toChain
-              ? ""
-              : " (⚠️ native recognition, verify your OpenAI API key)");
-        }
-        const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
-        removeSpinner(intervalId);
-        addContentToBlock(targetUid, toInsert);
-        // currentBlock
-        //   ? addContentToBlock(currentBlock, toInsert)
-        //   : (newBlock = await insertBlockInCurrentView(toInsert));
-        initialize();
-        if (toChain) {
-          return { prompt: transcribe, location: targetUid };
-        }
-      })
-      .catch((e) => {
-        console.error(e);
-      });
   };
 
   // JSX
@@ -424,16 +397,17 @@ function VoiceRecorder(props) {
         >
           {mainContent()}
         </span>
-        {!isListening && recorder.activeStream === null && (
-          <span
-            //class="log-button"
-            // class="bp3-button bp3-minimal bp3-small"
-            // onClick={() => setIsListening((prevState) => !prevState)}
-            style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
-          >
-            Speech-to-Roam
-          </span>
-        )}
+        {!isListening &&
+          !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
+            <span
+              //class="log-button"
+              // class="bp3-button bp3-minimal bp3-small"
+              // onClick={() => setIsListening((prevState) => !prevState)}
+              style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
+            >
+              Speech-to-Roam
+            </span>
+          )}
       </div>
     );
   };
@@ -487,7 +461,8 @@ function VoiceRecorder(props) {
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
             onClick={command}
-            disabled={!recorder.activeStream}
+            // disabled={!safariRecorder.current.activeStream?.active}
+            disabled={!areCommandsToDisplay}
             class="bp3-button bp3-minimal bp3-small speech-command"
             tabindex="0"
             {...props}
@@ -506,13 +481,15 @@ function VoiceRecorder(props) {
         {position === "left"
           ? jsxLogMainDisplay(mainProps)
           : jsxBp3MainDisplay(mainProps)}
-        {(isListening || recorder.activeStream !== null) &&
+        {(isListening ||
+          areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           (position === "left"
             ? jsxLogTimerWrapper(timerProps)
             : jsxBp3TimerWrapper(timerProps))}
       </div>
       <div class="speech-ui-row2">
-        {(isListening || recorder.activeStream !== null) &&
+        {(isListening ||
+          areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.transcribeIcon &&
           jsxCommandIcon(
             { title: "Transcribe voice to Text (T or Enter)" },
@@ -523,7 +500,8 @@ function VoiceRecorder(props) {
               </>
             )
           )}{" "}
-        {(isListening || recorder.activeStream !== null) &&
+        {(isListening ||
+          areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.translateIcon &&
           jsxCommandIcon(
             { title: "Translate voice to English text (E)" },
@@ -534,7 +512,8 @@ function VoiceRecorder(props) {
               </>
             )
           )}
-        {(isListening || recorder.activeStream !== null) &&
+        {(isListening ||
+          areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.completionIcon &&
           jsxCommandIcon(
             {

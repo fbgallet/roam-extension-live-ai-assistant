@@ -15,9 +15,9 @@ export let gptCustomModel;
 export let chatRoles;
 let position;
 let openai;
-export let isSafari = /^((?!chrome|android).)*safari/i.test(
-  navigator.userAgent
-);
+export let isSafari =
+  /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+  window.roamAlphaAPI.platform.isIOS;
 console.log("isSafari :>> ", isSafari);
 
 function mountComponent(props) {
