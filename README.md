@@ -4,7 +4,7 @@
 
 ![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
 
-By default, the controls will be inserted in the left sidebar. It's possible to display them in the topbar (always visible).
+By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
 **Keyboard hotkeys** (available when recording):
 
@@ -18,6 +18,8 @@ By default, the controls will be inserted in the left sidebar. It's possible to 
 
 - Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
 - Record your Voice for transcription
+
+⚠️ Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers and on Windows desktop app. On Safari browser, a loss of the first two or three seconds of the recording may be observed.
 
 ### Voice transcription
 
