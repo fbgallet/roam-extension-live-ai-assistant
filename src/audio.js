@@ -1,4 +1,4 @@
-import { isSafari, speechLanguage } from ".";
+import { speechLanguage } from ".";
 
 let stream;
 
