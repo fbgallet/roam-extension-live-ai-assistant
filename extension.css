@@ -17,6 +17,9 @@
 .speech-record-button {
   min-width: 24px !important;
 }
+.speech-record-button > span {
+  margin-left: -2px;
+}
 .speech-record-button:focus,
 .speech-backward-button:focus {
   outline-width: 0px !important;
@@ -35,6 +38,9 @@
   min-height: 24px;
 }
 
+.speech-to-roam-container-top {
+  z-index: 1;
+}
 .speech-to-roam-container-top:has(.speech-ui-row2 > .bp3-popover-wrapper) {
   margin-top: 5px;
 }
@@ -103,7 +109,6 @@
   .speech-to-roam-container-top:has(.timer) {
     position: relative;
     top: 20px;
-    z-index: 1;
   }
   .speech-to-roam-container-top:has(.timer) .speech-ui-row1 {
     margin-bottom: 7px;

@@ -81,7 +81,7 @@ function createContainer(isInline, activeElement) {
     newElt,
     position === "top"
       ? rootPosition.firstChild
-      : document.querySelector(".starred-pages-wrapper")
+      : document.querySelector(".rm-left-sidebar__daily-notes").nextSibling
   );
 }
 
