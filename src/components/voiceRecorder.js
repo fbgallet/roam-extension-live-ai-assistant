@@ -396,27 +396,12 @@ function VoiceRecorder({
         tabindex="0"
         style={{ marginRight: isListening ? "0" : "inherit" }}
       >
-        <span
-          class="bp3-icon bp3-icon-shop icon bp3-icon-small"
-          // style={{
-          //   marginLeft: "2px",
-          //   minWidth: "24px",
-          //   padding: "0",
-          // }}
-          {...props}
-        >
+        <span class="bp3-icon bp3-icon-shop icon bp3-icon-small" {...props}>
           {mainContent()}
         </span>
         {!isListening &&
           !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
-            <span
-            //class="log-button"
-            // class="bp3-button bp3-minimal bp3-small"
-            // onClick={() => setIsListening((prevState) => !prevState)}
-            // style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
-            >
-              Speech-to-Roam
-            </span>
+            <span>Speech-to-Roam</span>
           )}
       </div>
     );
@@ -425,8 +410,7 @@ function VoiceRecorder({
   const timerProps = {
     onClick: handleBackward,
     tabindex: "0",
-    // style: { minWidth: "60px" },
-    title: "Rewind and delete the current recording (Backspace",
+    title: "Rewind and delete the current recording (Backspace or Escape)",
   };
 
   const timerContent = () => {
@@ -453,10 +437,6 @@ function VoiceRecorder({
     );
   };
   const jsxLogTimerWrapper = (props) => {
-    // props.style.display = "flex";
-    // props.style.justifyContent = "space-between";
-    // props.style.margin = "0";
-    // props.style.paddingLeft = "0";
     return (
       <span class="log-button left-timer-wrapper" {...props}>
         {timerContent()}
