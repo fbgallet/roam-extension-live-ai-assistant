@@ -69,6 +69,7 @@ function createContainer(isInline, activeElement) {
     ? document.querySelector(".rm-topbar")
     : document.querySelector(".roam-sidebar-content");
   const newElt = document.createElement("span");
+  position === "left" && newElt.classList.add("log-button");
   newElt.classList.add(
     `speech-to-roam-container-${isInline ? "inline" : position}`
   );
@@ -311,32 +312,34 @@ export default {
     createContainer();
 
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: record & transcribe voice",
+      label: "Speech-to-Roam: Record your voice for transcription",
       callback: () => {
-        document.getElementsByClassName("speech-record-button")
-          ? (unmountComponent(),
-            mountComponent({ startRecording: true, transcribeOnly: true }))
-          : mountComponent();
+        const button = document.getElementsByClassName(
+          "speech-record-button"
+        )[0];
+        button
+          ? (button.focus(), button.click())
+          : mountComponent({ startRecording: true, transcribeOnly: true });
       },
     });
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: translate to english",
-      callback: () => {
-        document.getElementsByClassName("speech-record-button")
-          ? (unmountComponent(),
-            mountComponent({ startRecording: true, translateOnly: true }))
-          : mountComponent();
-      },
-    });
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: speak to GPT assistant",
-      callback: () => {
-        document.getElementsByClassName("speech-record-button")
-          ? (unmountComponent(),
-            mountComponent({ startRecording: true, completionOnly: true }))
-          : mountComponent();
-      },
-    });
+    // extensionAPI.ui.commandPalette.addCommand({
+    //   label: "Speech-to-Roam: translate to english",
+    //   callback: () => {
+    //     document.getElementsByClassName("speech-record-button")
+    //       ? (unmountComponent(),
+    //         mountComponent({ startRecording: true, translateOnly: true }))
+    //       : mountComponent();
+    //   },
+    // });
+    // extensionAPI.ui.commandPalette.addCommand({
+    //   label: "Speech-to-Roam: speak to GPT assistant",
+    //   callback: () => {
+    //     document.getElementsByClassName("speech-record-button")
+    //       ? (unmountComponent(),
+    //         mountComponent({ startRecording: true, completionOnly: true }))
+    //       : mountComponent();
+    //   },
+    // });
 
     // extensionAPI.ui.commandPalette.addCommand({
     //   label: "Speech-to-Roam: insert inline Speech-to-Roam component",

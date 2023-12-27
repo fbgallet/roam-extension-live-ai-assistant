@@ -17,9 +17,7 @@ By default, the controls will be inserted in the left sidebar. It's possible to 
 **Commands** (in command panel)
 
 - Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
-- Voice Transcription
-- Translate to english
-- Speak to GPT assistant
+- Record your Voice for transcription
 
 ### Voice transcription
 

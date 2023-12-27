@@ -35,7 +35,7 @@ function VoiceRecorder({
   position,
   openai,
 }) {
-  const [isListening, setIsListening] = useState(startRecording ? true : false);
+  const [isListening, setIsListening] = useState(false);
   const [isToDisplay, setIsToDisplay] = useState({
     transcribeIcon: !translateOnly && !completionOnly,
     translateIcon:
@@ -58,15 +58,11 @@ function VoiceRecorder({
   let block = useRef(blockUid);
 
   useEffect(() => {
+    if (startRecording) setIsListening(true);
     //console.log("Voice recorder component mounted", props);
     // document.addEventListener("keypress", (e) => {
     //   handleKeys(e);
     // });
-    // return () => {
-    //   document.removeEventListener("keypress", (e) => {
-    //     handleKeys(e);
-    //   });
-    // };
   }, []);
 
   React.useEffect(() => {
@@ -101,10 +97,18 @@ function VoiceRecorder({
     // recognition if not in Electron App or Firefox browser
     if (isListening) {
       if (mic) {
-        mic.start();
-        mic.onend = () => {
-          console.log("continue...");
+        try {
           mic.start();
+        } catch (error) {
+          console.log(error.message);
+        }
+        mic.onend = () => {
+          // console.log("continue...");
+          try {
+            mic.start();
+          } catch (error) {
+            console.log(error.message);
+          }
         };
       }
       startRec();
@@ -120,7 +124,7 @@ function VoiceRecorder({
     }
     if (mic) {
       mic.onstart = () => {
-        console.log("Mics on");
+        // console.log("Mics on");
       };
       mic.onresult = (event) => {
         const transcript = Array.from(event.results)
@@ -206,7 +210,6 @@ function VoiceRecorder({
     }
     if (complete) {
       closeStream();
-
       setIsToDisplay({
         transcribeIcon: true,
         translateIcon: isTranslateIconDisplayed || translateOnly,
@@ -389,17 +392,17 @@ function VoiceRecorder({
       <div
         onKeyDown={handleKeys}
         onClick={() => setIsListening((prevState) => !prevState)}
-        class="log-button"
+        class="speech-record-button"
         tabindex="0"
         style={{ marginRight: isListening ? "0" : "inherit" }}
       >
         <span
           class="bp3-icon bp3-icon-shop icon bp3-icon-small"
-          style={{
-            marginLeft: "2px",
-            minWidth: "24px",
-            padding: "0",
-          }}
+          // style={{
+          //   marginLeft: "2px",
+          //   minWidth: "24px",
+          //   padding: "0",
+          // }}
           {...props}
         >
           {mainContent()}
@@ -407,10 +410,10 @@ function VoiceRecorder({
         {!isListening &&
           !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
             <span
-              //class="log-button"
-              // class="bp3-button bp3-minimal bp3-small"
-              // onClick={() => setIsListening((prevState) => !prevState)}
-              style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
+            //class="log-button"
+            // class="bp3-button bp3-minimal bp3-small"
+            // onClick={() => setIsListening((prevState) => !prevState)}
+            // style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
             >
               Speech-to-Roam
             </span>
@@ -422,7 +425,7 @@ function VoiceRecorder({
   const timerProps = {
     onClick: handleBackward,
     tabindex: "0",
-    style: { minWidth: "60px" },
+    // style: { minWidth: "60px" },
     title: "Rewind and delete the current recording (Backspace",
   };
 
@@ -450,12 +453,12 @@ function VoiceRecorder({
     );
   };
   const jsxLogTimerWrapper = (props) => {
-    props.style.display = "flex";
-    props.style.justifyContent = "space-between";
-    props.style.margin = "0";
-    props.style.paddingLeft = "0";
+    // props.style.display = "flex";
+    // props.style.justifyContent = "space-between";
+    // props.style.margin = "0";
+    // props.style.paddingLeft = "0";
     return (
-      <span class="log-button" {...props}>
+      <span class="log-button left-timer-wrapper" {...props}>
         {timerContent()}
       </span>
     );
