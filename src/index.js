@@ -92,7 +92,7 @@ function removeContainer() {
 }
 
 const panelConfig = {
-  tabTitle: "___",
+  tabTitle: "Speech-to-Roam",
   settings: [
     {
       id: "position",
@@ -273,7 +273,7 @@ export default {
 
     // get settings from setting panel
     if ((await extensionAPI.settings.get("position")) === null)
-      extensionAPI.settings.set("position", "left");
+      await extensionAPI.settings.set("position", "left sidebar");
     position =
       (await extensionAPI.settings.get("position")) === "topbar"
         ? "top"
@@ -282,25 +282,25 @@ export default {
       await extensionAPI.settings.set("whisper", true);
     isUsingWhisper = await extensionAPI.settings.get("whisper");
     if ((await extensionAPI.settings.get("openaiapi")) === null)
-      extensionAPI.settings.set("openaiapi", "");
+      await extensionAPI.settings.set("openaiapi", "");
     OPENAI_API_KEY = await extensionAPI.settings.get("openaiapi");
     if ((await extensionAPI.settings.get("transcriptionLgg")) === null)
-      extensionAPI.settings.set("transcriptionLgg", "");
+      await extensionAPI.settings.set("transcriptionLgg", "");
     transcriptionLanguage = await extensionAPI.settings.get("transcriptionLgg");
     if ((await extensionAPI.settings.get("speechLgg")) === null)
-      extensionAPI.settings.set("speechLgg", "Browser default");
+      await extensionAPI.settings.set("speechLgg", "Browser default");
     speechLanguage = await extensionAPI.settings.get("speechLgg");
     if ((await extensionAPI.settings.get("prompt")) === null)
-      extensionAPI.settings.set("prompt", "");
+      await extensionAPI.settings.set("prompt", "");
     whisperPrompt = await extensionAPI.settings.get("prompt");
     if ((await extensionAPI.settings.get("translateIcon")) === null)
-      extensionAPI.settings.set("translateIcon", true);
+      await extensionAPI.settings.set("translateIcon", true);
     isTranslateIconDisplayed = await extensionAPI.settings.get("translateIcon");
     if ((await extensionAPI.settings.get("gptModel")) === null)
-      extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-1106");
+      await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-1106");
     gptModel = await extensionAPI.settings.get("gptModel");
     if ((await extensionAPI.settings.get("gptCustomModel")) === null)
-      extensionAPI.settings.set("gptCustomModel", "");
+      await extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = await extensionAPI.settings.get("gptCustomModel");
     if ((await extensionAPI.settings.get("chatRoles")) === null)
       await extensionAPI.settings.set("chatRoles", "Me: ,AI assistant: ");

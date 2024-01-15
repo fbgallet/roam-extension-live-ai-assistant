@@ -8,7 +8,12 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 //import "./App.css";
-import { closeStream, getMediaRecorderStream } from "../audio";
+import {
+  closeStream,
+  getMediaRecorderStream,
+  getStream,
+  newMediaRecorder,
+} from "../audio";
 import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import {
   addContentToBlock,
@@ -47,6 +52,7 @@ function VoiceRecorder({
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
   const [defaultRecord, setDefaultRecord] = useState(null);
 
+  const stream = useRef(null);
   const audioChunk = useRef([]);
   const mediaRecorderRef = useRef(null);
   const safariRecorder = useRef(
@@ -58,15 +64,10 @@ function VoiceRecorder({
   let block = useRef(blockUid);
 
   useEffect(() => {
-    //console.log("Voice recorder component mounted", props);
-    // document.addEventListener("keypress", (e) => {
-    //   handleKeys(e);
-    // });
-    // return () => {
-    //   document.removeEventListener("keypress", (e) => {
-    //     handleKeys(e);
-    //   });
-    // };
+    const initializeStream = async () => {
+      stream.current = await getStream();
+    };
+    initializeStream();
   }, []);
 
   React.useEffect(() => {
@@ -151,8 +152,10 @@ function VoiceRecorder({
           console.error(e);
         });
     } else {
-      mediaRecorderRef.current = await getMediaRecorderStream(
-        audioChunk.current
+      if (!stream.current) await getStream();
+      mediaRecorderRef.current = newMediaRecorder(
+        audioChunk.current,
+        stream.current
       );
       mediaRecorderRef.current.start();
 
@@ -205,7 +208,7 @@ function VoiceRecorder({
       setDefaultRecord(complete ? null : undefined);
     }
     if (complete) {
-      closeStream();
+      closeStream(stream.current);
 
       setIsToDisplay({
         transcribeIcon: true,

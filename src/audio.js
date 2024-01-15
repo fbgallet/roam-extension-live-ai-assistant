@@ -1,14 +1,21 @@
 import { isSafari, speechLanguage } from ".";
 
-let stream;
+const mediaRecorderOptions = {
+  audio: true,
+  mimeType: "audio/webm",
+};
 
-export async function getMediaRecorderStream(audioChunk) {
-  const options = {
-    audio: true,
-    mimeType: "audio/webm",
-  };
-  stream = await navigator.mediaDevices.getUserMedia(options);
-  const mediaRecorder = new MediaRecorder(stream, options);
+export async function getStream() {
+  const stream = await navigator.mediaDevices.getUserMedia(
+    mediaRecorderOptions
+  );
+  console.log("after getUserMedia");
+  console.log("stream :>> ", stream);
+  return stream;
+}
+
+export function newMediaRecorder(audioChunk, stream) {
+  const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
   mediaRecorder.ondataavailable = (e) => {
     if (e.data.size > 0) {
       // save the data
@@ -18,7 +25,7 @@ export async function getMediaRecorderStream(audioChunk) {
   return mediaRecorder;
 }
 
-export function closeStream() {
+export function closeStream(stream) {
   stream.getTracks().forEach((track) => {
     track.stop();
     track.enabled = false;
