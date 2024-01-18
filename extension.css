@@ -2,17 +2,12 @@
   --icon-color: var(--co-button__icon, #5c7080);
 }
 
-.timer {
-  font-variant-numeric: tabular-nums;
-  margin-left: 4px;
+.speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {
+  border: none;
+  outline: none;
 }
-.speech-to-roam-container-left .speech-ui-row1 .left-timer-wrapper {
-  display: flex;
-  justify-content: space-between;
-  margin: 0 !important;
-  margin-left: 2px;
-  padding-left: 0;
-}
+.speech-command:hover {
+  background: filter(darkness(20%));
 
 .speech-record-button {
   min-width: 24px !important;
