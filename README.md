@@ -2,8 +2,6 @@
 
 **Voice transcription, translation (to english) or vocal prompting to a GPT model, using OpenAI Whisper API or Web Speech API.**
 
-⚠️ _Speech-to-Roam currently doesn't work on Mac Desktop App (Electron) and on Mobile app. On MacOs, use a Chromium browser. On mobile, open Roam in a browser.
-
 <img width="726" alt="speech-to-roam visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/a7798ac9-40fc-4231-b2f6-1af02530dfce">
 
 
@@ -22,7 +20,7 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 - Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
 - Record your Voice for transcription
 
-⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers and on Windows desktop app. On Safari browser, a loss of the first two or three seconds of the recording may be observed._
+⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers (desktop and mobile) and on Windows desktop app. On Safari browser, a loss of the first two or three seconds of the recording may be observed._
 
 ### Voice transcription
 
