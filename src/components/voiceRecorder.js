@@ -434,7 +434,7 @@ function VoiceRecorder({
         onClick={handleRecord}
         class="log-button"
         tabindex="0"
-        style={{ marginRight: isListening ? "0" : "inherit" }}
+        style={{ marginRight: isListening ? "0" : "4px" }}
       >
         <span class="bp3-icon bp3-icon-shop icon bp3-icon-small" {...props}>
           {mainContent()}
@@ -449,7 +449,7 @@ function VoiceRecorder({
                 style={{
                   display: "inline",
                   padding: "0",
-                  margin: "0 0 0 -2px",
+                  margin: "0 0 0 2px",
                 }}
               >
                 Speech-to-Roam
