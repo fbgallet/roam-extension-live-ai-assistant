@@ -8,12 +8,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 //import "./App.css";
-import {
-  closeStream,
-  getMediaRecorderStream,
-  getStream,
-  newMediaRecorder,
-} from "../audio";
+import { closeStream, getStream, newMediaRecorder } from "../audio";
 import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import {
   addContentToBlock,
@@ -29,6 +24,7 @@ import {
   isUsingWhisper,
 } from "..";
 import MicRecorder from "../mic-recorder.js";
+import OpenAILogo from "./OpenAILogo.jsx";
 
 function VoiceRecorder({
   blockUid,
@@ -39,7 +35,11 @@ function VoiceRecorder({
   mic,
   position,
   openai,
+  worksOnPlatform,
 }) {
+  const [isWorking, setIsWorking] = useState(
+    worksOnPlatform ? (mic === null && !isUsingWhisper ? false : true) : false
+  );
   const [isListening, setIsListening] = useState(startRecording ? true : false);
   const [isToDisplay, setIsToDisplay] = useState({
     transcribeIcon: !translateOnly && !completionOnly,
@@ -47,30 +47,37 @@ function VoiceRecorder({
       !transcribeOnly && !completionOnly && isTranslateIconDisplayed,
     completionIcon: !translateOnly && !transcribeOnly,
   });
-  const [instantVoiceReco, setinstantVoiceReco] = useState(null);
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
-  const [defaultRecord, setDefaultRecord] = useState(null);
 
+  const isToTranscribe = useRef(false);
   const stream = useRef(null);
   const audioChunk = useRef([]);
+  const record = useRef(null);
   const mediaRecorderRef = useRef(null);
   const safariRecorder = useRef(
-    new MicRecorder({
-      bitRate: 128,
-    })
+    isSafari
+      ? new MicRecorder({
+          bitRate: 128,
+        })
+      : null
   );
-  let lastCommand = useRef(null);
-  let block = useRef(blockUid);
+  const instantVoiceReco = useRef(null);
+  const lastCommand = useRef(null);
+  const block = useRef(blockUid);
 
   useEffect(() => {
-    const initializeStream = async () => {
-      stream.current = await getStream();
+    console.log("mic :>> ", mic);
+    return () => {
+      if (isSafari) {
+        safariRecorder.current.stop();
+      } else {
+        closeStream(stream.current);
+      }
     };
-    initializeStream();
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let interval = null;
 
     handleListen();
@@ -87,16 +94,36 @@ function VoiceRecorder({
     };
   }, [isListening]);
 
-  React.useEffect(async () => {
-    if (lastCommand.current) {
-      if (lastCommand.current === gptCompletion) handleCompletion();
-      else voiceProcessing();
-    }
-  }, [defaultRecord]);
+  // React.useEffect(async () => {
+  //   if (lastCommand.current) {
+  //     if (lastCommand.current === gptCompletion) handleCompletion();
+  //     else voiceProcessing();
+  //   }
+  // }, [defaultRecord]);
 
   // useEffect(() => {
   //   handleListen();
   // }, [isListening]);
+
+  const handleRecord = async () => {
+    if (!worksOnPlatform) {
+      alert(
+        "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
+      );
+      return;
+    }
+    if (stream.current || (isSafari && safariRecorder.current.isInitialized))
+      setIsListening((prevState) => !prevState);
+    else {
+      if (isSafari) {
+        await safariRecorder.current.initialize();
+        setIsListening((prevState) => !prevState);
+      } else {
+        stream.current = await getStream();
+        setIsListening((prevState) => !prevState);
+      }
+    }
+  };
 
   const handleListen = () => {
     // recognition if not in Electron App or Firefox browser
@@ -129,7 +156,7 @@ function VoiceRecorder({
           .map((result) => result.transcript)
           .join("");
         // console.log(transcript);
-        setinstantVoiceReco(transcript);
+        instantVoiceReco.current = transcript;
         mic.onerror = (event) => {
           console.log(event.error);
         };
@@ -152,20 +179,23 @@ function VoiceRecorder({
           console.error(e);
         });
     } else {
-      if (!stream.current) await getStream();
+      if (!stream.current) stream.current = await getStream();
       mediaRecorderRef.current = newMediaRecorder(
         audioChunk.current,
-        stream.current
+        stream.current /*? stream.current : await getStream()*/
       );
       mediaRecorderRef.current.start();
 
       mediaRecorderRef.current.onstop = (e) => {
-        console.log("End to record");
+        console.log("Mediarecord stopped");
         const audioBlob = new Blob(audioChunk.current);
         const audioFile = new File([audioBlob], "audio.webm", {
           type: "audio/webm",
         });
-        if (audioFile.size) setDefaultRecord(audioFile);
+        if (audioFile.size) {
+          record.current = audioFile;
+        }
+        if (isToTranscribe.current) voiceProcessing();
       };
     }
     setAreCommandsToDisplay(true);
@@ -177,6 +207,7 @@ function VoiceRecorder({
         .pause()
         .then(() => {
           console.log("in pause");
+          if (isToTranscribe.current) voiceProcessing();
         })
         .catch((e) => {
           console.error(e);
@@ -192,8 +223,6 @@ function VoiceRecorder({
   };
 
   const handleBackward = () => {
-    // lastCommand.current = handleBackward;
-    console.log("click on backward");
     initialize(time ? false : true);
     if (isListening) {
       setIsListening(false);
@@ -205,10 +234,16 @@ function VoiceRecorder({
     else {
       lastCommand.current = null;
       audioChunk.current = [];
-      setDefaultRecord(complete ? null : undefined);
+      // setDefaultRecord(complete ? null : undefined);
+      record.current = complete ? null : undefined;
     }
     if (complete) {
-      closeStream(stream.current);
+      if (isSafari) {
+        safariRecorder.current.stop();
+      } else {
+        closeStream(stream.current);
+        stream.current = null;
+      }
 
       setIsToDisplay({
         transcribeIcon: true,
@@ -217,46 +252,33 @@ function VoiceRecorder({
       });
       setAreCommandsToDisplay(false);
     }
+    instantVoiceReco.current = "";
+    isToTranscribe.current = false;
     setTime(0);
-    setinstantVoiceReco("");
   };
 
   const handleTranscribe = () => {
     lastCommand.current = transcribeAudio;
-    voiceProcessing();
+    initializeProcessing();
   };
-
   const handleTranslate = () => {
     lastCommand.current = translateAudio;
-    voiceProcessing();
+    initializeProcessing();
   };
-
   const handleCompletion = async () => {
     lastCommand.current = gptCompletion;
-    const result = await voiceProcessing();
-    if (!result) return;
-    insertCompletion(result);
+    initializeProcessing();
   };
-
-  const insertCompletion = async ({ prompt, location }) => {
-    const uid = window.roamAlphaAPI.util.generateUID();
-    window.roamAlphaAPI.createBlock({
-      location: { "parent-uid": location, order: "last" },
-      block: { string: chatRoles.assistant, uid: uid },
-    });
-    const intervalId = await displaySpinner(uid);
-    const gptResponse = await gptCompletion(prompt, openai);
-    removeSpinner(intervalId);
-    addContentToBlock(uid, gptResponse);
+  const initializeProcessing = () => {
+    if (isListening) {
+      isToTranscribe.current = true;
+      setIsListening(false);
+    } else if (record?.current || safariRecorder?.current?.activeStream)
+      voiceProcessing();
   };
 
   const voiceProcessing = async () => {
-    if (isListening) {
-      console.log("still listening");
-      setIsListening(false);
-      return;
-    }
-    if (!time || (!defaultRecord && !safariRecorder.current.activeStream)) {
+    if (!record?.current && !safariRecorder?.current.activeStream) {
       console.log("no record available");
       return;
     }
@@ -276,12 +298,11 @@ function VoiceRecorder({
           console.error(e);
         });
     } else {
-      return await audioFileProcessing(defaultRecord);
+      return await audioFileProcessing(record.current);
     }
   };
 
   const audioFileProcessing = async (audioFile) => {
-    console.log("audioFile :>> ", audioFile);
     let toChain = false;
     let voiceProcessingCommand = lastCommand.current;
     if (lastCommand.current === gptCompletion) {
@@ -292,25 +313,37 @@ function VoiceRecorder({
     const intervalId = await displaySpinner(targetUid);
     const hasKey = openai && openai.key !== "";
     let transcribe =
-      instantVoiceReco || audioFile
+      instantVoiceReco.current || audioFile
         ? isUsingWhisper && hasKey
           ? await voiceProcessingCommand(audioFile, openai)
-          : instantVoiceReco
+          : instantVoiceReco.current
         : "Nothing has been recorded!";
-    console.log("SpeechAPI: " + instantVoiceReco);
+    console.log("SpeechAPI: " + instantVoiceReco.current);
     if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
     if (transcribe === null) {
       transcribe =
-        instantVoiceReco +
+        instantVoiceReco.current +
         (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
     }
     const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);
     initialize(true);
-    if (toChain) {
-      return { prompt: transcribe, location: targetUid };
+    if (toChain && transcribe) {
+      insertCompletion(transcribe, targetUid);
     }
+  };
+
+  const insertCompletion = async (prompt, location) => {
+    const uid = window.roamAlphaAPI.util.generateUID();
+    window.roamAlphaAPI.createBlock({
+      location: { "parent-uid": location, order: "last" },
+      block: { string: chatRoles.assistant, uid: uid },
+    });
+    const intervalId = await displaySpinner(uid);
+    const gptResponse = await gptCompletion(prompt, openai);
+    removeSpinner(intervalId);
+    addContentToBlock(uid, gptResponse);
   };
 
   const handleKeys = async (e) => {
@@ -375,7 +408,7 @@ function VoiceRecorder({
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
             onKeyDown={handleKeys}
-            onClick={() => setIsListening((prevState) => !prevState)}
+            onClick={handleRecord}
             class="bp3-button bp3-minimal bp3-small speech-record-button"
             tabindex="0"
             {...props}
@@ -391,7 +424,7 @@ function VoiceRecorder({
     return (
       <div
         onKeyDown={handleKeys}
-        onClick={() => setIsListening((prevState) => !prevState)}
+        onClick={handleRecord}
         class="log-button"
         tabindex="0"
         style={{ marginRight: isListening ? "0" : "inherit" }}
@@ -409,14 +442,32 @@ function VoiceRecorder({
         </span>
         {!isListening &&
           !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
-            <span
-              //class="log-button"
-              // class="bp3-button bp3-minimal bp3-small"
-              // onClick={() => setIsListening((prevState) => !prevState)}
-              style={{ display: "inline", padding: "0", margin: "0 0 0 -2px" }}
-            >
-              Speech-to-Roam
-            </span>
+            <>
+              <span
+                //class="log-button"
+                // class="bp3-button bp3-minimal bp3-small"
+                // onClick={() => setIsListening((prevState) => !prevState)}
+                style={{
+                  display: "inline",
+                  padding: "0",
+                  margin: "0 0 0 -2px",
+                }}
+              >
+                Speech-to-Roam
+              </span>
+              {!isWorking && (
+                <span
+                  style={{ color: "lightpink" }}
+                  title={
+                    !worksOnPlatform
+                      ? "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
+                      : "Native voice recognition doesn't work on Firefox, Arc browser or Electron app. Enable Whisper recognition"
+                  }
+                >
+                  &nbsp;⚠️
+                </span>
+              )}
+            </>
           )}
       </div>
     );
@@ -528,18 +579,11 @@ function VoiceRecorder({
           jsxCommandIcon(
             {
               title: "Speak to ChatGPT (C)",
-              style: { minWidth: "30px" },
             },
             handleCompletion,
             () => (
               <>
-                <svg
-                  role="img"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
-                </svg>
+                <OpenAILogo />
               </>
             )
           )}

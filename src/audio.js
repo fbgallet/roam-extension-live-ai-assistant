@@ -9,8 +9,6 @@ export async function getStream() {
   const stream = await navigator.mediaDevices.getUserMedia(
     mediaRecorderOptions
   );
-  console.log("after getUserMedia");
-  console.log("stream :>> ", stream);
   return stream;
 }
 
@@ -26,14 +24,17 @@ export function newMediaRecorder(audioChunk, stream) {
 }
 
 export function closeStream(stream) {
-  stream.getTracks().forEach((track) => {
-    track.stop();
-    track.enabled = false;
-  });
+  if (!stream) return;
+  const tracks = stream.getTracks();
+  if (tracks.length > 0)
+    tracks.forEach((track) => {
+      track.stop();
+      track.enabled = false;
+    });
   const audioContext = new AudioContext();
-  audioContext.close;
   const microphone = audioContext.createMediaStreamSource(stream);
-  microphone.disconnect;
+  microphone.disconnect();
+  audioContext.close();
 }
 
 export function getSpeechRecognitionAPI() {

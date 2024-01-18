@@ -20,6 +20,7 @@ class MicRecorder {
     this.microphone = null;
     this.processor = null;
     this.startTime = 0;
+    this.isInitialized = false;
 
     Object.assign(this.config, config);
   }
@@ -60,6 +61,7 @@ class MicRecorder {
    * @return Promise
    */
   initialize() {
+    this.isInitialized = true;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     this.context = new AudioContext();
     this.config.sampleRate = this.context.sampleRate;
@@ -72,7 +74,7 @@ class MicRecorder {
 
     return new Promise((resolve, reject) => {
       navigator.mediaDevices
-        .getUserMedia({ audio })
+        .getUserMedia({ audio: true })
         .then((stream) => {
           this.addMicrophoneListener(stream);
           resolve(stream);
@@ -131,8 +133,18 @@ class MicRecorder {
    */
   stop() {
     if (this.processor && this.microphone) {
+      // Stop all audio tracks. Also, removes recording icon from chrome tab
+      // const tracks = this.activeStream.getAudioTracks();
+      const tracks = this.activeStream.getTracks();
+      if (tracks.length > 0)
+        tracks.forEach((track) => {
+          track.stop();
+          track.enabled = false;
+        });
+
       // Clean up the Web Audio API resources.
       this.disconnectMicrophone();
+      this.processor.onaudioprocess = null;
 
       // If all references using this.context are destroyed, context is closed
       // automatically. DOMException is fired when trying to close again
@@ -140,11 +152,6 @@ class MicRecorder {
         this.context.close();
       }
 
-      this.processor.onaudioprocess = null;
-
-      // Stop all audio tracks. Also, removes recording icon from chrome tab
-      const tracks = this.activeStream.getAudioTracks();
-      if (tracks) tracks.forEach((track) => track.stop());
       this.processor = null;
       this.microphone = null;
     }

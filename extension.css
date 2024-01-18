@@ -2,6 +2,14 @@
   --icon-color: var(--co-button__icon, #5c7080);
 }
 
+.speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {
+  border: none;
+  outline: none;
+}
+.speech-command:hover {
+  background: filter(darkness(20%));
+}
+
 .speech-record-button {
   min-width: 30px !important;
 }
