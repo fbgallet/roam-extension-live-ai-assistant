@@ -2,7 +2,7 @@
 
 **Voice transcription, translation (to english) or vocal prompting to a GPT model, using OpenAI Whisper API or Web Speech API.**
 
-⚠️ _Speech-to-Roam currently doesn't work on Mac Desktop App (Electron) and on Mobile app. On MacOs, use a Chromium browser. On mobile, open Roam in a browser. Furthermore, browser Native speech recognition doesn't work on Firefox, Arc and Desktop app: in these contexts, you have to use Whisper speech recognition (by providing an OpenAI API key)_
+⚠️ _Speech-to-Roam currently doesn't work on Mac Desktop App (Electron) and on Mobile app. On MacOs, use a Chromium browser. On mobile, open Roam in a browser.
 
 <img width="726" alt="speech-to-roam visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/a7798ac9-40fc-4231-b2f6-1af02530dfce">
 
