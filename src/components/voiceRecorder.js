@@ -67,7 +67,6 @@ function VoiceRecorder({
   const block = useRef(blockUid);
 
   useEffect(() => {
-    console.log("mic :>> ", mic);
     return () => {
       if (isSafari) {
         safariRecorder.current.stop();
@@ -129,10 +128,18 @@ function VoiceRecorder({
     // recognition if not in Electron App or Firefox browser
     if (isListening) {
       if (mic) {
-        mic.start();
-        mic.onend = () => {
-          console.log("continue...");
+        try {
           mic.start();
+        } catch (error) {
+          console.log(error.message);
+        }
+        mic.onend = () => {
+          // console.log("continue...");
+          try {
+            mic.start();
+          } catch (error) {
+            console.log(error.message);
+          }
         };
       }
       startRec();
@@ -148,7 +155,7 @@ function VoiceRecorder({
     }
     if (mic) {
       mic.onstart = () => {
-        console.log("Mics on");
+        // console.log("Mics on");
       };
       mic.onresult = (event) => {
         const transcript = Array.from(event.results)
@@ -429,15 +436,7 @@ function VoiceRecorder({
         tabindex="0"
         style={{ marginRight: isListening ? "0" : "inherit" }}
       >
-        <span
-          class="bp3-icon bp3-icon-shop icon bp3-icon-small"
-          style={{
-            marginLeft: "2px",
-            minWidth: "24px",
-            padding: "0",
-          }}
-          {...props}
-        >
+        <span class="bp3-icon bp3-icon-shop icon bp3-icon-small" {...props}>
           {mainContent()}
         </span>
         {!isListening &&
@@ -476,8 +475,7 @@ function VoiceRecorder({
   const timerProps = {
     onClick: handleBackward,
     tabindex: "0",
-    style: { minWidth: "60px" },
-    title: "Rewind and delete the current recording (Backspace",
+    title: "Rewind and delete the current recording (Backspace or Escape)",
   };
 
   const timerContent = () => {
@@ -504,12 +502,8 @@ function VoiceRecorder({
     );
   };
   const jsxLogTimerWrapper = (props) => {
-    props.style.display = "flex";
-    props.style.justifyContent = "space-between";
-    props.style.margin = "0";
-    props.style.paddingLeft = "0";
     return (
-      <span class="log-button" {...props}>
+      <span class="log-button left-timer-wrapper" {...props}>
         {timerContent()}
       </span>
     );

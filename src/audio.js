@@ -1,4 +1,4 @@
-import { isSafari, speechLanguage } from ".";
+import { speechLanguage } from ".";
 
 const mediaRecorderOptions = {
   audio: true,
@@ -44,9 +44,9 @@ export function getSpeechRecognitionAPI() {
   const mic = new SpeechRecognition();
   mic.continuous = true;
   mic.interimResults = true;
-  console.log(speechLanguage);
+  // console.log(speechLanguage);
   if (speechLanguage !== "Browser default") mic.lang = speechLanguage;
-  mic.maxAlternatives = 2;
+  mic.maxAlternatives = 1;
   return mic;
 }
 

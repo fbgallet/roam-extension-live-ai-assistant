@@ -8,36 +8,44 @@
 }
 .speech-command:hover {
   background: filter(darkness(20%));
-}
 
 .speech-record-button {
-  min-width: 30px !important;
+  min-width: 24px !important;
+}
+.speech-record-button > span {
+  margin-left: -2px;
 }
 .speech-record-button:focus,
 .speech-backward-button:focus {
   outline-width: 0px !important;
 }
-/* .speech-display-button {
-  display: inline;
-} */
+.speech-record-button .bp3-icon {
+  margin-left: 2px;
+  min-width: 24px;
+  padding: 0;
+}
 
 .speech-ui-row1,
 .speech-ui-row2 {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  /* padding-top: 4px;
-  padding-bottom: 4px; */
+  justify-content: space-between;
+  min-height: 24px;
 }
-.speech-to-roam-container-left .speech-ui-row1 {
-  margin-left: 9px;
+
+.speech-to-roam-container-top {
+  z-index: 1;
+}
+.speech-to-roam-container-top:has(.speech-ui-row2 > .bp3-popover-wrapper) {
+  margin-top: 5px;
+}
+.speech-to-roam-container-top .speech-ui-row2:not(:has(.bp3-popover-wrapper)) {
+  display: none;
 }
 
 .speech-to-roam-container-left {
   display: flex;
   align-items: center;
-  margin-top: 5px;
-  margin-bottom: 5px;
 }
 .speech-to-roam-container-left:has(.digits) {
   padding-top: 2px;
@@ -46,12 +54,6 @@
 .speech-to-roam-container-left:has(.digits) > div.log-button {
   padding-right: 0 !important;
 }
-
-/* .speech-to-roam-container-left > div.log-button {
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-} */
-/* .speech-to-roam-container-left > span.log-button, */
 .speech-to-roam-container-left > .speech-ui-row1 > .log-button {
   padding: 0 4px 0 0 !important;
 }
@@ -83,20 +85,25 @@
   display: none;
 } */
 
+@media (min-width: 768px) {
+  .log-button:has(.speech-ui-row1) {
+    margin-right: 0 !important;
+  }
+}
+
 @media (max-width: 768px) {
   .speech-to-roam-container-top:has(.timer),
   .speech-to-roam-container-left:has(.timer) {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: space-evenly;
     gap: 5px;
   }
-  .speech-to-roam-container-left:has(.timer) {
+  /* .speech-to-roam-container-left:has(.timer) {
     margin-left: 12px;
-  }
+  } */
   .speech-to-roam-container-top:has(.timer) {
     position: relative;
     top: 20px;
-    z-index: 1;
   }
   .speech-to-roam-container-top:has(.timer) .speech-ui-row1 {
     margin-bottom: 7px;
@@ -120,7 +127,7 @@
     padding: 8px !important;
     gap: 5px;
   }
-  .speech-to-roam-container-left .speech-ui-row2 {
+  /* .speech-to-roam-container-left .speech-ui-row2 {
     margin-left: 10px;
-  }
+  } */
 }

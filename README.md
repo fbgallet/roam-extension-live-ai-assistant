@@ -4,7 +4,7 @@
 
 ![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
 
-By default, the controls will be inserted in the left sidebar. It's possible to display them in the topbar (always visible).
+By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
 **Keyboard hotkeys** (available when recording):
 
@@ -17,9 +17,9 @@ By default, the controls will be inserted in the left sidebar. It's possible to 
 **Commands** (in command panel)
 
 - Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
-- Voice Transcription
-- Translate to english
-- Speak to GPT assistant
+- Record your Voice for transcription
+
+⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers and on Windows desktop app. On Safari browser, a loss of the first two or three seconds of the recording may be observed._
 
 ### Voice transcription
 
@@ -27,7 +27,7 @@ By default, the controls will be inserted in the left sidebar. It's possible to 
 - if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox browser)
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 
-_⚠️ OpenAI Whisper API is a paid but quite cheap service_
+⚠️ _OpenAI Whisper API is a paid but quite cheap service_
 
 `$0.006/minute` (rounded to the nearest second)
 
@@ -45,7 +45,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - assistant response is inserted as last child of prompt block (current limitation: the answer is only one long block)
 - additional context and other features to come, stay tuned ! 🚀
 
-_⚠️ OpenAI GPT API is a paid but cheap service_
+⚠️ _OpenAI GPT API is a paid but cheap service_
 
 - gpt-3.5
   - Input: $0.0010 / 1K tokens
