@@ -2,7 +2,10 @@
 
 **Voice transcription, translation (to english) or vocal prompting to a GPT model, using OpenAI Whisper API or Web Speech API.**
 
-![image](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/369b7667-773e-4ef6-9bb6-a70cc2d78971)
+⚠️ _Speech-to-Roam currently doesn't work on Mac Desktop App (Electron) and on Mobile app. On MacOs, use a Chromium browser. On mobile, open Roam in a browser. Furthermore, browser Native speech recognition doesn't work on Firefox, Arc and Desktop app: in these contexts, you have to use Whisper speech recognition (by providing an OpenAI API key)_
+
+<img width="726" alt="speech-to-roam visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/a7798ac9-40fc-4231-b2f6-1af02530dfce">
+
 
 By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
@@ -24,7 +27,7 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 ### Voice transcription
 
 - the transcribed text will be inserted at the bottom of the current page or appended to the current focused block.
-- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox browser)
+- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 
 ⚠️ _OpenAI Whisper API is a paid but quite cheap service_
