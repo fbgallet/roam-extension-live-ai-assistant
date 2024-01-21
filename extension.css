@@ -10,13 +10,13 @@
   font-variant-numeric: tabular-nums;
   margin-left: 4px;
 }
-/* .speech-to-roam-container-left .speech-ui-row1 .left-timer-wrapper {
+.speech-to-roam-container-left .speech-ui-row1 .left-timer-wrapper {
   display: flex;
   justify-content: space-between;
   margin: 0 !important;
   margin-left: 2px;
   padding-left: 0;
-} */
+}
 
 .speech-record-button {
   min-width: 24px !important;
@@ -55,6 +55,7 @@
 .speech-to-roam-container-left {
   display: flex;
   align-items: center;
+  gap: 10px;
 }
 .speech-to-roam-container-left:has(.digits) {
   padding-top: 2px;
@@ -65,6 +66,7 @@
 }
 .speech-to-roam-container-left > .speech-ui-row1 > .log-button {
   padding: 0 4px 0 2px !important;
+  margin-left: 0 !important;
 }
 
 .speech-to-roam-container-left svg:not(.fa-record-vinyl) path,
@@ -94,23 +96,19 @@
   display: none;
 } */
 
-@media (min-width: 768px) {
+/* @media (min-width: 768px) {
   .log-button:has(.speech-ui-row1) {
     margin-right: 0 !important;
   }
-}
+} */
 
-@media (max-width: 768px) {
+/* @media (max-width: 768px) {
   .speech-to-roam-container-top:has(.timer),
   .speech-to-roam-container-left:has(.timer) {
     flex-direction: column;
-    align-items: flex-start !important;
     padding-left: 15px !important;
     gap: 5px;
   }
-  /* .speech-to-roam-container-left:has(.timer) {
-    margin-left: 12px;
-  } */
   .speech-to-roam-container-top:has(.timer) {
     position: relative;
     top: 20px;
@@ -137,7 +135,41 @@
     padding: 8px !important;
     gap: 5px;
   }
-  /* .speech-to-roam-container-left .speech-ui-row2 {
-    margin-left: 10px;
-  } */
+} */
+
+@media (max-width: 500px) {
+  .speech-to-roam:has(.timer) {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    padding-left: 0 !important;
+    top: calc(100vh / 3 * 2);
+    left: 0;
+    width: 100vw;
+    height: calc(100vh / 3);
+    z-index: 2;
+    color: #5c7080;
+    background-color: var(--bc-main, #182026);
+  }
+  .speech-to-roam-container-top:has(.timer) {
+    border-top: 2px solid #5c7080;
+    background-color: var(--bc-main, white);
+  }
+
+  .speech-ui-row1:has(.timer),
+  .speech-ui-row2 {
+    justify-content: center;
+    gap: 10px;
+    scale: 3;
+  }
+}
+
+@media (max-width: 350px) {
+  .speech-ui-row1:has(.timer),
+  .speech-ui-row2 {
+    justify-content: center;
+    gap: 5px;
+    scale: 2.5;
+  }
 }
