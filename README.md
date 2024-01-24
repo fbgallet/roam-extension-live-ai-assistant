@@ -4,7 +4,6 @@
 
 <img width="726" alt="speech-to-roam visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/a7798ac9-40fc-4231-b2f6-1af02530dfce">
 
-
 By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
 **Keyboard hotkeys** (available when recording):
@@ -20,11 +19,15 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 - Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
 - Record your Voice for transcription
 
-⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers (desktop and mobile) and on Windows desktop app. On Safari browser, a loss of the first two or three seconds of the recording may be observed._
+⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers (desktop and mobile) and on Windows desktop app._
+
+### To be done right after installation
+
+In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions.
 
 ### Voice transcription
 
-- the transcribed text will be inserted at the bottom of the current page or appended to the current focused block.
+- the transcribed text will be inserted at the bottom of the current page (or page view) or appended to the current focused block.
 - if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 
@@ -32,7 +35,7 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 
 `$0.006/minute` (rounded to the nearest second)
 
-To give you an idea, using Whisper for 10 minutes a day for a month equates to 1,8$
+To give you an idea, using Whisper for 10 minutes a day for a month equates to 1.80 $
 
 ### Translation
 
