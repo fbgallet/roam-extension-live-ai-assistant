@@ -13,6 +13,9 @@ export let isTranslateIconDisplayed;
 export let gptModel;
 export let gptCustomModel;
 export let chatRoles;
+export let assistantCharacter =
+  "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'Roam assistant', 'Assistant' or 'AI assistant'." +
+  "You are playful only if the tone of the request is playful or humorous and directed at you personally, otherwise your tone is serious and thoughtful.";
 let position;
 let openai;
 export let isSafari =
@@ -289,6 +292,18 @@ export default {
             },
           },
         },
+        {
+          id: "assistantCharacter",
+          name: "Assistant's character",
+          description:
+            "You can describe here the character and tone of the AI assistant (for completion with ChatGPT):",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              if (evt.target.value) assistantCharacter = evt.target.value;
+            },
+          },
+        },
       ],
     };
 
@@ -331,6 +346,9 @@ export default {
     const chatRolesStr =
       (await extensionAPI.settings.get(chatRoles)) || "Me: ,AI assistant: ";
     chatRoles = getRolesFromString(chatRolesStr);
+    if ((await extensionAPI.settings.get("assistantCharacter")) === null)
+      await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
+    assistantCharacter = await extensionAPI.settings.get("assistantCharacter");
     if (OPENAI_API_KEY) openai = initializeOpenAIAPI(OPENAI_API_KEY);
     createContainer();
 

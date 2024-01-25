@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import {
+  assistantCharacter,
   gptCustomModel,
   gptModel,
   transcriptionLanguage,
@@ -68,7 +69,7 @@ export async function gptPostProcessing(text, openai) {
       model: "gpt-3.5-turbo-instruct",
       prompt:
         text +
-        "\nTu es un expert en prise de notes. Reproduis exactement le texte précédent, en mettant entre crochets les mots les plus importants.",
+        "\nYou are an [expert] in note-taking. Reproduce [exactly] the previous text, putting the most important words in double brackets like [[that]].",
       max_tokens: Math.floor(text.length / 2),
       temperature: 0.1,
     });
@@ -79,15 +80,21 @@ export async function gptPostProcessing(text, openai) {
   }
 }
 
-export async function gptCompletion(prompt, openai, model, context) {
+export async function gptCompletion(prompt, openai, context) {
   try {
     const response = await openai.chat.completions.create({
-      model: model || (gptModel === "custom model" ? gptCustomModel : gptModel),
+      model: gptModel === "custom model" ? gptCustomModel : gptModel,
       messages: [
         {
           role: "system",
           content:
-            "You are a smart and expert assistant. " + (context ? context : ""),
+            assistantCharacter +
+            (context
+              ? " Here is the context or content to which you must refer to respond to the user's prompt, " +
+                " to which the user can refer to as 'this', 'that', 'this block', 'these blocks', 'the selected blocks' or 'what is selected' among other possibilities" +
+                "(the 9-characters code between parentheses represents the reference to the block containing the copied text. In your response, you can also refer to it if asked, using the following syntax [*](((9-characters code))). Here is the content in question:\n" +
+                context
+              : ""),
         },
         { role: "user", content: prompt },
       ],

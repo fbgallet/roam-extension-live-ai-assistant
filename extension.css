@@ -144,10 +144,10 @@
     flex-direction: column;
     justify-content: space-evenly;
     padding-left: 0 !important;
-    top: calc(100vh / 3 * 2);
+    top: calc(100dvh / 3 * 2);
     left: 0;
     width: 100vw;
-    height: calc(100vh / 3);
+    height: calc(100dvh / 3);
     z-index: 2;
     color: #5c7080;
     background-color: var(--bc-main, #182026);

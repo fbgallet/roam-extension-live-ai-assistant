@@ -128,3 +128,49 @@ export const removeSpinner = (intervalId) => {
   let spinner = document.querySelector(".speech-spinner");
   if (spinner) spinner.remove();
 };
+
+export const getBlocksSelectionUids = () => {
+  let selectedBlocksUids = [];
+  let blueSelection = document.querySelectorAll(".block-highlight-blue");
+  let checkSelection = roamAlphaAPI.ui.individualMultiselect.getSelectedUids();
+  if (blueSelection.length === 0) blueSelection = null;
+  if (blueSelection) {
+    blueSelection.forEach((node) => {
+      let inputBlock = node.querySelector(".rm-block__input");
+      if (!inputBlock) return;
+      selectedBlocksUids.push(inputBlock.id.slice(-9));
+    });
+  } else if (checkSelection.length !== 0) {
+    selectedBlocksUids = checkSelection;
+  }
+  return selectedBlocksUids;
+};
+
+export const getResolvedContentFromBlocks = (blocksUids) => {
+  let content = "";
+  if (blocksUids.length > 0)
+    blocksUids.forEach((uid) => {
+      let resolvedContent = resolveReferences(getBlockContentByUid(uid));
+      content += `/n((${uid})) ${resolvedContent}`;
+    });
+  return content;
+};
+
+export const resolveReferences = (content, refsArray = []) => {
+  if (uidRegex.test(content)) {
+    uidRegex.lastIndex = 0;
+    let matches = content.matchAll(uidRegex);
+    for (const match of matches) {
+      let refUid = match[0].slice(2, -2);
+      // prevent infinite loop !
+      let isNewRef = !refsArray.includes(refUid);
+      refsArray.push(refUid);
+      let resolvedRef = getBlockContentByUid(refUid);
+      uidRegex.lastIndex = 0;
+      if (uidRegex.test(resolvedRef) && isNewRef)
+        resolvedRef = resolveReferences(resolvedRef, refsArray);
+      content = content.replace(match, resolvedRef);
+    }
+  }
+  return content;
+};

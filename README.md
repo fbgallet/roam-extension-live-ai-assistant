@@ -44,10 +44,12 @@ A large number of [source languages are supported](https://platform.openai.com/d
 ### Speak directly to a GPT model
 
 - ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
+- assistant response is inserted as last child of prompt block (current limitation: the answer is only one long block)
+- you can easily **provide context by selecting some block(s)** in the page or right sidebar. You can use it to extend a conversation, ask a question about any content, request a summary or translation, and so on. 🚀
+- the context provided by selected blocks is handled with the following instructions: **"Here is the context or content to which you must refer to respond to the user's prompt, to which the user can refer to as 'this', 'that', 'this block', 'these blocks', 'the selected blocks' or 'what is selected' among other possibilities. The 9-characters code between parentheses represents the reference to the block containing the copied text. In your response, you can also refer to it if asked, using the following syntax `[*](((9-characters code)))`. Here is the content in question:\n"**
+- you can customize the AI assistants's "character", its default character is defined this way: **"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'Roam assistant', 'Assistant' or 'AI assistant'. You are playful only if the tone of the request is playful or humorous and directed at you personally, otherwise your tone is serious and thoughtful."**
 - model by default is currently `gpt-3.5-turbo-1106`
 - you can try other chat completion model, or your own fine-tuned models
-- assistant response is inserted as last child of prompt block (current limitation: the answer is only one long block)
-- additional context and other features to come, stay tuned ! 🚀
 
 ⚠️ _OpenAI GPT API is a paid but cheap service_
 

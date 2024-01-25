@@ -13,6 +13,8 @@ import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import {
   addContentToBlock,
   displaySpinner,
+  getBlocksSelectionUids,
+  getResolvedContentFromBlocks,
   insertBlockInCurrentView,
   removeSpinner,
 } from "../utils";
@@ -65,6 +67,7 @@ function VoiceRecorder({
   const instantVoiceReco = useRef(null);
   const lastCommand = useRef(null);
   const block = useRef(blockUid);
+  const blocksSelectionUids = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -104,12 +107,18 @@ function VoiceRecorder({
   //   handleListen();
   // }, [isListening]);
 
-  const handleRecord = async () => {
+  const handleRecord = async (e) => {
     if (!worksOnPlatform) {
       alert(
         "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
       );
       return;
+    }
+    e.preventDefault();
+    if (!isListening && !blocksSelectionUids.current)
+      blocksSelectionUids.current = getBlocksSelectionUids();
+    if (window.innerWidth < 500 && position === "left") {
+      window.roamAlphaAPI.ui.leftSidebar.close();
     }
     if (stream.current || (isSafari && safariRecorder.current.isInitialized))
       setIsListening((prevState) => !prevState);
@@ -251,7 +260,7 @@ function VoiceRecorder({
         closeStream(stream.current);
         stream.current = null;
       }
-
+      blocksSelectionUids.current = null;
       setIsToDisplay({
         transcribeIcon: true,
         translateIcon: isTranslateIconDisplayed || translateOnly,
@@ -335,10 +344,10 @@ function VoiceRecorder({
     const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);
-    initialize(true);
     if (toChain && transcribe) {
-      insertCompletion(transcribe, targetUid);
+      await insertCompletion(transcribe, targetUid);
     }
+    initialize(true);
   };
 
   const insertCompletion = async (prompt, location) => {
@@ -348,7 +357,10 @@ function VoiceRecorder({
       block: { string: chatRoles.assistant, uid: uid },
     });
     const intervalId = await displaySpinner(uid);
-    const gptResponse = await gptCompletion(prompt, openai);
+    const context = blocksSelectionUids.current
+      ? getResolvedContentFromBlocks(blocksSelectionUids.current)
+      : null;
+    const gptResponse = await gptCompletion(prompt, openai, context);
     removeSpinner(intervalId);
     addContentToBlock(uid, gptResponse);
   };
