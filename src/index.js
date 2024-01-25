@@ -16,6 +16,7 @@ export let chatRoles;
 export let assistantCharacter =
   "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'Roam assistant', 'Assistant' or 'AI assistant'." +
   "You are playful only if the tone of the request is playful or humorous and directed at you personally, otherwise your tone is serious and thoughtful.";
+export let isMobileViewContext;
 let position;
 let openai;
 export let isSafari =
@@ -304,6 +305,18 @@ export default {
             },
           },
         },
+        {
+          id: "mobileContext",
+          name: "View is context on mobile",
+          description:
+            "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isMobileViewContext = !isMobileViewContext;
+            },
+          },
+        },
       ],
     };
 
@@ -349,6 +362,9 @@ export default {
     if ((await extensionAPI.settings.get("assistantCharacter")) === null)
       await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
     assistantCharacter = await extensionAPI.settings.get("assistantCharacter");
+    if ((await extensionAPI.settings.get("mobileContext")) === null)
+      await extensionAPI.settings.set("mobileContext", false);
+    isMobileViewContext = await extensionAPI.settings.get("mobileContext");
     if (OPENAI_API_KEY) openai = initializeOpenAIAPI(OPENAI_API_KEY);
     createContainer();
 

@@ -13,14 +13,18 @@ import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
 import {
   addContentToBlock,
   displaySpinner,
+  getBlockContentByUid,
   getBlocksSelectionUids,
+  getFirstLevelBlocksInCurrentView,
   getResolvedContentFromBlocks,
+  getTopOrActiveBlockUid,
   insertBlockInCurrentView,
   removeSpinner,
 } from "../utils";
 import { Timer } from "./timer";
 import {
   chatRoles,
+  isMobileViewContext,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
@@ -357,9 +361,14 @@ function VoiceRecorder({
       block: { string: chatRoles.assistant, uid: uid },
     });
     const intervalId = await displaySpinner(uid);
-    const context = blocksSelectionUids.current
-      ? getResolvedContentFromBlocks(blocksSelectionUids.current)
-      : null;
+    let context = "";
+    if (blocksSelectionUids.current && blocksSelectionUids.current.length > 0)
+      context = getResolvedContentFromBlocks(blocksSelectionUids.current);
+    else if (block.current) context = getBlockContentByUid(block.current);
+    else if (isMobileViewContext && window.innerWidth < 500)
+      context = getResolvedContentFromBlocks(
+        getBlocksSelectionUids(true).slice(0, -1)
+      );
     const gptResponse = await gptCompletion(prompt, openai, context);
     removeSpinner(intervalId);
     addContentToBlock(uid, gptResponse);

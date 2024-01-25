@@ -52,6 +52,7 @@ export async function getTopOrActiveBlockUid() {
   if (currentBlockUid) return currentBlockUid;
   else {
     let uid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+    if (getBlockContentByUid(uid)) return uid;
     return getFirstChildUid(uid);
   }
 }
@@ -129,9 +130,11 @@ export const removeSpinner = (intervalId) => {
   if (spinner) spinner.remove();
 };
 
-export const getBlocksSelectionUids = () => {
+export const getBlocksSelectionUids = (reverse) => {
   let selectedBlocksUids = [];
-  let blueSelection = document.querySelectorAll(".block-highlight-blue");
+  let blueSelection = !reverse
+    ? document.querySelectorAll(".block-highlight-blue")
+    : document.querySelectorAll(".rm-block-main");
   let checkSelection = roamAlphaAPI.ui.individualMultiselect.getSelectedUids();
   if (blueSelection.length === 0) blueSelection = null;
   if (blueSelection) {

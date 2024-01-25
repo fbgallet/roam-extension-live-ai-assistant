@@ -66,7 +66,7 @@ class MicRecorder {
     this.context = new AudioContext();
     this.config.sampleRate = this.context.sampleRate;
     this.lameEncoder = new Encoder(this.config);
-    console.log("this.lameEncoder :>> ", this.lameEncoder);
+    // console.log("this.lameEncoder :>> ", this.lameEncoder);
 
     const audio = this.config.deviceId
       ? { deviceId: { exact: this.config.deviceId } }
