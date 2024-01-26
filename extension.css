@@ -10,12 +10,15 @@
   font-variant-numeric: tabular-nums;
   margin-left: 4px;
 }
-.speech-to-roam-container-left .speech-ui-row1 .left-timer-wrapper {
+.speech-to-roam-container-left > .speech-ui-row1 .left-timer-wrapper {
   display: flex;
   justify-content: space-between;
   margin: 0 !important;
   margin-left: 2px;
   padding-left: 0;
+}
+.speech-to-roam-container-left > .speech-ui-row1 > .log-button {
+  margin-right: 0px !important;
 }
 
 .speech-record-button {
@@ -143,7 +146,7 @@
     display: flex;
     flex-direction: column;
     justify-content: space-evenly;
-    padding-left: 0 !important;
+    padding: 0 !important;
     top: calc(100dvh / 3 * 2);
     left: 0;
     width: 100vw;

@@ -6,10 +6,14 @@ const mediaRecorderOptions = {
 };
 
 export async function getStream() {
-  const stream = await navigator.mediaDevices.getUserMedia(
-    mediaRecorderOptions
-  );
-  return stream;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(
+      mediaRecorderOptions
+    );
+    return stream;
+  } catch (error) {
+    console.log(error.message);
+  }
 }
 
 export function newMediaRecorder(audioChunk, stream) {

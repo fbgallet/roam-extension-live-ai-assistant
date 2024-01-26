@@ -455,9 +455,12 @@ function VoiceRecorder({
         onClick={handleRecord}
         class="log-button"
         tabindex="0"
-        style={{ marginRight: isListening ? "0" : "4px" }}
+        // style={{ marginRight: isListening ? "0" : "4px" }}
       >
-        <span class="bp3-icon bp3-icon-shop icon bp3-icon-small" {...props}>
+        <span
+          class="bp3-icon bp3-icon-shop icon bp3-icon-small speech-record-button"
+          {...props}
+        >
           {mainContent()}
         </span>
         {!isListening &&
@@ -470,26 +473,33 @@ function VoiceRecorder({
                 style={{
                   display: "inline",
                   padding: "0",
-                  margin: "0 0 0 2px",
+                  margin: "0 0 0 -3px",
                 }}
               >
                 Speech-to-Roam
               </span>
-              {!isWorking && (
-                <span
-                  style={{ color: "lightpink" }}
-                  title={
-                    !worksOnPlatform
-                      ? "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
-                      : "Native voice recognition doesn't work on Firefox, Arc browser or Electron app. Enable Whisper recognition"
-                  }
-                >
-                  &nbsp;⚠️
-                </span>
-              )}
             </>
           )}
       </div>
+    );
+  };
+
+  const jsxWarning = () => {
+    return (
+      <>
+        {!isWorking && (
+          <span
+            style={{ color: "lightpink" }}
+            title={
+              !worksOnPlatform
+                ? "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
+                : "Native voice recognition doesn't work on Firefox, Arc browser or Electron app. Enable Whisper recognition"
+            }
+          >
+            &nbsp;⚠️
+          </span>
+        )}
+      </>
     );
   };
 
@@ -557,11 +567,13 @@ function VoiceRecorder({
         {position === "left"
           ? jsxLogMainDisplay(mainProps)
           : jsxBp3MainDisplay(mainProps)}
+
         {(isListening ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           (position === "left"
             ? jsxLogTimerWrapper(timerProps)
             : jsxBp3TimerWrapper(timerProps))}
+        {jsxWarning()}
       </div>
       <div class="speech-ui-row2">
         {(isListening ||
