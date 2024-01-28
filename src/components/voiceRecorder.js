@@ -288,6 +288,9 @@ function VoiceRecorder({
   const initializeProcessing = () => {
     targetBlock.current =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+    const currentSelection = getBlocksSelectionUids();
+    if (!blocksSelectionUids.current || currentSelection.length > 0)
+      blocksSelectionUids.current = currentSelection;
     if (isListening) {
       isToTranscribe.current = true;
       setIsListening(false);
