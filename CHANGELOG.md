@@ -1,7 +1,7 @@
 ## v.2 (January 29th, 2024)
 
 Added:
-- Commands in command palette for transcription & prompting to AI assistant
+- Commands in command palette for transcription & send prompt to AI assistant
 - Option to insert AI assistant response in multiple blocks if multiple paragraphs (by default)
 - Option to hide controls and make them only visible when recording a note
 - Option to add instructions for context use by AI assistant
