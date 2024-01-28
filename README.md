@@ -6,6 +6,10 @@
 
 By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
+### To be done right after installation
+
+In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions.
+
 **Keyboard hotkeys** (available when the recording has been started by a click):
 
 - Pause/Resume: `Spacebar`
@@ -20,12 +24,9 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 - Transcribe your vocal note
 - Transcribe & send as prompt for GPT assistant
 - Toggle the visibility of the main button (if hidden, the controls will only appear during the recording, which will necessarily be initiated by the above command)
+- a SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of SmartBlock at the end of this doc.
 
 ⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Mobile app, but it works on browsers (desktop and mobile) and on Windows desktop app._
-
-### To be done right after installation
-
-In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions.
 
 ### Voice transcription
 
@@ -49,12 +50,12 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
 - assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.)
 - you can easily **provide context by selecting some block(s) or place the cursor in any block** in the page or right sidebar. You can use it to extend a conversation, ask a question about any content, request a summary or translation, and so on. 🚀 The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
-- the context provided by selected blocks is handled with the following instructions:
+- the context provided by selected blocks is handled with the following instructions (you can add your own instructions, see settings):
 
-  > _"\nBelow is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. The user car refer to it as 'this block' or 'the selected blocks' among other possibilities. The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. In your response, you can refer to it if needed, using markdown link alias syntax `[*](((9-characters code)))` to mention it as a note or citation: e.g. `[*](((kVZwmFnFF)))`. Expressions within double brackets should be reused as in [[the source]] text. "_
+  > _"\nBelow is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. The user car refer to it as 'this block' or 'the selected blocks' among other possibilities. The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. In your response, you can refer to it if needed, using markdown link alias syntax `[*](((9-characters code)))` to mention it as a note or citation: e.g. `[*](((kVZwmFnFF)))`. Expressions [[within double brackets]] should be reused with the exact same syntax as in the source text. "_
 
 - on mobile (selection being not possible), place the cursor in a block to use its content as context, or enable the option to use the whole current view as context (unless you place the cursor in a blank block).
-- you can customize the AI assistants's "character", its default character is defined this way:
+- you can customize the AI assistants's "character", its default character is defined this way (you can add your own definition of its character, see settings):
 
   > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'."_
 
@@ -69,6 +70,17 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - gpt-4-1106-preview (128k context)
   - input: $0.01 / 1K tokens
   - output: $0.03 / 1K tokens
+
+## Using the SmartBlock command
+
+You can insert `<%SPEECHTOROAM%>` command in your SmartBlocks template (using the corresponding extension) to start recording a vocal note in a specific context. You can for example create a very simple SmartBlock and call it with a button:
+
+```
+- #SmartBlock Speech-to-Roam
+    - <%SPEECHTOROAM%><%CURSOR%>
+```
+
+The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be used once), or to have a permanent button in a given block, and automatically insert the transcription in the children blocks: `{{🎙️:SmartBlock:Speech-to-Roam:RemoveButton=false}}`
 
 ---
 

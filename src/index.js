@@ -21,7 +21,7 @@ export let contextInstruction =
   "The user car can refer to it as 'this block' or 'the selected blocks' among other possibilities. " +
   "The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. " +
   "In your response, you can refer to it if needed, using markdown link alias syntax [*](((9-characters code))) to mention it as a note or citation: e.g. [*](((kVZwmFnFF))). " +
-  "Expressions within double brackets should be reused as in [[the source]] text. Here is the context:\n";
+  "Expressions [[within double brackets]] should be reused with the exact same syntax as in the source text. ";
 export let userContextInstructions;
 export let isMobileViewContext;
 export let isResponseToSplit;
