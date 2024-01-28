@@ -76,6 +76,15 @@ export function processNotesInTree(tree, callback, callbackArgs) {
   }
 }
 
+export function createChildBlock(parentUid, content, order = "last") {
+  const uid = window.roamAlphaAPI.util.generateUID();
+  window.roamAlphaAPI.createBlock({
+    location: { "parent-uid": parentUid, order: order },
+    block: { string: content, uid: uid },
+  });
+  return uid;
+}
+
 export async function insertBlockInCurrentView(content, order) {
   let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
   // If not on a given page, but in Daily Log
@@ -98,9 +107,13 @@ export async function insertBlockInCurrentView(content, order) {
 }
 
 export function addContentToBlock(uid, contentToAdd) {
-  const currentContent = getBlockContentByUid(uid);
+  const currentContent = getBlockContentByUid(uid).trimEnd();
+  // currentContent += currentContent ? " " : "";
   window.roamAlphaAPI.updateBlock({
-    block: { uid: uid, string: currentContent + contentToAdd },
+    block: {
+      uid: uid,
+      string: (currentContent ? currentContent + " " : "") + contentToAdd,
+    },
   });
 }
 

@@ -1,6 +1,6 @@
 import React from "react";
 
-export function Timer(props) {
+function Timer(props) {
   return (
     <span className="timer speech-display-button">
       <span className="digits">
@@ -12,3 +12,5 @@ export function Timer(props) {
     </span>
   );
 }
+
+export default Timer;

@@ -8,10 +8,11 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 //import "./App.css";
-import { closeStream, getStream, newMediaRecorder } from "../audio";
-import { gptCompletion, transcribeAudio, translateAudio } from "../openai";
+import { closeStream, getStream, newMediaRecorder } from "../audio.js";
+import { gptCompletion, transcribeAudio, translateAudio } from "../openai.js";
 import {
   addContentToBlock,
+  createChildBlock,
   displaySpinner,
   getBlockContentByUid,
   getBlocksSelectionUids,
@@ -20,15 +21,15 @@ import {
   getTopOrActiveBlockUid,
   insertBlockInCurrentView,
   removeSpinner,
-} from "../utils";
-import { Timer } from "./timer";
+} from "../utils.js";
+import Timer from "./Timer.js";
 import {
   chatRoles,
   isMobileViewContext,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
-} from "..";
+} from "../index.js";
 import MicRecorder from "../mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
 
@@ -70,7 +71,8 @@ function VoiceRecorder({
   );
   const instantVoiceReco = useRef(null);
   const lastCommand = useRef(null);
-  const block = useRef(blockUid);
+  const startBlock = useRef(blockUid);
+  const targetBlock = useRef(null);
   const blocksSelectionUids = useRef(null);
 
   useEffect(() => {
@@ -100,17 +102,6 @@ function VoiceRecorder({
     };
   }, [isListening]);
 
-  // React.useEffect(async () => {
-  //   if (lastCommand.current) {
-  //     if (lastCommand.current === gptCompletion) handleCompletion();
-  //     else voiceProcessing();
-  //   }
-  // }, [defaultRecord]);
-
-  // useEffect(() => {
-  //   handleListen();
-  // }, [isListening]);
-
   const handleRecord = async (e) => {
     if (!worksOnPlatform) {
       alert(
@@ -119,6 +110,8 @@ function VoiceRecorder({
       return;
     }
     e.preventDefault();
+    let currentBlock = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+    if (!isListening && currentBlock) startBlock.current = currentBlock;
     if (!isListening && !blocksSelectionUids.current)
       blocksSelectionUids.current = getBlocksSelectionUids();
     if (window.innerWidth < 500 && position === "left") {
@@ -138,8 +131,8 @@ function VoiceRecorder({
   };
 
   const handleListen = () => {
-    // recognition if not in Electron App or Firefox browser
     if (isListening) {
+      // recognition if not in Electron App or Firefox browser
       if (mic) {
         try {
           mic.start();
@@ -184,10 +177,41 @@ function VoiceRecorder({
     }
   };
 
+  const handleKeys = async (e) => {
+    if (e.code === "Escape" || e.code === "Backspace") {
+      handleBackward(e);
+      return;
+    }
+    if (e.code === "Space") {
+      setIsListening((prevState) => !prevState);
+      return;
+    }
+    if (e.code === "Enter") {
+      if (translateOnly) {
+        handleTranslate(e);
+        return;
+      } else if (completionOnly) {
+        handleCompletion(e);
+        return;
+      }
+      handleTranscribe(e);
+    }
+    if (e.key.toLowerCase() === "t") {
+      handleTranscribe(e);
+      return;
+    }
+    if (e.key.toLowerCase() === "e") {
+      handleTranslate(e);
+      return;
+    }
+    if (e.key.toLowerCase() === "c") {
+      handleCompletion(e);
+      return;
+    }
+  };
+
   const startRec = async () => {
     console.log("Start to record");
-
-    block.current = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
 
     if (isSafari) {
       safariRecorder.current
@@ -249,34 +273,6 @@ function VoiceRecorder({
     }
   };
 
-  const initialize = (complete = true) => {
-    if (isSafari) safariRecorder.current.clear();
-    else {
-      lastCommand.current = null;
-      audioChunk.current = [];
-      // setDefaultRecord(complete ? null : undefined);
-      record.current = complete ? null : undefined;
-    }
-    if (complete) {
-      if (isSafari) {
-        safariRecorder.current.stop();
-      } else {
-        closeStream(stream.current);
-        stream.current = null;
-      }
-      blocksSelectionUids.current = null;
-      setIsToDisplay({
-        transcribeIcon: true,
-        translateIcon: isTranslateIconDisplayed || translateOnly,
-        completionIcon: true,
-      });
-      setAreCommandsToDisplay(false);
-    }
-    instantVoiceReco.current = "";
-    isToTranscribe.current = false;
-    setTime(0);
-  };
-
   const handleTranscribe = () => {
     lastCommand.current = transcribeAudio;
     initializeProcessing();
@@ -290,6 +286,8 @@ function VoiceRecorder({
     initializeProcessing();
   };
   const initializeProcessing = () => {
+    targetBlock.current =
+      window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     if (isListening) {
       isToTranscribe.current = true;
       setIsListening(false);
@@ -325,11 +323,20 @@ function VoiceRecorder({
   const audioFileProcessing = async (audioFile) => {
     let toChain = false;
     let voiceProcessingCommand = lastCommand.current;
+    let targetUid =
+      targetBlock.current ||
+      startBlock.current ||
+      (await insertBlockInCurrentView(""));
     if (lastCommand.current === gptCompletion) {
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
+      if (
+        targetUid === (targetBlock.current || startBlock.current) &&
+        getBlockContentByUid(targetUid).trim()
+      ) {
+        targetUid = createChildBlock(targetUid, "");
+      }
     }
-    let targetUid = block.current || (await insertBlockInCurrentView(""));
     const intervalId = await displaySpinner(targetUid);
     const hasKey = openai && openai.key !== "";
     let transcribe =
@@ -355,16 +362,13 @@ function VoiceRecorder({
   };
 
   const insertCompletion = async (prompt, location) => {
-    const uid = window.roamAlphaAPI.util.generateUID();
-    window.roamAlphaAPI.createBlock({
-      location: { "parent-uid": location, order: "last" },
-      block: { string: chatRoles.assistant, uid: uid },
-    });
+    const uid = createChildBlock(location, chatRoles.assistant);
     const intervalId = await displaySpinner(uid);
     let context = "";
     if (blocksSelectionUids.current && blocksSelectionUids.current.length > 0)
       context = getResolvedContentFromBlocks(blocksSelectionUids.current);
-    else if (block.current) context = getBlockContentByUid(block.current);
+    else if (startBlock.current)
+      context = getBlockContentByUid(startBlock.current);
     else if (isMobileViewContext && window.innerWidth < 500)
       context = getResolvedContentFromBlocks(
         getBlocksSelectionUids(true).slice(0, -1)
@@ -374,37 +378,34 @@ function VoiceRecorder({
     addContentToBlock(uid, gptResponse);
   };
 
-  const handleKeys = async (e) => {
-    if (e.code === "Escape" || e.code === "Backspace") {
-      handleBackward(e);
-      return;
+  const initialize = (complete = true) => {
+    if (isSafari) safariRecorder.current.clear();
+    else {
+      lastCommand.current = null;
+      audioChunk.current = [];
+      // setDefaultRecord(complete ? null : undefined);
+      record.current = complete ? null : undefined;
     }
-    if (e.code === "Space") {
-      setIsListening((prevState) => !prevState);
-      return;
-    }
-    if (e.code === "Enter") {
-      if (translateOnly) {
-        handleTranslate(e);
-        return;
-      } else if (completionOnly) {
-        handleCompletion(e);
-        return;
+    if (complete) {
+      if (isSafari) {
+        safariRecorder.current.stop();
+      } else {
+        closeStream(stream.current);
+        stream.current = null;
       }
-      handleTranscribe(e);
+      startBlock.current = null;
+      targetBlock.current = null;
+      blocksSelectionUids.current = null;
+      setIsToDisplay({
+        transcribeIcon: true,
+        translateIcon: isTranslateIconDisplayed || translateOnly,
+        completionIcon: true,
+      });
+      setAreCommandsToDisplay(false);
     }
-    if (e.key.toLowerCase() === "t") {
-      handleTranscribe(e);
-      return;
-    }
-    if (e.key.toLowerCase() === "e") {
-      handleTranslate(e);
-      return;
-    }
-    if (e.key.toLowerCase() === "c") {
-      handleCompletion(e);
-      return;
-    }
+    instantVoiceReco.current = "";
+    isToTranscribe.current = false;
+    setTime(0);
   };
 
   // JSX

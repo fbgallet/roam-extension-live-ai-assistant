@@ -1,4 +1,4 @@
-import VoiceRecorder from "./components/voiceRecorder";
+import VoiceRecorder from "./components/VoiceRecorder";
 
 function App(props) {
   return <VoiceRecorder {...props} />;
