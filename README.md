@@ -6,7 +6,7 @@
 
 By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
-**Keyboard hotkeys** (available when recording):
+**Keyboard hotkeys** (available when the recording has been started by a click):
 
 - Pause/Resume: `Spacebar`
 - Stop and rewind: `Escape` or `Backspace`
@@ -14,12 +14,14 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 - Translate (in English): `E`
 - Speak to ChatGPT: `C`
 
-**Commands** (in command panel)
+**Commands** (in command palette - I recommand to set up hotkeys for them)
 
-- Toggle on/off Icon (in the left sidebar or in the topbar, depending on your choice in the settings)
-- Record your Voice for transcription
+- Start/Pause record your vocal note
+- Transcribe your vocal note
+- Transcribe & send as prompt for GPT assistant
+- Toggle the visibility of the main button (if hidden, the controls will only appear during the recording, which will necessarily be initiated by the above command)
 
-⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Android app, but it works on browsers (desktop and mobile) and on Windows desktop app._
+⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Mobile app, but it works on browsers (desktop and mobile) and on Windows desktop app._
 
 ### To be done right after installation
 
@@ -27,9 +29,10 @@ In the settings, provide an OpenAI API key (by copying/pasting an existing key o
 
 ### Voice transcription
 
-- the transcribed text will be inserted at the bottom of the current page (or page view) or appended to the current focused block.
-- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
+- the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere).
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
+- You can specify a list of words to be spelled in a specific way (e.g. proper nouns, acronyms, etc.), see the Whisper prompt option in the settings.
+- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
 
 ⚠️ _OpenAI Whisper API is a paid but quite cheap service_
 
@@ -44,8 +47,8 @@ A large number of [source languages are supported](https://platform.openai.com/d
 ### Speak directly to an AI Assistant (OpenAI GPT models)
 
 - ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
-- assistant response is inserted as last child of prompt block (current limitation: the answer is only one long block)
-- you can easily **provide context by selecting some block(s)** in the page or right sidebar. You can use it to extend a conversation, ask a question about any content, request a summary or translation, and so on. 🚀
+- assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.)
+- you can easily **provide context by selecting some block(s) or place the cursor in any block** in the page or right sidebar. You can use it to extend a conversation, ask a question about any content, request a summary or translation, and so on. 🚀 The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
 - the context provided by selected blocks is handled with the following instructions:
 
   > _"Here is the context or content to which you must refer to respond to the user's prompt, to which the user can refer to as 'this', 'that', 'this block', 'these blocks', 'the selected blocks' or 'what is selected' among other possibilities. The 9-characters code between parentheses represents the reference to the block containing the copied text. In your response, you can also refer to it if asked, using the following syntax `[*](((9-characters code)))`. Here is the content in question:\n"_
