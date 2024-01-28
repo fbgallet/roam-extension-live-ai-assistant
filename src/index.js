@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import App from "./App";
 import { initializeOpenAIAPI, supportedLanguage } from "./openai";
 import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
+import { getBlockContentByUid, resolveReferences, uidRegex } from "./utils";
 
 let OPENAI_API_KEY = "";
 export let isUsingWhisper;
@@ -14,8 +15,14 @@ export let gptModel;
 export let gptCustomModel;
 export let chatRoles;
 export let assistantCharacter =
-  "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'Roam assistant', 'Assistant' or 'AI assistant'." +
-  "You are playful only if the tone of the request is playful or humorous and directed at you personally, otherwise your tone is serious and thoughtful.";
+  "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'.";
+export let contextInstruction =
+  "\nBelow is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. " +
+  "The user car can refer to it as 'this block' or 'the selected blocks' among other possibilities. " +
+  "The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. " +
+  "In your response, you can refer to it if needed, using markdown link alias syntax [*](((9-characters code))) to mention it as a note or citation: e.g. [*](((kVZwmFnFF))). " +
+  "Expressions within double brackets should be reused as in [[the source]] text. Here is the context:\n";
+export let userContextInstructions;
 export let isMobileViewContext;
 export let isResponseToSplit;
 let isComponentAlwaysVisible;
@@ -352,11 +359,35 @@ export default {
           id: "assistantCharacter",
           name: "Assistant's character",
           description:
-            "You can describe here the character and tone of the AI assistant (for completion with ChatGPT):",
+            "You can describe here the character and tone of the AI assistant (text or ((block-ref))):",
           action: {
             type: "input",
             onChange: (evt) => {
-              if (evt.target.value) assistantCharacter = evt.target.value;
+              if (evt.target.value) {
+                let input = evt.target.value;
+                assistantCharacter = uidRegex.test(input)
+                  ? resolveReferences(getBlockContentByUid(input.slice(2, -2)))
+                  : input;
+                console.log(assistantCharacter);
+              }
+            },
+          },
+        },
+        {
+          id: "contextInstructions",
+          name: "Instructions on context",
+          description:
+            "You can add some general instructions about how to use the context made by the selected notes: (text or ((block-ref))):",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              if (evt.target.value) {
+                let input = evt.target.value;
+                userContextInstructions = uidRegex.test(input)
+                  ? resolveReferences(getBlockContentByUid(input.slice(2, -2)))
+                  : input;
+                console.log(userContextInstructions);
+              }
             },
           },
         },
@@ -430,6 +461,9 @@ export default {
     if (extensionAPI.settings.get("assistantCharacter") === null)
       await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
     assistantCharacter = extensionAPI.settings.get("assistantCharacter");
+    if (extensionAPI.settings.get("contextInstructions") === null)
+      await extensionAPI.settings.set("contextInstructions", "");
+    userContextInstructions = extensionAPI.settings.get("contextInstructions");
     if (extensionAPI.settings.get("mobileContext") === null)
       await extensionAPI.settings.set("mobileContext", false);
     isMobileViewContext = extensionAPI.settings.get("mobileContext");

@@ -51,12 +51,12 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - you can easily **provide context by selecting some block(s) or place the cursor in any block** in the page or right sidebar. You can use it to extend a conversation, ask a question about any content, request a summary or translation, and so on. 🚀 The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
 - the context provided by selected blocks is handled with the following instructions:
 
-  > _"Here is the context or content to which you must refer to respond to the user's prompt, to which the user can refer to as 'this', 'that', 'this block', 'these blocks', 'the selected blocks' or 'what is selected' among other possibilities. The 9-characters code between parentheses represents the reference to the block containing the copied text. In your response, you can also refer to it if asked, using the following syntax `[*](((9-characters code)))`. Here is the content in question:\n"_
+  > _"\nBelow is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. The user car refer to it as 'this block' or 'the selected blocks' among other possibilities. The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. In your response, you can refer to it if needed, using markdown link alias syntax `[*](((9-characters code)))` to mention it as a note or citation: e.g. `[*](((kVZwmFnFF)))`. Expressions within double brackets should be reused as in [[the source]] text. "_
 
 - on mobile (selection being not possible), place the cursor in a block to use its content as context, or enable the option to use the whole current view as context (unless you place the cursor in a blank block).
 - you can customize the AI assistants's "character", its default character is defined this way:
 
-  > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'Roam assistant', 'Assistant' or 'AI assistant'. You are playful only if the tone of the request is playful or humorous and directed at you personally, otherwise your tone is serious and thoughtful."_
+  > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'."_
 
 - model by default is currently `gpt-3.5-turbo-1106`
 - you can try other chat completion model, or your own fine-tuned models

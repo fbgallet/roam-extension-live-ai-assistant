@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 import {
   assistantCharacter,
+  contextInstruction,
   gptCustomModel,
   gptModel,
   transcriptionLanguage,
+  userContextInstructions,
   whisperPrompt,
 } from ".";
 
@@ -90,9 +92,9 @@ export async function gptCompletion(prompt, openai, context) {
           content:
             assistantCharacter +
             (context
-              ? " Here is the context or content to which you must refer to respond to the user's prompt, " +
-                " to which the user can refer to as 'this', 'that', 'this block', 'these blocks', 'the selected blocks' or 'what is selected' among other possibilities" +
-                "(the 9-characters code between parentheses represents the reference to the block containing the copied text. In your response, you can also refer to it if asked, using the following syntax [*](((9-characters code))). Here is the content in question:\n" +
+              ? contextInstruction +
+                userContextInstructions +
+                "\nHere is the content to rely on:\n" +
                 context
               : ""),
         },
