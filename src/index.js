@@ -17,6 +17,9 @@ export let assistantCharacter =
   "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'Roam assistant', 'Assistant' or 'AI assistant'." +
   "You are playful only if the tone of the request is playful or humorous and directed at you personally, otherwise your tone is serious and thoughtful.";
 export let isMobileViewContext;
+export let isResponseToSplit;
+let isComponentAlwaysVisible;
+let isComponentVisible;
 let position;
 let openai;
 export let isSafari =
@@ -65,7 +68,12 @@ function mountComponent(props) {
   // isSafari = true;
 
   ReactDOM.render(
-    <App openai={openai} blockUid={currentBlockUid} {...props} />,
+    <App
+      openai={openai}
+      blockUid={currentBlockUid}
+      isVisible={isComponentVisible}
+      {...props}
+    />,
     container
   );
 }
@@ -120,11 +128,57 @@ function getRolesFromString(str) {
   };
 }
 
+export function toggleComponentVisibility() {
+  let componentElt = document.getElementsByClassName("speech-to-roam")[0];
+  if (!componentElt) return;
+  componentElt.style.display === "none"
+    ? (componentElt.style.display = "inherit")
+    : (componentElt.style.display = "none");
+}
+
+function simulateClickOnRecordingButton() {
+  const button = document.getElementsByClassName("speech-record-button")[0];
+  if (
+    !isComponentVisible &&
+    document.getElementsByClassName("speech-to-roam")[0]?.style.display ===
+      "none"
+  ) {
+    toggleComponentVisibility();
+    if (position === "left") window.roamAlphaAPI.ui.leftSidebar.open();
+  }
+  if (button) {
+    button.focus();
+    button.click();
+  }
+}
+
 export default {
   onload: async ({ extensionAPI }) => {
     const panelConfig = {
       tabTitle: "Speech-to-Roam",
       settings: [
+        {
+          id: "visibility",
+          name: "Button visibility",
+          description:
+            "Button always visible (if not, you have to use commande palette or hotkeys, except on Mobile)",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isComponentAlwaysVisible = !isComponentAlwaysVisible;
+              unmountComponent();
+              mountComponent();
+              if (
+                window.innerWidth >= 500 &&
+                ((isComponentAlwaysVisible && !isComponentVisible) ||
+                  (!isComponentAlwaysVisible && isComponentVisible))
+              ) {
+                toggleComponentVisibility();
+                isComponentVisible = isComponentAlwaysVisible;
+              }
+            },
+          },
+        },
         {
           id: "position",
           name: "Button position",
@@ -138,6 +192,7 @@ export default {
               position = evt === "topbar" ? "top" : "left";
               createContainer();
               mountComponent();
+              if (!isComponentVisible) toggleComponentVisibility();
             },
           },
         },
@@ -317,66 +372,97 @@ export default {
             },
           },
         },
+        {
+          id: "splitResponse",
+          name: "Split response in multiple blocks",
+          description:
+            "Divide the responses of the AI assistant into as many blocks as paragraphs",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isResponseToSplit = !isResponseToSplit;
+            },
+          },
+        },
       ],
     };
 
-    extensionAPI.settings.panel.create(panelConfig);
-
     // get settings from setting panel
-    if ((await extensionAPI.settings.get("position")) === null)
+    if (extensionAPI.settings.get("visibility") === null)
+      await extensionAPI.settings.set("visibility", true);
+    isComponentAlwaysVisible = extensionAPI.settings.get("visibility");
+    isComponentVisible =
+      window.innerWidth < 500 ? true : isComponentAlwaysVisible;
+    if (extensionAPI.settings.get("position") === null)
       await extensionAPI.settings.set("position", "left sidebar");
     position =
-      (await extensionAPI.settings.get("position")) === "topbar"
-        ? "top"
-        : "left";
-    if ((await extensionAPI.settings.get("whisper")) === null)
+      extensionAPI.settings.get("position") === "topbar" ? "top" : "left";
+    if (extensionAPI.settings.get("whisper") === null)
       await extensionAPI.settings.set("whisper", true);
-    isUsingWhisper = await extensionAPI.settings.get("whisper");
-    if ((await extensionAPI.settings.get("openaiapi")) === null)
+    isUsingWhisper = extensionAPI.settings.get("whisper");
+    if (extensionAPI.settings.get("openaiapi") === null)
       await extensionAPI.settings.set("openaiapi", "");
-    OPENAI_API_KEY = await extensionAPI.settings.get("openaiapi");
+    OPENAI_API_KEY = extensionAPI.settings.get("openaiapi");
     if (!OPENAI_API_KEY) isUsingWhisper = false;
-    if ((await extensionAPI.settings.get("transcriptionLgg")) === null)
+    if (extensionAPI.settings.get("transcriptionLgg") === null)
       await extensionAPI.settings.set("transcriptionLgg", "");
-    transcriptionLanguage = await extensionAPI.settings.get("transcriptionLgg");
-    if ((await extensionAPI.settings.get("speechLgg")) === null)
+    transcriptionLanguage = extensionAPI.settings.get("transcriptionLgg");
+    if (extensionAPI.settings.get("speechLgg") === null)
       await extensionAPI.settings.set("speechLgg", "Browser default");
-    speechLanguage = await extensionAPI.settings.get("speechLgg");
-    if ((await extensionAPI.settings.get("prompt")) === null)
+    speechLanguage = extensionAPI.settings.get("speechLgg");
+    if (extensionAPI.settings.get("prompt") === null)
       await extensionAPI.settings.set("prompt", "");
-    whisperPrompt = await extensionAPI.settings.get("prompt");
-    if ((await extensionAPI.settings.get("translateIcon")) === null)
+    whisperPrompt = extensionAPI.settings.get("prompt");
+    if (extensionAPI.settings.get("translateIcon") === null)
       await extensionAPI.settings.set("translateIcon", true);
-    isTranslateIconDisplayed = await extensionAPI.settings.get("translateIcon");
-    if ((await extensionAPI.settings.get("gptModel")) === null)
+    isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
+    if (extensionAPI.settings.get("gptModel") === null)
       await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-1106");
-    gptModel = await extensionAPI.settings.get("gptModel");
-    if ((await extensionAPI.settings.get("gptCustomModel")) === null)
+    gptModel = extensionAPI.settings.get("gptModel");
+    if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
-    gptCustomModel = await extensionAPI.settings.get("gptCustomModel");
-    if ((await extensionAPI.settings.get("chatRoles")) === null)
+    gptCustomModel = extensionAPI.settings.get("gptCustomModel");
+    if (extensionAPI.settings.get("chatRoles") === null)
       await extensionAPI.settings.set("chatRoles", "Me: ,AI assistant: ");
     const chatRolesStr =
-      (await extensionAPI.settings.get(chatRoles)) || "Me: ,AI assistant: ";
+      extensionAPI.settings.get(chatRoles) || "Me: ,AI assistant: ";
     chatRoles = getRolesFromString(chatRolesStr);
-    if ((await extensionAPI.settings.get("assistantCharacter")) === null)
+    if (extensionAPI.settings.get("assistantCharacter") === null)
       await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
-    assistantCharacter = await extensionAPI.settings.get("assistantCharacter");
-    if ((await extensionAPI.settings.get("mobileContext")) === null)
+    assistantCharacter = extensionAPI.settings.get("assistantCharacter");
+    if (extensionAPI.settings.get("mobileContext") === null)
       await extensionAPI.settings.set("mobileContext", false);
-    isMobileViewContext = await extensionAPI.settings.get("mobileContext");
+    isMobileViewContext = extensionAPI.settings.get("mobileContext");
+    if (extensionAPI.settings.get("splitResponse") === null)
+      await extensionAPI.settings.set("splitResponse", true);
+    isResponseToSplit = extensionAPI.settings.get("splitResponse");
     if (OPENAI_API_KEY) openai = initializeOpenAIAPI(OPENAI_API_KEY);
     createContainer();
 
+    await extensionAPI.settings.panel.create(panelConfig);
+
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Record your voice for transcription",
+      label: "Speech-to-Roam: Start/Pause recording your vocal note",
       callback: () => {
-        const button = document.getElementsByClassName(
-          "speech-record-button"
-        )[0];
-        button
-          ? (button.focus(), button.click())
-          : mountComponent({ startRecording: true, transcribeOnly: true });
+        simulateClickOnRecordingButton();
+      },
+    });
+    extensionAPI.ui.commandPalette.addCommand({
+      label: `Speech-to-Roam: Transcribe your vocal note${
+        isUsingWhisper ? " with Whisper" : ""
+      }`,
+      callback: () => {
+        const button = document.getElementsByClassName("speech-transcribe")[0];
+        if (button) {
+          button.focus();
+          button.click();
+          if (
+            !isComponentVisible &&
+            document.getElementsByClassName("speech-to-roam")[0]?.style
+              .display !== "none"
+          )
+            toggleComponentVisibility();
+        }
       },
     });
     // extensionAPI.ui.commandPalette.addCommand({
@@ -388,15 +474,22 @@ export default {
     //       : mountComponent();
     //   },
     // });
-    // extensionAPI.ui.commandPalette.addCommand({
-    //   label: "Speech-to-Roam: speak to GPT assistant",
-    //   callback: () => {
-    //     document.getElementsByClassName("speech-record-button")
-    //       ? (unmountComponent(),
-    //         mountComponent({ startRecording: true, completionOnly: true }))
-    //       : mountComponent();
-    //   },
-    // });
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Speech-to-Roam: Transcribe & send as prompt for GPT assistant",
+      callback: () => {
+        const button = document.getElementsByClassName("speech-completion")[0];
+        if (button) {
+          button.focus();
+          button.click();
+          if (
+            !isComponentVisible &&
+            document.getElementsByClassName("speech-to-roam")[0]?.style
+              .display !== "none"
+          )
+            toggleComponentVisibility();
+        }
+      },
+    });
 
     // extensionAPI.ui.commandPalette.addCommand({
     //   label: "Speech-to-Roam: insert inline Speech-to-Roam component",
@@ -411,40 +504,37 @@ export default {
     // });
 
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: toggle button visible/hidden",
+      label:
+        "Speech-to-Roam: Toggle visibility of the button (not permanently)",
       callback: () => {
-        let recordingButtonElts = document.getElementsByClassName(
-          "speech-record-button"
-        );
-        recordingButtonElts.length !== 0
-          ? unmountComponent()
-          : mountComponent();
+        isComponentVisible = !isComponentVisible;
+        unmountComponent();
+        mountComponent();
+        toggleComponentVisibility();
       },
     });
 
     // Add SmartBlock command
-    // const insertCmd = {
-    //   text: "INSERTFOOTNOTE",
-    //   help: "Insert automatically numbered footnote (requires the Footnotes extension)",
-    //   handler: (context) => () => {
-    //     noteInline = null;
-    //     currentPos = new position();
-    //     currentPos.s = context.currentContent.length;
-    //     currentPos.e = currentPos.s;
-    //     insertOrRemoveFootnote(context.targetUid);
-    //     return "";
-    //   },
-    // };
-    // if (window.roamjs?.extension?.smartblocks) {
-    //   window.roamjs.extension.smartblocks.registerCommand(insertCmd);
-    // } else {
-    //   document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
-    //     window.roamjs?.extension.smartblocks &&
-    //       window.roamjs.extension.smartblocks.registerCommand(insertCmd);
-    //   });
-    // }
+    const insertCmd = {
+      text: "SPEECHTOROAM",
+      help: "Start recording a vocal note using Speech-to-Roam extension",
+      handler: (context) => (targetUid) => {
+        console.log("launched !");
+        simulateClickOnRecordingButton();
+        return [""];
+      },
+    };
+    if (window.roamjs?.extension?.smartblocks) {
+      window.roamjs.extension.smartblocks.registerCommand(insertCmd);
+    } else {
+      document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
+        window.roamjs?.extension.smartblocks &&
+          window.roamjs.extension.smartblocks.registerCommand(insertCmd);
+      });
+    }
 
     mountComponent();
+    if (!isComponentAlwaysVisible) toggleComponentVisibility();
 
     console.log("Extension loaded.");
     //return;

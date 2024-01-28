@@ -26,9 +26,11 @@ import Timer from "./Timer.js";
 import {
   chatRoles,
   isMobileViewContext,
+  isResponseToSplit,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
+  toggleComponentVisibility,
 } from "../index.js";
 import MicRecorder from "../mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
@@ -43,6 +45,7 @@ function VoiceRecorder({
   position,
   openai,
   worksOnPlatform,
+  isVisible,
 }) {
   const [isWorking, setIsWorking] = useState(
     worksOnPlatform ? (mic === null && !isUsingWhisper ? false : true) : false
@@ -378,7 +381,14 @@ function VoiceRecorder({
       );
     const gptResponse = await gptCompletion(prompt, openai, context);
     removeSpinner(intervalId);
-    addContentToBlock(uid, gptResponse);
+    const splittedResponse = gptResponse.split(`\n\n`);
+    if (!isResponseToSplit || splittedResponse.length === 1)
+      addContentToBlock(uid, splittedResponse[0]);
+    else {
+      for (let i = 0; i < splittedResponse.length; i++) {
+        createChildBlock(uid, splittedResponse[i]);
+      }
+    }
   };
 
   const initialize = (complete = true) => {
@@ -399,6 +409,7 @@ function VoiceRecorder({
       startBlock.current = null;
       targetBlock.current = null;
       blocksSelectionUids.current = null;
+      if (!isVisible) toggleComponentVisibility();
       setIsToDisplay({
         transcribeIcon: true,
         translateIcon: isTranslateIconDisplayed || translateOnly,
@@ -545,6 +556,12 @@ function VoiceRecorder({
   };
 
   const jsxCommandIcon = (props, command, insertIconCallback) => {
+    let commandClass =
+      command === handleTranscribe
+        ? "speech-transcribe"
+        : command === handleTranslate
+        ? "speech-translate"
+        : "speech-completion";
     return (
       // {(isListening || recording !== null) && (
       <span class="bp3-popover-wrapper">
@@ -553,7 +570,7 @@ function VoiceRecorder({
             onClick={command}
             // disabled={!safariRecorder.current.activeStream?.active}
             disabled={!areCommandsToDisplay}
-            class="bp3-button bp3-minimal bp3-small speech-command"
+            class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}
             tabindex="0"
             {...props}
           >
