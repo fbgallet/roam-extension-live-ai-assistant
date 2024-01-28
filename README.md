@@ -6,10 +6,6 @@
 
 By default, the controls will be inserted in the left sidebar, after "Daily Notes". It's possible to display them in the topbar (always visible, more convenient on mobile).
 
-### To be done right after installation
-
-In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions.
-
 **Keyboard hotkeys** (available when the recording has been started by a click):
 
 - Pause/Resume: `Spacebar`
@@ -28,7 +24,11 @@ In the settings, provide an OpenAI API key (by copying/pasting an existing key o
 
 ⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Mobile app, but it works on browsers (desktop and mobile) and on Windows desktop app._
 
-### Voice transcription
+## To be done right after installation
+
+In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions.
+
+## Voice transcription
 
 - the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere).
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
@@ -41,11 +41,11 @@ In the settings, provide an OpenAI API key (by copying/pasting an existing key o
 
 To give you an idea, using Whisper for 10 minutes a day for a month equates to 1.80 $
 
-### Translation
+## Translation
 
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a GPT model, as it only requires asking it to translate into any language.
 
-### Speak directly to an AI Assistant (OpenAI GPT models)
+## Speak directly to an AI Assistant (OpenAI GPT models)
 
 - ask any question, rephrasing, completion, translation! Feel free to specify the expected format of the response (its length, style, etc.).
 - assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.)
@@ -71,7 +71,8 @@ A large number of [source languages are supported](https://platform.openai.com/d
   - input: $0.01 / 1K tokens
   - output: $0.03 / 1K tokens
 
-## Using the SmartBlock command
+
+### Using the SmartBlock command
 
 You can insert `<%SPEECHTOROAM%>` command in your SmartBlocks template (using the corresponding extension) to start recording a vocal note in a specific context. You can for example create a very simple SmartBlock and call it with a button:
 
