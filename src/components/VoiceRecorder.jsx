@@ -24,7 +24,7 @@ import {
   insertBlockInCurrentView,
   removeSpinner,
 } from "../utils.js";
-import Timer from "./Timer.js";
+import Timer from "./Timer.jsx";
 import {
   chatRoles,
   isSafari,
