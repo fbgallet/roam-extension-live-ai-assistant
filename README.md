@@ -64,13 +64,6 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - model by default is currently `gpt-3.5-turbo-1106`
 - you can try other chat completion model, or your own fine-tuned models
 
-## Simple text AI completion
-
-You can also use AI assistant feature without vocal just, using the dedicated command in command palette (see above).
-
-- Focus your cursor in a block, it will be used as prompt, the AI response will be inserted as child block.
-- Select some blocks, they will be used as context. By default, the prompt will be "Follow the instructions provided in the context". But you can simultaneously focus a block to define your prompt and select some blocks with Roam native multi-select feature.
-
 ⚠️ _OpenAI GPT API is a paid but cheap service_
 
 - gpt-3.5
@@ -79,6 +72,13 @@ You can also use AI assistant feature without vocal just, using the dedicated co
 - gpt-4-1106-preview (128k context)
   - input: $0.01 / 1K tokens
   - output: $0.03 / 1K tokens
+
+## Simple text AI completion
+
+You can also use AI assistant feature without vocal note, just using text content of some blocks in your graph and the dedicated command in command palette (see above).
+
+- Focus your cursor in a block, it will be used as prompt, the AI response will be inserted as child block.
+- Select some blocks, they will be used as context. By default, the prompt will be "Follow the instructions provided in the context". But you can simultaneously focus a block to define your prompt and select some blocks with Roam native multi-select feature.
 
 ### Using the SmartBlock command
 
