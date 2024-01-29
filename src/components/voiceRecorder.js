@@ -9,24 +9,24 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 //import "./App.css";
 import { closeStream, getStream, newMediaRecorder } from "../audio.js";
-import { gptCompletion, transcribeAudio, translateAudio } from "../openai.js";
+import {
+  gptCompletion,
+  insertCompletion,
+  transcribeAudio,
+  translateAudio,
+} from "../openai.js";
 import {
   addContentToBlock,
   createChildBlock,
   displaySpinner,
   getBlockContentByUid,
   getBlocksSelectionUids,
-  getFirstLevelBlocksInCurrentView,
-  getResolvedContentFromBlocks,
-  getTopOrActiveBlockUid,
   insertBlockInCurrentView,
   removeSpinner,
 } from "../utils.js";
 import Timer from "./Timer.js";
 import {
   chatRoles,
-  isMobileViewContext,
-  isResponseToSplit,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
@@ -362,33 +362,15 @@ function VoiceRecorder({
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe) {
-      await insertCompletion(transcribe, targetUid);
+      await insertCompletion(
+        transcribe,
+        openai,
+        targetUid,
+        startBlock.current,
+        blocksSelectionUids.current
+      );
     }
     initialize(true);
-  };
-
-  const insertCompletion = async (prompt, location) => {
-    const uid = createChildBlock(location, chatRoles.assistant);
-    const intervalId = await displaySpinner(uid);
-    let context = "";
-    if (blocksSelectionUids.current && blocksSelectionUids.current.length > 0)
-      context = getResolvedContentFromBlocks(blocksSelectionUids.current);
-    else if (startBlock.current)
-      context = getBlockContentByUid(startBlock.current);
-    else if (isMobileViewContext && window.innerWidth < 500)
-      context = getResolvedContentFromBlocks(
-        getBlocksSelectionUids(true).slice(0, -1)
-      );
-    const gptResponse = await gptCompletion(prompt, openai, context);
-    removeSpinner(intervalId);
-    const splittedResponse = gptResponse.split(`\n\n`);
-    if (!isResponseToSplit || splittedResponse.length === 1)
-      addContentToBlock(uid, splittedResponse[0]);
-    else {
-      for (let i = 0; i < splittedResponse.length; i++) {
-        createChildBlock(uid, splittedResponse[i]);
-      }
-    }
   };
 
   const initialize = (complete = true) => {

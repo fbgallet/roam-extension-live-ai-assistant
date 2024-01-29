@@ -1,13 +1,25 @@
 import OpenAI from "openai";
 import {
   assistantCharacter,
+  chatRoles,
   contextInstruction,
   gptCustomModel,
   gptModel,
+  isMobileViewContext,
+  isResponseToSplit,
   transcriptionLanguage,
   userContextInstructions,
   whisperPrompt,
 } from ".";
+import {
+  addContentToBlock,
+  createChildBlock,
+  displaySpinner,
+  getBlockContentByUid,
+  getBlocksSelectionUids,
+  getResolvedContentFromBlocks,
+  removeSpinner,
+} from "./utils";
 
 export function initializeOpenAIAPI(OPENAI_API_KEY) {
   try {
@@ -107,6 +119,35 @@ export async function gptCompletion(prompt, openai, context) {
     console.error(error);
   }
 }
+
+export const insertCompletion = async (
+  prompt,
+  openai,
+  location,
+  startBlock,
+  blocksSelectionUids
+) => {
+  const uid = createChildBlock(location, chatRoles.assistant);
+  const intervalId = await displaySpinner(uid);
+  let context = "";
+  if (blocksSelectionUids && blocksSelectionUids.length > 0)
+    context = getResolvedContentFromBlocks(blocksSelectionUids);
+  else if (startBlock) context = getBlockContentByUid(startBlock);
+  else if (isMobileViewContext && window.innerWidth < 500)
+    context = getResolvedContentFromBlocks(
+      getBlocksSelectionUids(true).slice(0, -1)
+    );
+  const gptResponse = await gptCompletion(prompt, openai, context);
+  removeSpinner(intervalId);
+  const splittedResponse = gptResponse.split(`\n\n`);
+  if (!isResponseToSplit || splittedResponse.length === 1)
+    addContentToBlock(uid, splittedResponse[0]);
+  else {
+    for (let i = 0; i < splittedResponse.length; i++) {
+      createChildBlock(uid, splittedResponse[i]);
+    }
+  }
+};
 
 export const supportedLanguage = [
   "af",

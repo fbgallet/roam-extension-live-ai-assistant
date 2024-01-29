@@ -1,9 +1,19 @@
 import React from "react";
 import ReactDOM from "react-dom";
 import App from "./App";
-import { initializeOpenAIAPI, supportedLanguage } from "./openai";
+import {
+  initializeOpenAIAPI,
+  insertCompletion,
+  supportedLanguage,
+} from "./openai";
 import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
-import { getBlockContentByUid, resolveReferences, uidRegex } from "./utils";
+import {
+  getBlockContentByUid,
+  getBlocksSelectionUids,
+  insertBlockInCurrentView,
+  resolveReferences,
+  uidRegex,
+} from "./utils";
 
 let OPENAI_API_KEY = "";
 export let isUsingWhisper;
@@ -21,7 +31,7 @@ export let contextInstruction =
   "The user car can refer to it as 'this block' or 'the selected blocks' among other possibilities. " +
   "The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. " +
   "In your response, you can refer to it if needed, using markdown link alias syntax [*](((9-characters code))) to mention it as a note or citation: e.g. [*](((kVZwmFnFF))). " +
-  "Expressions [[within double brackets]] should be reused with the exact same syntax as in the source text. ";
+  "Expressions within double brackets such as [[my page]] should be reused with the exact same syntax as in the source text, keeping the original double brackets: e.g. [[my page]]. ";
 export let userContextInstructions;
 export let isMobileViewContext;
 export let isResponseToSplit;
@@ -496,18 +506,25 @@ export default {
               .display !== "none"
           )
             toggleComponentVisibility();
-        }
+        } else simulateClickOnRecordingButton();
       },
     });
-    // extensionAPI.ui.commandPalette.addCommand({
-    //   label: "Speech-to-Roam: translate to english",
-    //   callback: () => {
-    //     document.getElementsByClassName("speech-record-button")
-    //       ? (unmountComponent(),
-    //         mountComponent({ startRecording: true, translateOnly: true }))
-    //       : mountComponent();
-    //   },
-    // });
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Speech-to-Roam: Translate to English",
+      callback: () => {
+        const button = document.getElementsByClassName("speech-translate")[0];
+        if (button) {
+          button.focus();
+          button.click();
+          if (
+            !isComponentVisible &&
+            document.getElementsByClassName("speech-to-roam")[0]?.style
+              .display !== "none"
+          )
+            toggleComponentVisibility();
+        } else simulateClickOnRecordingButton();
+      },
+    });
     extensionAPI.ui.commandPalette.addCommand({
       label: "Speech-to-Roam: Transcribe & send as prompt for GPT assistant",
       callback: () => {
@@ -521,7 +538,7 @@ export default {
               .display !== "none"
           )
             toggleComponentVisibility();
-        }
+        } else simulateClickOnRecordingButton();
       },
     });
 
@@ -548,11 +565,37 @@ export default {
       },
     });
 
+    extensionAPI.ui.commandPalette.addCommand({
+      label:
+        "Speech-to-Roam: AI completion of current block as prompt & selection as context (no vocal note)",
+      callback: async () => {
+        let currentUid =
+          window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+        let selectionUids = getBlocksSelectionUids();
+        if (!currentUid && !selectionUids.length) return;
+        // const selectionCitation = getReferencesCitation(selectionUids);
+        let currentBlockContent = currentUid
+          ? getBlockContentByUid(currentUid)
+          : "";
+        // if (currentBlockContent)
+        //   addContentToBlock(currentUid, selectionCitation);
+        let targetUid = currentUid
+          ? currentUid
+          : await insertBlockInCurrentView(
+              chatRoles.user + " a selection of blocks"
+            );
+        let prompt = currentBlockContent
+          ? currentBlockContent
+          : "Follow the instructions provided in the context.";
+        insertCompletion(prompt, openai, targetUid, null, selectionUids);
+      },
+    });
+
     // Add SmartBlock command
     const insertCmd = {
       text: "SPEECHTOROAM",
       help: "Start recording a vocal note using Speech-to-Roam extension",
-      handler: (context) => (targetUid) => {
+      handler: (context) => () => {
         console.log("launched !");
         simulateClickOnRecordingButton();
         return [""];

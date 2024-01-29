@@ -162,6 +162,20 @@ export const getBlocksSelectionUids = (reverse) => {
   return selectedBlocksUids;
 };
 
+export const getReferencesCitation = (blockUids) => {
+  let citation = "";
+  if (blockUids.length > 0) {
+    blockUids.forEach(
+      (uid, index) =>
+        (citation += ` [${index}](((${uid})))${
+          index < blockUids.length - 1 ? "," : ""
+        }`)
+    );
+    return "blocks used as context:" + citation;
+  }
+  return "";
+};
+
 export const getResolvedContentFromBlocks = (blocksUids) => {
   let content = "";
   if (blocksUids.length > 0)
