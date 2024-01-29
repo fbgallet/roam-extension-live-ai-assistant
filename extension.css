@@ -1,5 +1,6 @@
 :root {
-  --icon-color: var(--co-button__icon, #5c7080);
+  --icon-color-left: var(--co-left-sidebar__icon, #5c7080);
+  --icon-color-top: var(--co-button__minimal-icon, #5c7080);
 }
 
 .speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {
@@ -72,9 +73,11 @@
   margin-left: 0 !important;
 }
 
-.speech-to-roam-container-left svg:not(.fa-record-vinyl) path,
+.speech-to-roam-container-left svg:not(.fa-record-vinyl) path {
+  fill: var(--icon-color-left);
+}
 .speech-to-roam-container-top svg:not(.fa-record-vinyl) path {
-  fill: var(--icon-color);
+  fill: var(--icon-color-top);
 }
 
 .speech-to-roam-container-inline {
