@@ -25,7 +25,7 @@ export let gptModel;
 export let gptCustomModel;
 export let chatRoles;
 export let assistantCharacter =
-  "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'.";
+  "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself.";
 export let contextInstruction =
   "\nBelow is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. " +
   "The user car can refer to it as 'this block' or 'the selected blocks' among other possibilities. " +
@@ -331,7 +331,7 @@ export default {
           action: {
             type: "select",
             items: [
-              "gpt-3.5-turbo-1106",
+              "gpt-3.5-turbo-0125",
               "gpt-4-1106-preview",
               "gpt-4",
               "custom model",
@@ -457,8 +457,11 @@ export default {
     if (extensionAPI.settings.get("translateIcon") === null)
       await extensionAPI.settings.set("translateIcon", true);
     isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
-    if (extensionAPI.settings.get("gptModel") === null)
-      await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-1106");
+    if (
+      extensionAPI.settings.get("gptModel") === null ||
+      extensionAPI.settings.get("gptModel") === "gpt-3.5-turbo-1106"
+    )
+      await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-0125");
     gptModel = extensionAPI.settings.get("gptModel");
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");

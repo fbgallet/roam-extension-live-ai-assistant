@@ -11,16 +11,21 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { closeStream, getStream, newMediaRecorder } from "../audio.js";
 import {
   gptCompletion,
+  gptPostProcessing,
   insertCompletion,
   transcribeAudio,
   translateAudio,
 } from "../openai.js";
 import {
   addContentToBlock,
+  convertTreeToLinearArray,
   createChildBlock,
+  createSiblingBlock,
   displaySpinner,
+  getAndNormalizeContext,
   getBlockContentByUid,
   getBlocksSelectionUids,
+  getTreeByUid,
   insertBlockInCurrentView,
   removeSpinner,
 } from "../utils.js";
@@ -284,8 +289,9 @@ function VoiceRecorder({
     lastCommand.current = translateAudio;
     initializeProcessing();
   };
-  const handleCompletion = async () => {
-    lastCommand.current = gptCompletion;
+  const handleCompletion = async (e) => {
+    if (e.metaKey || e.ctrlKey) lastCommand.current = gptPostProcessing;
+    else lastCommand.current = gptCompletion;
     initializeProcessing();
   };
   const initializeProcessing = () => {
@@ -333,15 +339,48 @@ function VoiceRecorder({
       targetBlock.current ||
       startBlock.current ||
       (await insertBlockInCurrentView(""));
-    if (lastCommand.current === gptCompletion) {
+    let prompt = "";
+    if (
+      lastCommand.current === gptCompletion ||
+      lastCommand.current === gptPostProcessing
+    ) {
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
       if (
         targetUid === (targetBlock.current || startBlock.current) &&
         getBlockContentByUid(targetUid).trim()
       ) {
-        targetUid = createChildBlock(targetUid, "");
-      }
+        if (lastCommand.current === gptPostProcessing) {
+          let tree = getTreeByUid(startBlock.current);
+          if (startBlock.current) {
+            if (tree.length && tree[0].children) {
+              // prompt is a template as children of the current block
+              targetUid = createSiblingBlock(startBlock.current, "before");
+              let linearArray = convertTreeToLinearArray(tree);
+              // console.log("linearArray :>> ", linearArray);
+              prompt =
+                "Here is the user structured prompt with ((9-characters-code))s corresping to each item to complete and record in the JSON array, following the provided codes accurately:\n" +
+                linearArray.join("\n\n");
+            } else {
+              // prompt is a simple block
+              lastCommand.current = gptCompletion;
+              prompt =
+                "Here is the user prompt: " +
+                getAndNormalizeContext(startBlock.current);
+              // exclude startBlock from context if other blocks are selected
+              startBlock.current = null;
+            }
+          } else {
+            // TODO
+            // default post-processing
+            lastCommand.current = gptCompletion;
+            prompt =
+              "Comment on this user's statement in a manner similar to Socrates in Plato's dialogues, with humor and feigned naivety that actually aims to provoke very deep reflection.";
+          }
+        }
+        if (lastCommand.current === gptCompletion)
+          targetUid = createChildBlock(targetUid, "");
+      } //else targetUid = createChildBlock(targetUid, "");
     }
     const intervalId = await displaySpinner(targetUid);
     const hasKey = openai && openai.key !== "";
@@ -362,12 +401,18 @@ function VoiceRecorder({
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe) {
+      let uid;
+      uid = createChildBlock(targetUid, chatRoles.assistant);
+      if (lastCommand.current === gptPostProcessing)
+        prompt +=
+          "\n\nHere is the content to which the user prompt should be applied and he language in which it is written will determine the language of the response: ";
       await insertCompletion(
-        transcribe,
+        prompt + transcribe,
         openai,
-        targetUid,
+        uid,
         startBlock.current,
-        blocksSelectionUids.current
+        blocksSelectionUids.current,
+        lastCommand.current
       );
     }
     initialize(true);

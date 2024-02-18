@@ -1,25 +1,24 @@
+import { isMobileViewContext } from ".";
+
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const pageRegex = /\[\[.*\]\]/g; // very simplified, not recursive...
 
 export function getTreeByUid(uid) {
-  if (uid) {
-    return window.roamAlphaAPI.pull(
-      "[:block/uid :block/string :block/children {:block/children  ...} :block/open {:block/refs [:block/uid]} :block/order {:block/page [:block/uid]}]",
-      [":block/uid", uid]
-    );
-  } else return null;
+  // // with pull
+  //   if (uid) {
+  //     return window.roamAlphaAPI.pull(
+  //       "[:block/uid :block/string :block/children {:block/children  ...} :block/open {:block/refs [:block/uid]} :block/order {:block/page [:block/uid]}]",
+  //       [":block/uid", uid]
+  //     );
+  //   } else return null;
+  // }
+  if (uid)
+    return window.roamAlphaAPI.q(`[:find (pull ?page
+                     [:block/uid :block/string :block/children :block/refs :block/order
+                        {:block/children ...} ])
+                      :where [?page :block/uid "${uid}"]  ]`)[0];
+  else return null;
 }
-
-// Same function with .q
-//
-// export function getTreeByUid(uid) {
-//   if (uid)
-//     return window.roamAlphaAPI.q(`[:find (pull ?page
-//                      [:block/uid :block/string :block/children :block/refs
-//                         {:block/children ...} ])
-//                       :where [?page :block/uid "${uid}"]  ]`)[0];
-//   else return null;
-// }
 
 export async function getFirstLevelBlocksInCurrentView() {
   let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
@@ -45,6 +44,32 @@ export function getBlockContentByUid(uid) {
   let result = window.roamAlphaAPI.pull("[:block/string]", [":block/uid", uid]);
   if (result) return result[":block/string"];
   else return "";
+}
+
+function getParentBlock(uid) {
+  let result = window.roamAlphaAPI.pull("[:block/uid {:block/parents ...}]", [
+    ":block/uid",
+    uid,
+  ]);
+  if (result) return result[":block/parents"].at(-1)[":block/uid"];
+  else return "";
+}
+
+function getBlockOrderByUid(uid) {
+  let result = window.roamAlphaAPI.pull("[:block/order]", [":block/uid", uid]);
+  if (result) return result[":block/order"];
+  else return "";
+}
+
+export function createSiblingBlock(currentUid, position) {
+  const currentOrder = getBlockOrderByUid(currentUid);
+  const parentUid = getParentBlock(currentUid);
+  const siblingUid = createChildBlock(
+    parentUid,
+    "",
+    position === "before" ? currentOrder : currentOrder + 1
+  );
+  return siblingUid;
 }
 
 export async function getTopOrActiveBlockUid() {
@@ -73,6 +98,44 @@ export function processNotesInTree(tree, callback, callbackArgs) {
     if (subTree) {
       processNotesInTree(subTree, callback);
     }
+  }
+}
+
+export function convertTreeToLinearArray(tree) {
+  let linearArray = [];
+
+  function traverseArray(tree, leftShift = "") {
+    tree = tree.sort((a, b) => a.order - b.order);
+    tree.forEach((element) => {
+      linearArray.push(
+        "((" +
+          element.uid +
+          "))" +
+          leftShift +
+          "- " +
+          resolveReferences(element.string)
+      );
+      if (element.children) {
+        traverseArray(element.children, leftShift /* "    "*/);
+      }
+    });
+  }
+
+  traverseArray(tree);
+
+  return linearArray;
+}
+
+export function updateArrayOfBlocks(arrayOfBlocks) {
+  if (arrayOfBlocks.length) {
+    arrayOfBlocks.forEach((block) =>
+      window.roamAlphaAPI.updateBlock({
+        block: {
+          uid: block.uid,
+          string: block.content,
+        },
+      })
+    );
   }
 }
 
@@ -203,4 +266,16 @@ export const resolveReferences = (content, refsArray = []) => {
     }
   }
   return content;
+};
+
+export const getAndNormalizeContext = (startBlock, blocksSelectionUids) => {
+  let context = "";
+  if (blocksSelectionUids && blocksSelectionUids.length > 0)
+    context = getResolvedContentFromBlocks(blocksSelectionUids);
+  else if (startBlock) context = getBlockContentByUid(startBlock);
+  else if (isMobileViewContext && window.innerWidth < 500)
+    context = getResolvedContentFromBlocks(
+      getBlocksSelectionUids(true).slice(0, -1)
+    );
+  return context;
 };

@@ -28,7 +28,7 @@ By default, the controls will be inserted in the left sidebar, after "Daily Note
 
 ## To be done right after installation
 
-In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions.
+In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new key via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined.
 
 ## Voice transcription
 
@@ -42,6 +42,8 @@ In the settings, provide an OpenAI API key (by copying/pasting an existing key o
 `$0.006/minute` (rounded to the nearest second)
 
 To give you an idea, using Whisper for 10 minutes a day for a month equates to 1.80 $
+
+You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
 
 ## Translation
 
