@@ -2,18 +2,42 @@ import React from "react";
 import ReactDOM from "react-dom";
 import App from "./App";
 import {
+  getTemplateForPostProcessing,
+  gptCompletion,
+  gptPostProcessing,
   initializeOpenAIAPI,
   insertCompletion,
   supportedLanguage,
 } from "./openai";
 import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
 import {
+  createChildBlock,
+  getAndNormalizeContext,
   getBlockContentByUid,
-  getBlocksSelectionUids,
+  getFirstChildUid,
+  getFlattenedContentFromLinkedReferences,
+  getFlattenedContentFromSidebar,
+  getFocusAndSelection,
+  getMainPageUid,
+  getRoamContextFromPrompt,
   insertBlockInCurrentView,
+  isLogView,
   resolveReferences,
+  simulateClick,
   uidRegex,
-} from "./utils";
+} from "./utils/utils";
+import {
+  contextAsPrompt,
+  defaultAssistantCharacter,
+  defaultContextInstructions,
+  specificContentPromptBeforeTemplate,
+} from "./utils/prompts";
+
+export const tokensLimit = {
+  "gpt-3.5-turbo": 16385,
+  "gpt-4-turbo-preview": 131073,
+  custom: undefined,
+};
 
 let OPENAI_API_KEY = "";
 export let isUsingWhisper;
@@ -24,14 +48,8 @@ export let isTranslateIconDisplayed;
 export let gptModel;
 export let gptCustomModel;
 export let chatRoles;
-export let assistantCharacter =
-  "You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself.";
-export let contextInstruction =
-  "\nBelow is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. " +
-  "The user car can refer to it as 'this block' or 'the selected blocks' among other possibilities. " +
-  "The 9-characters code within double parentheses preceding each piece of content is the identifier of this content and is called 'block reference'. " +
-  "In your response, you can refer to it if needed, using markdown link alias syntax [*](((9-characters code))) to mention it as a note or citation: e.g. [*](((kVZwmFnFF))). " +
-  "Expressions within double brackets such as [[my page]] should be reused with the exact same syntax as in the source text, keeping the original double brackets: e.g. [[my page]]. ";
+export let assistantCharacter = defaultAssistantCharacter;
+export let contextInstruction = defaultContextInstructions;
 export let userContextInstructions;
 export let isMobileViewContext;
 export let isResponseToSplit;
@@ -330,12 +348,7 @@ export default {
             "Choose a model or 'custom model' to be specified below:",
           action: {
             type: "select",
-            items: [
-              "gpt-3.5-turbo-0125",
-              "gpt-4-1106-preview",
-              "gpt-4",
-              "custom model",
-            ],
+            items: ["gpt-3.5-turbo", "gpt-4-turbo-preview", "custom model"],
             onChange: (evt) => {
               gptModel = evt;
             },
@@ -461,7 +474,7 @@ export default {
       extensionAPI.settings.get("gptModel") === null ||
       extensionAPI.settings.get("gptModel") === "gpt-3.5-turbo-1106"
     )
-      await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo-0125");
+      await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo");
     gptModel = extensionAPI.settings.get("gptModel");
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
@@ -570,27 +583,98 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: AI completion of current block as prompt & selection as context (no vocal note)",
+        "Speech-to-Roam: (text only) AI completion of current block as prompt & selection as context",
       callback: async () => {
-        let currentUid =
-          window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-        let selectionUids = getBlocksSelectionUids();
+        const { currentUid, currentBlockContent, selectionUids } =
+          getFocusAndSelection();
         if (!currentUid && !selectionUids.length) return;
-        // const selectionCitation = getReferencesCitation(selectionUids);
-        let currentBlockContent = currentUid
-          ? getBlockContentByUid(currentUid)
-          : "";
-        // if (currentBlockContent)
-        //   addContentToBlock(currentUid, selectionCitation);
         let targetUid = currentUid
-          ? currentUid
+          ? await createChildBlock(currentUid, chatRoles.assistant)
           : await insertBlockInCurrentView(
               chatRoles.user + " a selection of blocks"
             );
         let prompt = currentBlockContent
           ? currentBlockContent
-          : "Follow the instructions provided in the context.";
-        insertCompletion(prompt, openai, targetUid, null, selectionUids);
+          : contextAsPrompt;
+        const inlineContext = getRoamContextFromPrompt(currentBlockContent);
+        if (inlineContext) prompt = inlineContext.updatedPrompt;
+        let context = await getAndNormalizeContext(
+          currentUid & selectionUids.length ? null : currentUid,
+          selectionUids,
+          inlineContext?.roamContext
+        );
+        insertCompletion(prompt, openai, targetUid, context);
+      },
+    });
+
+    extensionAPI.ui.commandPalette.addCommand({
+      label:
+        "Speech-to-Roam: (text only) template-based AI completion with children blocks as prompt & current block as content",
+      callback: async () => {
+        let { currentUid, currentBlockContent, selectionUids } =
+          getFocusAndSelection();
+        if (!currentUid) {
+          if (selectionUids.length) currentUid = selectionUids[0];
+          else return;
+        }
+
+        const inlineContext = getRoamContextFromPrompt(currentBlockContent);
+        if (inlineContext) currentBlockContent = inlineContext.updatedPrompt;
+        let context = await getAndNormalizeContext(
+          null,
+          selectionUids,
+          inlineContext?.roamContext
+        );
+
+        // simulateClick(document.querySelector(".roam-body-main"));
+        let targetUid = getFirstChildUid(currentUid);
+        let template = await getTemplateForPostProcessing(currentUid);
+        if (!template.isInMultipleBlocks) {
+          targetUid = createChildBlock(
+            targetUid ? targetUid : currentUid,
+            chatRoles.assistant,
+            inlineContext?.roamContext
+          );
+          currentUid = targetUid;
+        }
+        let prompt = template.isInMultipleBlocks
+          ? specificContentPromptBeforeTemplate +
+            currentBlockContent +
+            "\n\n" +
+            template.stringified
+          : template.stringified;
+
+        insertCompletion(
+          prompt,
+          openai,
+          targetUid,
+          context,
+          template.isInMultipleBlocks ? gptPostProcessing : gptCompletion,
+          true
+        );
+      },
+    });
+
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Speech-to-Roam: Get linked refs",
+      callback: async () => {
+        const pageUid = await getMainPageUid();
+        getFlattenedContentFromLinkedReferences(pageUid);
+      },
+    });
+
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Speech-to-Roam: Get sidebar content",
+      callback: () => {
+        getFlattenedContentFromSidebar();
+      },
+    });
+
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Speech-to-Roam: Get DNPs",
+      callback: async () => {
+        // getFlattenedContentFromLog();
+        isLogView();
       },
     });
 
@@ -599,7 +683,6 @@ export default {
       text: "SPEECHTOROAM",
       help: "Start recording a vocal note using Speech-to-Roam extension",
       handler: (context) => () => {
-        console.log("launched !");
         simulateClickOnRecordingButton();
         return [""];
       },

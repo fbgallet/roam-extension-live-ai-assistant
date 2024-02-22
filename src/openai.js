@@ -1,12 +1,13 @@
 import OpenAI from "openai";
+import { getEncoding } from "js-tiktoken";
+
 import {
   assistantCharacter,
-  chatRoles,
   contextInstruction,
   gptCustomModel,
   gptModel,
-  isMobileViewContext,
   isResponseToSplit,
+  tokensLimit,
   transcriptionLanguage,
   userContextInstructions,
   whisperPrompt,
@@ -17,13 +18,17 @@ import {
   createChildBlock,
   displaySpinner,
   getAndNormalizeContext,
-  getBlockContentByUid,
-  getBlocksSelectionUids,
-  getResolvedContentFromBlocks,
   getTreeByUid,
+  highlightHtmlElt,
   removeSpinner,
   updateArrayOfBlocks,
-} from "./utils";
+} from "./utils/utils";
+import {
+  instructionsOnJSONResponse,
+  instructionsOnTemplateProcessing,
+} from "./utils/prompts";
+
+const encoding = getEncoding("cl100k_base");
 
 export function initializeOpenAIAPI(OPENAI_API_KEY) {
   try {
@@ -105,29 +110,32 @@ export async function gptCompletion(
   responseFormat = "text"
 ) {
   try {
-    if (!gptModel) gptModel = "gpt-3.5-turbo-0125";
+    if (!gptModel) gptModel = "gpt-3.5-turbo";
+
+    let content =
+      assistantCharacter +
+      (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
+      (context
+        ? contextInstruction +
+          userContextInstructions +
+          "\nHere is the content to rely on:\n" +
+          context
+        : "");
+    content = verifyTokenLimitAndTruncate(prompt, content);
+    console.log("Context (eventually truncated):\n", content);
+
     const response = await openai.chat.completions.create({
       model: gptModel === "custom model" ? gptCustomModel : gptModel,
       response_format: { type: responseFormat },
       messages: [
         {
           role: "system",
-          content:
-            assistantCharacter +
-            (responseFormat === "json_object"
-              ? ' Your response will be a JSON objects array with the following format: {"response": "[{"uid": "((9-characters-code))", "content": "[your response for the corresponding line]"}, ...]}".'
-              : "") +
-            (context
-              ? contextInstruction +
-                userContextInstructions +
-                "\nHere is the content to rely on:\n" +
-                context
-              : ""),
+          content: content,
         },
         { role: "user", content: prompt },
       ],
     });
-    console.log(response.choices[0]);
+    console.log("OpenAI chat completion response :>>", response);
     return response.choices[0].message.content;
   } catch (error) {
     console.error(error);
@@ -137,16 +145,11 @@ export async function gptCompletion(
 export const insertCompletion = async (
   prompt,
   openai,
-  uid,
-  startBlock,
-  blocksSelectionUids,
+  targetUid,
+  context,
   typeOfCompletion
 ) => {
-  const intervalId = await displaySpinner(uid);
-  let context = "";
-  if (typeOfCompletion === gptCompletion) {
-    context = getAndNormalizeContext(startBlock, blocksSelectionUids);
-  }
+  const intervalId = await displaySpinner(targetUid);
   console.log("Prompt sent to GPT :>> ", prompt);
   const gptResponse = await gptCompletion(
     prompt,
@@ -154,25 +157,72 @@ export const insertCompletion = async (
     context,
     typeOfCompletion === gptPostProcessing ? "json_object" : "text"
   );
-  console.log("gptResponse :>> ", gptResponse);
   removeSpinner(intervalId);
   if (typeOfCompletion === gptPostProcessing) {
     const parsedResponse = JSON.parse(gptResponse);
     updateArrayOfBlocks(parsedResponse.response);
-    window.roamAlphaAPI.moveBlock({
-      location: { "parent-uid": uid, order: 0 },
-      block: { uid: startBlock },
-    });
+    // if (!isOnlyTextual)
+    //   window.roamAlphaAPI.moveBlock({
+    //     location: { "parent-uid": targetUid, order: 0 },
+    //     block: { uid: startBlock },
+    //   });
   } else {
     const splittedResponse = gptResponse.split(`\n\n`);
     if (!isResponseToSplit || splittedResponse.length === 1)
-      addContentToBlock(uid, splittedResponse[0]);
+      addContentToBlock(targetUid, splittedResponse[0]);
     else {
       for (let i = 0; i < splittedResponse.length; i++) {
-        createChildBlock(uid, splittedResponse[i]);
+        createChildBlock(targetUid, splittedResponse[i]);
       }
     }
   }
+};
+
+export const getTemplateForPostProcessing = async (parentUid) => {
+  let prompt = "";
+  let isInMultipleBlocks = true;
+  let tree = getTreeByUid(parentUid);
+  if (parentUid) {
+    if (tree.length && tree[0].children) {
+      let eltToHightlight = document.querySelector(`[id$=${parentUid}]`);
+      eltToHightlight =
+        eltToHightlight.tagName === "TEXTAREA"
+          ? eltToHightlight.parentElement.parentElement.nextElementSibling
+          : eltToHightlight.parentElement.nextElementSibling;
+      // console.log("elt :>> ", elt.tagName);
+      highlightHtmlElt(null, eltToHightlight);
+      // prompt is a template as children of the current block
+      let linearArray = convertTreeToLinearArray(tree[0].children);
+      // console.log("linearArray :>> ", linearArray);
+      prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
+    } else {
+      // prompt is a simple block
+      isInMultipleBlocks = false;
+      prompt =
+        "Here is the user prompt (the language in which it is written will determine the language of the response): " +
+        (await getAndNormalizeContext(parentUid));
+    }
+  }
+  return { stringified: prompt, isInMultipleBlocks: isInMultipleBlocks };
+};
+
+const verifyTokenLimitAndTruncate = (prompt, content) => {
+  const tokens = encoding.encode(prompt + content);
+  console.log("tokens :>> ", tokens.length);
+
+  if (tokens.length > tokensLimit[gptModel]) {
+    alert(
+      `The token limit (${tokensLimit[gptModel]}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${gptModel} token window.`
+    );
+    // + 2% margin of error
+    const ratio = tokensLimit[gptModel] / tokens.length - 0.02;
+    content = content.slice(0, content.length * ratio);
+    console.log(
+      "tokens of truncated context:>> ",
+      encoding.encode(prompt + content).length
+    );
+  }
+  return content;
 };
 
 export const supportedLanguage = [

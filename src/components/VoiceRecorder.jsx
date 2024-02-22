@@ -5,11 +5,14 @@ import {
   faBackwardStep,
   faWandMagicSparkles,
   faLanguage,
+  faListUl,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Intent, Position, Toaster } from "@blueprintjs/core";
 //import "./App.css";
 import { closeStream, getStream, newMediaRecorder } from "../audio.js";
 import {
+  getTemplateForPostProcessing,
   gptCompletion,
   gptPostProcessing,
   insertCompletion,
@@ -18,17 +21,17 @@ import {
 } from "../openai.js";
 import {
   addContentToBlock,
-  convertTreeToLinearArray,
   createChildBlock,
   createSiblingBlock,
   displaySpinner,
   getAndNormalizeContext,
   getBlockContentByUid,
   getBlocksSelectionUids,
-  getTreeByUid,
+  highlightHtmlElt,
   insertBlockInCurrentView,
+  isLogView,
   removeSpinner,
-} from "../utils.js";
+} from "../utils/utils.js";
 import Timer from "./Timer.jsx";
 import {
   chatRoles,
@@ -39,6 +42,14 @@ import {
 } from "../index.js";
 import MicRecorder from "../mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
+import { defaultPostProcessingPrompt } from "../utils/prompts.js";
+
+const AppToaster = Toaster.create({
+  className: "color-toaster",
+  position: Position.TOP,
+  intent: Intent.WARNING,
+  maxToasts: 1,
+});
 
 function VoiceRecorder({
   blockUid,
@@ -64,6 +75,7 @@ function VoiceRecorder({
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
+  const [alertIsOpen, setAlertIsOpen] = useState(false);
 
   const isToTranscribe = useRef(false);
   const stream = useRef(null);
@@ -82,6 +94,12 @@ function VoiceRecorder({
   const startBlock = useRef(blockUid);
   const targetBlock = useRef(null);
   const blocksSelectionUids = useRef(null);
+  const roamContext = useRef({
+    linkedRefs: false,
+    sidebar: false,
+    mainPage: false,
+    logPages: false,
+  });
 
   useEffect(() => {
     return () => {
@@ -186,6 +204,7 @@ function VoiceRecorder({
   };
 
   const handleKeys = async (e) => {
+    e.preventDefault();
     if (e.code === "Escape" || e.code === "Backspace") {
       handleBackward(e);
       return;
@@ -212,9 +231,27 @@ function VoiceRecorder({
       handleTranslate(e);
       return;
     }
-    if (e.key.toLowerCase() === "c") {
+    if (e.keyCode === 67) {
+      // "c", to make it compatible with modifiers
       handleCompletion(e);
       return;
+    }
+    if (e.keyCode === 80) {
+      // "p", to make it compatible with modifiers
+      handlePostProcessing(e);
+    }
+  };
+
+  const handleEltHighlight = (e) => {
+    if (e.shiftKey) {
+      highlightHtmlElt("#roam-right-sidebar-content");
+    }
+    if (e.metaKey || e.ctrlKey) {
+      if (isLogView()) highlightHtmlElt(".roam-log-container");
+      else highlightHtmlElt(".rm-reference-main");
+    }
+    if (e.altKey) {
+      highlightHtmlElt(".roam-article > div:first-child");
     }
   };
 
@@ -289,11 +326,32 @@ function VoiceRecorder({
     lastCommand.current = translateAudio;
     initializeProcessing();
   };
-  const handleCompletion = async (e) => {
-    if (e.metaKey || e.ctrlKey) lastCommand.current = gptPostProcessing;
-    else lastCommand.current = gptCompletion;
+  const handleCompletion = (e) => {
+    lastCommand.current = gptCompletion;
+    handleModifierKeys(e);
     initializeProcessing();
   };
+  const handlePostProcessing = (e) => {
+    lastCommand.current = gptPostProcessing;
+    handleModifierKeys(e);
+    initializeProcessing();
+  };
+  const handleModifierKeys = (e) => {
+    if (e.shiftKey) roamContext.current.sidebar = true;
+    if (e.metaKey || e.ctrlKey) {
+      if (isLogView()) {
+        AppToaster.show({
+          message:
+            "Warning, using past daily note pages as context will use the maximum number of tokens, " +
+            "which can quickly become costly (around $0.08 for GPT-3.5 but up to $1.30 with GPT4, per request).",
+        });
+        roamContext.current.logPages = true;
+      } else roamContext.current.linkedRefs = true;
+    }
+    if (e.altKey) roamContext.current.mainPage = true;
+    handleEltHighlight(e);
+  };
+
   const initializeProcessing = () => {
     targetBlock.current =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -347,40 +405,22 @@ function VoiceRecorder({
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
       if (
-        targetUid === (targetBlock.current || startBlock.current) &&
-        getBlockContentByUid(targetUid).trim()
+        (targetUid === targetBlock.current ||
+          targetUid === startBlock.current) &&
+        getBlockContentByUid(targetUid).trim() &&
+        lastCommand.current === gptCompletion
       ) {
-        if (lastCommand.current === gptPostProcessing) {
-          let tree = getTreeByUid(startBlock.current);
-          if (startBlock.current) {
-            if (tree.length && tree[0].children) {
-              // prompt is a template as children of the current block
-              targetUid = createSiblingBlock(startBlock.current, "before");
-              let linearArray = convertTreeToLinearArray(tree);
-              // console.log("linearArray :>> ", linearArray);
-              prompt =
-                "Here is the user structured prompt with ((9-characters-code))s corresping to each item to complete and record in the JSON array, following the provided codes accurately:\n" +
-                linearArray.join("\n\n");
-            } else {
-              // prompt is a simple block
-              lastCommand.current = gptCompletion;
-              prompt =
-                "Here is the user prompt: " +
-                getAndNormalizeContext(startBlock.current);
-              // exclude startBlock from context if other blocks are selected
-              startBlock.current = null;
-            }
-          } else {
-            // TODO
-            // default post-processing
-            lastCommand.current = gptCompletion;
-            prompt =
-              "Comment on this user's statement in a manner similar to Socrates in Plato's dialogues, with humor and feigned naivety that actually aims to provoke very deep reflection.";
-          }
-        }
-        if (lastCommand.current === gptCompletion)
-          targetUid = createChildBlock(targetUid, "");
+        targetUid = createChildBlock(targetUid, "");
       } //else targetUid = createChildBlock(targetUid, "");
+      else if (lastCommand.current === gptPostProcessing) {
+        const template = await getTemplateForPostProcessing(startBlock.current);
+        prompt = template.stringified;
+        if (!template.isInMultipleBlocks) {
+          // default post-processing
+          lastCommand.current = gptCompletion;
+          prompt = defaultPostProcessingPrompt;
+        }
+      }
     }
     const intervalId = await displaySpinner(targetUid);
     const hasKey = openai && openai.key !== "";
@@ -397,25 +437,43 @@ function VoiceRecorder({
         instantVoiceReco.current +
         (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
     }
-    const toInsert = toChain ? chatRoles.user + transcribe : transcribe;
+    const toInsert =
+      toChain && !getBlockContentByUid(targetUid).trim()
+        ? chatRoles.user + transcribe
+        : transcribe;
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);
-    if (toChain && transcribe) {
-      let uid;
-      uid = createChildBlock(targetUid, chatRoles.assistant);
-      if (lastCommand.current === gptPostProcessing)
-        prompt +=
-          "\n\nHere is the content to which the user prompt should be applied and he language in which it is written will determine the language of the response: ";
-      await insertCompletion(
-        prompt + transcribe,
-        openai,
-        uid,
-        startBlock.current,
-        blocksSelectionUids.current,
-        lastCommand.current
-      );
-    }
+    if (toChain && transcribe)
+      await completionProcessing(prompt, transcribe, targetUid);
     initialize(true);
+  };
+
+  const completionProcessing = async (prompt, transcribe, promptUid) => {
+    let uid;
+    const context = await getAndNormalizeContext(
+      lastCommand.current === gptPostProcessing ? null : startBlock.current,
+      blocksSelectionUids.current,
+      roamContext.current
+    );
+    if (lastCommand.current === gptPostProcessing)
+      prompt =
+        "Complete the template below, in accordance with the following request " +
+        "(the language in which it is written will determine the language of the response): " +
+        transcribe +
+        "\n\n" +
+        prompt;
+    else {
+      uid = createChildBlock(promptUid, chatRoles.assistant);
+      prompt += transcribe;
+    }
+    await insertCompletion(
+      prompt,
+      openai,
+      startBlock.current,
+      uid,
+      context,
+      lastCommand.current
+    );
   };
 
   const initialize = (complete = true) => {
@@ -436,6 +494,12 @@ function VoiceRecorder({
       startBlock.current = null;
       targetBlock.current = null;
       blocksSelectionUids.current = null;
+      roamContext.current = {
+        linkedRefs: false,
+        sidebar: false,
+        mainPage: false,
+        logPages: false,
+      };
       if (!isVisible) toggleComponentVisibility();
       setIsToDisplay({
         transcribeIcon: true,
@@ -596,6 +660,14 @@ function VoiceRecorder({
           <span
             onClick={command}
             // disabled={!safariRecorder.current.activeStream?.active}
+            onMouseEnter={(e) => {
+              if (
+                command === handleCompletion ||
+                command === handlePostProcessing
+              ) {
+                handleEltHighlight(e);
+              }
+            }}
             disabled={!areCommandsToDisplay}
             class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}
             tabindex="0"
@@ -635,7 +707,7 @@ function VoiceRecorder({
                 <FontAwesomeIcon icon={faWandMagicSparkles} />
               </>
             )
-          )}{" "}
+          )}
         {(isListening ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.translateIcon &&
@@ -653,12 +725,33 @@ function VoiceRecorder({
           isToDisplay.completionIcon &&
           jsxCommandIcon(
             {
-              title: "Speak to ChatGPT (C)",
+              title:
+                "Chat with GPT model (C)\n" +
+                "+Alt : page as context\n" +
+                "+ Cmd or Ctrl : linked refs\n" +
+                "+ Shift : sidebar",
             },
             handleCompletion,
             () => (
               <>
                 <OpenAILogo />
+              </>
+            )
+          )}
+        {(isListening || areCommandsToDisplay) &&
+          isToDisplay.completionIcon &&
+          jsxCommandIcon(
+            {
+              title:
+                "Apply focused template for Post-Processing by GPT model (P)\n" +
+                "+ Alt : page as context\n" +
+                "+ Cmd or Ctrl : linked refs\n" +
+                "+ Shift : sidebar",
+            },
+            handlePostProcessing,
+            () => (
+              <>
+                <FontAwesomeIcon icon={faListUl} />
               </>
             )
           )}

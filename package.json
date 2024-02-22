@@ -11,8 +11,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@blueprintjs/core": "^5.9.1",
     "@fortawesome/free-solid-svg-icons": "^6.4.2",
     "@fortawesome/react-fontawesome": "^0.2.0",
+    "js-tiktoken": "^1.0.10",
     "lamejs": "zhuker/lamejs",
     "openai": "^4.19.0",
     "react": "^18.2.0",

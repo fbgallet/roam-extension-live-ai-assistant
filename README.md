@@ -63,15 +63,15 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
   > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'."_
 
-- model by default is currently `gpt-3.5-turbo-1106`
+- model by default is currently `gpt-3.5-turbo` (pointing to the latest model version)
 - you can try other chat completion model, or your own fine-tuned models
 
-⚠️ _OpenAI GPT API is a paid but cheap service_
+⚠️ _OpenAI GPT API is a paid but cheap service with default model_
 
-- gpt-3.5
+- gpt-3.5-turbo (16k context)
   - Input: $0.0010 / 1K tokens
   - Output: $0.0020 / 1K tokens
-- gpt-4-1106-preview (128k context)
+- gpt-4-turbo-preview (128k context)
   - input: $0.01 / 1K tokens
   - output: $0.03 / 1K tokens
 
