@@ -22,13 +22,13 @@ import {
 import {
   addContentToBlock,
   createChildBlock,
-  createSiblingBlock,
   displaySpinner,
   getAndNormalizeContext,
   getBlockContentByUid,
   getBlocksSelectionUids,
   highlightHtmlElt,
   insertBlockInCurrentView,
+  isCurrentPageDNP,
   isLogView,
   removeSpinner,
 } from "../utils/utils.js";
@@ -75,7 +75,6 @@ function VoiceRecorder({
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
-  const [alertIsOpen, setAlertIsOpen] = useState(false);
 
   const isToTranscribe = useRef(false);
   const stream = useRef(null);
@@ -99,6 +98,7 @@ function VoiceRecorder({
     sidebar: false,
     mainPage: false,
     logPages: false,
+    logPagesNb: null,
   });
 
   useEffect(() => {
@@ -248,6 +248,7 @@ function VoiceRecorder({
     }
     if (e.metaKey || e.ctrlKey) {
       if (isLogView()) highlightHtmlElt(".roam-log-container");
+      else if (isCurrentPageDNP()) highlightHtmlElt(".rm-title-display");
       else highlightHtmlElt(".rm-reference-main");
     }
     if (e.altKey) {
@@ -339,11 +340,11 @@ function VoiceRecorder({
   const handleModifierKeys = (e) => {
     if (e.shiftKey) roamContext.current.sidebar = true;
     if (e.metaKey || e.ctrlKey) {
-      if (isLogView()) {
+      if (isLogView() || isCurrentPageDNP()) {
         AppToaster.show({
           message:
-            "Warning, using past daily note pages as context will use the maximum number of tokens, " +
-            "which can quickly become costly (around $0.08 for GPT-3.5 but up to $1.30 with GPT4, per request).",
+            "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. " +
+            "Be aware of the potentially high cost: for each request; around $0.08 with GPT-3.5, up to $1.30 with GPT-4.",
         });
         roamContext.current.logPages = true;
       } else roamContext.current.linkedRefs = true;
@@ -466,14 +467,7 @@ function VoiceRecorder({
       uid = createChildBlock(promptUid, chatRoles.assistant);
       prompt += transcribe;
     }
-    await insertCompletion(
-      prompt,
-      openai,
-      startBlock.current,
-      uid,
-      context,
-      lastCommand.current
-    );
+    await insertCompletion(prompt, openai, uid, context, lastCommand.current);
   };
 
   const initialize = (complete = true) => {

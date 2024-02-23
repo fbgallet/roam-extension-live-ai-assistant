@@ -3,6 +3,7 @@ import { getEncoding } from "js-tiktoken";
 
 import {
   assistantCharacter,
+  chatRoles,
   contextInstruction,
   gptCustomModel,
   gptModel,
@@ -29,6 +30,13 @@ import {
 } from "./utils/prompts";
 
 const encoding = getEncoding("cl100k_base");
+export const lastCompletion = {
+  prompt: null,
+  openai: null,
+  targetUid: null,
+  context: null,
+  typeOfCompletion: null,
+};
 
 export function initializeOpenAIAPI(OPENAI_API_KEY) {
   try {
@@ -147,8 +155,22 @@ export const insertCompletion = async (
   openai,
   targetUid,
   context,
-  typeOfCompletion
+  typeOfCompletion,
+  isRedone
 ) => {
+  lastCompletion.prompt = prompt;
+  lastCompletion.openai = openai;
+  lastCompletion.targetUid = targetUid;
+  lastCompletion.context = context;
+  lastCompletion.typeOfCompletion = typeOfCompletion;
+  if (isRedone && typeOfCompletion === gptCompletion) {
+    window.roamAlphaAPI.updateBlock({
+      block: {
+        uid: targetUid,
+        string: chatRoles.assistant,
+      },
+    });
+  }
   const intervalId = await displaySpinner(targetUid);
   console.log("Prompt sent to GPT :>> ", prompt);
   const gptResponse = await gptCompletion(

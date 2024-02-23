@@ -5,6 +5,7 @@ import { getEncoding } from "js-tiktoken";
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const pageRegex = /\[\[.*\]\]/g; // very simplified, not recursive...
 export const contextRegex = /\{\{context:(.[^\}]*)\}\}/g;
+export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {
@@ -349,7 +350,14 @@ export const getAndNormalizeContext = async (
       context += getFlattenedContentFromLinkedReferences(pageUid);
     }
     if (roamContext.logPages) {
-      context += getFlattenedContentFromLog();
+      let startDate;
+      if (isCurrentPageDNP()) {
+        startDate = new Date(await getMainPageUid());
+      }
+      context += getFlattenedContentFromLog(
+        roamContext.logPagesNb || 2,
+        startDate
+      );
     }
     if (roamContext.sidebar) {
       context += getFlattenedContentFromSidebar();
@@ -436,12 +444,15 @@ export const simulateClick = (elt) => {
   elt.dispatchEvent(new MouseEvent("click", options));
 };
 
-export const getFlattenedContentFromLog = (limit) => {
-  let nbOfDays = 0;
+export const getFlattenedContentFromLog = (nbOfDays, startDate) => {
+  let processedDays = 0;
   let flattenedBlocks = "";
   let tokens = 0;
-  let date = getYesterdayDate();
-  while (tokens < tokensLimit[gptModel] && (!limit || nbOfDays <= limit)) {
+  let date = startDate || getYesterdayDate();
+  while (
+    tokens < tokensLimit[gptModel] &&
+    (!nbOfDays || processedDays < nbOfDays)
+  ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
     let dayContent = getFlattenedContentFromTree(dnpUid);
     if (dayContent.length > 0) {
@@ -451,19 +462,19 @@ export const getFlattenedContentFromLog = (limit) => {
         tokens = encoding.encode(flattenedBlocks).length;
       }
       if (tokens > tokensLimit[gptModel]) {
-        alert("Token limit exceeded !");
         flattenedBlocks = flattenedBlocks.slice(
           0,
           -(dayContent.length + dayTitle.length + 4)
         );
       }
     }
-    nbOfDays++;
+    processedDays++;
     date = getYesterdayDate(date);
   }
+  console.log("flattenedBlocks :>> ", flattenedBlocks);
   console.log(
-    "Number of days that could be inserted into the context window :>> ",
-    nbOfDays
+    "Number of days inserted into the context window :>> ",
+    processedDays
   );
   // console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
@@ -472,6 +483,11 @@ export const getFlattenedContentFromLog = (limit) => {
 export const isLogView = () => {
   if (document.querySelector("#rm-log-container")) return true;
   return false;
+};
+
+export const isCurrentPageDNP = async () => {
+  const pageUid = await getMainPageUid();
+  return dateStringRegex.test(pageUid);
 };
 
 const getYesterdayDate = (date = null) => {
@@ -495,6 +511,14 @@ export const getRoamContextFromPrompt = (prompt) => {
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
+      if (elt === "logPages") {
+        if (options.includes("logPages(")) {
+          let nbOfDays = prompt.split("logPages(")[1].split(")")[0];
+          console.log("nbOfDays :>> ", nbOfDays);
+          if (!isNaN(nbOfDays)) roamContext.logPagesNb = Number(nbOfDays);
+          console.log("roamContext.logPagesNb :>> ", roamContext.logPagesNb);
+        }
+      }
       hasContext = true;
     }
   });

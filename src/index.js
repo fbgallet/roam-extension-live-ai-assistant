@@ -7,6 +7,7 @@ import {
   gptPostProcessing,
   initializeOpenAIAPI,
   insertCompletion,
+  lastCompletion,
   supportedLanguage,
 } from "./openai";
 import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
@@ -16,6 +17,7 @@ import {
   getBlockContentByUid,
   getFirstChildUid,
   getFlattenedContentFromLinkedReferences,
+  getFlattenedContentFromLog,
   getFlattenedContentFromSidebar,
   getFocusAndSelection,
   getMainPageUid,
@@ -599,11 +601,13 @@ export default {
         const inlineContext = getRoamContextFromPrompt(currentBlockContent);
         if (inlineContext) prompt = inlineContext.updatedPrompt;
         let context = await getAndNormalizeContext(
-          currentUid & selectionUids.length ? null : currentUid,
+          // currentUid && selectionUids.length ? null : currentUid,
+          null,
           selectionUids,
           inlineContext?.roamContext
         );
-        insertCompletion(prompt, openai, targetUid, context);
+        console.log("context :>> ", context);
+        insertCompletion(prompt, openai, targetUid, context, gptCompletion);
       },
     });
 
@@ -649,9 +653,28 @@ export default {
           openai,
           targetUid,
           context,
-          template.isInMultipleBlocks ? gptPostProcessing : gptCompletion,
-          true
+          template.isInMultipleBlocks ? gptPostProcessing : gptCompletion
         );
+      },
+    });
+
+    extensionAPI.ui.commandPalette.addCommand({
+      label: "Speech-to-Roam: Redo last AI completion (update response)",
+      callback: () => {
+        if (lastCompletion.prompt) {
+          const focusUid =
+            window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+          const targetUid = focusUid ? focusUid : lastCompletion.targetUid;
+          console.log("lastCompletion :>> ", lastCompletion);
+          insertCompletion(
+            lastCompletion.prompt,
+            lastCompletion.openai,
+            targetUid,
+            lastCompletion.context,
+            lastCompletion.typeOfCompletion,
+            true
+          );
+        }
       },
     });
 
@@ -673,7 +696,7 @@ export default {
     extensionAPI.ui.commandPalette.addCommand({
       label: "Speech-to-Roam: Get DNPs",
       callback: async () => {
-        // getFlattenedContentFromLog();
+        getFlattenedContentFromLog();
         isLogView();
       },
     });
