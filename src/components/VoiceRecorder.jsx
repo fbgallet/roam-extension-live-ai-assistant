@@ -44,11 +44,13 @@ import MicRecorder from "../mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
 import { defaultPostProcessingPrompt } from "../utils/prompts.js";
 
-const AppToaster = Toaster.create({
+export const AppToaster = Toaster.create({
   className: "color-toaster",
   position: Position.TOP,
   intent: Intent.WARNING,
+  icon: "warning-sign",
   maxToasts: 1,
+  timeout: 12000,
 });
 
 function VoiceRecorder({
@@ -242,13 +244,13 @@ function VoiceRecorder({
     }
   };
 
-  const handleEltHighlight = (e) => {
+  const handleEltHighlight = async (e) => {
     if (e.shiftKey) {
       highlightHtmlElt("#roam-right-sidebar-content");
     }
     if (e.metaKey || e.ctrlKey) {
       if (isLogView()) highlightHtmlElt(".roam-log-container");
-      else if (isCurrentPageDNP()) highlightHtmlElt(".rm-title-display");
+      else if (await isCurrentPageDNP()) highlightHtmlElt(".rm-title-display");
       else highlightHtmlElt(".rm-reference-main");
     }
     if (e.altKey) {
@@ -337,10 +339,10 @@ function VoiceRecorder({
     handleModifierKeys(e);
     initializeProcessing();
   };
-  const handleModifierKeys = (e) => {
+  const handleModifierKeys = async (e) => {
     if (e.shiftKey) roamContext.current.sidebar = true;
     if (e.metaKey || e.ctrlKey) {
-      if (isLogView() || isCurrentPageDNP()) {
+      if (isLogView() || (await isCurrentPageDNP())) {
         AppToaster.show({
           message:
             "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. " +
@@ -436,7 +438,19 @@ function VoiceRecorder({
     if (transcribe === null) {
       transcribe =
         instantVoiceReco.current +
-        (toChain ? "" : " (⚠️ native recognition, verify your OpenAI API key)");
+        (toChain
+          ? ""
+          : " (⚠️ Whisper transcription not working, verify your OpenAI API key or subscription)");
+    } else if (
+      transcribe === "you" ||
+      transcribe === "Sous-titres réalisés para la communauté d'Amara.org" ||
+      transcribe === "Subtítulos realizados por la comunidad de Amara.org" ||
+      transcribe === "Untertitel der Amara.org-Community" ||
+      transcribe === "ご視聴ありがとうございました。"
+    ) {
+      toChain = false;
+      transcribe =
+        "⚠️ Nothing has been recorded! Verify your microphone settings.";
     }
     const toInsert =
       toChain && !getBlockContentByUid(targetUid).trim()

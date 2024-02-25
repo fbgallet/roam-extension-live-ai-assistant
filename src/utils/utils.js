@@ -1,11 +1,21 @@
 // import assert from "node:assert";
-import { gptModel, isMobileViewContext, tokensLimit } from "..";
+import {
+  exclusionStrings,
+  gptModel,
+  isMobileViewContext,
+  logPagesNbDefault,
+  maxCapturingDepth,
+  maxUidDepth,
+  tokensLimit,
+} from "..";
 import { getEncoding } from "js-tiktoken";
+import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const pageRegex = /\[\[.*\]\]/g; // very simplified, not recursive...
-export const contextRegex = /\{\{context:(.[^\}]*)\}\}/g;
+export const contextRegex = /\{\{context:(.[^\}]*)\}\}/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
+export const numbersRegex = /\d+/g;
 const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {
@@ -49,6 +59,12 @@ export function getBlockContentByUid(uid) {
   let result = window.roamAlphaAPI.pull("[:block/string]", [":block/uid", uid]);
   if (result) return result[":block/string"];
   else return "";
+}
+
+export function isExistingBlock(uid) {
+  let result = window.roamAlphaAPI.pull("[:block/uid]", [":block/uid", uid]);
+  if (result) return true;
+  return false;
 }
 
 function getParentBlock(uid) {
@@ -300,21 +316,28 @@ export const resolveReferences = (content, refsArray = []) => {
   return content;
 };
 
-export function convertTreeToLinearArray(tree, maxContentLevel, maxRefLevel) {
+export function convertTreeToLinearArray(tree, maxCapturing, maxUid) {
   let linearArray = [];
+
+  // console.log("exclusionStrings :>> ", exclusionStrings);
 
   function traverseArray(tree, leftShift = "", level = 1) {
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
     tree.forEach((element) => {
+      let toExclude = false;
       if (element.string) {
         let uidString =
-          maxRefLevel && level > maxRefLevel ? "" : "((" + element.uid + "))";
-        linearArray.push(
-          uidString + leftShift + "- " + resolveReferences(element.string)
+          maxUid && level > maxUid ? "" : "((" + element.uid + "))";
+        toExclude = exclusionStrings.some((str) =>
+          element.string.includes(str)
         );
+        if (!toExclude)
+          linearArray.push(
+            uidString + leftShift + "- " + resolveReferences(element.string)
+          );
       } else level--;
-      if (element.children) {
-        if (maxContentLevel && level >= maxContentLevel) return;
+      if (element.children && !toExclude) {
+        if (maxCapturing && level >= maxCapturing) return;
         traverseArray(element.children, leftShift /* "    "*/, level + 1);
       }
     });
@@ -328,7 +351,8 @@ export function convertTreeToLinearArray(tree, maxContentLevel, maxRefLevel) {
 export const getAndNormalizeContext = async (
   startBlock,
   blocksSelectionUids,
-  roamContext
+  roamContext,
+  focusedBlock
 ) => {
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
@@ -341,25 +365,34 @@ export const getAndNormalizeContext = async (
     );
   if (roamContext) {
     if (roamContext.mainPage) {
+      highlightHtmlElt(".roam-article > div:first-child");
       const viewUid =
         await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
       context += getFlattenedContentFromTree(viewUid);
     }
     if (roamContext.linkedRefs) {
+      highlightHtmlElt(".rm-reference-main");
       const pageUid = await getMainPageUid();
       context += getFlattenedContentFromLinkedReferences(pageUid);
     }
     if (roamContext.logPages) {
       let startDate;
-      if (isCurrentPageDNP()) {
+      if (isLogView()) {
+        if (focusedBlock) {
+          startDate = new Date(getPageUidByBlockUid(focusedBlock));
+        }
+        highlightHtmlElt(".roam-log-container");
+      } else if (isCurrentPageDNP()) {
         startDate = new Date(await getMainPageUid());
+        highlightHtmlElt(".rm-title-display");
       }
       context += getFlattenedContentFromLog(
-        roamContext.logPagesNb || 2,
+        roamContext.logPagesNb || logPagesNbDefault,
         startDate
       );
     }
     if (roamContext.sidebar) {
+      highlightHtmlElt("#roam-right-sidebar-content");
       context += getFlattenedContentFromSidebar();
     }
   }
@@ -367,13 +400,15 @@ export const getAndNormalizeContext = async (
   return context;
 };
 
-const getFlattenedContentFromTree = (parentUid) => {
+const getFlattenedContentFromTree = (parentUid, maxCapturing, maxUid) => {
   let flattednedBlocks = "";
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
     if (tree) {
-      let content = convertTreeToLinearArray(tree).join("\n");
-      if (content.length > 2 || content.replace("\n", "").trim())
+      let content = convertTreeToLinearArray(tree, maxCapturing, maxUid).join(
+        "\n"
+      );
+      if (content.length > 1 && content.replace("\n", "").trim())
         flattednedBlocks = "\n" + content;
     }
   }
@@ -387,11 +422,17 @@ export const getFlattenedContentFromLinkedReferences = (pageUid) => {
     `Content from linked references of [[${pageName}]] page:`,
   ];
   refTrees.forEach((tree) =>
-    linkedRefsArray.push(convertTreeToLinearArray(tree, 2, 1).join("\n"))
+    linkedRefsArray.push(
+      convertTreeToLinearArray(
+        tree,
+        maxCapturingDepth.refs,
+        maxUidDepth.refs
+      ).join("\n")
+    )
   );
   let flattenedRefsString = linkedRefsArray.join("\n\n");
   // console.log("flattenedRefsString :>> ", flattenedRefsString);
-  console.log("length :>> ", flattenedRefsString.length);
+  // console.log("length :>> ", flattenedRefsString.length);
 
   return flattenedRefsString;
 };
@@ -410,14 +451,18 @@ export function getFlattenedContentFromSidebar() {
     }
     if (uid !== "") {
       if (node.type !== "mentions")
-        flattednedBlocks += getFlattenedContentFromTree(uid);
+        flattednedBlocks += getFlattenedContentFromTree(
+          uid,
+          maxCapturingDepth.page,
+          maxUidDepth.page
+        );
       else {
         flattednedBlocks += getFlattenedContentFromLinkedReferences(uid);
       }
       flattednedBlocks += index < sidebarNodes.length - 1 ? "\n\n" : "";
     }
   });
-  console.log("flattedned blocks from Sidebar :>> ", flattednedBlocks);
+  // console.log("flattedned blocks from Sidebar :>> ", flattednedBlocks);
   return flattednedBlocks;
 }
 
@@ -454,7 +499,11 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate) => {
     (!nbOfDays || processedDays < nbOfDays)
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
-    let dayContent = getFlattenedContentFromTree(dnpUid);
+    let dayContent = getFlattenedContentFromTree(
+      dnpUid,
+      maxCapturingDepth.dnp,
+      maxUidDepth.dnp
+    );
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
@@ -471,11 +520,6 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate) => {
     processedDays++;
     date = getYesterdayDate(date);
   }
-  console.log("flattenedBlocks :>> ", flattenedBlocks);
-  console.log(
-    "Number of days inserted into the context window :>> ",
-    processedDays
-  );
   // console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
 };
@@ -508,15 +552,14 @@ export const getRoamContextFromPrompt = (prompt) => {
   const inlineCommand = getMatchingInlineContext(prompt);
   if (!inlineCommand) return null;
   const { command, options } = inlineCommand;
+  // console.log("options :>> ", options);
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
       if (elt === "logPages") {
         if (options.includes("logPages(")) {
           let nbOfDays = prompt.split("logPages(")[1].split(")")[0];
-          console.log("nbOfDays :>> ", nbOfDays);
           if (!isNaN(nbOfDays)) roamContext.logPagesNb = Number(nbOfDays);
-          console.log("roamContext.logPagesNb :>> ", roamContext.logPagesNb);
         }
       }
       hasContext = true;
@@ -525,7 +568,36 @@ export const getRoamContextFromPrompt = (prompt) => {
   if (hasContext)
     return {
       roamContext: roamContext,
-      updatedPrompt: prompt.replace(command, ""),
+      updatedPrompt: prompt.replace(command, "").trim(),
     };
+  AppToaster.show({
+    message:
+      "Valid options for {{context: }} command: mainPage, linkedRefs, sidebar, logPages. " +
+      "For the last one, you can precise the number of days, eg.: logPages(30)",
+    timeout: 0,
+  });
   return null;
+};
+
+export const getMaxDephObjectFromList = (list) => {
+  let [page, refs, dnp] = getThreeNumbersFromList(list);
+  return { page, refs, dnp };
+};
+
+export const getThreeNumbersFromList = (list) => {
+  const matchingNb = list.match(numbersRegex);
+  let arrayOfThreeNumbers = [];
+  if (!matchingNb) return [99, 99, 99];
+  for (let i = 0; i < 3; i++) {
+    arrayOfThreeNumbers.push(
+      Number((matchingNb.length > i && matchingNb[i]) || matchingNb[0])
+    );
+  }
+  return arrayOfThreeNumbers;
+};
+
+export const getArrayFromList = (list, separator = ",") => {
+  const splittedList = list.split(separator).map((elt) => elt.trim());
+  if (splittedList.length === 1 && !splittedList[0].trim()) return [];
+  return splittedList;
 };

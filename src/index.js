@@ -14,18 +14,14 @@ import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
 import {
   createChildBlock,
   getAndNormalizeContext,
+  getArrayFromList,
   getBlockContentByUid,
   getFirstChildUid,
-  getFlattenedContentFromLinkedReferences,
-  getFlattenedContentFromLog,
-  getFlattenedContentFromSidebar,
   getFocusAndSelection,
-  getMainPageUid,
+  getMaxDephObjectFromList,
   getRoamContextFromPrompt,
   insertBlockInCurrentView,
-  isLogView,
   resolveReferences,
-  simulateClick,
   uidRegex,
 } from "./utils/utils";
 import {
@@ -55,6 +51,10 @@ export let contextInstruction = defaultContextInstructions;
 export let userContextInstructions;
 export let isMobileViewContext;
 export let isResponseToSplit;
+export let logPagesNbDefault;
+export let maxCapturingDepth = {};
+export let maxUidDepth = {};
+export let exclusionStrings = [];
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;
@@ -440,6 +440,57 @@ export default {
             },
           },
         },
+        {
+          id: "logPagesNbDefault",
+          name: "Number of previous days",
+          description:
+            "Default number of previous daily note pages (DNP) used as context from Daily notes or any DNP",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              logPagesNbDefault = evt.target.value;
+            },
+          },
+        },
+        {
+          id: "maxCapturingDepth",
+          name: "Maximum depth level",
+          description:
+            "Maximum number of block levels to capture in context (one or three numbers separated by a comma respectively: " +
+            "in pages, in linked ref., in DNP. 99 = no limit)",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              maxCapturingDepth = getMaxDephObjectFromList(evt.target.value);
+            },
+          },
+        },
+        {
+          id: "maxUidDepth",
+          name: "Maximum level with block ref.",
+          description:
+            "Maximum level at which the block ref. is copied in the context (one or three numbers. 0 = no ref, 99 = not limit)",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              maxUidDepth = getMaxDephObjectFromList(evt.target.value);
+              console.log("maxUidDepth :>> ", maxUidDepth);
+            },
+          },
+        },
+        {
+          id: "exclusionStrings",
+          name: "Blocks to exclude from context",
+          description:
+            "If blocks contain one of the following list (e.g.: #private, [[secret]]), " +
+            "they and all their children are excluded from the context:",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              exclusionStrings = getArrayFromList(evt.target.value.trim());
+            },
+          },
+        },
       ],
     };
 
@@ -498,6 +549,25 @@ export default {
     if (extensionAPI.settings.get("splitResponse") === null)
       await extensionAPI.settings.set("splitResponse", true);
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
+    if (extensionAPI.settings.get("logPagesNbDefault") === null)
+      await extensionAPI.settings.set("logPagesNbDefault", 7);
+    logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");
+    if (extensionAPI.settings.get("maxCapturingDepth") === null)
+      await extensionAPI.settings.set("maxCapturingDepth", "99,2,3");
+    maxCapturingDepth = getMaxDephObjectFromList(
+      extensionAPI.settings.get("maxCapturingDepth")
+    );
+    if (extensionAPI.settings.get("maxUidDepth") === null)
+      await extensionAPI.settings.set("maxUidDepth", "99,1,2");
+    maxUidDepth = getMaxDephObjectFromList(
+      extensionAPI.settings.get("maxUidDepth")
+    );
+    if (extensionAPI.settings.get("exclusionStrings") === null)
+      await extensionAPI.settings.set("exclusionStrings", "");
+    exclusionStrings = getArrayFromList(
+      extensionAPI.settings.get("exclusionStrings")
+    );
+
     if (OPENAI_API_KEY) openai = initializeOpenAIAPI(OPENAI_API_KEY);
     createContainer();
 
@@ -585,7 +655,7 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: (text only) AI completion of current block as prompt & selection as context",
+        "Speech-to-Roam: (text) AI completion of focused block as prompt & selection as context",
       callback: async () => {
         const { currentUid, currentBlockContent, selectionUids } =
           getFocusAndSelection();
@@ -598,22 +668,26 @@ export default {
         let prompt = currentBlockContent
           ? currentBlockContent
           : contextAsPrompt;
-        const inlineContext = getRoamContextFromPrompt(currentBlockContent);
+        console.log("currentBlockContent :>> ", currentBlockContent);
+        const inlineContext = currentBlockContent
+          ? getRoamContextFromPrompt(currentBlockContent)
+          : null;
         if (inlineContext) prompt = inlineContext.updatedPrompt;
+        console.log("inlineContext :>> ", inlineContext);
         let context = await getAndNormalizeContext(
           // currentUid && selectionUids.length ? null : currentUid,
           null,
           selectionUids,
-          inlineContext?.roamContext
+          inlineContext?.roamContext,
+          currentUid
         );
-        console.log("context :>> ", context);
         insertCompletion(prompt, openai, targetUid, context, gptCompletion);
       },
     });
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: (text only) template-based AI completion with children blocks as prompt & current block as content",
+        "Speech-to-Roam: (text) template-based AI completion with children blocks as prompt & focused block as content",
       callback: async () => {
         let { currentUid, currentBlockContent, selectionUids } =
           getFocusAndSelection();
@@ -675,29 +749,6 @@ export default {
             true
           );
         }
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Get linked refs",
-      callback: async () => {
-        const pageUid = await getMainPageUid();
-        getFlattenedContentFromLinkedReferences(pageUid);
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Get sidebar content",
-      callback: () => {
-        getFlattenedContentFromSidebar();
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Get DNPs",
-      callback: async () => {
-        getFlattenedContentFromLog();
-        isLogView();
       },
     });
 

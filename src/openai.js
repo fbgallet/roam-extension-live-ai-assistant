@@ -21,6 +21,8 @@ import {
   getAndNormalizeContext,
   getTreeByUid,
   highlightHtmlElt,
+  insertBlockInCurrentView,
+  isExistingBlock,
   removeSpinner,
   updateArrayOfBlocks,
 } from "./utils/utils";
@@ -164,15 +166,17 @@ export const insertCompletion = async (
   lastCompletion.context = context;
   lastCompletion.typeOfCompletion = typeOfCompletion;
   if (isRedone && typeOfCompletion === gptCompletion) {
-    window.roamAlphaAPI.updateBlock({
-      block: {
-        uid: targetUid,
-        string: chatRoles.assistant,
-      },
-    });
+    if (isExistingBlock(targetUid))
+      window.roamAlphaAPI.updateBlock({
+        block: {
+          uid: targetUid,
+          string: chatRoles.assistant,
+        },
+      });
+    else targetUid = await insertBlockInCurrentView(chatRoles.assistant);
   }
   const intervalId = await displaySpinner(targetUid);
-  console.log("Prompt sent to GPT :>> ", prompt);
+  console.log("Prompt sent to GPT :>>\n", prompt);
   const gptResponse = await gptCompletion(
     prompt,
     openai,
@@ -230,7 +234,7 @@ export const getTemplateForPostProcessing = async (parentUid) => {
 
 const verifyTokenLimitAndTruncate = (prompt, content) => {
   const tokens = encoding.encode(prompt + content);
-  console.log("tokens :>> ", tokens.length);
+  console.log("context tokens :", tokens.length);
 
   if (tokens.length > tokensLimit[gptModel]) {
     alert(
@@ -240,7 +244,7 @@ const verifyTokenLimitAndTruncate = (prompt, content) => {
     const ratio = tokensLimit[gptModel] / tokens.length - 0.02;
     content = content.slice(0, content.length * ratio);
     console.log(
-      "tokens of truncated context:>> ",
+      "tokens of truncated context:",
       encoding.encode(prompt + content).length
     );
   }

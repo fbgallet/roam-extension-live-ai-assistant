@@ -3,6 +3,11 @@
   --icon-color-top: var(--co-button__minimal-icon, #5c7080);
 }
 
+.color-toaster .bp3-toast {
+  background: orange;
+  color: black;
+}
+
 .speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {
   border: none;
   outline: none;
