@@ -31,6 +31,7 @@ import {
   instructionsOnJSONResponse,
   instructionsOnTemplateProcessing,
 } from "./utils/prompts";
+import { AppToaster } from "./components/VoiceRecorder";
 
 const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
@@ -241,9 +242,9 @@ const verifyTokenLimitAndTruncate = (prompt, content) => {
   console.log("context tokens :", tokens.length);
 
   if (tokens.length > tokensLimit[gptModel]) {
-    alert(
-      `The token limit (${tokensLimit[gptModel]}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${gptModel} token window.`
-    );
+    AppToaster.show({
+      message: `The token limit (${tokensLimit[gptModel]}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${gptModel} token window.`,
+    });
     // + 2% margin of error
     const ratio = tokensLimit[gptModel] / tokens.length - 0.02;
     content = content.slice(0, content.length * ratio);

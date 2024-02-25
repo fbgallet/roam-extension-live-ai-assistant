@@ -425,7 +425,10 @@ export default {
               if (uidRegex.test(input)) {
                 let templateUid = input.replace("((", "").replace("))", "");
                 if (!isExistingBlock(templateUid)) {
-                  AppToaster.show("This block doesn't exist !");
+                  AppToaster.show({
+                    message: "This block doesn't exist !",
+                    timeout: 5000,
+                  });
                   defaultTemplate = "";
                   extensionAPI.settings.set("defaultTemplate", "");
                 } else defaultTemplate = templateUid;
