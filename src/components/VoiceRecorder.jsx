@@ -12,9 +12,8 @@ import { Intent, Position, Toaster } from "@blueprintjs/core";
 //import "./App.css";
 import { closeStream, getStream, newMediaRecorder } from "../audio.js";
 import {
+  copyTemplate,
   getTemplateForPostProcessing,
-  gptCompletion,
-  gptPostProcessing,
   insertCompletion,
   transcribeAudio,
   translateAudio,
@@ -26,6 +25,8 @@ import {
   getAndNormalizeContext,
   getBlockContentByUid,
   getBlocksSelectionUids,
+  getFirstChildUid,
+  getTemplateFromPrompt,
   highlightHtmlElt,
   insertBlockInCurrentView,
   isCurrentPageDNP,
@@ -330,12 +331,12 @@ function VoiceRecorder({
     initializeProcessing();
   };
   const handleCompletion = (e) => {
-    lastCommand.current = gptCompletion;
+    lastCommand.current = "gptCompletion";
     handleModifierKeys(e);
     initializeProcessing();
   };
   const handlePostProcessing = (e) => {
-    lastCommand.current = gptPostProcessing;
+    lastCommand.current = "gptPostProcessing";
     handleModifierKeys(e);
     initializeProcessing();
   };
@@ -402,8 +403,8 @@ function VoiceRecorder({
       (await insertBlockInCurrentView(""));
     let prompt = "";
     if (
-      lastCommand.current === gptCompletion ||
-      lastCommand.current === gptPostProcessing
+      lastCommand.current === "gptCompletion" ||
+      lastCommand.current === "gptPostProcessing"
     ) {
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
@@ -411,18 +412,9 @@ function VoiceRecorder({
         (targetUid === targetBlock.current ||
           targetUid === startBlock.current) &&
         getBlockContentByUid(targetUid).trim() &&
-        lastCommand.current === gptCompletion
+        lastCommand.current === "gptCompletion"
       ) {
         targetUid = createChildBlock(targetUid, "");
-      } //else targetUid = createChildBlock(targetUid, "");
-      else if (lastCommand.current === gptPostProcessing) {
-        const template = await getTemplateForPostProcessing(startBlock.current);
-        prompt = template.stringified;
-        if (!template.isInMultipleBlocks) {
-          // default post-processing
-          lastCommand.current = gptCompletion;
-          prompt = defaultPostProcessingPrompt;
-        }
       }
     }
     const intervalId = await displaySpinner(targetUid);
@@ -465,23 +457,54 @@ function VoiceRecorder({
 
   const completionProcessing = async (prompt, transcribe, promptUid) => {
     let uid;
+    let waitForBlockCopy = false;
     const context = await getAndNormalizeContext(
-      lastCommand.current === gptPostProcessing ? null : startBlock.current,
+      lastCommand.current === "gptPostProcessing" ? null : startBlock.current,
       blocksSelectionUids.current,
       roamContext.current
     );
-    if (lastCommand.current === gptPostProcessing)
-      prompt =
-        "Complete the template below, in accordance with the following request " +
-        "(the language in which it is written will determine the language of the response): " +
-        transcribe +
-        "\n\n" +
-        prompt;
-    else {
+    if (lastCommand.current === "gptPostProcessing") {
+      let inlineTemplate = getTemplateFromPrompt(
+        getBlockContentByUid(promptUid)
+      );
+      if (inlineTemplate) {
+        await copyTemplate(promptUid, inlineTemplate.templateUid);
+        prompt = inlineTemplate.updatedPrompt;
+        waitForBlockCopy = true;
+      } else if (!getFirstChildUid(promptUid)) {
+        await copyTemplate(promptUid);
+        waitForBlockCopy = true;
+      }
+
+      setTimeout(
+        async () => {
+          let template = await getTemplateForPostProcessing(promptUid);
+          console.log("template :>> ", template);
+          let commandType;
+          if (!template) {
+            // default post-processing
+            commandType = "gptCompletion";
+            prompt = defaultPostProcessingPrompt + transcribe;
+            uid = createChildBlock(promptUid, chatRoles.assistant);
+          } else {
+            commandType = "gptPostProcessing";
+            prompt =
+              "Complete the template below, in accordance with the following request " +
+              "(the language in which it is written will determine the language of the response): " +
+              transcribe +
+              "\n\n" +
+              template.stringified;
+            uid = getFirstChildUid(promptUid);
+          }
+          await insertCompletion(prompt, openai, uid, context, commandType);
+        },
+        waitForBlockCopy ? 100 : 0
+      );
+    } else {
       uid = createChildBlock(promptUid, chatRoles.assistant);
       prompt += transcribe;
+      await insertCompletion(prompt, openai, uid, context, lastCommand.current);
     }
-    await insertCompletion(prompt, openai, uid, context, lastCommand.current);
   };
 
   const initialize = (complete = true) => {

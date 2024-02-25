@@ -2,9 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom";
 import App from "./App";
 import {
+  copyTemplate,
   getTemplateForPostProcessing,
-  gptCompletion,
-  gptPostProcessing,
   initializeOpenAIAPI,
   insertCompletion,
   lastCompletion,
@@ -20,7 +19,9 @@ import {
   getFocusAndSelection,
   getMaxDephObjectFromList,
   getRoamContextFromPrompt,
+  getTemplateFromPrompt,
   insertBlockInCurrentView,
+  isExistingBlock,
   resolveReferences,
   uidRegex,
 } from "./utils/utils";
@@ -30,6 +31,7 @@ import {
   defaultContextInstructions,
   specificContentPromptBeforeTemplate,
 } from "./utils/prompts";
+import { AppToaster } from "./components/VoiceRecorder";
 
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
@@ -55,6 +57,7 @@ export let logPagesNbDefault;
 export let maxCapturingDepth = {};
 export let maxUidDepth = {};
 export let exclusionStrings = [];
+export let defaultTemplate;
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;
@@ -368,6 +371,18 @@ export default {
           },
         },
         {
+          id: "splitResponse",
+          name: "Split response in multiple blocks",
+          description:
+            "Divide the responses of the AI assistant into as many blocks as paragraphs",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isResponseToSplit = !isResponseToSplit;
+            },
+          },
+        },
+        {
           id: "chatRoles",
           name: "Chat roles",
           description:
@@ -399,6 +414,31 @@ export default {
           },
         },
         {
+          id: "defaultTemplate",
+          name: "Default template for post-processing",
+          description:
+            "If no template is provide in the block or in children, follow this template for GPT model response (copy its parent ((block reference))):",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              let input = evt.target.value;
+              if (uidRegex.test(input)) {
+                let templateUid = input.replace("((", "").replace("))", "");
+                if (!isExistingBlock(templateUid)) {
+                  AppToaster.show("This block doesn't exist !");
+                  defaultTemplate = "";
+                  extensionAPI.settings.set("defaultTemplate", "");
+                } else defaultTemplate = templateUid;
+              } else {
+                AppToaster.show(
+                  "You have to enter a ((block reference)) of an existing block."
+                );
+                extensionAPI.settings.set("defaultTemplate", "");
+              }
+            },
+          },
+        },
+        {
           id: "contextInstructions",
           name: "Instructions on context",
           description:
@@ -417,38 +457,15 @@ export default {
           },
         },
         {
-          id: "mobileContext",
-          name: "View is context on mobile",
+          id: "exclusionStrings",
+          name: "Blocks to exclude from context",
           description:
-            "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
-          action: {
-            type: "switch",
-            onChange: (evt) => {
-              isMobileViewContext = !isMobileViewContext;
-            },
-          },
-        },
-        {
-          id: "splitResponse",
-          name: "Split response in multiple blocks",
-          description:
-            "Divide the responses of the AI assistant into as many blocks as paragraphs",
-          action: {
-            type: "switch",
-            onChange: (evt) => {
-              isResponseToSplit = !isResponseToSplit;
-            },
-          },
-        },
-        {
-          id: "logPagesNbDefault",
-          name: "Number of previous days",
-          description:
-            "Default number of previous daily note pages (DNP) used as context from Daily notes or any DNP",
+            "If blocks contain one of the following list (e.g.: #private, [[secret]]), " +
+            "they and all their children are excluded from the context:",
           action: {
             type: "input",
             onChange: (evt) => {
-              logPagesNbDefault = evt.target.value;
+              exclusionStrings = getArrayFromList(evt.target.value.trim());
             },
           },
         },
@@ -479,15 +496,26 @@ export default {
           },
         },
         {
-          id: "exclusionStrings",
-          name: "Blocks to exclude from context",
+          id: "logPagesNbDefault",
+          name: "Number of previous days",
           description:
-            "If blocks contain one of the following list (e.g.: #private, [[secret]]), " +
-            "they and all their children are excluded from the context:",
+            "Default number of previous daily note pages (DNP) used as context from Daily notes or any DNP",
           action: {
             type: "input",
             onChange: (evt) => {
-              exclusionStrings = getArrayFromList(evt.target.value.trim());
+              logPagesNbDefault = evt.target.value;
+            },
+          },
+        },
+        {
+          id: "mobileContext",
+          name: "View is context on mobile",
+          description:
+            "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isMobileViewContext = !isMobileViewContext;
             },
           },
         },
@@ -549,6 +577,12 @@ export default {
     if (extensionAPI.settings.get("splitResponse") === null)
       await extensionAPI.settings.set("splitResponse", true);
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
+    if (extensionAPI.settings.get("defaultTemplate") === null)
+      await extensionAPI.settings.set("defaultTemplate", "");
+    defaultTemplate = extensionAPI.settings
+      .get("defaultTemplate")
+      .replace("((", "")
+      .replace("))", "");
     if (extensionAPI.settings.get("logPagesNbDefault") === null)
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");
@@ -681,7 +715,7 @@ export default {
           inlineContext?.roamContext,
           currentUid
         );
-        insertCompletion(prompt, openai, targetUid, context, gptCompletion);
+        insertCompletion(prompt, openai, targetUid, context, "gptCompletion");
       },
     });
 
@@ -705,29 +739,59 @@ export default {
         );
 
         // simulateClick(document.querySelector(".roam-body-main"));
-        let targetUid = getFirstChildUid(currentUid);
-        let template = await getTemplateForPostProcessing(currentUid);
-        if (!template.isInMultipleBlocks) {
-          targetUid = createChildBlock(
-            targetUid ? targetUid : currentUid,
-            chatRoles.assistant,
-            inlineContext?.roamContext
+        let targetUid;
+        let waitForBlockCopy = false;
+        if (currentBlockContent) {
+          let inlineTemplate = getTemplateFromPrompt(
+            getBlockContentByUid(currentUid)
           );
-          currentUid = targetUid;
+          // console.log("inlineTemplate :>> ", inlineTemplate);
+          if (inlineTemplate) {
+            await copyTemplate(currentUid, inlineTemplate.templateUid);
+            currentBlockContent = resolveReferences(
+              inlineTemplate.updatedPrompt
+            );
+            waitForBlockCopy = true;
+          } else {
+            targetUid = getFirstChildUid(currentUid);
+            if (!targetUid) {
+              await copyTemplate(currentUid);
+              waitForBlockCopy = true;
+            }
+          }
         }
-        let prompt = template.isInMultipleBlocks
-          ? specificContentPromptBeforeTemplate +
-            currentBlockContent +
-            "\n\n" +
-            template.stringified
-          : template.stringified;
+        setTimeout(
+          async () => {
+            let template = await getTemplateForPostProcessing(currentUid);
+            if (!template.isInMultipleBlocks) {
+              targetUid = createChildBlock(
+                targetUid ? targetUid : currentUid,
+                chatRoles.assistant,
+                inlineContext?.roamContext
+              );
+              currentUid = targetUid;
+            }
+            let prompt = template.isInMultipleBlocks
+              ? specificContentPromptBeforeTemplate +
+                currentBlockContent +
+                "\n\n" +
+                template.stringified
+              : template.stringified;
 
-        insertCompletion(
-          prompt,
-          openai,
-          targetUid,
-          context,
-          template.isInMultipleBlocks ? gptPostProcessing : gptCompletion
+            if (!targetUid) targetUid = getFirstChildUid(currentUid);
+
+            insertCompletion(
+              prompt,
+              openai,
+              // waitForBlockCopy ? currentUid : targetUid,
+              targetUid,
+              context,
+              template.isInMultipleBlocks
+                ? "gptPostProcessing"
+                : "gptCompletion"
+            );
+          },
+          waitForBlockCopy ? 100 : 0
         );
       },
     });

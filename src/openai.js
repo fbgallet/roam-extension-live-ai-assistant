@@ -5,6 +5,7 @@ import {
   assistantCharacter,
   chatRoles,
   contextInstruction,
+  defaultTemplate,
   gptCustomModel,
   gptModel,
   isResponseToSplit,
@@ -16,9 +17,9 @@ import {
 import {
   addContentToBlock,
   convertTreeToLinearArray,
+  copyTreeBranches,
   createChildBlock,
   displaySpinner,
-  getAndNormalizeContext,
   getTreeByUid,
   highlightHtmlElt,
   insertBlockInCurrentView,
@@ -95,23 +96,23 @@ export async function translateAudio(filename, openai) {
   }
 }
 
-export async function gptPostProcessing(prompt, openai, context) {
-  console.log("text: ", text);
-  try {
-    const postProcessedText = await openai.completions.create({
-      model: "gpt-3.5-turbo-0125",
-      prompt:
-        text +
-        "\nYou are an [expert] in note-taking. Reproduce [exactly] the previous text, putting the most important words in double brackets like [[that]].",
-      max_tokens: Math.floor(text.length / 2),
-      temperature: 0.1,
-    });
-    console.log(postProcessedText.choices[0]);
-    return postProcessedText.choices[0].text;
-  } catch (error) {
-    console.error(error);
-  }
-}
+// export async function gptPostProcessing(prompt, openai, context) {
+//   console.log("text: ", text);
+//   try {
+//     const postProcessedText = await openai.completions.create({
+//       model: "gpt-3.5-turbo-0125",
+//       prompt:
+//         text +
+//         "\nYou are an [expert] in note-taking. Reproduce [exactly] the previous text, putting the most important words in double brackets like [[that]].",
+//       max_tokens: Math.floor(text.length / 2),
+//       temperature: 0.1,
+//     });
+//     console.log(postProcessedText.choices[0]);
+//     return postProcessedText.choices[0].text;
+//   } catch (error) {
+//     console.error(error);
+//   }
+// }
 
 export async function gptCompletion(
   prompt,
@@ -165,7 +166,7 @@ export const insertCompletion = async (
   lastCompletion.targetUid = targetUid;
   lastCompletion.context = context;
   lastCompletion.typeOfCompletion = typeOfCompletion;
-  if (isRedone && typeOfCompletion === gptCompletion) {
+  if (isRedone && typeOfCompletion === "gptCompletion") {
     if (isExistingBlock(targetUid))
       window.roamAlphaAPI.updateBlock({
         block: {
@@ -177,14 +178,15 @@ export const insertCompletion = async (
   }
   const intervalId = await displaySpinner(targetUid);
   console.log("Prompt sent to GPT :>>\n", prompt);
+  console.log("typeOfCompletion :>> ", typeOfCompletion);
   const gptResponse = await gptCompletion(
     prompt,
     openai,
     context,
-    typeOfCompletion === gptPostProcessing ? "json_object" : "text"
+    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text"
   );
   removeSpinner(intervalId);
-  if (typeOfCompletion === gptPostProcessing) {
+  if (typeOfCompletion === "gptPostProcessing") {
     const parsedResponse = JSON.parse(gptResponse);
     updateArrayOfBlocks(parsedResponse.response);
     // if (!isOnlyTextual)
@@ -208,9 +210,9 @@ export const getTemplateForPostProcessing = async (parentUid) => {
   let prompt = "";
   let isInMultipleBlocks = true;
   let tree = getTreeByUid(parentUid);
-  if (parentUid) {
+  if (parentUid && tree) {
     if (tree.length && tree[0].children) {
-      let eltToHightlight = document.querySelector(`[id$=${parentUid}]`);
+      let eltToHightlight = document.querySelector(`[id$="${parentUid}"]`);
       eltToHightlight =
         eltToHightlight.tagName === "TEXTAREA"
           ? eltToHightlight.parentElement.parentElement.nextElementSibling
@@ -222,14 +224,16 @@ export const getTemplateForPostProcessing = async (parentUid) => {
       // console.log("linearArray :>> ", linearArray);
       prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
     } else {
-      // prompt is a simple block
-      isInMultipleBlocks = false;
-      prompt =
-        "Here is the user prompt (the language in which it is written will determine the language of the response): " +
-        (await getAndNormalizeContext(parentUid));
+      return null;
     }
-  }
+  } else return null;
   return { stringified: prompt, isInMultipleBlocks: isInMultipleBlocks };
+};
+
+export const copyTemplate = async (targetUid, templateUid) => {
+  if (!templateUid && !defaultTemplate) return;
+  const tree = getTreeByUid(templateUid || defaultTemplate);
+  await copyTreeBranches(tree, targetUid);
 };
 
 const verifyTokenLimitAndTruncate = (prompt, content) => {

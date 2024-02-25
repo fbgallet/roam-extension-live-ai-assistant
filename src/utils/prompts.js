@@ -43,5 +43,4 @@ Comment on the user's statement in a manner similar to Socrates in Plato's dialo
 with humor and feigned naivety that actually aims to provoke very deep reflection.
 Three paragraphs: first, show your agreement with what is being said, then raise an objection and \
 ask a question about one of the fundamental beliefs implicit in the following user statement \
-(the language in which it is written will determine the language of the response):
-`;
+(important: the language in which the following statement or question is written determine the language of your response):\n\n`;

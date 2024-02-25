@@ -13,7 +13,8 @@ import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const pageRegex = /\[\[.*\]\]/g; // very simplified, not recursive...
-export const contextRegex = /\{\{context:(.[^\}]*)\}\}/;
+export const contextRegex = /\(\(context:.?([^\)]*)\)\)/;
+export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 const encoding = getEncoding("cl100k_base");
@@ -149,20 +150,9 @@ export function getFirstChildUid(uid) {
                        [:block/uid :block/children {:block/children ...}])
                     :where [?c :block/uid "${uid}"]  ]`;
   let result = window.roamAlphaAPI.q(q);
+  if (!result.length) return null;
   if (result[0][0].children) return result[0][0].children[0].uid;
   return null;
-}
-
-export function processNotesInTree(tree, callback, callbackArgs) {
-  //  tree = tree.sort((a, b) => a.order - b.order);
-  for (let i = 0; i < tree.length; i++) {
-    let content = tree[i].string;
-    callback(callbackArgs);
-    let subTree = tree[i].children;
-    if (subTree) {
-      processNotesInTree(subTree, callback);
-    }
-  }
 }
 
 export function updateArrayOfBlocks(arrayOfBlocks) {
@@ -178,13 +168,37 @@ export function updateArrayOfBlocks(arrayOfBlocks) {
   }
 }
 
-export function createChildBlock(parentUid, content, order = "last") {
+export function createChildBlock(
+  parentUid,
+  content = "",
+  order = "last",
+  open = true
+) {
   const uid = window.roamAlphaAPI.util.generateUID();
   window.roamAlphaAPI.createBlock({
     location: { "parent-uid": parentUid, order: order },
-    block: { string: content, uid: uid },
+    block: { string: content, uid: uid, open: open },
   });
   return uid;
+}
+
+export async function copyTreeBranches(tree, targetUid) {
+  // copy only the branches, not the parent block
+  if (tree[0].string && tree[0].children) {
+    await insertChildrenBlocksRecursively(targetUid, tree[0].children);
+  } else return null;
+}
+
+async function insertChildrenBlocksRecursively(parentUid, children) {
+  for (let i = 0; i < children.length; i++) {
+    let uid = await createChildBlock(
+      parentUid,
+      children[i].string,
+      children[i].order
+    );
+    if (children[i].children)
+      insertChildrenBlocksRecursively(uid, children[i].children);
+  }
 }
 
 export async function insertBlockInCurrentView(content, order) {
@@ -297,7 +311,8 @@ export const getResolvedContentFromBlocks = (blocksUids) => {
   return content;
 };
 
-export const resolveReferences = (content, refsArray = []) => {
+export const resolveReferences = (content, refsArray = [], once = false) => {
+  uidRegex.lastIndex = 0;
   if (uidRegex.test(content)) {
     uidRegex.lastIndex = 0;
     let matches = content.matchAll(uidRegex);
@@ -308,7 +323,7 @@ export const resolveReferences = (content, refsArray = []) => {
       refsArray.push(refUid);
       let resolvedRef = getBlockContentByUid(refUid);
       uidRegex.lastIndex = 0;
-      if (uidRegex.test(resolvedRef) && isNewRef)
+      if (uidRegex.test(resolvedRef) && isNewRef && !once)
         resolvedRef = resolveReferences(resolvedRef, refsArray);
       content = content.replace(match, resolvedRef);
     }
@@ -539,17 +554,48 @@ const getYesterdayDate = (date = null) => {
   return new Date(date.getTime() - 24 * 60 * 60 * 1000);
 };
 
-const getMatchingInlineContext = (text) => {
-  const matches = contextRegex.exec(text);
-  if (!matches || matches.length < 2) return null;
+const getMatchingInlineCommand = (text, regex) => {
+  regex.lastIndex = 0;
+  let matches = text.match(regex);
+  if (!matches || matches.length < 2) {
+    uidRegex.lastIndex = 0;
+    if (!uidRegex.test(text)) return null;
+    regex.lastIndex = 0;
+    let newText = resolveReferences(text, [], true);
+    matches = newText.match(regex);
+    if (!matches || matches.length < 2) return null;
+  }
   return { command: matches[0], options: matches[1] };
+};
+
+export const getTemplateFromPrompt = (prompt) => {
+  const templateCommand = getMatchingInlineCommand(prompt, templateRegex);
+  if (!templateCommand) {
+    return null;
+  }
+  const { command, options } = templateCommand;
+  uidRegex.lastIndex = 0;
+  let templateUid = uidRegex.test(options.trim())
+    ? options.trim().replace("((", "").replace("))", "")
+    : null;
+  if (!templateUid) {
+    AppToaster.show({
+      message:
+        "Valid syntax for inline template is ((template: ((block-reference)))).",
+    });
+    return null;
+  }
+  return {
+    templateUid: templateUid,
+    updatedPrompt: prompt.replace(command, "").trim(),
+  };
 };
 
 export const getRoamContextFromPrompt = (prompt) => {
   const elts = ["linkedRefs", "sidebar", "mainPage", "logPages"];
   const roamContext = {};
   let hasContext = false;
-  const inlineCommand = getMatchingInlineContext(prompt);
+  const inlineCommand = getMatchingInlineCommand(prompt, contextRegex);
   if (!inlineCommand) return null;
   const { command, options } = inlineCommand;
   // console.log("options :>> ", options);
@@ -572,7 +618,7 @@ export const getRoamContextFromPrompt = (prompt) => {
     };
   AppToaster.show({
     message:
-      "Valid options for {{context: }} command: mainPage, linkedRefs, sidebar, logPages. " +
+      "Valid options for ((context: )) command: mainPage, linkedRefs, sidebar, logPages. " +
       "For the last one, you can precise the number of days, eg.: logPages(30)",
     timeout: 0,
   });
