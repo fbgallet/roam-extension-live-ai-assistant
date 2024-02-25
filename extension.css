@@ -5,6 +5,8 @@
 
 .color-toaster .bp3-toast {
   background: orange;
+}
+.color-toaster .bp3-toast-messge {
   color: black;
 }
 

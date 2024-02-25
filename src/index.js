@@ -422,6 +422,7 @@ export default {
             type: "input",
             onChange: (evt) => {
               let input = evt.target.value;
+              uidRegex.lastIndex = 0;
               if (uidRegex.test(input)) {
                 let templateUid = input.replace("((", "").replace("))", "");
                 if (!isExistingBlock(templateUid)) {
@@ -433,9 +434,11 @@ export default {
                   extensionAPI.settings.set("defaultTemplate", "");
                 } else defaultTemplate = templateUid;
               } else {
-                AppToaster.show(
-                  "You have to enter a ((block reference)) of an existing block."
-                );
+                AppToaster.show({
+                  message:
+                    "You have to enter a ((block reference)) of an existing block.",
+                  timeout: 5000,
+                });
                 extensionAPI.settings.set("defaultTemplate", "");
               }
             },
@@ -582,10 +585,14 @@ export default {
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
     if (extensionAPI.settings.get("defaultTemplate") === null)
       await extensionAPI.settings.set("defaultTemplate", "");
-    defaultTemplate = extensionAPI.settings
-      .get("defaultTemplate")
-      .replace("((", "")
-      .replace("))", "");
+    let templateInput = extensionAPI.settings.get("defaultTemplate");
+    uidRegex.lastIndex = 0;
+    if (uidRegex.test(templateInput))
+      defaultTemplate = templateInput.replace("((", "").replace("))", "");
+    else {
+      defaultTemplate = "";
+      extensionAPI.settings.set("defaultTemplate", "");
+    }
     if (extensionAPI.settings.get("logPagesNbDefault") === null)
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");

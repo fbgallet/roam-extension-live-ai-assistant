@@ -479,7 +479,7 @@ function VoiceRecorder({
       setTimeout(
         async () => {
           let template = await getTemplateForPostProcessing(promptUid);
-          console.log("template :>> ", template);
+          // console.log("template :>> ", template);
           let commandType;
           if (!template) {
             // default post-processing
