@@ -4,10 +4,10 @@
 
 ### 🆕 New in v.3:
 
-- easily select entire Roam sections as context for your prompts: Linked References, Sidebar content, main page, journal (daily note pages)
-- apply templates for post-processing
+- easily select entire Roam UI elements as **context** for your prompts: **Linked References**, **Sidebar content**, main page, journal (**daily note pages**)
+- apply **multiple-blocks templates** for AI post-processing
 
-See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a full list of the updates and fixes and below for detailed instructions.
+See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes and below for detailed instructions.
 
 <img width="1130" alt="Speech-To-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/cbdfce16-e3e4-4812-963b-c48d0c49f449">
 
