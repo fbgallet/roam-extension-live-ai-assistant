@@ -42,11 +42,15 @@ Keyboard-only (no vocal) interactions with the AI assistantAI features and other
 
 A SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of SmartBlock at the end of this doc.
 
-⚠️ _Currently, this extension doesn't work on either the MacOS desktop app or the Mobile app, but it works on browsers (desktop and mobile) and on Windows desktop app._
+⚠️ _Currently, this extension doesn't work entirly on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes recording and transcription can't be achieved. But all commands relying only on text (like AI completion or post-processing) are available. The extensions works properly on all browsers (desktop and mobile, MacOs, iOS, Windows or Android) and on Windows desktop app._
 
 ## To be done right after installation
 
-In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods) (you can choose to buy credits or pay as you go; OpenAI offers current $5.00 credits to new users). API usage fees should not be confused with the ChatGPT Plus subscription; they are strictly separate, you do not need the ChatGPT plus subscription to use Speech-to-roam. Regular moderate use should only cost a few tens of cents per month (costs may increase if you use GPT-4 (default is GPT-3.5), think to set a maximum monthly limit). You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
+In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods) (you can choose to buy credits or pay as you go; OpenAI offers currently $5.00 credits to new users).
+
+NB: API usage fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Speech-to-roam.
+
+Moderate but regular use should only cost a few tens of cents per month (costs may increase if you use GPT-4 (default is GPT-3.5), think to set a maximum monthly limit). You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
 
 ⚠️ _OpenAI Whisper API is a paid but quite cheap service_
 
@@ -80,7 +84,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.)
 - you can easily **provide context** to your prompt, to process the information contained in this context (e.g. to summarize it or have a conversation with your own notes 🚀) or to provide resources to the AI for the required text generation:
   - 🆕 New in v.3: main UI elements of Roam can now easily be designated as the context using key modifiers when clicking on the AI assistant buttons:
-    - `Command/Control`: use linked references (backlinks) of the current page or, if the page is a DNP or the daily notes log (journal), the previous DNP.
+    - `Command/Control`: use linked references (backlinks) of the current page or, if the page is a DNP or the daily notes log (journal), the previous DNP. Important limitation for linked refs: currently, the applied filters (including or excluding some reference) are not taken into account.
     - `Alt`: use the whole main page (more precisely: its current zoomed view) as context
     - `Shift`: use all the content in the right sidebar (pages, blocks, linked references)
   - ⚠️ Attention, be aware that using linked refs or DNPs as context can easily reach the model's maximum token limit and quickly become costly. To mitigate risks and increase the usable context window, the following options can be configured:
