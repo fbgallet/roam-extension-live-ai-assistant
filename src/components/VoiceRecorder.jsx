@@ -683,7 +683,9 @@ function VoiceRecorder({
         ? "speech-transcribe"
         : command === handleTranslate
         ? "speech-translate"
-        : "speech-completion";
+        : command === handleCompletion
+        ? "speech-completion"
+        : "speech-post-processing";
     return (
       // {(isListening || recording !== null) && (
       <span class="bp3-popover-wrapper">

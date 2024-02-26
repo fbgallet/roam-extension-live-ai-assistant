@@ -658,9 +658,29 @@ export default {
       },
     });
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Transcribe & send as prompt for GPT assistant",
+      label: "Speech-to-Roam: Transcribe & send as prompt to AI assistant",
       callback: () => {
         const button = document.getElementsByClassName("speech-completion")[0];
+        if (button) {
+          button.focus();
+          button.click();
+          if (
+            !isComponentVisible &&
+            document.getElementsByClassName("speech-to-roam")[0]?.style
+              .display !== "none"
+          )
+            toggleComponentVisibility();
+        } else simulateClickOnRecordingButton();
+      },
+    });
+
+    extensionAPI.ui.commandPalette.addCommand({
+      label:
+        "Speech-to-Roam: Transcribe & send as content for templated-based AI post-processing",
+      callback: () => {
+        const button = document.getElementsByClassName(
+          "speech-post-processing"
+        )[0];
         if (button) {
           button.focus();
           button.click();
@@ -731,7 +751,7 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: (text) template-based AI completion with children blocks as prompt & focused block as content",
+        "Speech-to-Roam: (text) template-based AI post-processing, children as prompt template & focused block as content",
       callback: async () => {
         let { currentUid, currentBlockContent, selectionUids } =
           getFocusAndSelection();
