@@ -9,7 +9,8 @@
 
 See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes and below for detailed instructions.
 
-<img width="1130" alt="Speech-To-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/cbdfce16-e3e4-4812-963b-c48d0c49f449">
+<img width="1130" alt="Speech-to-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/e4e54f87-0af6-4406-b566-dff9959d00af">
+
 
 
 By default, the controls will be inserted in the left sidebar, below the "Daily Notes" button. It's possible to display them in the topbar (always visible, more convenient on mobile) or to display them only on demand.
