@@ -51,13 +51,13 @@ export function initializeOpenAIAPI(OPENAI_API_KEY) {
     return openai;
   } catch (error) {
     console.log(error.message);
+    AppToaster.show({
+      message: `Speech-to-Roam - Error during the initialization of OpenAI API: ${error.message}`,
+    });
   }
 }
 
 export async function transcribeAudio(filename, openai) {
-  // let audioFile = new File([filename], "myaudio.ogg", {
-  //   type: "audio/ogg; codecs=opus",
-  // });
   if (!openai) return null;
   try {
     // console.log(filename);
@@ -69,11 +69,13 @@ export async function transcribeAudio(filename, openai) {
     if (whisperPrompt) options.prompt = whisperPrompt;
     const transcript = await openai.audio.transcriptions.create(options);
     return transcript.text;
-    // let processed = await gptPostProcessing(transcript.text);
-    // return processed;
   } catch (error) {
     console.error(error.message);
-    return null;
+    AppToaster.show({
+      message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
+    return "";
   }
 }
 
@@ -89,10 +91,12 @@ export async function translateAudio(filename, openai) {
     // if (whisperPrompt) options.prompt = whisperPrompt;
     const transcript = await openai.audio.translations.create(options);
     return transcript.text;
-    // let processed = await gptPostProcessing(transcript.text);
-    // return processed;
   } catch (error) {
     console.error(error);
+    AppToaster.show({
+      message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
     return null;
   }
 }
@@ -151,6 +155,11 @@ export async function gptCompletion(
     return response.choices[0].message.content;
   } catch (error) {
     console.error(error);
+    AppToaster.show({
+      message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
+    return "";
   }
 }
 

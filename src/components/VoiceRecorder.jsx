@@ -133,9 +133,11 @@ function VoiceRecorder({
 
   const handleRecord = async (e) => {
     if (!worksOnPlatform) {
-      alert(
-        "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
-      );
+      AppToaster.show({
+        message:
+          "Speech-to-Roam recording currently doesn't work on your current platform (Mac Desktop App or Mobile app). You can still use text-only commands. See documentation.",
+        timeout: 15000,
+      });
       return;
     }
     e.preventDefault();

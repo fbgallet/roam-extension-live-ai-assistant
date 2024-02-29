@@ -11,8 +11,6 @@ See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/b
 
 <img width="1130" alt="Speech-to-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/e4e54f87-0af6-4406-b566-dff9959d00af">
 
-
-
 By default, the controls will be inserted in the left sidebar, below the "Daily Notes" button. It's possible to display them in the topbar (always visible, more convenient on mobile) or to display them only on demand.
 
 **Keyboard hotkeys** (⚠️ available only when the recording has been started by a mouse click):
@@ -84,17 +82,22 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - ask any question, rephrasing, completion, translation! The more precise your instructions are (especially with examples), the more accurate and satisfying the responses will be.
 - assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.)
 - you can easily **provide context** to your prompt, to process the information contained in this context (e.g. to summarize it or have a conversation with your own notes 🚀) or to provide resources to the AI for the required text generation:
+
   - 🆕 New in v.3: main UI elements of Roam can now easily be designated as the context using key modifiers when clicking on the AI assistant buttons:
     - `Command/Control`: use linked references (backlinks) of the current page or, if the page is a DNP or the daily notes log (journal), the previous DNP. Important limitation for linked refs: currently, the applied filters (including or excluding some reference) are not taken into account.
     - `Alt`: use the whole main page (more precisely: its current zoomed view) as context
     - `Shift`: use all the content in the right sidebar (pages, blocks, linked references)
-  - ⚠️ Attention, be aware that using linked refs or DNPs as context can easily reach the model's maximum token limit and quickly become costly. To mitigate risks and increase the usable context window, the following options can be configured:
-    - default number of previous DNPs (default is 7)
-    - maximum block depth level, distinctively defined for pages, linked refs, and DNPs (default is no limit for page, and limit to 2 levers for linked refs and 3 for DNPs)
-    - maximum level where block references (uid) are copied in the context sent to the AI assistant (so he can refer to them, make some citaiton...). When many blocks have very brief content, the ((uid)) occupies a significant proportion of space in the context. (default: not limit for pages, limit to 1 and 2 levels for linked refs and DNPs)
-    - blocks (and their children) to exclude if they contain a given string (like a tag `#private`)
-    - ⚠️ with the current pricing (02-2024), each request that reaches the token limit for GPT-3.5 cost $0.08, but up to $1.30 with GPT-4 !
+
+  ⚠️ Attention, be aware that using linked refs or DNPs as context can easily reach the model's maximum token limit and quickly become costly. I highly recommend combining multiple questions or instructions into a single request, as the entire context needs to be sent with each request. That can be facilitated by the template-based prompt functionality presented below. To reduce costs and increase the usable context window, the following options can be configured:
+
+  - default number of previous DNPs (default is 7)
+  - maximum block depth level, distinctively defined for pages, linked refs, and DNPs (default is no limit for page, and limit to 2 levers for linked refs and 3 for DNPs)
+  - maximum level where block references (uid) are copied in the context sent to the AI assistant (so he can refer to them, make some citaiton...). When many blocks have very brief content, the ((uid)) occupies a significant proportion of space in the context. (default: not limit for pages, limit to 1 and 2 levels for linked refs and DNPs)
+  - blocks (and their children) to exclude if they contain a given string (like a tag `#private`)
+  - ⚠️ with the current pricing (02-2024), each request that reaches the token limit for GPT-3.5 cost $0.08, but up to $1.30 with GPT-4 !
+
   - for a more "surgical" defined context, simply select the required blocks. Using the native multi-select blocks feature to choose multiple separate blocks. The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
+
 - the context provided by selected blocks is handled with the following instructions (you can add your own instructions, see settings):
 
   > _"Below is the context of your response, it can consist of data to rely on, a conversation to be continued, or other instructions, depending on the user's prompt. The user can refer to it as 'these blocks' or 'the selected blocks' among other possibilities. The ((9-characters code)) within double parentheses preceding each piece of content (or block) in the context is its id in the database and is called 'block reference'. In your response, you can refer to an existing block reference (and only existing one) if needed, using the syntax [*](((9-characters code))) to refer to it as a note or citation. Example: [\*](<((kVZwmFnFF))>). If you need reproduce the entire and exact content of a block in your response, only put its ((9-characters code)) instead, but it's preferable to prioritize a citation with [*](((9-char code))) syntax most of the time. Expressions within double brackets such as [[my page]] or preceded by a '#' like #tag or #[[my tag]] should be reused with the exact same syntax as in the source text, keeping the original double brackets and/or hashtag: e.g. [[my page]], #tag, #[[my tag]]."_
