@@ -4,7 +4,7 @@
 
 ### 🆕 New in v.3:
 
-- easily select entire Roam UI elements as **context** for your prompts: **Linked References**, **Sidebar content**, main page, journal (**daily note pages**)
+- easily use **Linked References**, **Sidebar content**, main page or journal (**daily note pages**) as **context** for your (vocal or text) prompts
 - apply **multiple-blocks templates** for AI post-processing
 
 See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes and below for detailed instructions.
@@ -96,7 +96,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
   - blocks (and their children) to exclude if they contain a given string (like a tag `#private`)
   - ⚠️ with the current pricing (02-2024), each request that reaches the token limit for GPT-3.5 cost $0.08, but up to $1.30 with GPT-4 !
 
-  - for a more "surgical" defined context, simply select the required blocks. Using the native multi-select blocks feature to choose multiple separate blocks. The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
+- for a more "surgical" defined context, simply select the required blocks. Using the native multi-select blocks feature to choose multiple separate blocks. The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
 
 - the context provided by selected blocks is handled with the following instructions (you can add your own instructions, see settings):
 
