@@ -256,7 +256,22 @@ const verifyTokenLimitAndTruncate = (prompt, content) => {
   return content;
 };
 
-export const supportedLanguage = [
+export function getValidLanguageCode(input) {
+  if (!input) return "";
+  let lggCode = input.toLowerCase().trim().slice(0, 2);
+  if (supportedLanguage.includes(lggCode)) {
+    AppToaster.clear();
+    return lggCode;
+  } else {
+    AppToaster.show({
+      message:
+        "Speech-to-Roam: Incorrect language code for transcription, see instructions in settings panel.",
+    });
+    return "";
+  }
+}
+
+const supportedLanguage = [
   "af",
   "am",
   "ar",

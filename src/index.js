@@ -4,10 +4,10 @@ import App from "./App";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
+  getValidLanguageCode,
   initializeOpenAIAPI,
   insertCompletion,
   lastCompletion,
-  supportedLanguage,
 } from "./openai";
 import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
 import {
@@ -299,10 +299,7 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              const lgg = evt.target.value.toLowerCase().trim();
-              transcriptionLanguage = supportedLanguage.includes(lgg)
-                ? lgg
-                : "";
+              transcriptionLanguage = getValidLanguageCode(evt.target.value);
             },
           },
         },
@@ -547,7 +544,9 @@ export default {
     if (!OPENAI_API_KEY) isUsingWhisper = false;
     if (extensionAPI.settings.get("transcriptionLgg") === null)
       await extensionAPI.settings.set("transcriptionLgg", "");
-    transcriptionLanguage = extensionAPI.settings.get("transcriptionLgg");
+    transcriptionLanguage = getValidLanguageCode(
+      extensionAPI.settings.get("transcriptionLgg")
+    );
     if (extensionAPI.settings.get("speechLgg") === null)
       await extensionAPI.settings.set("speechLgg", "Browser default");
     speechLanguage = extensionAPI.settings.get("speechLgg");
