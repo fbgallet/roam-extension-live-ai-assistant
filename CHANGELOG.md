@@ -7,17 +7,20 @@
 
 **Added**
 
+- Option to set blocks to exclude from context if they contain some given words (like #private)
 - Redo command for AI completion
 
 **Updated**
 
 - update to the latest GPT-4-turbo-preview & GPT-3.5-turbo models
-- "⚠️ no recording" message if Whisper did not detect a voice note (in most cases, not deterministic)
+- "⚠️ no recording" message if Whisper did not detect a vocal note (in most cases, not deterministic)
+- more explicit error messages (e.g. in case of billing issue with OpenAI API)
 
 **Fixed**
 
 - block references were not resolved in focused block prompt
 - compatibility with Roam Studio is better
+- verification of the transcription language code (no more error if it's not properly set)
 
 ## v.2 (January 29th, 2024)
 
