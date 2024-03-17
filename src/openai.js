@@ -1,7 +1,10 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { getEncoding } from "js-tiktoken";
+import axios from "axios";
 
 import {
+  ANTHROPIC_API_KEY,
   assistantCharacter,
   chatRoles,
   contextInstruction,
@@ -9,6 +12,7 @@ import {
   gptCustomModel,
   gptModel,
   isResponseToSplit,
+  openaiLibrary,
   tokensLimit,
   transcriptionLanguage,
   userContextInstructions,
@@ -36,7 +40,6 @@ import { AppToaster } from "./components/VoiceRecorder";
 const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
   prompt: null,
-  openai: null,
   targetUid: null,
   context: null,
   typeOfCompletion: null,
@@ -57,8 +60,23 @@ export function initializeOpenAIAPI(OPENAI_API_KEY) {
   }
 }
 
-export async function transcribeAudio(filename, openai) {
-  if (!openai) return null;
+export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
+  try {
+    const anthropic = new Anthropic({
+      apiKey: ANTHROPIC_API_KEY, // defaults to process.env["ANTHROPIC_API_KEY"]
+      // dangerouslyAllowBrowser: true,
+    });
+    return anthropic;
+  } catch (error) {
+    console.log(error.message);
+    AppToaster.show({
+      message: `Speech-to-Roam - Error during the initialization of Anthropic API: ${error.message}`,
+    });
+  }
+}
+
+export async function transcribeAudio(filename) {
+  if (!openaiLibrary) return null;
   try {
     // console.log(filename);
     const options = {
@@ -67,7 +85,7 @@ export async function transcribeAudio(filename, openai) {
     };
     if (transcriptionLanguage) options.language = transcriptionLanguage;
     if (whisperPrompt) options.prompt = whisperPrompt;
-    const transcript = await openai.audio.transcriptions.create(options);
+    const transcript = await openaiLibrary.audio.transcriptions.create(options);
     return transcript.text;
   } catch (error) {
     console.error(error.message);
@@ -79,9 +97,8 @@ export async function transcribeAudio(filename, openai) {
   }
 }
 
-export async function translateAudio(filename, openai) {
-  console.log("openai :>> ", openai);
-  if (!openai) return null;
+export async function translateAudio(filename) {
+  if (!openaiLibrary) return null;
   try {
     const options = {
       file: filename,
@@ -89,7 +106,7 @@ export async function translateAudio(filename, openai) {
     };
     // if (transcriptionLanguage) options.language = transcriptionLanguage;
     // if (whisperPrompt) options.prompt = whisperPrompt;
-    const transcript = await openai.audio.translations.create(options);
+    const transcript = await openaiLibrary.audio.translations.create(options);
     return transcript.text;
   } catch (error) {
     console.error(error);
@@ -119,29 +136,83 @@ export async function translateAudio(filename, openai) {
 //   }
 // }
 
-export async function gptCompletion(
-  prompt,
-  openai,
-  context = "",
-  responseFormat = "text"
-) {
+async function aiCompletion(prompt, context = "", responseFormat) {
+  let content =
+    assistantCharacter +
+    (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
+    (context
+      ? contextInstruction +
+        userContextInstructions +
+        "\nHere is the content to rely on:\n" +
+        context
+      : "");
+  content = verifyTokenLimitAndTruncate(prompt, content);
+  console.log("Context (eventually truncated):\n", content);
+
+  console.log("responseFormat :>> ", responseFormat);
+  if (
+    // responseFormat !== "json_object" &&
+    gptModel.slice(0, 6) === "claude" &&
+    ANTHROPIC_API_KEY
+  )
+    return await claudeCompletion(prompt, content, responseFormat);
+  if (openaiLibrary?.apiKey)
+    return await gptCompletion(prompt, content, responseFormat);
+  else {
+    AppToaster.show({
+      message: `Provide an API key to use ${gptModel} model. See doc and settings.`,
+      timeout: 15000,
+    });
+    AppToaster;
+    return "";
+  }
+}
+
+async function claudeCompletion(prompt, content) {
+  if (ANTHROPIC_API_KEY) {
+    let model;
+    switch (gptModel) {
+      // Anthropic models: https://docs.anthropic.com/claude/docs/models-overview#model-recommendations
+      // Claude 3 Opus : claude-3-opus-20240229
+      // Claude 3 Sonnet	: claude-3-sonnet-20240229
+      // Claude 3 Haiku :	claude-3-haiku-20240307
+      case "claude-opus":
+        model = "claude-3-opus-20240229";
+        break;
+      case "claude-sonnet":
+        model = "claude-3-sonnet-20240229";
+        break;
+      case "claude-haiku":
+        model = "claude-3-haiku-20240307";
+    }
+    const { data } = await axios.post(
+      "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
+      {
+        key: ANTHROPIC_API_KEY,
+        prompt: prompt,
+        context: content,
+        model: model,
+        // headers: {
+        //   "Access-Control-Allow-Origin": "*",
+        //   "Content-Type": "application/json",
+        //   "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
+        // },
+      }
+    );
+    console.log("Anthropic Claude response :>> ", data.response);
+    return data.response.content[0].text;
+  }
+}
+
+export async function gptCompletion(prompt, content, responseFormat = "text") {
   try {
-    if (!gptModel) gptModel = "gpt-3.5-turbo";
-
-    let content =
-      assistantCharacter +
-      (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
-      (context
-        ? contextInstruction +
-          userContextInstructions +
-          "\nHere is the content to rely on:\n" +
-          context
-        : "");
-    content = verifyTokenLimitAndTruncate(prompt, content);
-    console.log("Context (eventually truncated):\n", content);
-
-    const response = await openai.chat.completions.create({
-      model: gptModel === "custom model" ? gptCustomModel : gptModel,
+    const response = await openaiLibrary.chat.completions.create({
+      model:
+        gptModel === "custom model"
+          ? gptCustomModel
+          : gptModel && !gptModel.includes("claude")
+          ? gptModel
+          : "gpt-3.5-turbo",
       response_format: { type: responseFormat },
       messages: [
         {
@@ -165,14 +236,12 @@ export async function gptCompletion(
 
 export const insertCompletion = async (
   prompt,
-  openai,
   targetUid,
   context,
   typeOfCompletion,
   isRedone
 ) => {
   lastCompletion.prompt = prompt;
-  lastCompletion.openai = openai;
   lastCompletion.targetUid = targetUid;
   lastCompletion.context = context;
   lastCompletion.typeOfCompletion = typeOfCompletion;
@@ -187,17 +256,16 @@ export const insertCompletion = async (
     else targetUid = await insertBlockInCurrentView(chatRoles.assistant);
   }
   const intervalId = await displaySpinner(targetUid);
-  console.log("Prompt sent to GPT :>>\n", prompt);
-  console.log("typeOfCompletion :>> ", typeOfCompletion);
-  const gptResponse = await gptCompletion(
+  console.log("Prompt sent to AI assistant :>>\n", prompt);
+  // console.log("typeOfCompletion :>> ", typeOfCompletion);
+  const aiResponse = await aiCompletion(
     prompt,
-    openai,
     context,
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text"
   );
   removeSpinner(intervalId);
   if (typeOfCompletion === "gptPostProcessing") {
-    const parsedResponse = JSON.parse(gptResponse);
+    const parsedResponse = JSON.parse(aiResponse);
     updateArrayOfBlocks(parsedResponse.response);
     // if (!isOnlyTextual)
     //   window.roamAlphaAPI.moveBlock({
@@ -205,7 +273,7 @@ export const insertCompletion = async (
     //     block: { uid: startBlock },
     //   });
   } else {
-    const splittedResponse = gptResponse.split(`\n\n`);
+    const splittedResponse = aiResponse.split(`\n\n`);
     if (!isResponseToSplit || splittedResponse.length === 1)
       addContentToBlock(targetUid, splittedResponse[0]);
     else {

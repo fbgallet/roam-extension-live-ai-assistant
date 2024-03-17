@@ -1,10 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom";
+import axios from "axios";
+// import axios from "./axios-config";
 import App from "./App";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
   getValidLanguageCode,
+  initializeAnthropicAPI,
   initializeOpenAIAPI,
   insertCompletion,
   lastCompletion,
@@ -40,6 +43,7 @@ export const tokensLimit = {
 };
 
 let OPENAI_API_KEY = "";
+export let ANTHROPIC_API_KEY = "";
 export let isUsingWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
@@ -61,7 +65,7 @@ export let defaultTemplate;
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;
-let openai;
+export let openaiLibrary, anthropicLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
@@ -109,7 +113,6 @@ function mountComponent(props) {
 
   ReactDOM.render(
     <App
-      openai={openai}
       blockUid={currentBlockUid}
       isVisible={isComponentVisible}
       {...props}
@@ -164,7 +167,9 @@ function getRolesFromString(str) {
   return {
     user: splittedStr[0],
     assistant:
-      splittedStr.length > 1 ? splittedStr[1].trimStart() : "AI assistant: ",
+      splittedStr.length > 1
+        ? splittedStr[1].trimStart().replace("<model>", gptModel)
+        : "AI assistant: ",
   };
 }
 
@@ -252,10 +257,12 @@ export default {
         },
         {
           id: "openaiapi",
-          name: "OpenAI API Key",
+          name: "OpenAI API Key (GPT)",
           description: (
             <>
-              <span>Copy here your OpenAI API key </span>
+              <span>
+                Copy here your OpenAI API key for Whisper & GPT models
+              </span>
               <br></br>
               <a href="https://platform.openai.com/api-keys" target="_blank">
                 (Follow this link to generate a new one)
@@ -268,9 +275,40 @@ export default {
               unmountComponent();
               setTimeout(() => {
                 OPENAI_API_KEY = evt.target.value;
-                openai = initializeOpenAIAPI(OPENAI_API_KEY);
+                openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
                 if (extensionAPI.settings.get("whisper") === true)
                   isUsingWhisper = true;
+              }, 200);
+              setTimeout(() => {
+                mountComponent();
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "anthropicapi",
+          name: "Anthropic API Key (Claude)",
+          description: (
+            <>
+              <span>Copy here your Anthropic API key for Claude models</span>
+              <br></br>
+              <a
+                href="https://console.anthropic.com/settings/keys"
+                target="_blank"
+              >
+                (Follow this link to generate a new one)
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              unmountComponent();
+              setTimeout(() => {
+                ANTHROPIC_API_KEY = evt.target.value;
+                anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+                // if (extensionAPI.settings.get("whisper") === true)
+                //   isUsingWhisper = true;
               }, 200);
               setTimeout(() => {
                 mountComponent();
@@ -345,12 +383,19 @@ export default {
         },
         {
           id: "gptModel",
-          name: "OpenAI Chat Completion Model",
+          name: "AI assistant Model",
           description:
             "Choose a model or 'custom model' to be specified below:",
           action: {
             type: "select",
-            items: ["gpt-3.5-turbo", "gpt-4-turbo-preview", "custom model"],
+            items: [
+              "gpt-3.5-turbo",
+              "gpt-4-turbo-preview",
+              "claude-opus",
+              "claude-sonnet",
+              "claude-haiku",
+              "custom model",
+            ],
             onChange: (evt) => {
               gptModel = evt;
             },
@@ -383,7 +428,7 @@ export default {
           id: "chatRoles",
           name: "Chat roles",
           description:
-            "Roles name (or header) inserted, in Roam blocks, before your prompt and GPT model answer, separated by a coma:",
+            "Roles name inserted before your prompt and AI assistant answer, separated by a coma. Use <model> as placeholder for AI model name:",
           action: {
             type: "input",
             onChange: (evt) => {
@@ -542,6 +587,9 @@ export default {
       await extensionAPI.settings.set("openaiapi", "");
     OPENAI_API_KEY = extensionAPI.settings.get("openaiapi");
     if (!OPENAI_API_KEY) isUsingWhisper = false;
+    if (extensionAPI.settings.get("anthropicapi") === null)
+      await extensionAPI.settings.set("anthropicapi", "");
+    ANTHROPIC_API_KEY = extensionAPI.settings.get("anthropicapi");
     if (extensionAPI.settings.get("transcriptionLgg") === null)
       await extensionAPI.settings.set("transcriptionLgg", "");
     transcriptionLanguage = getValidLanguageCode(
@@ -568,7 +616,7 @@ export default {
     if (extensionAPI.settings.get("chatRoles") === null)
       await extensionAPI.settings.set("chatRoles", "Me: ,AI assistant: ");
     const chatRolesStr =
-      extensionAPI.settings.get(chatRoles) || "Me: ,AI assistant: ";
+      extensionAPI.settings.get(chatRoles) || "Me: ,AI assistant (<model>): ";
     chatRoles = getRolesFromString(chatRolesStr);
     if (extensionAPI.settings.get("assistantCharacter") === null)
       await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
@@ -611,7 +659,9 @@ export default {
       extensionAPI.settings.get("exclusionStrings")
     );
 
-    if (OPENAI_API_KEY) openai = initializeOpenAIAPI(OPENAI_API_KEY);
+    if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
+    // if (ANTHROPIC_API_KEY) anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+
     createContainer();
 
     await extensionAPI.settings.panel.create(panelConfig);
@@ -744,7 +794,7 @@ export default {
           inlineContext?.roamContext,
           currentUid
         );
-        insertCompletion(prompt, openai, targetUid, context, "gptCompletion");
+        insertCompletion(prompt, targetUid, context, "gptCompletion");
       },
     });
 
@@ -811,7 +861,6 @@ export default {
 
             insertCompletion(
               prompt,
-              openai,
               // waitForBlockCopy ? currentUid : targetUid,
               targetUid,
               context,
@@ -835,7 +884,6 @@ export default {
           console.log("lastCompletion :>> ", lastCompletion);
           insertCompletion(
             lastCompletion.prompt,
-            lastCompletion.openai,
             targetUid,
             lastCompletion.context,
             lastCompletion.typeOfCompletion,

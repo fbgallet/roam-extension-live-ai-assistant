@@ -39,6 +39,7 @@ import {
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
+  openaiLibrary,
   toggleComponentVisibility,
 } from "../index.js";
 import MicRecorder from "../mic-recorder.js";
@@ -62,7 +63,6 @@ function VoiceRecorder({
   completionOnly,
   mic,
   position,
-  openai,
   worksOnPlatform,
   isVisible,
 }) {
@@ -420,11 +420,11 @@ function VoiceRecorder({
       }
     }
     const intervalId = await displaySpinner(targetUid);
-    const hasKey = openai && openai.key !== "";
+    const hasKey = openaiLibrary && openaiLibrary.key !== "";
     let transcribe =
       instantVoiceReco.current || audioFile
         ? isUsingWhisper && hasKey
-          ? await voiceProcessingCommand(audioFile, openai)
+          ? await voiceProcessingCommand(audioFile)
           : instantVoiceReco.current
         : "Nothing has been recorded!";
     console.log("SpeechAPI: " + instantVoiceReco.current);
@@ -498,14 +498,14 @@ function VoiceRecorder({
               template.stringified;
             uid = getFirstChildUid(promptUid);
           }
-          await insertCompletion(prompt, openai, uid, context, commandType);
+          await insertCompletion(prompt, uid, context, commandType);
         },
         waitForBlockCopy ? 100 : 0
       );
     } else {
       uid = createChildBlock(promptUid, chatRoles.assistant);
       prompt += transcribe;
-      await insertCompletion(prompt, openai, uid, context, lastCommand.current);
+      await insertCompletion(prompt, uid, context, lastCommand.current);
     }
   };
 
