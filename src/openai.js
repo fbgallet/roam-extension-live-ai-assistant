@@ -24,11 +24,13 @@ import {
   copyTreeBranches,
   createChildBlock,
   displaySpinner,
+  extractBetweenBraces,
   getTreeByUid,
   highlightHtmlElt,
   insertBlockInCurrentView,
   isExistingBlock,
   removeSpinner,
+  sanitizeJSONstring,
   updateArrayOfBlocks,
 } from "./utils/utils";
 import {
@@ -168,7 +170,7 @@ async function aiCompletion(prompt, context = "", responseFormat) {
   }
 }
 
-async function claudeCompletion(prompt, content) {
+async function claudeCompletion(prompt, content, responseFormat) {
   if (ANTHROPIC_API_KEY) {
     let model;
     switch (gptModel) {
@@ -200,7 +202,16 @@ async function claudeCompletion(prompt, content) {
       }
     );
     console.log("Anthropic Claude response :>> ", data.response);
-    return data.response.content[0].text;
+    let text = data.response.content[0].text;
+    let json;
+    if (responseFormat !== "text") {
+      json = extractBetweenBraces(text);
+      // console.log("json :>> ", json);
+      // json = json.replace(/[\u0000-\u0019]+/g, "");
+      json = sanitizeJSONstring(json);
+      // json = json.replaceAll("\n", " \n ");
+    }
+    return json || text;
   }
 }
 
@@ -263,8 +274,9 @@ export const insertCompletion = async (
     context,
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text"
   );
+  console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
-  if (typeOfCompletion === "gptPostProcessing") {
+  if (typeOfCompletion === "gptPostProcessing" && aiResponse.includes("{")) {
     const parsedResponse = JSON.parse(aiResponse);
     updateArrayOfBlocks(parsedResponse.response);
     // if (!isOnlyTextual)

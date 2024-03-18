@@ -160,7 +160,7 @@ export function updateArrayOfBlocks(arrayOfBlocks) {
     arrayOfBlocks.forEach((block) =>
       window.roamAlphaAPI.updateBlock({
         block: {
-          uid: block.uid,
+          uid: block.uid.replace("((", "").replace("))", ""),
           string: block.content,
         },
       })
@@ -646,4 +646,26 @@ export const getArrayFromList = (list, separator = ",") => {
   const splittedList = list.split(separator).map((elt) => elt.trim());
   if (splittedList.length === 1 && !splittedList[0].trim()) return [];
   return splittedList;
+};
+
+export const extractBetweenBraces = (str) => {
+  const matches = str.match(/\{.*\}/gs);
+  if (matches) {
+    return matches[0];
+  } else {
+    return "";
+  }
+};
+
+export const sanitizeJSONstring = (str) => {
+  let sanitized = str
+    // escape line break in code blocks
+    .replace(/\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g, (match) =>
+      match.replace(/\n/g, "\\n")
+    )
+    // escape line break in all content string, if not already escaped
+    .replace(/"content": "([^"]*\n[^"]*)+"/g, (match) =>
+      match.replace(/(?<!\\)\n/g, "\\n")
+    );
+  return sanitized;
 };
