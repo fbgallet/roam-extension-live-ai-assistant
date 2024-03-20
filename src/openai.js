@@ -9,6 +9,7 @@ import {
   chatRoles,
   contextInstruction,
   defaultTemplate,
+  getInstantAssistantRole,
   gptCustomModel,
   gptModel,
   isResponseToSplit,
@@ -139,7 +140,12 @@ export async function translateAudio(filename) {
 //   }
 // }
 
-async function aiCompletion(prompt, context = "", responseFormat) {
+async function aiCompletion(
+  instantModel,
+  prompt,
+  context = "",
+  responseFormat
+) {
   let content =
     assistantCharacter +
     (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
@@ -153,14 +159,15 @@ async function aiCompletion(prompt, context = "", responseFormat) {
   console.log("Context (eventually truncated):\n", content);
 
   console.log("responseFormat :>> ", responseFormat);
+  let model = instantModel || gptModel;
   if (
     // responseFormat !== "json_object" &&
-    gptModel.slice(0, 6) === "Claude" &&
+    model.slice(0, 6) === "Claude" &&
     ANTHROPIC_API_KEY
   )
-    return await claudeCompletion(prompt, content, responseFormat);
+    return await claudeCompletion(model, prompt, content, responseFormat);
   if (openaiLibrary?.apiKey)
-    return await gptCompletion(prompt, content, responseFormat);
+    return await gptCompletion(model, prompt, content, responseFormat);
   else {
     AppToaster.show({
       message: `Provide an API key to use ${gptModel} model. See doc and settings.`,
@@ -171,10 +178,9 @@ async function aiCompletion(prompt, context = "", responseFormat) {
   }
 }
 
-async function claudeCompletion(prompt, content, responseFormat) {
+async function claudeCompletion(model, prompt, content, responseFormat) {
   if (ANTHROPIC_API_KEY) {
-    let model;
-    switch (gptModel) {
+    switch (model) {
       // Anthropic models: https://docs.anthropic.com/claude/docs/models-overview#model-recommendations
       // Claude 3 Opus : claude-3-opus-20240229
       // Claude 3 Sonnet	: claude-3-sonnet-20240229
@@ -213,14 +219,19 @@ async function claudeCompletion(prompt, content, responseFormat) {
   }
 }
 
-export async function gptCompletion(prompt, content, responseFormat = "text") {
+export async function gptCompletion(
+  model,
+  prompt,
+  content,
+  responseFormat = "text"
+) {
   try {
     const response = await openaiLibrary.chat.completions.create({
       model:
-        gptModel === "custom model"
+        model === "custom model"
           ? gptCustomModel
-          : gptModel && !gptModel.includes("Claude")
-          ? gptModel
+          : model && !model.includes("Claude")
+          ? model
           : "gpt-3.5-turbo",
       response_format: { type: responseFormat },
       messages: [
@@ -248,26 +259,34 @@ export const insertCompletion = async (
   targetUid,
   context,
   typeOfCompletion,
+  instantModel,
   isRedone
 ) => {
   lastCompletion.prompt = prompt;
   lastCompletion.targetUid = targetUid;
   lastCompletion.context = context;
   lastCompletion.typeOfCompletion = typeOfCompletion;
+  lastCompletion.instantModel = instantModel;
+
+  const assistantRole = instantModel
+    ? getInstantAssistantRole(instantModel)
+    : chatRoles.assistant;
+
   if (isRedone && typeOfCompletion === "gptCompletion") {
     if (isExistingBlock(targetUid))
       window.roamAlphaAPI.updateBlock({
         block: {
           uid: targetUid,
-          string: chatRoles.assistant,
+          string: assistantRole,
         },
       });
-    else targetUid = await insertBlockInCurrentView(chatRoles.assistant);
+    else targetUid = await insertBlockInCurrentView(assistantRole);
   }
   const intervalId = await displaySpinner(targetUid);
   console.log("Prompt sent to AI assistant :>>\n", prompt);
   // console.log("typeOfCompletion :>> ", typeOfCompletion);
   const aiResponse = await aiCompletion(
+    instantModel,
     prompt,
     context,
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text"

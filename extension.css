@@ -186,6 +186,12 @@
   }
 } */
 
+.str-aimodels-menu li > a:focus {
+  outline-width: 0px !important;
+  text-decoration: none;
+  font-weight: bold;
+}
+
 @media (max-width: 500px) {
   .roam-sidebar-content,
   .log-button {

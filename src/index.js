@@ -162,15 +162,21 @@ function removeContainer() {
   if (container) container.remove();
 }
 
-function getRolesFromString(str) {
+function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
   return {
+    defaultStr: str,
     user: splittedStr[0],
     assistant:
       splittedStr.length > 1
-        ? splittedStr[1].trimStart().replace("<model>", gptModel)
+        ? splittedStr[1].trimStart().replace("<model>", model || gptModel)
         : "AI assistant: ",
   };
+}
+
+export function getInstantAssistantRole(instantModel) {
+  const { assistant } = getRolesFromString(chatRoles.defaultStr, instantModel);
+  return assistant;
 }
 
 export function toggleComponentVisibility() {
@@ -391,9 +397,9 @@ export default {
             items: [
               "gpt-3.5-turbo",
               "gpt-4-turbo-preview",
-              "Claude Opus",
-              "Claude Sonnet",
               "Claude Haiku",
+              "Claude Sonnet",
+              "Claude Opus",
               "custom model",
             ],
             onChange: (evt) => {
@@ -890,6 +896,7 @@ export default {
             targetUid,
             lastCompletion.context,
             lastCompletion.typeOfCompletion,
+            lastCompletion.instantModel,
             true
           );
         }

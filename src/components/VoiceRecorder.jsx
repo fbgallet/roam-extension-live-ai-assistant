@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
+
 import {
   faMicrophone,
   faRecordVinyl,
@@ -36,6 +38,8 @@ import {
 import Timer from "./Timer.jsx";
 import {
   chatRoles,
+  getInstantAssistantRole,
+  gptModel,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
@@ -103,6 +107,7 @@ function VoiceRecorder({
     logPages: false,
     logPagesNb: null,
   });
+  const instantModel = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -487,7 +492,12 @@ function VoiceRecorder({
             // default post-processing
             commandType = "gptCompletion";
             prompt = defaultPostProcessingPrompt + transcribe;
-            uid = createChildBlock(promptUid, chatRoles.assistant);
+            uid = createChildBlock(
+              promptUid,
+              instantModel.current
+                ? getInstantAssistantRole(instantModel.current)
+                : chatRoles.assistant
+            );
           } else {
             commandType = "gptPostProcessing";
             prompt =
@@ -498,14 +508,31 @@ function VoiceRecorder({
               template.stringified;
             uid = getFirstChildUid(promptUid);
           }
-          await insertCompletion(prompt, uid, context, commandType);
+          await insertCompletion(
+            prompt,
+            uid,
+            context,
+            commandType,
+            instantModel.current
+          );
         },
         waitForBlockCopy ? 100 : 0
       );
     } else {
-      uid = createChildBlock(promptUid, chatRoles.assistant);
+      uid = createChildBlock(
+        promptUid,
+        instantModel.current
+          ? getInstantAssistantRole(instantModel.current)
+          : chatRoles.assistant
+      );
       prompt += transcribe;
-      await insertCompletion(prompt, uid, context, lastCommand.current);
+      await insertCompletion(
+        prompt,
+        uid,
+        context,
+        lastCommand.current,
+        instantModel.current
+      );
     }
   };
 
@@ -533,6 +560,7 @@ function VoiceRecorder({
         mainPage: false,
         logPages: false,
       };
+      instantModel.current = null;
       if (!isVisible) toggleComponentVisibility();
       setIsToDisplay({
         transcribeIcon: true,
@@ -703,6 +731,18 @@ function VoiceRecorder({
                 handleEltHighlight(e);
               }
             }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (
+                command === handleCompletion ||
+                command === handlePostProcessing
+              )
+                ContextMenu.show(
+                  myMenu(command),
+                  { left: e.clientX, top: e.clientY },
+                  null
+                );
+            }}
             disabled={!areCommandsToDisplay}
             class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}
             tabindex="0"
@@ -713,6 +753,61 @@ function VoiceRecorder({
         </span>
       </span>
       // )}
+    );
+  };
+
+  const myMenu = (command) => {
+    return (
+      <Menu className="str-aimodels-menu">
+        {/* <p></p> */}
+        <MenuDivider title="Choose AI model:" />
+        <MenuItem
+          icon={gptModel === "gpt-3.5-turbo" && "pin"}
+          onClick={(e) => {
+            instantModel.current = "gpt-3.5-turbo";
+            command(e);
+          }}
+          text="GPT 3.5"
+          labelElement="32k"
+        />
+        <MenuItem
+          icon={gptModel === "gpt-4-turbo-preview" && "pin"}
+          onClick={(e) => {
+            instantModel.current = "gpt-4-turbo-preview";
+            command(e);
+          }}
+          text="GPT 4"
+          labelElement="128k"
+        />
+        <MenuDivider />
+        <MenuItem
+          icon={gptModel === "Claude Haiku" && "pin"}
+          onClick={(e) => {
+            instantModel.current = "Claude Haiku";
+            command(e);
+          }}
+          text="Claude Haiku"
+          labelElement="200k"
+        />
+        <MenuItem
+          icon={gptModel === "Claude Sonnet" && "pin"}
+          onClick={(e) => {
+            instantModel.current = "Claude Sonnet";
+            command(e);
+          }}
+          text="Claude Sonnet"
+          labelElement="200k"
+        />
+        <MenuItem
+          icon={gptModel === "Claude Opus" && "pin"}
+          onClick={(e) => {
+            instantModel.current = "Claude Opus";
+            command(e);
+          }}
+          text="Claude Opus"
+          labelElement="200k"
+        />
+      </Menu>
     );
   };
 
