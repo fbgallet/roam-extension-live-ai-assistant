@@ -17,6 +17,9 @@ export const contextRegex = /\(\(context:.?([^\)]*)\)\)/;
 export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
+const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
+const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
+const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {
@@ -648,7 +651,7 @@ export const getArrayFromList = (list, separator = ",") => {
   return splittedList;
 };
 
-export const extractBetweenBraces = (str) => {
+export const trimOutiseOuterBraces = (str) => {
   const matches = str.match(/\{.*\}/gs);
   if (matches) {
     return matches[0];
@@ -660,12 +663,10 @@ export const extractBetweenBraces = (str) => {
 export const sanitizeJSONstring = (str) => {
   let sanitized = str
     // escape line break in code blocks
-    .replace(/\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g, (match) =>
-      match.replace(/\n/g, "\\n")
-    )
+    .replace(codeBlockRegex, (match) => match.replace(/\n/g, "\\n"))
     // escape line break in all content string, if not already escaped
-    .replace(/"content": "([^"]*\n[^"]*)+"/g, (match) =>
-      match.replace(/(?<!\\)\n/g, "\\n")
+    .replace(jsonContentStringRegex, (match) =>
+      match.replace(notEscapedBreakLineRegex, "\\n")
     );
   return sanitized;
 };

@@ -31,6 +31,7 @@ import {
   isExistingBlock,
   removeSpinner,
   sanitizeJSONstring,
+  trimOutiseOuterBraces,
   updateArrayOfBlocks,
 } from "./utils/utils";
 import {
@@ -154,7 +155,7 @@ async function aiCompletion(prompt, context = "", responseFormat) {
   console.log("responseFormat :>> ", responseFormat);
   if (
     // responseFormat !== "json_object" &&
-    gptModel.slice(0, 6) === "claude" &&
+    gptModel.slice(0, 6) === "Claude" &&
     ANTHROPIC_API_KEY
   )
     return await claudeCompletion(prompt, content, responseFormat);
@@ -178,13 +179,13 @@ async function claudeCompletion(prompt, content, responseFormat) {
       // Claude 3 Opus : claude-3-opus-20240229
       // Claude 3 Sonnet	: claude-3-sonnet-20240229
       // Claude 3 Haiku :	claude-3-haiku-20240307
-      case "claude-opus":
+      case "Claude Opus":
         model = "claude-3-opus-20240229";
         break;
-      case "claude-sonnet":
+      case "Claude Sonnet":
         model = "claude-3-sonnet-20240229";
         break;
-      case "claude-haiku":
+      case "Claude Haiku":
         model = "claude-3-haiku-20240307";
     }
     const { data } = await axios.post(
@@ -203,15 +204,12 @@ async function claudeCompletion(prompt, content, responseFormat) {
     );
     console.log("Anthropic Claude response :>> ", data.response);
     let text = data.response.content[0].text;
-    let json;
+    let jsonOnly;
     if (responseFormat !== "text") {
-      json = extractBetweenBraces(text);
-      // console.log("json :>> ", json);
-      // json = json.replace(/[\u0000-\u0019]+/g, "");
-      json = sanitizeJSONstring(json);
-      // json = json.replaceAll("\n", " \n ");
+      jsonOnly = trimOutiseOuterBraces(text);
+      jsonOnly = sanitizeJSONstring(jsonOnly);
     }
-    return json || text;
+    return jsonOnly || text;
   }
 }
 
@@ -221,7 +219,7 @@ export async function gptCompletion(prompt, content, responseFormat = "text") {
       model:
         gptModel === "custom model"
           ? gptCustomModel
-          : gptModel && !gptModel.includes("claude")
+          : gptModel && !gptModel.includes("Claude")
           ? gptModel
           : "gpt-3.5-turbo",
       response_format: { type: responseFormat },

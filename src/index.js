@@ -391,13 +391,16 @@ export default {
             items: [
               "gpt-3.5-turbo",
               "gpt-4-turbo-preview",
-              "claude-opus",
-              "claude-sonnet",
-              "claude-haiku",
+              "Claude Opus",
+              "Claude Sonnet",
+              "Claude Haiku",
               "custom model",
             ],
             onChange: (evt) => {
               gptModel = evt;
+              chatRoles = getRolesFromString(
+                extensionAPI.settings.get("chatRoles")
+              );
             },
           },
         },
