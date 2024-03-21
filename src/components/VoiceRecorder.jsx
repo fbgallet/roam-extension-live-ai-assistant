@@ -748,7 +748,7 @@ function VoiceRecorder({
                 command === handlePostProcessing
               )
                 ContextMenu.show(
-                  myMenu(command),
+                  modelsMenu(command),
                   { left: e.clientX, top: e.clientY },
                   null
                 );
@@ -766,7 +766,29 @@ function VoiceRecorder({
     );
   };
 
-  const myMenu = (command) => {
+  const handleClickOnModel = (e, command) => {
+    const model = e.target.innerText.split("\n")[0];
+    switch (model) {
+      case "GPT 3.5":
+        instantModel.current = "gpt-3.5-turbo";
+        break;
+      case "GPT 4":
+        instantModel.current = "gpt-4-turbo-preview";
+        break;
+      default:
+        instantModel.current = model;
+    }
+    command(e);
+  };
+
+  const handleKeyDownOnModel = (e, command) => {
+    if (e.code === "Enter" || e.code === "Space") {
+      handleClickOnModel(e, command);
+      ContextMenu.hide();
+    }
+  };
+
+  const modelsMenu = (command) => {
     return (
       <Menu className="str-aimodels-menu">
         {/* <p></p> */}
@@ -774,18 +796,24 @@ function VoiceRecorder({
         <MenuItem
           icon={defaultModel === "gpt-3.5-turbo" && "pin"}
           onClick={(e) => {
-            instantModel.current = "gpt-3.5-turbo";
-            command(e);
+            handleClickOnModel(e, command);
           }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e, command);
+          }}
+          tabindex="0"
           text="GPT 3.5"
           labelElement="32k"
         />
         <MenuItem
           icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
           onClick={(e) => {
-            instantModel.current = "gpt-4-turbo-preview";
-            command(e);
+            handleClickOnModel(e, command);
           }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e, command);
+          }}
+          tabindex="0"
           text="GPT 4"
           labelElement="128k"
         />
@@ -793,27 +821,36 @@ function VoiceRecorder({
         <MenuItem
           icon={defaultModel === "Claude Haiku" && "pin"}
           onClick={(e) => {
-            instantModel.current = "Claude Haiku";
-            command(e);
+            handleClickOnModel(e, command);
           }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e, command);
+          }}
+          tabindex="0"
           text="Claude Haiku"
           labelElement="200k"
         />
         <MenuItem
           icon={defaultModel === "Claude Sonnet" && "pin"}
           onClick={(e) => {
-            instantModel.current = "Claude Sonnet";
-            command(e);
+            handleClickOnModel(e, command);
           }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e, command);
+          }}
+          tabindex="0"
           text="Claude Sonnet"
           labelElement="200k"
         />
         <MenuItem
           icon={defaultModel === "Claude Opus" && "pin"}
           onClick={(e) => {
-            instantModel.current = "Claude Opus";
-            command(e);
+            handleClickOnModel(e, command);
           }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e, command);
+          }}
+          tabindex="0"
           text="Claude Opus"
           labelElement="200k"
         />
