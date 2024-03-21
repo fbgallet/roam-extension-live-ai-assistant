@@ -1,7 +1,7 @@
 // import assert from "node:assert";
 import {
   exclusionStrings,
-  gptModel,
+  defaultModel,
   isMobileViewContext,
   logPagesNbDefault,
   maxCapturingDepth,
@@ -370,7 +370,8 @@ export const getAndNormalizeContext = async (
   startBlock,
   blocksSelectionUids,
   roamContext,
-  focusedBlock
+  focusedBlock,
+  model = defaultModel
 ) => {
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
@@ -406,7 +407,8 @@ export const getAndNormalizeContext = async (
       }
       context += getFlattenedContentFromLog(
         roamContext.logPagesNb || logPagesNbDefault,
-        startDate
+        startDate,
+        model
       );
     }
     if (roamContext.sidebar) {
@@ -507,13 +509,13 @@ export const simulateClick = (elt) => {
   elt.dispatchEvent(new MouseEvent("click", options));
 };
 
-export const getFlattenedContentFromLog = (nbOfDays, startDate) => {
+export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
   let processedDays = 0;
   let flattenedBlocks = "";
   let tokens = 0;
   let date = startDate || getYesterdayDate();
   while (
-    tokens < tokensLimit[gptModel] &&
+    tokens < tokensLimit[model] &&
     (!nbOfDays || processedDays < nbOfDays)
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
@@ -528,7 +530,7 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate) => {
       if (flattenedBlocks.length > 36000) {
         tokens = encoding.encode(flattenedBlocks).length;
       }
-      if (tokens > tokensLimit[gptModel]) {
+      if (tokens > tokensLimit[model]) {
         flattenedBlocks = flattenedBlocks.slice(
           0,
           -(dayContent.length + dayTitle.length + 4)

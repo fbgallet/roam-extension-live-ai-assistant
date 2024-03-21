@@ -3,6 +3,7 @@ import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
 
 import {
   faMicrophone,
+  faMicrophoneSlash,
   faRecordVinyl,
   faBackwardStep,
   faWandMagicSparkles,
@@ -39,7 +40,7 @@ import Timer from "./Timer.jsx";
 import {
   chatRoles,
   getInstantAssistantRole,
-  gptModel,
+  defaultModel,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
@@ -82,6 +83,7 @@ function VoiceRecorder({
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
+  const [textOnlyMode, setTextOnlyMode] = useState(true);
 
   const isToTranscribe = useRef(false);
   const stream = useRef(null);
@@ -374,6 +376,13 @@ function VoiceRecorder({
       setIsListening(false);
     } else if (record?.current || safariRecorder?.current?.activeStream)
       voiceProcessing();
+    else if (targetBlock.current) {
+      const targetBlockContent = getBlockContentByUid(
+        targetBlock.current
+      ).trim();
+      if (targetBlockContent)
+        completionProcessing(targetBlockContent, targetBlock.current);
+    }
   };
 
   const voiceProcessing = async () => {
@@ -408,7 +417,6 @@ function VoiceRecorder({
       targetBlock.current ||
       startBlock.current ||
       (await insertBlockInCurrentView(""));
-    let prompt = "";
     if (
       lastCommand.current === "gptCompletion" ||
       lastCommand.current === "gptPostProcessing"
@@ -416,12 +424,12 @@ function VoiceRecorder({
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
       if (
-        (targetUid === targetBlock.current ||
-          targetUid === startBlock.current) &&
-        getBlockContentByUid(targetUid).trim() &&
-        lastCommand.current === "gptCompletion"
+        targetUid === targetBlock.current ||
+        targetUid === startBlock.current
       ) {
-        targetUid = createChildBlock(targetUid, "");
+        const targetBlockContent = getBlockContentByUid(targetUid).trim();
+        if (targetBlockContent && lastCommand.current === "gptCompletion")
+          targetUid = createChildBlock(targetUid, "");
       }
     }
     const intervalId = await displaySpinner(targetUid);
@@ -458,17 +466,19 @@ function VoiceRecorder({
     removeSpinner(intervalId);
     addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe)
-      await completionProcessing(prompt, transcribe, targetUid);
+      await completionProcessing(transcribe, targetUid);
     initialize(true);
   };
 
-  const completionProcessing = async (prompt, transcribe, promptUid) => {
+  const completionProcessing = async (prompt, promptUid) => {
     let uid;
     let waitForBlockCopy = false;
     const context = await getAndNormalizeContext(
       lastCommand.current === "gptPostProcessing" ? null : startBlock.current,
       blocksSelectionUids.current,
-      roamContext.current
+      roamContext.current,
+      null,
+      instantModel.current || defaultModel
     );
     if (lastCommand.current === "gptPostProcessing") {
       let inlineTemplate = getTemplateFromPrompt(
@@ -482,7 +492,6 @@ function VoiceRecorder({
         await copyTemplate(promptUid);
         waitForBlockCopy = true;
       }
-
       setTimeout(
         async () => {
           let template = await getTemplateForPostProcessing(promptUid);
@@ -491,7 +500,7 @@ function VoiceRecorder({
           if (!template) {
             // default post-processing
             commandType = "gptCompletion";
-            prompt = defaultPostProcessingPrompt + transcribe;
+            prompt = defaultPostProcessingPrompt + prompt;
             uid = createChildBlock(
               promptUid,
               instantModel.current
@@ -503,7 +512,7 @@ function VoiceRecorder({
             prompt =
               "Complete the template below, in accordance with the following request " +
               "(the language in which it is written will determine the language of the response): " +
-              transcribe +
+              prompt +
               "\n\n" +
               template.stringified;
             uid = getFirstChildUid(promptUid);
@@ -525,7 +534,6 @@ function VoiceRecorder({
           ? getInstantAssistantRole(instantModel.current)
           : chatRoles.assistant
       );
-      prompt += transcribe;
       await insertCompletion(
         prompt,
         uid,
@@ -591,6 +599,8 @@ function VoiceRecorder({
             style={{ color: "#e00000" }}
           />
         ) : (
+          // : textOnlyMode ? (
+          //   <FontAwesomeIcon icon={faMicrophoneSlash} /> )
           <FontAwesomeIcon icon={faMicrophone} />
         )}
       </>
@@ -634,16 +644,16 @@ function VoiceRecorder({
           !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
             <>
               <span
-                //class="log-button"
-                // class="bp3-button bp3-minimal bp3-small"
-                // onClick={() => setIsListening((prevState) => !prevState)}
-                style={{
-                  display: "inline",
-                  padding: "0",
-                  margin: "0 0 0 -3px",
-                }}
+              //class="log-button"
+              // class="bp3-button bp3-minimal bp3-small"
+              // onClick={() => setIsListening((prevState) => !prevState)}
+              // style={{
+              //   display: "inline",
+              //   padding: "0",
+              //   margin: "0 0 0 -3px",
+              // }}
               >
-                Speech-to-Roam
+                {textOnlyMode ? "AI assistant" : "Speech-to-Roam"}
               </span>
             </>
           )}
@@ -654,12 +664,12 @@ function VoiceRecorder({
   const jsxWarning = () => {
     return (
       <>
-        {!isWorking && (
+        {!textOnlyMode && !isWorking && (
           <span
             style={{ color: "lightpink" }}
             title={
               !worksOnPlatform
-                ? "Speech-to-Roam currently doesn't work on your current platform (Mac Desktop App or Mobile app). See documentation."
+                ? "Speech-to-Roam doesn't support voice recording on your current platform (Mac Desktop App or Mobile app). Use text-only mode. See documentation."
                 : "Native voice recognition doesn't work on Firefox, Arc browser or Electron app. Enable Whisper recognition"
             }
           >
@@ -762,7 +772,7 @@ function VoiceRecorder({
         {/* <p></p> */}
         <MenuDivider title="Choose AI model:" />
         <MenuItem
-          icon={gptModel === "gpt-3.5-turbo" && "pin"}
+          icon={defaultModel === "gpt-3.5-turbo" && "pin"}
           onClick={(e) => {
             instantModel.current = "gpt-3.5-turbo";
             command(e);
@@ -771,7 +781,7 @@ function VoiceRecorder({
           labelElement="32k"
         />
         <MenuItem
-          icon={gptModel === "gpt-4-turbo-preview" && "pin"}
+          icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
           onClick={(e) => {
             instantModel.current = "gpt-4-turbo-preview";
             command(e);
@@ -781,7 +791,7 @@ function VoiceRecorder({
         />
         <MenuDivider />
         <MenuItem
-          icon={gptModel === "Claude Haiku" && "pin"}
+          icon={defaultModel === "Claude Haiku" && "pin"}
           onClick={(e) => {
             instantModel.current = "Claude Haiku";
             command(e);
@@ -790,7 +800,7 @@ function VoiceRecorder({
           labelElement="200k"
         />
         <MenuItem
-          icon={gptModel === "Claude Sonnet" && "pin"}
+          icon={defaultModel === "Claude Sonnet" && "pin"}
           onClick={(e) => {
             instantModel.current = "Claude Sonnet";
             command(e);
@@ -799,7 +809,7 @@ function VoiceRecorder({
           labelElement="200k"
         />
         <MenuItem
-          icon={gptModel === "Claude Opus" && "pin"}
+          icon={defaultModel === "Claude Opus" && "pin"}
           onClick={(e) => {
             instantModel.current = "Claude Opus";
             command(e);
@@ -851,6 +861,7 @@ function VoiceRecorder({
             )
           )}
         {(isListening ||
+          textOnlyMode ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.completionIcon &&
           jsxCommandIcon(
@@ -868,7 +879,7 @@ function VoiceRecorder({
               </>
             )
           )}
-        {(isListening || areCommandsToDisplay) &&
+        {(isListening || textOnlyMode || areCommandsToDisplay) &&
           isToDisplay.completionIcon &&
           jsxCommandIcon(
             {

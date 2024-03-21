@@ -76,6 +76,12 @@
   align-items: center;
   gap: 10px;
 }
+.speech-to-roam-container-left
+  > .speech-ui-row1
+  > .log-button
+  > span:last-child {
+  margin-right: -3px;
+}
 .speech-to-roam-container-left:has(.digits) {
   padding-top: 2px;
   padding-bottom: 2px;
@@ -89,6 +95,12 @@
 }
 .speech-to-roam-container-left:has(.digits) > .speech-ui-row1 > .log-button {
   padding-right: 0 !important;
+}
+.speech-to-roam-container-left
+  > .speech-ui-row1
+  > .log-button:not(:has(.digits))
+  > span:last-child {
+  margin-left: -1px;
 }
 
 .speech-to-roam-container-left svg:not(.fa-record-vinyl) path {
@@ -217,7 +229,7 @@
   }
 
   .speech-ui-row1:has(.timer),
-  .speech-ui-row2 {
+  .speech-ui-row1:has(.timer) + .speech-ui-row2 {
     justify-content: center;
     gap: 10px;
     scale: 2.5;

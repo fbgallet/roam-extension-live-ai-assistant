@@ -39,6 +39,9 @@ import { AppToaster } from "./components/VoiceRecorder";
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
   "gpt-4-turbo-preview": 131073,
+  "Claude Haiku": 200000,
+  "Claude Sonnet": 200000,
+  "Claude Opus": 200000,
   custom: undefined,
 };
 
@@ -49,7 +52,7 @@ export let transcriptionLanguage;
 export let speechLanguage;
 export let whisperPrompt;
 export let isTranslateIconDisplayed;
-export let gptModel;
+export let defaultModel;
 export let gptCustomModel;
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
@@ -169,7 +172,7 @@ function getRolesFromString(str, model) {
     user: splittedStr[0],
     assistant:
       splittedStr.length > 1
-        ? splittedStr[1].trimStart().replace("<model>", model || gptModel)
+        ? splittedStr[1].trimStart().replace("<model>", model || defaultModel)
         : "AI assistant: ",
   };
 }
@@ -388,7 +391,7 @@ export default {
           },
         },
         {
-          id: "gptModel",
+          id: "defaultModel",
           name: "AI assistant Model",
           description:
             "Choose a model or 'custom model' to be specified below:",
@@ -403,7 +406,7 @@ export default {
               "custom model",
             ],
             onChange: (evt) => {
-              gptModel = evt;
+              defaultModel = evt;
               chatRoles = getRolesFromString(
                 extensionAPI.settings.get("chatRoles")
               );
@@ -614,11 +617,11 @@ export default {
       await extensionAPI.settings.set("translateIcon", true);
     isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
     if (
-      extensionAPI.settings.get("gptModel") === null ||
-      extensionAPI.settings.get("gptModel") === "gpt-3.5-turbo-1106"
+      extensionAPI.settings.get("defaultModel") === null ||
+      extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo-1106"
     )
-      await extensionAPI.settings.set("gptModel", "gpt-3.5-turbo");
-    gptModel = extensionAPI.settings.get("gptModel");
+      await extensionAPI.settings.set("defaultModel", "gpt-3.5-turbo");
+    defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = extensionAPI.settings.get("gptCustomModel");

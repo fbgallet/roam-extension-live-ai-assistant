@@ -11,7 +11,7 @@ import {
   defaultTemplate,
   getInstantAssistantRole,
   gptCustomModel,
-  gptModel,
+  defaultModel,
   isResponseToSplit,
   openaiLibrary,
   tokensLimit,
@@ -155,11 +155,11 @@ async function aiCompletion(
         "\nHere is the content to rely on:\n" +
         context
       : "");
-  content = verifyTokenLimitAndTruncate(prompt, content);
+  let model = instantModel || defaultModel;
+  content = verifyTokenLimitAndTruncate(model, prompt, content);
   console.log("Context (eventually truncated):\n", content);
 
   console.log("responseFormat :>> ", responseFormat);
-  let model = instantModel || gptModel;
   if (
     // responseFormat !== "json_object" &&
     model.slice(0, 6) === "Claude" &&
@@ -170,7 +170,7 @@ async function aiCompletion(
     return await gptCompletion(model, prompt, content, responseFormat);
   else {
     AppToaster.show({
-      message: `Provide an API key to use ${gptModel} model. See doc and settings.`,
+      message: `Provide an API key to use ${model} model. See doc and settings.`,
       timeout: 15000,
     });
     AppToaster;
@@ -343,16 +343,16 @@ export const copyTemplate = async (targetUid, templateUid) => {
   await copyTreeBranches(tree, targetUid);
 };
 
-const verifyTokenLimitAndTruncate = (prompt, content) => {
+const verifyTokenLimitAndTruncate = (model, prompt, content) => {
   const tokens = encoding.encode(prompt + content);
   console.log("context tokens :", tokens.length);
 
-  if (tokens.length > tokensLimit[gptModel]) {
+  if (tokens.length > tokensLimit[model]) {
     AppToaster.show({
-      message: `The token limit (${tokensLimit[gptModel]}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${gptModel} token window.`,
+      message: `The token limit (${tokensLimit[model]}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
     });
     // + 2% margin of error
-    const ratio = tokensLimit[gptModel] / tokens.length - 0.02;
+    const ratio = tokensLimit[model] / tokens.length - 0.02;
     content = content.slice(0, content.length * ratio);
     console.log(
       "tokens of truncated context:",
