@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
+import { ContextMenu } from "@blueprintjs/core";
 
 import {
   faMicrophone,
@@ -50,6 +50,7 @@ import {
 import MicRecorder from "../mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
 import { defaultPostProcessingPrompt } from "../utils/prompts.js";
+import ModelsMenu from "./ModelsMenu.jsx";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",
@@ -83,7 +84,6 @@ function VoiceRecorder({
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
-  const [textOnlyMode, setTextOnlyMode] = useState(true);
 
   const isToTranscribe = useRef(false);
   const stream = useRef(null);
@@ -599,8 +599,6 @@ function VoiceRecorder({
             style={{ color: "#e00000" }}
           />
         ) : (
-          // : textOnlyMode ? (
-          //   <FontAwesomeIcon icon={faMicrophoneSlash} /> )
           <FontAwesomeIcon icon={faMicrophone} />
         )}
       </>
@@ -643,18 +641,7 @@ function VoiceRecorder({
         {!isListening &&
           !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
             <>
-              <span
-              //class="log-button"
-              // class="bp3-button bp3-minimal bp3-small"
-              // onClick={() => setIsListening((prevState) => !prevState)}
-              // style={{
-              //   display: "inline",
-              //   padding: "0",
-              //   margin: "0 0 0 -3px",
-              // }}
-              >
-                {textOnlyMode ? "AI assistant" : "Speech-to-Roam"}
-              </span>
+              <span>AI Assistant</span>
             </>
           )}
       </div>
@@ -664,7 +651,7 @@ function VoiceRecorder({
   const jsxWarning = () => {
     return (
       <>
-        {!textOnlyMode && !isWorking && (
+        {!isWorking && (
           <span
             style={{ color: "lightpink" }}
             title={
@@ -748,7 +735,7 @@ function VoiceRecorder({
                 command === handlePostProcessing
               )
                 ContextMenu.show(
-                  modelsMenu(command),
+                  ModelsMenu({ command, instantModel }),
                   { left: e.clientX, top: e.clientY },
                   null
                 );
@@ -763,98 +750,6 @@ function VoiceRecorder({
         </span>
       </span>
       // )}
-    );
-  };
-
-  const handleClickOnModel = (e, command) => {
-    const model = e.target.innerText.split("\n")[0];
-    switch (model) {
-      case "GPT 3.5":
-        instantModel.current = "gpt-3.5-turbo";
-        break;
-      case "GPT 4":
-        instantModel.current = "gpt-4-turbo-preview";
-        break;
-      default:
-        instantModel.current = model;
-    }
-    command(e);
-  };
-
-  const handleKeyDownOnModel = (e, command) => {
-    if (e.code === "Enter" || e.code === "Space") {
-      handleClickOnModel(e, command);
-      ContextMenu.hide();
-    }
-  };
-
-  const modelsMenu = (command) => {
-    return (
-      <Menu className="str-aimodels-menu">
-        {/* <p></p> */}
-        <MenuDivider title="Choose AI model:" />
-        <MenuItem
-          icon={defaultModel === "gpt-3.5-turbo" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e, command);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e, command);
-          }}
-          tabindex="0"
-          text="GPT 3.5"
-          labelElement="32k"
-        />
-        <MenuItem
-          icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e, command);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e, command);
-          }}
-          tabindex="0"
-          text="GPT 4"
-          labelElement="128k"
-        />
-        <MenuDivider />
-        <MenuItem
-          icon={defaultModel === "Claude Haiku" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e, command);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e, command);
-          }}
-          tabindex="0"
-          text="Claude Haiku"
-          labelElement="200k"
-        />
-        <MenuItem
-          icon={defaultModel === "Claude Sonnet" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e, command);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e, command);
-          }}
-          tabindex="0"
-          text="Claude Sonnet"
-          labelElement="200k"
-        />
-        <MenuItem
-          icon={defaultModel === "Claude Opus" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e, command);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e, command);
-          }}
-          tabindex="0"
-          text="Claude Opus"
-          labelElement="200k"
-        />
-      </Menu>
     );
   };
 
@@ -897,42 +792,45 @@ function VoiceRecorder({
               </>
             )
           )}
-        {(isListening ||
-          textOnlyMode ||
-          areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
+        {
+          /*isListening ||*/
+          // areCommandsToDisplay  &&
           isToDisplay.completionIcon &&
-          jsxCommandIcon(
-            {
-              title:
-                "Chat with GPT model (C)\n" +
-                "+Alt : page as context\n" +
-                "+ Cmd or Ctrl : linked refs\n" +
-                "+ Shift : sidebar",
-            },
-            handleCompletion,
-            () => (
-              <>
-                <OpenAILogo />
-              </>
+            jsxCommandIcon(
+              {
+                title:
+                  "Chat with AI assistant model (C)\n" +
+                  "+Alt : page as context\n" +
+                  "+ Cmd or Ctrl : linked refs\n" +
+                  "+ Shift : sidebar",
+              },
+              handleCompletion,
+              () => (
+                <>
+                  <OpenAILogo />
+                </>
+              )
             )
-          )}
-        {(isListening || textOnlyMode || areCommandsToDisplay) &&
+        }
+        {
+          /*isListening || areCommandsToDisplay && */
           isToDisplay.completionIcon &&
-          jsxCommandIcon(
-            {
-              title:
-                "Apply focused template for Post-Processing by GPT model (P)\n" +
-                "+ Alt : page as context\n" +
-                "+ Cmd or Ctrl : linked refs\n" +
-                "+ Shift : sidebar",
-            },
-            handlePostProcessing,
-            () => (
-              <>
-                <FontAwesomeIcon icon={faListUl} />
-              </>
+            jsxCommandIcon(
+              {
+                title:
+                  "Apply focused template for Post-Processing by AI assistant model (P)\n" +
+                  "+ Alt : page as context\n" +
+                  "+ Cmd or Ctrl : linked refs\n" +
+                  "+ Shift : sidebar",
+              },
+              handlePostProcessing,
+              () => (
+                <>
+                  <FontAwesomeIcon icon={faListUl} />
+                </>
+              )
             )
-          )}
+        }
       </div>
     </>
   );
