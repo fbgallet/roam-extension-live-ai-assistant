@@ -144,7 +144,8 @@ async function aiCompletion(
   instantModel,
   prompt,
   context = "",
-  responseFormat
+  responseFormat,
+  targetUid
 ) {
   let content =
     assistantCharacter +
@@ -167,7 +168,13 @@ async function aiCompletion(
   )
     return await claudeCompletion(model, prompt, content, responseFormat);
   if (openaiLibrary?.apiKey)
-    return await gptCompletion(model, prompt, content, responseFormat);
+    return await gptCompletion(
+      model,
+      prompt,
+      content,
+      responseFormat,
+      targetUid
+    );
   else {
     AppToaster.show({
       message: `Provide an API key to use ${model} model. See doc and settings.`,
@@ -223,7 +230,8 @@ export async function gptCompletion(
   model,
   prompt,
   content,
-  responseFormat = "text"
+  responseFormat = "text",
+  targetUid
 ) {
   try {
     const response = await openaiLibrary.chat.completions.create({
@@ -241,9 +249,46 @@ export async function gptCompletion(
         },
         { role: "user", content: prompt },
       ],
+      stream: true,
     });
-    console.log("OpenAI chat completion response :>>", response);
-    return response.choices[0].message.content;
+    let respStr = "";
+
+    let currentElement, streamElt;
+    // setTimeout(async () => {
+    currentElement = document.querySelector(`[id*="${targetUid}"]`);
+    streamElt = document.createElement("p");
+    // spinner.classList.add("speech-spinner");
+    if (currentElement) currentElement.appendChild(streamElt);
+    const spinnerElt = await displaySpinner(targetUid);
+    let escapePressed = false;
+    try {
+      const checkEscapeKeyPress = () => {
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            escapePressed = true;
+            console.log("Escape");
+          }
+        });
+      };
+      checkEscapeKeyPress();
+      for await (const chunk of response) {
+        respStr += chunk.choices[0]?.delta?.content || "";
+        streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
+        if (escapePressed) break;
+      }
+    } catch (e) {
+      console.log(e);
+    } finally {
+      // response.close();
+      console.log(response);
+    }
+    streamElt.remove();
+    removeSpinner(spinnerElt);
+    // }, 20);
+
+    // console.log("OpenAI chat completion response :>>", response);
+    console.log("resp: >>", respStr);
+    return escapePressed ? "" : respStr; // response.choices[0].message.content;
   } catch (error) {
     console.error(error);
     AppToaster.show({
@@ -289,7 +334,8 @@ export const insertCompletion = async (
     instantModel,
     prompt,
     context,
-    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text"
+    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text",
+    targetUid
   );
   console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
