@@ -18,19 +18,17 @@ import {
   transcriptionLanguage,
   userContextInstructions,
   whisperPrompt,
+  streamResponse,
 } from ".";
 import {
   addContentToBlock,
   convertTreeToLinearArray,
   copyTreeBranches,
   createChildBlock,
-  displaySpinner,
-  extractBetweenBraces,
   getTreeByUid,
   highlightHtmlElt,
   insertBlockInCurrentView,
   isExistingBlock,
-  removeSpinner,
   sanitizeJSONstring,
   trimOutiseOuterBraces,
   updateArrayOfBlocks,
@@ -40,6 +38,13 @@ import {
   instructionsOnTemplateProcessing,
 } from "./utils/prompts";
 import { AppToaster } from "./components/VoiceRecorder";
+import {
+  displaySpinner,
+  insertInstantButtons,
+  insertParagraphForStream,
+  removeSpinner,
+} from "./utils/domElts";
+import { isCanceledStreamGlobal } from "./components/InstantButtons";
 
 const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
@@ -249,46 +254,59 @@ export async function gptCompletion(
         },
         { role: "user", content: prompt },
       ],
-      stream: true,
+      stream: streamResponse,
     });
     let respStr = "";
 
-    let currentElement, streamElt;
-    // setTimeout(async () => {
-    currentElement = document.querySelector(`[id*="${targetUid}"]`);
-    streamElt = document.createElement("p");
-    // spinner.classList.add("speech-spinner");
-    if (currentElement) currentElement.appendChild(streamElt);
-    const spinnerElt = await displaySpinner(targetUid);
-    let escapePressed = false;
-    try {
-      const checkEscapeKeyPress = () => {
-        document.addEventListener("keydown", (e) => {
-          if (e.key === "Escape") {
-            escapePressed = true;
-            console.log("Escape");
+    if (streamResponse) {
+      insertInstantButtons({
+        model,
+        prompt,
+        content,
+        responseFormat,
+        targetUid,
+      });
+      const streamElt = insertParagraphForStream(targetUid);
+      let escapePressed = false;
+      try {
+        const checkEscapeKeyPress = () => {
+          document.addEventListener(
+            "keydown",
+            (e) => {
+              if (e.key === "Escape") escapePressed = true;
+            },
+            { once: true }
+          );
+        };
+        checkEscapeKeyPress();
+        for await (const chunk of response) {
+          if (isCanceledStreamGlobal) {
+            streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+            respStr = "";
+            break;
           }
+          respStr += chunk.choices[0]?.delta?.content || "";
+          streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
+        }
+      } catch (e) {
+        console.log("Error during OpenAI stream response: ", e);
+      } finally {
+        if (isCanceledStreamGlobal)
+          console.log("GPT response stream interrupted.");
+        else streamElt.remove();
+        insertInstantButtons({
+          model,
+          prompt,
+          content,
+          responseFormat,
+          targetUid,
+          isStreamStopped: true,
         });
-      };
-      checkEscapeKeyPress();
-      for await (const chunk of response) {
-        respStr += chunk.choices[0]?.delta?.content || "";
-        streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
-        if (escapePressed) break;
       }
-    } catch (e) {
-      console.log(e);
-    } finally {
-      // response.close();
-      console.log(response);
     }
-    streamElt.remove();
-    removeSpinner(spinnerElt);
-    // }, 20);
 
-    // console.log("OpenAI chat completion response :>>", response);
-    console.log("resp: >>", respStr);
-    return escapePressed ? "" : respStr; // response.choices[0].message.content;
+    console.log("OpenAI chat completion response :>>", response);
+    return streamResponse ? respStr : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
     AppToaster.show({

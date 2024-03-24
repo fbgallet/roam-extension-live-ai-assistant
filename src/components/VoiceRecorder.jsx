@@ -34,7 +34,6 @@ import {
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
-  removeSpinner,
 } from "../utils/utils.js";
 import Timer from "./Timer.jsx";
 import {
@@ -51,6 +50,7 @@ import MicRecorder from "../mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
 import { defaultPostProcessingPrompt } from "../utils/prompts.js";
 import ModelsMenu from "./ModelsMenu.jsx";
+import { removeSpinner } from "../utils/domElts.js";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",

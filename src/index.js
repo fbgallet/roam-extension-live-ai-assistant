@@ -65,6 +65,7 @@ export let maxCapturingDepth = {};
 export let maxUidDepth = {};
 export let exclusionStrings = [];
 export let defaultTemplate;
+export let streamResponse = true;
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;

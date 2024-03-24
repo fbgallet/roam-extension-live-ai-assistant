@@ -236,32 +236,6 @@ export function addContentToBlock(uid, contentToAdd) {
   });
 }
 
-export const displaySpinner = async (targetUid) => {
-  let currentElement, spinner, intervalId;
-  setTimeout(() => {
-    currentElement = document.querySelector(`[id*="${targetUid}"]`);
-    spinner = document.createElement("strong");
-    spinner.classList.add("speech-spinner");
-    if (currentElement) currentElement.appendChild(spinner);
-    intervalId = setInterval(() => {
-      updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
-    }, 600);
-  }, 20);
-  return intervalId;
-
-  function updateSpinnerText(container, frames) {
-    const currentIndex = frames.indexOf(container.innerText);
-    const nextIndex = currentIndex + 1 < frames.length ? currentIndex + 1 : 0;
-    container.innerText = frames[nextIndex];
-  }
-};
-
-export const removeSpinner = (intervalId) => {
-  clearInterval(intervalId);
-  let spinner = document.querySelector(".speech-spinner");
-  if (spinner) spinner.remove();
-};
-
 export const getBlocksSelectionUids = (reverse) => {
   let selectedBlocksUids = [];
   let blueSelection = !reverse
