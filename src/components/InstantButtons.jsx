@@ -1,11 +1,14 @@
 import {
   faCircleStop,
+  faCopy,
   faRotateRight,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { ContextMenu } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
 import { insertCompletion } from "../openai";
+import ModelsMenu from "./ModelsMenu.jsx";
 
 export let isCanceledStreamGlobal = false;
 
@@ -16,6 +19,7 @@ const InstantButtons = ({
   responseFormat,
   targetUid,
   isStreamStopped,
+  response,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -33,14 +37,14 @@ const InstantButtons = ({
     isCanceledStreamGlobal = true;
   };
 
-  const handleRedo = () => {
+  const handleRedo = (e, instantModel) => {
     isCanceledStreamGlobal = true;
     insertCompletion(
       prompt,
       targetUid,
       content,
       responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
-      model,
+      instantModel || model,
       true
     );
     setIsToUnmount(true);
@@ -62,7 +66,7 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <FontAwesomeIcon icon={faCircleStop} size="lg" />
+              <FontAwesomeIcon icon={faCircleStop} />
             </span>
           </span>
         </div>
@@ -76,7 +80,8 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <FontAwesomeIcon icon={faXmark} size="lg" />
+              <FontAwesomeIcon icon={faXmark} />
+              {/* size="lg" */}
             </span>
           </span>
         </div>
@@ -86,10 +91,32 @@ const InstantButtons = ({
           <span
             // onKeyDown={handleKeys}
             onClick={handleRedo}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              ContextMenu.show(
+                ModelsMenu({ command: handleRedo }),
+                { left: e.clientX, top: e.clientY },
+                null
+              );
+            }}
             class="bp3-button bp3-minimal"
             tabindex="0"
           >
-            <FontAwesomeIcon icon={faRotateRight} size="lg" />
+            <FontAwesomeIcon icon={faRotateRight} />
+          </span>
+        </span>
+      </div>
+      <div class="bp3-popover-wrapper">
+        <span aria-haspopup="true" class="bp3-popover-target">
+          <span
+            // onKeyDown={handleKeys}
+            onClick={() => {
+              navigator.clipboard.writeText(response);
+            }}
+            class="bp3-button bp3-minimal"
+            tabindex="0"
+          >
+            <FontAwesomeIcon icon={faCopy} />
           </span>
         </span>
       </div>

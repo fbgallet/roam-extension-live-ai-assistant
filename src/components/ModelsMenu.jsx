@@ -2,24 +2,23 @@ import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
 import { defaultModel } from "..";
 
 const ModelsMenu = ({ command, instantModel }) => {
-  const handleClickOnModel = (e, com) => {
-    const model = e.target.innerText.split("\n")[0];
+  const handleClickOnModel = (e) => {
+    let model = e.target.innerText.split("\n")[0];
     switch (model) {
       case "GPT 3.5":
-        instantModel.current = "gpt-3.5-turbo";
+        model = "gpt-3.5-turbo";
         break;
       case "GPT 4":
-        instantModel.current = "gpt-4-turbo-preview";
+        model = "gpt-4-turbo-preview";
         break;
-      default:
-        instantModel.current = model;
     }
-    com(e);
+    if (instantModel) instantModel.current = model;
+    command(e, model);
   };
 
-  const handleKeyDownOnModel = (e, com) => {
+  const handleKeyDownOnModel = (e) => {
     if (e.code === "Enter" || e.code === "Space") {
-      handleClickOnModel(e, com);
+      handleClickOnModel(e);
       ContextMenu.hide();
     }
   };
@@ -31,10 +30,10 @@ const ModelsMenu = ({ command, instantModel }) => {
       <MenuItem
         icon={defaultModel === "gpt-3.5-turbo" && "pin"}
         onClick={(e) => {
-          handleClickOnModel(e, command);
+          handleClickOnModel(e);
         }}
         onKeyDown={(e) => {
-          handleKeyDownOnModel(e, command);
+          handleKeyDownOnModel(e);
         }}
         tabindex="0"
         text="GPT 3.5"
@@ -43,10 +42,10 @@ const ModelsMenu = ({ command, instantModel }) => {
       <MenuItem
         icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
         onClick={(e) => {
-          handleClickOnModel(e, command);
+          handleClickOnModel(e);
         }}
         onKeyDown={(e) => {
-          handleKeyDownOnModel(e, command);
+          handleKeyDownOnModel(e);
         }}
         tabindex="0"
         text="GPT 4"
@@ -56,10 +55,10 @@ const ModelsMenu = ({ command, instantModel }) => {
       <MenuItem
         icon={defaultModel === "Claude Haiku" && "pin"}
         onClick={(e) => {
-          handleClickOnModel(e, command);
+          handleClickOnModel(e);
         }}
         onKeyDown={(e) => {
-          handleKeyDownOnModel(e, command);
+          handleKeyDownOnModel(e);
         }}
         tabindex="0"
         text="Claude Haiku"
@@ -68,10 +67,10 @@ const ModelsMenu = ({ command, instantModel }) => {
       <MenuItem
         icon={defaultModel === "Claude Sonnet" && "pin"}
         onClick={(e) => {
-          handleClickOnModel(e, command);
+          handleClickOnModel(e);
         }}
         onKeyDown={(e) => {
-          handleKeyDownOnModel(e, command);
+          handleKeyDownOnModel(e);
         }}
         tabindex="0"
         text="Claude Sonnet"
@@ -80,10 +79,10 @@ const ModelsMenu = ({ command, instantModel }) => {
       <MenuItem
         icon={defaultModel === "Claude Opus" && "pin"}
         onClick={(e) => {
-          handleClickOnModel(e, command);
+          handleClickOnModel(e);
         }}
         onKeyDown={(e) => {
-          handleKeyDownOnModel(e, command);
+          handleKeyDownOnModel(e);
         }}
         tabindex="0"
         text="Claude Opus"

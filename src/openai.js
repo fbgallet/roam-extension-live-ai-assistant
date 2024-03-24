@@ -25,6 +25,7 @@ import {
   convertTreeToLinearArray,
   copyTreeBranches,
   createChildBlock,
+  createSiblingBlock,
   getTreeByUid,
   highlightHtmlElt,
   insertBlockInCurrentView,
@@ -148,24 +149,11 @@ export async function translateAudio(filename) {
 async function aiCompletion(
   instantModel,
   prompt,
-  context = "",
+  content = "",
   responseFormat,
   targetUid
 ) {
-  let content =
-    assistantCharacter +
-    (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
-    (context
-      ? contextInstruction +
-        userContextInstructions +
-        "\nHere is the content to rely on:\n" +
-        context
-      : "");
   let model = instantModel || defaultModel;
-  content = verifyTokenLimitAndTruncate(model, prompt, content);
-  console.log("Context (eventually truncated):\n", content);
-
-  console.log("responseFormat :>> ", responseFormat);
   if (
     // responseFormat !== "json_object" &&
     model.slice(0, 6) === "Claude" &&
@@ -291,6 +279,7 @@ export async function gptCompletion(
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
       } finally {
+        const streamEltCopy = streamElt.innerHTML;
         if (isCanceledStreamGlobal)
           console.log("GPT response stream interrupted.");
         else streamElt.remove();
@@ -301,6 +290,7 @@ export async function gptCompletion(
           responseFormat,
           targetUid,
           isStreamStopped: true,
+          response: streamEltCopy,
         });
       }
     }
@@ -331,28 +321,49 @@ export const insertCompletion = async (
   lastCompletion.typeOfCompletion = typeOfCompletion;
   lastCompletion.instantModel = instantModel;
 
+  const model = instantModel || defaultModel;
+  const responseFormat =
+    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
   const assistantRole = instantModel
     ? getInstantAssistantRole(instantModel)
     : chatRoles.assistant;
 
+  let content;
+
+  if (isRedone) content = context;
+  else {
+    content =
+      assistantCharacter +
+      (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
+      (context
+        ? contextInstruction +
+          userContextInstructions +
+          "\nHere is the content to rely on:\n" +
+          context
+        : "");
+    content = verifyTokenLimitAndTruncate(model, prompt, content);
+  }
+  console.log("Context (eventually truncated):\n", content);
+
   if (isRedone && typeOfCompletion === "gptCompletion") {
-    if (isExistingBlock(targetUid))
+    if (isExistingBlock(targetUid)) {
+      targetUid = createSiblingBlock(targetUid, "before");
       window.roamAlphaAPI.updateBlock({
         block: {
           uid: targetUid,
           string: assistantRole,
         },
       });
-    else targetUid = await insertBlockInCurrentView(assistantRole);
+    } else targetUid = await insertBlockInCurrentView(assistantRole);
   }
   const intervalId = await displaySpinner(targetUid);
   console.log("Prompt sent to AI assistant :>>\n", prompt);
   // console.log("typeOfCompletion :>> ", typeOfCompletion);
   const aiResponse = await aiCompletion(
-    instantModel,
+    model,
     prompt,
     context,
-    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text",
+    responseFormat,
     targetUid
   );
   console.log("aiResponse :>> ", aiResponse);

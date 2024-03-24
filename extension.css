@@ -172,9 +172,10 @@
 }
 .speech-instant-container > div > span > .bp3-button {
   background-color: transparent;
+  min-height: 26px;
 }
 .speech-instant-container > svg {
-  padding: 3px 0;
+  padding: 1px 0;
 }
 .speech-instant-container svg path {
   fill: var(--icon-color-top);
