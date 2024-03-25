@@ -17,9 +17,6 @@ export const contextRegex = /\(\(context:.?([^\)]*)\)\)/;
 export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
-const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
-const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
-const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {
@@ -634,15 +631,4 @@ export const trimOutiseOuterBraces = (str) => {
   } else {
     return "";
   }
-};
-
-export const sanitizeJSONstring = (str) => {
-  let sanitized = str
-    // escape line break in code blocks
-    .replace(codeBlockRegex, (match) => match.replace(/\n/g, "\\n"))
-    // escape line break in all content string, if not already escaped
-    .replace(jsonContentStringRegex, (match) =>
-      match.replace(notEscapedBreakLineRegex, "\\n")
-    );
-  return sanitized;
 };

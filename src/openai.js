@@ -30,7 +30,6 @@ import {
   highlightHtmlElt,
   insertBlockInCurrentView,
   isExistingBlock,
-  sanitizeJSONstring,
   trimOutiseOuterBraces,
   updateArrayOfBlocks,
 } from "./utils/utils";
@@ -46,6 +45,7 @@ import {
   removeSpinner,
 } from "./utils/domElts";
 import { isCanceledStreamGlobal } from "./components/InstantButtons";
+import { sanitizeJSONstring, splitParagraphs } from "./utils/format";
 
 const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
@@ -377,7 +377,7 @@ export const insertCompletion = async (
     //     block: { uid: startBlock },
     //   });
   } else {
-    const splittedResponse = aiResponse.split(`\n\n`);
+    const splittedResponse = splitParagraphs(aiResponse);
     if (!isResponseToSplit || splittedResponse.length === 1)
       addContentToBlock(targetUid, splittedResponse[0]);
     else {
