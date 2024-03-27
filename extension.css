@@ -167,6 +167,9 @@
   flex-direction: column;
   align-items: center;
 }
+.rm-block:has(.rm-block__ref-count) .speech-instant-container {
+  top: 25px;
+}
 .rm-block:has(.speech-instant-container):hover .speech-instant-container {
   opacity: 0.2;
 }
@@ -175,11 +178,13 @@
 }
 .speech-instant-container > div > span > .bp3-button {
   background-color: transparent;
-  min-height: 26px;
+  min-height: 20px;
+  min-width: 20px;
+  padding: 5px;
 }
-.speech-instant-container > svg {
+/* .speech-instant-container > svg {
   padding: 1px 0;
-}
+} */
 .speech-instant-container svg:not(.fa-xmark) path {
   fill: var(--icon-color-top);
 }
