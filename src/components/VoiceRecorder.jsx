@@ -338,12 +338,14 @@ function VoiceRecorder({
     lastCommand.current = translateAudio;
     initializeProcessing();
   };
-  const handleCompletion = (e) => {
+  const handleCompletion = (e, model) => {
+    if (model) instantModel.current = model;
     lastCommand.current = "gptCompletion";
     handleModifierKeys(e);
     initializeProcessing();
   };
-  const handlePostProcessing = (e) => {
+  const handlePostProcessing = (e, model) => {
+    if (model) instantModel.current = model;
     lastCommand.current = "gptPostProcessing";
     handleModifierKeys(e);
     initializeProcessing();
@@ -364,7 +366,7 @@ function VoiceRecorder({
     handleEltHighlight(e);
   };
 
-  const initializeProcessing = () => {
+  const initializeProcessing = async () => {
     targetBlock.current =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     const currentSelection = getBlocksSelectionUids();
@@ -380,7 +382,7 @@ function VoiceRecorder({
         targetBlock.current
       ).trim();
       if (targetBlockContent)
-        completionProcessing(targetBlockContent, targetBlock.current);
+        await completionProcessing(targetBlockContent, targetBlock.current);
     }
   };
 
@@ -466,7 +468,6 @@ function VoiceRecorder({
     addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe)
       await completionProcessing(transcribe, targetUid);
-    initialize(true);
   };
 
   const completionProcessing = async (prompt, promptUid) => {
@@ -516,6 +517,10 @@ function VoiceRecorder({
               template.stringified;
             uid = getFirstChildUid(promptUid);
           }
+          console.log(
+            "instantModel.current from completionProcessing :>> ",
+            instantModel.current
+          );
           await insertCompletion(
             prompt,
             uid,
@@ -523,6 +528,7 @@ function VoiceRecorder({
             commandType,
             instantModel.current
           );
+          initialize(true);
         },
         waitForBlockCopy ? 100 : 0
       );
@@ -540,6 +546,7 @@ function VoiceRecorder({
         lastCommand.current,
         instantModel.current
       );
+      initialize(true);
     }
   };
 

@@ -2,6 +2,15 @@ const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
 const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 
+export const trimOutsideOuterBraces = (str) => {
+  const matches = str.match(/\{.*\}/gs);
+  if (matches) {
+    return matches[0];
+  } else {
+    return "";
+  }
+};
+
 export const sanitizeJSONstring = (str) => {
   let sanitized = str
     // escape line break in code blocks

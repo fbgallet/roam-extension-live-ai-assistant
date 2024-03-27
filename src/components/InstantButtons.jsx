@@ -1,5 +1,5 @@
 import {
-  faCircleStop,
+  faStop,
   faCopy,
   faRotateRight,
   faXmark,
@@ -58,7 +58,7 @@ const InstantButtons = ({
 
   return (
     <>
-      {!isCanceledStream && !isStreamStopped && (
+      {!isCanceledStream && isStreamStopped === false && (
         <div class="bp3-popover-wrapper">
           <span aria-haspopup="true" class="bp3-popover-target">
             <span
@@ -66,12 +66,12 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <FontAwesomeIcon icon={faCircleStop} />
+              <FontAwesomeIcon icon={faStop} />
             </span>
           </span>
         </div>
       )}
-      {(isStreamStopped || isCanceledStream) && (
+      {(isStreamStopped !== false || isCanceledStream) && (
         <div class="bp3-popover-wrapper">
           <span aria-haspopup="true" class="bp3-popover-target">
             <span
@@ -80,7 +80,7 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <FontAwesomeIcon icon={faXmark} />
+              <FontAwesomeIcon icon={faXmark} style={{ color: "red" }} />
               {/* size="lg" */}
             </span>
           </span>

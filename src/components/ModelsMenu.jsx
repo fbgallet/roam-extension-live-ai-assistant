@@ -1,7 +1,7 @@
 import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
 import { defaultModel } from "..";
 
-const ModelsMenu = ({ command, instantModel }) => {
+const ModelsMenu = ({ command }) => {
   const handleClickOnModel = (e) => {
     let model = e.target.innerText.split("\n")[0];
     switch (model) {
@@ -12,7 +12,8 @@ const ModelsMenu = ({ command, instantModel }) => {
         model = "gpt-4-turbo-preview";
         break;
     }
-    if (instantModel) instantModel.current = model;
+    // if (typeof instantModel !== undefined) instantModel.current = model;
+    // console.log("instantModel :>> ", instantModel);
     command(e, model);
   };
 

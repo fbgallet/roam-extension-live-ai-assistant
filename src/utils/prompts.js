@@ -21,7 +21,8 @@ export const contextAsPrompt = `Follow the instructions provided in the context 
 // For Post-Processing
 
 export const instructionsOnJSONResponse =
-  ' Your response will be a JSON objects array with the following format: \
+  ' Your response will be a JSON objects array with the following format, respecting strictly the syntax, \
+  especially the quotation marks around the keys and character strings: \
 {"response": "[{"uid": "((9-characters-code))", "content": "your response for the corresponding line"}, ...]}".';
 
 export const specificContentPromptBeforeTemplate = `\

@@ -45,7 +45,11 @@ import {
   removeSpinner,
 } from "./utils/domElts";
 import { isCanceledStreamGlobal } from "./components/InstantButtons";
-import { sanitizeJSONstring, splitParagraphs } from "./utils/format";
+import {
+  sanitizeJSONstring,
+  splitParagraphs,
+  trimOutsideOuterBraces,
+} from "./utils/format";
 
 const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
@@ -154,6 +158,8 @@ async function aiCompletion(
   targetUid
 ) {
   let model = instantModel || defaultModel;
+  if (responseFormat === "json_object")
+    prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
   if (
     // responseFormat !== "json_object" &&
     model.slice(0, 6) === "Claude" &&
@@ -212,7 +218,7 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
     let text = data.response.content[0].text;
     let jsonOnly;
     if (responseFormat !== "text") {
-      jsonOnly = trimOutiseOuterBraces(text);
+      jsonOnly = trimOutsideOuterBraces(text);
       jsonOnly = sanitizeJSONstring(jsonOnly);
     }
     return jsonOnly || text;
@@ -242,31 +248,31 @@ export async function gptCompletion(
         },
         { role: "user", content: prompt },
       ],
-      stream: streamResponse,
+      stream: streamResponse && responseFormat === "text",
     });
     let respStr = "";
 
-    if (streamResponse) {
+    if (streamResponse && responseFormat === "text") {
       insertInstantButtons({
         model,
         prompt,
         content,
         responseFormat,
         targetUid,
+        isStreamStopped: false,
       });
       const streamElt = insertParagraphForStream(targetUid);
-      let escapePressed = false;
       try {
-        const checkEscapeKeyPress = () => {
-          document.addEventListener(
-            "keydown",
-            (e) => {
-              if (e.key === "Escape") escapePressed = true;
-            },
-            { once: true }
-          );
-        };
-        checkEscapeKeyPress();
+        // const checkEscapeKeyPress = () => {
+        //   document.addEventListener(
+        //     "keydown",
+        //     (e) => {
+        //       if (e.key === "Escape") escapePressed = true;
+        //     },
+        //     { once: true }
+        //   );
+        // };
+        // checkEscapeKeyPress();
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
@@ -296,7 +302,9 @@ export async function gptCompletion(
     }
 
     console.log("OpenAI chat completion response :>>", response);
-    return streamResponse ? respStr : response.choices[0].message.content;
+    return streamResponse && responseFormat === "text"
+      ? respStr
+      : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
     AppToaster.show({
@@ -322,6 +330,7 @@ export const insertCompletion = async (
   lastCompletion.instantModel = instantModel;
 
   const model = instantModel || defaultModel;
+  console.log("model from insertCompletion :>> ", model);
   const responseFormat =
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
   const assistantRole = instantModel
@@ -334,7 +343,7 @@ export const insertCompletion = async (
   else {
     content =
       assistantCharacter +
-      (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
+      // (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
       (context
         ? contextInstruction +
           userContextInstructions +
@@ -368,8 +377,10 @@ export const insertCompletion = async (
   );
   console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
-  if (typeOfCompletion === "gptPostProcessing" && aiResponse.includes("{")) {
+  console.log("typeOfCompletion :>> ", typeOfCompletion);
+  if (typeOfCompletion === "gptPostProcessing") {
     const parsedResponse = JSON.parse(aiResponse);
+    console.log("parsedResponse :>> ", parsedResponse);
     updateArrayOfBlocks(parsedResponse.response);
     // if (!isOnlyTextual)
     //   window.roamAlphaAPI.moveBlock({

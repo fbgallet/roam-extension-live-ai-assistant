@@ -162,12 +162,15 @@
   top: 0;
   right: 0;
   z-index: 1;
-  opacity: 0.2;
+  opacity: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-.speech-instant-container:hover {
+.rm-block:has(.speech-instant-container):hover .speech-instant-container {
+  opacity: 0.2;
+}
+.rm-block:has(.speech-instant-container) .speech-instant-container:hover {
   opacity: 1;
 }
 .speech-instant-container > div > span > .bp3-button {
@@ -177,7 +180,7 @@
 .speech-instant-container > svg {
   padding: 1px 0;
 }
-.speech-instant-container svg path {
+.speech-instant-container svg:not(.fa-xmark) path {
   fill: var(--icon-color-top);
 }
 
