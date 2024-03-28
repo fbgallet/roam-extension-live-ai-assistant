@@ -139,12 +139,7 @@ function VoiceRecorder({
 
   const handleRecord = async (e) => {
     if (!worksOnPlatform) {
-      AppToaster.show({
-        message:
-          "Recording isn't currently supported on your current platform (Mac Desktop App or Mobile app). You can still use text-only commands. See documentation.",
-        timeout: 15000,
-      });
-      return;
+      handleRecordNotAvailable();
     }
     e.preventDefault();
     let currentBlock = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -165,6 +160,14 @@ function VoiceRecorder({
         setIsListening((prevState) => !prevState);
       }
     }
+  };
+
+  const handleRecordNotAvailable = () => {
+    AppToaster.show({
+      message:
+        "Recording isn't currently supported on this platform (Roam Mac Desktop App or Mobile app). You can still use text-only commands. See documentation.",
+      timeout: 15000,
+    });
   };
 
   const handleListen = () => {
@@ -588,12 +591,23 @@ function VoiceRecorder({
     setTime(0);
   };
 
-  // JSX
-  // const mainProps = {
-  //   title: isListening
-  //     ? "Stop/Pause voice recording (Spacebar)"
-  //     : "Start/Resume voice recording (Spacebar)",
-  // };
+  const voiceRecordingWarningMsg = (
+    <p>
+      Voice recording is currently not supported on this platform (Roam MacOS
+      desktop App or Mobile app).
+      <br />
+      Use text-only mode. See documentation.
+    </p>
+  );
+
+  const enableWhisperWarning = (
+    <p>
+      Native voice recognition doesn't work on Firefox, Arc browser or Electron
+      app.
+      <br />
+      Enable Whisper recognition and/or provide a valid OpenAI API key.
+    </p>
+  );
 
   const mainContent = () => {
     return (
@@ -618,7 +632,7 @@ function VoiceRecorder({
           </Tooltip>
         ) : (
           <Tooltip
-            content="Voice recording is currently not supported on your current platform (Mac Desktop App or Mobile app).\nUse text-only mode. See documentation."
+            content={voiceRecordingWarningMsg}
             intent="warning"
             hoverOpenDelay="300"
           >
@@ -634,8 +648,10 @@ function VoiceRecorder({
       <span class="bp3-popover-wrapper">
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
-            onKeyDown={handleKeys}
-            onClick={(e) => (isWorking ? handleRecord(e) : null)}
+            onKeyDown={(e) => (isWorking ? handleKeys(e) : null)}
+            onClick={(e) =>
+              isWorking ? handleRecord(e) : handleRecordNotAvailable()
+            }
             class="bp3-button bp3-minimal bp3-small speech-record-button"
             tabindex="0"
             // {...props}
@@ -650,8 +666,10 @@ function VoiceRecorder({
   const jsxLogMainDisplay = (props) => {
     return (
       <div
-        onKeyDown={handleKeys}
-        onClick={(e) => (isWorking ? handleRecord(e) : null)}
+        onKeyDown={(e) => (isWorking ? handleKeys(e) : null)}
+        onClick={(e) =>
+          isWorking ? handleRecord(e) : handleRecordNotAvailable()
+        }
         class="log-button"
         tabindex="0"
         // style={{ marginRight: isListening ? "0" : "4px" }}
@@ -675,13 +693,9 @@ function VoiceRecorder({
   const jsxWarning = () => {
     return (
       <>
-        {!isWorking && (
+        {!isWorking && worksOnPlatform && (
           <Tooltip
-            content={
-              !worksOnPlatform
-                ? "Voice recording is currently not supported on your current platform (Mac Desktop App or Mobile app).\nUse text-only mode. See documentation."
-                : "Native voice recognition doesn't work on Firefox, Arc browser or Electron app. Enable Whisper recognition"
-            }
+            content={enableWhisperWarning}
             intent="warning"
             hoverOpenDelay="300"
           >
@@ -695,7 +709,6 @@ function VoiceRecorder({
   const timerProps = {
     onClick: handleBackward,
     tabindex: "0",
-    // title: "Rewind and delete the current recording (Backspace or Escape)",
   };
 
   const timerContent = () => {
