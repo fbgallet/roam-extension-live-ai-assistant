@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ContextMenu } from "@blueprintjs/core";
+import { ContextMenu, Tooltip } from "@blueprintjs/core";
 
 import {
   faMicrophone,
@@ -13,14 +13,14 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Intent, Position, Toaster } from "@blueprintjs/core";
 //import "./App.css";
-import { closeStream, getStream, newMediaRecorder } from "../audio.js";
+import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
   insertCompletion,
   transcribeAudio,
   translateAudio,
-} from "../openai.js";
+} from "../ai/aiCommands.js";
 import {
   addContentToBlock,
   createChildBlock,
@@ -45,9 +45,9 @@ import {
   openaiLibrary,
   toggleComponentVisibility,
 } from "../index.js";
-import MicRecorder from "../mic-recorder.js";
+import MicRecorder from "../audio/mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
-import { defaultPostProcessingPrompt } from "../utils/prompts.js";
+import { defaultPostProcessingPrompt } from "../ai/prompts.js";
 import ModelsMenu from "./ModelsMenu.jsx";
 import { displaySpinner, removeSpinner } from "../utils/domElts.js";
 
@@ -141,7 +141,7 @@ function VoiceRecorder({
     if (!worksOnPlatform) {
       AppToaster.show({
         message:
-          "Speech-to-Roam recording currently doesn't work on your current platform (Mac Desktop App or Mobile app). You can still use text-only commands. See documentation.",
+          "Recording isn't currently supported on your current platform (Mac Desktop App or Mobile app). You can still use text-only commands. See documentation.",
         timeout: 15000,
       });
       return;
@@ -589,23 +589,41 @@ function VoiceRecorder({
   };
 
   // JSX
-  const mainProps = {
-    title: isListening
-      ? "Stop/Pause voice recording (Spacebar)"
-      : "Start/Resume voice recording (Spacebar)",
-  };
+  // const mainProps = {
+  //   title: isListening
+  //     ? "Stop/Pause voice recording (Spacebar)"
+  //     : "Start/Resume voice recording (Spacebar)",
+  // };
 
   const mainContent = () => {
     return (
       <>
         {isListening ? (
-          <FontAwesomeIcon
-            icon={faRecordVinyl}
-            beatFade
-            style={{ color: "#e00000" }}
-          />
+          <Tooltip
+            content="Stop/Pause voice recording (Spacebar)"
+            hoverOpenDelay="300"
+          >
+            <FontAwesomeIcon
+              icon={faRecordVinyl}
+              beatFade
+              style={{ color: "#e00000" }}
+            />
+          </Tooltip>
+        ) : isWorking ? (
+          <Tooltip
+            content="Start/Resume voice recording (Spacebar)"
+            hoverOpenDelay="300"
+          >
+            <FontAwesomeIcon icon={faMicrophone} />
+          </Tooltip>
         ) : (
-          <FontAwesomeIcon icon={faMicrophone} />
+          <Tooltip
+            content="Voice recording is currently not supported on your current platform (Mac Desktop App or Mobile app).\nUse text-only mode. See documentation."
+            intent="warning"
+            hoverOpenDelay="300"
+          >
+            <FontAwesomeIcon icon={faMicrophoneSlash} />
+          </Tooltip>
         )}
       </>
     );
@@ -617,10 +635,10 @@ function VoiceRecorder({
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
             onKeyDown={handleKeys}
-            onClick={handleRecord}
+            onClick={(e) => (isWorking ? handleRecord(e) : null)}
             class="bp3-button bp3-minimal bp3-small speech-record-button"
             tabindex="0"
-            {...props}
+            // {...props}
           >
             {mainContent()}
           </span>
@@ -633,14 +651,14 @@ function VoiceRecorder({
     return (
       <div
         onKeyDown={handleKeys}
-        onClick={handleRecord}
+        onClick={(e) => (isWorking ? handleRecord(e) : null)}
         class="log-button"
         tabindex="0"
         // style={{ marginRight: isListening ? "0" : "4px" }}
       >
         <span
           class="bp3-icon bp3-icon-shop icon bp3-icon-small speech-record-button"
-          {...props}
+          // {...props}
         >
           {mainContent()}
         </span>
@@ -658,16 +676,17 @@ function VoiceRecorder({
     return (
       <>
         {!isWorking && (
-          <span
-            style={{ color: "lightpink" }}
-            title={
+          <Tooltip
+            content={
               !worksOnPlatform
-                ? "Speech-to-Roam doesn't support voice recording on your current platform (Mac Desktop App or Mobile app). Use text-only mode. See documentation."
+                ? "Voice recording is currently not supported on your current platform (Mac Desktop App or Mobile app).\nUse text-only mode. See documentation."
                 : "Native voice recognition doesn't work on Firefox, Arc browser or Electron app. Enable Whisper recognition"
             }
+            intent="warning"
+            hoverOpenDelay="300"
           >
-            &nbsp;⚠️
-          </span>
+            <span style={{ color: "lightpink" }}>&nbsp;⚠️</span>
+          </Tooltip>
         )}
       </>
     );
@@ -676,13 +695,18 @@ function VoiceRecorder({
   const timerProps = {
     onClick: handleBackward,
     tabindex: "0",
-    title: "Rewind and delete the current recording (Backspace or Escape)",
+    // title: "Rewind and delete the current recording (Backspace or Escape)",
   };
 
   const timerContent = () => {
     return (
       <>
-        <FontAwesomeIcon icon={faBackwardStep} />
+        <Tooltip
+          content="Rewind and delete the current recording (Backspace or Escape)"
+          hoverOpenDelay="300"
+        >
+          <FontAwesomeIcon icon={faBackwardStep} />
+        </Tooltip>
         <Timer time={time} />
       </>
     );
@@ -762,9 +786,7 @@ function VoiceRecorder({
   return (
     <>
       <div class="speech-ui-row1">
-        {position === "left"
-          ? jsxLogMainDisplay(mainProps)
-          : jsxBp3MainDisplay(mainProps)}
+        {position === "left" ? jsxLogMainDisplay() : jsxBp3MainDisplay()}
 
         {(isListening ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
@@ -777,65 +799,68 @@ function VoiceRecorder({
         {(isListening ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.transcribeIcon &&
-          jsxCommandIcon(
-            { title: "Transcribe voice to Text (T or Enter)" },
-            handleTranscribe,
-            () => (
-              <>
-                <FontAwesomeIcon icon={faWandMagicSparkles} />
-              </>
-            )
-          )}
+          jsxCommandIcon({}, handleTranscribe, () => (
+            <Tooltip
+              content="Transcribe voice to Text (T or Enter)"
+              hoverOpenDelay="300"
+            >
+              <FontAwesomeIcon icon={faWandMagicSparkles} />
+            </Tooltip>
+          ))}
         {(isListening ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.translateIcon &&
-          jsxCommandIcon(
-            { title: "Translate voice to English text (E)" },
-            handleTranslate,
-            () => (
-              <>
-                <FontAwesomeIcon icon={faLanguage} flip="horizontal" />
-              </>
-            )
-          )}
+          jsxCommandIcon({}, handleTranslate, () => (
+            <Tooltip
+              content="Translate voice to English text (E)"
+              hoverOpenDelay="300"
+            >
+              <FontAwesomeIcon icon={faLanguage} flip="horizontal" />
+            </Tooltip>
+          ))}
         {
           /*isListening ||*/
           // areCommandsToDisplay  &&
           isToDisplay.completionIcon &&
-            jsxCommandIcon(
-              {
-                title:
-                  "Chat with AI assistant model (C)\n" +
-                  "+Alt : page as context\n" +
-                  "+ Cmd or Ctrl : linked refs\n" +
-                  "+ Shift : sidebar",
-              },
-              handleCompletion,
-              () => (
-                <>
-                  <OpenAILogo />
-                </>
-              )
-            )
+            jsxCommandIcon({}, handleCompletion, () => (
+              <Tooltip
+                content={
+                  <p>
+                    AI assistant Completion (C)
+                    <br />
+                    +Alt : page as context
+                    <br />
+                    +Cmd or Ctrl : linked refs
+                    <br />+ Shift : sidebar
+                  </p>
+                }
+                hoverOpenDelay="300"
+                style={{ display: "flex", alignItems: "center" }}
+              >
+                <OpenAILogo />
+              </Tooltip>
+            ))
         }
         {
           /*isListening || areCommandsToDisplay && */
           isToDisplay.completionIcon &&
-            jsxCommandIcon(
-              {
-                title:
-                  "Apply focused template for Post-Processing by AI assistant model (P)\n" +
-                  "+ Alt : page as context\n" +
-                  "+ Cmd or Ctrl : linked refs\n" +
-                  "+ Shift : sidebar",
-              },
-              handlePostProcessing,
-              () => (
-                <>
-                  <FontAwesomeIcon icon={faListUl} />
-                </>
-              )
-            )
+            jsxCommandIcon({}, handlePostProcessing, () => (
+              <Tooltip
+                content={
+                  <p>
+                    AI Post-Processing following focused template (P)
+                    <br />
+                    + Alt : page as context
+                    <br />
+                    + Cmd or Ctrl : linked refs
+                    <br />+ Shift : sidebar
+                  </p>
+                }
+                hoverOpenDelay="300"
+              >
+                <FontAwesomeIcon icon={faListUl} />
+              </Tooltip>
+            ))
         }
       </div>
     </>

@@ -7,7 +7,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { ContextMenu } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
-import { insertCompletion } from "../openai";
+import { insertCompletion } from "../ai/aiCommands.js";
 import ModelsMenu from "./ModelsMenu.jsx";
 
 export let isCanceledStreamGlobal = false;

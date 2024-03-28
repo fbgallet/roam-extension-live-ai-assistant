@@ -1,7 +1,5 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import axios from "axios";
-// import axios from "./axios-config";
 import App from "./App";
 import {
   copyTemplate,
@@ -11,8 +9,8 @@ import {
   initializeOpenAIAPI,
   insertCompletion,
   lastCompletion,
-} from "./openai";
-import { getSpeechRecognitionAPI, webLangCodes } from "./audio";
+} from "./ai/aiCommands";
+import { getSpeechRecognitionAPI, webLangCodes } from "./audio/audio";
 import {
   createChildBlock,
   getAndNormalizeContext,
@@ -33,7 +31,7 @@ import {
   defaultAssistantCharacter,
   defaultContextInstructions,
   specificContentPromptBeforeTemplate,
-} from "./utils/prompts";
+} from "./ai/prompts";
 import { AppToaster } from "./components/VoiceRecorder";
 
 export const tokensLimit = {

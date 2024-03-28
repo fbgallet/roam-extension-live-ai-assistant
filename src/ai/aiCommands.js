@@ -19,7 +19,7 @@ import {
   userContextInstructions,
   whisperPrompt,
   streamResponse,
-} from ".";
+} from "..";
 import {
   addContentToBlock,
   convertTreeToLinearArray,
@@ -31,26 +31,25 @@ import {
   highlightHtmlElt,
   insertBlockInCurrentView,
   isExistingBlock,
-  trimOutiseOuterBraces,
   updateArrayOfBlocks,
-} from "./utils/utils";
+} from "../utils/utils";
 import {
   instructionsOnJSONResponse,
   instructionsOnTemplateProcessing,
-} from "./utils/prompts";
-import { AppToaster } from "./components/VoiceRecorder";
+} from "./prompts";
+import { AppToaster } from "../components/VoiceRecorder";
 import {
   displaySpinner,
   insertInstantButtons,
   insertParagraphForStream,
   removeSpinner,
-} from "./utils/domElts";
-import { isCanceledStreamGlobal } from "./components/InstantButtons";
+} from "../utils/domElts";
+import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import {
   sanitizeJSONstring,
   splitParagraphs,
   trimOutsideOuterBraces,
-} from "./utils/format";
+} from "../utils/format";
 
 const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
@@ -310,29 +309,8 @@ export async function gptCompletion(
         if (isCanceledStreamGlobal)
           console.log("GPT response stream interrupted.");
         else streamElt.remove();
-        // insertInstantButtons({
-        //   model,
-        //   prompt,
-        //   content,
-        //   responseFormat,
-        //   targetUid,
-        //   isStreamStopped: true,
-        //   response: streamEltCopy,
-        // });
       }
     }
-    // if (responseFormat !== "text") {
-    // insertInstantButtons({
-    //   model,
-    //   prompt,
-    //   content,
-    //   responseFormat,
-    //   targetUid,
-    //   isStreamStopped: true,
-    //   response: responseFormat === "text" ? streamEltCopy || response.choices[0].message.content :
-    //   getFlattenedContentFromArrayOfBlocks,
-    // });
-    // }
     console.log("OpenAI chat completion response :>>", response);
     return streamResponse && responseFormat === "text"
       ? respStr

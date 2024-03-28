@@ -63,6 +63,10 @@
 
 .speech-to-roam-container-top {
   z-index: 1;
+  display: flex;
+}
+.speech-to-roam-container-top:has(.digits) {
+  flex-direction: column;
 }
 .speech-to-roam-container-top:has(.speech-ui-row2 > .bp3-popover-wrapper) {
   margin-top: 5px;
@@ -108,6 +112,10 @@
 }
 .speech-to-roam-container-top svg:not(.fa-record-vinyl) path {
   fill: var(--icon-color-top);
+}
+
+.openai-logo {
+  transform: translateY(2px);
 }
 
 .speech-to-roam-container-inline {

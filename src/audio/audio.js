@@ -1,4 +1,4 @@
-import { speechLanguage } from ".";
+import { speechLanguage } from "..";
 
 const mediaRecorderOptions = {
   audio: true,
