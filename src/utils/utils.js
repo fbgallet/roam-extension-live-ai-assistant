@@ -168,6 +168,16 @@ export function updateArrayOfBlocks(arrayOfBlocks) {
   }
 }
 
+export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
+  let flattenedContent = "";
+  if (arrayOfBlocks.length) {
+    arrayOfBlocks.forEach(
+      (block) => (flattenedContent += block.content + "\n\n")
+    );
+  }
+  return flattenedContent.trim();
+}
+
 export function createChildBlock(
   parentUid,
   content = "",

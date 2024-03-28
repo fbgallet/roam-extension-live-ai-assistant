@@ -171,7 +171,7 @@
   top: 25px;
 }
 .rm-block:has(.speech-instant-container):hover .speech-instant-container {
-  opacity: 0.2;
+  opacity: 0.3;
 }
 .rm-block:has(.speech-instant-container) .speech-instant-container:hover {
   opacity: 1;

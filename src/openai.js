@@ -26,6 +26,7 @@ import {
   copyTreeBranches,
   createChildBlock,
   createSiblingBlock,
+  getFlattenedContentFromArrayOfBlocks,
   getTreeByUid,
   highlightHtmlElt,
   insertBlockInCurrentView,
@@ -157,6 +158,7 @@ async function aiCompletion(
   responseFormat,
   targetUid
 ) {
+  let aiResponse;
   let model = instantModel || defaultModel;
   if (responseFormat === "json_object")
     prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
@@ -165,9 +167,9 @@ async function aiCompletion(
     model.slice(0, 6) === "Claude" &&
     ANTHROPIC_API_KEY
   )
-    return await claudeCompletion(model, prompt, content, responseFormat);
-  if (openaiLibrary?.apiKey)
-    return await gptCompletion(
+    aiResponse = await claudeCompletion(model, prompt, content, responseFormat);
+  else if (openaiLibrary?.apiKey)
+    aiResponse = await gptCompletion(
       model,
       prompt,
       content,
@@ -182,6 +184,24 @@ async function aiCompletion(
     AppToaster;
     return "";
   }
+  if (responseFormat === "json_object") {
+    const parsedResponse = JSON.parse(aiResponse);
+    aiResponse = parsedResponse.response;
+  }
+  if (aiResponse)
+    insertInstantButtons({
+      model,
+      prompt,
+      content,
+      responseFormat,
+      targetUid,
+      isStreamStopped: true,
+      response:
+        responseFormat === "text"
+          ? aiResponse
+          : getFlattenedContentFromArrayOfBlocks(aiResponse),
+    });
+  return aiResponse;
 }
 
 async function claudeCompletion(model, prompt, content, responseFormat) {
@@ -251,6 +271,7 @@ export async function gptCompletion(
       stream: streamResponse && responseFormat === "text",
     });
     let respStr = "";
+    let streamEltCopy = "";
 
     if (streamResponse && responseFormat === "text") {
       insertInstantButtons({
@@ -285,22 +306,33 @@ export async function gptCompletion(
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
       } finally {
-        const streamEltCopy = streamElt.innerHTML;
+        streamEltCopy = streamElt.innerHTML;
         if (isCanceledStreamGlobal)
           console.log("GPT response stream interrupted.");
         else streamElt.remove();
-        insertInstantButtons({
-          model,
-          prompt,
-          content,
-          responseFormat,
-          targetUid,
-          isStreamStopped: true,
-          response: streamEltCopy,
-        });
+        // insertInstantButtons({
+        //   model,
+        //   prompt,
+        //   content,
+        //   responseFormat,
+        //   targetUid,
+        //   isStreamStopped: true,
+        //   response: streamEltCopy,
+        // });
       }
     }
-
+    // if (responseFormat !== "text") {
+    // insertInstantButtons({
+    //   model,
+    //   prompt,
+    //   content,
+    //   responseFormat,
+    //   targetUid,
+    //   isStreamStopped: true,
+    //   response: responseFormat === "text" ? streamEltCopy || response.choices[0].message.content :
+    //   getFlattenedContentFromArrayOfBlocks,
+    // });
+    // }
     console.log("OpenAI chat completion response :>>", response);
     return streamResponse && responseFormat === "text"
       ? respStr
@@ -379,9 +411,8 @@ export const insertCompletion = async (
   removeSpinner(intervalId);
   console.log("typeOfCompletion :>> ", typeOfCompletion);
   if (typeOfCompletion === "gptPostProcessing") {
-    const parsedResponse = JSON.parse(aiResponse);
-    console.log("parsedResponse :>> ", parsedResponse);
-    updateArrayOfBlocks(parsedResponse.response);
+    // console.log("parsedResponse :>> ", parsedResponse);
+    updateArrayOfBlocks(aiResponse);
     // if (!isOnlyTextual)
     //   window.roamAlphaAPI.moveBlock({
     //     location: { "parent-uid": targetUid, order: 0 },
