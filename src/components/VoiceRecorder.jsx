@@ -28,6 +28,7 @@ import {
   getBlockContentByUid,
   getBlocksSelectionUids,
   getFirstChildUid,
+  getResolvedContentFromBlocks,
   getTemplateFromPrompt,
   highlightHtmlElt,
   insertBlockInCurrentView,
@@ -374,18 +375,25 @@ function VoiceRecorder({
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     const currentSelection = getBlocksSelectionUids();
     if (!blocksSelectionUids.current || currentSelection.length > 0)
-      blocksSelectionUids.current = currentSelection;
+      blocksSelectionUids.current = [...currentSelection];
     if (isListening) {
       isToTranscribe.current = true;
       setIsListening(false);
     } else if (record?.current || safariRecorder?.current?.activeStream)
       voiceProcessing();
-    else if (targetBlock.current) {
-      const targetBlockContent = getBlockContentByUid(
-        targetBlock.current
-      ).trim();
-      if (targetBlockContent)
-        await completionProcessing(targetBlockContent, targetBlock.current);
+    else {
+      let prompt = "";
+      if (targetBlock.current) {
+        prompt = getBlockContentByUid(targetBlock.current).trim();
+      } else if (blocksSelectionUids.current.length > 0) {
+        prompt = getResolvedContentFromBlocks(
+          blocksSelectionUids.current,
+          false
+        );
+        targetBlock.current = blocksSelectionUids.current.at(-1);
+        blocksSelectionUids.current = [];
+      } else return;
+      await completionProcessing(prompt, targetBlock.current);
     }
   };
 
@@ -520,10 +528,6 @@ function VoiceRecorder({
               template.stringified;
             uid = getFirstChildUid(promptUid);
           }
-          console.log(
-            "instantModel.current from completionProcessing :>> ",
-            instantModel.current
-          );
           await insertCompletion(
             prompt,
             uid,
@@ -615,7 +619,7 @@ function VoiceRecorder({
         {isListening ? (
           <Tooltip
             content="Stop/Pause voice recording (Spacebar)"
-            hoverOpenDelay="300"
+            hoverOpenDelay="500"
           >
             <FontAwesomeIcon
               icon={faRecordVinyl}
@@ -626,7 +630,7 @@ function VoiceRecorder({
         ) : isWorking ? (
           <Tooltip
             content="Start/Resume voice recording (Spacebar)"
-            hoverOpenDelay="300"
+            hoverOpenDelay="500"
           >
             <FontAwesomeIcon icon={faMicrophone} />
           </Tooltip>
@@ -716,7 +720,7 @@ function VoiceRecorder({
       <>
         <Tooltip
           content="Rewind and delete the current recording (Backspace or Escape)"
-          hoverOpenDelay="300"
+          hoverOpenDelay="500"
         >
           <FontAwesomeIcon icon={faBackwardStep} />
         </Tooltip>
@@ -815,7 +819,7 @@ function VoiceRecorder({
           jsxCommandIcon({}, handleTranscribe, () => (
             <Tooltip
               content="Transcribe voice to Text (T or Enter)"
-              hoverOpenDelay="300"
+              hoverOpenDelay="500"
             >
               <FontAwesomeIcon icon={faWandMagicSparkles} />
             </Tooltip>
@@ -826,7 +830,7 @@ function VoiceRecorder({
           jsxCommandIcon({}, handleTranslate, () => (
             <Tooltip
               content="Translate voice to English text (E)"
-              hoverOpenDelay="300"
+              hoverOpenDelay="500"
             >
               <FontAwesomeIcon icon={faLanguage} flip="horizontal" />
             </Tooltip>
@@ -840,14 +844,13 @@ function VoiceRecorder({
                 content={
                   <p>
                     AI assistant Completion (C)
-                    <br />
-                    +Alt : page as context
-                    <br />
-                    +Cmd or Ctrl : linked refs
-                    <br />+ Shift : sidebar
+                    <br />+<code>Alt</code>: <b>page</b> as context
+                    <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
+                    <b>linked refs</b>
+                    <br />+<code>Shift</code>: <b>sidebar</b>
                   </p>
                 }
-                hoverOpenDelay="300"
+                hoverOpenDelay="500"
                 style={{ display: "flex", alignItems: "center" }}
               >
                 <OpenAILogo />
@@ -861,15 +864,14 @@ function VoiceRecorder({
               <Tooltip
                 content={
                   <p>
-                    AI Post-Processing following focused template (P)
-                    <br />
-                    + Alt : page as context
-                    <br />
-                    + Cmd or Ctrl : linked refs
-                    <br />+ Shift : sidebar
+                    AI Post-Processing following template (P)
+                    <br />+<code>Alt</code>: <b>page</b> as context
+                    <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
+                    <b>linked refs</b>
+                    <br />+<code>Shift</code>: <b>sidebar</b>
                   </p>
                 }
-                hoverOpenDelay="300"
+                hoverOpenDelay="500"
               >
                 <FontAwesomeIcon icon={faListUl} />
               </Tooltip>

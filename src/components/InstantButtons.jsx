@@ -25,7 +25,6 @@ const InstantButtons = ({
   const [isToUnmount, setIsToUnmount] = useState(false);
 
   useEffect(() => {
-    console.log("isStreamStopped >>", isStreamStopped);
     isCanceledStreamGlobal = false;
     return () => {
       isCanceledStreamGlobal = true;

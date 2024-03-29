@@ -285,12 +285,12 @@ export const getReferencesCitation = (blockUids) => {
   return "";
 };
 
-export const getResolvedContentFromBlocks = (blocksUids) => {
+export const getResolvedContentFromBlocks = (blocksUids, withUid = true) => {
   let content = "";
   if (blocksUids.length > 0)
     blocksUids.forEach((uid) => {
       let resolvedContent = resolveReferences(getBlockContentByUid(uid));
-      content += `/n((${uid})) ${resolvedContent}`;
+      content += "\n" + (withUid ? `((${uid})) ` : "") + resolvedContent;
     });
   return content;
 };

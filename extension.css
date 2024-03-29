@@ -40,9 +40,9 @@
 .speech-record-button {
   min-width: 24px !important;
 }
-.speech-record-button > span {
+/* .speech-record-button > span {
   margin-left: -2px;
-}
+} */
 .speech-record-button:focus,
 .speech-backward-button:focus {
   outline-width: 0px !important;
@@ -85,6 +85,9 @@
   > .log-button
   > span:last-child {
   margin-right: -3px;
+}
+.speech-to-roam-container-left > .speech-ui-row1:has(.fa-microphone-slash) {
+  margin-left: -2px;
 }
 .speech-to-roam-container-left:has(.digits) {
   padding-top: 2px;

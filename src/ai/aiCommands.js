@@ -340,7 +340,6 @@ export const insertCompletion = async (
   lastCompletion.instantModel = instantModel;
 
   const model = instantModel || defaultModel;
-  console.log("model from insertCompletion :>> ", model);
   const responseFormat =
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
   const assistantRole = instantModel
@@ -387,7 +386,6 @@ export const insertCompletion = async (
   );
   console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
-  console.log("typeOfCompletion :>> ", typeOfCompletion);
   if (typeOfCompletion === "gptPostProcessing") {
     // console.log("parsedResponse :>> ", parsedResponse);
     updateArrayOfBlocks(aiResponse);
