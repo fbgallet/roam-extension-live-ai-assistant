@@ -5,7 +5,7 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { ContextMenu } from "@blueprintjs/core";
+import { ContextMenu, Tooltip } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
 import { insertCompletion } from "../ai/aiCommands.js";
 import ModelsMenu from "./ModelsMenu.jsx";
@@ -65,7 +65,12 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <FontAwesomeIcon icon={faStop} />
+              <Tooltip
+                content="Stop AI assistant response"
+                hoverOpenDelay="500"
+              >
+                <FontAwesomeIcon icon={faStop} size="sm" />
+              </Tooltip>
             </span>
           </span>
         </div>
@@ -79,7 +84,13 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <FontAwesomeIcon icon={faXmark} style={{ color: "red" }} />
+              <Tooltip content="Hide these buttons" hoverOpenDelay="500">
+                <FontAwesomeIcon
+                  icon={faXmark}
+                  style={{ color: "red" }}
+                  size="sm"
+                />
+              </Tooltip>
               {/* size="lg" */}
             </span>
           </span>
@@ -101,7 +112,18 @@ const InstantButtons = ({
             class="bp3-button bp3-minimal"
             tabindex="0"
           >
-            <FontAwesomeIcon icon={faRotateRight} />
+            <Tooltip
+              content={
+                <p>
+                  Generate a response again
+                  <br />
+                  <code>Right Click</code> to choose another AI model
+                </p>
+              }
+              hoverOpenDelay="500"
+            >
+              <FontAwesomeIcon icon={faRotateRight} size="sm" />
+            </Tooltip>
           </span>
         </span>
       </div>
@@ -115,7 +137,9 @@ const InstantButtons = ({
             class="bp3-button bp3-minimal"
             tabindex="0"
           >
-            <FontAwesomeIcon icon={faCopy} />
+            <Tooltip content="Copy to clipboard" hoverOpenDelay="500">
+              <FontAwesomeIcon icon={faCopy} size="sm" />
+            </Tooltip>
           </span>
         </span>
       </div>

@@ -181,17 +181,20 @@
 .rm-block:has(.rm-block__ref-count) .speech-instant-container {
   top: 25px;
 }
-.rm-block:has(.speech-instant-container):hover .speech-instant-container {
+.rm-block:has(.speech-instant-container):hover
+  > div
+  > .speech-instant-container {
   opacity: 0.3;
 }
 .rm-block:has(.speech-instant-container) .speech-instant-container:hover {
   opacity: 1;
 }
 .speech-instant-container > div > span > .bp3-button {
+  /* > div > span > */
   background-color: transparent;
   min-height: 20px;
   min-width: 20px;
-  padding: 5px;
+  padding: 1px;
 }
 /* .speech-instant-container > svg {
   padding: 1px 0;
