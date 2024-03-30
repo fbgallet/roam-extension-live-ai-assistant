@@ -1,11 +1,15 @@
-# Speech-to-Roam
+# Contextual AI Assistant
 
-### Voice transcription, translation (to english), vocal prompts to a GPT model with easy-to-define context and templated post-processing, using OpenAI Whisper API or Web Speech API.
+### Former Speech-to-Roam
 
-### 🆕 New in v.3:
+### Very reliable voice transcription with Whisper API and vocal or text prompts to an AI assistant with easy-to-define context and templated post-processing, using GPT or Claude models.
 
-- easily use **Linked References**, **Sidebar content**, main page or journal (**daily note pages**) as **context** for your (vocal or text) prompts
-- apply **multiple-blocks templates** for AI post-processing
+### 🆕 New in v.4:
+
+- Claude models support
+- Better UI for text-only prompts to AI assistant with easy-to-define context
+- Context menu for easily switching models and compare their answers
+- Streamed responses: no more waiting time before reading the AI assistant response, and possibility to interrupt it (GPT models only)
 
 See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes and below for detailed instructions.
 
@@ -41,7 +45,7 @@ Keyboard-only (no vocal) interactions with the AI assistantAI features and other
 
 A SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of SmartBlock at the end of this doc.
 
-⚠️ _Currently, this extension doesn't work entirly on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes recording and transcription can't be achieved. But all commands relying only on text (like AI completion or post-processing) are available. The extensions works properly on all browsers (desktop and mobile, MacOs, iOS, Windows or Android) and on Windows desktop app._
+⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved. But all commands relying only on text (like AI completion or post-processing) are available. The extensions works properly on all browsers (desktop and mobile, MacOs, iOS, Windows or Android) and on Windows desktop app._
 
 ## To be done right after installation
 
@@ -77,13 +81,15 @@ To give you an idea, using Whisper for 10 minutes a day for a month equates to 1
 
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a GPT model, as it only requires asking it to translate into almost any language.
 
-## Speak directly to an AI Assistant (OpenAI GPT models)
+## AI Assistant (OpenAI GPT models and Anthropic Claude models)
 
-- ask any question, rephrasing, completion, translation! The more precise your instructions are (especially with examples), the more accurate and satisfying the responses will be.
-- assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.)
+- ask any question (by speaking or writing, focusing on a block or selecting one or more blocks as prompt), rephrasing, completion, translation... The more precise your instructions are (especially with examples and context), the more accurate and satisfying the responses will be.
+- assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.). The assistant name is inserted before its response and include by default the AI model name. The template can be changed in the settings.
+- 🆕 in v.4: subtle buttons appear to the right of the first block of the assistant's response. They allow to stop the streamed response (for GPT models only), to generate again the response (possibly with a different AI model by selecting it from the context menu accessed by right-clicking) and to copy the response to clipboard. These are temporary buttons that disappear when changing the page or if the block is collapsed.
+
 - you can easily **provide context** to your prompt, to process the information contained in this context (e.g. to summarize it or have a conversation with your own notes 🚀) or to provide resources to the AI for the required text generation:
 
-  - 🆕 New in v.3: main UI elements of Roam can now easily be designated as the context using key modifiers when clicking on the AI assistant buttons:
+  - Since v.3: main UI elements of Roam can easily be designated as the context using key modifiers when clicking on the AI assistant buttons:
     - `Command/Control`: use linked references (backlinks) of the current page or, if the page is a DNP or the daily notes log (journal), the previous DNP. Important limitation for linked refs: currently, the applied filters (including or excluding some reference) are not taken into account.
     - `Alt`: use the whole main page (more precisely: its current zoomed view) as context
     - `Shift`: use all the content in the right sidebar (pages, blocks, linked references)
@@ -105,14 +111,20 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - on mobile (selection being not possible), place the cursor in a block to use its content as context, or enable the option to use the whole current view as context (unless you place the cursor in a blank block). You can also insert in a block a command to define the context, see below the section "Keyboard & text only AI completion and post-processing".
 - you can customize the AI assistants's "character", its default character is defined this way (you can add your own definition of its character, see settings):
 
-  > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself.`;"_
+  > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself."_
 
-- model by default is currently `gpt-3.5-turbo` (pointing to the latest model version)
+- model by default is currently `gpt-3.5-turbo` (pointing to the latest model version). You can change the default model or, 🆕 in v.4, choose any other model (among GPT 4 and Claude models) for each request by right-clicking on the completion button (just like for Post-processing button and Generate again button)
 - you can try other chat completion model, or your own fine-tuned models (only OpenAI chat completion).
+
+## 🆕 in v.4: Using Claude models: Haiku, Sonnet & Opus
+
+In the settings, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)). See princing [here](https://www.anthropic.com/api).
+
+⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
 ## AI Post-processing of vocal notes following your templates
 
-- 🆕 New in v.3: you can now ask your AI assistant to follow a template composed of a set of blocks and children, each containing instructions, placeholders, or questions. The AI assistant's response will be inserted into these different blocks ! This feature is experimental, it often requires several attempts and more specific instructions for the result to be entirely satisfactory.
+- You can ask your AI assistant to follow a template composed of a set of blocks and children, each containing instructions, placeholders, or questions. The AI assistant's response will be inserted into these different blocks ! This feature is experimental, it often requires several attempts and more specific instructions for the result to be entirely satisfactory.
 - Here's how to proceed:
   1. create a prompt template anywhere in your graph. (consider using the native `/Template` command, but it's not required)
   2. insert a copy of the template (eventualy with `;;` command) as a child of a given block.

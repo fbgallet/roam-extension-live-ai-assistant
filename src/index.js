@@ -208,7 +208,7 @@ function simulateClickOnRecordingButton() {
 export default {
   onload: async ({ extensionAPI }) => {
     const panelConfig = {
-      tabTitle: "Speech-to-Roam",
+      tabTitle: "Contextual AI Assistant",
       settings: [
         {
           id: "visibility",
@@ -678,13 +678,13 @@ export default {
     await extensionAPI.settings.panel.create(panelConfig);
 
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Start/Pause recording your vocal note",
+      label: "Contextual AI Assistant: Start/Pause recording your vocal note",
       callback: () => {
         simulateClickOnRecordingButton();
       },
     });
     extensionAPI.ui.commandPalette.addCommand({
-      label: `Speech-to-Roam: Transcribe your vocal note${
+      label: `Contextual AI Assistant: Transcribe your vocal note${
         isUsingWhisper ? " with Whisper" : ""
       }`,
       callback: () => {
@@ -702,7 +702,7 @@ export default {
       },
     });
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Translate to English",
+      label: "Contextual AI Assistant: Translate to English",
       callback: () => {
         const button = document.getElementsByClassName("speech-translate")[0];
         if (button) {
@@ -718,7 +718,8 @@ export default {
       },
     });
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Transcribe & send as prompt to AI assistant",
+      label:
+        "Contextual AI Assistant: Transcribe & send as prompt to AI assistant",
       callback: () => {
         const button = document.getElementsByClassName("speech-completion")[0];
         if (button) {
@@ -736,7 +737,7 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: Transcribe & send as content for templated-based AI post-processing",
+        "Contextual AI Assistant: Transcribe & send as content for templated-based AI post-processing",
       callback: () => {
         const button = document.getElementsByClassName(
           "speech-post-processing"
@@ -755,7 +756,7 @@ export default {
     });
 
     // extensionAPI.ui.commandPalette.addCommand({
-    //   label: "Speech-to-Roam: insert inline Speech-to-Roam component",
+    //   label: "Contextual AI Assistant: insert inline Speech-to-Roam component",
     //   callback: () => {
     //     // console.log(document.activeElement);
     //     mountComponent({ isInline: true });
@@ -768,7 +769,7 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: Toggle visibility of the button (not permanently)",
+        "Contextual AI Assistant: Toggle visibility of the button (not permanently)",
       callback: () => {
         isComponentVisible = !isComponentVisible;
         unmountComponent();
@@ -779,7 +780,7 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: (text) AI completion of focused block as prompt & selection as context",
+        "Contextual AI Assistant: (text) AI completion of focused block as prompt & selection as context",
       callback: async () => {
         const { currentUid, currentBlockContent, selectionUids } =
           getFocusAndSelection();
@@ -811,7 +812,7 @@ export default {
 
     extensionAPI.ui.commandPalette.addCommand({
       label:
-        "Speech-to-Roam: (text) template-based AI post-processing, children as prompt template & focused block as content",
+        "Contextual AI Assistant: (text) template-based AI post-processing, children as prompt template & focused block as content",
       callback: async () => {
         let { currentUid, currentBlockContent, selectionUids } =
           getFocusAndSelection();
@@ -886,7 +887,8 @@ export default {
     });
 
     extensionAPI.ui.commandPalette.addCommand({
-      label: "Speech-to-Roam: Redo last AI completion (update response)",
+      label:
+        "Contextual AI Assistant: Redo last AI completion (update response)",
       callback: () => {
         if (lastCompletion.prompt) {
           const focusUid =

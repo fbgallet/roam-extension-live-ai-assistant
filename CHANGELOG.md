@@ -1,3 +1,24 @@
+## v.4 (March 30th, 2024)
+
+**New features:**
+
+- Claude models support
+- Context menu to choose model
+- Streamed response (only for GPT models)
+- Subtle buttons for generating again AI response & copy to clipboard
+
+**Updated**
+
+- Easier support for text-only prompts (using the same buttons as for voice prompts)
+- Roles template (for user and AI) support a placeholder for AI model
+- Selected block(s) can be used as prompt (previously, focus in a block was needed)
+- Better tooltips
+- Name change: from "Speech-to-Roam" to "Contextual AI Assistant"
+
+**Fixed**
+
+- Codeblocks were broken in case of line breaks, now they are properly parsed
+
 ## v.3 (February 26th, 2024)
 
 **Major new features:**
