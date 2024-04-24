@@ -9,46 +9,43 @@
 - Context menu for easily switching models and compare their answers
 - Streamed responses: no more waiting time before reading the AI assistant response, and possibility to interrupt it (GPT models only)
 
-See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes and below for detailed instructions.
+See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes.
 
-# GETTING STARTED
+<img width="1130" alt="Speech-to-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/e4e54f87-0af6-4406-b566-dff9959d00af">
 
-## Provide API Keys
+## **GETTING STARTED**
 
-### For voice transcription and GPT models
+### Provoide API Keys
 
-In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods).
+To use voice transcription and GPT models, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods).
 
 ⚠️ _OpenAI API is a paid service_. See API usage fees section at the bottom of this documentation.
 
 NB: API usage fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
 
-### For Claude models: Haiku, Sonnet & Opus
-
-Provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
+To use Claude models, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
 
 ⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
-## Basic controls
+## Your first prompt to Live AI Assistant
 
-By default, the controls will be inserted in the left sidebar, below the "Daily Notes" button. It's possible to display them in the topbar (always visible, more convenient on mobile) or to display them only on demand.
-
-<img width="1130" alt="Speech-to-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/e4e54f87-0af6-4406-b566-dff9959d00af">
-
-To use any block content as prompt for the AI Assistant, simply focus the block and click on AI completion button.
+Just press the microphone button and provide vocal instructions, or place the cursor focus in a block where you have written your prompt, then click on the AI completion button (OpenAI Logo). That's all !
 
 You can easily compare AI models responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
-**Keyboard hotkeys** (⚠️ available only when the voice recording has been started by a mouse click):
+<img width="1050" alt="compare AI models" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/296a0a66-77d4-4ebd-98c8-e707503125f7">
+
+
+### **Keyboard hotkeys** (⚠️ available only when the voice recording has been started by a mouse click):
 
 - Pause/Resume: `Spacebar`
 - Stop and rewind: `Escape` or `Backspace`
 - Transcribe: `T or Enter`
 - Translate (in English): `E`
-- Vocal prompt to AI assistant: `C`
+- AI Completion of vocal or text prompt: `C`
 - Template-based Post-processing: `P`
 
-**Commands** (in command palette - I recommand to set up hotkeys for them)
+### **Commands** (in command palette - I recommand to set up hotkeys for them)
 
 Trigger controls concerning vocal notes:
 
@@ -67,7 +64,7 @@ Keyboard-only (no vocal) interactions with the AI assistantAI features and other
 
 A SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of SmartBlock at the end of this doc.
 
-# Detailed instructions
+## **DETAILED INSTRUCTIONS**
 
 ## Voice transcription
 
@@ -112,7 +109,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - on mobile (selection being not possible), place the cursor in a block to use its content as context, or enable the option to use the whole current view as context (unless you place the cursor in a blank block). You can also insert in a block a command to define the context, see below the section "Keyboard & text only AI completion and post-processing".
 - you can customize the AI assistants's "character", its default character is defined this way (you can add your own definition of its character, see settings):
 
-  > _"You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself."_
+  > _"You are a smart, rigorous and concise assistant. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself."_
 
 - model by default is currently `gpt-3.5-turbo` (pointing to the latest model version). You can change the default model or, 🆕 in v.4, choose any other model (among GPT 4 and Claude models) for each request by right-clicking on the completion button (just like for Post-processing button and Generate again button)
 - you can try other chat completion model, or your own fine-tuned models (only OpenAI chat completion).
