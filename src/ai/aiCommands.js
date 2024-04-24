@@ -251,25 +251,38 @@ export async function gptCompletion(
   responseFormat = "text",
   targetUid
 ) {
+  let respStr = "";
   try {
-    const response = await openaiLibrary.chat.completions.create({
-      model:
-        model === "custom model"
-          ? gptCustomModel
-          : model && !model.includes("Claude")
-          ? model
-          : "gpt-3.5-turbo",
-      response_format: { type: responseFormat },
-      messages: [
-        {
-          role: "system",
-          content: content,
-        },
-        { role: "user", content: prompt },
-      ],
-      stream: streamResponse && responseFormat === "text",
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            "Timeout error on client side: OpenAI response time exceeded (90 seconds)"
+          )
+        );
+      }, 90000);
     });
-    let respStr = "";
+
+    const response = await Promise.race([
+      await openaiLibrary.chat.completions.create({
+        model:
+          model === "custom model"
+            ? gptCustomModel
+            : model && !model.includes("Claude")
+            ? model
+            : "gpt-3.5-turbo",
+        response_format: { type: responseFormat },
+        messages: [
+          {
+            role: "system",
+            content: content,
+          },
+          { role: "user", content: prompt },
+        ],
+        stream: streamResponse && responseFormat === "text",
+      }),
+      timeoutPromise,
+    ]);
     let streamEltCopy = "";
 
     if (streamResponse && responseFormat === "text") {
@@ -296,7 +309,7 @@ export async function gptCompletion(
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
-            respStr = "";
+            // respStr = "";
             break;
           }
           respStr += chunk.choices[0]?.delta?.content || "";
@@ -304,6 +317,7 @@ export async function gptCompletion(
         }
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
+        return "";
       } finally {
         streamEltCopy = streamElt.innerHTML;
         if (isCanceledStreamGlobal)
@@ -321,7 +335,7 @@ export async function gptCompletion(
       message: `OpenAI error msg: ${error.message}`,
       timeout: 15000,
     });
-    return "";
+    return respStr;
   }
 }
 

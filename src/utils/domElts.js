@@ -14,7 +14,7 @@ export const displaySpinner = async (targetUid) => {
     intervalId = setInterval(() => {
       updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
     }, 600);
-  }, 20);
+  }, 100);
   return intervalId;
 
   function updateSpinnerText(container, frames) {
@@ -43,9 +43,9 @@ export const insertParagraphForStream = (targetUid) => {
 
 export const insertInstantButtons = (props) => {
   const targetBlockElt = document.querySelector(`[id*="${props.targetUid}"]`);
-  const previousContainer = targetBlockElt.parentElement.querySelector(
-    ".speech-instant-container"
-  );
+  const previousContainer =
+    targetBlockElt &&
+    targetBlockElt.parentElement.querySelector(".speech-instant-container");
   let container;
   if (previousContainer) {
     ReactDOM.unmountComponentAtNode(previousContainer);

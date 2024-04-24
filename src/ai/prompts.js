@@ -1,5 +1,5 @@
 export const defaultAssistantCharacter = `\
-You are a smart, rigorous and concise assistant. Your name is 'Roam', we can also call you 'AI assistant'. \
+You are a smart, rigorous and concise AI assistant. \
 You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself.`;
 
 export const defaultContextInstructions = `
@@ -32,14 +32,18 @@ Complete the template below, in accordance with the following content, statement
 export const instructionsOnTemplateProcessing = `\
 Instructions for processing the template below: each item to complete has a ((9-characters-code)) to record in the JSON array, \
 in a strictly accurate manner. Follow precisely the instructions provided in each item: \
-each prompt has to be completed, each placeholder has to be replaced by the appropriate content, \
+each prompt has to be completed, each [placeholder] has to be replaced by the appropriate content, \
 each question or request has to be answered in detail without exception. \
-Some elements, such as titles or reading keys, can be kept and reproduced exactly to aid understanding \
-(e.g. the prompt 'Capital: [of France]' will be completed as 'Capital: Paris').
+Some elements, such as titles, eading keys or indication of the type of expected response \
+at the beginning of a line, usually followed by a colon, should be kept and reproduced exactly to aid understanding \
+(e.g. the prompt 'Capital: [of France]\\nLanguage:' will be completed as 'Capital: Paris\\nLanguage: french').
 
 Here is the template:\n`;
 
-export const defaultPostProcessingPrompt = `\
+// export const defaultPostProcessingPrompt = `\
+// `;
+
+export const socraticPostProcessingPrompt = `\
 Comment on the user's statement in a manner similar to Socrates in Plato's dialogues, \
 with humor and feigned naivety that actually aims to provoke very deep reflection.
 Three paragraphs: first, show your agreement with what is being said, then raise an objection and \

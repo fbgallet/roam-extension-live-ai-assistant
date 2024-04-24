@@ -491,12 +491,14 @@ export default {
                   extensionAPI.settings.set("defaultTemplate", "");
                 } else defaultTemplate = templateUid;
               } else {
-                AppToaster.show({
-                  message:
-                    "You have to enter a ((block reference)) of an existing block.",
-                  timeout: 5000,
-                });
+                if (input.trim())
+                  AppToaster.show({
+                    message:
+                      "You have to enter a ((block reference)) of an existing block.",
+                    timeout: 5000,
+                  });
                 extensionAPI.settings.set("defaultTemplate", "");
+                defaultTemplate = "";
               }
             },
           },

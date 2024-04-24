@@ -510,8 +510,12 @@ function VoiceRecorder({
           let commandType;
           if (!template) {
             // default post-processing
+            AppToaster.show({
+              message:
+                "You are requesting a post-processing completion following a template, but there is neither provided template nor default template defined in settings.",
+            });
             commandType = "gptCompletion";
-            prompt = defaultPostProcessingPrompt + prompt;
+            prompt = prompt;
             uid = createChildBlock(
               promptUid,
               instantModel.current
