@@ -65,12 +65,17 @@
   z-index: 1;
   display: flex;
 }
-.speech-to-roam-container-top:has(.digits) {
+.rm-topbar:has(.rm-open-left-sidebar-btn):not(:has(#todayTomorrow))
+  > .speech-to-roam.speech-to-roam-container-top {
+  position: absolute;
+  left: 50px;
+}
+/* .speech-to-roam-container-top:has(.digits) {
   flex-direction: column;
 }
 .speech-to-roam-container-top:has(.speech-ui-row2 > .bp3-popover-wrapper) {
   margin-top: 5px;
-}
+} */
 .speech-to-roam-container-top .speech-ui-row2:not(:has(.bp3-popover-wrapper)) {
   display: none;
 }

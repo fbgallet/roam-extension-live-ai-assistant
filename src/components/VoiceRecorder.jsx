@@ -687,7 +687,7 @@ function VoiceRecorder({
         {!isListening &&
           !areCommandsToDisplay /*!safariRecorder.current.activeStream?.active*/ && (
             <>
-              <span>AI Assistant</span>
+              <span>Live AI</span>
             </>
           )}
       </div>

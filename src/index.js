@@ -149,12 +149,16 @@ function createContainer(isInline, activeElement) {
     rootPosition.parentElement.insertBefore(newElt, rootPosition);
     return;
   }
-  rootPosition.insertBefore(
-    newElt,
-    position === "top"
-      ? rootPosition.firstChild
-      : document.querySelector(".rm-left-sidebar__daily-notes").nextSibling
-  );
+  const todayTomorrowExtension = document.querySelector("#todayTomorrow");
+  if (todayTomorrowExtension && position === "top")
+    todayTomorrowExtension.insertAdjacentElement("afterend", newElt);
+  else
+    rootPosition.insertBefore(
+      newElt,
+      position === "top"
+        ? rootPosition.firstChild
+        : document.querySelector(".rm-left-sidebar__daily-notes").nextSibling
+    );
 }
 
 function removeContainer() {

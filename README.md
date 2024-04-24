@@ -11,11 +11,35 @@
 
 See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes and below for detailed instructions.
 
-<img width="1130" alt="Speech-to-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/e4e54f87-0af6-4406-b566-dff9959d00af">
+# GETTING STARTED
+
+## Provide API Keys
+
+### For voice transcription and GPT models
+
+In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods).
+
+⚠️ _OpenAI API is a paid service_. See API usage fees section at the bottom of this documentation.
+
+NB: API usage fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
+
+### For Claude models: Haiku, Sonnet & Opus
+
+Provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
+
+⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
+
+## Basic controls
 
 By default, the controls will be inserted in the left sidebar, below the "Daily Notes" button. It's possible to display them in the topbar (always visible, more convenient on mobile) or to display them only on demand.
 
-**Keyboard hotkeys** (⚠️ available only when the recording has been started by a mouse click):
+<img width="1130" alt="Speech-to-Roam Visual" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/e4e54f87-0af6-4406-b566-dff9959d00af">
+
+To use any block content as prompt for the AI Assistant, simply focus the block and click on AI completion button.
+
+You can easily compare AI models responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
+
+**Keyboard hotkeys** (⚠️ available only when the voice recording has been started by a mouse click):
 
 - Pause/Resume: `Spacebar`
 - Stop and rewind: `Escape` or `Backspace`
@@ -43,32 +67,11 @@ Keyboard-only (no vocal) interactions with the AI assistantAI features and other
 
 A SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of SmartBlock at the end of this doc.
 
-⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved. But all commands relying only on text (like AI completion or post-processing) are available. The extensions works properly on all browsers (desktop and mobile, MacOs, iOS, Windows or Android) and on Windows desktop app._
-
-## To be done right after installation
-
-In the settings, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods) (you can choose to buy credits or pay as you go; OpenAI offers currently $5.00 credits to new users).
-
-NB: API usage fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Speech-to-roam.
-
-Moderate but regular use should only cost a few tens of cents per month (costs may increase if you use GPT-4 (default is GPT-3.5), think to set a maximum monthly limit). You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
-
-⚠️ _OpenAI Whisper API is a paid but quite cheap service_
-
-- `$0.006/minute` (rounded to the nearest second)
-
-To give you an idea, using Whisper for 10 minutes a day for a month equates to 1.80 $
-
-⚠️ _OpenAI GPT API is a paid but cheap service with default model_
-
-- gpt-3.5-turbo (16k context)
-  - Input: $0.0005 / 1K tokens
-  - Output: $0.0010 / 1K tokens
-- gpt-4-turbo-preview (128k context)
-  - input: $0.01 / 1K tokens
-  - output: $0.03 / 1K tokens
+# Detailed instructions
 
 ## Voice transcription
+
+⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved. But all commands relying only on text (like AI completion or post-processing) are available. The extensions works properly on all browsers (desktop and mobile, MacOs, iOS, Windows or Android) and on Windows desktop app._
 
 - the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere just before clicking the button or running the transcription command).
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
@@ -114,12 +117,6 @@ A large number of [source languages are supported](https://platform.openai.com/d
 - model by default is currently `gpt-3.5-turbo` (pointing to the latest model version). You can change the default model or, 🆕 in v.4, choose any other model (among GPT 4 and Claude models) for each request by right-clicking on the completion button (just like for Post-processing button and Generate again button)
 - you can try other chat completion model, or your own fine-tuned models (only OpenAI chat completion).
 
-## 🆕 in v.4: Using Claude models: Haiku, Sonnet & Opus
-
-In the settings, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)). See princing [here](https://www.anthropic.com/api).
-
-⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
-
 ## AI Post-processing of vocal notes following your templates
 
 - You can ask your AI assistant to follow a template composed of a set of blocks and children, each containing instructions, placeholders, or questions. The AI assistant's response will be inserted into these different blocks ! This feature is experimental, it often requires several attempts and more specific instructions for the result to be entirely satisfactory.
@@ -153,6 +150,43 @@ You can insert `<%SPEECHTOROAM%>` command in your SmartBlocks template (using th
 ```
 
 The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be used once), or to have a permanent button in a given block, and automatically insert the transcription in the children blocks: `{{🎙️:SmartBlock:Speech-to-Roam:RemoveButton=false}}`
+
+### API usage fees
+
+Moderate but regular use should only cost a few tens of cents per month (costs may increase if you use GPT-4 (default is GPT-3.5), think to set a maximum monthly limit). You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
+
+_OpenAI Whisper API pricing:_
+
+- `$0.006/minute` (rounded to the nearest second)
+
+To give you an idea, using Whisper for 10 minutes a day for a month equates to 1.80 $
+
+_OpenAI GPT API pricing:_
+
+The prices are for 1000 tokens. For comparison, this documentation is equivalent to about 3500 tokens (2000 words).
+
+- gpt-3.5-turbo (16k context)
+  - Input: `$0.0005` / 1K tokens
+  - Output: `$0.0010` / 1K tokens
+- gpt-4-turbo-preview (128k context)
+  - input: `$0.01` / 1K tokens
+  - output: `$0.03` / 1K tokens
+
+See updated OpenAI API pricing [here](https://openai.com/pricing).
+
+_Claude API pricing:_
+
+- Haiku:
+  - Input: `$0.00025` / 1K tokens
+  - Output: `$0.00125` / 1K tokens
+- Sonnet
+  - input: `$0.003` / 1K tokens
+  - output: `$0.015` / 1K tokens
+- Opus
+  - input: `$0.015` / 1K tokens
+  - output: `$0.075` / 1K tokens
+
+See updated Anthropic Claude API pricing [here](https://www.anthropic.com/api).
 
 ---
 
