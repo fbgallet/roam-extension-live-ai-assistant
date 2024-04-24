@@ -310,6 +310,18 @@ export default {
               >
                 (Follow this link to generate a new one)
               </a>
+              <br></br>
+              <p>
+                ⚠️ Be aware that your data (API key, prompt, and selected
+                context) are sent to Anthropic API via a dedicated{" "}
+                <a
+                  href="https://github.com/fbgallet/ai-api-back"
+                  target="_blank"
+                >
+                  remote server
+                </a>
+                . Your data are not stored on the server.
+              </p>
             </>
           ),
           action: {
