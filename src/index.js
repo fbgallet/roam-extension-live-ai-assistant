@@ -631,7 +631,10 @@ export default {
       await extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = extensionAPI.settings.get("gptCustomModel");
     if (extensionAPI.settings.get("chatRoles") === null)
-      await extensionAPI.settings.set("chatRoles", "Me: ,AI assistant: ");
+      await extensionAPI.settings.set(
+        "chatRoles",
+        "Me: ,AI assistant (<model>): "
+      );
     const chatRolesStr =
       extensionAPI.settings.get(chatRoles) || "Me: ,AI assistant (<model>): ";
     chatRoles = getRolesFromString(chatRolesStr);
