@@ -16,15 +16,13 @@ See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/b
 
 ## **GETTING STARTED**
 
-### Provoide API Keys
+### Provide API Keys
 
-To use voice transcription and GPT models, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods).
+- To use voice transcription and GPT models, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). You need an account on OpenAI to benefit from Whisper transcriptions, and a payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods). OpenAI API usage is a paid service, see API usage fees section at the bottom of this documentation.
 
-⚠️ _OpenAI API is a paid service_. See API usage fees section at the bottom of this documentation.
+NB: API fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
 
-NB: API usage fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
-
-To use Claude models, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
+- To use Claude models, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
 
 ⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
