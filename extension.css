@@ -65,10 +65,12 @@
   z-index: 1;
   display: flex;
 }
-.rm-topbar:has(.rm-open-left-sidebar-btn):not(:has(#todayTomorrow))
+.rm-topbar:has(.rm-open-left-sidebar-btn):not(:has(#todayTomorrow)):not(
+    :has(#workspaces)
+  )
   > .speech-to-roam.speech-to-roam-container-top {
   position: absolute;
-  left: 50px;
+  left: 40px;
 }
 /* .speech-to-roam-container-top:has(.digits) {
   flex-direction: column;
@@ -113,6 +115,10 @@
   > .log-button:not(:has(.digits))
   > span:last-child {
   margin-left: -1px;
+}
+
+.speech-to-roam .fa-microphone {
+  padding-bottom: 1px;
 }
 
 .speech-to-roam-container-left svg:not(.fa-record-vinyl) path {
@@ -227,6 +233,19 @@
     color: #5c7080;
     background-color: var(--bc-main, #182026) !important;
   }
+
+  .speech-to-roam.speech-to-roam-container-top {
+    position: absolute;
+    left: 15px;
+    top: 45px;
+    border-radius: 0 0 20px 5px;
+    backdrop-filter: blur(1.5px);
+  }
+  .roam-main:has(.speech-to-roam.speech-to-roam-container-top)
+    .roam-article:not(:has(.rm-title-display)) {
+    padding-top: 35px;
+  }
+
   .speech-to-roam-container-top:has(.timer) {
     border-top: 2px solid #5c7080;
     background-color: var(--bc-main, white) !important;
@@ -242,7 +261,7 @@
 
 @media (max-width: 390px) {
   .speech-ui-row1:has(.timer),
-  .speech-ui-row2 {
+  .speech-ui-row1:has(.timer) + .speech-ui-row2 {
     justify-content: center;
     gap: 5px;
     scale: 2.2;
