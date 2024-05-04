@@ -1,4 +1,11 @@
-## v.4 (May 3rd, 2024)
+## v.5 (May 4th, 2024) Small fixes
+
+**Fixed**
+
+- Wrong size of ocons on mobile
+- On mobile, controls in topbar are shifted just below the topbar to remain visible
+
+## v.4 (May 3rd, 2024) Important update
 
 **New features:**
 
