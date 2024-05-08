@@ -45,6 +45,7 @@ export const tokensLimit = {
 
 let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
+export let OPENROUTER_API_KEY = "";
 export let isUsingWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
@@ -67,7 +68,7 @@ export let streamResponse = true;
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;
-export let openaiLibrary, anthropicLibrary;
+export let openaiLibrary, anthropicLibrary, openrouterLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
@@ -331,6 +332,30 @@ export default {
               setTimeout(() => {
                 ANTHROPIC_API_KEY = evt.target.value;
                 anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+                // if (extensionAPI.settings.get("whisper") === true)
+                //   isUsingWhisper = true;
+              }, 200);
+              setTimeout(() => {
+                mountComponent();
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "openrouterapi",
+          name: "OpenRouter API Key",
+          description: (
+            <>
+              <span>Copy here your Anthropic API key for Claude models</span>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              unmountComponent();
+              setTimeout(() => {
+                OPENROUTER_API_KEY = evt.target.value;
+                openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
                 // if (extensionAPI.settings.get("whisper") === true)
                 //   isUsingWhisper = true;
               }, 200);
@@ -615,6 +640,9 @@ export default {
     if (extensionAPI.settings.get("openaiapi") === null)
       await extensionAPI.settings.set("openaiapi", "");
     OPENAI_API_KEY = extensionAPI.settings.get("openaiapi");
+    if (extensionAPI.settings.get("openrouterapi") === null)
+      await extensionAPI.settings.set("openrouterapi", "");
+    OPENROUTER_API_KEY = extensionAPI.settings.get("openrouterapi");
     if (!OPENAI_API_KEY) isUsingWhisper = false;
     if (extensionAPI.settings.get("anthropicapi") === null)
       await extensionAPI.settings.set("anthropicapi", "");
@@ -692,6 +720,8 @@ export default {
     );
 
     if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
+    if (OPENROUTER_API_KEY)
+      openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
     // if (ANTHROPIC_API_KEY) anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
 
     createContainer();

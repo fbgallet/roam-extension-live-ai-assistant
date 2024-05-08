@@ -19,6 +19,7 @@ import {
   userContextInstructions,
   whisperPrompt,
   streamResponse,
+  openrouterLibrary,
 } from "..";
 import {
   addContentToBlock,
@@ -63,13 +64,15 @@ export function initializeOpenAIAPI(OPENAI_API_KEY) {
   try {
     const openai = new OpenAI({
       apiKey: OPENAI_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
       dangerouslyAllowBrowser: true,
     });
+    console.log(openai);
     return openai;
   } catch (error) {
     console.log(error.message);
     AppToaster.show({
-      message: `Speech-to-Roam - Error during the initialization of OpenAI API: ${error.message}`,
+      message: `Live AI Assistant - Error during the initialization of OpenAI API: ${error.message}`,
     });
   }
 }
@@ -84,7 +87,7 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
   } catch (error) {
     console.log(error.message);
     AppToaster.show({
-      message: `Speech-to-Roam - Error during the initialization of Anthropic API: ${error.message}`,
+      message: `Live AI Assistant - Error during the initialization of Anthropic API: ${error.message}`,
     });
   }
 }
@@ -167,7 +170,7 @@ async function aiCompletion(
     ANTHROPIC_API_KEY
   )
     aiResponse = await claudeCompletion(model, prompt, content, responseFormat);
-  else if (openaiLibrary?.apiKey)
+  else if (openaiLibrary?.apiKey || openrouterLibrary?.apiKey)
     aiResponse = await gptCompletion(
       model,
       prompt,
@@ -264,13 +267,15 @@ export async function gptCompletion(
     });
 
     const response = await Promise.race([
-      await openaiLibrary.chat.completions.create({
-        model:
-          model === "custom model"
-            ? gptCustomModel
-            : model && !model.includes("Claude")
-            ? model
-            : "gpt-3.5-turbo",
+      // await openaiLibrary.chat.completions.create({
+      await openrouterLibrary.chat.completions.create({
+        model: "meta-llama/llama-3-8b-instruct:nitro",
+        // model: "openai/gpt-3.5-turbo-0125",
+        // model === "custom model"
+        //   ? gptCustomModel
+        //   : model && !model.includes("Claude")
+        //   ? model
+        //   : "gpt-3.5-turbo",
         response_format: { type: responseFormat },
         messages: [
           {
@@ -478,7 +483,7 @@ export function getValidLanguageCode(input) {
   } else {
     AppToaster.show({
       message:
-        "Speech-to-Roam: Incorrect language code for transcription, see instructions in settings panel.",
+        "Live AI Assistant: Incorrect language code for transcription, see instructions in settings panel.",
     });
     return "";
   }
