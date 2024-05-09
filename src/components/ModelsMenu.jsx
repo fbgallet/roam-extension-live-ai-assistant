@@ -1,8 +1,8 @@
 import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
-import { defaultModel } from "..";
+import { defaultModel, ollamaModels } from "..";
 
 const ModelsMenu = ({ command }) => {
-  const handleClickOnModel = (e) => {
+  const handleClickOnModel = (e, prefix) => {
     let model = e.target.innerText.split("\n")[0];
     switch (model) {
       case "GPT 3.5":
@@ -14,12 +14,12 @@ const ModelsMenu = ({ command }) => {
     }
     // if (typeof instantModel !== undefined) instantModel.current = model;
     // console.log("instantModel :>> ", instantModel);
-    command(e, model);
+    command(e, prefix ? prefix + model : model);
   };
 
-  const handleKeyDownOnModel = (e) => {
+  const handleKeyDownOnModel = (e, prefix) => {
     if (e.code === "Enter" || e.code === "Space") {
-      handleClickOnModel(e);
+      handleClickOnModel(e, prefix);
       ContextMenu.hide();
     }
   };
@@ -89,6 +89,25 @@ const ModelsMenu = ({ command }) => {
         text="Claude Opus"
         labelElement="200k"
       />
+      {ollamaModels ? (
+        <>
+          <MenuDivider title="Ollama local models" />
+          {ollamaModels.map((model) => (
+            <MenuItem
+              icon={defaultModel === model && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e, "ollama/");
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e, "ollama/");
+              }}
+              tabindex="0"
+              text={model}
+              // labelElement="200k"
+            />
+          ))}
+        </>
+      ) : null}
     </Menu>
   );
 };

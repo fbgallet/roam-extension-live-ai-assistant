@@ -60,10 +60,10 @@ export const lastCompletion = {
   typeOfCompletion: null,
 };
 
-export function initializeOpenAIAPI(OPENAI_API_KEY) {
+export function initializeOpenAIAPI(API_KEY) {
   try {
     const openai = new OpenAI({
-      apiKey: OPENAI_API_KEY,
+      apiKey: API_KEY,
       baseURL: "https://openrouter.ai/api/v1",
       dangerouslyAllowBrowser: true,
     });
@@ -164,7 +164,14 @@ async function aiCompletion(
   let model = instantModel || defaultModel;
   if (responseFormat === "json_object")
     prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  if (
+  if (model.slice(0, 7) === "ollama/") {
+    aiResponse = await ollamaCompletion(
+      model.replace("ollama/", ""),
+      prompt,
+      content,
+      responseFormat
+    );
+  } else if (
     // responseFormat !== "json_object" &&
     model.slice(0, 6) === "Claude" &&
     ANTHROPIC_API_KEY
@@ -265,7 +272,6 @@ export async function gptCompletion(
         );
       }, 90000);
     });
-
     const response = await Promise.race([
       // await openaiLibrary.chat.completions.create({
       await openrouterLibrary.chat.completions.create({
@@ -284,11 +290,13 @@ export async function gptCompletion(
           },
           { role: "user", content: prompt },
         ],
-        stream: streamResponse && responseFormat === "text",
+        // stream: streamResponse && responseFormat === "text",
       }),
       timeoutPromise,
     ]);
     let streamEltCopy = "";
+
+    const stream = false;
 
     if (streamResponse && responseFormat === "text") {
       insertInstantButtons({
@@ -300,6 +308,7 @@ export async function gptCompletion(
         isStreamStopped: false,
       });
       const streamElt = insertParagraphForStream(targetUid);
+
       try {
         // const checkEscapeKeyPress = () => {
         //   document.addEventListener(
@@ -341,6 +350,44 @@ export async function gptCompletion(
       timeout: 15000,
     });
     return respStr;
+  }
+}
+
+export async function ollamaCompletion(
+  model,
+  prompt,
+  content,
+  responseFormat = "text",
+  targetUid
+) {
+  let respStr = "";
+  try {
+    // need to allow * CORS origin
+    // command MacOS terminal: launchctl setenv OLLAMA_ORIGINS "*"
+    // then, close terminal and relaunch ollama serve
+    const response = await axios.post(
+      "http://localhost:11434/api/chat",
+      {
+        model: model,
+        messages: [{ role: "user", content: prompt }],
+        stream: false,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("Ollama chat completion response :>>", response);
+    return response.data.message.content;
+  } catch (error) {
+    console.error(error);
+    AppToaster.show({
+      message: `Ollama error msg: ${error.message}`,
+      timeout: 15000,
+    });
+    return "";
   }
 }
 

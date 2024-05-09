@@ -53,6 +53,7 @@ export let whisperPrompt;
 export let isTranslateIconDisplayed;
 export let defaultModel;
 export let gptCustomModel;
+export let ollamaModels;
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
 export let contextInstruction = defaultContextInstructions;
@@ -460,7 +461,20 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              gptCustomModel = evt;
+              gptCustomModel = evt.target.value;
+            },
+          },
+        },
+        {
+          id: "ollamaModels",
+          name: "Ollama local models",
+          description:
+            "Models on local server, separated by a comma. E.g: llama2,llama3",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              const list = evt.target.value.replace(" ", "").toLowerCase();
+              ollamaModels = list ? evt.split(",") : null;
             },
           },
         },
@@ -670,6 +684,13 @@ export default {
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = extensionAPI.settings.get("gptCustomModel");
+    if (extensionAPI.settings.get("ollamaModels") === null)
+      await extensionAPI.settings.set("ollamaModels", "");
+    const ollamaModelsStr = extensionAPI.settings
+      .get("ollamaModels")
+      .replace(" ", "")
+      .toLowerCase();
+    ollamaModels = ollamaModelsStr ? ollamaModelsStr.split(",") : null;
     if (extensionAPI.settings.get("chatRoles") === null)
       await extensionAPI.settings.set(
         "chatRoles",
@@ -719,7 +740,7 @@ export default {
       extensionAPI.settings.get("exclusionStrings")
     );
 
-    if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
+    // if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
     if (OPENROUTER_API_KEY)
       openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
     // if (ANTHROPIC_API_KEY) anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
