@@ -290,13 +290,15 @@ export async function gptCompletion(
           },
           { role: "user", content: prompt },
         ],
-        // stream: streamResponse && responseFormat === "text",
+        stream: streamResponse && responseFormat === "text",
       }),
       timeoutPromise,
     ]);
     let streamEltCopy = "";
 
     const stream = false;
+
+    console.log(response);
 
     if (streamResponse && responseFormat === "text") {
       insertInstantButtons({
@@ -310,16 +312,25 @@ export async function gptCompletion(
       const streamElt = insertParagraphForStream(targetUid);
 
       try {
-        // const checkEscapeKeyPress = () => {
-        //   document.addEventListener(
-        //     "keydown",
-        //     (e) => {
-        //       if (e.key === "Escape") escapePressed = true;
-        //     },
-        //     { once: true }
-        //   );
-        // };
-        // checkEscapeKeyPress();
+        // const reader = response.data.getReader();
+        // if (!reader) {
+        //   throw new Error("Failed to read response body");
+        // }
+
+        // while (true) {
+        //   const { done, value } = await reader.read();
+        //   if (done) {
+        //     break;
+        //   }
+        //   const rawjson = new TextDecoder().decode(value);
+        //   const json = JSON.parse(rawjson);
+
+        //   if (json.done === false) {
+        //     respStr += json.message.content;
+        //     streamElt.innerHTML += json.message.content;
+        //   }
+        // }
+
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
@@ -369,7 +380,14 @@ export async function ollamaCompletion(
       "http://localhost:11434/api/chat",
       {
         model: model,
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          {
+            role: "system",
+            content: content,
+          },
+          { role: "user", content: prompt },
+        ],
+        format: responseFormat.includes("json") ? "json" : null,
         stream: false,
       },
       {
@@ -380,7 +398,13 @@ export async function ollamaCompletion(
     );
 
     console.log("Ollama chat completion response :>>", response);
-    return response.data.message.content;
+    let text = response.data.message.content;
+    let jsonOnly;
+    if (responseFormat !== "text") {
+      jsonOnly = trimOutsideOuterBraces(text);
+      jsonOnly = sanitizeJSONstring(jsonOnly);
+    }
+    return jsonOnly || text;
   } catch (error) {
     console.error(error);
     AppToaster.show({
