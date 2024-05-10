@@ -19,6 +19,9 @@ import {
   userContextInstructions,
   whisperPrompt,
   streamResponse,
+  openrouterLibrary,
+  openRouterModels,
+  ollamaModels,
 } from "..";
 import {
   addContentToBlock,
@@ -59,17 +62,19 @@ export const lastCompletion = {
   typeOfCompletion: null,
 };
 
-export function initializeOpenAIAPI(OPENAI_API_KEY) {
+export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
-    const openai = new OpenAI({
-      apiKey: OPENAI_API_KEY,
+    const clientSetting = {
+      apiKey: API_KEY,
       dangerouslyAllowBrowser: true,
-    });
+    };
+    if (baseURL) clientSetting.baseURL = baseURL;
+    const openai = new OpenAI(clientSetting);
     return openai;
   } catch (error) {
     console.log(error.message);
     AppToaster.show({
-      message: `Speech-to-Roam - Error during the initialization of OpenAI API: ${error.message}`,
+      message: `Live AI Assistant - Error during the initialization of OpenAI API: ${error.message}`,
     });
   }
 }
@@ -84,7 +89,7 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
   } catch (error) {
     console.log(error.message);
     AppToaster.show({
-      message: `Speech-to-Roam - Error during the initialization of Anthropic API: ${error.message}`,
+      message: `Live AI Assistant - Error during the initialization of Anthropic API: ${error.message}`,
     });
   }
 }
@@ -159,30 +164,54 @@ async function aiCompletion(
 ) {
   let aiResponse;
   let model = instantModel || defaultModel;
+  let prefix = model.split("/")[0];
   if (responseFormat === "json_object")
     prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  if (
-    // responseFormat !== "json_object" &&
-    model.slice(0, 6) === "Claude" &&
-    ANTHROPIC_API_KEY
-  )
-    aiResponse = await claudeCompletion(model, prompt, content, responseFormat);
-  else if (openaiLibrary?.apiKey)
-    aiResponse = await gptCompletion(
-      model,
+  if (prefix === "openRouter" && openrouterLibrary?.apiKey) {
+    aiResponse = await openaiCompletion(
+      openrouterLibrary,
+      model.replace("openRouter/", ""),
       prompt,
       content,
       responseFormat,
       targetUid
     );
-  else {
-    AppToaster.show({
-      message: `Provide an API key to use ${model} model. See doc and settings.`,
-      timeout: 15000,
-    });
-    AppToaster;
-    return "";
+  } else if (prefix === "ollama") {
+    aiResponse = await ollamaCompletion(
+      model.replace("ollama/", ""),
+      prompt,
+      content,
+      responseFormat,
+      targetUid
+    );
+  } else {
+    if (model.slice(0, 6) === "Claude" && ANTHROPIC_API_KEY)
+      aiResponse = await claudeCompletion(
+        model,
+        prompt,
+        content,
+        responseFormat,
+        targetUid
+      );
+    else if (openaiLibrary?.apiKey)
+      aiResponse = await openaiCompletion(
+        openaiLibrary,
+        model,
+        prompt,
+        content,
+        responseFormat,
+        targetUid
+      );
+    else {
+      AppToaster.show({
+        message: `Provide an API key to use ${model} model. See doc and settings.`,
+        timeout: 15000,
+      });
+      AppToaster;
+      return "";
+    }
   }
+
   if (responseFormat === "json_object") {
     const parsedResponse = JSON.parse(aiResponse);
     aiResponse = parsedResponse.response;
@@ -244,7 +273,8 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
   }
 }
 
-export async function gptCompletion(
+export async function openaiCompletion(
+  aiClient,
   model,
   prompt,
   content,
@@ -262,15 +292,9 @@ export async function gptCompletion(
         );
       }, 90000);
     });
-
     const response = await Promise.race([
-      await openaiLibrary.chat.completions.create({
-        model:
-          model === "custom model"
-            ? gptCustomModel
-            : model && !model.includes("Claude")
-            ? model
-            : "gpt-3.5-turbo",
+      await aiClient.chat.completions.create({
+        model: model,
         response_format: { type: responseFormat },
         messages: [
           {
@@ -285,6 +309,10 @@ export async function gptCompletion(
     ]);
     let streamEltCopy = "";
 
+    const stream = false;
+
+    console.log(response);
+
     if (streamResponse && responseFormat === "text") {
       insertInstantButtons({
         model,
@@ -295,17 +323,27 @@ export async function gptCompletion(
         isStreamStopped: false,
       });
       const streamElt = insertParagraphForStream(targetUid);
+
       try {
-        // const checkEscapeKeyPress = () => {
-        //   document.addEventListener(
-        //     "keydown",
-        //     (e) => {
-        //       if (e.key === "Escape") escapePressed = true;
-        //     },
-        //     { once: true }
-        //   );
-        // };
-        // checkEscapeKeyPress();
+        // const reader = response.data.getReader();
+        // if (!reader) {
+        //   throw new Error("Failed to read response body");
+        // }
+
+        // while (true) {
+        //   const { done, value } = await reader.read();
+        //   if (done) {
+        //     break;
+        //   }
+        //   const rawjson = new TextDecoder().decode(value);
+        //   const json = JSON.parse(rawjson);
+
+        //   if (json.done === false) {
+        //     respStr += json.message.content;
+        //     streamElt.innerHTML += json.message.content;
+        //   }
+        // }
+
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
@@ -339,6 +377,57 @@ export async function gptCompletion(
   }
 }
 
+export async function ollamaCompletion(
+  model,
+  prompt,
+  content,
+  responseFormat = "text",
+  targetUid
+) {
+  let respStr = "";
+  try {
+    // need to allow * CORS origin
+    // command MacOS terminal: launchctl setenv OLLAMA_ORIGINS "*"
+    // then, close terminal and relaunch ollama serve
+    const response = await axios.post(
+      "http://localhost:11434/api/chat",
+      {
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content: content,
+          },
+          { role: "user", content: prompt },
+        ],
+        format: responseFormat.includes("json") ? "json" : null,
+        stream: false,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("Ollama chat completion response :>>", response);
+    let text = response.data.message.content;
+    let jsonOnly;
+    if (responseFormat !== "text") {
+      jsonOnly = trimOutsideOuterBraces(text);
+      jsonOnly = sanitizeJSONstring(jsonOnly);
+    }
+    return jsonOnly || text;
+  } catch (error) {
+    console.error(error);
+    AppToaster.show({
+      message: `Ollama error msg: ${error.message}`,
+      timeout: 15000,
+    });
+    return "";
+  }
+}
+
 export const insertCompletion = async (
   prompt,
   targetUid,
@@ -353,7 +442,14 @@ export const insertCompletion = async (
   lastCompletion.typeOfCompletion = typeOfCompletion;
   lastCompletion.instantModel = instantModel;
 
-  const model = instantModel || defaultModel;
+  let model = instantModel || defaultModel;
+  if (model === "first OpenRouter model") {
+    model = openRouterModels.length
+      ? "openRouter/" + openRouterModels[0]
+      : "gpt-3.5-turbo";
+  } else if (model === "first Ollama local model") {
+    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-3.5-turbo";
+  }
   const responseFormat =
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
   const assistantRole = instantModel
@@ -478,7 +574,7 @@ export function getValidLanguageCode(input) {
   } else {
     AppToaster.show({
       message:
-        "Speech-to-Roam: Incorrect language code for transcription, see instructions in settings panel.",
+        "Live AI Assistant: Incorrect language code for transcription, see instructions in settings panel.",
     });
     return "";
   }

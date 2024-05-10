@@ -33,6 +33,7 @@ import {
   specificContentPromptBeforeTemplate,
 } from "./ai/prompts";
 import { AppToaster } from "./components/VoiceRecorder";
+import axios from "axios";
 
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
@@ -45,6 +46,7 @@ export const tokensLimit = {
 
 let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
+export let OPENROUTER_API_KEY = "";
 export let isUsingWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
@@ -52,6 +54,8 @@ export let whisperPrompt;
 export let isTranslateIconDisplayed;
 export let defaultModel;
 export let gptCustomModel;
+export let openRouterOnly;
+export let ollamaModels = [];
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
 export let contextInstruction = defaultContextInstructions;
@@ -64,10 +68,12 @@ export let maxUidDepth = {};
 export let exclusionStrings = [];
 export let defaultTemplate;
 export let streamResponse = true;
+export let openRouterModelsInfo = [];
+export let openRouterModels = [];
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;
-export let openaiLibrary, anthropicLibrary;
+export let openaiLibrary, anthropicLibrary, openrouterLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
@@ -170,12 +176,20 @@ function removeContainer() {
 
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
+  if (!model && defaultModel === "first OpenRouter model")
+    model = openRouterModels.length ? openRouterModels[0] : "gpt-3.5-turbo";
+  if (!model && defaultModel === "first Ollama local model")
+    model = ollamaModels.length ? ollamaModels[0] : "gpt-3.5-turbo";
+  let assistantModel = model || defaultModel;
+  assistantModel = assistantModel
+    .replace("openRouter/", "")
+    .replace("ollama/", "");
   return {
     defaultStr: str,
     user: splittedStr[0],
     assistant:
       splittedStr.length > 1
-        ? splittedStr[1].trimStart().replace("<model>", model || defaultModel)
+        ? splittedStr[1].trimStart().replace("<model>", assistantModel)
         : "AI assistant: ",
   };
 }
@@ -207,6 +221,27 @@ function simulateClickOnRecordingButton() {
     button.focus();
     button.click();
   }
+}
+
+async function getModelsInfo() {
+  try {
+    const { data } = await axios.get("https://openrouter.ai/api/v1/models");
+    console.log("Models info from OpenRouter API:", data);
+    openRouterModelsInfo = data.data
+      .filter((model) => openRouterModels.includes(model.id))
+      .map((model) => {
+        return {
+          id: model.id,
+          name: model.name,
+          contextLength: Math.round(model.context_length / 1024),
+          description: model.description,
+          promptPricing: model.pricing.prompt * 1000000,
+          completionPricing: model.pricing.completion * 1000000,
+          imagePricing: model.pricing.image * 1000000,
+        };
+      });
+    console.log("openRouterModelsInfo :>> ", openRouterModelsInfo);
+  } catch (error) {}
 }
 
 export default {
@@ -254,16 +289,27 @@ export default {
           },
         },
         {
-          id: "whisper",
-          name: "Use Whisper API",
+          id: "defaultModel",
+          name: "Default AI assistant model",
           description:
-            "Use Whisper API (paid service) for transcription. If disabled, free system speech recognition will be used:",
+            "Choose the default model for AI completion with simple click or hotkeys:",
           action: {
-            type: "switch",
+            type: "select",
+            items: [
+              "gpt-3.5-turbo",
+              "gpt-4-turbo-preview",
+              "Claude Haiku",
+              "Claude Sonnet",
+              "Claude Opus",
+              "custom OpenAI model",
+              "first OpenRouter model",
+              "first Ollama local model",
+            ],
             onChange: (evt) => {
-              isUsingWhisper = !isUsingWhisper;
-              unmountComponent();
-              mountComponent();
+              defaultModel = evt;
+              chatRoles = getRolesFromString(
+                extensionAPI.settings.get("chatRoles")
+              );
             },
           },
         },
@@ -341,6 +387,97 @@ export default {
           },
         },
         {
+          id: "openrouterapi",
+          name: "OpenRouter API Key",
+          description: (
+            <>
+              <span>Copy here your OpenRouter API key</span>
+              <br></br>
+              <a href="https://openrouter.ai/keys" target="_blank">
+                (Follow this link to generate a new one)
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              unmountComponent();
+              setTimeout(() => {
+                OPENROUTER_API_KEY = evt.target.value;
+                openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
+                // if (extensionAPI.settings.get("whisper") === true)
+                //   isUsingWhisper = true;
+              }, 200);
+              setTimeout(() => {
+                mountComponent();
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "openrouterOnly",
+          name: "OpenRouter Only",
+          description:
+            "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              openRouterOnly = !openRouterOnly;
+              unmountComponent();
+              mountComponent();
+            },
+          },
+        },
+        {
+          id: "openRouterModels",
+          name: "Models via OpenRouter",
+          description: (
+            <>
+              <span>
+                List of models ID to query through OpenRouter, separated by a
+                comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
+              </span>
+              <br></br>
+              <a href="https://openrouter.ai/docs#models" target="_blank">
+                List of supported models here
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              openRouterModels = getArrayFromList(evt.target.value);
+              openRouterModelsInfo = getModelsInfo();
+            },
+          },
+        },
+        {
+          id: "ollamaModels",
+          name: "Ollama local models",
+          description:
+            "Models on local server, separated by a comma. E.g: llama2,llama3",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              ollamaModels = getArrayFromList(evt.target.value);
+            },
+          },
+        },
+        {
+          id: "whisper",
+          name: "Use Whisper API",
+          description:
+            "Use Whisper API (paid service) for transcription. If disabled, free system speech recognition will be used:",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isUsingWhisper = !isUsingWhisper;
+              unmountComponent();
+              mountComponent();
+            },
+          },
+        },
+        {
           id: "transcriptionLgg",
           name: "Transcription language",
           description: (
@@ -406,40 +543,6 @@ export default {
           },
         },
         {
-          id: "defaultModel",
-          name: "AI assistant Model",
-          description:
-            "Choose a model or 'custom model' to be specified below:",
-          action: {
-            type: "select",
-            items: [
-              "gpt-3.5-turbo",
-              "gpt-4-turbo-preview",
-              "Claude Haiku",
-              "Claude Sonnet",
-              "Claude Opus",
-              "custom model",
-            ],
-            onChange: (evt) => {
-              defaultModel = evt;
-              chatRoles = getRolesFromString(
-                extensionAPI.settings.get("chatRoles")
-              );
-            },
-          },
-        },
-        {
-          id: "customModel",
-          name: "Custom model",
-          description: "⚠️ Only OpenAI Chat completion models are compatible",
-          action: {
-            type: "input",
-            onChange: (evt) => {
-              gptCustomModel = evt;
-            },
-          },
-        },
-        {
           id: "splitResponse",
           name: "Split response in multiple blocks",
           description:
@@ -448,6 +551,18 @@ export default {
             type: "switch",
             onChange: (evt) => {
               isResponseToSplit = !isResponseToSplit;
+            },
+          },
+        },
+        {
+          id: "mobileContext",
+          name: "View is context on mobile",
+          description:
+            "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isMobileViewContext = !isMobileViewContext;
             },
           },
         },
@@ -585,14 +700,13 @@ export default {
           },
         },
         {
-          id: "mobileContext",
-          name: "View is context on mobile",
-          description:
-            "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
+          id: "customModel",
+          name: "Custom OpenAI model",
+          description: "⚠️ Only OpenAI Chat completion models are compatible",
           action: {
-            type: "switch",
+            type: "input",
             onChange: (evt) => {
-              isMobileViewContext = !isMobileViewContext;
+              gptCustomModel = evt.target.value;
             },
           },
         },
@@ -616,6 +730,12 @@ export default {
       await extensionAPI.settings.set("openaiapi", "");
     OPENAI_API_KEY = extensionAPI.settings.get("openaiapi");
     if (!OPENAI_API_KEY) isUsingWhisper = false;
+    if (extensionAPI.settings.get("openrouterapi") === null)
+      await extensionAPI.settings.set("openrouterapi", "");
+    OPENROUTER_API_KEY = extensionAPI.settings.get("openrouterapi");
+    if (extensionAPI.settings.get("openrouterOnly") === null)
+      await extensionAPI.settings.set("openrouterOnly", false);
+    openRouterOnly = extensionAPI.settings.get("openrouterOnly");
     if (extensionAPI.settings.get("anthropicapi") === null)
       await extensionAPI.settings.set("anthropicapi", "");
     ANTHROPIC_API_KEY = extensionAPI.settings.get("anthropicapi");
@@ -642,6 +762,14 @@ export default {
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = extensionAPI.settings.get("gptCustomModel");
+    if (extensionAPI.settings.get("openRouterModels") === null)
+      await extensionAPI.settings.set("openRouterModels", "");
+    openRouterModels = getArrayFromList(
+      extensionAPI.settings.get("openRouterModels")
+    );
+    if (extensionAPI.settings.get("ollamaModels") === null)
+      await extensionAPI.settings.set("ollamaModels", "");
+    ollamaModels = getArrayFromList(extensionAPI.settings.get("ollamaModels"));
     if (extensionAPI.settings.get("chatRoles") === null)
       await extensionAPI.settings.set(
         "chatRoles",
@@ -692,7 +820,15 @@ export default {
     );
 
     if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
-    // if (ANTHROPIC_API_KEY) anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+    if (ANTHROPIC_API_KEY)
+      anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+    if (OPENROUTER_API_KEY) {
+      openrouterLibrary = initializeOpenAIAPI(
+        OPENROUTER_API_KEY,
+        "https://openrouter.ai/api/v1"
+      );
+      openRouterModelsInfo = getModelsInfo();
+    }
 
     createContainer();
 
