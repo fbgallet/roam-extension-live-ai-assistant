@@ -226,10 +226,11 @@ function simulateClickOnRecordingButton() {
 async function getModelsInfo() {
   try {
     const { data } = await axios.get("https://openrouter.ai/api/v1/models");
-    console.log("Models info from OpenRouter API:", data);
+    // console.log("Models info from OpenRouter API:", data);
     openRouterModelsInfo = data.data
       .filter((model) => openRouterModels.includes(model.id))
       .map((model) => {
+        tokensLimit["openRouter/" + model.id] = contextLength;
         return {
           id: model.id,
           name: model.name,
@@ -240,7 +241,7 @@ async function getModelsInfo() {
           imagePricing: model.pricing.image * 1000000,
         };
       });
-    console.log("openRouterModelsInfo :>> ", openRouterModelsInfo);
+    // console.log("openRouterModelsInfo :>> ", openRouterModelsInfo);
   } catch (error) {}
 }
 

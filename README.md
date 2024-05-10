@@ -1,6 +1,11 @@
 # Live AI Assistant (former Speech-to-Roam)
 
-### Reliable voice transcription using Whisper API and vocal or text prompts to an AI assistant with easy-to-define context and templated post-processing, using GPT or Claude models.
+### AI assistant to smoothly chat with your graph in writting or verbally: reliable voice transcription (Whisper), easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models throught OpenRouter.
+
+### 🆕 New in v.6:
+
+- OpenRouter support to access most of existing models
+- Ollama local server support
 
 ### 🆕 New in v.4:
 
@@ -12,7 +17,6 @@
 See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes.
 
 <img width="1130" alt="Formes 24 avril 17h45" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/d4ab0756-2f55-4226-9cdd-758ec5ac5f1b">
-
 
 ## **GETTING STARTED**
 
@@ -26,6 +30,8 @@ NB: API fees should not be confused with the ChatGPT Plus subscription; they are
 
 ⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
+- To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API.
+
 ## Your first prompt to Live AI Assistant
 
 Just press the microphone button and provide vocal instructions, or place the cursor focus in a block where you have written your prompt, then click on the AI completion button (OpenAI Logo). That's all !
@@ -33,7 +39,6 @@ Just press the microphone button and provide vocal instructions, or place the cu
 You can easily compare AI models responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
 <img width="1050" alt="compare AI models" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/296a0a66-77d4-4ebd-98c8-e707503125f7">
-
 
 ### **Keyboard hotkeys** (⚠️ available only when the voice recording has been started by a mouse click):
 
@@ -78,7 +83,7 @@ A SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of Sm
 
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a GPT model, as it only requires asking it to translate into almost any language.
 
-## AI Assistant (OpenAI GPT models and Anthropic Claude models)
+## AI Assistant (OpenAI GPT models, Anthropic Claude models and other models throught OpenRouter or Ollama server)
 
 - ask any question (by speaking or writing, focusing on a block or selecting one or more blocks as prompt), rephrasing, completion, translation... The more precise your instructions are (especially with examples and context), the more accurate and satisfying the responses will be.
 - assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.). The assistant name is inserted before its response and include by default the AI model name. The template can be changed in the settings.
@@ -123,6 +128,13 @@ A large number of [source languages are supported](https://platform.openai.com/d
   4. click on the post-processing button (after optionally specifying the context)
      => the template will be automatically filled in (this may take time depending on the amount of information to process).
 - You can specify a default template in the settings. It will be automatically inserted as child of the focused block when you run post-processing if there is currently no child. Copy the block reference of the root block of your template. The root or parent block is only the title, it will not be inserted nor used as an instruction. If no user default template is defined, a predefined template will be used, just try it !
+
+## Use models throught OpenRouter
+
+OpenRouter offers access to a wide range of models, some of which are free. OpenRouter routes each request to the best available model provider for your preferences. (pricing or response speed may vary from one request to another).
+In the settings, provide the list of IDs of the models you want to use in LiveAI. They will appear in the context menu or replace the native models if you check the corresponding option. The first model in your list can be selected as the default model.
+
+## Use Ollama local server
 
 ## Keyboard & text only AI completion and post-processing
 

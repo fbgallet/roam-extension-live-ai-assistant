@@ -68,7 +68,14 @@ export function initializeOpenAIAPI(API_KEY, baseURL) {
       apiKey: API_KEY,
       dangerouslyAllowBrowser: true,
     };
-    if (baseURL) clientSetting.baseURL = baseURL;
+    if (baseURL) {
+      clientSetting.baseURL = baseURL;
+      clientSetting.defaultHeaders = {
+        "HTTP-Referer":
+          "https://github.com/fbgallet/roam-extension-speech-to-roam", // Optional, for including your app on openrouter.ai rankings.
+        "X-Title": "Live AI Assistant for Roam Research", // Optional. Shows in rankings on openrouter.ai.
+      };
+    }
     const openai = new OpenAI(clientSetting);
     return openai;
   } catch (error) {
@@ -550,12 +557,18 @@ const verifyTokenLimitAndTruncate = (model, prompt, content) => {
   const tokens = encoding.encode(prompt + content);
   console.log("context tokens :", tokens.length);
 
-  if (tokens.length > tokensLimit[model]) {
+  const limit = tokensLimit[model];
+  if (!limit) {
+    console.log("No context length provided for this model.");
+    return content;
+  }
+
+  if (tokens.length > limit) {
     AppToaster.show({
-      message: `The token limit (${tokensLimit[model]}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
+      message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
     });
     // + 2% margin of error
-    const ratio = tokensLimit[model] / tokens.length - 0.02;
+    const ratio = limit / tokens.length - 0.02;
     content = content.slice(0, content.length * ratio);
     console.log(
       "tokens of truncated context:",

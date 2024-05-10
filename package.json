@@ -1,6 +1,6 @@
 {
   "name": "roam-extension-speech-to-roam",
-  "version": "4.0.0",
+  "version": "6.0.0",
   "description": "AI assistant with vocal transcription and vocal prompts",
   "main": "index.js",
   "scripts": {
