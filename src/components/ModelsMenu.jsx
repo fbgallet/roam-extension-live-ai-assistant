@@ -10,6 +10,7 @@ import {
   ollamaModels,
   openRouterModels,
   openRouterModelsInfo,
+  openRouterOnly,
 } from "..";
 
 const ModelsMenu = ({ command }) => {
@@ -22,6 +23,12 @@ const ModelsMenu = ({ command }) => {
       case "GPT 4":
         model = "gpt-4-turbo-preview";
         break;
+    }
+    if (prefix === "openRouter/") {
+      const modelInfo = openRouterModelsInfo.find(
+        (item) => item.name === model
+      );
+      model = modelInfo.id;
     }
     // if (typeof instantModel !== undefined) instantModel.current = model;
     // console.log("instantModel :>> ", instantModel);
@@ -37,72 +44,79 @@ const ModelsMenu = ({ command }) => {
 
   return (
     <Menu className="str-aimodels-menu">
-      {/* <p></p> */}
-      <MenuDivider title="Choose AI model:" />
-      <MenuItem
-        icon={defaultModel === "gpt-3.5-turbo" && "pin"}
-        onClick={(e) => {
-          handleClickOnModel(e);
-        }}
-        onKeyDown={(e) => {
-          handleKeyDownOnModel(e);
-        }}
-        tabindex="0"
-        text="GPT 3.5"
-        labelElement="32k"
+      <MenuDivider
+        title={
+          "Choose AI model" + (openRouterOnly ? " (OpenRouter)" : "") + ":"
+        }
       />
-      <MenuItem
-        icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
-        onClick={(e) => {
-          handleClickOnModel(e);
-        }}
-        onKeyDown={(e) => {
-          handleKeyDownOnModel(e);
-        }}
-        tabindex="0"
-        text="GPT 4"
-        labelElement="128k"
-      />
-      <MenuDivider />
-      <MenuItem
-        icon={defaultModel === "Claude Haiku" && "pin"}
-        onClick={(e) => {
-          handleClickOnModel(e);
-        }}
-        onKeyDown={(e) => {
-          handleKeyDownOnModel(e);
-        }}
-        tabindex="0"
-        text="Claude Haiku"
-        labelElement="200k"
-      />
-      <MenuItem
-        icon={defaultModel === "Claude Sonnet" && "pin"}
-        onClick={(e) => {
-          handleClickOnModel(e);
-        }}
-        onKeyDown={(e) => {
-          handleKeyDownOnModel(e);
-        }}
-        tabindex="0"
-        text="Claude Sonnet"
-        labelElement="200k"
-      />
-      <MenuItem
-        icon={defaultModel === "Claude Opus" && "pin"}
-        onClick={(e) => {
-          handleClickOnModel(e);
-        }}
-        onKeyDown={(e) => {
-          handleKeyDownOnModel(e);
-        }}
-        tabindex="0"
-        text="Claude Opus"
-        labelElement="200k"
-      />
+      {openRouterOnly ? null : (
+        <>
+          <MenuItem
+            icon={defaultModel === "gpt-3.5-turbo" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="GPT 3.5"
+            labelElement="32k"
+          />
+          <MenuItem
+            icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="GPT 4"
+            labelElement="128k"
+          />
+          <MenuDivider />
+          <MenuItem
+            icon={defaultModel === "Claude Haiku" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="Claude Haiku"
+            labelElement="200k"
+          />
+          <MenuItem
+            icon={defaultModel === "Claude Sonnet" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="Claude Sonnet"
+            labelElement="200k"
+          />
+          <MenuItem
+            icon={defaultModel === "Claude Opus" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="Claude Opus"
+            labelElement="200k"
+          />
+        </>
+      )}
       {openRouterModels.length ? (
         <>
-          <MenuDivider title="Through OpenRouter" />
+          {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}
           {openRouterModelsInfo.map((model) => (
             <MenuItem
               icon={defaultModel === model.id && "pin"}

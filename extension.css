@@ -160,6 +160,9 @@
 .str-aimodels-menu .bp3-menu-item > div {
   margin-right: 15px;
 }
+.str-aimodels-menu .bp3-menu-item-label {
+  align-self: center;
+}
 
 @keyframes flash {
   0% {

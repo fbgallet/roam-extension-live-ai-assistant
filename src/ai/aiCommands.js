@@ -20,6 +20,8 @@ import {
   whisperPrompt,
   streamResponse,
   openrouterLibrary,
+  openRouterModels,
+  ollamaModels,
 } from "..";
 import {
   addContentToBlock,
@@ -60,14 +62,14 @@ export const lastCompletion = {
   typeOfCompletion: null,
 };
 
-export function initializeOpenAIAPI(API_KEY) {
+export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
-    const openai = new OpenAI({
+    const clientSetting = {
       apiKey: API_KEY,
-      baseURL: "https://openrouter.ai/api/v1",
       dangerouslyAllowBrowser: true,
-    });
-    console.log(openai);
+    };
+    if (baseURL) clientSetting.baseURL = baseURL;
+    const openai = new OpenAI(clientSetting);
     return openai;
   } catch (error) {
     console.log(error.message);
@@ -162,37 +164,54 @@ async function aiCompletion(
 ) {
   let aiResponse;
   let model = instantModel || defaultModel;
+  let prefix = model.split("/")[0];
   if (responseFormat === "json_object")
     prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  if (model.slice(0, 7) === "ollama/") {
-    aiResponse = await ollamaCompletion(
-      model.replace("ollama/", ""),
-      prompt,
-      content,
-      responseFormat
-    );
-  } else if (
-    // responseFormat !== "json_object" &&
-    model.slice(0, 6) === "Claude" &&
-    ANTHROPIC_API_KEY
-  )
-    aiResponse = await claudeCompletion(model, prompt, content, responseFormat);
-  else if (openaiLibrary?.apiKey || openrouterLibrary?.apiKey)
-    aiResponse = await gptCompletion(
-      model,
+  if (prefix === "openRouter" && openrouterLibrary?.apiKey) {
+    aiResponse = await openaiCompletion(
+      openrouterLibrary,
+      model.replace("openRouter/", ""),
       prompt,
       content,
       responseFormat,
       targetUid
     );
-  else {
-    AppToaster.show({
-      message: `Provide an API key to use ${model} model. See doc and settings.`,
-      timeout: 15000,
-    });
-    AppToaster;
-    return "";
+  } else if (prefix === "ollama") {
+    aiResponse = await ollamaCompletion(
+      model.replace("ollama/", ""),
+      prompt,
+      content,
+      responseFormat,
+      targetUid
+    );
+  } else {
+    if (model.slice(0, 6) === "Claude" && ANTHROPIC_API_KEY)
+      aiResponse = await claudeCompletion(
+        model,
+        prompt,
+        content,
+        responseFormat,
+        targetUid
+      );
+    else if (openaiLibrary?.apiKey)
+      aiResponse = await openaiCompletion(
+        openaiLibrary,
+        model,
+        prompt,
+        content,
+        responseFormat,
+        targetUid
+      );
+    else {
+      AppToaster.show({
+        message: `Provide an API key to use ${model} model. See doc and settings.`,
+        timeout: 15000,
+      });
+      AppToaster;
+      return "";
+    }
   }
+
   if (responseFormat === "json_object") {
     const parsedResponse = JSON.parse(aiResponse);
     aiResponse = parsedResponse.response;
@@ -254,7 +273,8 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
   }
 }
 
-export async function gptCompletion(
+export async function openaiCompletion(
+  aiClient,
   model,
   prompt,
   content,
@@ -273,15 +293,8 @@ export async function gptCompletion(
       }, 90000);
     });
     const response = await Promise.race([
-      // await openaiLibrary.chat.completions.create({
-      await openrouterLibrary.chat.completions.create({
-        model: "meta-llama/llama-3-8b-instruct:nitro",
-        // model: "openai/gpt-3.5-turbo-0125",
-        // model === "custom model"
-        //   ? gptCustomModel
-        //   : model && !model.includes("Claude")
-        //   ? model
-        //   : "gpt-3.5-turbo",
+      await aiClient.chat.completions.create({
+        model: model,
         response_format: { type: responseFormat },
         messages: [
           {
@@ -429,7 +442,14 @@ export const insertCompletion = async (
   lastCompletion.typeOfCompletion = typeOfCompletion;
   lastCompletion.instantModel = instantModel;
 
-  const model = instantModel || defaultModel;
+  let model = instantModel || defaultModel;
+  if (model === "first OpenRouter model") {
+    model = openRouterModels.length
+      ? "openRouter/" + openRouterModels[0]
+      : "gpt-3.5-turbo";
+  } else if (model === "first Ollama local model") {
+    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-3.5-turbo";
+  }
   const responseFormat =
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
   const assistantRole = instantModel
