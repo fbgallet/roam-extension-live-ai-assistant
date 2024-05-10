@@ -1,5 +1,16 @@
-import { ContextMenu, Menu, MenuItem, MenuDivider } from "@blueprintjs/core";
-import { defaultModel, ollamaModels } from "..";
+import {
+  ContextMenu,
+  Menu,
+  MenuItem,
+  MenuDivider,
+  Tooltip,
+} from "@blueprintjs/core";
+import {
+  defaultModel,
+  ollamaModels,
+  openRouterModels,
+  openRouterModelsInfo,
+} from "..";
 
 const ModelsMenu = ({ command }) => {
   const handleClickOnModel = (e, prefix) => {
@@ -89,7 +100,52 @@ const ModelsMenu = ({ command }) => {
         text="Claude Opus"
         labelElement="200k"
       />
-      {ollamaModels ? (
+      {openRouterModels.length ? (
+        <>
+          <MenuDivider title="Through OpenRouter" />
+          {openRouterModelsInfo.map((model) => (
+            <MenuItem
+              icon={defaultModel === model.id && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e, "openRouter/");
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e, "openRouter/");
+              }}
+              tabindex="0"
+              text={
+                <Tooltip
+                  matchTargetWidth={true}
+                  hoverOpenDelay={1000}
+                  hoverCloseDelay={1000}
+                  content={
+                    <>
+                      <div style={{ maxWidth: "350px" }}>
+                        {model.description}
+                      </div>
+                      <br></br>
+                      Pricing:
+                      <ul>
+                        <li>
+                          prompt: {model.promptPricing.toFixed(5)}$ / M tokens
+                        </li>
+                        <li>
+                          completion: {model.completionPricing.toFixed(5)}$ / M
+                          tokens
+                        </li>
+                      </ul>
+                    </>
+                  }
+                >
+                  {model.name}
+                </Tooltip>
+              }
+              labelElement={model.contextLength + "k"}
+            />
+          ))}
+        </>
+      ) : null}
+      {ollamaModels.length ? (
         <>
           <MenuDivider title="Ollama local models" />
           {ollamaModels.map((model) => (

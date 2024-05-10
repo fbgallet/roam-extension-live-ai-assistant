@@ -155,6 +155,12 @@
   /* -webkit-box-shadow: 0 0 10px 5px green; */
 }
 
+/* CONTEXT MENU */
+
+.str-aimodels-menu .bp3-menu-item > div {
+  margin-right: 15px;
+}
+
 @keyframes flash {
   0% {
     /* filter: brightness(1.5); */

@@ -33,6 +33,7 @@ import {
   specificContentPromptBeforeTemplate,
 } from "./ai/prompts";
 import { AppToaster } from "./components/VoiceRecorder";
+import axios from "axios";
 
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
@@ -66,6 +67,8 @@ export let maxUidDepth = {};
 export let exclusionStrings = [];
 export let defaultTemplate;
 export let streamResponse = true;
+export let openRouterModelsInfo = [];
+export let openRouterModels = [];
 let isComponentAlwaysVisible;
 let isComponentVisible;
 let position;
@@ -209,6 +212,27 @@ function simulateClickOnRecordingButton() {
     button.focus();
     button.click();
   }
+}
+
+async function getModelsInfo() {
+  try {
+    const { data } = await axios.get("https://openrouter.ai/api/v1/models");
+    console.log("Models info from OpenRouter API:", data);
+    openRouterModelsInfo = data.data
+      .filter((model) => openRouterModels.includes(model.id))
+      .map((model) => {
+        return {
+          id: model.id,
+          name: model.name,
+          contextLength: Math.round(model.context_length / 1024),
+          description: model.description,
+          promptPricing: model.pricing.prompt * 1000000,
+          completionPricing: model.pricing.completion * 1000000,
+          imagePricing: model.pricing.image * 1000000,
+        };
+      });
+    console.log("openRouterModelsInfo :>> ", openRouterModelsInfo);
+  } catch (error) {}
 }
 
 export default {
@@ -466,6 +490,28 @@ export default {
           },
         },
         {
+          id: "openRouterModels",
+          name: "Models via OpenRouter",
+          description: (
+            <>
+              <span>
+                List of models ID to query through OpenRouter, separated by a
+                comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
+              </span>
+              <br></br>
+              <a href="https://openrouter.ai/docs#models" target="_blank">
+                List of supported models here
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              openRouterModels = getArrayFromList(evt.target.value);
+            },
+          },
+        },
+        {
           id: "ollamaModels",
           name: "Ollama local models",
           description:
@@ -473,8 +519,7 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              const list = evt.target.value.replace(" ", "").toLowerCase();
-              ollamaModels = list ? evt.split(",") : null;
+              ollamaModels = getArrayFromList(evt.target.value);
             },
           },
         },
@@ -684,13 +729,14 @@ export default {
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
     gptCustomModel = extensionAPI.settings.get("gptCustomModel");
+    if (extensionAPI.settings.get("openRouterModels") === null)
+      await extensionAPI.settings.set("openRouterModels", "");
+    openRouterModels = getArrayFromList(
+      extensionAPI.settings.get("openRouterModels")
+    );
     if (extensionAPI.settings.get("ollamaModels") === null)
       await extensionAPI.settings.set("ollamaModels", "");
-    const ollamaModelsStr = extensionAPI.settings
-      .get("ollamaModels")
-      .replace(" ", "")
-      .toLowerCase();
-    ollamaModels = ollamaModelsStr ? ollamaModelsStr.split(",") : null;
+    ollamaModels = getArrayFromList(extensionAPI.settings.get("ollamaModels"));
     if (extensionAPI.settings.get("chatRoles") === null)
       await extensionAPI.settings.set(
         "chatRoles",
@@ -741,8 +787,10 @@ export default {
     );
 
     // if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
-    if (OPENROUTER_API_KEY)
+    if (OPENROUTER_API_KEY) {
       openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
+      openRouterModelsInfo = getModelsInfo();
+    }
     // if (ANTHROPIC_API_KEY) anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
 
     createContainer();
