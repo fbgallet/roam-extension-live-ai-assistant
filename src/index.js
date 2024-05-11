@@ -226,11 +226,11 @@ function simulateClickOnRecordingButton() {
 async function getModelsInfo() {
   try {
     const { data } = await axios.get("https://openrouter.ai/api/v1/models");
-    // console.log("Models info from OpenRouter API:", data);
-    openRouterModelsInfo = data.data
+    // console.log("data", data.data);
+    let result = data.data
       .filter((model) => openRouterModels.includes(model.id))
       .map((model) => {
-        tokensLimit["openRouter/" + model.id] = contextLength;
+        tokensLimit["openRouter/" + model.id] = model.context_length;
         return {
           id: model.id,
           name: model.name,
@@ -241,7 +241,7 @@ async function getModelsInfo() {
           imagePricing: model.pricing.image * 1000000,
         };
       });
-    // console.log("openRouterModelsInfo :>> ", openRouterModelsInfo);
+    return result;
   } catch (error) {}
 }
 
@@ -403,9 +403,10 @@ export default {
             type: "input",
             onChange: (evt) => {
               unmountComponent();
-              setTimeout(() => {
+              setTimeout(async () => {
                 OPENROUTER_API_KEY = evt.target.value;
                 openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
+                openRouterModelsInfo = await getModelsInfo();
                 // if (extensionAPI.settings.get("whisper") === true)
                 //   isUsingWhisper = true;
               }, 200);
@@ -446,9 +447,9 @@ export default {
           ),
           action: {
             type: "input",
-            onChange: (evt) => {
+            onChange: async (evt) => {
               openRouterModels = getArrayFromList(evt.target.value);
-              openRouterModelsInfo = getModelsInfo();
+              openRouterModelsInfo = await getModelsInfo();
             },
           },
         },
@@ -820,6 +821,8 @@ export default {
       extensionAPI.settings.get("exclusionStrings")
     );
 
+    createContainer();
+
     if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
     if (ANTHROPIC_API_KEY)
       anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
@@ -828,10 +831,8 @@ export default {
         OPENROUTER_API_KEY,
         "https://openrouter.ai/api/v1"
       );
-      openRouterModelsInfo = getModelsInfo();
+      openRouterModelsInfo = await getModelsInfo();
     }
-
-    createContainer();
 
     await extensionAPI.settings.panel.create(panelConfig);
 

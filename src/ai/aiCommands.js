@@ -554,6 +554,7 @@ export const copyTemplate = async (targetUid, templateUid) => {
 };
 
 const verifyTokenLimitAndTruncate = (model, prompt, content) => {
+  console.log("tokensLimit object :>> ", tokensLimit);
   const tokens = encoding.encode(prompt + content);
   console.log("context tokens :", tokens.length);
 
