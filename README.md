@@ -131,8 +131,11 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 ## Use models throught OpenRouter
 
-OpenRouter offers access to a wide range of models, some of which are free. OpenRouter routes each request to the best available model provider for your preferences. (pricing or response speed may vary from one request to another).
+OpenRouter offers access to a [wide range of models](https://openrouter.ai/docs#models). You pay as you go: after purchasing credit (you can test without credit), your credit is debited each time you use it. The benefit is having a single account for a wide range of models. OpenRouter also offers a continuously updated [ranking](https://openrouter.ai/rankings) of the most popular models.
+
 In the settings, provide the list of IDs of the models you want to use in LiveAI. They will appear in the context menu or replace the native models if you check the corresponding option. The first model in your list can be selected as the default model.
+
+By default, logging of your inputs & outputs in OpenRouter's settings is enabled, you can disable it from your OpenRouter account.
 
 ## Use Ollama to run local models
 
