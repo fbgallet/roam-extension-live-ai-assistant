@@ -1,3 +1,15 @@
+### v.6 (May 12th, 2024) New models available
+
+**New features:**
+
+- OpenRouter support to access most of existing models
+- Ollama support to use local models
+
+**Updated**
+
+- Context menu can display OpenRouter models (with infos in tooltip) and Ollama models
+- First OpenRouter or Ollama models can be set as default model
+
 ## v.5 (May 4th, 2024) Small fixes
 
 **Fixed**

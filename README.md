@@ -134,7 +134,33 @@ A large number of [source languages are supported](https://platform.openai.com/d
 OpenRouter offers access to a wide range of models, some of which are free. OpenRouter routes each request to the best available model provider for your preferences. (pricing or response speed may vary from one request to another).
 In the settings, provide the list of IDs of the models you want to use in LiveAI. They will appear in the context menu or replace the native models if you check the corresponding option. The first model in your list can be selected as the default model.
 
-## Use Ollama local server
+## Use Ollama to run local models
+
+[Ollama](https://ollama.com/) allows you to run local models like Llama3, so all your data shared with the AI assistant is processed entirely locally and is not sent to a third party like OpenAI or Anthropic. (Please note: a local model is typically slower than a remote model and requires a machine with a lot of RAM. E.g a 7B model may require 7GB of RAM to function properly)
+Install Ollama, install a model (ex. `ollama run llama3`), add the model name in the Live AI Assistant extension settings (e.g. `llama3`), and follow the instructions below:
+
+To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to "https://roamresearch.com" (by default, Ollama CORS is restricted to local origins). Here's how to proceed, according to your operating system:
+
+### on MacOS
+
+- Edit `~/.zshrc` file and add `export OLLAMA_ORIGINS="https://roamresearch.com"` command. The environment variable will be set at OS startup or when opening the zsh terminal. (To edit a file, open the terminal and run a text editor, e.g. `nano ~/.zshrc`. Save changes with Ctrl+x, Y and Enter). Close and open again the terminal. (You can also set this variable temporarily using the command `launchctl setenv OLLAMA_ORIGINS "https://roamresearch.com"` and restart the terminal)
+- Then, stop Ollama.app and run "ollama serve" in the terminal
+
+⚠️ In my experience, MacOS Ollama.app doesn't take into account OLLAMA_ORIGINS variable change. After Ollama installation, Ollapa.app will be loaded in the background. You need to close it (using, e.g., the activity monitor), then launch "ollama serve" from the terminal. It may also be necessary to disable the automatic startup of Ollama.app when your OS starts by going to System Preferences > General > Startup > Open at login: select Ollama.app and click on the minus sign (-).
+
+### on Windows
+
+- Close Ollama app (with Task manager).
+- Open the Control Panel and navigate to “Edit system environment variables.”
+- Choose to edit or create a new system environment variable named OLLAMA_ORIGINS and define it to `https://roamresearch.com`
+- Apply the changes and close the control panel.
+- Run 'ollama serve' from a new terminal window to ensure it picks up the updated environment variables. If ollama serve return an error message, it probably means that you have to stop Ollama app running in the background (with Task manager).
+
+### on Linux
+
+- Run `systemctl edit ollama.service` to open the service file in an editor.
+- In the `[Service]` section, add: `Environment="OLLAMA_ORIGINS=https://roamresearch.com"`
+- Save your changes, then reload systemd and restart Ollama with: `systemctl daemon-reload` and `systemctl restart ollama` commands
 
 ## Keyboard & text only AI completion and post-processing
 

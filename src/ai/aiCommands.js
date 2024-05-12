@@ -427,8 +427,14 @@ export async function ollamaCompletion(
     return jsonOnly || text;
   } catch (error) {
     console.error(error);
+    const msg =
+      error.message === "Network Error"
+        ? "Unable to establish connection with Ollama server. Have you assigned " +
+          "'https://roamresearch.com' to the OLLAMA_ORIGINS environment variable and executed 'ollama serve' in the terminal?" +
+          "See documentation for detailled instructions."
+        : error.message;
     AppToaster.show({
-      message: `Ollama error msg: ${error.message}`,
+      message: `Error msg: ${msg}`,
       timeout: 15000,
     });
     return "";
