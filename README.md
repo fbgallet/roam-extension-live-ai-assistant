@@ -5,7 +5,7 @@
 ### 🆕 New in v.6:
 
 - OpenRouter support to access most of existing models
-- Ollama local server support
+- Ollama support to run local models
 
 ### 🆕 New in v.4:
 
