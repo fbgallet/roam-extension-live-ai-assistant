@@ -75,7 +75,7 @@ const ModelsMenu = ({ command }) => {
               handleKeyDownOnModel(e);
             }}
             tabindex="0"
-            text="GPT 4 turbo"
+            text="GPT 4 turbo preview"
             labelElement="128k"
           />
           <MenuItem
