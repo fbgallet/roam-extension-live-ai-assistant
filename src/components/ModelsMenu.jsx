@@ -20,7 +20,7 @@ const ModelsMenu = ({ command }) => {
       case "GPT 3.5":
         model = "gpt-3.5-turbo";
         break;
-      case "GPT 4 turbo":
+      case "GPT 4 turbo preview":
         model = "gpt-4-turbo-preview";
         break;
       case "GPT 4 omni":
