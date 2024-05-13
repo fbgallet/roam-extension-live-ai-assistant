@@ -4,6 +4,7 @@
 
 ### 🆕 New in v.6:
 
+- Gpt-4o support
 - OpenRouter support to access most of existing models (Mistral, Llama, Gemini...)
 - Ollama support to run local models
 
