@@ -173,7 +173,7 @@ const ModelsMenu = ({ command }) => {
               }}
               tabindex="0"
               text={model}
-              // labelElement="200k"
+              labelElement="8k"
             />
           ))}
         </>

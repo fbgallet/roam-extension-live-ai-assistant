@@ -407,6 +407,9 @@ export async function ollamaCompletion(
           },
           { role: "user", content: prompt },
         ],
+        options: {
+          num_ctx: 8192,
+        },
         format: responseFormat.includes("json") ? "json" : null,
         stream: false,
       },
@@ -431,7 +434,7 @@ export async function ollamaCompletion(
       error.message === "Network Error"
         ? "Unable to establish connection with Ollama server. Have you assigned " +
           "'https://roamresearch.com' to the OLLAMA_ORIGINS environment variable and executed 'ollama serve' in the terminal?" +
-          "See documentation for detailled instructions."
+          " See documentation for detailled instructions."
         : error.message;
     AppToaster.show({
       message: `Error msg: ${msg}`,

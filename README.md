@@ -4,7 +4,7 @@
 
 ### 🆕 New in v.6:
 
-- OpenRouter support to access most of existing models
+- OpenRouter support to access most of existing models (Mistral, Llama, Gemini...)
 - Ollama support to run local models
 
 ### 🆕 New in v.4:
@@ -131,18 +131,18 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 ## Use models throught OpenRouter
 
-OpenRouter offers access to a [wide range of models](https://openrouter.ai/docs#models). You pay as you go: after purchasing credit (you can test without credit), your credit is debited each time you use it. The benefit is having a single account for a wide range of models. OpenRouter also offers a continuously updated [ranking](https://openrouter.ai/rankings) of the most popular models.
+OpenRouter is an unified API routing requests to [wide range of models](https://openrouter.ai/docs#models). The benefit is having a single account to access to most of existing and up-to-date models. You pay as you go: after purchasing credit (you can test without credit), your credit is debited on each request. OpenRouter also offers a continuously updated [ranking](https://openrouter.ai/rankings) of the most popular models.
 
-In the settings, provide the list of IDs of the models you want to use in LiveAI. They will appear in the context menu or replace the native models if you check the corresponding option. The first model in your list can be selected as the default model.
+In the settings, provide the list of IDs of the models you want to use in LiveAI. They will appear in the context menu in a dedicated section or replace the native models if you check the corresponding option. The first model in your list can be selected as your default model.
 
 By default, logging of your inputs & outputs in OpenRouter's settings is enabled, you can disable it from your OpenRouter account.
 
 ## Use Ollama to run local models
 
-[Ollama](https://ollama.com/) allows you to run local models like Llama3, so all your data shared with the AI assistant is processed entirely locally and is not sent to a third party like OpenAI or Anthropic. (Please note: a local model is typically slower than a remote model and requires a machine with a lot of RAM. E.g a 7B model may require 7GB of RAM to function properly)
-Install Ollama, install a model (ex. `ollama run llama3`), add the model name in the Live AI Assistant extension settings (e.g. `llama3`), and follow the instructions below:
+[Ollama](https://ollama.com/) allows you to run local models like Llama3, so all your data shared with the AI assistant is processed entirely locally and is not sent to a third party like OpenAI or Anthropic. (Please note: a local model is typically slower than a remote model and requires a machine with a lot of RAM. E.g a 7B model may require 7GB of RAM to work properly)
+Install Ollama, install a model (ex. `ollama run llama3`), add the model name in the settings above (e.g. `llama3`), and follow the instructions below:
 
-To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to "https://roamresearch.com" (by default, Ollama CORS is restricted to local origins). Here's how to proceed, according to your operating system:
+To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to "https://roamresearch.com" (by default, Ollama CORS is restricted to local origins). See [Ollama documentation here](The benefit is having a single account for) or proceed this way, according to your operating system:
 
 ### on MacOS
 
