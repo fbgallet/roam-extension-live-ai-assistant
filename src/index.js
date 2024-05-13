@@ -38,6 +38,7 @@ import axios from "axios";
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
   "gpt-4-turbo-preview": 131073,
+  "gpt-4o": 131073,
   "Claude Haiku": 200000,
   "Claude Sonnet": 200000,
   "Claude Opus": 200000,
@@ -299,6 +300,7 @@ export default {
             items: [
               "gpt-3.5-turbo",
               "gpt-4-turbo-preview",
+              "gpt-4o",
               "Claude Haiku",
               "Claude Sonnet",
               "Claude Opus",

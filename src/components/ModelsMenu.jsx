@@ -20,8 +20,11 @@ const ModelsMenu = ({ command }) => {
       case "GPT 3.5":
         model = "gpt-3.5-turbo";
         break;
-      case "GPT 4":
+      case "GPT 4 turbo":
         model = "gpt-4-turbo-preview";
+        break;
+      case "GPT 4 omni":
+        model = "gpt-4o";
         break;
     }
     if (prefix === "openRouter/") {
@@ -72,7 +75,19 @@ const ModelsMenu = ({ command }) => {
               handleKeyDownOnModel(e);
             }}
             tabindex="0"
-            text="GPT 4"
+            text="GPT 4 turbo"
+            labelElement="128k"
+          />
+          <MenuItem
+            icon={defaultModel === "gpt-4o" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="GPT 4 omni"
             labelElement="128k"
           />
           <MenuDivider />
