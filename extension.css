@@ -3,6 +3,22 @@
   --icon-color-top: var(--co-button__minimal-icon, #5c7080);
 }
 
+/* SETTINGS */
+
+.liveai-settings-largeinput {
+  display: flex;
+  flex-direction: column;
+}
+.liveai-settings-largeinput > input {
+  margin-top: 12px;
+  width: 100%;
+}
+.liveai-settings-largeinput > div {
+  align-self: flex-start !important;
+}
+
+/******/
+
 .color-toaster .bp3-toast {
   background: orange;
 }

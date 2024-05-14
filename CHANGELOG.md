@@ -2,6 +2,7 @@
 
 **New features:**
 
+- GPT-4o support, including Vision
 - OpenRouter support to access most of existing models
 - Ollama support to use local models
 

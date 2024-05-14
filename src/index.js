@@ -435,6 +435,7 @@ export default {
         {
           id: "openRouterModels",
           name: "Models via OpenRouter",
+          className: "liveai-settings-largeinput",
           description: (
             <>
               <span>
@@ -458,6 +459,7 @@ export default {
         {
           id: "ollamaModels",
           name: "Ollama local models",
+          className: "liveai-settings-largeinput",
           description:
             "Models on local server, separated by a comma. E.g: llama2,llama3",
           action: {
@@ -524,6 +526,7 @@ export default {
         {
           id: "prompt",
           name: "Prompt for Whisper",
+          className: "liveai-settings-largeinput",
           description:
             "You can enter a list of specific words or proper nouns for better recognition and spelling:",
           action: {
@@ -586,6 +589,7 @@ export default {
         {
           id: "assistantCharacter",
           name: "Assistant's character",
+          className: "liveai-settings-largeinput",
           description:
             "You can describe here the character and tone of the AI assistant (text or ((block-ref))):",
           action: {
@@ -637,6 +641,7 @@ export default {
         {
           id: "contextInstructions",
           name: "Instructions on context",
+          className: "liveai-settings-largeinput",
           description:
             "You can add some general instructions about how to use the context made by the selected notes: (text or ((block-ref))):",
           action: {
