@@ -17,6 +17,7 @@ export const contextRegex = /\(\(context:.?([^\)]*)\)\)/;
 export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
+export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
 const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {

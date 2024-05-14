@@ -34,6 +34,7 @@ import {
   highlightHtmlElt,
   insertBlockInCurrentView,
   isExistingBlock,
+  roamImageRegex,
   updateArrayOfBlocks,
 } from "../utils/utils";
 import {
@@ -289,6 +290,47 @@ export async function openaiCompletion(
   targetUid
 ) {
   let respStr = "";
+  const messages = [
+    {
+      role: "system",
+      content: content,
+    },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: prompt,
+        },
+      ],
+    },
+  ];
+  if (model === "gpt-4o") {
+    const matchingImagesInPrompt = prompt.matchAll(roamImageRegex);
+    matchingImagesInPrompt.forEach((imgUrl) => {
+      messages[1].content.push({
+        type: "image_url",
+        image_url: {
+          url: imgUrl[1],
+        },
+      });
+    });
+    const matchingImagesInContext = content.matchAll(roamImageRegex);
+    matchingImagesInContext.forEach((imgUrl, index) => {
+      if (index === 0)
+        messages.splice(1, 0, {
+          role: "user",
+          content: [],
+        });
+      messages[1].content.push({
+        type: "image_url",
+        image_url: {
+          url: imgUrl[1],
+        },
+      });
+    });
+    console.log(messages);
+  }
   try {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
@@ -303,20 +345,12 @@ export async function openaiCompletion(
       await aiClient.chat.completions.create({
         model: model,
         response_format: { type: responseFormat },
-        messages: [
-          {
-            role: "system",
-            content: content,
-          },
-          { role: "user", content: prompt },
-        ],
+        messages: messages,
         stream: streamResponse && responseFormat === "text",
       }),
       timeoutPromise,
     ]);
     let streamEltCopy = "";
-
-    const stream = false;
 
     console.log(response);
 
