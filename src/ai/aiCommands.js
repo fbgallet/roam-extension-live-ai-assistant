@@ -322,12 +322,13 @@ export async function openaiCompletion(
           role: "user",
           content: [],
         });
-      messages[1].content.push({
-        type: "image_url",
-        image_url: {
-          url: imgUrl[1],
-        },
-      });
+      if (index < 3)
+        messages[1].content.push({
+          type: "image_url",
+          image_url: {
+            url: imgUrl[1],
+          },
+        });
     });
     console.log(messages);
   }
