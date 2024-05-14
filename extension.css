@@ -116,7 +116,7 @@
   margin-right: -3px;
 }
 .speech-to-roam-container-left > .speech-ui-row1:has(.fa-microphone-slash) {
-  margin-left: -2px;
+  margin-left: -4px;
 }
 .speech-to-roam-container-left:has(.digits) {
   padding-top: 2px;
