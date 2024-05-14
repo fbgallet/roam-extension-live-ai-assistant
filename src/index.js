@@ -68,7 +68,8 @@ export let maxCapturingDepth = {};
 export let maxUidDepth = {};
 export let exclusionStrings = [];
 export let defaultTemplate;
-export let streamResponse = true;
+export let streamResponse;
+export let maxImagesNb;
 export let openRouterModelsInfo = [];
 export let openRouterModels = [];
 let isComponentAlwaysVisible;
@@ -239,7 +240,7 @@ async function getModelsInfo() {
           description: model.description,
           promptPricing: model.pricing.prompt * 1000000,
           completionPricing: model.pricing.completion * 1000000,
-          imagePricing: model.pricing.image * 1000000,
+          imagePricing: model.pricing.image * 1000,
         };
       });
     return result;
@@ -486,6 +487,7 @@ export default {
         {
           id: "transcriptionLgg",
           name: "Transcription language",
+          className: "liveai-settings-smallinput",
           description: (
             <>
               <span>
@@ -558,6 +560,18 @@ export default {
             type: "switch",
             onChange: (evt) => {
               isResponseToSplit = !isResponseToSplit;
+            },
+          },
+        },
+        {
+          id: "streamResponse",
+          name: "Stream response",
+          description:
+            "Stream responses of GPT models and OpenRouter streamable models:",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              streamResponse = !streamResponse;
             },
           },
         },
@@ -673,6 +687,7 @@ export default {
         {
           id: "maxCapturingDepth",
           name: "Maximum depth level",
+          className: "liveai-settings-smallinput",
           description:
             "Maximum number of block levels to capture in context (one or three numbers separated by a comma respectively: " +
             "in pages, in linked ref., in DNP. 99 = no limit)",
@@ -686,6 +701,7 @@ export default {
         {
           id: "maxUidDepth",
           name: "Maximum level with block ref.",
+          className: "liveai-settings-smallinput",
           description:
             "Maximum level at which the block ref. is copied in the context (one or three numbers. 0 = no ref, 99 = not limit)",
           action: {
@@ -699,12 +715,26 @@ export default {
         {
           id: "logPagesNbDefault",
           name: "Number of previous days",
+          className: "liveai-settings-smallinput",
           description:
             "Default number of previous daily note pages (DNP) used as context from Daily notes or any DNP",
           action: {
             type: "input",
             onChange: (evt) => {
               logPagesNbDefault = evt.target.value;
+            },
+          },
+        },
+        {
+          id: "maxImages",
+          name: "Images limit",
+          className: "liveai-settings-smallinput",
+          description:
+            "Maximum number of images to process by models supporting Vision (e.g. GPT-4o):",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              maxImagesNb = evt.target.value;
             },
           },
         },
@@ -799,6 +829,12 @@ export default {
     if (extensionAPI.settings.get("splitResponse") === null)
       await extensionAPI.settings.set("splitResponse", true);
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
+    if (extensionAPI.settings.get("streamResponse") === null)
+      await extensionAPI.settings.set("streamResponse", true);
+    streamResponse = extensionAPI.settings.get("streamResponse");
+    if (extensionAPI.settings.get("maxImages") === null)
+      await extensionAPI.settings.set("maxImages", "3");
+    maxImagesNb = extensionAPI.settings.get("maxImages");
     if (extensionAPI.settings.get("defaultTemplate") === null)
       await extensionAPI.settings.set("defaultTemplate", "");
     let templateInput = extensionAPI.settings.get("defaultTemplate");

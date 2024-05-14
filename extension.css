@@ -5,15 +5,21 @@
 
 /* SETTINGS */
 
+.rm-settings .liveai-settings-smallinput > input[type="text"] {
+  min-width: 50px;
+  width: 80px;
+  text-align: end;
+}
+
 .liveai-settings-largeinput {
   display: flex;
   flex-direction: column;
 }
-.liveai-settings-largeinput > input {
+.rm-settings .liveai-settings-largeinput > input[type="text"] {
   margin-top: 12px;
   width: 100%;
 }
-.liveai-settings-largeinput > div {
+.rm-settings .liveai-settings-largeinput > div {
   align-self: flex-start !important;
 }
 

@@ -22,6 +22,8 @@ import {
   openrouterLibrary,
   openRouterModels,
   ollamaModels,
+  openRouterModelsInfo,
+  maxImagesNb,
 } from "..";
 import {
   addContentToBlock,
@@ -290,7 +292,7 @@ export async function openaiCompletion(
   targetUid
 ) {
   let respStr = "";
-  const messages = [
+  let messages = [
     {
       role: "system",
       content: content,
@@ -305,32 +307,8 @@ export async function openaiCompletion(
       ],
     },
   ];
-  if (model === "gpt-4o") {
-    const matchingImagesInPrompt = prompt.matchAll(roamImageRegex);
-    matchingImagesInPrompt.forEach((imgUrl) => {
-      messages[1].content.push({
-        type: "image_url",
-        image_url: {
-          url: imgUrl[1],
-        },
-      });
-    });
-    const matchingImagesInContext = content.matchAll(roamImageRegex);
-    matchingImagesInContext.forEach((imgUrl, index) => {
-      if (index === 0)
-        messages.splice(1, 0, {
-          role: "user",
-          content: [],
-        });
-      if (index < 3)
-        messages[1].content.push({
-          type: "image_url",
-          image_url: {
-            url: imgUrl[1],
-          },
-        });
-    });
-    console.log(messages);
+  if (isModelSupportingImage(model)) {
+    messages = addImagesUrlToMessages(messages, prompt, content);
   }
   try {
     const timeoutPromise = new Promise((_, reject) => {
@@ -367,25 +345,6 @@ export async function openaiCompletion(
       const streamElt = insertParagraphForStream(targetUid);
 
       try {
-        // const reader = response.data.getReader();
-        // if (!reader) {
-        //   throw new Error("Failed to read response body");
-        // }
-
-        // while (true) {
-        //   const { done, value } = await reader.read();
-        //   if (done) {
-        //     break;
-        //   }
-        //   const rawjson = new TextDecoder().decode(value);
-        //   const json = JSON.parse(rawjson);
-
-        //   if (json.done === false) {
-        //     respStr += json.message.content;
-        //     streamElt.innerHTML += json.message.content;
-        //   }
-        // }
-
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
@@ -739,3 +698,46 @@ const supportedLanguage = [
   "yo",
   "zh",
 ];
+
+const addImagesUrlToMessages = (messages, prompt, content) => {
+  let nbCountdown = maxImagesNb;
+  const matchingImagesInPrompt = prompt.matchAll(roamImageRegex);
+  matchingImagesInPrompt.forEach((imgUrl) => {
+    if (nbCountdown > 0)
+      messages[1].content.push({
+        type: "image_url",
+        image_url: {
+          url: imgUrl[1],
+        },
+      });
+    nbCountdown--;
+  });
+  const matchingImagesInContext = content.matchAll(roamImageRegex);
+  matchingImagesInContext.forEach((imgUrl, index) => {
+    if (nbCountdown > 0) {
+      if (index === 0)
+        messages.splice(1, 0, {
+          role: "user",
+          content: [],
+        });
+      messages[1].content.push({
+        type: "image_url",
+        image_url: {
+          url: imgUrl[1],
+        },
+      });
+      nbCountdown--;
+    }
+  });
+  return messages;
+};
+
+const isModelSupportingImage = (model) => {
+  if (model === "gpt-4o") return true;
+  if (openRouterModelsInfo.length) {
+    const ormodel = openRouterModelsInfo.find((m) => m.id === model);
+    console.log("ormodel :>> ", ormodel);
+    if (ormodel) return ormodel.imagePricing ? true : false;
+  }
+  return false;
+};

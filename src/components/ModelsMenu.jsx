@@ -156,12 +156,17 @@ const ModelsMenu = ({ command }) => {
                       Pricing:
                       <ul>
                         <li>
-                          prompt: {model.promptPricing.toFixed(5)}$ / M tokens
+                          prompt: {model.promptPricing.toFixed(3)}$ / M tokens
                         </li>
                         <li>
-                          completion: {model.completionPricing.toFixed(5)}$ / M
+                          completion: {model.completionPricing.toFixed(3)}$ / M
                           tokens
                         </li>
+                        {model.imagePricing ? (
+                          <li>
+                            image: {model.imagePricing.toFixed(2)}$ / k tokens
+                          </li>
+                        ) : null}
                       </ul>
                     </>
                   }
