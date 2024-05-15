@@ -171,10 +171,12 @@ export function updateArrayOfBlocks(arrayOfBlocks) {
 
 export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
   let flattenedContent = "";
-  if (arrayOfBlocks.length) {
+  if (Array.isArray(arrayOfBlocks) && arrayOfBlocks.length) {
     arrayOfBlocks.forEach(
       (block) => (flattenedContent += block.content + "\n\n")
     );
+  } else {
+    return typeof arrayOfBlocks === "string" ? arrayOfBlocks : "";
   }
   return flattenedContent.trim();
 }

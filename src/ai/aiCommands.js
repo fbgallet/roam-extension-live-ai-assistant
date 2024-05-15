@@ -223,7 +223,9 @@ async function aiCompletion(
   }
 
   if (responseFormat === "json_object") {
-    const parsedResponse = JSON.parse(aiResponse);
+    let parsedResponse = JSON.parse(aiResponse);
+    if (typeof parsedResponse.response === "string")
+      parsedResponse.response = JSON.parse(parsedResponse.response);
     aiResponse = parsedResponse.response;
   }
   if (aiResponse)
@@ -496,7 +498,6 @@ export const insertCompletion = async (
   }
   const intervalId = await displaySpinner(targetUid);
   console.log("Prompt sent to AI assistant :>>\n", prompt);
-  // console.log("typeOfCompletion :>> ", typeOfCompletion);
   const aiResponse = await aiCompletion(
     model,
     prompt,
@@ -504,16 +505,10 @@ export const insertCompletion = async (
     responseFormat,
     targetUid
   );
-  console.log("aiResponse :>> ", aiResponse);
+  // console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
-  if (typeOfCompletion === "gptPostProcessing") {
-    // console.log("parsedResponse :>> ", parsedResponse);
+  if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
     updateArrayOfBlocks(aiResponse);
-    // if (!isOnlyTextual)
-    //   window.roamAlphaAPI.moveBlock({
-    //     location: { "parent-uid": targetUid, order: 0 },
-    //     block: { uid: startBlock },
-    //   });
   } else {
     const splittedResponse = splitParagraphs(aiResponse);
     if (!isResponseToSplit || splittedResponse.length === 1)
@@ -537,11 +532,9 @@ export const getTemplateForPostProcessing = async (parentUid) => {
         eltToHightlight.tagName === "TEXTAREA"
           ? eltToHightlight.parentElement.parentElement.nextElementSibling
           : eltToHightlight.parentElement.nextElementSibling;
-      // console.log("elt :>> ", elt.tagName);
       highlightHtmlElt(null, eltToHightlight);
       // prompt is a template as children of the current block
       let linearArray = convertTreeToLinearArray(tree[0].children);
-      // console.log("linearArray :>> ", linearArray);
       prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
     } else {
       return null;
