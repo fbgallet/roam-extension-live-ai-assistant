@@ -3,13 +3,15 @@
 **New features:**
 
 - GPT-4o support, including Vision
-- OpenRouter support to access most of existing models
+- OpenRouter support to access most of existing models (including Vision for some models)
 - Ollama support to use local models
 
 **Updated**
 
 - Context menu can display OpenRouter models (with infos in tooltip) and Ollama models
 - First OpenRouter or Ollama models can be set as default model
+- Option to set number of images limit for Vision
+- Option to toggle stream mode
 
 ## v.5 (May 4th, 2024) Small fixes
 
