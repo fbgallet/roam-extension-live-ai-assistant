@@ -254,24 +254,12 @@
   .log-button {
     max-width: 100vw !important;
   }
-  .speech-to-roam:has(.timer) {
-    position: fixed;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    padding: 0 !important;
-    top: calc(100dvh / 4 * 3);
-    left: 0;
-    width: 100vw;
-    height: calc(100dvh / 4);
-    z-index: 10;
-    color: #5c7080;
-    background-color: var(--bc-main, #182026) !important;
-  }
 
-  .speech-to-roam.speech-to-roam-container-top {
+  .rm-topbar
+    > span.speech-to-roam.speech-to-roam-container-top:not(:has(.timer)) {
     position: absolute;
-    left: 15px;
+    left: unset !important;
+    right: 15px;
     top: 45px;
     border-radius: 0 0 20px 5px;
     backdrop-filter: blur(1.5px);
@@ -279,6 +267,21 @@
   .roam-main:has(.speech-to-roam.speech-to-roam-container-top)
     .roam-article:not(:has(.rm-title-display)) {
     padding-top: 35px;
+  }
+
+  .speech-to-roam:has(.timer) {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    padding: 0 !important;
+    top: calc(100dvh / 4 * 3);
+    left: 0 !important;
+    width: 100vw;
+    height: calc(100dvh / 4);
+    z-index: 10;
+    color: #5c7080;
+    background-color: var(--bc-main, #182026) !important;
   }
 
   .speech-to-roam-container-top:has(.timer) {
