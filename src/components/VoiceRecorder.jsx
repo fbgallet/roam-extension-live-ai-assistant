@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ContextMenu, Tooltip } from "@blueprintjs/core";
 
 import {
@@ -12,7 +12,6 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Intent, Position, Toaster } from "@blueprintjs/core";
-//import "./App.css";
 import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
 import {
   copyTemplate,
@@ -44,13 +43,15 @@ import {
   isTranslateIconDisplayed,
   isUsingWhisper,
   openaiLibrary,
-  toggleComponentVisibility,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
-import { defaultPostProcessingPrompt } from "../ai/prompts.js";
 import ModelsMenu from "./ModelsMenu.jsx";
-import { displaySpinner, removeSpinner } from "../utils/domElts.js";
+import {
+  displaySpinner,
+  removeSpinner,
+  toggleComponentVisibility,
+} from "../utils/domElts.js";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",

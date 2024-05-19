@@ -1,39 +1,31 @@
-import React from "react";
-import ReactDOM from "react-dom";
-import App from "./App";
 import {
-  copyTemplate,
-  getTemplateForPostProcessing,
+  getModelsInfo,
   getValidLanguageCode,
   initializeAnthropicAPI,
   initializeOpenAIAPI,
-  insertCompletion,
-  lastCompletion,
 } from "./ai/aiCommands";
-import { getSpeechRecognitionAPI, webLangCodes } from "./audio/audio";
+import { webLangCodes } from "./audio/audio";
 import {
-  createChildBlock,
-  getAndNormalizeContext,
   getArrayFromList,
   getBlockContentByUid,
-  getFirstChildUid,
-  getFocusAndSelection,
   getMaxDephObjectFromList,
-  getRoamContextFromPrompt,
-  getTemplateFromPrompt,
-  insertBlockInCurrentView,
   isExistingBlock,
   resolveReferences,
   uidRegex,
 } from "./utils/utils";
 import {
-  contextAsPrompt,
   defaultAssistantCharacter,
   defaultContextInstructions,
-  specificContentPromptBeforeTemplate,
 } from "./ai/prompts";
 import { AppToaster } from "./components/VoiceRecorder";
-import axios from "axios";
+import {
+  createContainer,
+  mountComponent,
+  removeContainer,
+  toggleComponentVisibility,
+  unmountComponent,
+} from "./utils/domElts";
+import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
@@ -72,109 +64,14 @@ export let streamResponse;
 export let maxImagesNb;
 export let openRouterModelsInfo = [];
 export let openRouterModels = [];
-let isComponentAlwaysVisible;
-let isComponentVisible;
+export let isComponentAlwaysVisible;
+export let isComponentVisible;
 let position;
 export let openaiLibrary, anthropicLibrary, openrouterLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
 console.log("isSafari :>> ", isSafari);
-
-function mountComponent(props) {
-  let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-  let container = document.querySelector(
-    `.speech-to-roam-container-${position}`
-  );
-
-  if (!container || props?.isInline) {
-    createContainer(
-      props?.isInline,
-      currentBlockUid ? document.activeElement : null
-    );
-    if (!props?.isInline) return mountComponent();
-    else container = document.querySelector(`.speech-to-roam-container-inline`);
-  }
-  if (!props) {
-    props = {};
-    // props.transcribeOnly = isTranslateIconDisplayed ? false : true;
-  }
-  // No access to microphone in mobile App and desktop App on MacOs
-  // so speech-to-roam doesn't work at all in this context
-  props.worksOnPlatform =
-    (window.roamAlphaAPI.platform.isDesktop &&
-      !window.roamAlphaAPI.platform.isPC) ||
-    window.roamAlphaAPI.platform.isMobileApp
-      ? false
-      : true;
-
-  // Web API speech recognition doesn't work on Electron app nor Firefox nor Arc browser
-  props.position = position;
-  props.mic =
-    !window.roamAlphaAPI.platform.isDesktop &&
-    navigator.userAgent.indexOf("Firefox") === -1 &&
-    !getComputedStyle(document.documentElement).getPropertyValue(
-      "--arc-palette-background"
-    ) // specific to Arc browser
-      ? getSpeechRecognitionAPI()
-      : null;
-
-  // isSafari = true;
-
-  ReactDOM.render(
-    <App
-      blockUid={currentBlockUid}
-      isVisible={isComponentVisible}
-      {...props}
-    />,
-    container
-  );
-}
-
-function unmountComponent() {
-  const node = document.querySelector(`.speech-to-roam-container-${position}`);
-  if (node) ReactDOM.unmountComponentAtNode(node);
-}
-
-function createContainer(isInline, activeElement) {
-  // console.log("activeElement:", activeElement);
-  // if (isInline)
-  //   activeElement = document.getElementById(
-  //     "block-input-Ex3lB2F6lbcG2lBxdsJzPNzQXn53-body-outline-12-08-2023-HzvQSfNhv"
-  //   );
-  const rootPosition = isInline
-    ? activeElement
-    : position === "top"
-    ? document.querySelector(".rm-topbar")
-    : document.querySelector(".roam-sidebar-content");
-  const newElt = document.createElement("span");
-  position === "left" && newElt.classList.add("log-button");
-  newElt.classList.add(
-    "speech-to-roam",
-    `speech-to-roam-container-${isInline ? "inline" : position}`
-  );
-  if (isInline) {
-    rootPosition.parentElement.insertBefore(newElt, rootPosition);
-    return;
-  }
-  const todayTomorrowExtension = document.querySelector("#todayTomorrow");
-  if (todayTomorrowExtension && position === "top")
-    todayTomorrowExtension.insertAdjacentElement("afterend", newElt);
-  else
-    rootPosition.insertBefore(
-      newElt,
-      position === "top"
-        ? rootPosition.firstChild
-        : document.querySelector(".rm-left-sidebar__daily-notes").nextSibling
-    );
-}
-
-function removeContainer() {
-  const container = document.querySelector(
-    `.speech-to-roam-container-${position}`
-  );
-  if (container) container.remove();
-}
 
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
@@ -201,52 +98,6 @@ export function getInstantAssistantRole(instantModel) {
   return assistant;
 }
 
-export function toggleComponentVisibility() {
-  let componentElt = document.getElementsByClassName("speech-to-roam")[0];
-  if (!componentElt) return;
-  componentElt.style.display === "none"
-    ? (componentElt.style.display = "inherit")
-    : (componentElt.style.display = "none");
-}
-
-function simulateClickOnRecordingButton() {
-  const button = document.getElementsByClassName("speech-record-button")[0];
-  if (
-    !isComponentVisible &&
-    document.getElementsByClassName("speech-to-roam")[0]?.style.display ===
-      "none"
-  ) {
-    toggleComponentVisibility();
-    if (position === "left") window.roamAlphaAPI.ui.leftSidebar.open();
-  }
-  if (button) {
-    button.focus();
-    button.click();
-  }
-}
-
-async function getModelsInfo() {
-  try {
-    const { data } = await axios.get("https://openrouter.ai/api/v1/models");
-    // console.log("data", data.data);
-    let result = data.data
-      .filter((model) => openRouterModels.includes(model.id))
-      .map((model) => {
-        tokensLimit["openRouter/" + model.id] = model.context_length;
-        return {
-          id: model.id,
-          name: model.name,
-          contextLength: Math.round(model.context_length / 1024),
-          description: model.description,
-          promptPricing: model.pricing.prompt * 1000000,
-          completionPricing: model.pricing.completion * 1000000,
-          imagePricing: model.pricing.image * 1000,
-        };
-      });
-    return result;
-  } catch (error) {}
-}
-
 export default {
   onload: async ({ extensionAPI }) => {
     const panelConfig = {
@@ -261,8 +112,8 @@ export default {
             type: "switch",
             onChange: (evt) => {
               isComponentAlwaysVisible = !isComponentAlwaysVisible;
-              unmountComponent();
-              mountComponent();
+              unmountComponent(position);
+              mountComponent(position);
               if (
                 window.innerWidth >= 500 &&
                 ((isComponentAlwaysVisible && !isComponentVisible) ||
@@ -282,11 +133,11 @@ export default {
             type: "select",
             items: ["topbar", "left sidebar"],
             onChange: (evt) => {
-              unmountComponent();
-              removeContainer();
+              unmountComponent(position);
+              removeContainer(position);
               position = evt === "topbar" ? "top" : "left";
-              createContainer();
-              mountComponent();
+              createContainer(position);
+              mountComponent(position);
               if (!isComponentVisible) toggleComponentVisibility();
             },
           },
@@ -334,7 +185,7 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              unmountComponent();
+              unmountComponent(position);
               setTimeout(() => {
                 OPENAI_API_KEY = evt.target.value;
                 openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
@@ -342,7 +193,7 @@ export default {
                   isUsingWhisper = true;
               }, 200);
               setTimeout(() => {
-                mountComponent();
+                mountComponent(position);
               }, 200);
             },
           },
@@ -377,7 +228,7 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              unmountComponent();
+              unmountComponent(position);
               setTimeout(() => {
                 ANTHROPIC_API_KEY = evt.target.value;
                 anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
@@ -385,7 +236,7 @@ export default {
                 //   isUsingWhisper = true;
               }, 200);
               setTimeout(() => {
-                mountComponent();
+                mountComponent(position);
               }, 200);
             },
           },
@@ -405,16 +256,14 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              unmountComponent();
+              unmountComponent(position);
               setTimeout(async () => {
                 OPENROUTER_API_KEY = evt.target.value;
                 openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
                 openRouterModelsInfo = await getModelsInfo();
-                // if (extensionAPI.settings.get("whisper") === true)
-                //   isUsingWhisper = true;
               }, 200);
               setTimeout(() => {
-                mountComponent();
+                mountComponent(position);
               }, 200);
             },
           },
@@ -428,8 +277,8 @@ export default {
             type: "switch",
             onChange: (evt) => {
               openRouterOnly = !openRouterOnly;
-              unmountComponent();
-              mountComponent();
+              unmountComponent(position);
+              mountComponent(position);
             },
           },
         },
@@ -479,8 +328,8 @@ export default {
             type: "switch",
             onChange: (evt) => {
               isUsingWhisper = !isUsingWhisper;
-              unmountComponent();
-              mountComponent();
+              unmountComponent(position);
+              mountComponent(position);
             },
           },
         },
@@ -520,8 +369,8 @@ export default {
             items: webLangCodes,
             onChange: (evt) => {
               speechLanguage = evt;
-              unmountComponent();
-              mountComponent();
+              unmountComponent(position);
+              mountComponent(position);
             },
           },
         },
@@ -546,8 +395,8 @@ export default {
             type: "switch",
             onChange: (evt) => {
               isTranslateIconDisplayed = !isTranslateIconDisplayed;
-              unmountComponent();
-              mountComponent();
+              unmountComponent(position);
+              mountComponent(position);
             },
           },
         },
@@ -878,263 +727,16 @@ export default {
     }
 
     await extensionAPI.settings.panel.create(panelConfig);
+    loadRoamExtensionCommands(extensionAPI);
 
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Live AI Assistant: Start/Pause recording your vocal note",
-      callback: () => {
-        simulateClickOnRecordingButton();
-      },
-    });
-    extensionAPI.ui.commandPalette.addCommand({
-      label: `Live AI Assistant: Transcribe your vocal note${
-        isUsingWhisper ? " with Whisper" : ""
-      }`,
-      callback: () => {
-        const button = document.getElementsByClassName("speech-transcribe")[0];
-        if (button) {
-          button.focus();
-          button.click();
-          if (
-            !isComponentVisible &&
-            document.getElementsByClassName("speech-to-roam")[0]?.style
-              .display !== "none"
-          )
-            toggleComponentVisibility();
-        } else simulateClickOnRecordingButton();
-      },
-    });
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Live AI Assistant: Translate to English",
-      callback: () => {
-        const button = document.getElementsByClassName("speech-translate")[0];
-        if (button) {
-          button.focus();
-          button.click();
-          if (
-            !isComponentVisible &&
-            document.getElementsByClassName("speech-to-roam")[0]?.style
-              .display !== "none"
-          )
-            toggleComponentVisibility();
-        } else simulateClickOnRecordingButton();
-      },
-    });
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Live AI Assistant: Transcribe & send as prompt to AI assistant",
-      callback: () => {
-        const button = document.getElementsByClassName("speech-completion")[0];
-        if (button) {
-          button.focus();
-          button.click();
-          if (
-            !isComponentVisible &&
-            document.getElementsByClassName("speech-to-roam")[0]?.style
-              .display !== "none"
-          )
-            toggleComponentVisibility();
-        } else simulateClickOnRecordingButton();
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label:
-        "Live AI Assistant: Transcribe & send as content for templated-based AI post-processing",
-      callback: () => {
-        const button = document.getElementsByClassName(
-          "speech-post-processing"
-        )[0];
-        if (button) {
-          button.focus();
-          button.click();
-          if (
-            !isComponentVisible &&
-            document.getElementsByClassName("speech-to-roam")[0]?.style
-              .display !== "none"
-          )
-            toggleComponentVisibility();
-        } else simulateClickOnRecordingButton();
-      },
-    });
-
-    // extensionAPI.ui.commandPalette.addCommand({
-    //   label: "Live AI Assistant: insert inline Speech-to-Roam component",
-    //   callback: () => {
-    //     // console.log(document.activeElement);
-    //     mountComponent({ isInline: true });
-    //     // document.getElementsByClassName("speech-record-button")
-    //     //   ? (unmountComponent(),
-    //     //     mountComponent({ startRecording: true, completionOnly: true }))
-    //     //   : mountComponent();
-    //   },
-    // });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label:
-        "Live AI Assistant: Toggle visibility of the button (not permanently)",
-      callback: () => {
-        isComponentVisible = !isComponentVisible;
-        unmountComponent();
-        mountComponent();
-        toggleComponentVisibility();
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label:
-        "Live AI Assistant: (text) AI completion of focused block as prompt & selection as context",
-      callback: async () => {
-        const { currentUid, currentBlockContent, selectionUids } =
-          getFocusAndSelection();
-        if (!currentUid && !selectionUids.length) return;
-        let targetUid = currentUid
-          ? await createChildBlock(currentUid, chatRoles.assistant)
-          : await insertBlockInCurrentView(
-              chatRoles.user + " a selection of blocks"
-            );
-        let prompt = currentBlockContent
-          ? currentBlockContent
-          : contextAsPrompt;
-        console.log("currentBlockContent :>> ", currentBlockContent);
-        const inlineContext = currentBlockContent
-          ? getRoamContextFromPrompt(currentBlockContent)
-          : null;
-        if (inlineContext) prompt = inlineContext.updatedPrompt;
-        console.log("inlineContext :>> ", inlineContext);
-        let context = await getAndNormalizeContext(
-          // currentUid && selectionUids.length ? null : currentUid,
-          null,
-          selectionUids,
-          inlineContext?.roamContext,
-          currentUid
-        );
-        insertCompletion(prompt, targetUid, context, "gptCompletion");
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label:
-        "Live AI Assistant: (text) template-based AI post-processing, children as prompt template & focused block as content",
-      callback: async () => {
-        let { currentUid, currentBlockContent, selectionUids } =
-          getFocusAndSelection();
-        if (!currentUid) {
-          if (selectionUids.length) currentUid = selectionUids[0];
-          else return;
-        }
-
-        const inlineContext = getRoamContextFromPrompt(currentBlockContent);
-        if (inlineContext) currentBlockContent = inlineContext.updatedPrompt;
-        let context = await getAndNormalizeContext(
-          null,
-          selectionUids,
-          inlineContext?.roamContext
-        );
-
-        // simulateClick(document.querySelector(".roam-body-main"));
-        let targetUid;
-        let waitForBlockCopy = false;
-        if (currentBlockContent) {
-          let inlineTemplate = getTemplateFromPrompt(
-            getBlockContentByUid(currentUid)
-          );
-          // console.log("inlineTemplate :>> ", inlineTemplate);
-          if (inlineTemplate) {
-            await copyTemplate(currentUid, inlineTemplate.templateUid);
-            currentBlockContent = resolveReferences(
-              inlineTemplate.updatedPrompt
-            );
-            waitForBlockCopy = true;
-          } else {
-            targetUid = getFirstChildUid(currentUid);
-            if (!targetUid) {
-              await copyTemplate(currentUid);
-              waitForBlockCopy = true;
-            }
-          }
-        }
-        setTimeout(
-          async () => {
-            let template = await getTemplateForPostProcessing(currentUid);
-            if (!template.isInMultipleBlocks) {
-              targetUid = createChildBlock(
-                targetUid ? targetUid : currentUid,
-                chatRoles.assistant,
-                inlineContext?.roamContext
-              );
-              currentUid = targetUid;
-            }
-            let prompt = template.isInMultipleBlocks
-              ? specificContentPromptBeforeTemplate +
-                currentBlockContent +
-                "\n\n" +
-                template.stringified
-              : template.stringified;
-
-            if (!targetUid) targetUid = getFirstChildUid(currentUid);
-
-            insertCompletion(
-              prompt,
-              // waitForBlockCopy ? currentUid : targetUid,
-              targetUid,
-              context,
-              template.isInMultipleBlocks
-                ? "gptPostProcessing"
-                : "gptCompletion"
-            );
-          },
-          waitForBlockCopy ? 100 : 0
-        );
-      },
-    });
-
-    extensionAPI.ui.commandPalette.addCommand({
-      label: "Live AI Assistant: Redo last AI completion (update response)",
-      callback: () => {
-        if (lastCompletion.prompt) {
-          const focusUid =
-            window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-          const targetUid = focusUid ? focusUid : lastCompletion.targetUid;
-          console.log("lastCompletion :>> ", lastCompletion);
-          insertCompletion(
-            lastCompletion.prompt,
-            targetUid,
-            lastCompletion.context,
-            lastCompletion.typeOfCompletion,
-            lastCompletion.instantModel,
-            true
-          );
-        }
-      },
-    });
-
-    // Add SmartBlock command
-    const insertCmd = {
-      text: "SPEECHTOROAM",
-      help: "Start recording a vocal note using Speech-to-Roam extension",
-      handler: (context) => () => {
-        simulateClickOnRecordingButton();
-        return [""];
-      },
-    };
-    if (window.roamjs?.extension?.smartblocks) {
-      window.roamjs.extension.smartblocks.registerCommand(insertCmd);
-    } else {
-      document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
-        window.roamjs?.extension.smartblocks &&
-          window.roamjs.extension.smartblocks.registerCommand(insertCmd);
-      });
-    }
-
-    mountComponent();
+    mountComponent(position);
     if (!isComponentAlwaysVisible) toggleComponentVisibility();
 
     console.log("Extension loaded.");
-    //return;
   },
   onunload: async () => {
-    unmountComponent();
-    removeContainer();
-    // disconnectObserver();
+    unmountComponent(position);
+    removeContainer(position);
     console.log("Extension unloaded");
   },
 };

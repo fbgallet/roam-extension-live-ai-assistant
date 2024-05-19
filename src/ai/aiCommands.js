@@ -147,24 +147,6 @@ export async function translateAudio(filename) {
   }
 }
 
-// export async function gptPostProcessing(prompt, openai, context) {
-//   console.log("text: ", text);
-//   try {
-//     const postProcessedText = await openai.completions.create({
-//       model: "gpt-3.5-turbo-0125",
-//       prompt:
-//         text +
-//         "\nYou are an [expert] in note-taking. Reproduce [exactly] the previous text, putting the most important words in double brackets like [[that]].",
-//       max_tokens: Math.floor(text.length / 2),
-//       temperature: 0.1,
-//     });
-//     console.log(postProcessedText.choices[0]);
-//     return postProcessedText.choices[0].text;
-//   } catch (error) {
-//     console.error(error);
-//   }
-// }
-
 async function aiCompletion(
   instantModel,
   prompt,
@@ -574,6 +556,28 @@ const verifyTokenLimitAndTruncate = (model, prompt, content) => {
   }
   return content;
 };
+
+export async function getModelsInfo() {
+  try {
+    const { data } = await axios.get("https://openrouter.ai/api/v1/models");
+    // console.log("data", data.data);
+    let result = data.data
+      .filter((model) => openRouterModels.includes(model.id))
+      .map((model) => {
+        tokensLimit["openRouter/" + model.id] = model.context_length;
+        return {
+          id: model.id,
+          name: model.name,
+          contextLength: Math.round(model.context_length / 1024),
+          description: model.description,
+          promptPricing: model.pricing.prompt * 1000000,
+          completionPricing: model.pricing.completion * 1000000,
+          imagePricing: model.pricing.image * 1000,
+        };
+      });
+    return result;
+  } catch (error) {}
+}
 
 export function getValidLanguageCode(input) {
   if (!input) return "";
