@@ -8,7 +8,7 @@ import {
   maxUidDepth,
   tokensLimit,
 } from "..";
-import { getEncoding } from "js-tiktoken";
+// import { getEncoding } from "js-tiktoken";
 import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
@@ -18,7 +18,7 @@ export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
-const encoding = getEncoding("cl100k_base");
+// const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {
   // // with pull
@@ -511,15 +511,15 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
-      if (flattenedBlocks.length > 36000) {
-        tokens = encoding.encode(flattenedBlocks).length;
-      }
-      if (tokens > tokensLimit[model]) {
-        flattenedBlocks = flattenedBlocks.slice(
-          0,
-          -(dayContent.length + dayTitle.length + 4)
-        );
-      }
+      // if (flattenedBlocks.length > 36000) {
+      //   tokens = encoding.encode(flattenedBlocks).length;
+      // }
+      // if (tokens > tokensLimit[model]) {
+      //   flattenedBlocks = flattenedBlocks.slice(
+      //     0,
+      //     -(dayContent.length + dayTitle.length + 4)
+      //   );
+      // }
     }
     processedDays++;
     date = getYesterdayDate(date);
