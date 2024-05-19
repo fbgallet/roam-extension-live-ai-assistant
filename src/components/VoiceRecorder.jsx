@@ -857,7 +857,7 @@ function VoiceRecorder({
                     AI assistant Completion (C)
                     <br />+<code>Alt</code>: <b>page</b> as context
                     <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
-                    <b>linked refs</b>
+                    <b>linked refs or DNPs</b>
                     <br />+<code>Shift</code>: <b>sidebar</b>
                   </p>
                 }
@@ -878,7 +878,7 @@ function VoiceRecorder({
                     AI Post-Processing following template (P)
                     <br />+<code>Alt</code>: <b>page</b> as context
                     <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
-                    <b>linked refs</b>
+                    <b>linked refs or DNPs</b>
                     <br />+<code>Shift</code>: <b>sidebar</b>
                   </p>
                 }

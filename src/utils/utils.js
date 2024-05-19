@@ -498,7 +498,7 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
   let flattenedBlocks = "";
   // let tokens = 0;
   let date = startDate || getYesterdayDate();
-  console.log("tokensLimit[model] :>> ", tokensLimit[model]);
+  // console.log("tokensLimit[model] :>> ", tokensLimit[model]);
   while (
     flattenedBlocks.length < tokensLimit[model] * 3.2 &&
     (!nbOfDays || processedDays < nbOfDays)
@@ -531,8 +531,8 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     processedDays++;
     date = getYesterdayDate(date);
   }
-  console.log("processedDays :>> ", processedDays);
-  console.log("flattenedBlocks :>> ", flattenedBlocks);
+  // console.log("processedDays :>> ", processedDays);
+  // console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
 };
 
