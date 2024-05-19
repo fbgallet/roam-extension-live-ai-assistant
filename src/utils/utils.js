@@ -405,7 +405,7 @@ export const getAndNormalizeContext = async (
 };
 
 const getFlattenedContentFromTree = (parentUid, maxCapturing, maxUid) => {
-  let flattednedBlocks = "";
+  let flattenedBlocks = "";
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
     if (tree) {
@@ -413,10 +413,10 @@ const getFlattenedContentFromTree = (parentUid, maxCapturing, maxUid) => {
         "\n"
       );
       if (content.length > 1 && content.replace("\n", "").trim())
-        flattednedBlocks = "\n" + content;
+        flattenedBlocks = "\n" + content;
     }
   }
-  return flattednedBlocks.trim();
+  return flattenedBlocks.trim();
 };
 
 export const getFlattenedContentFromLinkedReferences = (pageUid) => {
@@ -496,10 +496,11 @@ export const simulateClick = (elt) => {
 export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
   let processedDays = 0;
   let flattenedBlocks = "";
-  let tokens = 0;
+  // let tokens = 0;
   let date = startDate || getYesterdayDate();
+  console.log("tokensLimit[model] :>> ", tokensLimit[model]);
   while (
-    tokens < tokensLimit[model] &&
+    flattenedBlocks.length < tokensLimit[model] * 3.2 &&
     (!nbOfDays || processedDays < nbOfDays)
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
@@ -511,6 +512,12 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
+      if (flattenedBlocks.length > tokensLimit[model] * 3.2) {
+        flattenedBlocks = flattenedBlocks.slice(
+          0,
+          -(dayContent.length + dayTitle.length + 4)
+        );
+      }
       // if (flattenedBlocks.length > 36000) {
       //   tokens = encoding.encode(flattenedBlocks).length;
       // }
@@ -524,7 +531,8 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     processedDays++;
     date = getYesterdayDate(date);
   }
-  // console.log("flattenedBlocks :>> ", flattenedBlocks);
+  console.log("processedDays :>> ", processedDays);
+  console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
 };
 

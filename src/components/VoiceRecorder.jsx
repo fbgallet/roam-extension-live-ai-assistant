@@ -343,19 +343,26 @@ function VoiceRecorder({
     lastCommand.current = translateAudio;
     initializeProcessing();
   };
-  const handleCompletion = (e, model) => {
+  const handleCompletion = async (e, model) => {
     if (model) instantModel.current = model;
     lastCommand.current = "gptCompletion";
-    handleModifierKeys(e);
+    await handleModifierKeys(e);
     initializeProcessing();
   };
-  const handlePostProcessing = (e, model) => {
+  const handlePostProcessing = async (e, model) => {
     if (model) instantModel.current = model;
     lastCommand.current = "gptPostProcessing";
-    handleModifierKeys(e);
+    await handleModifierKeys(e);
+    handleEltHighlight(e);
     initializeProcessing();
   };
   const handleModifierKeys = async (e) => {
+    roamContext.current = {
+      linkedRefs: false,
+      sidebar: false,
+      mainPage: false,
+      logPages: false,
+    };
     if (e.shiftKey) roamContext.current.sidebar = true;
     if (e.metaKey || e.ctrlKey) {
       if (isLogView() || (await isCurrentPageDNP())) {
@@ -368,7 +375,6 @@ function VoiceRecorder({
       } else roamContext.current.linkedRefs = true;
     }
     if (e.altKey) roamContext.current.mainPage = true;
-    handleEltHighlight(e);
   };
 
   const initializeProcessing = async () => {
