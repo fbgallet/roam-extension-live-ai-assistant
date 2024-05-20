@@ -12,6 +12,11 @@
 - First OpenRouter or Ollama models can be set as default model
 - Option to set number of images limit for Vision
 - Option to toggle stream mode
+- Claude API error messages are clearly displayed in a toast
+- On mobile, controls in topbar are shifted to top right
+
+**Fixed**
+- (on server side) Server can now support the entire Claude token window (200,000 tokens). Until now, by mistake, it did not support messages longer than 100,000 characters (approximately 30,000 tokens). 
 
 ## v.5 (May 4th, 2024) Small fixes
 
