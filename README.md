@@ -14,7 +14,7 @@
 - Context menu for easily switching models and compare their answers
 - Streamed responses
 
-![Live AI Demo 3](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/cbb501b6-6d65-43c7-8b55-3c6e3e7dbdf5)
+![Live AI Demo 3](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/fc35b01c-3172-4763-a4a2-2aa23e290dd9)
 
 
 Controls including vocal transcription:
