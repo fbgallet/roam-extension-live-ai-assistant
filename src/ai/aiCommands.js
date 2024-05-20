@@ -242,28 +242,48 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
       case "Claude Haiku":
         model = "claude-3-haiku-20240307";
     }
-    const { data } = await axios.post(
-      "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
-      {
-        key: ANTHROPIC_API_KEY,
-        prompt: prompt,
-        context: content,
-        model: model,
-        // headers: {
-        //   "Access-Control-Allow-Origin": "*",
-        //   "Content-Type": "application/json",
-        //   "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
-        // },
+    try {
+      const { data } = await axios.post(
+        "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
+        // See server code here: https://github.com/fbgallet/ai-api-back
+        // No data is stored on the server or displayed in any log
+        {
+          key: ANTHROPIC_API_KEY,
+          prompt: prompt,
+          context: content,
+          model: model,
+        }
+      );
+      console.log("Anthropic Claude response :>> ", data.response);
+      let text = data.response.content[0].text;
+      let jsonOnly;
+      if (responseFormat !== "text") {
+        jsonOnly = trimOutsideOuterBraces(text);
+        jsonOnly = sanitizeJSONstring(jsonOnly);
       }
-    );
-    console.log("Anthropic Claude response :>> ", data.response);
-    let text = data.response.content[0].text;
-    let jsonOnly;
-    if (responseFormat !== "text") {
-      jsonOnly = trimOutsideOuterBraces(text);
-      jsonOnly = sanitizeJSONstring(jsonOnly);
+      return jsonOnly || text;
+    } catch (error) {
+      let errorData = error.response?.data?.message
+        ? trimOutsideOuterBraces(error.response.data.message)
+        : null;
+      if (errorData) {
+        errorData = JSON.parse(errorData);
+      }
+      if (errorData) {
+        console.log("Claude API error type:", errorData.error?.type);
+        console.log("Claude API error message:\n", errorData.error?.message);
+        AppToaster.show({
+          message: (
+            <>
+              <h4>Claude API error</h4>
+              <p>Message: {errorData.error?.message}</p>
+            </>
+          ),
+          timeout: 15000,
+        });
+      }
+      return "see error message";
     }
-    return jsonOnly || text;
   }
 }
 

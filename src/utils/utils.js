@@ -500,7 +500,7 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
   let date = startDate || getYesterdayDate();
   // console.log("tokensLimit[model] :>> ", tokensLimit[model]);
   while (
-    flattenedBlocks.length < tokensLimit[model] * 3.2 &&
+    flattenedBlocks.length < tokensLimit[model] * 3 &&
     (!nbOfDays || processedDays < nbOfDays)
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
@@ -512,7 +512,7 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
-      if (flattenedBlocks.length > tokensLimit[model] * 3.2) {
+      if (flattenedBlocks.length > tokensLimit[model] * 3) {
         flattenedBlocks = flattenedBlocks.slice(
           0,
           -(dayContent.length + dayTitle.length + 4)
