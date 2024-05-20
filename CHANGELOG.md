@@ -1,4 +1,4 @@
-### v.6 (May 12th, 2024) New models available
+## v.6 (May 12th, 2024) New models available
 
 **New features:**
 
