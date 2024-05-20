@@ -1,6 +1,6 @@
 # Live AI Assistant (former Speech-to-Roam)
 
-### Interact smoothly with an AI Assistant and chat with your graph using text, voice or images! Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models throught OpenRouter and Ollama.
+### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models throught OpenRouter and Ollama.
 
 ### 🆕 New in v.6:
 
