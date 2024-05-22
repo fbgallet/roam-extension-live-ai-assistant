@@ -539,7 +539,9 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
       if (flattenedBlocks.length > 24000) {
-        tokens = tokenizer.encode(flattenedBlocks).length;
+        tokens = tokenizer
+          ? tokenizer.encode(flattenedBlocks).length
+          : flattenedBlocks.length * 3;
       }
       if (tokens > tokensLimit[model]) {
         console.log(

@@ -64,13 +64,18 @@ export const lastCompletion = {
   typeOfCompletion: null,
 };
 
-const getTokenModel = async () => {
-  const { data } = await axios.get(
-    "https://tiktoken.pages.dev/js/cl100k_base.json"
-  );
-  return data;
+const getTokenizer = async () => {
+  try {
+    const { data } = await axios.get(
+      "https://tiktoken.pages.dev/js/cl100k_base.json"
+    );
+    return new Tiktoken(data);
+  } catch (error) {
+    console.log("Fetching tiktoken rank error:>> ", error);
+    return null;
+  }
 };
-export const tokenizer = new Tiktoken(await getTokenModel());
+export let tokenizer = await getTokenizer();
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -490,7 +495,7 @@ export const insertCompletion = async (
           "\nHere is the content to rely on:\n" +
           context
         : "");
-    content = verifyTokenLimitAndTruncate(model, prompt, content);
+    content = await verifyTokenLimitAndTruncate(model, prompt, content);
   }
   console.log("Context (eventually truncated):\n", content);
 
@@ -558,8 +563,12 @@ export const copyTemplate = async (targetUid, templateUid) => {
   await copyTreeBranches(tree, targetUid);
 };
 
-const verifyTokenLimitAndTruncate = (model, prompt, content) => {
+const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
   // console.log("tokensLimit object :>> ", tokensLimit);
+  if (!tokenizer) {
+    tokenizer = await getTokenizer();
+  }
+  if (!tokenizer) return content;
   const tokens = tokenizer.encode(prompt + content);
   console.log("context tokens :", tokens.length);
 
@@ -603,7 +612,10 @@ export async function getModelsInfo() {
         };
       });
     return result;
-  } catch (error) {}
+  } catch (error) {
+    console.log("Impossible to get OpenRouter models infos:", error);
+    return [];
+  }
 }
 
 export function getValidLanguageCode(input) {

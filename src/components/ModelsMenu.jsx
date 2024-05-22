@@ -132,51 +132,55 @@ const ModelsMenu = ({ command }) => {
       {openRouterModels.length ? (
         <>
           {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}
-          {openRouterModelsInfo.map((model) => (
-            <MenuItem
-              icon={defaultModel === model.id && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e, "openRouter/");
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e, "openRouter/");
-              }}
-              tabindex="0"
-              text={
-                <Tooltip
-                  matchTargetWidth={true}
-                  hoverOpenDelay={1000}
-                  hoverCloseDelay={1000}
-                  content={
-                    <>
-                      <div style={{ maxWidth: "350px" }}>
-                        {model.description}
-                      </div>
-                      <br></br>
-                      Pricing:
-                      <ul>
-                        <li>
-                          prompt: {model.promptPricing.toFixed(3)}$ / M tokens
-                        </li>
-                        <li>
-                          completion: {model.completionPricing.toFixed(3)}$ / M
-                          tokens
-                        </li>
-                        {model.imagePricing ? (
+          {openRouterModelsInfo.length ? (
+            openRouterModelsInfo.map((model) => (
+              <MenuItem
+                icon={defaultModel === model.id && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e, "openRouter/");
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e, "openRouter/");
+                }}
+                tabindex="0"
+                text={
+                  <Tooltip
+                    matchTargetWidth={true}
+                    hoverOpenDelay={1000}
+                    hoverCloseDelay={1000}
+                    content={
+                      <>
+                        <div style={{ maxWidth: "350px" }}>
+                          {model.description}
+                        </div>
+                        <br></br>
+                        Pricing:
+                        <ul>
                           <li>
-                            image: {model.imagePricing.toFixed(2)}$ / k tokens
+                            prompt: {model.promptPricing.toFixed(3)}$ / M tokens
                           </li>
-                        ) : null}
-                      </ul>
-                    </>
-                  }
-                >
-                  {model.name}
-                </Tooltip>
-              }
-              labelElement={model.contextLength + "k"}
-            />
-          ))}
+                          <li>
+                            completion: {model.completionPricing.toFixed(3)}$ /
+                            M tokens
+                          </li>
+                          {model.imagePricing ? (
+                            <li>
+                              image: {model.imagePricing.toFixed(2)}$ / k tokens
+                            </li>
+                          ) : null}
+                        </ul>
+                      </>
+                    }
+                  >
+                    {model.name}
+                  </Tooltip>
+                }
+                labelElement={model.contextLength + "k"}
+              />
+            ))
+          ) : (
+            <div>OpenRouter works only online</div>
+          )}
         </>
       ) : null}
       {ollamaModels.length ? (
