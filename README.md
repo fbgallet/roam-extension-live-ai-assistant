@@ -1,8 +1,8 @@
 # Live AI Assistant (former Speech-to-Roam)
 
-### Interact smoothly with an AI Assistant and chat with your graph using text, voice or images! Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models throught OpenRouter and Ollama.
+### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models throught OpenRouter and Ollama.
 
-### 🆕 New in v.6:
+### 🆕 New in v.6: (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
 - Gpt-4o support, including images Vision (in prompt or context)
 - OpenRouter support to access most of existing models (Mistral, Llama, Gemini...)
@@ -11,11 +11,13 @@
 ### 🆕 New in v.4:
 
 - Claude AI models support
-- Straightforward UI for text-only prompts to AI assistant with easy-to-define context
 - Context menu for easily switching models and compare their answers
-- Streamed responses: no more waiting time before reading the AI assistant response, and possibility to interrupt it (GPT models only)
+- Streamed responses
 
-See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md) for a more complete list of the updates and fixes.
+![Live AI Demo 3](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/fc35b01c-3172-4763-a4a2-2aa23e290dd9)
+
+
+Controls including vocal transcription:
 
 <img width="1130" alt="Formes 24 avril 17h45" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/d4ab0756-2f55-4226-9cdd-758ec5ac5f1b">
 
