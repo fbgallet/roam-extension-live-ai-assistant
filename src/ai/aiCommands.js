@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
-// import { getEncoding } from "js-tiktoken";
+import { Tiktoken } from "js-tiktoken/lite"; // too big in bundle (almost 3 Mb)
 import axios from "axios";
 
 import {
@@ -57,13 +57,20 @@ import {
   trimOutsideOuterBraces,
 } from "../utils/format";
 
-// const encoding = getEncoding("cl100k_base");
 export const lastCompletion = {
   prompt: null,
   targetUid: null,
   context: null,
   typeOfCompletion: null,
 };
+
+const getTokenModel = async () => {
+  const { data } = await axios.get(
+    "https://tiktoken.pages.dev/js/cl100k_base.json"
+  );
+  return data;
+};
+export const tokenizer = new Tiktoken(await getTokenModel());
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -483,7 +490,7 @@ export const insertCompletion = async (
           "\nHere is the content to rely on:\n" +
           context
         : "");
-    // content = verifyTokenLimitAndTruncate(model, prompt, content);
+    content = verifyTokenLimitAndTruncate(model, prompt, content);
   }
   console.log("Context (eventually truncated):\n", content);
 
@@ -551,31 +558,31 @@ export const copyTemplate = async (targetUid, templateUid) => {
   await copyTreeBranches(tree, targetUid);
 };
 
-// const verifyTokenLimitAndTruncate = (model, prompt, content) => {
-//   // console.log("tokensLimit object :>> ", tokensLimit);
-//   const tokens = encoding.encode(prompt + content);
-//   console.log("context tokens :", tokens.length);
+const verifyTokenLimitAndTruncate = (model, prompt, content) => {
+  // console.log("tokensLimit object :>> ", tokensLimit);
+  const tokens = tokenizer.encode(prompt + content);
+  console.log("context tokens :", tokens.length);
 
-//   const limit = tokensLimit[model];
-//   if (!limit) {
-//     console.log("No context length provided for this model.");
-//     return content;
-//   }
+  const limit = tokensLimit[model];
+  if (!limit) {
+    console.log("No context length provided for this model.");
+    return content;
+  }
 
-//   if (tokens.length > limit) {
-//     AppToaster.show({
-//       message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
-//     });
-//     // + 2% margin of error
-//     const ratio = limit / tokens.length - 0.02;
-//     content = content.slice(0, content.length * ratio);
-//     console.log(
-//       "tokens of truncated context:",
-//       encoding.encode(prompt + content).length
-//     );
-//   }
-//   return content;
-// };
+  if (tokens.length > limit) {
+    AppToaster.show({
+      message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
+    });
+    // 1% margin of error
+    const ratio = limit / tokens.length - 0.01;
+    content = content.slice(0, content.length * ratio);
+    console.log(
+      "tokens of truncated context:",
+      tokenizer.encode(prompt + content).length
+    );
+  }
+  return content;
+};
 
 export async function getModelsInfo() {
   try {

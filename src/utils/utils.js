@@ -8,7 +8,7 @@ import {
   maxUidDepth,
   tokensLimit,
 } from "..";
-// import { getEncoding } from "js-tiktoken";
+// import { tokenizer } from "../ai/aiCommands";
 import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
@@ -18,7 +18,6 @@ export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
-// const encoding = getEncoding("cl100k_base");
 
 export function getTreeByUid(uid) {
   // // with pull
@@ -498,9 +497,36 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
   let flattenedBlocks = "";
   // let tokens = 0;
   let date = startDate || getYesterdayDate();
-  // console.log("tokensLimit[model] :>> ", tokensLimit[model]);
+
+  // In the absence of using a tokenizer,
+  // a very approximate lower limit would be 3 tokens per character
+  // while (
+  //   flattenedBlocks.length < tokensLimit[model] * 3 &&
+  //   (!nbOfDays || processedDays < nbOfDays)
+  // ) {
+  //   let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
+  //   let dayContent = getFlattenedContentFromTree(
+  //     dnpUid,
+  //     maxCapturingDepth.dnp,
+  //     maxUidDepth.dnp
+  //   );
+  //   if (dayContent.length > 0) {
+  //     let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
+  //     flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
+  //     if (flattenedBlocks.length > tokensLimit[model] * 3) {
+  //       flattenedBlocks = flattenedBlocks.slice(
+  //         0,
+  //         -(dayContent.length + dayTitle.length + 4)
+  //       );
+  //     }
+  //   }
+  //   processedDays++;
+  //   date = getYesterdayDate(date);
+  // }
+
+  // **** Version using tokenizer from js-tiktoken
   while (
-    flattenedBlocks.length < tokensLimit[model] * 3 &&
+    tokens < tokensLimit[model] &&
     (!nbOfDays || processedDays < nbOfDays)
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
@@ -512,21 +538,20 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
-      if (flattenedBlocks.length > tokensLimit[model] * 3) {
+      if (flattenedBlocks.length > 24000) {
+        tokens = tokenizer.encode(flattenedBlocks).length;
+      }
+      if (tokens > tokensLimit[model]) {
+        console.log(
+          "Context truncated to fit model context window. Tokens:",
+          tokens
+        );
+        console.log("Nb of days processed:", processedDays);
         flattenedBlocks = flattenedBlocks.slice(
           0,
           -(dayContent.length + dayTitle.length + 4)
         );
       }
-      // if (flattenedBlocks.length > 36000) {
-      //   tokens = encoding.encode(flattenedBlocks).length;
-      // }
-      // if (tokens > tokensLimit[model]) {
-      //   flattenedBlocks = flattenedBlocks.slice(
-      //     0,
-      //     -(dayContent.length + dayTitle.length + 4)
-      //   );
-      // }
     }
     processedDays++;
     date = getYesterdayDate(date);
