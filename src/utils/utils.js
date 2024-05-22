@@ -8,7 +8,7 @@ import {
   maxUidDepth,
   tokensLimit,
 } from "..";
-// import { tokenizer } from "../ai/aiCommands";
+import { tokenizer } from "../ai/aiCommands";
 import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
@@ -495,7 +495,7 @@ export const simulateClick = (elt) => {
 export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
   let processedDays = 0;
   let flattenedBlocks = "";
-  // let tokens = 0;
+  let tokens = 0;
   let date = startDate || getYesterdayDate();
 
   // In the absence of using a tokenizer,
@@ -546,7 +546,9 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
           "Context truncated to fit model context window. Tokens:",
           tokens
         );
-        console.log("Nb of days processed:", processedDays);
+        AppToaster.show({
+          message: `The token limit (${tokensLimit[model]}) has been exceeded (more than ${tokens} needed), only ${processedDays} DNPs have been processed to fit ${model} token window.`,
+        });
         flattenedBlocks = flattenedBlocks.slice(
           0,
           -(dayContent.length + dayTitle.length + 4)
