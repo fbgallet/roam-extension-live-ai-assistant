@@ -1,6 +1,6 @@
 # Live AI Assistant (former Speech-to-Roam)
 
-### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models throught OpenRouter and Ollama.
+### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models through OpenRouter and Ollama.
 
 ### 🆕 New in v.6: (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -34,6 +34,8 @@ NB: API fees should not be confused with the ChatGPT Plus subscription; they are
 ⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
 - To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API.
+
+- To use local models with Ollama, see 'Use Ollama to run local models' section below.
 
 ## Your first prompt to Live AI Assistant
 
@@ -145,7 +147,7 @@ By default, logging of your inputs & outputs in OpenRouter's settings is enabled
 [Ollama](https://ollama.com/) allows you to run local models like Llama3, so all your data shared with the AI assistant is processed entirely locally and is not sent to a third party like OpenAI or Anthropic. (Please note: a local model is typically slower than a remote model and requires a machine with a lot of RAM. E.g a 7B model may require 7GB of RAM to work properly)
 Install Ollama, install a model (ex. `ollama run llama3`), add the model name in the settings above (e.g. `llama3`), and follow the instructions below:
 
-To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to "https://roamresearch.com" (by default, Ollama CORS is restricted to local origins). See [Ollama documentation here](The benefit is having a single account for) or proceed this way, according to your operating system:
+To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to "https://roamresearch.com" (by default, Ollama CORS is restricted to local origins). See [Ollama documentation here](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server) or proceed this way, according to your operating system:
 
 ### on MacOS
 
