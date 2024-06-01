@@ -259,7 +259,10 @@ export default {
               unmountComponent(position);
               setTimeout(async () => {
                 OPENROUTER_API_KEY = evt.target.value;
-                openrouterLibrary = initializeOpenAIAPI(OPENROUTER_API_KEY);
+                openrouterLibrary = initializeOpenAIAPI(
+                  OPENROUTER_API_KEY,
+                  "https://openrouter.ai/api/v1"
+                );
                 openRouterModelsInfo = await getModelsInfo();
               }, 200);
               setTimeout(() => {
