@@ -124,10 +124,10 @@ export function getLinkedReferencesTrees(pageUid) {
   return reverseTimeSorted;
 }
 
-export function createSiblingBlock(currentUid, position) {
+export async function createSiblingBlock(currentUid, position) {
   const currentOrder = getBlockOrderByUid(currentUid);
   const parentUid = getParentBlock(currentUid);
-  const siblingUid = createChildBlock(
+  const siblingUid = await createChildBlock(
     parentUid,
     "",
     position === "before" ? currentOrder : currentOrder + 1
@@ -180,16 +180,17 @@ export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
   return flattenedContent.trim();
 }
 
-export function createChildBlock(
+export async function createChildBlock(
   parentUid,
   content = "",
   order = "last",
-  open = true
+  open = true,
+  heading = 0
 ) {
   const uid = window.roamAlphaAPI.util.generateUID();
-  window.roamAlphaAPI.createBlock({
+  await window.roamAlphaAPI.createBlock({
     location: { "parent-uid": parentUid, order: order },
-    block: { string: content, uid: uid, open: open },
+    block: { string: content, uid: uid, open: open, heading: heading },
   });
   return uid;
 }

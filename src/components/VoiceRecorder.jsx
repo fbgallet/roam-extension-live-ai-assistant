@@ -448,7 +448,7 @@ function VoiceRecorder({
       ) {
         const targetBlockContent = getBlockContentByUid(targetUid).trim();
         if (targetBlockContent && lastCommand.current === "gptCompletion")
-          targetUid = createChildBlock(targetUid, "");
+          targetUid = await createChildBlock(targetUid, "");
       }
     }
     const intervalId = await displaySpinner(targetUid);
@@ -523,7 +523,7 @@ function VoiceRecorder({
             });
             commandType = "gptCompletion";
             prompt = prompt;
-            uid = createChildBlock(
+            uid = await createChildBlock(
               promptUid,
               instantModel.current
                 ? getInstantAssistantRole(instantModel.current)
@@ -551,7 +551,7 @@ function VoiceRecorder({
         waitForBlockCopy ? 100 : 0
       );
     } else {
-      uid = createChildBlock(
+      uid = await createChildBlock(
         promptUid,
         instantModel.current
           ? getInstantAssistantRole(instantModel.current)

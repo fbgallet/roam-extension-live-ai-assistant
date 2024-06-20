@@ -104,7 +104,7 @@ const ModelsMenu = ({ command }) => {
             labelElement="200k"
           />
           <MenuItem
-            icon={defaultModel === "Claude Sonnet" && "pin"}
+            icon={defaultModel === "Claude Sonnet 3.5" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -112,7 +112,7 @@ const ModelsMenu = ({ command }) => {
               handleKeyDownOnModel(e);
             }}
             tabindex="0"
-            text="Claude Sonnet"
+            text="Claude Sonnet 3.5"
             labelElement="200k"
           />
           <MenuItem

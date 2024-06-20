@@ -32,7 +32,7 @@ export const tokensLimit = {
   "gpt-4-turbo-preview": 131073,
   "gpt-4o": 131073,
   "Claude Haiku": 200000,
-  "Claude Sonnet": 200000,
+  "Claude Sonnet 3.5": 200000,
   "Claude Opus": 200000,
   custom: undefined,
 };
@@ -154,7 +154,7 @@ export default {
               "gpt-4-turbo-preview",
               "gpt-4o",
               "Claude Haiku",
-              "Claude Sonnet",
+              "Claude Sonnet 3.5",
               "Claude Opus",
               "custom OpenAI model",
               "first OpenRouter model",

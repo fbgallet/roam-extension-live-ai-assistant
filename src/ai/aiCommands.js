@@ -53,6 +53,7 @@ import {
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import {
   sanitizeJSONstring,
+  splitLines,
   splitParagraphs,
   trimOutsideOuterBraces,
 } from "../utils/format";
@@ -248,8 +249,9 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
       case "Claude Opus":
         model = "claude-3-opus-20240229";
         break;
-      case "Claude Sonnet":
-        model = "claude-3-sonnet-20240229";
+      case "Claude Sonnet 3.5":
+        model = "claude-3-5-sonnet-20240620";
+        // model = "claude-3-sonnet-20240229"; previous version
         break;
       case "Claude Haiku":
         model = "claude-3-haiku-20240307";
@@ -501,7 +503,7 @@ export const insertCompletion = async (
 
   if (isRedone && typeOfCompletion === "gptCompletion") {
     if (isExistingBlock(targetUid)) {
-      targetUid = createSiblingBlock(targetUid, "before");
+      targetUid = await createSiblingBlock(targetUid, "before");
       window.roamAlphaAPI.updateBlock({
         block: {
           uid: targetUid,
@@ -519,7 +521,7 @@ export const insertCompletion = async (
     responseFormat,
     targetUid
   );
-  // console.log("aiResponse :>> ", aiResponse);
+  console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
   if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
     updateArrayOfBlocks(aiResponse);
@@ -529,7 +531,8 @@ export const insertCompletion = async (
       addContentToBlock(targetUid, splittedResponse[0]);
     else {
       for (let i = 0; i < splittedResponse.length; i++) {
-        createChildBlock(targetUid, splittedResponse[i]);
+        // createChildBlock(targetUid, splittedResponse[i]);
+        splitLines(splittedResponse[i], targetUid);
       }
     }
   }

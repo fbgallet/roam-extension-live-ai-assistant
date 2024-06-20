@@ -186,7 +186,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         async () => {
           let template = await getTemplateForPostProcessing(currentUid);
           if (!template.isInMultipleBlocks) {
-            targetUid = createChildBlock(
+            targetUid = await createChildBlock(
               targetUid ? targetUid : currentUid,
               chatRoles.assistant,
               inlineContext?.roamContext
