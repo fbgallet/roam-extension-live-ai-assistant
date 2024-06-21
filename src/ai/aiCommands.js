@@ -530,9 +530,14 @@ export const insertCompletion = async (
     if (!isResponseToSplit || splittedResponse.length === 1)
       addContentToBlock(targetUid, splittedResponse[0]);
     else {
+      let lastParentUid;
       for (let i = 0; i < splittedResponse.length; i++) {
         // createChildBlock(targetUid, splittedResponse[i]);
-        splitLines(splittedResponse[i], targetUid);
+        lastParentUid = await splitLines(
+          splittedResponse[i],
+          targetUid,
+          lastParentUid
+        );
       }
     }
   }

@@ -4,7 +4,7 @@ const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
 const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 const markdownHeadingRegex = /^#+\s/m;
-const dashRegex = /^\s*-\s/m;
+const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
 
 export const trimOutsideOuterBraces = (str) => {
   const matches = str.match(/\{.*\}/gs);
@@ -34,48 +34,50 @@ export const splitParagraphs = (str) => {
   return str.split(`\n\n`);
 };
 
-export const splitLines = async (str, parentUid) => {
+export const splitLines = async (str, parentUid, lastParentUid) => {
   let levelsUid = [parentUid];
   if (
     !codeBlockRegex.test(str) &&
-    (markdownHeadingRegex.test(str) || dashRegex.test(str))
+    (markdownHeadingRegex.test(str) || dashOrNumRegex.test(str))
   ) {
     let level = 0;
     let isDash = false;
-    let lastBlockUid = parentUid;
     const lines = str.split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (markdownHeadingRegex.test(lines[i])) {
         const matchingHeading = lines[i].match(markdownHeadingRegex);
+        const headingLevel = matchingHeading[0].length - 1;
         const headingUid = await createChildBlock(
           levelsUid[level],
           lines[i].replace(matchingHeading[0], ""),
           "last",
           true,
-          matchingHeading[0].length - 1
+          headingLevel > 3 ? 3 : headingLevel
         );
-        lastBlockUid = headingUid;
+        lastParentUid = headingUid;
         level++;
         levelsUid.push(headingUid);
-      } else if (dashRegex.test(lines[i])) {
+      } else if (dashOrNumRegex.test(lines[i])) {
         if (!isDash) {
           isDash = true;
           level++;
-          levelsUid.push(lastBlockUid);
+          levelsUid.push(lastParentUid || parentUid);
         }
-        const matchingDash = lines[i].match(dashRegex);
-        const dashUid = await createChildBlock(
-          lastBlockUid,
-          lines[i].replace(matchingDash[0], "")
+        const matchingDash = lines[i].match(dashOrNumRegex);
+        await createChildBlock(
+          levelsUid[level],
+          matchingDash[0].includes("-")
+            ? lines[i].replace(matchingDash[0], "")
+            : lines[i]
         );
       } else {
         if (isDash) {
           level--;
           isDash = false;
         }
-        lastBlockUid = await createChildBlock(levelsUid[level], lines[i]);
+        lastParentUid = await createChildBlock(levelsUid[level], lines[i]);
       }
-      console.log(level);
     }
-  } else await createChildBlock(parentUid, str);
+    return lastParentUid;
+  } else return await createChildBlock(parentUid, str);
 };

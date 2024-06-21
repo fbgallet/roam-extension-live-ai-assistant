@@ -69,12 +69,23 @@ export function isExistingBlock(uid) {
 }
 
 function getParentBlock(uid) {
-  let result = window.roamAlphaAPI.pull("[:block/uid {:block/parents ...}]", [
-    ":block/uid",
-    uid,
-  ]);
-  if (result) return result[":block/parents"].at(-1)[":block/uid"];
-  else return "";
+  // NOT RELIABLE
+  // let result = window.roamAlphaAPI.pull("[:block/uid {:block/parents ...}]", [
+  //   ":block/uid",
+  //   uid,
+  // ]);
+  // if (result) return result[":block/parents"].at(-1)[":block/uid"];
+  // else return "";
+  let result = window.roamAlphaAPI.pull(
+    "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",
+    [":block/uid", uid]
+  );
+  if (result) {
+    const directParent = result[":block/parents"].find((parent) =>
+      parent[":block/children"]?.some((child) => child[":block/uid"] === uid)
+    );
+    return directParent[":block/uid"];
+  } else return "";
 }
 
 export function getPageUidByBlockUid(uid) {
