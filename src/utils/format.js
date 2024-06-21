@@ -1,4 +1,4 @@
-import { createChildBlock } from "./utils";
+import { createChildBlock, getBlockContentByUid } from "./utils";
 
 const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
@@ -42,6 +42,8 @@ export const splitLines = async (str, parentUid, lastParentUid) => {
   ) {
     let level = 0;
     let isDash = false;
+    let isNum = false;
+    let lastBlockUid;
     const lines = str.split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (markdownHeadingRegex.test(lines[i])) {
@@ -58,22 +60,32 @@ export const splitLines = async (str, parentUid, lastParentUid) => {
         level++;
         levelsUid.push(headingUid);
       } else if (dashOrNumRegex.test(lines[i])) {
-        if (!isDash) {
+        const matchingDash = lines[i].match(dashOrNumRegex);
+        console.log("matchingDash :>> ", matchingDash);
+        if (!isDash && matchingDash[0].includes("-")) {
+          console.log("is Dash!");
           isDash = true;
           level++;
-          levelsUid.push(lastParentUid || parentUid);
+          levelsUid.push(isNum ? lastBlockUid : lastParentUid || parentUid);
+        } else if (!isNum && !matchingDash[0].includes("-")) {
+          console.log("is Num!");
+          isNum = true;
+          level++;
+          levelsUid.push(isDash ? lastBlockUid : lastParentUid || parentUid);
         }
-        const matchingDash = lines[i].match(dashOrNumRegex);
-        await createChildBlock(
+        console.log("level :>> ", level);
+        console.log("parent content: ", getBlockContentByUid(levelsUid[level]));
+        lastBlockUid = await createChildBlock(
           levelsUid[level],
           matchingDash[0].includes("-")
             ? lines[i].replace(matchingDash[0], "")
             : lines[i]
         );
       } else {
-        if (isDash) {
-          level--;
+        if (isDash || isNum) {
+          // level--;
           isDash = false;
+          isNum = false;
         }
         lastParentUid = await createChildBlock(levelsUid[level], lines[i]);
       }
