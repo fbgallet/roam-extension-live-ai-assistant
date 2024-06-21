@@ -7,6 +7,7 @@ import {
   maxCapturingDepth,
   maxUidDepth,
   tokensLimit,
+  chatRoles,
 } from "..";
 import { tokenizer } from "../ai/aiCommands";
 import { AppToaster } from "../components/VoiceRecorder";
@@ -53,7 +54,11 @@ function getOrderedDirectChildren(uid) {
   }
   return result.children
     .sort((a, b) => a.order - b.order)
-    .map((block) => ({ string: block.string, uid: block.uid }));
+    .map((block) => ({
+      string: block.string,
+      uid: block.uid,
+      order: block.order,
+    }));
 }
 
 export function getBlockContentByUid(uid) {
@@ -68,7 +73,7 @@ export function isExistingBlock(uid) {
   return false;
 }
 
-function getParentBlock(uid) {
+export function getParentBlock(uid) {
   // NOT RELIABLE
   // let result = window.roamAlphaAPI.pull("[:block/uid {:block/parents ...}]", [
   //   ":block/uid",
@@ -86,6 +91,17 @@ function getParentBlock(uid) {
     );
     return directParent[":block/uid"];
   } else return "";
+}
+
+export function getPreviousSiblingBlock(currentUid) {
+  const parentUid = getParentBlock(currentUid);
+  const tree = getOrderedDirectChildren(parentUid);
+  const currentBlockOrder = tree.find(
+    (block) => block.uid === currentUid
+  ).order;
+  console.log("currentBlockOrder :>> ", currentBlockOrder);
+  if (!currentBlockOrder) return null;
+  return tree.find((block) => block.order === currentBlockOrder - 1);
 }
 
 export function getPageUidByBlockUid(uid) {
@@ -340,13 +356,18 @@ export function convertTreeToLinearArray(tree, maxCapturing, maxUid) {
       let toExclude = false;
       if (element.string) {
         let uidString =
-          maxUid && level > maxUid ? "" : "((" + element.uid + "))";
+          (maxUid && level > maxUid) || !maxUid
+            ? ""
+            : "((" + element.uid + "))";
         toExclude = exclusionStrings.some((str) =>
           element.string.includes(str)
         );
         if (!toExclude)
           linearArray.push(
-            uidString + leftShift + "- " + resolveReferences(element.string)
+            uidString +
+              leftShift +
+              ((maxUid && level > maxUid) || !maxUid ? "" : "- ") +
+              resolveReferences(element.string)
           );
       } else level--;
       if (element.children && !toExclude) {
@@ -371,8 +392,8 @@ export const getAndNormalizeContext = async (
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
     context = getResolvedContentFromBlocks(blocksSelectionUids);
-  else if (startBlock)
-    context = resolveReferences(getBlockContentByUid(startBlock));
+  // else if (startBlock)
+  //   context = resolveReferences(getBlockContentByUid(startBlock));
   else if (isMobileViewContext && window.innerWidth < 500)
     context = getResolvedContentFromBlocks(
       getBlocksSelectionUids(true).slice(0, -1)
@@ -684,4 +705,27 @@ export const getArrayFromList = (list, separator = ",") => {
   const splittedList = list.split(separator).map((elt) => elt.trim());
   if (splittedList.length === 1 && !splittedList[0].trim()) return [];
   return splittedList;
+};
+
+export const getConversationArray = (parentUid) => {
+  let tree = getTreeByUid(parentUid);
+  if (!tree) return null;
+  const conversation = [{ role: "user", content: tree[0].string }];
+  if (tree[0].children.length) {
+    const orderedChildrenTree = tree[0].children.sort(
+      (a, b) => a.order - b.order
+    );
+    for (let i = 0; i < orderedChildrenTree.length - 1; i++) {
+      const child = orderedChildrenTree[i];
+      let turnFlattenedContent = getFlattenedContentFromTree(
+        child.uid,
+        99,
+        null
+      );
+      if (chatRoles.genericAssistantRegex.test(getBlockContentByUid(child.uid)))
+        conversation.push({ role: "assistant", content: turnFlattenedContent });
+      else conversation.push({ role: "user", content: turnFlattenedContent });
+    }
+  }
+  return conversation;
 };

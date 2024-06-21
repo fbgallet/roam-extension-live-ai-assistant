@@ -61,20 +61,15 @@ export const splitLines = async (str, parentUid, lastParentUid) => {
         levelsUid.push(headingUid);
       } else if (dashOrNumRegex.test(lines[i])) {
         const matchingDash = lines[i].match(dashOrNumRegex);
-        console.log("matchingDash :>> ", matchingDash);
         if (!isDash && matchingDash[0].includes("-")) {
-          console.log("is Dash!");
           isDash = true;
           level++;
           levelsUid.push(isNum ? lastBlockUid : lastParentUid || parentUid);
         } else if (!isNum && !matchingDash[0].includes("-")) {
-          console.log("is Num!");
           isNum = true;
           level++;
           levelsUid.push(isDash ? lastBlockUid : lastParentUid || parentUid);
         }
-        console.log("level :>> ", level);
-        console.log("parent content: ", getBlockContentByUid(levelsUid[level]));
         lastBlockUid = await createChildBlock(
           levelsUid[level],
           matchingDash[0].includes("-")

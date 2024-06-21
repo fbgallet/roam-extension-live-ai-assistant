@@ -3,6 +3,7 @@ import {
   copyTemplate,
   getTemplateForPostProcessing,
   insertCompletion,
+  isPromptInConversation,
   lastCompletion,
 } from "../ai/aiCommands";
 import { contextAsPrompt } from "../ai/prompts";
@@ -18,6 +19,7 @@ import {
   getBlockContentByUid,
   getFirstChildUid,
   getFocusAndSelection,
+  getParentBlock,
   getRoamContextFromPrompt,
   getTemplateFromPrompt,
   insertBlockInCurrentView,
@@ -120,8 +122,14 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       const { currentUid, currentBlockContent, selectionUids } =
         getFocusAndSelection();
       if (!currentUid && !selectionUids.length) return;
+      const isInConversation = currentUid
+        ? isPromptInConversation(currentUid)
+        : false;
       let targetUid = currentUid
-        ? await createChildBlock(currentUid, chatRoles.assistant)
+        ? await createChildBlock(
+            isInConversation ? getParentBlock(currentUid) : currentUid,
+            chatRoles.assistant
+          )
         : await insertBlockInCurrentView(
             chatRoles.user + " a selection of blocks"
           );
@@ -139,7 +147,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         inlineContext?.roamContext,
         currentUid
       );
-      insertCompletion(prompt, targetUid, context, "gptCompletion");
+      insertCompletion({
+        prompt,
+        targetUid,
+        context,
+        typeOfCompletion: "gptCompletion",
+        isInConversation,
+      });
     },
   });
 
@@ -202,13 +216,15 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
           if (!targetUid) targetUid = getFirstChildUid(currentUid);
 
-          insertCompletion(
+          insertCompletion({
             prompt,
             // waitForBlockCopy ? currentUid : targetUid,
             targetUid,
             context,
-            template.isInMultipleBlocks ? "gptPostProcessing" : "gptCompletion"
-          );
+            typeOfCompletion: template.isInMultipleBlocks
+              ? "gptPostProcessing"
+              : "gptCompletion",
+          });
         },
         waitForBlockCopy ? 100 : 0
       );
@@ -223,14 +239,14 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
         const targetUid = focusUid ? focusUid : lastCompletion.targetUid;
         console.log("lastCompletion :>> ", lastCompletion);
-        insertCompletion(
-          lastCompletion.prompt,
+        insertCompletion({
+          prompt: lastCompletion.prompt,
           targetUid,
-          lastCompletion.context,
-          lastCompletion.typeOfCompletion,
-          lastCompletion.instantModel,
-          true
-        );
+          context: lastCompletion.context,
+          typeOfCompletion: lastCompletion.typeOfCompletion,
+          instantModel: lastCompletion.instantModel,
+          isRedone: true,
+        });
       }
     },
   });

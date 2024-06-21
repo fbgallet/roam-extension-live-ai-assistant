@@ -29,9 +29,11 @@ import {
   addContentToBlock,
   convertTreeToLinearArray,
   copyTreeBranches,
-  createChildBlock,
   createSiblingBlock,
+  getConversationArray,
   getFlattenedContentFromArrayOfBlocks,
+  getParentBlock,
+  getPreviousSiblingBlock,
   getTreeByUid,
   highlightHtmlElt,
   insertBlockInCurrentView,
@@ -315,19 +317,22 @@ export async function openaiCompletion(
       role: "system",
       content: content,
     },
-    {
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text: prompt,
-        },
-      ],
-    },
-  ];
+  ].concat(prompt);
+  // {
+  //   role: "user",
+  //   content: [
+  //     {
+  //       type: "text",
+  //       text: prompt,
+  //     },
+  //   ],
+  // },
+  // ];
+  console.log("content from completion :>> ", content);
   if (isModelSupportingImage(model)) {
-    messages = addImagesUrlToMessages(messages, prompt, content);
+    messages = addImagesUrlToMessages(messages, content);
   }
+  console.log("messages :>> ", messages);
   try {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
@@ -417,8 +422,7 @@ export async function ollamaCompletion(
             role: "system",
             content: content,
           },
-          { role: "user", content: prompt },
-        ],
+        ].concat(prompt),
         options: {
           num_ctx: 8192,
         },
@@ -456,14 +460,15 @@ export async function ollamaCompletion(
   }
 }
 
-export const insertCompletion = async (
+export const insertCompletion = async ({
   prompt,
   targetUid,
   context,
   typeOfCompletion,
   instantModel,
-  isRedone
-) => {
+  isRedone,
+  isInConversation,
+}) => {
   lastCompletion.prompt = prompt;
   lastCompletion.targetUid = targetUid;
   lastCompletion.context = context;
@@ -501,23 +506,36 @@ export const insertCompletion = async (
   }
   console.log("Context (eventually truncated):\n", content);
 
-  if (isRedone && typeOfCompletion === "gptCompletion") {
-    if (isExistingBlock(targetUid)) {
-      targetUid = await createSiblingBlock(targetUid, "before");
-      window.roamAlphaAPI.updateBlock({
-        block: {
-          uid: targetUid,
-          string: assistantRole,
-        },
-      });
-    } else targetUid = await insertBlockInCurrentView(assistantRole);
+  if (typeOfCompletion === "gptCompletion") {
+    if (isRedone) {
+      if (isExistingBlock(targetUid)) {
+        targetUid = await createSiblingBlock(targetUid, "before");
+        window.roamAlphaAPI.updateBlock({
+          block: {
+            uid: targetUid,
+            string: assistantRole,
+          },
+        });
+      } else targetUid = await insertBlockInCurrentView(assistantRole);
+    } else {
+      if (isInConversation) {
+        prompt = getConversationArray(getParentBlock(targetUid));
+      } else {
+        prompt = [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ];
+      }
+    }
   }
   const intervalId = await displaySpinner(targetUid);
-  console.log("Prompt sent to AI assistant :>>\n", prompt);
+
   const aiResponse = await aiCompletion(
     model,
     prompt,
-    context,
+    content,
     responseFormat,
     targetUid
   );
@@ -743,36 +761,55 @@ const supportedLanguage = [
   "zh",
 ];
 
-const addImagesUrlToMessages = (messages, prompt, content) => {
+const addImagesUrlToMessages = (messages, content) => {
   let nbCountdown = maxImagesNb;
-  const matchingImagesInPrompt = prompt.matchAll(roamImageRegex);
-  matchingImagesInPrompt.forEach((imgUrl) => {
-    if (nbCountdown > 0)
-      messages[1].content.push({
-        type: "image_url",
-        image_url: {
-          url: imgUrl[1],
-        },
-      });
-    nbCountdown--;
-  });
-  const matchingImagesInContext = content.matchAll(roamImageRegex);
-  matchingImagesInContext.forEach((imgUrl, index) => {
-    if (nbCountdown > 0) {
-      if (index === 0)
-        messages.splice(1, 0, {
-          role: "user",
-          content: [],
+
+  console.log("content in Img :>> ", content);
+  console.log("messages in Images :>> ", messages);
+
+  messages.forEach((msg, index) => {
+    if (index > 0) {
+      const matchingImagesInPrompt = msg.content?.matchAll(roamImageRegex);
+      matchingImagesInPrompt.length &&
+        matchingImagesInPrompt.forEach((imgUrl) => {
+          if (nbCountdown > 0)
+            msg.content = [
+              {
+                type: "text",
+                text: msg.content,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imgUrl[1],
+                },
+              },
+            ];
+          nbCountdown--;
         });
-      messages[1].content.push({
-        type: "image_url",
-        image_url: {
-          url: imgUrl[1],
-        },
-      });
-      nbCountdown--;
     }
   });
+
+  if (content && content.length) {
+    const matchingImagesInContext = content.matchAll(roamImageRegex);
+    matchingImagesInContext.length &&
+      matchingImagesInContext.forEach((imgUrl, index) => {
+        if (nbCountdown > 0) {
+          if (index === 0)
+            messages.splice(1, 0, {
+              role: "user",
+              content: [],
+            });
+          messages[1].content.push({
+            type: "image_url",
+            image_url: {
+              url: imgUrl[1],
+            },
+          });
+          nbCountdown--;
+        }
+      });
+  }
   return messages;
 };
 
@@ -784,4 +821,12 @@ const isModelSupportingImage = (model) => {
     if (ormodel) return ormodel.imagePricing ? true : false;
   }
   return false;
+};
+
+export const isPromptInConversation = (promptUid) => {
+  const previousSiblingUid = getPreviousSiblingBlock(promptUid);
+  return previousSiblingUid &&
+    chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
+    ? true
+    : false;
 };

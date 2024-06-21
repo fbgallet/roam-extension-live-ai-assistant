@@ -38,14 +38,16 @@ const InstantButtons = ({
 
   const handleRedo = (e, instantModel) => {
     isCanceledStreamGlobal = true;
-    insertCompletion(
+    console.log("content from buttons :>> ", content);
+    insertCompletion({
       prompt,
       targetUid,
-      content,
-      responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
-      instantModel || model,
-      true
-    );
+      context: content,
+      typeOfCompletion:
+        responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
+      instantModel: instantModel || model,
+      isRedone: true,
+    });
     setIsToUnmount(true);
   };
 

@@ -17,6 +17,7 @@ import {
   copyTemplate,
   getTemplateForPostProcessing,
   insertCompletion,
+  isPromptInConversation,
   transcribeAudio,
   translateAudio,
 } from "../ai/aiCommands.js";
@@ -27,6 +28,7 @@ import {
   getBlockContentByUid,
   getBlocksSelectionUids,
   getFirstChildUid,
+  getParentBlock,
   getResolvedContentFromBlocks,
   getTemplateFromPrompt,
   highlightHtmlElt,
@@ -539,31 +541,34 @@ function VoiceRecorder({
               template.stringified;
             uid = getFirstChildUid(promptUid);
           }
-          await insertCompletion(
+          await insertCompletion({
             prompt,
-            uid,
+            targetUid: uid,
             context,
-            commandType,
-            instantModel.current
-          );
+            typeOfCompletion: commandType,
+            instantModel: instantModel.current,
+          });
           initialize(true);
         },
         waitForBlockCopy ? 100 : 0
       );
     } else {
+      const isInConversation = isPromptInConversation(promptUid);
       uid = await createChildBlock(
-        promptUid,
+        isInConversation ? getParentBlock(promptUid) : promptUid,
         instantModel.current
           ? getInstantAssistantRole(instantModel.current)
           : chatRoles.assistant
       );
-      await insertCompletion(
+      await insertCompletion({
         prompt,
-        uid,
+        targetUid: uid,
         context,
-        lastCommand.current,
-        instantModel.current
-      );
+        typeOfCompletion: lastCommand.current,
+        instantModel: instantModel.current,
+        isRedone: false,
+        isInConversation,
+      });
       initialize(true);
     }
   };

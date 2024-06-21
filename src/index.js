@@ -90,12 +90,22 @@ function getRolesFromString(str, model) {
       splittedStr.length > 1
         ? splittedStr[1].trimStart().replace("<model>", assistantModel)
         : "AI assistant: ",
+    genericAssistantRegex:
+      splittedStr.length > 1
+        ? getAssistantRoleRegex(splittedStr[1].trim())
+        : null,
   };
 }
 
 export function getInstantAssistantRole(instantModel) {
   const { assistant } = getRolesFromString(chatRoles.defaultStr, instantModel);
   return assistant;
+}
+
+function getAssistantRoleRegex(assistantRoleStr) {
+  if (assistantRoleStr)
+    return new RegExp(assistantRoleStr.replace("<model>", ".*"));
+  return null;
 }
 
 export default {
