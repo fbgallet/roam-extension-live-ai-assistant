@@ -5,6 +5,7 @@
 
 **Updated**
 - better support of Markdown syntax of model responses (especially GPT-4o)
+- Claude Sonnet 3.5 support
 - option to customize temperature of model responses
 - option to customize Ollama server address and port
 
