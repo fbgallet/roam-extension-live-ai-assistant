@@ -5,6 +5,7 @@
 ### 🆕 New in v.7: (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
 - Continue easily any chat from the next sibling block of the last AI Assistant response.
+- Claude Sonnet 3.5 support
 - Better support of markdown syntax to format AI responses
 
 ### 🆕 New in v.6:
@@ -234,7 +235,7 @@ _Claude API pricing:_
 - Haiku:
   - Input: `$0.00025` / 1K tokens
   - Output: `$0.00125` / 1K tokens
-- Sonnet
+- Sonnet 3.5
   - input: `$0.003` / 1K tokens
   - output: `$0.015` / 1K tokens
 - Opus
