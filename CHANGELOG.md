@@ -1,3 +1,14 @@
+## v.7 (June 22nd, 2024) Easily chat
+
+**New features:**
+- continue easily a chat with an AI Assistant: all the previous messages will be taken into account
+
+**Updated**
+- better support of Markdown syntax of model responses (especially GPT-4o)
+- option to customize temperature of model responses
+- option to customize Ollama server address and port
+
+
 ## v.6 (May 12th, 2024) New models available
 
 **New features:**
