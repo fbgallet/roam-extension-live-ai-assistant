@@ -24,6 +24,8 @@ import {
   ollamaModels,
   openRouterModelsInfo,
   maxImagesNb,
+  modelTemperature,
+  ollamaServer,
 } from "..";
 import {
   addContentToBlock,
@@ -259,16 +261,18 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
         model = "claude-3-haiku-20240307";
     }
     try {
+      const options = {
+        key: ANTHROPIC_API_KEY,
+        prompt: prompt,
+        context: content,
+        model: model,
+      };
+      if (modelTemperature !== null) options.temperature = modelTemperature;
       const { data } = await axios.post(
         "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
         // See server code here: https://github.com/fbgallet/ai-api-back
         // No data is stored on the server or displayed in any log
-        {
-          key: ANTHROPIC_API_KEY,
-          prompt: prompt,
-          context: content,
-          model: model,
-        }
+        options
       );
       console.log("Anthropic Claude response :>> ", data.response);
       let text = data.response.content[0].text;
@@ -343,13 +347,18 @@ export async function openaiCompletion(
         );
       }, 90000);
     });
+    const options = {
+      model: model,
+      response_format: { type: responseFormat },
+      messages: messages,
+      stream: streamResponse && responseFormat === "text",
+    };
+    if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
+    // maximum temperature with OpenAI models regularly produces aberrations.
+    if (options.temperature > 1.8 && model.includes("gpt"))
+      options.temperature = 1.85;
     const response = await Promise.race([
-      await aiClient.chat.completions.create({
-        model: model,
-        response_format: { type: responseFormat },
-        messages: messages,
-        stream: streamResponse && responseFormat === "text",
-      }),
+      await aiClient.chat.completions.create(options),
       timeoutPromise,
     ]);
     let streamEltCopy = "";
@@ -410,11 +419,15 @@ export async function ollamaCompletion(
 ) {
   let respStr = "";
   try {
+    const options = {
+      num_ctx: 8192,
+    };
+    if (modelTemperature !== null) options.temperature = modelTemperature;
     // need to allow * CORS origin
     // command MacOS terminal: launchctl setenv OLLAMA_ORIGINS "*"
     // then, close terminal and relaunch ollama serve
     const response = await axios.post(
-      "http://localhost:11434/api/chat",
+      `${ollamaServer ? ollamaServer : "http://localhost:11434"}/api/chat`,
       {
         model: model,
         messages: [
@@ -423,9 +436,7 @@ export async function ollamaCompletion(
             content: content,
           },
         ].concat(prompt),
-        options: {
-          num_ctx: 8192,
-        },
+        options: options,
         format: responseFormat.includes("json") ? "json" : null,
         stream: false,
       },

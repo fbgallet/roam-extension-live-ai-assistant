@@ -47,8 +47,10 @@ export let whisperPrompt;
 export let isTranslateIconDisplayed;
 export let defaultModel;
 export let gptCustomModel;
+export let modelTemperature;
 export let openRouterOnly;
 export let ollamaModels = [];
+export let ollamaServer;
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
 export let contextInstruction = defaultContextInstructions;
@@ -175,6 +177,33 @@ export default {
               chatRoles = getRolesFromString(
                 extensionAPI.settings.get("chatRoles")
               );
+            },
+          },
+        },
+        {
+          id: "temperature",
+          name: "Temperature",
+          description:
+            "Customize the temperature (randomness) of models responses (0 is the most deterministic, 1 the most creative)",
+          action: {
+            type: "select",
+            items: [
+              "models default",
+              "0",
+              "0.1",
+              "0.2",
+              "0.3",
+              "0.4",
+              "0.5",
+              "0.6",
+              "0.7",
+              "0.8",
+              "0.9",
+              "1",
+            ],
+            onChange: (evt) => {
+              modelTemperature =
+                evt === "models default" ? null : parseFloat(evt);
             },
           },
         },
@@ -329,6 +358,21 @@ export default {
             type: "input",
             onChange: (evt) => {
               ollamaModels = getArrayFromList(evt.target.value);
+            },
+          },
+        },
+        {
+          id: "ollamaServer",
+          name: "Ollama server",
+          description:
+            "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              ollamaServer =
+                evt.target.value.at(-1) === "/"
+                  ? evt.target.value.slice(0, -1)
+                  : evt.target.value;
             },
           },
         },
@@ -624,6 +668,12 @@ export default {
       await extensionAPI.settings.set("position", "left sidebar");
     position =
       extensionAPI.settings.get("position") === "topbar" ? "top" : "left";
+    if (extensionAPI.settings.get("temperature") === null)
+      await extensionAPI.settings.set("temperature", "models default");
+    modelTemperature =
+      extensionAPI.settings.get("temperature") === "models default"
+        ? null
+        : parseInt(extensionAPI.settings.get("temperature"));
     if (extensionAPI.settings.get("whisper") === null)
       await extensionAPI.settings.set("whisper", true);
     isUsingWhisper = extensionAPI.settings.get("whisper");
@@ -671,6 +721,9 @@ export default {
     if (extensionAPI.settings.get("ollamaModels") === null)
       await extensionAPI.settings.set("ollamaModels", "");
     ollamaModels = getArrayFromList(extensionAPI.settings.get("ollamaModels"));
+    if (extensionAPI.settings.get("ollamaServer") === null)
+      await extensionAPI.settings.set("ollamaServer", "");
+    ollamaServer = extensionAPI.settings.get("ollamaServer");
     if (extensionAPI.settings.get("chatRoles") === null)
       await extensionAPI.settings.set(
         "chatRoles",
