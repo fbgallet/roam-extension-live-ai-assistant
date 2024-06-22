@@ -336,7 +336,6 @@ export async function openaiCompletion(
   if (isModelSupportingImage(model)) {
     messages = addImagesUrlToMessages(messages, content);
   }
-  console.log("messages :>> ", messages);
   try {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
@@ -775,11 +774,9 @@ const supportedLanguage = [
 const addImagesUrlToMessages = (messages, content) => {
   let nbCountdown = maxImagesNb;
 
-  console.log("content in Img :>> ", content);
-  console.log("messages in Images :>> ", messages);
-
   messages.forEach((msg, index) => {
     if (index > 0) {
+      roamImageRegex.lastIndex = 0;
       const matchingImagesInPrompt = msg.content?.matchAll(roamImageRegex);
       matchingImagesInPrompt.length &&
         matchingImagesInPrompt.forEach((imgUrl) => {
@@ -802,24 +799,26 @@ const addImagesUrlToMessages = (messages, content) => {
   });
 
   if (content && content.length) {
+    roamImageRegex.lastIndex = 0;
     const matchingImagesInContext = content.matchAll(roamImageRegex);
-    matchingImagesInContext.length &&
-      matchingImagesInContext.forEach((imgUrl, index) => {
-        if (nbCountdown > 0) {
-          if (index === 0)
-            messages.splice(1, 0, {
-              role: "user",
-              content: [],
-            });
-          messages[1].content.push({
-            type: "image_url",
-            image_url: {
-              url: imgUrl[1],
-            },
+    matchingImagesInContext.forEach((imgUrl, index) => {
+      if (nbCountdown > 0) {
+        if (index === 0)
+          messages.splice(1, 0, {
+            role: "user",
+            content: [
+              { type: "text", text: "Image(s) provided in the context:" },
+            ],
           });
-          nbCountdown--;
-        }
-      });
+        messages[1].content.push({
+          type: "image_url",
+          image_url: {
+            url: imgUrl[1],
+          },
+        });
+        nbCountdown--;
+      }
+    });
   }
   return messages;
 };
@@ -828,7 +827,7 @@ const isModelSupportingImage = (model) => {
   if (model === "gpt-4o") return true;
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find((m) => m.id === model);
-    console.log("ormodel :>> ", ormodel);
+    // console.log("ormodel :>> ", ormodel);
     if (ormodel) return ormodel.imagePricing ? true : false;
   }
   return false;
