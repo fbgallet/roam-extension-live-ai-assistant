@@ -332,7 +332,6 @@ export async function openaiCompletion(
   //   ],
   // },
   // ];
-  console.log("content from completion :>> ", content);
   if (isModelSupportingImage(model)) {
     messages = addImagesUrlToMessages(messages, content);
   }
@@ -354,8 +353,8 @@ export async function openaiCompletion(
     };
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
-    if (options.temperature > 1.8 && model.includes("gpt"))
-      options.temperature = 1.85;
+    if (options.temperature > 1.2 && model.includes("gpt"))
+      options.temperature = 1.3;
     const response = await Promise.race([
       await aiClient.chat.completions.create(options),
       timeoutPromise,
@@ -387,6 +386,7 @@ export async function openaiCompletion(
         }
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
+        console.log(respStr);
         return "";
       } finally {
         streamEltCopy = streamElt.innerHTML;

@@ -16,6 +16,7 @@ export const trimOutsideOuterBraces = (str) => {
 };
 
 export const sanitizeJSONstring = (str) => {
+  codeBlockRegex.lastIndex = 0;
   let sanitized = str
     // escape line break in code blocks
     .replace(codeBlockRegex, (match) => match.replace(/\n/g, "\\n"))
@@ -27,6 +28,7 @@ export const sanitizeJSONstring = (str) => {
 };
 
 export const splitParagraphs = (str) => {
+  codeBlockRegex.lastIndex = 0;
   // clean double line break
   str = str.replace(/\n\s*\n/g, "\n\n");
   // change double line break of codeblocks to exclude them on the split process
@@ -36,6 +38,7 @@ export const splitParagraphs = (str) => {
 
 export const splitLines = async (str, parentUid, lastParentUid) => {
   let levelsUid = [parentUid];
+  codeBlockRegex.lastIndex = 0;
   if (
     !codeBlockRegex.test(str) &&
     (markdownHeadingRegex.test(str) || dashOrNumRegex.test(str))

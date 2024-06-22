@@ -2,20 +2,18 @@
 
 ### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models through OpenRouter and Ollama.
 
-### 🆕 New in v.6: (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
+### 🆕 New in v.7: (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
+
+- Continue easily any chat from the next sibling block of the last AI Assistant response.
+- Better support of markdown syntax to format AI responses
+
+### 🆕 New in v.6:
 
 - Gpt-4o support, including images Vision (in prompt or context)
 - OpenRouter support to access most of existing models (Mistral, Llama, Gemini...)
 - Ollama support to run local models
 
-### 🆕 New in v.4:
-
-- Claude AI models support
-- Context menu for easily switching models and compare their answers
-- Streamed responses
-
 ![Live AI Demo 3](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/fc35b01c-3172-4763-a4a2-2aa23e290dd9)
-
 
 Controls including vocal transcription:
 
@@ -44,6 +42,16 @@ Just press the microphone button and provide vocal instructions, or place the cu
 You can easily compare AI models responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
 <img width="1050" alt="compare AI models" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/296a0a66-77d4-4ebd-98c8-e707503125f7">
+
+## Chat with your AI Assistant
+
+You can easily continue any conversation with an AI Assistant:
+
+- click on the conversation icon on the right of the last AI response block (if generated recently) or simply insert a block as next sibling of an AI response block (the one that contains it's role description, provided in settings, by default: `AI Assistant (<model>):`). It is not necessary to insert your role (such as "Me:") but more convenient in terms of readability.
+- write or dictate your prompt,
+- run the usual AI completion command (with the button or in command palette)
+
+Previous messages will be automatically taken into account. However, the context needs to be redefined at each turn of the conversation, allowing you to modify or ignore it. To maintain the same context in a conversation, it must be defined again (e.g., by pressing Shift to use the sidebar content as context).
 
 ### **Keyboard hotkeys** (⚠️ available only when the voice recording has been started by a mouse click):
 

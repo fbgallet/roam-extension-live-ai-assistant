@@ -488,6 +488,7 @@ function VoiceRecorder({
     addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe)
       await completionProcessing(transcribe, targetUid);
+    initialize(true); //////
   };
 
   const completionProcessing = async (prompt, promptUid) => {

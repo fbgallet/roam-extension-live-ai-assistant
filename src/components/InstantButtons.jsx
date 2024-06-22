@@ -1,6 +1,7 @@
 import {
   faStop,
   faCopy,
+  faComments,
   faRotateRight,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
@@ -9,6 +10,12 @@ import { ContextMenu, Tooltip } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
 import { insertCompletion } from "../ai/aiCommands.js";
 import ModelsMenu from "./ModelsMenu.jsx";
+import {
+  createChildBlock,
+  focusOnBlockInMainWindow,
+  getParentBlock,
+} from "../utils/utils.js";
+import { chatRoles } from "../index.js";
 
 export let isCanceledStreamGlobal = false;
 
@@ -125,6 +132,27 @@ const InstantButtons = ({
               hoverOpenDelay="500"
             >
               <FontAwesomeIcon icon={faRotateRight} size="sm" />
+            </Tooltip>
+          </span>
+        </span>
+      </div>
+      <div class="bp3-popover-wrapper">
+        <span aria-haspopup="true" class="bp3-popover-target">
+          <span
+            // onKeyDown={handleKeys}
+            onClick={async () => {
+              const parentUid = getParentBlock(targetUid);
+              const nextBlock = await createChildBlock(
+                parentUid,
+                chatRoles.user
+              );
+              focusOnBlockInMainWindow(nextBlock);
+            }}
+            class="bp3-button bp3-minimal"
+            tabindex="0"
+          >
+            <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+              <FontAwesomeIcon icon={faComments} size="sm" />
             </Tooltip>
           </span>
         </span>

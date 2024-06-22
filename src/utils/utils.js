@@ -182,6 +182,15 @@ export function getFirstChildUid(uid) {
   return null;
 }
 
+export function focusOnBlockInMainWindow(blockUid) {
+  window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+    location: {
+      "block-uid": blockUid,
+      "window-id": "main-window",
+    },
+  });
+}
+
 export function updateArrayOfBlocks(arrayOfBlocks) {
   if (arrayOfBlocks.length) {
     arrayOfBlocks.forEach((block) =>
