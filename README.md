@@ -158,7 +158,7 @@ By default, logging of your inputs & outputs in OpenRouter's settings is enabled
 [Ollama](https://ollama.com/) allows you to run local models like Llama3, so all your data shared with the AI assistant is processed entirely locally and is not sent to a third party like OpenAI or Anthropic. (Please note: a local model is typically slower than a remote model and requires a machine with a lot of RAM. E.g a 7B model may require 7GB of RAM to work properly)
 Install Ollama, install a model (ex. `ollama run llama3`), add the model name in the settings above (e.g. `llama3`), and follow the instructions below:
 
-To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to "https://roamresearch.com" (by default, Ollama CORS is restricted to local origins). See [Ollama documentation here](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server) or proceed this way, according to your operating system:
+To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to `https://roamresearch.com` (by default, Ollama CORS is restricted to local origins). See [Ollama documentation here](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server) or proceed this way, according to your operating system:
 
 ### on MacOS
 

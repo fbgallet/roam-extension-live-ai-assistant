@@ -56,6 +56,7 @@ import {
 } from "../utils/domElts";
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import {
+  dashOrNumRegex,
   sanitizeJSONstring,
   splitLines,
   splitParagraphs,
@@ -542,7 +543,7 @@ export const insertCompletion = async ({
   }
   const intervalId = await displaySpinner(targetUid);
 
-  const aiResponse = await aiCompletion(
+  let aiResponse = await aiCompletion(
     model,
     prompt,
     content,
@@ -551,20 +552,26 @@ export const insertCompletion = async ({
   );
   console.log("aiResponse :>> ", aiResponse);
   removeSpinner(intervalId);
+  if (isInConversation)
+    aiResponse = aiResponse.replace(assistantRole, "").trim();
   if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
     updateArrayOfBlocks(aiResponse);
   } else {
     const splittedResponse = splitParagraphs(aiResponse);
-    if (!isResponseToSplit || splittedResponse.length === 1)
+    if (
+      (!isResponseToSplit || splittedResponse.length === 1) &&
+      !dashOrNumRegex.test(splittedResponse[0])
+    )
       addContentToBlock(targetUid, splittedResponse[0]);
     else {
-      let lastParentUid;
+      let result;
       for (let i = 0; i < splittedResponse.length; i++) {
         // createChildBlock(targetUid, splittedResponse[i]);
-        lastParentUid = await splitLines(
+        result = await splitLines(
           splittedResponse[i],
           targetUid,
-          lastParentUid
+          result && result.lastParentUid,
+          result && result.level
         );
       }
     }

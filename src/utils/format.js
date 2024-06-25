@@ -4,7 +4,7 @@ const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
 const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 const markdownHeadingRegex = /^#+\s/m;
-const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
+export const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
 
 export const trimOutsideOuterBraces = (str) => {
   const matches = str.match(/\{.*\}/gs);
@@ -36,14 +36,13 @@ export const splitParagraphs = (str) => {
   return str.split(`\n\n`);
 };
 
-export const splitLines = async (str, parentUid, lastParentUid) => {
+export const splitLines = async (str, parentUid, lastParentUid, level = 0) => {
   let levelsUid = [parentUid];
   codeBlockRegex.lastIndex = 0;
   if (
     !codeBlockRegex.test(str) &&
     (markdownHeadingRegex.test(str) || dashOrNumRegex.test(str))
   ) {
-    let level = 0;
     let isDash = false;
     let isNum = false;
     let lastBlockUid;
@@ -62,6 +61,7 @@ export const splitLines = async (str, parentUid, lastParentUid) => {
         lastParentUid = headingUid;
         level++;
         levelsUid.push(headingUid);
+        if (lines.length === 1) return { lastParentUid, level };
       } else if (dashOrNumRegex.test(lines[i])) {
         const matchingDash = lines[i].match(dashOrNumRegex);
         if (!isDash && matchingDash[0].includes("-")) {
@@ -86,8 +86,9 @@ export const splitLines = async (str, parentUid, lastParentUid) => {
           isNum = false;
         }
         lastParentUid = await createChildBlock(levelsUid[level], lines[i]);
+        if (lines.length === 1) return { lastParentUid, level };
       }
     }
-    return lastParentUid;
+    return { lastParentUid, level: 0 };
   } else return await createChildBlock(parentUid, str);
 };
