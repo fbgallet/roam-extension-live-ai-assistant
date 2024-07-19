@@ -23,7 +23,10 @@ const ModelsMenu = ({ command }) => {
       case "GPT 4 turbo preview":
         model = "gpt-4-turbo-preview";
         break;
-      case "GPT 4 omni":
+      case "GPT 4o mini":
+        model = "gpt-4o";
+        break;
+      case "GPT 4o":
         model = "gpt-4o";
         break;
     }
@@ -67,7 +70,7 @@ const ModelsMenu = ({ command }) => {
             labelElement="32k"
           />
           <MenuItem
-            icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
+            icon={defaultModel === "gpt-4o-mini" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -75,7 +78,7 @@ const ModelsMenu = ({ command }) => {
               handleKeyDownOnModel(e);
             }}
             tabindex="0"
-            text="GPT 4 turbo preview"
+            text="GPT 4o mini"
             labelElement="128k"
           />
           <MenuItem
@@ -87,7 +90,19 @@ const ModelsMenu = ({ command }) => {
               handleKeyDownOnModel(e);
             }}
             tabindex="0"
-            text="GPT 4 omni"
+            text="GPT 4o"
+            labelElement="128k"
+          />
+          <MenuItem
+            icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="GPT 4 turbo preview"
             labelElement="128k"
           />
           <MenuDivider />

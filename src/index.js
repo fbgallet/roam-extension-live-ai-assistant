@@ -29,8 +29,9 @@ import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 
 export const tokensLimit = {
   "gpt-3.5-turbo": 16385,
-  "gpt-4-turbo-preview": 131073,
+  "gpt-4o-mini": 131073,
   "gpt-4o": 131073,
+  "gpt-4-turbo-preview": 131073,
   "Claude Haiku": 200000,
   "Claude Sonnet 3.5": 200000,
   "Claude Opus": 200000,
@@ -68,6 +69,7 @@ export let openRouterModelsInfo = [];
 export let openRouterModels = [];
 export let isComponentAlwaysVisible;
 export let isComponentVisible;
+export let resImages;
 let position;
 export let openaiLibrary, anthropicLibrary, openrouterLibrary;
 export let isSafari =
@@ -78,9 +80,9 @@ console.log("isSafari :>> ", isSafari);
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
   if (!model && defaultModel === "first OpenRouter model")
-    model = openRouterModels.length ? openRouterModels[0] : "gpt-3.5-turbo";
+    model = openRouterModels.length ? openRouterModels[0] : "gpt-4o-mini";
   if (!model && defaultModel === "first Ollama local model")
-    model = ollamaModels.length ? ollamaModels[0] : "gpt-3.5-turbo";
+    model = ollamaModels.length ? ollamaModels[0] : "gpt-4o-mini";
   let assistantModel = model || defaultModel;
   assistantModel = assistantModel
     .replace("openRouter/", "")
@@ -91,9 +93,11 @@ function getRolesFromString(str, model) {
     assistant:
       splittedStr.length > 1
         ? splittedStr[1].trimStart().replace("<model>", assistantModel)
-        : "AI assistant: ",
+        : str && str.trim()
+        ? "AI assistant: "
+        : "",
     genericAssistantRegex:
-      splittedStr.length > 1
+      splittedStr.length > 1 && splittedStr[1]
         ? getAssistantRoleRegex(splittedStr[1].trim())
         : null,
   };
@@ -163,8 +167,9 @@ export default {
             type: "select",
             items: [
               "gpt-3.5-turbo",
-              "gpt-4-turbo-preview",
+              "gpt-4o-mini",
               "gpt-4o",
+              "gpt-4-turbo-preview",
               "Claude Haiku",
               "Claude Sonnet 3.5",
               "Claude Opus",
@@ -645,6 +650,19 @@ export default {
           },
         },
         {
+          id: "resImages",
+          name: "Images resolution",
+          description:
+            "Low resolution limits tokens/image to 85 with. Default: let the model choose:",
+          action: {
+            type: "select",
+            items: ["auto", "high", "low"],
+            onChange: (evt) => {
+              resImages = evt;
+            },
+          },
+        },
+        {
           id: "customModel",
           name: "Custom OpenAI model",
           description: "⚠️ Only OpenAI Chat completion models are compatible",
@@ -706,9 +724,9 @@ export default {
     isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
     if (
       extensionAPI.settings.get("defaultModel") === null ||
-      extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo-1106"
+      extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo"
     )
-      await extensionAPI.settings.set("defaultModel", "gpt-3.5-turbo");
+      await extensionAPI.settings.set("defaultModel", "gpt-4o-mini");
     defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("gptCustomModel") === null)
       await extensionAPI.settings.set("gptCustomModel", "");
@@ -729,8 +747,7 @@ export default {
         "chatRoles",
         "Me: ,AI assistant (<model>): "
       );
-    const chatRolesStr =
-      extensionAPI.settings.get(chatRoles) || "Me: ,AI assistant (<model>): ";
+    const chatRolesStr = extensionAPI.settings.get("chatRoles");
     chatRoles = getRolesFromString(chatRolesStr);
     if (extensionAPI.settings.get("assistantCharacter") === null)
       await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
@@ -778,6 +795,9 @@ export default {
     exclusionStrings = getArrayFromList(
       extensionAPI.settings.get("exclusionStrings")
     );
+    if (extensionAPI.settings.get("resImages") === null)
+      await extensionAPI.settings.set("resImages", "auto");
+    resImages = extensionAPI.settings.get("resImages");
 
     createContainer();
 

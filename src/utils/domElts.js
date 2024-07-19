@@ -157,11 +157,13 @@ export const insertInstantButtons = (props) => {
   let container;
   if (previousContainer) {
     ReactDOM.unmountComponentAtNode(previousContainer);
-    container = previousContainer;
-  } else {
-    container = document.createElement("div");
-    container.classList.add("speech-instant-container");
-    targetBlockElt.insertAdjacentElement("afterend", container);
+    // container = previousContainer;
   }
+  // else {
+  container = document.createElement("div");
+  container.classList.add("speech-instant-container");
+  // targetBlockElt.insertAdjacentElement("afterend", container);
+  targetBlockElt.parentElement.appendChild(container);
+  // }
   ReactDOM.render(<InstantButtons {...props} />, container);
 };

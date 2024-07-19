@@ -445,7 +445,11 @@ export const getAndNormalizeContext = async (
   return context;
 };
 
-const getFlattenedContentFromTree = (parentUid, maxCapturing, maxUid) => {
+export const getFlattenedContentFromTree = (
+  parentUid,
+  maxCapturing,
+  maxUid
+) => {
   let flattenedBlocks = "";
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
@@ -718,6 +722,7 @@ export const getArrayFromList = (list, separator = ",") => {
 
 export const getConversationArray = (parentUid) => {
   let tree = getTreeByUid(parentUid);
+  console.log("tree :>> ", tree);
   if (!tree) return null;
   const conversation = [{ role: "user", content: tree[0].string }];
   if (tree[0].children.length) {

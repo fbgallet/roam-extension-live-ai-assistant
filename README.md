@@ -1,18 +1,10 @@
 # Live AI Assistant (former Speech-to-Roam)
 
-### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support GPT or Claude models, and most of existing models through OpenRouter and Ollama.
+### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support up-to-date GPT or Claude models, and most of existing models through OpenRouter and local models through Ollama.
 
-### 🆕 New in v.7: (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
+### 🆕 New in v.8: GPT-4o-mini (3x cheaper) replace by default GPT-3.5
 
-- Continue easily any chat from the next sibling block of the last AI Assistant response.
-- Claude Sonnet 3.5 support
-- Better support of markdown syntax to format AI responses
-
-### 🆕 New in v.6:
-
-- Gpt-4o support, including images Vision (in prompt or context)
-- OpenRouter support to access most of existing models (Mistral, Llama, Gemini...)
-- Ollama support to run local models
+(See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
 ![Live AI Demo 3](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/fc35b01c-3172-4763-a4a2-2aa23e290dd9)
 
@@ -220,13 +212,16 @@ The prices are for 1000 tokens. For comparison, this documentation is equivalent
 
 - gpt-3.5-turbo (16k context)
   - Input: `$0.0005` / 1K tokens
-  - Output: `$0.0010` / 1K tokens
-- gpt-4-turbo-preview (128k context)
-  - input: `$0.01` / 1K tokens
-  - output: `$0.03` / 1K tokens
+  - Output: `$0.0015` / 1K tokens
+- gpt-4o-mini (128k context) (**cheapest model**)
+  - input: `$0.00015` / 1K tokens
+  - output: `$0.0006` / 1K tokens
 - gpt-4o (128k context)
   - input: `$0.005` / 1K tokens
   - output: `$0.015` / 1K tokens
+- gpt-4-turbo-preview (128k context)
+  - input: `$0.01` / 1K tokens
+  - output: `$0.03` / 1K tokens
 
 See updated OpenAI API pricing [here](https://openai.com/pricing).
 

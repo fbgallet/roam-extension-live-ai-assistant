@@ -197,13 +197,17 @@
 
 .speech-instant-container {
   position: absolute;
-  top: 0;
+  top: -22px;
   right: 0;
-  z-index: 1;
+  z-index: 2;
   opacity: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.speech-instant-container:not(:has(.fa-copy)) {
+  top: 1px;
+  opacity: 0.4;
 }
 .rm-block:has(.rm-block__ref-count) .speech-instant-container {
   top: 25px;
@@ -211,7 +215,7 @@
 .rm-block:has(.speech-instant-container):hover
   > div
   > .speech-instant-container {
-  opacity: 0.3;
+  opacity: 0.4;
 }
 .rm-block:has(.speech-instant-container) .speech-instant-container:hover,
 .rm-block:has(.speech-instant-container):hover .speech-instant-container:hover {

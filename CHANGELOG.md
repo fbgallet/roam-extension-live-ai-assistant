@@ -1,14 +1,21 @@
+## v.8 (July 19th, 2024) New model
+
+**New features:**
+
+- GPT-4o-mini support, including Vision
+
 ## v.7 (June 22nd, 2024) Easily chat
 
 **New features:**
+
 - continue easily a chat with an AI Assistant: all the previous messages will be taken into account
 
 **Updated**
+
 - better support of Markdown syntax of model responses (especially GPT-4o)
 - Claude Sonnet 3.5 support
 - option to customize temperature of model responses
 - option to customize Ollama server address and port
-
 
 ## v.6 (May 12th, 2024) New models available
 
@@ -25,8 +32,9 @@
 - On mobile, controls in topbar are shifted to top right
 
 **Fixed**
+
 - Using linked references or past DNPs as context was not working properly
-- (on server side) Server can now support the entire Claude token window (200,000 tokens). Until now, by mistake, it did not support messages longer than 100,000 characters (approximately 30,000 tokens). 
+- (on server side) Server can now support the entire Claude token window (200,000 tokens). Until now, by mistake, it did not support messages longer than 100,000 characters (approximately 30,000 tokens).
 
 ## v.5 (May 4th, 2024) Small fixes
 

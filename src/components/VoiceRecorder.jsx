@@ -371,7 +371,7 @@ function VoiceRecorder({
         AppToaster.show({
           message:
             "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. " +
-            "Be aware of the potentially high cost: for each request; around $0.08 with GPT-3.5, up to $1.30 with GPT-4.",
+            "Be aware of the potentially high cost: for each request; around $0.02 with GPT-4o-mini, up to $1.30 with GPT-4.",
         });
         roamContext.current.logPages = true;
       } else roamContext.current.linkedRefs = true;

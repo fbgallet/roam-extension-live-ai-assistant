@@ -26,6 +26,7 @@ import {
   maxImagesNb,
   modelTemperature,
   ollamaServer,
+  resImages,
 } from "..";
 import {
   addContentToBlock,
@@ -490,9 +491,9 @@ export const insertCompletion = async ({
   if (model === "first OpenRouter model") {
     model = openRouterModels.length
       ? "openRouter/" + openRouterModels[0]
-      : "gpt-3.5-turbo";
+      : "gpt-4o-mini";
   } else if (model === "first Ollama local model") {
-    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-3.5-turbo";
+    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-4o-mini";
   }
   const responseFormat =
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
@@ -502,7 +503,7 @@ export const insertCompletion = async ({
 
   let content;
 
-  if (isRedone) content = context;
+  if (isRedone || isInConversation) content = context;
   else {
     content =
       assistantCharacter +
@@ -529,19 +530,24 @@ export const insertCompletion = async ({
         });
       } else targetUid = await insertBlockInCurrentView(assistantRole);
     } else {
-      if (isInConversation) {
-        prompt = getConversationArray(getParentBlock(targetUid));
-      } else {
-        prompt = [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ];
+      if (typeof prompt === "string") {
+        // else prompt is already conversation object
+        if (isInConversation) {
+          prompt = getConversationArray(getParentBlock(targetUid));
+        } else {
+          prompt = [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ];
+        }
       }
     }
   }
   const intervalId = await displaySpinner(targetUid);
+
+  console.log("prompt :>> ", prompt);
 
   let aiResponse = await aiCompletion(
     model,
@@ -551,7 +557,6 @@ export const insertCompletion = async ({
     targetUid
   );
   console.log("aiResponse :>> ", aiResponse);
-  removeSpinner(intervalId);
   if (isInConversation)
     aiResponse = aiResponse.replace(assistantRole, "").trim();
   if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
@@ -576,6 +581,7 @@ export const insertCompletion = async ({
       }
     }
   }
+  removeSpinner(intervalId);
 };
 
 export const getTemplateForPostProcessing = async (parentUid) => {
@@ -797,6 +803,7 @@ const addImagesUrlToMessages = (messages, content) => {
                 type: "image_url",
                 image_url: {
                   url: imgUrl[1],
+                  detail: resImages,
                 },
               },
             ];
@@ -821,6 +828,7 @@ const addImagesUrlToMessages = (messages, content) => {
           type: "image_url",
           image_url: {
             url: imgUrl[1],
+            detail: resImages,
           },
         });
         nbCountdown--;
@@ -831,7 +839,7 @@ const addImagesUrlToMessages = (messages, content) => {
 };
 
 const isModelSupportingImage = (model) => {
-  if (model === "gpt-4o") return true;
+  if (model === "gpt-4o" || model === "gpt-4o-mini") return true;
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find((m) => m.id === model);
     // console.log("ormodel :>> ", ormodel);
@@ -843,6 +851,7 @@ const isModelSupportingImage = (model) => {
 export const isPromptInConversation = (promptUid) => {
   const previousSiblingUid = getPreviousSiblingBlock(promptUid);
   return previousSiblingUid &&
+    chatRoles.genericAssistantRegex &&
     chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
     ? true
     : false;
