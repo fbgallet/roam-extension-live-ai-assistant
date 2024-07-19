@@ -43,7 +43,7 @@ You can easily compare AI models responses: right click on 'Generate a response 
 
 You can easily continue any conversation with an AI Assistant:
 
-![Live AI Chat demo](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/95fcc9b1-1c1e-4b9c-8b49-392fee71c915)
+![Live AI chat demo 2](https://github.com/user-attachments/assets/db9582f1-9db5-4c21-954a-eab5a21aa030)
 
 - click on the conversation icon on the right of the last AI response block (if generated recently) or simply insert a block as next sibling of an AI response block (the one that contains it's role description, provided in settings, by default: `AI Assistant (<model>):`). It is not necessary to insert your role (such as "Me:") but more convenient in terms of readability.
 - write or dictate your prompt (it can include children blocks),
