@@ -581,7 +581,9 @@ export const insertCompletion = async ({
       }
     }
   }
-  removeSpinner(intervalId);
+  setTimeout(() => {
+    removeSpinner(intervalId);
+  }, 100);
 };
 
 export const getTemplateForPostProcessing = async (parentUid) => {

@@ -49,7 +49,6 @@ const InstantButtons = ({
 
   const handleRedo = (e, instantModel) => {
     isCanceledStreamGlobal = true;
-    console.log("content from buttons :>> ", content);
     insertCompletion({
       prompt,
       targetUid,

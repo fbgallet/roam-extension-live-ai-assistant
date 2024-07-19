@@ -2,7 +2,16 @@
 
 **New features:**
 
-- GPT-4o-mini support, including Vision
+- GPT-4o-mini (3x cheaper) replace by default GPT-3.5, and it includes Vision
+- easily chat with your AI assistant with the button on the right of your prompt to continue a conversation
+
+**Updated**
+
+- option to set image resolution for Vision to low or high
+
+**Fixed**
+
+- chat roles setting can be let blank if you don't want "AI assistant: " inserted before each response. Chat remains possible, but only with the dedicated button to continue conversation.
 
 ## v.7 (June 22nd, 2024) Easily chat
 

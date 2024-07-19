@@ -2,7 +2,10 @@
 
 ### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support up-to-date GPT or Claude models, and most of existing models through OpenRouter and local models through Ollama.
 
-### 🆕 New in v.8: GPT-4o-mini (3x cheaper) replace by default GPT-3.5
+### 🆕 New in v.8:
+
+- GPT-4o-mini (3x cheaper) replace by default GPT-3.5
+- easily chat with your AI assistant with the button on the right of your prompt to continue a conversation
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -43,10 +46,13 @@ You can easily continue any conversation with an AI Assistant:
 ![Live AI Chat demo](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/95fcc9b1-1c1e-4b9c-8b49-392fee71c915)
 
 - click on the conversation icon on the right of the last AI response block (if generated recently) or simply insert a block as next sibling of an AI response block (the one that contains it's role description, provided in settings, by default: `AI Assistant (<model>):`). It is not necessary to insert your role (such as "Me:") but more convenient in terms of readability.
-- write or dictate your prompt,
-- run the usual AI completion command (with the button or in command palette)
+- write or dictate your prompt (it can include children blocks),
+- click on the button to continue the conversation or run the usual AI completion command.
 
-Previous messages will be automatically taken into account. However, the context needs to be redefined at each turn of the conversation, allowing you to modify or ignore it. To maintain the same context in a conversation, it must be defined again (e.g., by pressing Shift to use the sidebar content as context).
+Previous messages (including children blocks) will be automatically taken into account. About the context:
+
+- with the conversation button, the context remains the same as that defined in the first prompt
+- with usual AI completion command (button or command palette), the context needs to be redefined at each turn of the conversation, allowing you to modify or ignore it.
 
 ### **Keyboard hotkeys** (⚠️ available only when the voice recording has been started by a mouse click):
 
@@ -123,7 +129,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
   > _"You are a smart, rigorous and concise assistant. You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself."_
 
-- model by default is currently `gpt-3.5-turbo` (pointing to the latest model version). You can change the default model or, 🆕 in v.4, choose any other model (among GPT 4 and Claude models) for each request by right-clicking on the completion button (just like for Post-processing button and Generate again button)
+- model by default is currently `gpt-4o-mini` (pointing to the latest model version). You can change the default model or choose any other model (among GPT 4 and Claude models) for each request by right-clicking on the completion button (just like for Post-processing button and Generate again button)
 - you can try other chat completion model, or your own fine-tuned models (only OpenAI chat completion).
 
 ## AI Post-processing of vocal notes following your templates
@@ -210,12 +216,12 @@ _OpenAI GPT API pricing:_
 
 The prices are for 1000 tokens. For comparison, this documentation is equivalent to about 3500 tokens (2000 words).
 
-- gpt-3.5-turbo (16k context)
-  - Input: `$0.0005` / 1K tokens
-  - Output: `$0.0015` / 1K tokens
 - gpt-4o-mini (128k context) (**cheapest model**)
   - input: `$0.00015` / 1K tokens
   - output: `$0.0006` / 1K tokens
+- gpt-3.5-turbo (16k context)
+  - Input: `$0.0005` / 1K tokens
+  - Output: `$0.0015` / 1K tokens
 - gpt-4o (128k context)
   - input: `$0.005` / 1K tokens
   - output: `$0.015` / 1K tokens
@@ -239,6 +245,12 @@ _Claude API pricing:_
 
 See updated Anthropic Claude API pricing [here](https://www.anthropic.com/api).
 
+## Support my work
+
+This extension represents a significant amount of work. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet). Thanks in advance for your support! 🙏
+
 ---
 
 ### For any question or suggestion, DM me on **Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://twitter.com/fbgallet).
+
+Please report any issue [here](https://github.com/fbgallet/roam-extension-speech-to-roam/issues).
