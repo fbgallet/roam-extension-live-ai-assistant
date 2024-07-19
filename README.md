@@ -37,8 +37,6 @@ Just press the microphone button and provide vocal instructions, or place the cu
 
 You can easily compare AI models responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
-<img width="1050" alt="compare AI models" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/296a0a66-77d4-4ebd-98c8-e707503125f7">
-
 ## Chat with your AI Assistant
 
 You can easily continue any conversation with an AI Assistant:
