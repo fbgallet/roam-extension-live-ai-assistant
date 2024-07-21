@@ -1,6 +1,6 @@
 import { createChildBlock, getBlockContentByUid } from "./utils";
 
-const codeBlockRegex = /\`\`\`([^\`\`\`]*\n[^\`\`\`]*)\`\`\`/g;
+const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
 const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 const markdownHeadingRegex = /^#+\s/m;

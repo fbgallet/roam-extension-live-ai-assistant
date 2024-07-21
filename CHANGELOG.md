@@ -11,6 +11,7 @@
 
 **Fixed**
 
+- code blocks where not always properly rendered (simple backticks were misinterpreted by the regex)
 - chat roles setting can be let blank if you don't want "AI assistant: " inserted before each response. Chat remains possible, but only with the dedicated button to continue conversation.
 
 ## v.7 (June 22nd, 2024) Easily chat
