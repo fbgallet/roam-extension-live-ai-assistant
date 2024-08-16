@@ -86,7 +86,7 @@ export function getParentBlock(uid) {
     [":block/uid", uid]
   );
   if (result) {
-    const directParent = result[":block/parents"].find((parent) =>
+    const directParent = result[":block/parents"]?.find((parent) =>
       parent[":block/children"]?.some((child) => child[":block/uid"] === uid)
     );
     return directParent[":block/uid"];
@@ -99,7 +99,6 @@ export function getPreviousSiblingBlock(currentUid) {
   const currentBlockOrder = tree.find(
     (block) => block.uid === currentUid
   ).order;
-  console.log("currentBlockOrder :>> ", currentBlockOrder);
   if (!currentBlockOrder) return null;
   return tree.find((block) => block.order === currentBlockOrder - 1);
 }
@@ -722,7 +721,6 @@ export const getArrayFromList = (list, separator = ",") => {
 
 export const getConversationArray = (parentUid) => {
   let tree = getTreeByUid(parentUid);
-  console.log("tree :>> ", tree);
   if (!tree) return null;
   const conversation = [{ role: "user", content: tree[0].string }];
   if (tree[0].children.length) {

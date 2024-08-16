@@ -24,6 +24,7 @@ import {
 import {
   addContentToBlock,
   createChildBlock,
+  createSiblingBlock,
   getAndNormalizeContext,
   getBlockContentByUid,
   getBlocksSelectionUids,
@@ -392,6 +393,7 @@ function VoiceRecorder({
       voiceProcessing();
     else {
       let prompt = "";
+      let toNextSibling = false;
       if (targetBlock.current) {
         prompt = getBlockContentByUid(targetBlock.current).trim();
       } else if (blocksSelectionUids.current.length > 0) {
@@ -399,10 +401,11 @@ function VoiceRecorder({
           blocksSelectionUids.current,
           false
         );
-        targetBlock.current = blocksSelectionUids.current.at(-1);
+        targetBlock.current = blocksSelectionUids.current[0];
         blocksSelectionUids.current = [];
+        toNextSibling = true;
       } else return;
-      await completionProcessing(prompt, targetBlock.current);
+      await completionProcessing(prompt, targetBlock.current, toNextSibling);
     }
   };
 
@@ -491,9 +494,12 @@ function VoiceRecorder({
     initialize(true);
   };
 
-  const completionProcessing = async (prompt, promptUid) => {
+  const completionProcessing = async (prompt, promptUid, toNextSibling) => {
     let uid;
     let waitForBlockCopy = false;
+    const assistantRole = instantModel.current
+      ? getInstantAssistantRole(instantModel.current)
+      : chatRoles.assistant;
     const context = await getAndNormalizeContext(
       lastCommand.current === "gptPostProcessing" ? null : startBlock.current,
       blocksSelectionUids.current,
@@ -526,12 +532,7 @@ function VoiceRecorder({
             });
             commandType = "gptCompletion";
             prompt = prompt;
-            uid = await createChildBlock(
-              promptUid,
-              instantModel.current
-                ? getInstantAssistantRole(instantModel.current)
-                : chatRoles.assistant
-            );
+            uid = await createChildBlock(promptUid, assistantRole);
           } else {
             commandType = "gptPostProcessing";
             prompt =
@@ -555,12 +556,15 @@ function VoiceRecorder({
       );
     } else {
       const isInConversation = isPromptInConversation(promptUid);
-      uid = await createChildBlock(
-        isInConversation ? getParentBlock(promptUid) : promptUid,
-        instantModel.current
-          ? getInstantAssistantRole(instantModel.current)
-          : chatRoles.assistant
-      );
+      if (toNextSibling) {
+        uid = await createSiblingBlock(promptUid);
+        await addContentToBlock(uid, assistantRole);
+      } else {
+        uid = await createChildBlock(
+          isInConversation ? getParentBlock(promptUid) : promptUid,
+          assistantRole
+        );
+      }
       await insertCompletion({
         prompt,
         targetUid: uid,

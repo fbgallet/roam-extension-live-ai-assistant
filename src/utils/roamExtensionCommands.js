@@ -14,16 +14,21 @@ import {
   unmountComponent,
 } from "./domElts";
 import {
+  addContentToBlock,
   createChildBlock,
+  createSiblingBlock,
   getAndNormalizeContext,
   getBlockContentByUid,
   getFirstChildUid,
+  getFlattenedContentFromArrayOfBlocks,
   getFocusAndSelection,
   getParentBlock,
+  getResolvedContentFromBlocks,
   getRoamContextFromPrompt,
   getTemplateFromPrompt,
   insertBlockInCurrentView,
   resolveReferences,
+  updateArrayOfBlocks,
 } from "./utils";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
@@ -119,27 +124,41 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     label:
       "Live AI Assistant: (text) AI completion of focused block as prompt & selection as context",
     callback: async () => {
-      const { currentUid, currentBlockContent, selectionUids } =
+      let prompt, targetUid;
+      let { currentUid, currentBlockContent, selectionUids } =
         getFocusAndSelection();
       if (!currentUid && !selectionUids.length) return;
+
       const isInConversation = currentUid
         ? isPromptInConversation(currentUid)
         : false;
-      let targetUid = currentUid
-        ? await createChildBlock(
-            isInConversation ? getParentBlock(currentUid) : currentUid,
-            chatRoles.assistant
-          )
-        : await insertBlockInCurrentView(
-            chatRoles.user + " a selection of blocks"
-          );
-      let prompt = currentBlockContent ? currentBlockContent : contextAsPrompt;
-      console.log("currentBlockContent :>> ", currentBlockContent);
+      if (
+        !currentUid &&
+        selectionUids.length &&
+        document.querySelector(".block-highlight-blue")
+      ) {
+        targetUid = await createSiblingBlock(selectionUids[0]);
+        await addContentToBlock(targetUid, chatRoles.assistant);
+        prompt = getResolvedContentFromBlocks(selectionUids, false);
+        selectionUids = [];
+      } else {
+        targetUid = currentUid
+          ? await createChildBlock(
+              isInConversation ? getParentBlock(currentUid) : currentUid,
+              chatRoles.assistant
+            )
+          : await insertBlockInCurrentView(
+              chatRoles.user + " a selection of blocks"
+            );
+        prompt = currentBlockContent ? currentBlockContent : contextAsPrompt;
+      }
+
       const inlineContext = currentBlockContent
         ? getRoamContextFromPrompt(currentBlockContent)
         : null;
       if (inlineContext) prompt = inlineContext.updatedPrompt;
       console.log("inlineContext :>> ", inlineContext);
+
       let context = await getAndNormalizeContext(
         // currentUid && selectionUids.length ? null : currentUid,
         null,

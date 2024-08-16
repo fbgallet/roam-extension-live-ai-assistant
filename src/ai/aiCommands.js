@@ -60,6 +60,7 @@ import {
 } from "../utils/domElts";
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import {
+  hierarchyFlagRegex,
   parseAndCreateBlocks,
   sanitizeJSONstring,
   splitParagraphs,
@@ -593,7 +594,7 @@ export const insertCompletion = async ({
     const splittedResponse = splitParagraphs(aiResponse);
     if (
       (!isResponseToSplit || splittedResponse.length === 1) &&
-      !/^[-\d.]\s*|^[a-z]\)\s|^#{1,6}\s/im.test(splittedResponse[0])
+      !hierarchyFlagRegex.test(splittedResponse[0])
     )
       await addContentToBlock(targetUid, splittedResponse[0]);
     else {
@@ -813,7 +814,7 @@ const addImagesUrlToMessages = (messages, content) => {
       if (index > 0) {
         roamImageRegex.lastIndex = 0;
         const matchingImagesInPrompt = msg.content?.matchAll(roamImageRegex);
-        matchingImagesInPrompt.length &&
+        matchingImagesInPrompt &&
           matchingImagesInPrompt.forEach((imgUrl) => {
             if (nbCountdown > 0)
               msg.content = [
@@ -837,25 +838,26 @@ const addImagesUrlToMessages = (messages, content) => {
   if (content && content.length) {
     roamImageRegex.lastIndex = 0;
     const matchingImagesInContext = content.matchAll(roamImageRegex);
-    matchingImagesInContext.forEach((imgUrl, index) => {
-      if (nbCountdown > 0) {
-        if (index === 0)
-          messages.splice(1, 0, {
-            role: "user",
-            content: [
-              { type: "text", text: "Image(s) provided in the context:" },
-            ],
+    matchingImagesInContext &&
+      matchingImagesInContext.forEach((imgUrl, index) => {
+        if (nbCountdown > 0) {
+          if (index === 0)
+            messages.splice(1, 0, {
+              role: "user",
+              content: [
+                { type: "text", text: "Image(s) provided in the context:" },
+              ],
+            });
+          messages[1].content.push({
+            type: "image_url",
+            image_url: {
+              url: imgUrl[1],
+              detail: resImages,
+            },
           });
-        messages[1].content.push({
-          type: "image_url",
-          image_url: {
-            url: imgUrl[1],
-            detail: resImages,
-          },
-        });
-        nbCountdown--;
-      }
-    });
+          nbCountdown--;
+        }
+      });
   }
   return messages;
 };
@@ -872,9 +874,17 @@ const isModelSupportingImage = (model) => {
 
 export const isPromptInConversation = (promptUid) => {
   const previousSiblingUid = getPreviousSiblingBlock(promptUid);
-  return previousSiblingUid &&
+  const isInConversation =
+    previousSiblingUid &&
     chatRoles.genericAssistantRegex &&
     chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
-    ? true
-    : false;
+      ? true
+      : false;
+  if (isInConversation) {
+    const conversationButton = document.querySelector(
+      ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
+    );
+    conversationButton && conversationButton.remove();
+  }
+  return isInConversation;
 };
