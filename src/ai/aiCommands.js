@@ -813,55 +813,59 @@ const supportedLanguage = [
 const addImagesUrlToMessages = (messages, content) => {
   let nbCountdown = maxImagesNb;
 
-  messages &&
-    messages.forEach((msg, index) => {
-      if (index > 0) {
-        roamImageRegex.lastIndex = 0;
-        const matchingImagesInPrompt = msg.content?.matchAll(roamImageRegex);
-        matchingImagesInPrompt &&
-          matchingImagesInPrompt.forEach((imgUrl) => {
-            if (nbCountdown > 0)
-              msg.content = [
-                {
-                  type: "text",
-                  text: msg.content,
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: imgUrl[1],
-                    detail: resImages,
-                  },
-                },
-              ];
-            nbCountdown--;
-          });
-      }
-    });
+  for (let i = 1; i < messages.length; i++) {
+    roamImageRegex.lastIndex = 0;
+    const matchingImagesInPrompt = Array.from(
+      messages[i].content?.matchAll(roamImageRegex)
+    );
+    if (matchingImagesInPrompt.length) {
+      messages[i].content = [
+        {
+          type: "text",
+          text: messages[i].content,
+        },
+      ];
+    }
+    for (let j = 0; j < matchingImagesInPrompt.length; j++) {
+      messages[i].content[0].text = messages[i].content[0].text
+        .replace(matchingImagesInPrompt[j][0], "")
+        .trim();
+      if (nbCountdown > 0)
+        messages[i].content.push({
+          type: "image_url",
+          image_url: {
+            url: matchingImagesInPrompt[j][1],
+            detail: resImages,
+          },
+        });
+      nbCountdown--;
+    }
+  }
 
   if (content && content.length) {
     roamImageRegex.lastIndex = 0;
-    const matchingImagesInContext = content.matchAll(roamImageRegex);
-    matchingImagesInContext &&
-      matchingImagesInContext.forEach((imgUrl, index) => {
-        if (nbCountdown > 0) {
-          if (index === 0)
-            messages.splice(1, 0, {
-              role: "user",
-              content: [
-                { type: "text", text: "Image(s) provided in the context:" },
-              ],
-            });
-          messages[1].content.push({
-            type: "image_url",
-            image_url: {
-              url: imgUrl[1],
-              detail: resImages,
-            },
+    const matchingImagesInContext = Array.from(
+      content.matchAll(roamImageRegex)
+    );
+    for (let i = 0; i < matchingImagesInContext.length; i++) {
+      if (nbCountdown > 0) {
+        if (i === 0)
+          messages.splice(1, 0, {
+            role: "user",
+            content: [
+              { type: "text", text: "Image(s) provided in the context:" },
+            ],
           });
-          nbCountdown--;
-        }
-      });
+        messages[1].content.push({
+          type: "image_url",
+          image_url: {
+            url: matchingImagesInContext[i][1],
+            detail: resImages,
+          },
+        });
+        nbCountdown--;
+      }
+    }
   }
   return messages;
 };
