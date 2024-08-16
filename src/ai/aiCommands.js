@@ -265,11 +265,11 @@ async function aiCompletion(
 
 async function claudeCompletion(model, prompt, content, responseFormat) {
   if (ANTHROPIC_API_KEY) {
+    // Anthropic models: https://docs.anthropic.com/claude/docs/models-overview#model-recommendations
+    // Claude 3 Opus : claude-3-opus-20240229
+    // Claude 3 Sonnet	: claude-3-sonnet-20240229
+    // Claude 3 Haiku :	claude-3-haiku-20240307
     switch (model) {
-      // Anthropic models: https://docs.anthropic.com/claude/docs/models-overview#model-recommendations
-      // Claude 3 Opus : claude-3-opus-20240229
-      // Claude 3 Sonnet	: claude-3-sonnet-20240229
-      // Claude 3 Haiku :	claude-3-haiku-20240307
       case "Claude Opus":
         model = "claude-3-opus-20240229";
         break;
@@ -278,6 +278,9 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
         // model = "claude-3-sonnet-20240229"; previous version
         break;
       case "Claude Haiku":
+        model = "claude-3-haiku-20240307";
+        break;
+      default:
         model = "claude-3-haiku-20240307";
     }
     try {
@@ -288,11 +291,12 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
         model: model,
       };
       if (modelTemperature !== null) options.temperature = modelTemperature;
+
+      //"http://localhost:3000/anthropic/message",
+      // See server code here: https://github.com/fbgallet/ai-api-back
+      // No data is stored on the server or displayed in any log
       const { data } = await axios.post(
         "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
-        //"http://localhost:3000/anthropic/message",
-        // See server code here: https://github.com/fbgallet/ai-api-back
-        // No data is stored on the server or displayed in any log
         options
       );
       console.log("Anthropic Claude response :>> ", data.response);

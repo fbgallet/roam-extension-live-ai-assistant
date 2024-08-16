@@ -3,7 +3,6 @@ import { createChildBlock, getBlockContentByUid } from "./utils";
 const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
 const notEscapedBreakLineRegex = /(?<!\\)\n/g;
-const markdownHeadingRegex = /^#+\s/m;
 export const hierarchyFlagRegex =
   /^\s*\(?[-\d](?:\.|\))\s*|^\s*[a-z]\)\s*|^\s*[ivx]+(?:\.|\))\s*|^\s*#{1,6}\s/im;
 export const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
