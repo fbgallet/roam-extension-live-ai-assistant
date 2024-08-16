@@ -1,3 +1,14 @@
+## v.9 (August 16th, 2024) Small fixes
+
+**Updated**
+
+- when selecting a multiple blocks as prompt (with basic 'blue' selection), they are used as prompt (not context) and response is inserted in the next sibling block of the first block of the selection
+
+**Fixed**
+
+- hierarchy in AI responses is now much better interpreted and reproduced within a set of hierarchically arranged blocks.
+- image(s) in multi-selected blocks are now taken correctly taken into account
+
 ## v.8 (July 19th, 2024) New model
 
 **New features:**

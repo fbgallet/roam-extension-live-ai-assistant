@@ -2,6 +2,10 @@
 
 ### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support up-to-date GPT or Claude models, and most of existing models through OpenRouter and local models through Ollama.
 
+### 🆕 New in v.9:
+
+- hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
+
 ### 🆕 New in v.8:
 
 - GPT-4o-mini (3x cheaper) replace by default GPT-3.5
