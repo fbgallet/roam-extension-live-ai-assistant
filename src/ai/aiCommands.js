@@ -27,6 +27,8 @@ import {
   modelTemperature,
   ollamaServer,
   resImages,
+  anthropicLibrary,
+  isSafari,
 } from "..";
 import {
   addContentToBlock,
@@ -45,6 +47,7 @@ import {
   updateArrayOfBlocks,
 } from "../utils/utils";
 import {
+  hierarchicalResponseFormat,
   instructionsOnJSONResponse,
   instructionsOnTemplateProcessing,
 } from "./prompts";
@@ -57,9 +60,8 @@ import {
 } from "../utils/domElts";
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import {
-  dashOrNumRegex,
+  parseAndCreateBlocks,
   sanitizeJSONstring,
-  splitLines,
   splitParagraphs,
   trimOutsideOuterBraces,
 } from "../utils/format";
@@ -116,6 +118,7 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
     });
     return anthropic;
   } catch (error) {
+    console.log("Error at initialization stage");
     console.log(error.message);
     AppToaster.show({
       message: `Live AI Assistant - Error during the initialization of Anthropic API: ${error.message}`,
@@ -174,19 +177,26 @@ async function aiCompletion(
   targetUid
 ) {
   let aiResponse;
+  let hasAPIkey = true;
   let model = instantModel || defaultModel;
   let prefix = model.split("/")[0];
   if (responseFormat === "json_object")
     prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  if (prefix === "openRouter" && openrouterLibrary?.apiKey) {
-    aiResponse = await openaiCompletion(
-      openrouterLibrary,
-      model.replace("openRouter/", ""),
-      prompt,
-      content,
-      responseFormat,
-      targetUid
-    );
+  else {
+    content += "\n\n" + hierarchicalResponseFormat;
+  }
+
+  if (prefix === "openRouter") {
+    if (!openrouterLibrary?.apiKey) hasAPIkey = false;
+    else
+      aiResponse = await openaiCompletion(
+        openrouterLibrary,
+        model.replace("openRouter/", ""),
+        prompt,
+        content,
+        responseFormat,
+        targetUid
+      );
   } else if (prefix === "ollama") {
     aiResponse = await ollamaCompletion(
       model.replace("ollama/", ""),
@@ -196,29 +206,36 @@ async function aiCompletion(
       targetUid
     );
   } else {
-    if (model.slice(0, 6) === "Claude" && ANTHROPIC_API_KEY)
-      aiResponse = await claudeCompletion(
-        model,
-        prompt,
-        content,
-        responseFormat,
-        targetUid
-      );
-    else if (openaiLibrary?.apiKey)
-      aiResponse = await openaiCompletion(
-        openaiLibrary,
-        model,
-        prompt,
-        content,
-        responseFormat,
-        targetUid
-      );
-    else {
+    if (model.slice(0, 6) === "Claude") {
+      if (!ANTHROPIC_API_KEY) {
+        console.log("anthropicLibrary :>> ", anthropicLibrary);
+        hasAPIkey = false;
+      } else
+        aiResponse = await claudeCompletion(
+          model,
+          prompt,
+          content,
+          responseFormat,
+          targetUid
+        );
+    } else {
+      if (!openaiLibrary?.apiKey) {
+        hasAPIkey = false;
+      } else
+        aiResponse = await openaiCompletion(
+          openaiLibrary,
+          model,
+          prompt,
+          content,
+          responseFormat,
+          targetUid
+        );
+    }
+    if (!hasAPIkey) {
       AppToaster.show({
         message: `Provide an API key to use ${model} model. See doc and settings.`,
         timeout: 15000,
       });
-      AppToaster;
       return "";
     }
   }
@@ -272,6 +289,7 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
       if (modelTemperature !== null) options.temperature = modelTemperature;
       const { data } = await axios.post(
         "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
+        //"http://localhost:3000/anthropic/message",
         // See server code here: https://github.com/fbgallet/ai-api-back
         // No data is stored on the server or displayed in any log
         options
@@ -285,20 +303,23 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
       }
       return jsonOnly || text;
     } catch (error) {
-      let errorData = error.response?.data?.message
-        ? trimOutsideOuterBraces(error.response.data.message)
-        : null;
-      if (errorData) {
+      console.log("error :>> ");
+      console.log(error);
+      let errorMsg = error.response?.data?.message;
+      if (errorMsg && errorMsg.includes("{")) {
+        let errorData;
+        errorData = trimOutsideOuterBraces(error.response.data.message);
         errorData = JSON.parse(errorData);
-      }
-      if (errorData) {
         console.log("Claude API error type:", errorData.error?.type);
         console.log("Claude API error message:\n", errorData.error?.message);
+        errorMsg = errorData.error?.message;
+      }
+      if (errorMsg) {
         AppToaster.show({
           message: (
             <>
               <h4>Claude API error</h4>
-              <p>Message: {errorData.error?.message}</p>
+              <p>Message: {errorMsg}</p>
             </>
           ),
           timeout: 15000,
@@ -324,6 +345,7 @@ export async function openaiCompletion(
       content: content,
     },
   ].concat(prompt);
+  console.log("messages :>> ", messages);
   // {
   //   role: "user",
   //   content: [
@@ -338,15 +360,7 @@ export async function openaiCompletion(
     messages = addImagesUrlToMessages(messages, content);
   }
   try {
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(
-          new Error(
-            "Timeout error on client side: OpenAI response time exceeded (90 seconds)"
-          )
-        );
-      }, 90000);
-    });
+    let response;
     const options = {
       model: model,
       response_format: { type: responseFormat },
@@ -357,10 +371,24 @@ export async function openaiCompletion(
     // maximum temperature with OpenAI models regularly produces aberrations.
     if (options.temperature > 1.2 && model.includes("gpt"))
       options.temperature = 1.3;
-    const response = await Promise.race([
-      await aiClient.chat.completions.create(options),
-      timeoutPromise,
-    ]);
+
+    if (!isSafari) {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              "Timeout error on client side: OpenAI response time exceeded (90 seconds)"
+            )
+          );
+        }, 90000);
+      });
+      response = await Promise.race([
+        await aiClient.chat.completions.create(options),
+        timeoutPromise,
+      ]);
+    } else {
+      response = await aiClient.chat.completions.create(options);
+    }
     let streamEltCopy = "";
 
     console.log(response);
@@ -565,20 +593,11 @@ export const insertCompletion = async ({
     const splittedResponse = splitParagraphs(aiResponse);
     if (
       (!isResponseToSplit || splittedResponse.length === 1) &&
-      !dashOrNumRegex.test(splittedResponse[0])
+      !/^[-\d.]\s*|^[a-z]\)\s|^#{1,6}\s/im.test(splittedResponse[0])
     )
-      addContentToBlock(targetUid, splittedResponse[0]);
+      await addContentToBlock(targetUid, splittedResponse[0]);
     else {
-      let result;
-      for (let i = 0; i < splittedResponse.length; i++) {
-        // createChildBlock(targetUid, splittedResponse[i]);
-        result = await splitLines(
-          splittedResponse[i],
-          targetUid,
-          result && result.lastParentUid,
-          result && result.level
-        );
-      }
+      await parseAndCreateBlocks(targetUid, aiResponse);
     }
   }
   setTimeout(() => {
@@ -789,30 +808,31 @@ const supportedLanguage = [
 const addImagesUrlToMessages = (messages, content) => {
   let nbCountdown = maxImagesNb;
 
-  messages.forEach((msg, index) => {
-    if (index > 0) {
-      roamImageRegex.lastIndex = 0;
-      const matchingImagesInPrompt = msg.content?.matchAll(roamImageRegex);
-      matchingImagesInPrompt.length &&
-        matchingImagesInPrompt.forEach((imgUrl) => {
-          if (nbCountdown > 0)
-            msg.content = [
-              {
-                type: "text",
-                text: msg.content,
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imgUrl[1],
-                  detail: resImages,
+  messages &&
+    messages.forEach((msg, index) => {
+      if (index > 0) {
+        roamImageRegex.lastIndex = 0;
+        const matchingImagesInPrompt = msg.content?.matchAll(roamImageRegex);
+        matchingImagesInPrompt.length &&
+          matchingImagesInPrompt.forEach((imgUrl) => {
+            if (nbCountdown > 0)
+              msg.content = [
+                {
+                  type: "text",
+                  text: msg.content,
                 },
-              },
-            ];
-          nbCountdown--;
-        });
-    }
-  });
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: imgUrl[1],
+                    detail: resImages,
+                  },
+                },
+              ];
+            nbCountdown--;
+          });
+      }
+    });
 
   if (content && content.length) {
     roamImageRegex.lastIndex = 0;

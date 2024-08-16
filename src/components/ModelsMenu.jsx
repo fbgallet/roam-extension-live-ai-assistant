@@ -24,7 +24,7 @@ const ModelsMenu = ({ command }) => {
         model = "gpt-4-turbo-preview";
         break;
       case "GPT 4o mini":
-        model = "gpt-4o";
+        model = "gpt-4o-mini";
         break;
       case "GPT 4o":
         model = "gpt-4o";

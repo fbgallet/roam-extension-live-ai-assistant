@@ -271,10 +271,10 @@ export async function insertBlockInCurrentView(content, order) {
   return newUid;
 }
 
-export function addContentToBlock(uid, contentToAdd) {
+export async function addContentToBlock(uid, contentToAdd) {
   const currentContent = getBlockContentByUid(uid).trimEnd();
   // currentContent += currentContent ? " " : "";
-  window.roamAlphaAPI.updateBlock({
+  await window.roamAlphaAPI.updateBlock({
     block: {
       uid: uid,
       string: (currentContent ? currentContent + " " : "") + contentToAdd,

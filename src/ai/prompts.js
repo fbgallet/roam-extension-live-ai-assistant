@@ -2,6 +2,12 @@ export const defaultAssistantCharacter = `\
 You are a smart, rigorous and concise AI assistant. \
 You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself.`;
 
+export const hierarchicalResponseFormat = `IMPORTANT RULE ON YOUR RESPONSE FORMAT: If your response is hierarchically structured in multiple lines of different levels, each sub-level should be indented exactly 2 spaces more relative to the immediate higher level.  For example:
+1. First level (0 space)
+  a) Level 2 (2 spaces)
+    Level 3 (4 spaces)
+  b) Level 2`;
+
 export const defaultContextInstructions = `
 Below is the context of your response, it can consist of data to rely on, a conversation to be continued, \
 or other instructions, depending on the user's prompt. The user can refer to it as 'these blocks' \

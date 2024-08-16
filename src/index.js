@@ -228,7 +228,7 @@ export default {
           ),
           action: {
             type: "input",
-            onChange: (evt) => {
+            onChange: async (evt) => {
               unmountComponent(position);
               setTimeout(() => {
                 OPENAI_API_KEY = evt.target.value;
@@ -271,13 +271,11 @@ export default {
           ),
           action: {
             type: "input",
-            onChange: (evt) => {
+            onChange: async (evt) => {
               unmountComponent(position);
               setTimeout(() => {
                 ANTHROPIC_API_KEY = evt.target.value;
                 anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
-                // if (extensionAPI.settings.get("whisper") === true)
-                //   isUsingWhisper = true;
               }, 200);
               setTimeout(() => {
                 mountComponent(position);
@@ -299,7 +297,7 @@ export default {
           ),
           action: {
             type: "input",
-            onChange: (evt) => {
+            onChange: async (evt) => {
               unmountComponent(position);
               setTimeout(async () => {
                 OPENROUTER_API_KEY = evt.target.value;
@@ -676,6 +674,7 @@ export default {
       ],
     };
 
+    await extensionAPI.settings.panel.create(panelConfig);
     // get settings from setting panel
     if (extensionAPI.settings.get("visibility") === null)
       await extensionAPI.settings.set("visibility", true);
@@ -812,7 +811,6 @@ export default {
       openRouterModelsInfo = await getModelsInfo();
     }
 
-    await extensionAPI.settings.panel.create(panelConfig);
     loadRoamExtensionCommands(extensionAPI);
 
     mountComponent(position);
