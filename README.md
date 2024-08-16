@@ -5,6 +5,7 @@
 ### 🆕 New in v.9:
 
 - hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
+- fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser.
 
 ### 🆕 New in v.8:
 
@@ -39,7 +40,11 @@ NB: API fees should not be confused with the ChatGPT Plus subscription; they are
 
 Just press the microphone button and provide vocal instructions, or place the cursor focus in a block where you have written your prompt, then click on the AI completion button (OpenAI Logo). That's all !
 
-You can easily compare AI models responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
+You can easily use **structured prompts** by selecting multiple blocks (including images with models supporting image recognition). Create your own Roam template to have a set of ready-to-use advanced prompts !
+
+You can easily **add context** to your prompt: by pressing `Shift` while clicking on the AI completion button, all the content in the sidebar will be sent as context (for example, ask to resume some content provided in the context). See 'AI Assistant' section below for more details and possibilities about context.
+
+You can easily **compare AI models** responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
 ## Chat with your AI Assistant
 

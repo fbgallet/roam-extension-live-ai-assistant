@@ -1,4 +1,4 @@
-import { createChildBlock, getBlockContentByUid } from "./utils";
+import { createChildBlock } from "./utils";
 
 const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;

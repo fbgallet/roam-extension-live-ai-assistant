@@ -21,14 +21,6 @@ export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
 
 export function getTreeByUid(uid) {
-  // // with pull
-  //   if (uid) {
-  //     return window.roamAlphaAPI.pull(
-  //       "[:block/uid :block/string :block/children {:block/children  ...} :block/open {:block/refs [:block/uid]} :block/order {:block/page [:block/uid]}]",
-  //       [":block/uid", uid]
-  //     );
-  //   } else return null;
-  // }
   if (uid)
     return window.roamAlphaAPI.q(`[:find (pull ?page
                      [:block/uid :block/string :block/children :block/refs :block/order
@@ -74,13 +66,6 @@ export function isExistingBlock(uid) {
 }
 
 export function getParentBlock(uid) {
-  // NOT RELIABLE
-  // let result = window.roamAlphaAPI.pull("[:block/uid {:block/parents ...}]", [
-  //   ":block/uid",
-  //   uid,
-  // ]);
-  // if (result) return result[":block/parents"].at(-1)[":block/uid"];
-  // else return "";
   let result = window.roamAlphaAPI.pull(
     "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",
     [":block/uid", uid]

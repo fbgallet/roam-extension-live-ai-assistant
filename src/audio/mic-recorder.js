@@ -160,7 +160,7 @@ class MicRecorder {
   }
 
   clear() {
-    this.lameEncoder.clearBuffer();
+    this?.lameEncoder?.clearBuffer();
   }
 
   /**
@@ -175,7 +175,7 @@ class MicRecorder {
         reject(new Error("No buffer to send"));
       } else {
         resolve([finalBuffer, new Blob(finalBuffer, { type: "audio/mp3" })]);
-        this.lameEncoder.clearBuffer();
+        this?.lameEncoder?.clearBuffer();
       }
     });
   }
@@ -192,7 +192,7 @@ class MicRecorder {
         reject(new Error("No buffer to send"));
       } else {
         resolve([finalBuffer, new Blob(finalBuffer, { type: "audio/mpeg" })]);
-        this.lameEncoder.clearBuffer();
+        this?.lameEncoder?.clearBuffer();
       }
     });
   }
