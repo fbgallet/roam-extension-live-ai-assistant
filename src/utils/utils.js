@@ -338,7 +338,7 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
   return content;
 };
 
-export function convertTreeToLinearArray(tree, maxCapturing, maxUid) {
+export function convertTreeToLinearArray(tree, maxCapturing = 99, maxUid = 99) {
   let linearArray = [];
 
   // console.log("exclusionStrings :>> ", exclusionStrings);

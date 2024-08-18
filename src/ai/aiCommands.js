@@ -182,7 +182,7 @@ async function aiCompletion(
   let model = instantModel || defaultModel;
   let prefix = model.split("/")[0];
   if (responseFormat === "json_object")
-    prompt += "\n\nResponse format:\n" + instructionsOnJSONResponse;
+    prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
   else {
     content += "\n\n" + hierarchicalResponseFormat;
   }
@@ -551,33 +551,33 @@ export const insertCompletion = async ({
   }
   console.log("Context (eventually truncated):\n", content);
 
-  if (typeOfCompletion === "gptCompletion") {
-    if (isRedone) {
-      if (isExistingBlock(targetUid)) {
-        targetUid = await createSiblingBlock(targetUid, "before");
-        window.roamAlphaAPI.updateBlock({
-          block: {
-            uid: targetUid,
-            string: assistantRole,
+  // if (typeOfCompletion === "gptCompletion") {
+  if (isRedone) {
+    if (isExistingBlock(targetUid)) {
+      targetUid = await createSiblingBlock(targetUid, "before");
+      window.roamAlphaAPI.updateBlock({
+        block: {
+          uid: targetUid,
+          string: assistantRole,
+        },
+      });
+    } else targetUid = await insertBlockInCurrentView(assistantRole);
+  } else {
+    if (typeof prompt === "string") {
+      // else prompt is already conversation object
+      if (isInConversation) {
+        prompt = getConversationArray(getParentBlock(targetUid));
+      } else {
+        prompt = [
+          {
+            role: "user",
+            content: prompt,
           },
-        });
-      } else targetUid = await insertBlockInCurrentView(assistantRole);
-    } else {
-      if (typeof prompt === "string") {
-        // else prompt is already conversation object
-        if (isInConversation) {
-          prompt = getConversationArray(getParentBlock(targetUid));
-        } else {
-          prompt = [
-            {
-              role: "user",
-              content: prompt,
-            },
-          ];
-        }
+        ];
       }
     }
   }
+  // }
   const intervalId = await displaySpinner(targetUid);
 
   console.log("prompt :>> ", prompt);
