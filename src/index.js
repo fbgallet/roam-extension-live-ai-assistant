@@ -85,19 +85,15 @@ function getRolesFromString(str, model) {
   if (!model) {
     if (defaultModel === "first OpenRouter model" && openRouterModels.length) {
       model = openRouterModels[0];
-      defaultModel = "openRouter/";
     } else if (
       defaultModel === "first Ollama local model" &&
       ollamaModels.length
     ) {
       model = ollamaModels[0];
-      defaultModel = "ollama/";
     } else if (defaultModel === "first Groq model" && groqModels.length) {
       model = groqModels[0];
-      defaultModel = "groq/" + model;
     } else {
       model = "gpt-4o-mini";
-      defaultModel = "gpt-4o-mini";
     }
   }
   let assistantModel = model || defaultModel;

@@ -152,7 +152,10 @@ const ModelsMenu = ({ command }) => {
             openRouterModelsInfo.map((model) => (
               <MenuItem
                 icon={
-                  defaultModel.replace("openRouter/", "") === model.id && "pin"
+                  defaultModel.includes("OpenRouter") &&
+                  openRouterModels.length &&
+                  openRouterModels[0] === model &&
+                  "pin"
                 }
                 onClick={(e) => {
                   handleClickOnModel(e, "openRouter/");
@@ -206,7 +209,12 @@ const ModelsMenu = ({ command }) => {
           <MenuDivider title="Through Groq" />
           {groqModels.map((model) => (
             <MenuItem
-              icon={defaultModel.replace("groq/", "") === model && "pin"}
+              icon={
+                defaultModel.includes("Groq") &&
+                groqModels.length &&
+                groqModels[0] === model &&
+                "pin"
+              }
               onClick={(e) => {
                 handleClickOnModel(e, "groq/");
               }}
@@ -224,7 +232,12 @@ const ModelsMenu = ({ command }) => {
           <MenuDivider title="Ollama local models" />
           {ollamaModels.map((model) => (
             <MenuItem
-              icon={defaultModel.replace("ollama/", "") === model && "pin"}
+              icon={
+                defaultModel.includes("Ollama") &&
+                ollamaModels.length &&
+                ollamaModels[0] === model &&
+                "pin"
+              }
               onClick={(e) => {
                 handleClickOnModel(e, "ollama/");
               }}

@@ -31,6 +31,7 @@ import {
   isSafari,
   groqLibrary,
   isUsingGroqWhisper,
+  groqModels,
 } from "..";
 import {
   addContentToBlock,
@@ -188,6 +189,14 @@ async function aiCompletion(
   let aiResponse;
   let hasAPIkey = true;
   let model = instantModel || defaultModel;
+
+  if (model === "first OpenRouter model" && openRouterModels.length) {
+    model = "openRouter/" + openRouterModels[0];
+  } else if (model === "first Ollama local model" && ollamaModels.length) {
+    model = "ollama/" + ollamaModels[0];
+  } else if (model === "first Groq model" && groqModels.length) {
+    model = "groq/" + groqModels[0];
+  }
   let prefix = model.split("/")[0];
   if (responseFormat === "json_object")
     prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
