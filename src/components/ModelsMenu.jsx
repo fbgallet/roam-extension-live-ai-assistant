@@ -7,6 +7,7 @@ import {
 } from "@blueprintjs/core";
 import {
   defaultModel,
+  groqModels,
   ollamaModels,
   openRouterModels,
   openRouterModelsInfo,
@@ -196,6 +197,24 @@ const ModelsMenu = ({ command }) => {
           ) : (
             <div>OpenRouter works only online</div>
           )}
+        </>
+      ) : null}
+      {groqModels.length ? (
+        <>
+          <MenuDivider title="Through Groq" />
+          {groqModels.map((model) => (
+            <MenuItem
+              icon={defaultModel === model && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e, "groq/");
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e, "groq/");
+              }}
+              tabindex="0"
+              text={model}
+            />
+          ))}
         </>
       ) : null}
       {ollamaModels.length ? (

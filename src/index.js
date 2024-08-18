@@ -41,7 +41,9 @@ export const tokensLimit = {
 let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
 export let OPENROUTER_API_KEY = "";
+export let GROQ_API_KEY = "";
 export let isUsingWhisper;
+export let isUsingGroqWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
 export let whisperPrompt;
@@ -52,6 +54,7 @@ export let modelTemperature;
 export let openRouterOnly;
 export let ollamaModels = [];
 export let ollamaServer;
+export let groqModels = [];
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
 export let contextInstruction = defaultContextInstructions;
@@ -71,7 +74,7 @@ export let isComponentAlwaysVisible;
 export let isComponentVisible;
 export let resImages;
 let position;
-export let openaiLibrary, anthropicLibrary, openrouterLibrary;
+export let openaiLibrary, anthropicLibrary, openrouterLibrary, groqLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
@@ -83,6 +86,8 @@ function getRolesFromString(str, model) {
     model = openRouterModels.length ? openRouterModels[0] : "gpt-4o-mini";
   if (!model && defaultModel === "first Ollama local model")
     model = ollamaModels.length ? ollamaModels[0] : "gpt-4o-mini";
+  if (!model && defaultModel === "first Groq model")
+    model = groqModels.length ? groqModels[0] : "gpt-4o-mini";
   let assistantModel = model || defaultModel;
   assistantModel = assistantModel
     .replace("openRouter/", "")
@@ -176,6 +181,7 @@ export default {
               "custom OpenAI model",
               "first OpenRouter model",
               "first Ollama local model",
+              "first Groq model",
             ],
             onChange: (evt) => {
               defaultModel = evt;
@@ -283,102 +289,7 @@ export default {
             },
           },
         },
-        {
-          id: "openrouterapi",
-          name: "OpenRouter API Key",
-          description: (
-            <>
-              <span>Copy here your OpenRouter API key</span>
-              <br></br>
-              <a href="https://openrouter.ai/keys" target="_blank">
-                (Follow this link to generate a new one)
-              </a>
-            </>
-          ),
-          action: {
-            type: "input",
-            onChange: async (evt) => {
-              unmountComponent(position);
-              setTimeout(async () => {
-                OPENROUTER_API_KEY = evt.target.value;
-                openrouterLibrary = initializeOpenAIAPI(
-                  OPENROUTER_API_KEY,
-                  "https://openrouter.ai/api/v1"
-                );
-                openRouterModelsInfo = await getModelsInfo();
-              }, 200);
-              setTimeout(() => {
-                mountComponent(position);
-              }, 200);
-            },
-          },
-        },
-        {
-          id: "openrouterOnly",
-          name: "OpenRouter Only",
-          description:
-            "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
-          action: {
-            type: "switch",
-            onChange: (evt) => {
-              openRouterOnly = !openRouterOnly;
-              unmountComponent(position);
-              mountComponent(position);
-            },
-          },
-        },
-        {
-          id: "openRouterModels",
-          name: "Models via OpenRouter",
-          className: "liveai-settings-largeinput",
-          description: (
-            <>
-              <span>
-                List of models ID to query through OpenRouter, separated by a
-                comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
-              </span>
-              <br></br>
-              <a href="https://openrouter.ai/docs#models" target="_blank">
-                List of supported models here
-              </a>
-            </>
-          ),
-          action: {
-            type: "input",
-            onChange: async (evt) => {
-              openRouterModels = getArrayFromList(evt.target.value);
-              openRouterModelsInfo = await getModelsInfo();
-            },
-          },
-        },
-        {
-          id: "ollamaModels",
-          name: "Ollama local models",
-          className: "liveai-settings-largeinput",
-          description:
-            "Models on local server, separated by a comma. E.g: llama2,llama3",
-          action: {
-            type: "input",
-            onChange: (evt) => {
-              ollamaModels = getArrayFromList(evt.target.value);
-            },
-          },
-        },
-        {
-          id: "ollamaServer",
-          name: "Ollama server",
-          description:
-            "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
-          action: {
-            type: "input",
-            onChange: (evt) => {
-              ollamaServer =
-                evt.target.value.at(-1) === "/"
-                  ? evt.target.value.slice(0, -1)
-                  : evt.target.value;
-            },
-          },
-        },
+
         {
           id: "whisper",
           name: "Use Whisper API",
@@ -660,14 +571,176 @@ export default {
             },
           },
         },
+        // {
+        //   id: "customModel",
+        //   name: "Custom OpenAI model",
+        //   description: "⚠️ Only OpenAI Chat completion models are compatible",
+        //   action: {
+        //     type: "input",
+        //     onChange: (evt) => {
+        //       gptCustomModel = evt.target.value;
+        //     },
+        //   },
+        // },
         {
-          id: "customModel",
-          name: "Custom OpenAI model",
-          description: "⚠️ Only OpenAI Chat completion models are compatible",
+          id: "openrouterapi",
+          name: "OpenRouter API Key",
+          description: (
+            <>
+              <span>Copy here your OpenRouter API key</span>
+              <br></br>
+              <a href="https://openrouter.ai/keys" target="_blank">
+                (Follow this link to generate a new one)
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: async (evt) => {
+              unmountComponent(position);
+              setTimeout(async () => {
+                OPENROUTER_API_KEY = evt.target.value;
+                openrouterLibrary = initializeOpenAIAPI(
+                  OPENROUTER_API_KEY,
+                  "https://openrouter.ai/api/v1"
+                );
+                openRouterModelsInfo = await getModelsInfo();
+              }, 200);
+              setTimeout(() => {
+                mountComponent(position);
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "openrouterOnly",
+          name: "OpenRouter Only",
+          description:
+            "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              openRouterOnly = !openRouterOnly;
+              unmountComponent(position);
+              mountComponent(position);
+            },
+          },
+        },
+        {
+          id: "openRouterModels",
+          name: "Models via OpenRouter",
+          className: "liveai-settings-largeinput",
+          description: (
+            <>
+              <span>
+                List of models ID to query through OpenRouter, separated by a
+                comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
+              </span>
+              <br></br>
+              <a href="https://openrouter.ai/docs#models" target="_blank">
+                List of supported models here
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: async (evt) => {
+              openRouterModels = getArrayFromList(evt.target.value);
+              openRouterModelsInfo = await getModelsInfo();
+            },
+          },
+        },
+        {
+          id: "groqapi",
+          name: "Groq API Key",
+          description: (
+            <>
+              <span>Copy here your Groq API key:</span>
+              <br></br>
+              <a href="https://console.groq.com/keys" target="_blank">
+                (Follow this link to generate a new one)
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: async (evt) => {
+              unmountComponent(position);
+              setTimeout(() => {
+                GROQ_API_KEY = evt.target.value;
+                groqLibrary = initializeOpenAIAPI(
+                  GROQ_API_KEY,
+                  "https://api.groq.com/openai/v1"
+                );
+              }, 200);
+              setTimeout(() => {
+                mountComponent(position);
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "groqwhisper",
+          name: "Use Whisper via Groq",
+          description:
+            "If you have provided a Groq API key, `whisper-large-v3` model will replace `whisper-v1` for transcription.",
+          action: {
+            type: "switch",
+            onChange: (evt) => {
+              isUsingGroqWhisper = !isUsingGroqWhisper;
+              unmountComponent(position);
+              mountComponent(position);
+            },
+          },
+        },
+        {
+          id: "groqModels",
+          name: "Models via Groq API",
+          className: "liveai-settings-largeinput",
+          description: (
+            <>
+              <span>
+                List of models ID to query through Groq API, separated by a
+                comma.
+              </span>
+              <br></br>
+              <a href="https://console.groq.com/docs/models" target="_blank">
+                List of supported models here
+              </a>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: async (evt) => {
+              groqModels = getArrayFromList(evt.target.value);
+            },
+          },
+        },
+        {
+          id: "ollamaModels",
+          name: "Ollama local models",
+          className: "liveai-settings-largeinput",
+          description:
+            "Models on local server, separated by a comma. E.g: llama2,llama3",
           action: {
             type: "input",
             onChange: (evt) => {
-              gptCustomModel = evt.target.value;
+              ollamaModels = getArrayFromList(evt.target.value);
+            },
+          },
+        },
+        {
+          id: "ollamaServer",
+          name: "Ollama server",
+          description:
+            "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              ollamaServer =
+                evt.target.value.at(-1) === "/"
+                  ? evt.target.value.slice(0, -1)
+                  : evt.target.value;
             },
           },
         },
@@ -694,6 +767,9 @@ export default {
     if (extensionAPI.settings.get("whisper") === null)
       await extensionAPI.settings.set("whisper", true);
     isUsingWhisper = extensionAPI.settings.get("whisper");
+    if (extensionAPI.settings.get("groqwhisper") === null)
+      await extensionAPI.settings.set("groqwhisper", false);
+    isUsingGroqWhisper = extensionAPI.settings.get("groqwhisper");
     if (extensionAPI.settings.get("openaiapi") === null)
       await extensionAPI.settings.set("openaiapi", "");
     OPENAI_API_KEY = extensionAPI.settings.get("openaiapi");
@@ -707,6 +783,9 @@ export default {
     if (extensionAPI.settings.get("anthropicapi") === null)
       await extensionAPI.settings.set("anthropicapi", "");
     ANTHROPIC_API_KEY = extensionAPI.settings.get("anthropicapi");
+    if (extensionAPI.settings.get("groqapi") === null)
+      await extensionAPI.settings.set("groqapi", "");
+    GROQ_API_KEY = extensionAPI.settings.get("groqapi");
     if (extensionAPI.settings.get("transcriptionLgg") === null)
       await extensionAPI.settings.set("transcriptionLgg", "");
     transcriptionLanguage = getValidLanguageCode(
@@ -735,6 +814,9 @@ export default {
     openRouterModels = getArrayFromList(
       extensionAPI.settings.get("openRouterModels")
     );
+    if (extensionAPI.settings.get("groqModels") === null)
+      await extensionAPI.settings.set("groqModels", "");
+    groqModels = getArrayFromList(extensionAPI.settings.get("groqModels"));
     if (extensionAPI.settings.get("ollamaModels") === null)
       await extensionAPI.settings.set("ollamaModels", "");
     ollamaModels = getArrayFromList(extensionAPI.settings.get("ollamaModels"));
@@ -809,6 +891,12 @@ export default {
         "https://openrouter.ai/api/v1"
       );
       openRouterModelsInfo = await getModelsInfo();
+    }
+    if (GROQ_API_KEY) {
+      groqLibrary = initializeOpenAIAPI(
+        GROQ_API_KEY,
+        "https://api.groq.com/openai/v1"
+      );
     }
 
     loadRoamExtensionCommands(extensionAPI);

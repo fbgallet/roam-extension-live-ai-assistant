@@ -29,6 +29,8 @@ import {
   resImages,
   anthropicLibrary,
   isSafari,
+  groqLibrary,
+  isUsingGroqWhisper,
 } from "..";
 import {
   addContentToBlock,
@@ -128,21 +130,27 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
 }
 
 export async function transcribeAudio(filename) {
-  if (!openaiLibrary) return null;
+  if (!openaiLibrary && !groqLibrary) return null;
   try {
     // console.log(filename);
     const options = {
       file: filename,
-      model: "whisper-1",
+      model:
+        isUsingGroqWhisper && groqLibrary ? "whisper-large-v3" : "whisper-1",
     };
     if (transcriptionLanguage) options.language = transcriptionLanguage;
     if (whisperPrompt) options.prompt = whisperPrompt;
-    const transcript = await openaiLibrary.audio.transcriptions.create(options);
+    const transcript =
+      isUsingGroqWhisper && groqLibrary
+        ? await groqLibrary.audio.transcriptions.create(options)
+        : await openaiLibrary.audio.transcriptions.create(options);
     return transcript.text;
   } catch (error) {
     console.error(error.message);
     AppToaster.show({
-      message: `OpenAI error msg: ${error.message}`,
+      message: `${
+        isUsingGroqWhisper && groqLibrary ? "Groq API" : "OpenAI API"
+      } error msg: ${error.message}`,
       timeout: 15000,
     });
     return "";
@@ -198,6 +206,15 @@ async function aiCompletion(
         responseFormat,
         targetUid
       );
+  } else if (prefix === "groq") {
+    aiResponse = await openaiCompletion(
+      groqLibrary,
+      model.replace("groq/", ""),
+      prompt,
+      content,
+      responseFormat,
+      targetUid
+    );
   } else if (prefix === "ollama") {
     aiResponse = await ollamaCompletion(
       model.replace("ollama/", ""),

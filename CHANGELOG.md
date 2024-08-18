@@ -1,4 +1,8 @@
-## v.9 (August 16th, 2024) Small fixes
+## v.9 (August 16th, 2024) Fixes
+
+**New features:**
+
+- Support Groq API, both for text generation and for audio transcription (using 'whisper-large-v3' model)
 
 **Updated**
 
@@ -7,6 +11,7 @@
 **Fixed**
 
 - hierarchy in AI responses is now much better interpreted and reproduced within a set of hierarchically arranged blocks.
+- Post-processing following a template was broken since last update, now working again !
 - image(s) in multi-selected blocks are now taken correctly taken into account
 
 ## v.8 (July 19th, 2024) New model

@@ -5,6 +5,7 @@
 ### 🆕 New in v.9:
 
 - hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
+- Groq API support (providing the powerful 'whisper-large-v3' model for audio transcription)
 - fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser.
 
 ### 🆕 New in v.8:
@@ -32,7 +33,7 @@ NB: API fees should not be confused with the ChatGPT Plus subscription; they are
 
 ⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
-- To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API.
+- To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model!
 
 - To use local models with Ollama, see 'Use Ollama to run local models' section below.
 
@@ -98,7 +99,8 @@ A SmartBlock command is also provided: `<%SPEECHTOROAM%>`, see the example of Sm
 - the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere just before clicking the button or running the transcription command).
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 - You can specify a list of words to be spelled in a specific way (e.g. proper nouns, acronyms, technical terms, etc.), see the Whisper prompt option in the settings.
-- if you have not entered any OpenAI API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
+- if you have not entered any OpenAI API Key or Groq API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
+- if you have entered a Groq API Key, you can define Groq as default provider for the audio transcription model, user the powerful `whisper-large-v3` model.
 
 ## Translation
 

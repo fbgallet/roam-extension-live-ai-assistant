@@ -46,6 +46,7 @@ import {
   isTranslateIconDisplayed,
   isUsingWhisper,
   openaiLibrary,
+  isResponseToSplit,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
@@ -488,6 +489,7 @@ function VoiceRecorder({
         ? chatRoles.user + transcribe
         : transcribe;
     removeSpinner(intervalId);
+    // isResponseToSplit ? await parseAndCreateBlocks(targetUid, toInsert) :
     addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe)
       await completionProcessing(transcribe, targetUid);
