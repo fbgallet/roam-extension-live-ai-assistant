@@ -82,16 +82,29 @@ console.log("isSafari :>> ", isSafari);
 
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
-  if (!model && defaultModel === "first OpenRouter model")
-    model = openRouterModels.length ? openRouterModels[0] : "gpt-4o-mini";
-  if (!model && defaultModel === "first Ollama local model")
-    model = ollamaModels.length ? ollamaModels[0] : "gpt-4o-mini";
-  if (!model && defaultModel === "first Groq model")
-    model = groqModels.length ? groqModels[0] : "gpt-4o-mini";
+  if (!model) {
+    if (defaultModel === "first OpenRouter model" && openRouterModels.length) {
+      model = openRouterModels[0];
+      defaultModel = "openRouter/";
+    } else if (
+      defaultModel === "first Ollama local model" &&
+      ollamaModels.length
+    ) {
+      model = ollamaModels[0];
+      defaultModel = "ollama/";
+    } else if (defaultModel === "first Groq model" && groqModels.length) {
+      model = groqModels[0];
+      defaultModel = "groq/" + model;
+    } else {
+      model = "gpt-4o-mini";
+      defaultModel = "gpt-4o-mini";
+    }
+  }
   let assistantModel = model || defaultModel;
   assistantModel = assistantModel
     .replace("openRouter/", "")
-    .replace("ollama/", "");
+    .replace("ollama/", "")
+    .replace("groq/", "");
   return {
     defaultStr: str,
     user: splittedStr[0],
@@ -898,6 +911,8 @@ export default {
         "https://api.groq.com/openai/v1"
       );
     }
+
+    console.log("defaultModel :>> ", defaultModel);
 
     loadRoamExtensionCommands(extensionAPI);
 

@@ -13,6 +13,7 @@
 - hierarchy in AI responses is now much better interpreted and reproduced within a set of hierarchically arranged blocks.
 - Post-processing following a template was broken since last update, now working again !
 - image(s) in multi-selected blocks are now taken correctly taken into account
+- fixing default model as first model of OpenRouter/Groq/Ollama is now working properly
 
 ## v.8 (July 19th, 2024) New model
 
