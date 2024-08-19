@@ -1,6 +1,6 @@
-## v.9 (August 16th, 2024) Fixes
+## v.9 (August 16th, 2024) Groq & important fixes
 
-**New features:**
+**New feature**
 
 - Support Groq API, both for text generation and for audio transcription (using 'whisper-large-v3' model)
 
@@ -12,12 +12,13 @@
 
 - hierarchy in AI responses is now much better interpreted and reproduced within a set of hierarchically arranged blocks.
 - Post-processing following a template was broken since last update, now working again !
-- image(s) in multi-selected blocks are now taken correctly taken into account
+- fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser
 - fixing default model as first model of OpenRouter/Groq/Ollama is now working properly
+- image(s) in multi-selected blocks are now taken correctly taken into account
 
 ## v.8 (July 19th, 2024) New model
 
-**New features:**
+**New features**
 
 - GPT-4o-mini (3x cheaper) replace by default GPT-3.5, and it includes Vision
 - easily chat with your AI assistant with the button on the right of your prompt to continue a conversation
