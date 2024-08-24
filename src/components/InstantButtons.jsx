@@ -17,7 +17,7 @@ import {
   getFlattenedContentFromTree,
   getParentBlock,
 } from "../utils/utils.js";
-import { chatRoles } from "../index.js";
+import { chatRoles, getInstantAssistantRole } from "../index.js";
 import { insertInstantButtons } from "../utils/domElts.js";
 
 export let isCanceledStreamGlobal = false;
@@ -63,7 +63,10 @@ const InstantButtons = ({
 
   const handleConversation = async () => {
     const parentUid = getParentBlock(targetUid);
-    const nextBlock = await createChildBlock(parentUid, chatRoles.assistant);
+    const nextBlock = await createChildBlock(
+      parentUid,
+      getInstantAssistantRole(model)
+    );
     const userPrompt = getFlattenedContentFromTree(targetUid, 99, null);
     insertCompletion({
       prompt: prompt.concat({ role: "user", content: userPrompt }),
@@ -159,6 +162,7 @@ const InstantButtons = ({
                     role: "assistant",
                     content: response,
                   }),
+                  model,
                   targetUid: nextBlock,
                   isUserResponse: true,
                   content,
