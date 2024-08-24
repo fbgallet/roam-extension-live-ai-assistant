@@ -6,7 +6,7 @@
 
 **Updated**
 
-- requests to Anthropic API (Claude models)no longer go through a proxy server but are directly sent to Anthropic (so it's faster) and the responses can be streamed
+- requests to Anthropic API (Claude models) are now directly sent to Anthropic (no more server-side request needed, so it's faster) and the responses can be streamed
 - when selecting a multiple blocks as prompt (with basic 'blue' selection), they are used as prompt (not context) and response is inserted in the next sibling block of the first block of the selection
 
 **Fixed**
@@ -16,6 +16,7 @@
 - fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser
 - fixing default model as first model of OpenRouter/Groq/Ollama is now working properly
 - image(s) in multi-selected blocks are now taken correctly taken into account
+- using button to continue a conversation send the request to the model used in this conversation, not the default one
 
 ## v.8 (July 19th, 2024) New model
 
