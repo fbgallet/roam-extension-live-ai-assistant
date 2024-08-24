@@ -69,6 +69,7 @@ import {
   splitParagraphs,
   trimOutsideOuterBraces,
 } from "../utils/format";
+import ModelsMenu from "../components/ModelsMenu";
 
 export const lastCompletion = {
   prompt: null,
@@ -118,7 +119,7 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
   try {
     const anthropic = new Anthropic({
       apiKey: ANTHROPIC_API_KEY, // defaults to process.env["ANTHROPIC_API_KEY"]
-      // dangerouslyAllowBrowser: true,
+      // "anthropic-dangerous-direct-browser-access": true,
     });
     return anthropic;
   } catch (error) {
@@ -289,7 +290,13 @@ async function aiCompletion(
   return aiResponse;
 }
 
-async function claudeCompletion(model, prompt, content, responseFormat) {
+async function claudeCompletion(
+  model,
+  prompt,
+  content,
+  responseFormat,
+  targetUid
+) {
   if (ANTHROPIC_API_KEY) {
     // Anthropic models: https://docs.anthropic.com/claude/docs/models-overview#model-recommendations
     // Claude 3 Opus : claude-3-opus-20240229
@@ -311,28 +318,95 @@ async function claudeCompletion(model, prompt, content, responseFormat) {
     }
     try {
       const options = {
-        key: ANTHROPIC_API_KEY,
-        prompt: prompt,
-        context: content,
+        max_tokens: 4096,
         model: model,
+        messages: prompt,
       };
+      if (content) options.system = content;
       if (modelTemperature !== null) options.temperature = modelTemperature;
+      if (streamResponse && responseFormat === "text") options.stream = true;
 
-      //"http://localhost:3000/anthropic/message",
-      // See server code here: https://github.com/fbgallet/ai-api-back
       // No data is stored on the server or displayed in any log
-      const { data } = await axios.post(
-        "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
-        options
-      );
-      console.log("Anthropic Claude response :>> ", data.response);
-      let text = data.response.content[0].text;
+      // const { data } = await axios.post(
+      //   "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
+      //   options
+      // );
+      // See server code here: https://github.com/fbgallet/ai-api-back
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(options),
+      });
+
+      // handle streamed responses (not working from client-side)
+      let respStr = "";
+
+      if (streamResponse && responseFormat === "text") {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let streamEltCopy = "";
+        if (true) {
+          insertInstantButtons({
+            model,
+            prompt,
+            content,
+            responseFormat,
+            targetUid,
+            isStreamStopped: false,
+          });
+          const streamElt = insertParagraphForStream(targetUid);
+
+          try {
+            while (true) {
+              if (isCanceledStreamGlobal) {
+                streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+                respStr = "";
+                break;
+              }
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value);
+              const lines = chunk.split("\n");
+
+              for (const line of lines) {
+                if (line.startsWith("data:")) {
+                  const data = JSON.parse(line.slice(5));
+                  // console.log("data :>> ", data);
+                  if (data.type === "content_block_delta") {
+                    const text = data.delta.text;
+                    respStr += text;
+                    streamElt.innerHTML += text;
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.log("Error during stream response: ", e);
+            return "";
+          } finally {
+            streamEltCopy = streamElt.innerHTML;
+            if (isCanceledStreamGlobal)
+              console.log("Anthropic API response stream interrupted.");
+            else streamElt.remove();
+          }
+        }
+      } else {
+        const data = await response.json();
+        respStr = data.content[0].text;
+      }
       let jsonOnly;
       if (responseFormat !== "text") {
-        jsonOnly = trimOutsideOuterBraces(text);
+        jsonOnly = trimOutsideOuterBraces(respStr);
         jsonOnly = sanitizeJSONstring(jsonOnly);
       }
-      return jsonOnly || text;
+      return jsonOnly || respStr;
     } catch (error) {
       console.log("error :>> ");
       console.log(error);

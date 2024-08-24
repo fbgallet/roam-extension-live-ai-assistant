@@ -2,7 +2,7 @@ export const defaultAssistantCharacter = `\
 You are a smart, rigorous and concise AI assistant. \
 You always respond in the same language as the user's prompt unless specified otherwise in the prompt itself.`;
 
-export const hierarchicalResponseFormat = `IMPORTANT RULE ON YOUR RESPONSE FORMAT: If your response is hierarchically structured in multiple lines of different levels, each sub-level should be indented exactly 2 spaces more relative to the immediate higher level.`;
+export const hierarchicalResponseFormat = `IMPORTANT RULE ON YOUR RESPONSE FORMAT: IF your response contains hierarchically structured information (and ONLY IF THAT IS THE CASE), each sub-level in the hierarchy should be indented exactly 2 spaces more relative to the immediate higher level. IMPORTANT: When a response is better suited to a form written in paragraphs without hierarchy, you should not excessively subdivide the response neither add indentation.`;
 // For example:
 // 1. First level (0 space)
 //   a) Level 2 (2 spaces)
