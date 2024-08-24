@@ -4,7 +4,7 @@ const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
 const notEscapedBreakLineRegex = /(?<!\\)\n/g;
 export const hierarchyFlagRegex =
-  /^\s*\(?[-\d](?:\.|\))\s*|^\s*[a-z]\)\s*|^\s*[ivx]+(?:\.|\))\s*|^\s*#{1,6}\s/im;
+  /^\s*\(?[-\d](?:\.|\))\s*|^\s*[a-z]\)\s*|^\s*[ivx]+(?:\.|\))\s*|^\s*#{1,6}\s|^\s*(?:-|•)\s?/im;
 export const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
 
 export const trimOutsideOuterBraces = (str) => {
@@ -90,8 +90,9 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
       trimmedLine = trimmedLine.replace(/^#{1,6}\s*/, "").trim();
     }
 
-    const content = trimmedLine.startsWith("- ")
-      ? trimmedLine.slice(2).trim()
+    // const content = trimmedLine.startsWith("- ") || trimmedLine.startsWith("• ")
+    const content = /^(?:-|•)\s?/.test(trimmedLine)
+      ? trimmedLine.slice(trimmedLine.match(/^(?:-|•)\s?/).length).trim()
       : trimmedLine;
 
     // Get parent of current block
@@ -134,7 +135,7 @@ function getLevel(line, minTitleLevel) {
   if (/^\*?\*?\(?\d+(?:\.|\))/.test(trimmedLine)) level += 1; // Numbers 1. 2. or 1) 2)
   if (/^\*?\*?[a-z]\)/.test(trimmedLine)) level += 1; // Lettres a) b) etc.
   if (/^\*?\*?[ivx]+(?:\.|\))/i.test(trimmedLine)) level += 1; // Roman numbers i) ii) or I. II.
-  if (/^\*?\*?- /.test(trimmedLine)) level += 1; // Dash -
+  if (/^\*?\*?(?:-|•)\s?/.test(trimmedLine)) level += 1; // Dash -
 
   return { level, titleDegree };
 }

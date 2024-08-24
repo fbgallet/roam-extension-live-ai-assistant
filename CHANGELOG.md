@@ -6,6 +6,7 @@
 
 **Updated**
 
+- requests to Anthropic API (Claude models)no longer go through a proxy server but are directly sent to Anthropic (so it's faster) and the responses can be streamed
 - when selecting a multiple blocks as prompt (with basic 'blue' selection), they are used as prompt (not context) and response is inserted in the next sibling block of the first block of the selection
 
 **Fixed**

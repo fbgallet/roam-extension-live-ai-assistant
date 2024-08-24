@@ -187,7 +187,6 @@ export default {
               "Claude Haiku",
               "Claude Sonnet 3.5",
               "Claude Opus",
-              "custom OpenAI model",
               "first OpenRouter model",
               "first Ollama local model",
               "first Groq model",
@@ -195,7 +194,8 @@ export default {
             onChange: (evt) => {
               defaultModel = evt;
               chatRoles = getRolesFromString(
-                extensionAPI.settings.get("chatRoles")
+                extensionAPI.settings.get("chatRoles"),
+                defaultModel.includes("first") ? undefined : defaultModel
               );
             },
           },
@@ -271,17 +271,6 @@ export default {
                 (Follow this link to generate a new one)
               </a>
               <br></br>
-              <p>
-                ⚠️ Be aware that your data (API key, prompt, and selected
-                context) are sent to Anthropic API via a dedicated{" "}
-                <a
-                  href="https://github.com/fbgallet/ai-api-back"
-                  target="_blank"
-                >
-                  remote server
-                </a>
-                . Your data are not stored on the server.
-              </p>
             </>
           ),
           action: {
@@ -838,7 +827,7 @@ export default {
         "Me: ,AI assistant (<model>): "
       );
     const chatRolesStr = extensionAPI.settings.get("chatRoles");
-    chatRoles = getRolesFromString(chatRolesStr);
+    chatRoles = getRolesFromString(chatRolesStr, defaultModel);
     if (extensionAPI.settings.get("assistantCharacter") === null)
       await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
     assistantCharacter = extensionAPI.settings.get("assistantCharacter");

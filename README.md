@@ -4,14 +4,15 @@
 
 ### 🆕 New in v.9:
 
-- hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
+- Hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
 - Groq API support (providing the powerful 'whisper-large-v3' model for audio transcription)
-- fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser.
+- Fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser.
+- Faster and streamed Claude responses
 
 ### 🆕 New in v.8:
 
 - GPT-4o-mini (3x cheaper) replace by default GPT-3.5
-- easily chat with your AI assistant with the button on the right of your prompt to continue a conversation
+- Easily chat with your AI assistant with the button on the right of your prompt to continue a conversation
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -30,8 +31,6 @@ Controls including vocal transcription:
 NB: API fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
 
 - To use Claude models, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
-
-⚠️ Be aware that your data (your API key, your prompt, and the selected context) are sent to Anthropic API via a remote server that I had to set up to communicate with the API from Roam (which is not necessary for the OpenAI API). The code of this server is open source and can be viewed [here](https://github.com/fbgallet/ai-api-back). Your data is not stored on the server; it is sent directly to the Anthropic API.
 
 - To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model!
 
@@ -110,7 +109,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 - ask any question (by speaking or writing, focusing on a block or selecting one or more blocks as prompt), rephrasing, completion, translation... The more precise your instructions are (especially with examples and context), the more accurate and satisfying the responses will be.
 - assistant response is inserted as child of prompt block (by default, the answer is splitted in as many blocks as it contains paragraphs. There is an option to always limit the response to a block.). The assistant name is inserted before its response and include by default the AI model name. The template can be changed in the settings.
-- 🆕 in v.4: subtle buttons appear to the right of the first block of the assistant's response. They allow to stop the streamed response (for GPT models only), to generate again the response (possibly with a different AI model by selecting it from the context menu accessed by right-clicking) and to copy the response to clipboard. These are temporary buttons that disappear when changing the page or if the block is collapsed.
+- 🆕 in v.4: subtle buttons appear to the right of the first block of the assistant's response. They allow to stop the streamed response, to generate again the response (possibly with a different AI model by selecting it from the context menu accessed by right-clicking) and to copy the response to clipboard. These are temporary buttons that disappear when changing the page or if the block is collapsed.
 
 - you can easily **provide context** to your prompt, to process the information contained in this context (e.g. to summarize it or have a conversation with your own notes 🚀) or to provide resources to the AI for the required text generation:
 
