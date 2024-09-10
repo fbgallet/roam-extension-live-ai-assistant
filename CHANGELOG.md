@@ -6,16 +6,16 @@
 
 **Updated**
 
+- hierarchy in AI responses is now much better interpreted and reproduced within a set of hierarchically arranged blocks
 - requests to Anthropic API (Claude models) are now directly sent to Anthropic (no more server-side request needed, so it's faster) and the responses can be streamed
 - when selecting a multiple blocks as prompt (with basic 'blue' selection), they are used as prompt (not context) and response is inserted in the next sibling block of the first block of the selection
 
 **Fixed**
 
-- hierarchy in AI responses is now much better interpreted and reproduced within a set of hierarchically arranged blocks.
 - Post-processing following a template was broken since last update, now working again !
-- fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser
+- fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser (and iOS)
 - fixing default model as first model of OpenRouter/Groq/Ollama is now working properly
-- image(s) in multi-selected blocks are now taken correctly taken into account
+- image(s) in multi-selected blocks are now correctly taken into account
 - using button to continue a conversation send the request to the model used in this conversation, not the default one
 
 ## v.8 (July 19th, 2024) New model
@@ -32,7 +32,7 @@
 **Fixed**
 
 - code blocks where not always properly rendered (simple backticks were misinterpreted by the regex)
-- chat roles setting can be let blank if you don't want "AI assistant: " inserted before each response. Chat remains possible, but only with the dedicated button to continue conversation.
+- chat roles setting can be let blank if you don't want "AI assistant: " inserted before each response. In this case, chat remains possible, but only with the dedicated button to continue conversation.
 
 ## v.7 (June 22nd, 2024) Easily chat
 
