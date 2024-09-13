@@ -474,7 +474,10 @@ export async function openaiCompletion(
     };
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
-    if (options.temperature > 1.2 && model.includes("gpt"))
+    if (
+      options.temperature > 1.2 &&
+      (model.includes("gpt") || model.includes("o1"))
+    )
       options.temperature = 1.3;
 
     if (!isSafari) {

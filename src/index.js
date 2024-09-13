@@ -28,9 +28,10 @@ import {
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 
 export const tokensLimit = {
-  "gpt-3.5-turbo": 16385,
   "gpt-4o-mini": 131073,
   "gpt-4o": 131073,
+  "o1-mini": 131073,
+  "o1-preview": 131073,
   "gpt-4-turbo-preview": 131073,
   "Claude Haiku": 200000,
   "Claude Sonnet 3.5": 200000,
@@ -180,10 +181,11 @@ export default {
           action: {
             type: "select",
             items: [
-              "gpt-3.5-turbo",
               "gpt-4o-mini",
               "gpt-4o",
               "gpt-4-turbo-preview",
+              "o1-mini",
+              "o1-preview",
               "Claude Haiku",
               "Claude Sonnet 3.5",
               "Claude Opus",

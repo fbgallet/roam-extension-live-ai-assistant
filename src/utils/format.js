@@ -56,11 +56,11 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
       if (!inCodeBlock) {
         // Codeblock begin
         inCodeBlock = true;
-        codeBlockContent = trimmedLine + "\n";
+        codeBlockContent = line + "\n";
       } else {
         // Codeblock end
         inCodeBlock = false;
-        codeBlockContent += trimmedLine;
+        codeBlockContent += line;
         const newBlockRef = await createChildBlock(
           currentParentRef,
           codeBlockContent
@@ -74,7 +74,7 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
       continue;
     }
     if (inCodeBlock) {
-      codeBlockContent += trimmedLine + "\n";
+      codeBlockContent += line + "\n";
       continue;
     }
 

@@ -59,18 +59,6 @@ const ModelsMenu = ({ command }) => {
       {openRouterOnly ? null : (
         <>
           <MenuItem
-            icon={defaultModel === "gpt-3.5-turbo" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="GPT 3.5"
-            labelElement="32k"
-          />
-          <MenuItem
             icon={defaultModel === "gpt-4o-mini" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
@@ -104,6 +92,30 @@ const ModelsMenu = ({ command }) => {
             }}
             tabindex="0"
             text="GPT 4 turbo preview"
+            labelElement="128k"
+          />
+          <MenuItem
+            icon={defaultModel === "o1-mini" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="o1-mini"
+            labelElement="128k"
+          />
+          <MenuItem
+            icon={defaultModel === "o1-preview" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="o1-preview"
             labelElement="128k"
           />
           <MenuDivider />
