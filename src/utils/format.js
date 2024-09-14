@@ -46,21 +46,23 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
   let updatedMinLevel = false;
   let inCodeBlock = false;
   let codeBlockContent = "";
+  let codeBlockShift = 0;
 
   for (const line of lines) {
     if (!line.trim()) continue;
 
-    let trimmedLine = line.trim();
+    let trimmedLine = line.trimStart();
     // Handle codeblocks (multiline)
     if (trimmedLine.startsWith("```")) {
       if (!inCodeBlock) {
         // Codeblock begin
+        codeBlockShift = line.length - trimmedLine.length;
         inCodeBlock = true;
-        codeBlockContent = line + "\n";
+        codeBlockContent = line.slice(codeBlockShift) + "\n";
       } else {
         // Codeblock end
         inCodeBlock = false;
-        codeBlockContent += line;
+        codeBlockContent += line.slice(codeBlockShift);
         const newBlockRef = await createChildBlock(
           currentParentRef,
           codeBlockContent
@@ -74,7 +76,7 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
       continue;
     }
     if (inCodeBlock) {
-      codeBlockContent += line + "\n";
+      codeBlockContent += line.slice(codeBlockShift) + "\n";
       continue;
     }
 
