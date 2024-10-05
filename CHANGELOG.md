@@ -1,3 +1,11 @@
+## v.10 (October 5th, 2024) Small fixes
+** New option **
+- possibility to customize baseURL for OpenAI API, and add OpenAI models (like o1-preview or your own fine-tuned ones)
+
+**Fixed**
+
+- indentation in code blocks (all was flatted since the last update)
+
 ## v.9 (August 16th, 2024) Groq & important fixes
 
 **New feature**
