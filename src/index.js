@@ -50,7 +50,7 @@ export let speechLanguage;
 export let whisperPrompt;
 export let isTranslateIconDisplayed;
 export let defaultModel;
-export let gptCustomModel;
+export let customBaseURL;
 export let modelTemperature;
 export let openRouterOnly;
 export let ollamaModels = [];
@@ -69,6 +69,7 @@ export let exclusionStrings = [];
 export let defaultTemplate;
 export let streamResponse;
 export let maxImagesNb;
+export let openAiCustomModels = [];
 export let openRouterModelsInfo = [];
 export let openRouterModels = [];
 export let isComponentAlwaysVisible;
@@ -84,7 +85,15 @@ console.log("isSafari :>> ", isSafari);
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
   if (!model) {
-    if (defaultModel === "first OpenRouter model" && openRouterModels.length) {
+    if (
+      defaultModel === "first custom OpenAI model" &&
+      openAiCustomModels.length
+    ) {
+      model = openAiCustomModels[0];
+    } else if (
+      defaultModel === "first OpenRouter model" &&
+      openRouterModels.length
+    ) {
       model = openRouterModels[0];
     } else if (
       defaultModel === "first Ollama local model" &&
@@ -184,11 +193,10 @@ export default {
               "gpt-4o-mini",
               "gpt-4o",
               "gpt-4-turbo-preview",
-              "o1-mini",
-              "o1-preview",
               "Claude Haiku",
               "Claude Sonnet 3.5",
               "Claude Opus",
+              "first custom OpenAI model",
               "first OpenRouter model",
               "first Ollama local model",
               "first Groq model",
@@ -571,17 +579,37 @@ export default {
             },
           },
         },
-        // {
-        //   id: "customModel",
-        //   name: "Custom OpenAI model",
-        //   description: "⚠️ Only OpenAI Chat completion models are compatible",
-        //   action: {
-        //     type: "input",
-        //     onChange: (evt) => {
-        //       gptCustomModel = evt.target.value;
-        //     },
-        //   },
-        // },
+        {
+          id: "customBaseUrl",
+          name: "Custom OpenAI baseURL",
+          description:
+            "Use your own API baseURL instead of default OpenAI one:",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              customBaseURL = evt.target.value;
+              openaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+              unmountComponent(position);
+              mountComponent(position);
+            },
+          },
+        },
+        {
+          id: "customModel",
+          name: "Custom OpenAI models",
+          className: "liveai-settings-largeinput",
+          description:
+            "List of models, separated by a command (only OpenAI Chat completion models are compatible)",
+          action: {
+            type: "input",
+            onChange: (evt) => {
+              openAiCustomModels = getArrayFromList(evt.target.value);
+            },
+          },
+        },
         {
           id: "openrouterapi",
           name: "OpenRouter API Key",
@@ -806,9 +834,14 @@ export default {
     )
       await extensionAPI.settings.set("defaultModel", "gpt-4o-mini");
     defaultModel = extensionAPI.settings.get("defaultModel");
-    if (extensionAPI.settings.get("gptCustomModel") === null)
-      await extensionAPI.settings.set("gptCustomModel", "");
-    gptCustomModel = extensionAPI.settings.get("gptCustomModel");
+    if (extensionAPI.settings.get("customBaseUrl") === null)
+      await extensionAPI.settings.set("customBaseUrl", "");
+    customBaseURL = extensionAPI.settings.get("customBaseUrl");
+    if (extensionAPI.settings.get("customModel") === null)
+      await extensionAPI.settings.set("customModel", "");
+    openAiCustomModels = getArrayFromList(
+      extensionAPI.settings.get("customModel")
+    );
     if (extensionAPI.settings.get("openRouterModels") === null)
       await extensionAPI.settings.set("openRouterModels", "");
     openRouterModels = getArrayFromList(
@@ -882,7 +915,8 @@ export default {
 
     createContainer();
 
-    if (OPENAI_API_KEY) openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
+    if (OPENAI_API_KEY)
+      openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
     if (ANTHROPIC_API_KEY)
       anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
     if (OPENROUTER_API_KEY) {

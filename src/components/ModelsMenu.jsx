@@ -9,6 +9,7 @@ import {
   defaultModel,
   groqModels,
   ollamaModels,
+  openAiCustomModels,
   openRouterModels,
   openRouterModelsInfo,
   openRouterOnly,
@@ -17,6 +18,7 @@ import {
 const ModelsMenu = ({ command }) => {
   const handleClickOnModel = (e, prefix) => {
     let model = e.target.innerText.split("\n")[0];
+    console.log("model from menu :>> ", model);
     switch (model) {
       case "GPT 3.5":
         model = "gpt-3.5-turbo";
@@ -94,30 +96,23 @@ const ModelsMenu = ({ command }) => {
             text="GPT 4 turbo preview"
             labelElement="128k"
           />
-          <MenuItem
-            icon={defaultModel === "o1-mini" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="o1-mini"
-            labelElement="128k"
-          />
-          <MenuItem
-            icon={defaultModel === "o1-preview" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="o1-preview"
-            labelElement="128k"
-          />
+          {openAiCustomModels.map((model) => (
+            <MenuItem
+              icon={
+                defaultModel === "first custom OpenAI model" &&
+                openAiCustomModels[0] === model &&
+                "pin"
+              }
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              tabindex="0"
+              text={model}
+            />
+          ))}
           <MenuDivider />
           <MenuItem
             icon={defaultModel === "Claude Haiku" && "pin"}

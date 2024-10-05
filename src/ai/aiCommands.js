@@ -10,7 +10,7 @@ import {
   contextInstruction,
   defaultTemplate,
   getInstantAssistantRole,
-  gptCustomModel,
+  openAiCustomModels,
   defaultModel,
   isResponseToSplit,
   openaiLibrary,
@@ -99,11 +99,12 @@ export function initializeOpenAIAPI(API_KEY, baseURL) {
     };
     if (baseURL) {
       clientSetting.baseURL = baseURL;
-      clientSetting.defaultHeaders = {
-        "HTTP-Referer":
-          "https://github.com/fbgallet/roam-extension-speech-to-roam", // Optional, for including your app on openrouter.ai rankings.
-        "X-Title": "Live AI Assistant for Roam Research", // Optional. Shows in rankings on openrouter.ai.
-      };
+      if (baseURL === "https://openrouter.ai/api/v1")
+        clientSetting.defaultHeaders = {
+          "HTTP-Referer":
+            "https://github.com/fbgallet/roam-extension-speech-to-roam", // Optional, for including your app on openrouter.ai rankings.
+          "X-Title": "Live AI Assistant for Roam Research", // Optional. Shows in rankings on openrouter.ai.
+        };
     }
     const openai = new OpenAI(clientSetting);
     return openai;
@@ -185,7 +186,8 @@ async function aiCompletion(
   prompt,
   content = "",
   responseFormat,
-  targetUid
+  targetUid,
+  isInConversation
 ) {
   let aiResponse;
   let hasAPIkey = true;
@@ -199,11 +201,17 @@ async function aiCompletion(
     model = "groq/" + groqModels[0];
   }
   let prefix = model.split("/")[0];
-  if (responseFormat === "json_object")
+  if (
+    responseFormat === "json_object" &&
+    !prompt[0].content.includes(instructionsOnJSONResponse)
+  )
     prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
   else {
-    content += "\n\n" + hierarchicalResponseFormat;
+    if (!content.includes(hierarchicalResponseFormat))
+      content += "\n\n" + hierarchicalResponseFormat;
   }
+
+  console.log("Context (eventually truncated):\n", content);
 
   if (prefix === "openRouter") {
     if (!openrouterLibrary?.apiKey) hasAPIkey = false;
@@ -446,7 +454,7 @@ export async function openaiCompletion(
   let respStr = "";
   let messages = [
     {
-      role: "system",
+      role: model.startsWith("o1") ? "user" : "system",
       content: content,
     },
   ].concat(prompt);
@@ -464,13 +472,16 @@ export async function openaiCompletion(
   if (isModelSupportingImage(model)) {
     messages = addImagesUrlToMessages(messages, content);
   }
+  const isToStream = model.startsWith("o1")
+    ? false
+    : streamResponse && responseFormat === "text";
   try {
     let response;
     const options = {
       model: model,
       response_format: { type: responseFormat },
       messages: messages,
-      stream: streamResponse && responseFormat === "text",
+      stream: isToStream,
     };
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
@@ -501,7 +512,7 @@ export async function openaiCompletion(
 
     console.log(response);
 
-    if (streamResponse && responseFormat === "text") {
+    if (isToStream) {
       insertInstantButtons({
         model,
         prompt,
@@ -534,9 +545,7 @@ export async function openaiCompletion(
       }
     }
     console.log("OpenAI chat completion response :>>", response);
-    return streamResponse && responseFormat === "text"
-      ? respStr
-      : response.choices[0].message.content;
+    return isToStream ? respStr : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
     AppToaster.show({
@@ -639,12 +648,14 @@ export const insertCompletion = async ({
 
   let content;
 
+  console.log("context before :>> ", context);
+
   if (isRedone || isInConversation) content = context;
   else {
     content =
       assistantCharacter +
       // (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
-      (context
+      (context && !context.includes(contextInstruction)
         ? contextInstruction +
           userContextInstructions +
           "\nHere is the content to rely on:\n" +
@@ -652,7 +663,6 @@ export const insertCompletion = async ({
         : "");
     content = await verifyTokenLimitAndTruncate(model, prompt, content);
   }
-  console.log("Context (eventually truncated):\n", content);
 
   // if (typeOfCompletion === "gptCompletion") {
   if (isRedone) {
@@ -690,7 +700,8 @@ export const insertCompletion = async ({
     prompt,
     content,
     responseFormat,
-    targetUid
+    targetUid,
+    isInConversation
   );
   console.log("aiResponse :>> ", aiResponse);
   if (isInConversation)
