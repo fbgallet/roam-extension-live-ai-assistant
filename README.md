@@ -2,17 +2,16 @@
 
 ### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support up-to-date GPT or Claude models, and most of existing models through OpenRouter and local models through Ollama.
 
+### 🆕 New in v.10:
+- possibility to customize baseURL for OpenAI API, and add OpenAI models (like o1-preview or your own fine-tuned ones)
+- GPT-4o is now 50% cheaper
+
 ### 🆕 New in v.9:
 
 - Hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
 - Groq API support (providing the powerful 'whisper-large-v3' model for audio transcription)
 - Fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser.
 - Faster and streamed Claude responses
-
-### 🆕 New in v.8:
-
-- GPT-4o-mini (3x cheaper) replace by default GPT-3.5
-- Easily chat with your AI assistant with the button on the right of your prompt to continue a conversation
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -227,12 +226,9 @@ The prices are for 1000 tokens. For comparison, this documentation is equivalent
 - gpt-4o-mini (128k context) (**cheapest model**)
   - input: `$0.00015` / 1K tokens
   - output: `$0.0006` / 1K tokens
-- gpt-3.5-turbo (16k context)
-  - Input: `$0.0005` / 1K tokens
-  - Output: `$0.0015` / 1K tokens
 - gpt-4o (128k context)
-  - input: `$0.005` / 1K tokens
-  - output: `$0.015` / 1K tokens
+  - input: `$0.0025` / 1K tokens
+  - output: `$0.010` / 1K tokens
 - gpt-4-turbo-preview (128k context)
   - input: `$0.01` / 1K tokens
   - output: `$0.03` / 1K tokens
