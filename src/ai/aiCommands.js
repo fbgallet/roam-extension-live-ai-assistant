@@ -411,6 +411,7 @@ async function claudeCompletion(
       }
       let jsonOnly;
       if (responseFormat !== "text") {
+        console.log("respStr :>> ", respStr);
         jsonOnly = trimOutsideOuterBraces(respStr);
         jsonOnly = sanitizeJSONstring(jsonOnly);
       }

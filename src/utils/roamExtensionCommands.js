@@ -6,7 +6,10 @@ import {
   isPromptInConversation,
   lastCompletion,
 } from "../ai/aiCommands";
-import { contextAsPrompt } from "../ai/prompts";
+import {
+  contextAsPrompt,
+  specificContentPromptBeforeTemplate,
+} from "../ai/prompts";
 import {
   mountComponent,
   simulateClickOnRecordingButton,

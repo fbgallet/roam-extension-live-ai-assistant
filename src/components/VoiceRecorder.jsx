@@ -36,6 +36,7 @@ import {
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
+  resolveReferences,
 } from "../utils/utils.js";
 import Timer from "./Timer.jsx";
 import {
@@ -56,6 +57,7 @@ import {
   removeSpinner,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
+import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",
@@ -515,7 +517,7 @@ function VoiceRecorder({
       );
       if (inlineTemplate) {
         await copyTemplate(promptUid, inlineTemplate.templateUid);
-        prompt = inlineTemplate.updatedPrompt;
+        prompt = resolveReferences(inlineTemplate.updatedPrompt);
         waitForBlockCopy = true;
       } else if (!getFirstChildUid(promptUid)) {
         await copyTemplate(promptUid);
@@ -538,8 +540,7 @@ function VoiceRecorder({
           } else {
             commandType = "gptPostProcessing";
             prompt =
-              "Complete the template below, in accordance with the following request " +
-              "(the language in which it is written will determine the language of the response): " +
+              specificContentPromptBeforeTemplate +
               prompt +
               "\n\n" +
               template.stringified;

@@ -30,11 +30,11 @@ export const contextAsPrompt = `Follow the instructions provided in the context 
 export const instructionsOnJSONResponse =
   ' Your response will be a JSON objects array with the following format, respecting strictly the syntax, \
   especially the quotation marks around the keys and character strings: \
-{"response": "[{"uid": "((9-characters-code))", "content": "your response for the corresponding line"}, ...]}".';
+{"response": [{"uid": "((9-characters-code))", "content": "your response for the corresponding line"}, ...]}".';
 
 export const specificContentPromptBeforeTemplate = `\
-Complete the template below, in accordance with the following content, statement or request \
-(the language in which it is written will determine the language of the response): `;
+Complete the template below, in accordance with the following content, statement or request, and any formatting instructions provided \
+(the language in which the template is written will determine the language of your response): \n\n`;
 
 export const instructionsOnTemplateProcessing = `\
 Instructions for processing the template below: each item to complete has a ((9-characters-code)) to record in the JSON array, \

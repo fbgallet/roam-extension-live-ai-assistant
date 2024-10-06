@@ -583,7 +583,7 @@ export default {
           id: "customBaseUrl",
           name: "Custom OpenAI baseURL",
           description:
-            "Use your own API baseURL instead of default OpenAI one:",
+            "Use your own API baseURL instead of default OpenAI URL (namely: https://api.openai.com/v1)",
           action: {
             type: "input",
             onChange: (evt) => {
@@ -602,7 +602,7 @@ export default {
           name: "Custom OpenAI models",
           className: "liveai-settings-largeinput",
           description:
-            "List of models, separated by a command (only OpenAI Chat completion models are compatible)",
+            "List of models, separated by a command (e.g.: o1-preview):",
           action: {
             type: "input",
             onChange: (evt) => {
