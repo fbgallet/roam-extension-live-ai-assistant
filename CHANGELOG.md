@@ -5,6 +5,8 @@
 **Fixed**
 
 - indentation in code blocks (all was flatted since the last update)
+- Post-processing command from Command palette was broken
+- Post-processing was broken for Claude 3.5 (small typo in instruction to generate a JSON response)
 
 ## v.9 (August 16th, 2024) Groq & important fixes
 
