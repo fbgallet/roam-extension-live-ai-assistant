@@ -315,7 +315,8 @@ async function claudeCompletion(
         model = "claude-3-opus-20240229";
         break;
       case "Claude Sonnet 3.5":
-        model = "claude-3-5-sonnet-20240620";
+        model = "claude-3-5-sonnet-20241022";
+        // model = "claude-3-5-sonnet-20240620"; previous version
         // model = "claude-3-sonnet-20240229"; previous version
         break;
       case "Claude Haiku":
