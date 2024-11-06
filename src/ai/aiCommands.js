@@ -319,15 +319,17 @@ async function claudeCompletion(
         // model = "claude-3-5-sonnet-20240620"; previous version
         // model = "claude-3-sonnet-20240229"; previous version
         break;
+      case "Claude Haiku 3.5":
+        model = "claude-3-5-haiku-20241022";
       case "Claude Haiku":
         model = "claude-3-haiku-20240307";
         break;
       default:
-        model = "claude-3-haiku-20240307";
+        model = "claude-3-5-haiku-20241022";
     }
     try {
       const options = {
-        max_tokens: 4096,
+        max_tokens: model.includes("3-5") ? 8192 : 4096,
         model: model,
         messages: prompt,
       };

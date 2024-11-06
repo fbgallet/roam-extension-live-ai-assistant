@@ -2,16 +2,14 @@
 
 ### Voice transcription and AI Assistant supporting text, voice or images as prompt. Easy-to-define context and templated post-processing for response structured exactly as you want. Support up-to-date GPT or Claude models, and most of existing models through OpenRouter and local models through Ollama.
 
+### 🆕 New in v.11:
+
+- New versions of Claude 3.5 Sonnet and Haiku (training data cut-off: Apr 2024 and July 2024)
+
 ### 🆕 New in v.10:
+
 - possibility to customize baseURL for OpenAI API, and add OpenAI models (like o1-preview or your own fine-tuned ones)
 - GPT-4o is now 50% cheaper
-
-### 🆕 New in v.9:
-
-- Hierarchy in AI responses is much better reproduced in the hierarchy of the created blocks, as one might expect from an outliner.
-- Groq API support (providing the powerful 'whisper-large-v3' model for audio transcription)
-- Fixed the issue preventing GPT-4o & GPT-4o-mini to work on Sarafi browser.
-- Faster and streamed Claude responses
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -240,6 +238,9 @@ _Claude API pricing:_
 - Haiku:
   - Input: `$0.00025` / 1K tokens
   - Output: `$0.00125` / 1K tokens
+- Haiku 3.5
+  - input: `$0.001` / 1K tokens
+  - output: `$0.005` / 1K tokens
 - Sonnet 3.5
   - input: `$0.003` / 1K tokens
   - output: `$0.015` / 1K tokens
@@ -251,7 +252,7 @@ See updated Anthropic Claude API pricing [here](https://www.anthropic.com/api).
 
 ## Support my work
 
-This extension represents a significant amount of work. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet). Thanks in advance for your support! 🙏
+This extension represents a significant amount of work. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
 
 ---
 

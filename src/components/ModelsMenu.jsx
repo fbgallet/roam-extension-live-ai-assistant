@@ -20,9 +20,6 @@ const ModelsMenu = ({ command }) => {
     let model = e.target.innerText.split("\n")[0];
     console.log("model from menu :>> ", model);
     switch (model) {
-      case "GPT 3.5":
-        model = "gpt-3.5-turbo";
-        break;
       case "GPT 4 turbo preview":
         model = "gpt-4-turbo-preview";
         break;
@@ -124,6 +121,18 @@ const ModelsMenu = ({ command }) => {
             }}
             tabindex="0"
             text="Claude Haiku"
+            labelElement="200k"
+          />
+          <MenuItem
+            icon={defaultModel === "Claude Haiku 3.5" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            tabindex="0"
+            text="Claude Haiku 3.5"
             labelElement="200k"
           />
           <MenuItem
