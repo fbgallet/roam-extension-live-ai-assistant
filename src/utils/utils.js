@@ -13,12 +13,14 @@ import { tokenizer } from "../ai/aiCommands";
 import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
+export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
 export const pageRegex = /\[\[.*\]\]/g; // very simplified, not recursive...
 export const contextRegex = /\(\(context:.?([^\)]*)\)\)/;
 export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
+export const sbParam = /\{.*\}/;
 
 export function getTreeByUid(uid) {
   if (uid)
@@ -338,7 +340,12 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
   return content;
 };
 
-export function convertTreeToLinearArray(tree, maxCapturing = 99, maxUid = 99) {
+export function convertTreeToLinearArray(
+  tree,
+  maxCapturing = 99,
+  maxUid = 99,
+  withDash = false
+) {
   let linearArray = [];
 
   // console.log("exclusionStrings :>> ", exclusionStrings);
@@ -359,13 +366,15 @@ export function convertTreeToLinearArray(tree, maxCapturing = 99, maxUid = 99) {
           linearArray.push(
             uidString +
               leftShift +
-              ((maxUid && level > maxUid) || !maxUid ? "" : "- ") +
+              (!withDash && ((maxUid && level > maxUid) || !maxUid)
+                ? ""
+                : "- ") +
               resolveReferences(element.string)
           );
       } else level--;
       if (element.children && !toExclude) {
         if (maxCapturing && level >= maxCapturing) return;
-        traverseArray(element.children, leftShift /* "    "*/, level + 1);
+        traverseArray(element.children, leftShift + "  ", level + 1);
       }
     });
   }
@@ -432,15 +441,19 @@ export const getAndNormalizeContext = async (
 export const getFlattenedContentFromTree = (
   parentUid,
   maxCapturing,
-  maxUid
+  maxUid,
+  withDash = false
 ) => {
   let flattenedBlocks = "";
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
     if (tree) {
-      let content = convertTreeToLinearArray(tree, maxCapturing, maxUid).join(
-        "\n"
-      );
+      let content = convertTreeToLinearArray(
+        tree,
+        maxCapturing,
+        maxUid,
+        withDash
+      ).join("\n");
       if (content.length > 1 && content.replace("\n", "").trim())
         flattenedBlocks = "\n" + content;
     }
@@ -648,12 +661,18 @@ export const getTemplateFromPrompt = (prompt) => {
 };
 
 export const getRoamContextFromPrompt = (prompt) => {
+  console.log("prompt :>> ", prompt);
   const elts = ["linkedRefs", "sidebar", "mainPage", "logPages"];
   const roamContext = {};
   let hasContext = false;
   const inlineCommand = getMatchingInlineCommand(prompt, contextRegex);
   if (!inlineCommand) return null;
-  const { command, options } = inlineCommand;
+  let { command, options } = inlineCommand;
+  console.log("options :>> ", options);
+  options = options
+    .replace("ref", "linkedRefs")
+    .replace("page", "mainPage")
+    .replace("log", "logPages");
   // console.log("options :>> ", options);
   elts.forEach((elt) => {
     if (options.includes(elt)) {
@@ -725,4 +744,52 @@ export const getConversationArray = (parentUid) => {
     }
   }
   return conversation;
+};
+
+export const extractNormalizedUidFromRef = (str) => {
+  if (!str || (str && !(str.length === 9 || str.length === 13))) return "";
+  const matchingResult = str.match(flexibleUidRegex);
+  if (!matchingResult) return "";
+  return isExistingBlock(matchingResult[1]) ? matchingResult[1] : "";
+};
+
+export const getContextFromSbCommand = async (
+  context,
+  currentUid,
+  includeRefs
+) => {
+  if (context) {
+    if (sbParam.test(context.trim())) {
+      const contextObj = getRoamContextFromPrompt(
+        `((context: ${context.trim().slice(1, -1)}))`
+      );
+      context = await getAndNormalizeContext(
+        null,
+        null,
+        contextObj?.roamContext,
+        currentUid
+      );
+    } else {
+      const contextUid = extractNormalizedUidFromRef(context.trim());
+      if (contextUid) {
+        context = getFlattenedContentFromTree(
+          contextUid,
+          99,
+          includeRefs === "true" ? undefined : 0,
+          true // always insert a dash at the beginning of a line to mimick block structure
+        );
+      } else context = resolveReferences(context);
+    }
+  }
+  return context;
+};
+
+export const getInstructionsFromSbCommand = (instructions) => {
+  if (instructions) {
+    const instructionsUid = extractNormalizedUidFromRef(instructions.trim());
+    if (instructionsUid) {
+      instructions = getFlattenedContentFromTree(instructionsUid, 99, 0);
+    } else instructions = resolveReferences(instructions);
+  }
+  return instructions;
 };

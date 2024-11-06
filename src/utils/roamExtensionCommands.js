@@ -20,17 +20,23 @@ import {
   addContentToBlock,
   createChildBlock,
   createSiblingBlock,
+  extractNormalizedUidFromRef,
   getAndNormalizeContext,
   getBlockContentByUid,
+  getContextFromSbCommand,
   getFirstChildUid,
   getFlattenedContentFromArrayOfBlocks,
+  getFlattenedContentFromTree,
   getFocusAndSelection,
+  getInstructionsFromSbCommand,
   getParentBlock,
   getResolvedContentFromBlocks,
   getRoamContextFromPrompt,
   getTemplateFromPrompt,
   insertBlockInCurrentView,
+  isExistingBlock,
   resolveReferences,
+  sbParam,
   updateArrayOfBlocks,
 } from "./utils";
 
@@ -274,20 +280,199 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   // Add SmartBlock command
-  const insertCmd = {
-    text: "SPEECHTOROAM",
+  const speechCmd = {
+    text: "LIVEAIVOICE",
     help: "Start recording a vocal note using Speech-to-Roam extension",
     handler: (context) => () => {
       simulateClickOnRecordingButton();
       return [""];
     },
   };
+  const chatCmd = {
+    text: "LIVEAICHAT",
+    help: `Generate an AI response using Live AI Assistant.
+      \nArguments:
+      \n1: prompt (text or block ref, default: current block content)
+      \n2: context or content to apply the prompt to (text or block ref)
+      \n3: additional instructions (text or block ref)
+      \n4: block ref target (default: current block)
+      \n5: model (default: default Live AI model)
+      \n6: includes children blocks of prompt (true/false, default: true)
+      \n7: includes block references in context (true/false, default: false)`,
+    handler:
+      (sbContext) =>
+      async (
+        prompt,
+        context,
+        instructions,
+        target,
+        model,
+        includeChildren = "true",
+        includeRefs = "false"
+      ) => {
+        let isInConversation = false;
+        const currentUid = sbContext.currentUid;
+        let currentBlockContent = getBlockContentByUid(currentUid);
+        let targetUid;
+        let isContentToReplace = target === "{replace}" ? true : false;
+
+        if (prompt) {
+          const promptUid = extractNormalizedUidFromRef(prompt.trim());
+          if (promptUid) {
+            prompt = getFlattenedContentFromTree(
+              promptUid,
+              includeChildren === "false"
+                ? 1
+                : isNaN(parseInt(includeChildren))
+                ? 99
+                : parseInt(includeChildren),
+              0
+            );
+          } else prompt = resolveReferences(prompt);
+        } else {
+          prompt = currentBlockContent;
+        }
+
+        context = await getContextFromSbCommand(
+          context,
+          currentUid,
+          includeRefs
+        );
+        instructions = getInstructionsFromSbCommand(instructions);
+
+        if (!target && !currentBlockContent.trim()) target = "{replace}";
+
+        switch (target) {
+          case "{replace}":
+          case "{append}":
+            targetUid = currentUid;
+            break;
+          default:
+            const uid = target
+              ? extractNormalizedUidFromRef(target.trim())
+              : "";
+            targetUid =
+              uid ||
+              (await createChildBlock(
+                isInConversation ? getParentBlock(currentUid) : currentUid,
+                model ? getInstantAssistantRole(model) : chatRoles.assistant
+              ));
+        }
+        isContentToReplace &&
+          window.roamAlphaAPI.updateBlock({
+            block: {
+              uid: currentUid,
+              string: "",
+            },
+          });
+
+        insertCompletion({
+          prompt: prompt + (instructions ? "\n\n" + instructions : ""),
+          targetUid,
+          context,
+          instantModel: model,
+          typeOfCompletion: "gptCompletion",
+          isInConversation: false,
+        });
+        return [""];
+      },
+  };
+
+  const templateCmd = {
+    text: "LIVEAITEMPLATE",
+    help: `Generate an AI response following a template, using Live AI Assistant.
+      \nArguments:
+      \n1: template (block ref, default: children blocks)
+      \n2: context or content to apply the template to (text or block ref)
+      \n3: additional instructions (text or block ref)
+      \n4: block ref target (default: children blocks)
+      \n5: model (default: default Live AI model)
+      \n6: level depth of template (number, default: all)
+      \n7: includes block references in context (true/false, default: false)`,
+    handler:
+      (sbContext) =>
+      async (
+        prompt,
+        context,
+        instructions,
+        target,
+        model,
+        includeChildren = "true",
+        includeRefs = "false"
+      ) => {
+        let isInConversation = false;
+        const currentUid = sbContext.currentUid;
+        let currentBlockContent = getBlockContentByUid(currentUid);
+        let targetUid;
+
+        // TODO: loading target from uid
+
+        let template = await getTemplateForPostProcessing(currentUid);
+
+        prompt =
+          specificContentPromptBeforeTemplate +
+          currentBlockContent +
+          "\n\n" +
+          template.stringified;
+
+        if (!target) targetUid = getFirstChildUid(currentUid);
+        else targetUid = target;
+
+        context = await getContextFromSbCommand(
+          context,
+          currentUid,
+          includeRefs
+        );
+        instructions = getInstructionsFromSbCommand(instructions);
+
+        // switch (target) {
+        //   case "{replace}":
+        //   case "{append}":
+        //     targetUid = currentUid;
+        //     break;
+        //   default:
+        //     const uid = target
+        //       ? extractNormalizedUidFromRef(target.trim())
+        //       : "";
+        //     targetUid =
+        //       uid ||
+        //       (await createChildBlock(
+        //         isInConversation ? getParentBlock(currentUid) : currentUid,
+        //         model ? getInstantAssistantRole(model) : chatRoles.assistant
+        //       ));
+        // }
+        // isContentToReplace &&
+        //   window.roamAlphaAPI.updateBlock({
+        //     block: {
+        //       uid: currentUid,
+        //       string: "",
+        //     },
+        //   });
+
+        insertCompletion({
+          prompt: prompt + (instructions ? "\n\n" + instructions : ""),
+          targetUid,
+          context,
+          instantModel: model,
+          typeOfCompletion: "gptPostProcessing",
+          isInConversation: false,
+        });
+        return [""];
+      },
+  };
+
   if (window.roamjs?.extension?.smartblocks) {
-    window.roamjs.extension.smartblocks.registerCommand(insertCmd);
+    window.roamjs.extension.smartblocks.registerCommand(speechCmd);
+    window.roamjs.extension.smartblocks.registerCommand(chatCmd);
+    window.roamjs.extension.smartblocks.registerCommand(templateCmd);
   } else {
     document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
       window.roamjs?.extension.smartblocks &&
-        window.roamjs.extension.smartblocks.registerCommand(insertCmd);
+        window.roamjs.extension.smartblocks.registerCommand(speechCmd);
+      window.roamjs?.extension.smartblocks &&
+        window.roamjs.extension.smartblocks.registerCommand(chatCmd);
+      window.roamjs?.extension.smartblocks &&
+        window.roamjs.extension.smartblocks.registerCommand(templateCmd);
     });
   }
 };

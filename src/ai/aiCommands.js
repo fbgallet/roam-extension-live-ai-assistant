@@ -47,6 +47,7 @@ import {
   insertBlockInCurrentView,
   isExistingBlock,
   roamImageRegex,
+  uidRegex,
   updateArrayOfBlocks,
 } from "../utils/utils";
 import {
@@ -653,6 +654,9 @@ export const insertCompletion = async ({
   let content;
 
   console.log("context before :>> ", context);
+  let isContextInstructionToInsert = false;
+  uidRegex.lastIndex = 0;
+  if (uidRegex.test(context)) isContextInstructionToInsert = true;
 
   if (isRedone || isInConversation) content = context;
   else {
@@ -660,9 +664,9 @@ export const insertCompletion = async ({
       assistantCharacter +
       // (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
       (context && !context.includes(contextInstruction)
-        ? contextInstruction +
+        ? (isContextInstructionToInsert ? contextInstruction : "") +
           userContextInstructions +
-          "\nHere is the content to rely on:\n" +
+          "\n\nHere is the content to rely to or apply the instructions to:\n" +
           context
         : "");
     content = await verifyTokenLimitAndTruncate(model, prompt, content);

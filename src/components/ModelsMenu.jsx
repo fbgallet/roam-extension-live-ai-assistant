@@ -18,7 +18,7 @@ import {
 const ModelsMenu = ({ command }) => {
   const handleClickOnModel = (e, prefix) => {
     let model = e.target.innerText.split("\n")[0];
-    console.log("model from menu :>> ", model);
+
     switch (model) {
       case "GPT 4 turbo preview":
         model = "gpt-4-turbo-preview";

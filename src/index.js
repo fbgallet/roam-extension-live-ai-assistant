@@ -441,6 +441,7 @@ export default {
             onChange: (evt) => {
               if (evt.target.value) {
                 let input = evt.target.value;
+                uidRegex.lastIndex = 0;
                 assistantCharacter = uidRegex.test(input)
                   ? resolveReferences(getBlockContentByUid(input.slice(2, -2)))
                   : input;
