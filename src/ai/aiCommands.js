@@ -637,6 +637,8 @@ export const insertCompletion = async ({
   lastCompletion.typeOfCompletion = typeOfCompletion;
   lastCompletion.instantModel = instantModel;
 
+  console.log("prompt in insertCompletion :>> ", prompt);
+
   let model = instantModel || defaultModel;
   if (model === "first OpenRouter model") {
     model = openRouterModels.length

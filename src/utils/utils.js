@@ -366,7 +366,8 @@ export function convertTreeToLinearArray(
           linearArray.push(
             uidString +
               leftShift +
-              (!withDash && ((maxUid && level > maxUid) || !maxUid)
+              ((!withDash || level === 1) &&
+              ((maxUid && level > maxUid) || !maxUid)
                 ? ""
                 : "- ") +
               resolveReferences(element.string)

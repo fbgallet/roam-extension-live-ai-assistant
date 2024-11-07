@@ -290,7 +290,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   };
   const chatCmd = {
     text: "LIVEAICHAT",
-    help: `Generate an AI response using Live AI Assistant.
+    help: `Live AI Assistant text generation and chat.
       \nArguments:
       \n1: prompt (text or block ref, default: current block content)
       \n2: context or content to apply the prompt to (text or block ref)
@@ -380,9 +380,9 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   const templateCmd = {
     text: "LIVEAITEMPLATE",
-    help: `Generate an AI response following a template, using Live AI Assistant.
+    help: `Live AI Assistant response following a template.
       \nArguments:
-      \n1: template (block ref, default: children blocks)
+      \n1: template ({children} or block ref, default: children blocks)
       \n2: context or content to apply the template to (text or block ref)
       \n3: additional instructions (text or block ref)
       \n4: block ref target (default: children blocks)
@@ -392,7 +392,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     handler:
       (sbContext) =>
       async (
-        prompt,
+        template,
         context,
         instructions,
         target,
@@ -400,63 +400,48 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         includeChildren = "true",
         includeRefs = "false"
       ) => {
-        let isInConversation = false;
         const currentUid = sbContext.currentUid;
         let currentBlockContent = getBlockContentByUid(currentUid);
         let targetUid;
 
-        // TODO: loading target from uid
+        if (target) targetUid = extractNormalizedUidFromRef(target.trim());
 
-        let template = await getTemplateForPostProcessing(currentUid);
+        let delay = 0;
 
-        prompt =
-          specificContentPromptBeforeTemplate +
-          currentBlockContent +
-          "\n\n" +
-          template.stringified;
+        if (template && template.trim() && template !== "{children}") {
+          const templateUid = extractNormalizedUidFromRef(template.trim());
+          await copyTemplate(targetUid || currentUid, templateUid);
+          delay = 100;
+        }
 
-        if (!target) targetUid = getFirstChildUid(currentUid);
-        else targetUid = target;
+        setTimeout(async () => {
+          template = await getTemplateForPostProcessing(
+            targetUid || currentUid
+          );
+          template =
+            specificContentPromptBeforeTemplate +
+            currentBlockContent +
+            "\n\n" +
+            template.stringified;
 
-        context = await getContextFromSbCommand(
-          context,
-          currentUid,
-          includeRefs
-        );
-        instructions = getInstructionsFromSbCommand(instructions);
+          context = await getContextFromSbCommand(
+            context,
+            currentUid,
+            includeRefs
+          );
+          instructions = getInstructionsFromSbCommand(instructions);
 
-        // switch (target) {
-        //   case "{replace}":
-        //   case "{append}":
-        //     targetUid = currentUid;
-        //     break;
-        //   default:
-        //     const uid = target
-        //       ? extractNormalizedUidFromRef(target.trim())
-        //       : "";
-        //     targetUid =
-        //       uid ||
-        //       (await createChildBlock(
-        //         isInConversation ? getParentBlock(currentUid) : currentUid,
-        //         model ? getInstantAssistantRole(model) : chatRoles.assistant
-        //       ));
-        // }
-        // isContentToReplace &&
-        //   window.roamAlphaAPI.updateBlock({
-        //     block: {
-        //       uid: currentUid,
-        //       string: "",
-        //     },
-        //   });
+          if (!targetUid) targetUid = getFirstChildUid(currentUid);
 
-        insertCompletion({
-          prompt: prompt + (instructions ? "\n\n" + instructions : ""),
-          targetUid,
-          context,
-          instantModel: model,
-          typeOfCompletion: "gptPostProcessing",
-          isInConversation: false,
-        });
+          insertCompletion({
+            prompt: template + (instructions ? "\n\n" + instructions : ""),
+            targetUid,
+            context,
+            instantModel: model,
+            typeOfCompletion: "gptPostProcessing",
+            isInConversation: false,
+          });
+        }, delay);
         return [""];
       },
   };
