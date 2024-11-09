@@ -2,11 +2,12 @@
 
 **New feature**
 
-- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAICHAT and LIVEAITEMPLATE
+- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAIGEN and LIVEAITEMPLATE
 
 **Updated**
 
 - Support of Claude 3.5 Haiku and last version of Claude 3.5 Sonnet (claude-3-5-sonnet-20241022)
+- Added `{text}` keyword to insert in any block of a template that should not be processed as a part of the prompt, but only as text.
 
 ## v.10 (October 5th, 2024) Small fixes
 

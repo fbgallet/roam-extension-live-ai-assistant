@@ -217,42 +217,54 @@ export async function createChildBlock(
   return uid;
 }
 
-export async function copyTreeBranches(tree, targetUid, maxDepth, strToRemove) {
+export async function copyTreeBranches(
+  tree,
+  targetUid,
+  maxDepth,
+  strToExclude
+) {
+  let uidsToExclude = [];
   // copy only the branches, not the parent block
   if (tree[0].string && tree[0].children) {
-    await insertChildrenBlocksRecursively(
+    uidsToExclude = await insertChildrenBlocksRecursively(
       targetUid,
       tree[0].children,
-      strToRemove,
+      strToExclude,
       maxDepth
     );
   } else return null;
+  return uidsToExclude;
 }
 
 async function insertChildrenBlocksRecursively(
   parentUid,
   children,
-  strToRemove,
+  strToExclude,
   maxDepth = 99,
   depth = 1
 ) {
+  let uidsToExclude = [];
   for (let i = 0; i < children.length; i++) {
     let uid = await createChildBlock(
       parentUid,
-      strToRemove
-        ? children[i].string.replace(strToRemove, "").trim()
+      strToExclude
+        ? children[i].string.replace(strToExclude, "").trim()
         : children[i].string,
       children[i].order
     );
-    if (children[i].children && depth < maxDepth)
-      insertChildrenBlocksRecursively(
+    if (children[i].string.includes(strToExclude)) uidsToExclude.push(uid);
+    if (children[i].children && depth < maxDepth) {
+      let moreUidsToExclude = insertChildrenBlocksRecursively(
         uid,
         children[i].children,
-        strToRemove,
+        strToExclude,
         maxDepth,
         ++depth
       );
+      uidsToExclude = uidsToExclude.concat(moreUidsToExclude);
+    }
   }
+  return uidsToExclude;
 }
 
 export async function insertBlockInCurrentView(content, order) {
@@ -365,26 +377,26 @@ export function convertTreeToLinearArray(
   maxCapturing = 99,
   maxUid = 99,
   withDash = false,
-  instantExclusion
+  uidsToExclude = ""
 ) {
   let linearArray = [];
-
-  // console.log("exclusionStrings :>> ", exclusionStrings);
-  instantExclusion && exclusionStrings.concat(instantExclusion);
 
   function traverseArray(tree, leftShift = "", level = 1) {
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
     tree.forEach((element) => {
-      let toExclude = false;
+      let toExcludeWithChildren = false;
       if (element.string) {
         let uidString =
           (maxUid && level > maxUid) || !maxUid
             ? ""
             : "((" + element.uid + "))";
-        toExclude = exclusionStrings.some((str) =>
+        toExcludeWithChildren = exclusionStrings.some((str) =>
           element.string.includes(str)
         );
-        if (!toExclude)
+        let toExcludeAsBlock =
+          uidsToExclude.includes(element.uid) ||
+          (uidsToExclude === "{text}" && element.string.includes("{text}"));
+        if (!toExcludeWithChildren && !toExcludeAsBlock)
           linearArray.push(
             uidString +
               leftShift +
@@ -395,7 +407,7 @@ export function convertTreeToLinearArray(
               resolveReferences(element.string)
           );
       } else level--;
-      if (element.children && !toExclude) {
+      if (element.children && !toExcludeWithChildren) {
         if (maxCapturing && level >= maxCapturing) return;
         traverseArray(element.children, leftShift + "  ", level + 1);
       }

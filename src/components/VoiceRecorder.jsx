@@ -515,8 +515,12 @@ function VoiceRecorder({
       let inlineTemplate = getTemplateFromPrompt(
         getBlockContentByUid(promptUid)
       );
+      let uidsToExclude = [];
       if (inlineTemplate) {
-        await copyTemplate(promptUid, inlineTemplate.templateUid);
+        uidsToExclude = await copyTemplate(
+          promptUid,
+          inlineTemplate.templateUid
+        );
         prompt = resolveReferences(inlineTemplate.updatedPrompt);
         waitForBlockCopy = true;
       } else if (!getFirstChildUid(promptUid)) {
@@ -525,7 +529,11 @@ function VoiceRecorder({
       }
       setTimeout(
         async () => {
-          let template = await getTemplateForPostProcessing(promptUid);
+          let template = await getTemplateForPostProcessing(
+            promptUid,
+            99,
+            uidsToExclude
+          );
           // console.log("template :>> ", template);
           let commandType;
           if (!template) {

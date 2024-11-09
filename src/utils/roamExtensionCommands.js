@@ -212,26 +212,34 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       // simulateClick(document.querySelector(".roam-body-main"));
       let targetUid;
       let waitForBlockCopy = false;
+      let uidsToExclude = [];
       if (currentBlockContent) {
         let inlineTemplate = getTemplateFromPrompt(
           getBlockContentByUid(currentUid)
         );
         // console.log("inlineTemplate :>> ", inlineTemplate);
         if (inlineTemplate) {
-          await copyTemplate(currentUid, inlineTemplate.templateUid);
+          uidsToExclude = await copyTemplate(
+            currentUid,
+            inlineTemplate.templateUid
+          );
           currentBlockContent = resolveReferences(inlineTemplate.updatedPrompt);
           waitForBlockCopy = true;
         } else {
           targetUid = getFirstChildUid(currentUid);
           if (!targetUid) {
-            await copyTemplate(currentUid);
+            uidsToExclude = await copyTemplate(currentUid);
             waitForBlockCopy = true;
           }
         }
       }
       setTimeout(
         async () => {
-          let template = await getTemplateForPostProcessing(currentUid);
+          let template = await getTemplateForPostProcessing(
+            currentUid,
+            99,
+            uidsToExclude
+          );
           if (!template.isInMultipleBlocks) {
             targetUid = await createChildBlock(
               targetUid ? targetUid : currentUid,
@@ -294,11 +302,11 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     },
   };
   const chatCmd = {
-    text: "LIVEAICHAT",
+    text: "LIVEAIGEN",
     help: `Live AI Assistant text generation and chat.
       \nArguments:
       \n1: prompt (text or block ref, default: {current} block content)
-      \n2: context or content to apply the prompt to (text or block ref)
+      \n2: context or content to apply the prompt to (text or block ref or {current} block content)
       \n3: additional instructions (text or block ref)
       \n4: block ref target (default: current block)
       \n5: model (default: default Live AI model)
@@ -342,12 +350,15 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           prompt = currentBlockContent;
         }
 
-        context = await getContextFromSbCommand(
-          context,
-          currentUid,
-          selectionUids,
-          includeRefs
-        );
+        context =
+          context === "{current}"
+            ? currentBlockContent
+            : await getContextFromSbCommand(
+                context,
+                currentUid,
+                selectionUids,
+                includeRefs
+              );
         instructions = getInstructionsFromSbCommand(instructions);
 
         if (!target && !currentBlockContent.trim()) target = "{replace}";
@@ -419,6 +430,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         let { currentBlockContent, selectionUids } =
           getFocusAndSelection(currentUid);
         let targetUid;
+        let uidsToExclude = [];
         depth = depth && !isNaN(depth) ? parseInt(depth) : undefined;
 
         if (target) targetUid = extractNormalizedUidFromRef(target.trim());
@@ -427,14 +439,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
         if (template.trim() && template !== "{children}") {
           const templateUid = extractNormalizedUidFromRef(template.trim());
-          await copyTemplate(targetUid || currentUid, templateUid, depth);
+          uidsToExclude = await copyTemplate(
+            targetUid || currentUid,
+            templateUid,
+            depth
+          );
           delay = 100;
         }
+
+        console.log("uidsToExclude :>> ", uidsToExclude);
 
         setTimeout(async () => {
           template = await getTemplateForPostProcessing(
             targetUid || currentUid,
-            depth
+            depth,
+            uidsToExclude
           );
           template =
             specificContentPromptBeforeTemplate +

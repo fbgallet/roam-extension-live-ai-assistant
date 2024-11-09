@@ -734,7 +734,11 @@ export const insertCompletion = async ({
   }, 100);
 };
 
-export const getTemplateForPostProcessing = async (parentUid, depth) => {
+export const getTemplateForPostProcessing = async (
+  parentUid,
+  depth,
+  uidsToExclude
+) => {
   let prompt = "";
   let isInMultipleBlocks = true;
   let tree = getTreeByUid(parentUid);
@@ -752,7 +756,7 @@ export const getTemplateForPostProcessing = async (parentUid, depth) => {
         depth,
         99,
         false,
-        ["{text}"]
+        uidsToExclude.length ? uidsToExclude : "{text}"
       );
       prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
     } else {
@@ -766,11 +770,18 @@ export const copyTemplate = async (
   targetUid,
   templateUid,
   maxDepth,
-  strToRemove = "{text}"
+  strToExclude = "{text}"
 ) => {
+  let uidsToExclude = [];
   if (!templateUid && !defaultTemplate) return;
   const tree = getTreeByUid(templateUid || defaultTemplate);
-  await copyTreeBranches(tree, targetUid, maxDepth, strToRemove);
+  uidsToExclude = await copyTreeBranches(
+    tree,
+    targetUid,
+    maxDepth,
+    strToExclude
+  );
+  return uidsToExclude;
 };
 
 const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
