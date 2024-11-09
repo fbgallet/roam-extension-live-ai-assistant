@@ -217,22 +217,41 @@ export async function createChildBlock(
   return uid;
 }
 
-export async function copyTreeBranches(tree, targetUid) {
+export async function copyTreeBranches(tree, targetUid, maxDepth, strToRemove) {
   // copy only the branches, not the parent block
   if (tree[0].string && tree[0].children) {
-    await insertChildrenBlocksRecursively(targetUid, tree[0].children);
+    await insertChildrenBlocksRecursively(
+      targetUid,
+      tree[0].children,
+      strToRemove,
+      maxDepth
+    );
   } else return null;
 }
 
-async function insertChildrenBlocksRecursively(parentUid, children) {
+async function insertChildrenBlocksRecursively(
+  parentUid,
+  children,
+  strToRemove,
+  maxDepth = 99,
+  depth = 1
+) {
   for (let i = 0; i < children.length; i++) {
     let uid = await createChildBlock(
       parentUid,
-      children[i].string,
+      strToRemove
+        ? children[i].string.replace(strToRemove, "").trim()
+        : children[i].string,
       children[i].order
     );
-    if (children[i].children)
-      insertChildrenBlocksRecursively(uid, children[i].children);
+    if (children[i].children && depth < maxDepth)
+      insertChildrenBlocksRecursively(
+        uid,
+        children[i].children,
+        strToRemove,
+        maxDepth,
+        ++depth
+      );
   }
 }
 
@@ -287,8 +306,9 @@ export const getBlocksSelectionUids = (reverse) => {
   return selectedBlocksUids;
 };
 
-export const getFocusAndSelection = () => {
-  const currentUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+export const getFocusAndSelection = (currentUid) => {
+  !currentUid &&
+    (currentUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
   const selectionUids = getBlocksSelectionUids();
   const currentBlockContent = currentUid
     ? resolveReferences(getBlockContentByUid(currentUid))
@@ -310,7 +330,7 @@ export const getReferencesCitation = (blockUids) => {
   return "";
 };
 
-export const getResolvedContentFromBlocks = (blocksUids, withUid = true) => {
+export const getResolvedContentFromBlocks = (blocksUids, withUid = false) => {
   let content = "";
   if (blocksUids.length > 0)
     blocksUids.forEach((uid) => {
@@ -344,11 +364,13 @@ export function convertTreeToLinearArray(
   tree,
   maxCapturing = 99,
   maxUid = 99,
-  withDash = false
+  withDash = false,
+  instantExclusion
 ) {
   let linearArray = [];
 
   // console.log("exclusionStrings :>> ", exclusionStrings);
+  instantExclusion && exclusionStrings.concat(instantExclusion);
 
   function traverseArray(tree, leftShift = "", level = 1) {
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
@@ -755,18 +777,19 @@ export const extractNormalizedUidFromRef = (str) => {
 };
 
 export const getContextFromSbCommand = async (
-  context,
+  context = "",
   currentUid,
+  selectedUids,
   includeRefs
 ) => {
-  if (context) {
-    if (sbParam.test(context.trim())) {
+  if (context || selectedUids) {
+    if (context && sbParam.test(context.trim())) {
       const contextObj = getRoamContextFromPrompt(
         `((context: ${context.trim().slice(1, -1)}))`
       );
       context = await getAndNormalizeContext(
         null,
-        null,
+        selectedUids,
         contextObj?.roamContext,
         currentUid
       );
@@ -780,6 +803,13 @@ export const getContextFromSbCommand = async (
           true // always insert a dash at the beginning of a line to mimick block structure
         );
       } else context = resolveReferences(context);
+      if (selectedUids && selectedUids.length > 0)
+        context +=
+          (context ? "\n\n" : "") +
+          getResolvedContentFromBlocks(
+            selectedUids,
+            includeRefs === "true" ? true : false
+          );
     }
   }
   return context;

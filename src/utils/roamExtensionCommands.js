@@ -1,4 +1,9 @@
-import { chatRoles, isUsingWhisper } from "..";
+import {
+  assistantCharacter,
+  chatRoles,
+  getInstantAssistantRole,
+  isUsingWhisper,
+} from "..";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
@@ -310,11 +315,15 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         includeChildren = "true",
         includeRefs = "false"
       ) => {
-        let isInConversation = false;
+        const assistantRole = model
+          ? getInstantAssistantRole(model)
+          : chatRoles.assistant;
         const currentUid = sbContext.currentUid;
-        let currentBlockContent = getBlockContentByUid(currentUid);
+        let { currentBlockContent, selectionUids } =
+          getFocusAndSelection(currentUid);
+
         let targetUid;
-        let isContentToReplace = target === "{replace}" ? true : false;
+        let isContentToReplace = false;
 
         if (prompt) {
           const promptUid = extractNormalizedUidFromRef(prompt.trim());
@@ -336,6 +345,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         context = await getContextFromSbCommand(
           context,
           currentUid,
+          selectionUids,
           includeRefs
         );
         instructions = getInstructionsFromSbCommand(instructions);
@@ -344,6 +354,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
         switch (target) {
           case "{replace}":
+          case "{replace-}":
+            isContentToReplace = true;
           case "{append}":
             targetUid = currentUid;
             break;
@@ -354,7 +366,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
             targetUid =
               uid ||
               (await createChildBlock(
-                isInConversation ? getParentBlock(currentUid) : currentUid,
+                currentUid,
                 model ? getInstantAssistantRole(model) : chatRoles.assistant
               ));
         }
@@ -362,7 +374,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           window.roamAlphaAPI.updateBlock({
             block: {
               uid: currentUid,
-              string: "",
+              string: target === "{replace-}" ? "" : assistantRole,
             },
           });
 
@@ -397,12 +409,17 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         instructions,
         target,
         model,
-        includeChildren = "true",
+        depth,
         includeRefs = "false"
       ) => {
+        const assistantRole = model
+          ? getInstantAssistantRole(model)
+          : chatRoles.assistant;
         const currentUid = sbContext.currentUid;
-        let currentBlockContent = getBlockContentByUid(currentUid);
+        let { currentBlockContent, selectionUids } =
+          getFocusAndSelection(currentUid);
         let targetUid;
+        depth = depth && !isNaN(depth) ? parseInt(depth) : undefined;
 
         if (target) targetUid = extractNormalizedUidFromRef(target.trim());
 
@@ -410,13 +427,14 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
         if (template && template.trim() && template !== "{children}") {
           const templateUid = extractNormalizedUidFromRef(template.trim());
-          await copyTemplate(targetUid || currentUid, templateUid);
+          await copyTemplate(targetUid || currentUid, templateUid, depth);
           delay = 100;
         }
 
         setTimeout(async () => {
           template = await getTemplateForPostProcessing(
-            targetUid || currentUid
+            targetUid || currentUid,
+            depth
           );
           template =
             specificContentPromptBeforeTemplate +
@@ -427,8 +445,10 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           context = await getContextFromSbCommand(
             context,
             currentUid,
+            selectionUids,
             includeRefs
           );
+
           instructions = getInstructionsFromSbCommand(instructions);
 
           if (!targetUid) targetUid = getFirstChildUid(currentUid);
@@ -442,7 +462,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
             isInConversation: false,
           });
         }, delay);
-        return [""];
+        return [currentBlockContent ? "" : assistantRole];
       },
   };
 

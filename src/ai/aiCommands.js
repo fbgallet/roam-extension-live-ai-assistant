@@ -734,7 +734,7 @@ export const insertCompletion = async ({
   }, 100);
 };
 
-export const getTemplateForPostProcessing = async (parentUid) => {
+export const getTemplateForPostProcessing = async (parentUid, depth) => {
   let prompt = "";
   let isInMultipleBlocks = true;
   let tree = getTreeByUid(parentUid);
@@ -747,7 +747,13 @@ export const getTemplateForPostProcessing = async (parentUid) => {
           : eltToHightlight.parentElement.nextElementSibling;
       highlightHtmlElt(null, eltToHightlight);
       // prompt is a template as children of the current block
-      let linearArray = convertTreeToLinearArray(tree[0].children);
+      let linearArray = convertTreeToLinearArray(
+        tree[0].children,
+        depth,
+        99,
+        false,
+        ["{text}"]
+      );
       prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
     } else {
       return null;
@@ -756,10 +762,15 @@ export const getTemplateForPostProcessing = async (parentUid) => {
   return { stringified: prompt, isInMultipleBlocks: isInMultipleBlocks };
 };
 
-export const copyTemplate = async (targetUid, templateUid) => {
+export const copyTemplate = async (
+  targetUid,
+  templateUid,
+  maxDepth,
+  strToRemove = "{text}"
+) => {
   if (!templateUid && !defaultTemplate) return;
   const tree = getTreeByUid(templateUid || defaultTemplate);
-  await copyTreeBranches(tree, targetUid);
+  await copyTreeBranches(tree, targetUid, maxDepth, strToRemove);
 };
 
 const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
