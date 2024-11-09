@@ -1,5 +1,17 @@
+## v.11 (November 9th, 2024) SmartBlocks and new models
+
+**New feature**
+
+- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAICHAT and LIVEAITEMPLATE
+
+**Updated**
+
+- Support of Claude 3.5 Haiku and last version of Claude 3.5 Sonnet (claude-3-5-sonnet-20241022)
+
 ## v.10 (October 5th, 2024) Small fixes
+
 **New option**
+
 - possibility to customize baseURL for OpenAI API, and add OpenAI models (like o1-preview or your own fine-tuned ones)
 
 **Fixed**

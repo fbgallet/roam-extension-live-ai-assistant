@@ -297,7 +297,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     text: "LIVEAICHAT",
     help: `Live AI Assistant text generation and chat.
       \nArguments:
-      \n1: prompt (text or block ref, default: current block content)
+      \n1: prompt (text or block ref, default: {current} block content)
       \n2: context or content to apply the prompt to (text or block ref)
       \n3: additional instructions (text or block ref)
       \n4: block ref target (default: current block)
@@ -307,7 +307,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     handler:
       (sbContext) =>
       async (
-        prompt,
+        prompt = "{current}",
         context,
         instructions,
         target,
@@ -325,7 +325,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         let targetUid;
         let isContentToReplace = false;
 
-        if (prompt) {
+        if (prompt.trim() && prompt !== "{current}") {
           const promptUid = extractNormalizedUidFromRef(prompt.trim());
           if (promptUid) {
             prompt = getFlattenedContentFromTree(
@@ -404,7 +404,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     handler:
       (sbContext) =>
       async (
-        template,
+        template = "{children}",
         context,
         instructions,
         target,
@@ -425,7 +425,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
         let delay = 0;
 
-        if (template && template.trim() && template !== "{children}") {
+        if (template.trim() && template !== "{children}") {
           const templateUid = extractNormalizedUidFromRef(template.trim());
           await copyTemplate(targetUid || currentUid, templateUid, depth);
           delay = 100;

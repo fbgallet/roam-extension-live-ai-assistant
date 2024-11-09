@@ -5,6 +5,7 @@
 ### 🆕 New in v.11:
 
 - New versions of Claude 3.5 Sonnet and Haiku (training data cut-off: Apr 2024 and July 2024)
+- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAICHAT and LIVEAITEMPLATE (see "Using the SmartBlock commands" section)
 
 ### 🆕 New in v.10:
 
@@ -196,9 +197,11 @@ You can also use AI assistant feature without vocal note, just using text conten
 - You can specify which template to use without having to copy it into the child blocks, using this command (or a block reference to this command), mentionning the block ref. of the root block of the template: `((template: ((block-reference))))`.
 - You can relauch the last AI completion. If no block is focused or if it was template-based post-processing, the new response will replace the precedent response. If a block is focused and it was a simple completion, the new response will be inserted in the focused block.
 
-### Using the SmartBlock command
+### Using the SmartBlock commands
 
-You can insert `<%SPEECHTOROAM%>` command in your SmartBlocks template (using the corresponding extension) to start recording a vocal note in a specific context. You can for example create a very simple SmartBlock and call it with a button:
+You can insert the following commands in your SmartBlocks template (using the corresponding extension) to use or run Live AI Assistant directly from your templates
+
+- `<%SPEECHTOROAM%>`: start recording a vocal note in a specific context. You can for example create a very simple SmartBlock and call it with a button:
 
 ```
 - #SmartBlock Speech-to-Roam
@@ -206,6 +209,43 @@ You can insert `<%SPEECHTOROAM%>` command in your SmartBlocks template (using th
 ```
 
 The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be used once), or to have a permanent button in a given block, and automatically insert the transcription in the children blocks: `{{🎙️:SmartBlock:Speech-to-Roam:RemoveButton=false}}`
+
+- `<%LIVEAICHAT:prompt,context,additional instruction,target,model,include children of prompt,insert block refs in context%>`: text generation and chat following a given prompt, context, etc.
+
+  Arguments:
+
+  - 1: prompt (text or block ref or {current} block content, default: {current})
+  - 2: context or content to apply the prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma):
+    - `{sidebar}`: all the content (including children blocks) of the right sidebar
+    - `{page}` or `{mainPage}`: the current page view in the main window
+    - `{ref}` or `{linkedRefs}` for the current page linked references
+    - `{log(nb)}` or `{logPages(nb)}` the daily log, with 'nb' for the number of last DNP to include.
+  - 3: additional instructions (text or block ref)
+  - 4: block ref of the target block, where the response will be inserted (default: current block)
+  - 5: model (default: default Live AI model)
+  - 6: includes or children blocks of prompt block (true/false, default: true)
+  - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
+
+- `<%LIVEAITEMPLATE:template,context,additional instruction,target,model,template depth,insert block refs in context%>`: response exactly following the provided template, where each block provides instructions and will be the sole receptacle for the response to those instructions.
+
+  Arguments:
+
+  - 1: template ({children} blocks or block ref, default: {children})
+  - 2: context or content to apply the templated prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma)
+    - `{sidebar}`: all the content (including children blocks) of the right sidebar
+    - `{page}` or `{mainPage}`: the current page view in the main window
+    - `{ref}` or `{linkedRefs}` for the current page linked references
+    - `{log(nb)}` or `{logPages(nb)}` the daily log, with 'nb' for the number of last DNP to include.
+  - 3: additional instructions (text or block ref)
+  - 4: block ref of the target block, where the response will be inserted (default: current block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
+    - `{replace}`: replace the current block content, preceded by the assistant name
+    - `{replace-}`: replace the current block content, without assistant name, only the response
+    - `{append}`: append the response to the current block content
+  - 5: model (default: default Live AI model)
+  - 6: level depth of template (number, default: 99)
+  - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
+
+To complete the context, you can also select some blocks with the single block multiselect feature (native) (nb: the basic blue multi-select will not work, because running a SmartBlock cancel the selection)
 
 ### API usage fees
 
