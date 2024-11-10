@@ -222,12 +222,13 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
     - `{page}` or `{mainPage}`: the current page view in the main window
     - `{ref}` or `{linkedRefs}` for the current page linked references
     - `{log(nb)}` or `{logPages(nb)}` the daily log, with 'nb' for the number of last DNP to include.
+    - a list would be for example: {page,ref}
   - 3: additional instructions (text or block ref)
   - 4: block ref of the target block, where the response will be inserted (default: current block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
     - `{replace}`: replace the current block content, preceded by the assistant name
     - `{replace-}`: replace the current block content, without assistant name, only the response
     - `{append}`: append the response to the current block content
-  - 5: model (default: default Live AI model)
+  - 5: model (default: default model, or exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`)
   - 6: includes or children blocks of prompt block (true/false, default: true)
   - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
 
@@ -236,14 +237,10 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
   Arguments:
 
   - 1: template ({children} blocks or block ref, default: {children}).
-  - 2: context or content to apply the templated prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma) Nb: the current block content is always included.
-    - `{sidebar}`: all the content (including children blocks) of the right sidebar
-    - `{page}` or `{mainPage}`: the current page view in the main window
-    - `{ref}` or `{linkedRefs}` for the current page linked references
-    - `{log(nb)}` or `{logPages(nb)}` the daily log, with 'nb' for the number of last DNP to include.
+  - 2: context or content to apply the templated prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page}`, `{ref}`, `{log(nb)}` (see above in LIVEAIGEN command for details)) Nb: the current block content is always included in the context.
   - 3: additional instructions (text or block ref)
   - 4: block ref of the target block, where the templated response will be inserted (default: direct child of the current block)
-  - 5: model (default: default Live AI model)
+  - 5: model (default: default Live AI model) (see above in LIVEAIGEN command for details)
   - 6: level depth of template (number, default: 99)
   - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
 

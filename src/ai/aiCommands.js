@@ -194,11 +194,22 @@ async function aiCompletion(
   let hasAPIkey = true;
   let model = instantModel || defaultModel;
 
-  if (model === "first OpenRouter model" && openRouterModels.length) {
+  if (
+    (model === "first OpenRouter model" ||
+      model.toLowerCase() === "openrouter") &&
+    openRouterModels.length
+  ) {
     model = "openRouter/" + openRouterModels[0];
-  } else if (model === "first Ollama local model" && ollamaModels.length) {
+  } else if (
+    (model === "first Ollama local model" ||
+      model.toLowerCase() === "ollama") &&
+    ollamaModels.length
+  ) {
     model = "ollama/" + ollamaModels[0];
-  } else if (model === "first Groq model" && groqModels.length) {
+  } else if (
+    (model === "first Groq model" || model.toLowerCase() === "groq") &&
+    groqModels.length
+  ) {
     model = "groq/" + groqModels[0];
   }
   let prefix = model.split("/")[0];
@@ -243,9 +254,8 @@ async function aiCompletion(
       targetUid
     );
   } else {
-    if (model.slice(0, 6) === "Claude") {
+    if (model.slice(0, 6).toLowerCase() === "claude") {
       if (!ANTHROPIC_API_KEY) {
-        console.log("anthropicLibrary :>> ", anthropicLibrary);
         hasAPIkey = false;
       } else
         aiResponse = await claudeCompletion(
@@ -312,16 +322,24 @@ async function claudeCompletion(
     // Claude 3 Sonnet	: claude-3-sonnet-20240229
     // Claude 3 Haiku :	claude-3-haiku-20240307
     switch (model) {
+      case "claude-3-opus":
+      case "claude-3-opus-20240229":
       case "Claude Opus":
         model = "claude-3-opus-20240229";
         break;
+      case "claude-sonnet-3.5":
+      case "claude-3-5-sonnet-20241022":
       case "Claude Sonnet 3.5":
         model = "claude-3-5-sonnet-20241022";
         // model = "claude-3-5-sonnet-20240620"; previous version
         // model = "claude-3-sonnet-20240229"; previous version
         break;
+      case "claude-haiku-3.5":
+      case "claude-3-5-haiku-20241022":
       case "Claude Haiku 3.5":
         model = "claude-3-5-haiku-20241022";
+      case "claude-haiku":
+      case "claude-3-haiku-20240307":
       case "Claude Haiku":
         model = "claude-3-haiku-20240307";
         break;
@@ -330,7 +348,8 @@ async function claudeCompletion(
     }
     try {
       const options = {
-        max_tokens: model.includes("3-5") ? 8192 : 4096,
+        max_tokens:
+          model.includes("3-5") || model.includes("3.5") ? 8192 : 4096,
         model: model,
         messages: prompt,
       };
@@ -463,17 +482,6 @@ export async function openaiCompletion(
       content: content,
     },
   ].concat(prompt);
-  console.log("messages :>> ", messages);
-  // {
-  //   role: "user",
-  //   content: [
-  //     {
-  //       type: "text",
-  //       text: prompt,
-  //     },
-  //   ],
-  // },
-  // ];
   if (isModelSupportingImage(model)) {
     messages = addImagesUrlToMessages(messages, content);
   }
