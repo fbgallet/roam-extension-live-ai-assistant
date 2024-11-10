@@ -216,32 +216,31 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 
   Arguments:
 
-  - 1: prompt (text or block ref or `{current}` block content, default: {current})
-  - 2: context or content to apply the prompt to (text or block ref or `{current}` block content, or a list, between braces, of the following possible contexts, separated by any character except a comma):
+  - 1: prompt (text or block ref or `{current}` block content, or list of block refs separated by a `+': `{ref1+ref2+...}` default: {current})
+  - 2: context or content to apply the prompt to (text or block ref or `{current}` block content, or `[[page title]]` (=page content + linked refs) or a list, between braces, of the following possible contexts, separated by any character except a comma):
     - `{sidebar}`: all the content (including children blocks) of the right sidebar
-    - `{page}` or `{mainPage}`: the current page view in the main window
-    - `{ref}` or `{linkedRefs}` for the current page linked references
-    - `{log(nb)}` or `{logPages(nb)}` the daily log, with 'nb' for the number of last DNP to include.
+    - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
+    - `{ref}` or `{ref([[title]])}` or `{linkedRefs}`: the current or specified page linked references
+    - `{log(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include.
     - a list would be for example: {page,ref}
-  - 3: additional instructions (text or block ref)
-  - 4: block ref of the target block, where the response will be inserted (default: current block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
+  - 3: block ref of the target block, where the response will be inserted (default: current block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
     - `{replace}`: replace the current block content, preceded by the assistant name
     - `{replace-}`: replace the current block content, without assistant name, only the response
     - `{append}`: append the response to the current block content
-  - 5: model (default: default model, or exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`)
-  - 6: includes or children blocks of prompt block (true/false, default: true)
-  - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
+  - 4: model (default: default model, or exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`)
+  - 5: levels within the linked ref or DNP to include in the context (number, default fixed in settings)
+  - 6: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
 
 - `<%LIVEAITEMPLATE:template,context,additional instruction,target,model,template depth,insert block refs in context%>`: response exactly following the provided template, where each block provides instructions and will be the sole receptacle for the response to those instructions. If you want a block in the template to not be used as a prompt but only reproduced identically as a text, add `{text}` in the block.
 
   Arguments:
 
   - 1: template ({children} blocks or block ref, default: {children}).
-  - 2: context or content to apply the templated prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page}`, `{ref}`, `{log(nb)}` (see above in LIVEAIGEN command for details)) Nb: the current block content is always included in the context.
-  - 3: additional instructions (text or block ref)
-  - 4: block ref of the target block, where the templated response will be inserted (default: direct child of the current block)
-  - 5: model (default: default Live AI model) (see above in LIVEAIGEN command for details)
-  - 6: level depth of template (number, default: 99)
+  - 2: context or content to apply the templated prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page(title)}`, `{ref(title)}`, `{log(nb)}` (see above in LIVEAIGEN command for details)) Nb: the current block content is always included in the context.
+  - 3: block ref of the target block, where the templated response will be inserted (default: direct child of the current block)
+  - 4: model (default: default Live AI model) (see above in LIVEAIGEN command for details)
+  - 5: levels within the template to include (number, default: all)
+  - 6: levels within the linked ref or DNP to include in the context (number, default fixed in settings)
   - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
 
 To complete the context, you can also select some blocks with the single block multiselect feature (native) (nb: the basic blue multi-select will not work, because running a SmartBlock cancel the selection)

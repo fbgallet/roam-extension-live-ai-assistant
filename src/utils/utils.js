@@ -14,13 +14,14 @@ import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
-export const pageRegex = /\[\[.*\]\]/g; // very simplified, not recursive...
-export const contextRegex = /\(\(context:.?([^\)]*)\)\)/;
+export const pageRegex = /\[\[.*\]\]/g;
+export const strictPageRegex = /^\[\[.*\]\]$/; // very simplified, not recursive...
+export const contextRegex = /\(\(context:.?(.*)\)\)/;
 export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
-export const sbParam = /\{.*\}/;
+export const sbParamRegex = /^\{.*\}$/;
 
 export function getTreeByUid(uid) {
   if (uid)
@@ -97,6 +98,12 @@ export function getPageUidByBlockUid(uid) {
   ]);
   if (result) return result[":block/page"][":block/uid"];
   else return "";
+}
+
+export function getPageUidByPageName(title) {
+  let r = window.roamAlphaAPI.data.pull("[:block/uid]", [":node/title", title]);
+  if (r != null) return r[":block/uid"];
+  else return null;
 }
 
 export async function getMainPageUid() {
@@ -424,7 +431,9 @@ export const getAndNormalizeContext = async (
   blocksSelectionUids,
   roamContext,
   focusedBlock,
-  model = defaultModel
+  model = defaultModel,
+  maxDepth,
+  maxUid
 ) => {
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
@@ -437,15 +446,32 @@ export const getAndNormalizeContext = async (
     );
   if (roamContext) {
     if (roamContext.mainPage) {
-      highlightHtmlElt(".roam-article > div:first-child");
-      const viewUid =
-        await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-      context += getFlattenedContentFromTree(viewUid);
+      let pageUid;
+      if (roamContext.mainPageArgument) {
+        pageUid = getPageUidByPageName(roamContext.mainPageArgument);
+      }
+      if (!pageUid) {
+        highlightHtmlElt(".roam-article > div:first-child");
+        pageUid =
+          await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+      }
+      context += getFlattenedContentFromTree(pageUid);
     }
     if (roamContext.linkedRefs) {
-      highlightHtmlElt(".rm-reference-main");
-      const pageUid = await getMainPageUid();
-      context += getFlattenedContentFromLinkedReferences(pageUid);
+      let pageUid;
+      if (roamContext.linkedRefsArgument) {
+        pageUid = getPageUidByPageName(roamContext.linkedRefsArgument);
+      }
+      if (!pageUid) {
+        highlightHtmlElt(".rm-reference-main");
+        pageUid = await getMainPageUid();
+      }
+
+      context += getFlattenedContentFromLinkedReferences(
+        pageUid,
+        maxDepth,
+        maxUid
+      );
     }
     if (roamContext.logPages) {
       let startDate;
@@ -457,11 +483,15 @@ export const getAndNormalizeContext = async (
       } else if (isCurrentPageDNP()) {
         startDate = new Date(await getMainPageUid());
         highlightHtmlElt(".rm-title-display");
+      } else {
+        startDate = new Date();
       }
       context += getFlattenedContentFromLog(
-        roamContext.logPagesNb || logPagesNbDefault,
+        roamContext.logPagesArgument || logPagesNbDefault,
         startDate,
-        model
+        model,
+        maxDepth,
+        maxUid
       );
     }
     if (roamContext.sidebar) {
@@ -496,23 +526,31 @@ export const getFlattenedContentFromTree = (
   return flattenedBlocks.trim();
 };
 
-export const getFlattenedContentFromLinkedReferences = (pageUid) => {
+export const getFlattenedContentFromLinkedReferences = (
+  pageUid,
+  maxDepth,
+  maxUid
+) => {
   const refTrees = getLinkedReferencesTrees(pageUid);
   const pageName = getPageNameByPageUid(pageUid);
   let linkedRefsArray = [
     `Content from linked references of [[${pageName}]] page:`,
   ];
+
+  console.log("maxCapturingDepth :>> ", maxCapturingDepth);
+  console.log("maxUidDepth :>> ", maxUidDepth);
+
   refTrees.forEach((tree) =>
     linkedRefsArray.push(
       convertTreeToLinearArray(
         tree,
-        maxCapturingDepth.refs,
-        maxUidDepth.refs
+        maxDepth || maxCapturingDepth.refs,
+        maxUid || maxUidDepth.refs
       ).join("\n")
     )
   );
   let flattenedRefsString = linkedRefsArray.join("\n\n");
-  // console.log("flattenedRefsString :>> ", flattenedRefsString);
+  console.log("flattenedRefsString :>> ", flattenedRefsString);
   // console.log("length :>> ", flattenedRefsString.length);
 
   return flattenedRefsString;
@@ -570,7 +608,13 @@ export const simulateClick = (elt) => {
   elt.dispatchEvent(new MouseEvent("click", options));
 };
 
-export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
+export const getFlattenedContentFromLog = (
+  nbOfDays,
+  startDate,
+  model,
+  maxDepth,
+  maxUid
+) => {
   let processedDays = 0;
   let flattenedBlocks = "";
   let tokens = 0;
@@ -610,8 +654,8 @@ export const getFlattenedContentFromLog = (nbOfDays, startDate, model) => {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
     let dayContent = getFlattenedContentFromTree(
       dnpUid,
-      maxCapturingDepth.dnp,
-      maxUidDepth.dnp
+      maxDepth || maxCapturingDepth.dnp,
+      maxUid || maxUidDepth.dnp
     );
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
@@ -696,14 +740,16 @@ export const getTemplateFromPrompt = (prompt) => {
 };
 
 export const getRoamContextFromPrompt = (prompt) => {
-  console.log("prompt :>> ", prompt);
   const elts = ["linkedRefs", "sidebar", "mainPage", "logPages"];
   const roamContext = {};
   let hasContext = false;
   const inlineCommand = getMatchingInlineCommand(prompt, contextRegex);
   if (!inlineCommand) return null;
   let { command, options } = inlineCommand;
-  console.log("options :>> ", options);
+  prompt = prompt
+    .replace("ref", "linkedRefs")
+    .replace("page", "mainPage")
+    .replace("log", "logPages");
   options = options
     .replace("ref", "linkedRefs")
     .replace("page", "mainPage")
@@ -712,12 +758,7 @@ export const getRoamContextFromPrompt = (prompt) => {
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
-      if (elt === "logPages") {
-        if (options.includes("logPages(")) {
-          let nbOfDays = prompt.split("logPages(")[1].split(")")[0];
-          if (!isNaN(nbOfDays)) roamContext.logPagesNb = Number(nbOfDays);
-        }
-      }
+      getArgumentFromOption(prompt, options, elt, roamContext);
       hasContext = true;
     }
   });
@@ -728,11 +769,22 @@ export const getRoamContextFromPrompt = (prompt) => {
     };
   AppToaster.show({
     message:
-      "Valid options for ((context: )) command: mainPage, linkedRefs, sidebar, logPages. " +
+      "Valid options for ((context: )) command: mainPage or mainPage(page_title), linkedRefs or linkedRefs(page_title), sidebar, logPages. " +
       "For the last one, you can precise the number of days, eg.: logPages(30)",
     timeout: 0,
   });
   return null;
+};
+
+const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
+  if (options.includes(`${optionName}(`)) {
+    let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
+    roamContext[`${optionName}Argument`] =
+      optionName === "logPages"
+        ? Number(argument)
+        : normlizePageTitle(argument);
+    roamContext[`${optionName}`] = true;
+  }
 };
 
 export const getMaxDephObjectFromList = (list) => {
@@ -788,14 +840,23 @@ export const extractNormalizedUidFromRef = (str) => {
   return isExistingBlock(matchingResult[1]) ? matchingResult[1] : "";
 };
 
+const normlizePageTitle = (str) => {
+  if (strictPageRegex.test(str)) return str.slice(2, -2);
+  else return str;
+};
+
 export const getContextFromSbCommand = async (
   context = "",
   currentUid,
   selectedUids,
-  includeRefs
+  contextDepth,
+  includeRefs,
+  model
 ) => {
+  sbParamRegex.lastIndex = 0;
+  pageRegex.lastIndex = 0;
   if (context || selectedUids) {
-    if (context && sbParam.test(context.trim())) {
+    if (context && sbParamRegex.test(context.trim())) {
       const contextObj = getRoamContextFromPrompt(
         `((context: ${context.trim().slice(1, -1)}))`
       );
@@ -803,15 +864,31 @@ export const getContextFromSbCommand = async (
         null,
         selectedUids,
         contextObj?.roamContext,
-        currentUid
+        currentUid,
+        model,
+        contextDepth,
+        includeRefs === "true" ? contextDepth || undefined : undefined
       );
+    } else if (context && pageRegex.test(context.trim())) {
+      pageRegex.lastIndex = 0;
+      const matchingName = context.trim().match(pageRegex);
+      const pageName = matchingName[0].slice(2, -2);
+      const pageUid = getPageUidByPageName(pageName);
+      context = getFlattenedContentFromTree(pageUid);
+      context +=
+        "\n\n" +
+        getFlattenedContentFromLinkedReferences(
+          pageUid,
+          contextDepth,
+          includeRefs === "true" ? contextDepth || undefined : undefined
+        );
     } else {
       const contextUid = extractNormalizedUidFromRef(context.trim());
       if (contextUid) {
         context = getFlattenedContentFromTree(
           contextUid,
           99,
-          includeRefs === "true" ? undefined : 0,
+          includeRefs === "true" ? contextDepth || undefined : 0,
           true // always insert a dash at the beginning of a line to mimick block structure
         );
       } else context = resolveReferences(context);
@@ -827,12 +904,12 @@ export const getContextFromSbCommand = async (
   return context;
 };
 
-export const getInstructionsFromSbCommand = (instructions) => {
-  if (instructions) {
-    const instructionsUid = extractNormalizedUidFromRef(instructions.trim());
-    if (instructionsUid) {
-      instructions = getFlattenedContentFromTree(instructionsUid, 99, 0);
-    } else instructions = resolveReferences(instructions);
-  }
-  return instructions;
-};
+// export const getInstructionsFromSbCommand = (instructions) => {
+//   if (instructions) {
+//     const instructionsUid = extractNormalizedUidFromRef(instructions.trim());
+//     if (instructionsUid) {
+//       instructions = getFlattenedContentFromTree(instructionsUid, 99, 0);
+//     } else instructions = resolveReferences(instructions);
+//   }
+//   return instructions;
+// };

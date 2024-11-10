@@ -1,9 +1,4 @@
-import {
-  assistantCharacter,
-  chatRoles,
-  getInstantAssistantRole,
-  isUsingWhisper,
-} from "..";
+import { chatRoles, getInstantAssistantRole, isUsingWhisper } from "..";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
@@ -26,23 +21,21 @@ import {
   createChildBlock,
   createSiblingBlock,
   extractNormalizedUidFromRef,
+  flexibleUidRegex,
   getAndNormalizeContext,
   getBlockContentByUid,
   getContextFromSbCommand,
   getFirstChildUid,
-  getFlattenedContentFromArrayOfBlocks,
   getFlattenedContentFromTree,
   getFocusAndSelection,
-  getInstructionsFromSbCommand,
   getParentBlock,
   getResolvedContentFromBlocks,
   getRoamContextFromPrompt,
   getTemplateFromPrompt,
   insertBlockInCurrentView,
-  isExistingBlock,
   resolveReferences,
-  sbParam,
-  updateArrayOfBlocks,
+  sbParamRegex,
+  simulateClick,
 } from "./utils";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
@@ -305,22 +298,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     text: "LIVEAIGEN",
     help: `Live AI Assistant text generation and chat.
       \nArguments:
-      \n1: prompt (text or block ref, default: {current} block content)
-      \n2: context or content to apply the prompt to (text or block ref or {current} block content)
-      \n3: additional instructions (text or block ref)
-      \n4: block ref target (default: current block)
-      \n5: model (default: default Live AI model)
-      \n6: includes children blocks of prompt (true/false, default: true)
-      \n7: includes block references in context (true/false, default: false)`,
+      \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
+      \n2: context or content to apply the prompt to (text or block ref or {current} block content or defined context, ex. {page(name)+ref(name)})
+      \n3: target block reference | {replace[-]} | {append} (default: first child)
+      \n4: model (default Live AI model or model ID)
+      \n5: levels within the refs/log to include in the context (number, default fixed in settings)
+      \n6: includes all block references in context (true/false, default: false)`,
     handler:
       (sbContext) =>
       async (
         prompt = "{current}",
         context,
-        instructions,
         target,
         model,
-        includeChildren = "true",
+        //  includeChildren = "true",
+        contextDepth,
         includeRefs = "false"
       ) => {
         const assistantRole = model
@@ -333,22 +325,37 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         let targetUid;
         let isContentToReplace = false;
 
-        if (prompt.trim() && prompt !== "{current}") {
-          const promptUid = extractNormalizedUidFromRef(prompt.trim());
-          if (promptUid) {
-            prompt = getFlattenedContentFromTree(
-              promptUid,
-              includeChildren === "false"
-                ? 1
-                : isNaN(parseInt(includeChildren))
-                ? 99
-                : parseInt(includeChildren),
-              0
-            );
-          } else prompt = resolveReferences(prompt);
-        } else {
-          prompt = currentBlockContent;
-        }
+        let stringifiedPrompt = "";
+        if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
+          if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
+          const splittedPrompt = prompt.split("+");
+          splittedPrompt.forEach((subPrompt) => {
+            console.log("subPrompt :>> ", subPrompt);
+            if (subPrompt === "current")
+              stringifiedPrompt +=
+                (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
+            else {
+              const promptUid = extractNormalizedUidFromRef(subPrompt);
+              if (promptUid) {
+                stringifiedPrompt +=
+                  (stringifiedPrompt ? "\n\n" : "") +
+                  getFlattenedContentFromTree(
+                    promptUid,
+                    99,
+                    // includeChildren === "false"
+                    //   ? 1
+                    //   : isNaN(parseInt(includeChildren))
+                    //   ? 99
+                    //   : parseInt(includeChildren),
+                    0
+                  );
+              } else
+                stringifiedPrompt +=
+                  (stringifiedPrompt ? "\n\n" : "") + subPrompt;
+            }
+          });
+        } else stringifiedPrompt = resolveReferences(prompt);
+        prompt = stringifiedPrompt;
 
         context =
           context === "{current}"
@@ -357,11 +364,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
                 context,
                 currentUid,
                 selectionUids,
-                includeRefs
+                contextDepth,
+                includeRefs,
+                model
               );
-        instructions = getInstructionsFromSbCommand(instructions);
 
-        if (!target && !currentBlockContent.trim()) target = "{replace}";
+        if ((!target && !currentBlockContent.trim()) || target === "{current}")
+          target = "{replace}";
 
         switch (target) {
           case "{replace}":
@@ -381,16 +390,18 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
                 model ? getInstantAssistantRole(model) : chatRoles.assistant
               ));
         }
-        isContentToReplace &&
-          window.roamAlphaAPI.updateBlock({
+        if (isContentToReplace) {
+          simulateClick(document.querySelector(".roam-body-main"));
+          await window.roamAlphaAPI.updateBlock({
             block: {
               uid: currentUid,
               string: target === "{replace-}" ? "" : assistantRole,
             },
           });
+        }
 
         insertCompletion({
-          prompt: prompt + (instructions ? "\n\n" + instructions : ""),
+          prompt: prompt,
           targetUid,
           context,
           instantModel: model,
@@ -406,21 +417,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     help: `Live AI Assistant response following a template.
       \nArguments:
       \n1: template ({children} or block ref, default: children blocks)
-      \n2: context or content to apply the template to (text or block ref)
-      \n3: additional instructions (text or block ref)
-      \n4: block ref target (default: children blocks)
-      \n5: model (default: default Live AI model)
-      \n6: level depth of template (number, default: all)
-      \n7: includes block references in context (true/false, default: false)`,
+      \n2: context or content to apply the template to (text or block ref or {current} block content or defined context, ex. {page(name)+ref(name)})
+      \n3: target block reference (default: first child)
+      \n4: model (default Live AI model or model ID)
+      \n5: levels within the template to include (number, default: all)
+      \n6: levels within the refs/log to include in the context (number, default fixed in settings)
+      \n7: includes all block references in context (true/false, default: false)`,
     handler:
       (sbContext) =>
       async (
         template = "{children}",
         context,
-        instructions,
         target,
         model,
         depth,
+        contextDepth,
         includeRefs = "false"
       ) => {
         const assistantRole = model
@@ -465,15 +476,14 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
             context,
             currentUid,
             selectionUids,
+            contextDepth,
             includeRefs
           );
-
-          instructions = getInstructionsFromSbCommand(instructions);
 
           if (!targetUid) targetUid = getFirstChildUid(currentUid);
 
           insertCompletion({
-            prompt: template + (instructions ? "\n\n" + instructions : ""),
+            prompt: template,
             targetUid,
             context,
             instantModel: model,

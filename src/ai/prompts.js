@@ -13,11 +13,10 @@ export const defaultContextInstructions = `
 Below is the context of your response, it can consist of data to rely on, a conversation to be continued, \
 or other instructions, depending on the user's prompt. The user can refer to it as 'these blocks' \
 or 'the selected blocks' among other possibilities. The ((9-characters code)) within double parentheses \
-preceding each piece of content (or block) in the context is its id in the database and is called 'block reference'. \
-In your response, you can refer to an existing block reference (and only existing one) if needed, using the syntax \
-[*](((9-characters code))) to refer to it as a note or citation. Example: [*](((kVZwmFnFF))). \
-If you need reproduce the entire and exact content of a block in your response, only put its ((9-characters code)) instead, \
-but it's preferable to prioritize a citation with [*](((9-char code))) syntax most of the time.
+preceding each piece of content (or block) in the context is its ID in the database and is called 'block reference'. \
+In your response, you can refer to an existing block reference (and ONLY one of those that is present in the context) if needed, using the syntax \
+([source block](((9-characters code)))) to refer to it as a note or citation at the end of a sentence refering to its content. Example: Some sentence... ([source block](((kVZwmFnFF)))). \
+If you need reproduce the entire and exact content of a block in your response, only put its ((9-characters code)) instead (so it won't then be necessary to reproduce its content).
 Expressions within double brackets such as [[my page]] or preceded by a '#' like #tag or #[[my tag]] \
 should be reused with the exact same syntax as in the source text, keeping the original double brackets \
 and/or hashtag: e.g. [[my page]], #tag, #[[my tag]].`;

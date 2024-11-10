@@ -539,7 +539,6 @@ export default {
             type: "input",
             onChange: (evt) => {
               maxUidDepth = getMaxDephObjectFromList(evt.target.value);
-              console.log("maxUidDepth :>> ", maxUidDepth);
             },
           },
         },
@@ -898,12 +897,12 @@ export default {
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");
     if (extensionAPI.settings.get("maxCapturingDepth") === null)
-      await extensionAPI.settings.set("maxCapturingDepth", "99,2,3");
+      await extensionAPI.settings.set("maxCapturingDepth", "99,3,3");
     maxCapturingDepth = getMaxDephObjectFromList(
       extensionAPI.settings.get("maxCapturingDepth")
     );
     if (extensionAPI.settings.get("maxUidDepth") === null)
-      await extensionAPI.settings.set("maxUidDepth", "99,1,2");
+      await extensionAPI.settings.set("maxUidDepth", "99,2,2");
     maxUidDepth = getMaxDephObjectFromList(
       extensionAPI.settings.get("maxUidDepth")
     );

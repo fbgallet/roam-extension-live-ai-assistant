@@ -645,7 +645,7 @@ export const insertCompletion = async ({
   lastCompletion.typeOfCompletion = typeOfCompletion;
   lastCompletion.instantModel = instantModel;
 
-  console.log("prompt in insertCompletion :>> ", prompt);
+  // console.log("prompt in insertCompletion :>> ", prompt);
 
   let model = instantModel || defaultModel;
   if (model === "first OpenRouter model") {
@@ -663,7 +663,6 @@ export const insertCompletion = async ({
 
   let content;
 
-  console.log("context before :>> ", context);
   let isContextInstructionToInsert = false;
   uidRegex.lastIndex = 0;
   if (uidRegex.test(context)) isContextInstructionToInsert = true;
