@@ -212,7 +212,7 @@ You can insert the following commands in your SmartBlocks template (using the co
 
 The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be used once), or to have a permanent button in a given block, and automatically insert the transcription in the children blocks: `{{🎙️:SmartBlock:Speech-to-Roam:RemoveButton=false}}`
 
-- `<%LIVEAIGEN:prompt,context,additional instruction,target,model,include children of prompt,insert block refs in context%>`: text generation and chat following a given prompt, context, etc.
+- `<%LIVEAIGEN:prompt,context,target,model,context levels,context uids%>`: text generation and chat following a given prompt, context, etc.
 
   Arguments:
 
@@ -231,7 +231,7 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
   - 5: levels within the linked ref or DNP to include in the context (number, default fixed in settings)
   - 6: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
 
-- `<%LIVEAITEMPLATE:template,context,additional instruction,target,model,template depth,insert block refs in context%>`: response exactly following the provided template, where each block provides instructions and will be the sole receptacle for the response to those instructions. If you want a block in the template to not be used as a prompt but only reproduced identically as a text, add `{text}` in the block.
+- `<%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`: response exactly following the provided template, where each block provides instructions and will be the sole receptacle for the response to those instructions. If you want a block in the template to not be used as a prompt but only reproduced identically as a text, add `{text}` in the block.
 
   Arguments:
 
