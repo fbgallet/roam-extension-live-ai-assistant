@@ -204,19 +204,17 @@ You can also use AI assistant feature without vocal note, just using text conten
 You can insert the following commands in your SmartBlocks template (using the corresponding extension) to use or run Live AI Assistant directly from your templates
 
 - `<%SPEECHTOROAM%>`: start recording a vocal note in a specific context. You can for example create a very simple SmartBlock and call it with a button:
-
 ```
 - #SmartBlock Speech-to-Roam
     - <%SPEECHTOROAM%><%CURSOR%>
 ```
-
 The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be used once), or to have a permanent button in a given block, and automatically insert the transcription in the children blocks: `{{🎙️:SmartBlock:Speech-to-Roam:RemoveButton=false}}`
 
 - `<%LIVEAIGEN:prompt,context,target,model,context levels,context uids%>`: text generation and chat following a given prompt, context, etc.
 
   Arguments:
 
-  - 1: prompt (text or block ref or `{current}` block content, or list of block refs separated by a `+': `{ref1+ref2+...}` default: {current})
+  - 1: prompt (text or block ref or `{current}` block content, or list of block refs separated by a `+`: `{ref1+ref2+...}` default: {current})
   - 2: context or content to apply the prompt to (text or block ref or `{current}` block content, or `[[page title]]` (=page content + linked refs) or a list, between braces, of the following possible contexts, separated by any character except a comma):
     - `{sidebar}`: all the content (including children blocks) of the right sidebar
     - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
