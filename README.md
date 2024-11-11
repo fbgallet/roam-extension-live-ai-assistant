@@ -5,7 +5,7 @@
 ### 🆕 New in v.11:
 
 - New versions of Claude 3.5 Sonnet and Haiku (training data cut-off: Apr 2024 and July 2024)
-- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAIGEN and LIVEAITEMPLATE (see "Using the SmartBlock commands" section)
+- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAIGEN and LIVEAITEMPLATE (see ["Using the SmartBlock commands" section](https://github.com/fbgallet/roam-extension-speech-to-roam?tab=readme-ov-file#using-the-smartblocks-commands))
 - `{text}` keyword to insert in any block of a template that should not be processed as a part of the prompt, but only as text.
 
 ### 🆕 New in v.10:
@@ -218,21 +218,21 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 **Parameters**: (all optional)
 1. Prompt: text or `{current}` block content or block reference in `uid` or `((uid))` format or list of block refs separated by a `+`: `{uid1+uid2+...}` between brackets. Default: {current}
 2. Context or content to apply the prompt to: text or `{current}` block content or block reference or `[[page title]]` (context will be page content + linked references) or a list, between braces, of the following possible contexts, separated by any character except a comma (e.g.: {page,sidebar}):
-  - `{sidebar}`: all the content (including children blocks) of the right sidebar.
-  - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
-  - `{ref}` or `{ref([[title]])}` or `{linkedRefs}`: the current or specified page linked references.
-  - `{log(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include from the current date or the current DNP.
+    - `{sidebar}`: all the content (including children blocks) of the right sidebar.
+    - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
+    - `{ref}` or `{ref([[title]])}` or `{linkedRefs}`: the current or specified page linked references.
+    - `{log(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include from the current date or the current DNP.
 3. Block reference of the target block (in `uid` or `((uid))` format), where the response will be inserted (Default: new direct child block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
-  - `{replace}`: replace the current block content, preceded by the assistant name (as defined in role setting)
-  - `{replace-}`: replace the current block content, without assistant name, only the response
-  - `{append}`: append the response to the current block content
+    - `{replace}`: replace the current block content, preceded by the assistant name (as defined in role setting)
+    - `{replace-}`: replace the current block content, without assistant name, only the response
+    - `{append}`: append the response to the current block content
 4. AI model to query: exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`. Default: default model defined in extension settings.
 5. Levels within the linked references or DNP to include in the context: number, default fixed in settings.
 6. Insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
 
 **Examples**:
 
-`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}`
+`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}` => text prompt applied to the current block content, AI response appended to the current block content
 
 ### <%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`
 
@@ -247,7 +247,9 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 6. Levels within the linked ref or DNP to include in the context: number. Default fixed in extension settings.
 7. insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
 
-**Examples**: `<%LIVEAITEMPLATE:((kCa_QzkZh)),{ref(my last article)},,gpt-4o,,4,true%>` => following the mentionned template, use all the linked references to [[my last article]] as context (for example to extract some key points), insert the template by default as direct children, use gpt-4o as model, copy all the levels of the template, limit to 4 levels in the linked references and insert before each block its ((uid)), so some of these blocks can be quoted (or referenced as 'source block') in the AI response.
+**Examples**: 
+
+`<%LIVEAITEMPLATE:((kCa_QzkZh)),{ref(my last article)},,gpt-4o,,4,true%>` => following the mentionned template, use all the linked references to [[my last article]] as context (for example to extract some key points), insert the template by default as direct children, use gpt-4o as model, copy all the levels of the template, limit to 4 levels in the linked references and insert before each block its ((uid)), so some of these blocks can be quoted (or referenced as 'source block') in the AI response.
 
 NB: To complete the context used in these SmartBlocks, you can also select some blocks with the single block multiselect feature (native) (Warning: the basic blue multi-select will not work, because running a SmartBlock cancel the selection)
 
