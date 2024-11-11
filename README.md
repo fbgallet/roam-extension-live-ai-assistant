@@ -199,51 +199,59 @@ You can also use AI assistant feature without vocal note, just using text conten
 - You can specify which template to use without having to copy it into the child blocks, using this command (or a block reference to this command), mentionning the block ref. of the root block of the template: `((template: ((block-reference))))`.
 - You can relauch the last AI completion. If no block is focused or if it was template-based post-processing, the new response will replace the precedent response. If a block is focused and it was a simple completion, the new response will be inserted in the focused block.
 
-### Using the SmartBlock commands
+## Using the SmartBlocks commands
 
-You can insert the following commands in your SmartBlocks template (using the corresponding extension) to use or run Live AI Assistant directly from your templates
+You can insert the following commands in your SmartBlocks template to use or run Live AI Assistant directly from your templates:
 
-- `<%SPEECHTOROAM%>`: start recording a vocal note in a specific context. You can for example create a very simple SmartBlock and call it with a button:
-```
-- #SmartBlock Speech-to-Roam
-    - <%SPEECHTOROAM%><%CURSOR%>
-```
+### <%SPEECHTOROAM%>
+
+**Purpose**: start recording a vocal note in a specific context.
+
+**Example**: `<%SPEECHTOROAM%><%CURSOR%>`
+
 The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be used once), or to have a permanent button in a given block, and automatically insert the transcription in the children blocks: `{{🎙️:SmartBlock:Speech-to-Roam:RemoveButton=false}}`
 
-- `<%LIVEAIGEN:prompt,context,target,model,context levels,context uids%>`: text generation and chat following a given prompt, context, etc.
+### <%LIVEAIGEN:prompt,context,target,model,context levels,context uids%>
 
-  Arguments:
+**Purpose**: text generation following a given prompt (from one or multiple block(s)) and context
 
-  - 1: prompt (text or block ref or `{current}` block content, or list of block refs separated by a `+`: `{ref1+ref2+...}` default: {current})
-  - 2: context or content to apply the prompt to (text or block ref or `{current}` block content, or `[[page title]]` (=page content + linked refs) or a list, between braces, of the following possible contexts, separated by any character except a comma):
-    - `{sidebar}`: all the content (including children blocks) of the right sidebar
-    - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
-    - `{ref}` or `{ref([[title]])}` or `{linkedRefs}`: the current or specified page linked references
-    - `{log(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include.
-    - a list would be for example: {page,ref}
-  - 3: block ref of the target block, where the response will be inserted (default: current block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
-    - `{replace}`: replace the current block content, preceded by the assistant name
-    - `{replace-}`: replace the current block content, without assistant name, only the response
-    - `{append}`: append the response to the current block content
-  - 4: model (default: default model, or exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`)
-  - 5: levels within the linked ref or DNP to include in the context (number, default fixed in settings)
-  - 6: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
+**Parameters**: (all optional)
+1. Prompt: text or `{current}` block content or block reference in `uid` or `((uid))` format or list of block refs separated by a `+`: `{uid1+uid2+...}` between brackets. Default: {current}
+2. Context or content to apply the prompt to: text or `{current}` block content or block reference or `[[page title]]` (context will be page content + linked references) or a list, between braces, of the following possible contexts, separated by any character except a comma (e.g.: {page,sidebar}):
+  - `{sidebar}`: all the content (including children blocks) of the right sidebar.
+  - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
+  - `{ref}` or `{ref([[title]])}` or `{linkedRefs}`: the current or specified page linked references.
+  - `{log(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include from the current date or the current DNP.
+3. Block reference of the target block (in `uid` or `((uid))` format), where the response will be inserted (Default: new direct child block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
+  - `{replace}`: replace the current block content, preceded by the assistant name (as defined in role setting)
+  - `{replace-}`: replace the current block content, without assistant name, only the response
+  - `{append}`: append the response to the current block content
+4. AI model to query: exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`. Default: default model defined in extension settings.
+5. Levels within the linked references or DNP to include in the context: number, default fixed in settings.
+6. Insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
 
-- `<%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`: response exactly following the provided template, where each block provides instructions and will be the sole receptacle for the response to those instructions. If you want a block in the template to not be used as a prompt but only reproduced identically as a text, add `{text}` in the block.
+**Examples**:
 
-  Arguments:
+`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}`
 
-  - 1: template ({children} blocks or block ref, default: {children}).
-  - 2: context or content to apply the templated prompt to (block ref or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page(title)}`, `{ref(title)}`, `{log(nb)}` (see above in LIVEAIGEN command for details)) Nb: the current block content is always included in the context.
-  - 3: block ref of the target block, where the templated response will be inserted (default: direct child of the current block)
-  - 4: model (default: default Live AI model) (see above in LIVEAIGEN command for details)
-  - 5: levels within the template to include (number, default: all)
-  - 6: levels within the linked ref or DNP to include in the context (number, default fixed in settings)
-  - 7: insert or not block references of each block in the context (true/false or nb of levels to insert block refs from, default: false)
+### <%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`
 
-To complete the context, you can also select some blocks with the single block multiselect feature (native) (nb: the basic blue multi-select will not work, because running a SmartBlock cancel the selection)
+**Purpose**: response exactly following the provided template, where each block provides instructions and will be the sole receptacle for the response to those instructions. If you want a block in the template to not be used as a prompt but only reproduced identically as a text, add `{text}` in the block.
 
-### API usage fees
+**Parameters**: (all optional)
+1. Template: block reference of the parent block of the template, or `{children}` blocks. Default: {children}.
+2. Context or content to apply the templated prompt to: text or `{current}` block content or block reference or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page(title)}`, `{ref(title)}`, `{log(nb)}` (see above in LIVEAIGEN command for details)) NB: the current block content is always included in the context (as a way to provide some instruction to the AI model on how to complete the template).
+3. Block reference of the target block (in `uid` or `((uid))` format), where the templated response will be inserted. Default: first child of the current block
+4. AI model to query (see above in LIVEAIGEN command for details)
+5. Levels within the template to include: number. Default: all.
+6. Levels within the linked ref or DNP to include in the context: number. Default fixed in extension settings.
+7. insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
+
+**Examples**: `<%LIVEAITEMPLATE:((kCa_QzkZh)),{ref(my last article)},,gpt-4o,,4,true%>` => following the mentionned template, use all the linked references to [[my last article]] as context (for example to extract some key points), insert the template by default as direct children, use gpt-4o as model, copy all the levels of the template, limit to 4 levels in the linked references and insert before each block its ((uid)), so some of these blocks can be quoted (or referenced as 'source block') in the AI response.
+
+NB: To complete the context used in these SmartBlocks, you can also select some blocks with the single block multiselect feature (native) (Warning: the basic blue multi-select will not work, because running a SmartBlock cancel the selection)
+
+## API usage fees
 
 Moderate but regular use should only cost a few tens of cents per month (costs may increase if you use GPT-4 (default is GPT-3.5), think to set a maximum monthly limit). You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
 
