@@ -757,6 +757,7 @@ export const getTemplateForPostProcessing = async (
   uidsToExclude
 ) => {
   let prompt = "";
+  let excluded;
   let isInMultipleBlocks = true;
   let tree = getTreeByUid(parentUid);
   if (parentUid && tree) {
@@ -768,19 +769,24 @@ export const getTemplateForPostProcessing = async (
           : eltToHightlight.parentElement.nextElementSibling;
       highlightHtmlElt(null, eltToHightlight);
       // prompt is a template as children of the current block
-      let linearArray = convertTreeToLinearArray(
+      let { linearArray, excludedUids } = convertTreeToLinearArray(
         tree[0].children,
         depth,
         99,
         false,
         uidsToExclude.length ? uidsToExclude : "{text}"
       );
+      excluded = excludedUids;
       prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
     } else {
       return null;
     }
   } else return null;
-  return { stringified: prompt, isInMultipleBlocks: isInMultipleBlocks };
+  return {
+    stringified: prompt,
+    isInMultipleBlocks: isInMultipleBlocks,
+    excluded,
+  };
 };
 
 export const copyTemplate = async (

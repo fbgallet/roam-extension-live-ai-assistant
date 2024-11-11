@@ -23,6 +23,7 @@ import {
 } from "../ai/aiCommands.js";
 import {
   addContentToBlock,
+  cleanFlagFromBlocks,
   createChildBlock,
   createSiblingBlock,
   getAndNormalizeContext,
@@ -554,6 +555,12 @@ function VoiceRecorder({
               template.stringified;
             uid = getFirstChildUid(promptUid);
           }
+
+          // remove {text} mentions from template
+          if (template.excluded && template.excluded.length) {
+            cleanFlagFromBlocks("{text}", template.excluded);
+          }
+
           await insertCompletion({
             prompt,
             targetUid: uid,

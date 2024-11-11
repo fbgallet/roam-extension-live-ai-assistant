@@ -6,7 +6,7 @@
 
 - New versions of Claude 3.5 Sonnet and Haiku (training data cut-off: Apr 2024 and July 2024)
 - New SmartBlocks commands to run Live AI assistant from your templates: LIVEAIGEN and LIVEAITEMPLATE (see ["Using the SmartBlock commands" section](https://github.com/fbgallet/roam-extension-speech-to-roam?tab=readme-ov-file#liveaigenpromptcontexttargetmodelcontext-levelscontext-uids))
-- `{text}` keyword to insert in any block of a template that should not be processed as a part of the prompt, but only as text.
+- `{text}` keyword to insert in any block of a template that should not be processed as a part of the prompt and your remain exactly the same.
 
 ### 🆕 New in v.10:
 
@@ -145,7 +145,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
   3. then place your cursor in this block (the parent of the template), and write some information to be processed following the template, or some instructions, or record your voice note (that will be "post-processed" following the template),
   4. click on the post-processing button (after optionally specifying the context)
      => the template will be automatically filled in (this may take time depending on the amount of information to process).
-- Some blocks of the context can be excluded of the prompt and only used as text: just insert `{text}` in the corresping blocks
+- If some blocks of the template should remain exactly the same (as headers, comments...), insert `{text}` in the corresping blocks. The `{text}` flag will be removed from the processed template (but not from the original template).
 - You can specify a default template in the settings. It will be automatically inserted as child of the focused block when you run post-processing if there is currently no child. Copy the block reference of the root block of your template. The root or parent block is only the title, it will not be inserted nor used as an instruction. If no user default template is defined, a predefined template will be used, just try it !
 
 ## Use models throught OpenRouter
@@ -231,7 +231,9 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 
 **Examples**:
 
-`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}` => text prompt applied to the current block content, AI response appended to the current block content
+`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}` => text prompt applied to the current block content, AI response appended to the current block content.
+
+`<%LIVEAIGEN:{((cSoBrilIU))+((Iuq6UTY5C))},[[my last article]],,,4%>` => prompt in the first referenced block (and children) and instructions (for example about the output format) in the second referenced block, will be applied to the content of 'my last article' page and all its linked references (including up to the 4 levels).
 
 ### <%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`
 
@@ -240,7 +242,7 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 **Parameters**: (all optional)
 
 1. Template: block reference of the parent block of the template, or `{children}` blocks. Default: {children}.
-2. Context or content to apply the templated prompt to: text or `{current}` block content or block reference or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page(title)}`, `{ref(title)}`, `{log(nb)}` (see above in LIVEAIGEN command for details)) NB: the current block content is always included in the context (as a way to provide some instruction to the AI model on how to complete the template).
+2. Context or content to apply the templated prompt to: text or `{current}` block content or block reference or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page(title)}`, `{ref(title)}`, `{log(nb)}` (see above in LIVEAIGEN command for details) NB: the current block content is always included in the context (as a way to provide some instruction to the AI model on how to complete the template).
 3. Block reference of the target block (in `uid` or `((uid))` format), where the templated response will be inserted. Default: first child of the current block
 4. AI model to query (see above in LIVEAIGEN command for details)
 5. Levels within the template to include: number. Default: all.

@@ -18,6 +18,7 @@ import {
 } from "./domElts";
 import {
   addContentToBlock,
+  cleanFlagFromBlocks,
   createChildBlock,
   createSiblingBlock,
   extractNormalizedUidFromRef,
@@ -249,6 +250,11 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
           if (!targetUid) targetUid = getFirstChildUid(currentUid);
 
+          // remove {text} mentions from template
+          if (template.excluded && template.excluded.length) {
+            cleanFlagFromBlocks("{text}", template.excluded);
+          }
+
           insertCompletion({
             prompt,
             // waitForBlockCopy ? currentUid : targetUid,
@@ -464,8 +470,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           );
           delay = 100;
         }
-
-        console.log("uidsToExclude :>> ", uidsToExclude);
 
         setTimeout(async () => {
           template = await getTemplateForPostProcessing(

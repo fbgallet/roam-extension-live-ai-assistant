@@ -387,31 +387,37 @@ export function convertTreeToLinearArray(
   uidsToExclude = ""
 ) {
   let linearArray = [];
+  let excludedUids = [];
 
   function traverseArray(tree, leftShift = "", level = 1) {
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
     tree.forEach((element) => {
       let toExcludeWithChildren = false;
-      if (element.string) {
+      let content = element.string;
+      if (content) {
         let uidString =
           (maxUid && level > maxUid) || !maxUid
             ? ""
             : "((" + element.uid + "))";
         toExcludeWithChildren = exclusionStrings.some((str) =>
-          element.string.includes(str)
+          content.includes(str)
         );
         let toExcludeAsBlock =
           uidsToExclude.includes(element.uid) ||
-          (uidsToExclude === "{text}" && element.string.includes("{text}"));
-        if (!toExcludeWithChildren && !toExcludeAsBlock)
+          (uidsToExclude === "{text}" && content.includes("{text}"));
+        if (toExcludeAsBlock) {
+          content = content.replace("{text}", "").trim();
+          excludedUids.push(element.uid);
+        }
+        if (!toExcludeWithChildren /*&& !toExcludeAsBlock*/)
           linearArray.push(
-            uidString +
+            (toExcludeAsBlock ? "" : uidString) +
               leftShift +
               ((!withDash || level === 1) &&
               ((maxUid && level > maxUid) || !maxUid)
                 ? ""
                 : "- ") +
-              resolveReferences(element.string)
+              resolveReferences(content)
           );
       } else level--;
       if (element.children && !toExcludeWithChildren) {
@@ -423,7 +429,7 @@ export function convertTreeToLinearArray(
 
   traverseArray(tree);
 
-  return linearArray;
+  return { linearArray, excludedUids };
 }
 
 export const getAndNormalizeContext = async (
@@ -529,12 +535,13 @@ export const getFlattenedContentFromTree = (
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
     if (tree) {
-      let content = convertTreeToLinearArray(
+      let { linearArray } = convertTreeToLinearArray(
         tree,
         maxCapturing,
         maxUid,
         withDash
-      ).join("\n");
+      );
+      content = linearArray.join("\n");
       if (content.length > 1 && content.replace("\n", "").trim())
         flattenedBlocks = "\n" + content;
     }
@@ -556,15 +563,14 @@ export const getFlattenedContentFromLinkedReferences = (
   console.log("maxCapturingDepth :>> ", maxCapturingDepth);
   console.log("maxUidDepth :>> ", maxUidDepth);
 
-  refTrees.forEach((tree) =>
-    linkedRefsArray.push(
-      convertTreeToLinearArray(
-        tree,
-        maxDepth || maxCapturingDepth.refs,
-        maxUid || maxUidDepth.refs
-      ).join("\n")
-    )
-  );
+  refTrees.forEach((tree) => {
+    let { linearArray } = convertTreeToLinearArray(
+      tree,
+      maxDepth || maxCapturingDepth.refs,
+      maxUid || maxUidDepth.refs
+    );
+    linkedRefsArray.push(linearArray.join("\n"));
+  });
   let flattenedRefsString = linkedRefsArray.join("\n\n");
   console.log("flattenedRefsString :>> ", flattenedRefsString);
   // console.log("length :>> ", flattenedRefsString.length);
@@ -958,3 +964,15 @@ export const getContextFromSbCommand = async (
 //   }
 //   return instructions;
 // };
+
+// only used on templates to remove {text} flag
+export const cleanFlagFromBlocks = (flag, blockUids) => {
+  blockUids.forEach((uid) =>
+    window.roamAlphaAPI.updateBlock({
+      block: {
+        uid: uid,
+        string: getBlockContentByUid(uid).replace(flag, "").trim(),
+      },
+    })
+  );
+};
