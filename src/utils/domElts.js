@@ -114,7 +114,6 @@ export const displaySpinner = async (targetUid) => {
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
-    console.log("targetBlockElt 1:>> ", targetBlockElt);
     if (targetBlockElt.tagName.toLowerCase() === "textarea") {
       targetBlockElt = targetBlockElt.parentElement;
     }

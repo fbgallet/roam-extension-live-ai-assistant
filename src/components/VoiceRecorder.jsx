@@ -380,7 +380,7 @@ function VoiceRecorder({
         roamContext.current.logPages = true;
       } else roamContext.current.linkedRefs = true;
     }
-    if (e.altKey) roamContext.current.mainPage = true;
+    if (e.altKey) roamContext.current.page = true;
   };
 
   const initializeProcessing = async () => {

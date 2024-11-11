@@ -445,32 +445,48 @@ export const getAndNormalizeContext = async (
       getBlocksSelectionUids(true).slice(0, -1)
     );
   if (roamContext) {
-    if (roamContext.mainPage) {
-      let pageUid;
-      if (roamContext.mainPageArgument) {
-        pageUid = getPageUidByPageName(roamContext.mainPageArgument);
+    if (roamContext.block) {
+      let blockUids = [];
+      if (roamContext.blockArgument?.length) {
+        blockUids = roamContext.blockArgument;
       }
-      if (!pageUid) {
+      blockUids.forEach(
+        (uid) => (context += "\n\n" + getFlattenedContentFromTree(uid))
+      );
+    }
+    if (roamContext.page) {
+      let pageUids = [];
+      if (roamContext.pageArgument?.length) {
+        pageUids = roamContext.pageArgument.map((title) =>
+          getPageUidByPageName(title)
+        );
+      }
+      if (!pageUids.length) {
         highlightHtmlElt(".roam-article > div:first-child");
-        pageUid =
-          await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+        pageUids = [
+          await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid(),
+        ];
       }
-      context += getFlattenedContentFromTree(pageUid);
+      pageUids.forEach(
+        (uid) => (context += "\n\n" + getFlattenedContentFromTree(uid))
+      );
     }
     if (roamContext.linkedRefs) {
-      let pageUid;
-      if (roamContext.linkedRefsArgument) {
-        pageUid = getPageUidByPageName(roamContext.linkedRefsArgument);
+      let pageUids = [];
+      if (roamContext.linkedRefsArgument?.length) {
+        pageUids = roamContext.linkedRefs.map((title) =>
+          getPageUidByPageName(title)
+        );
       }
-      if (!pageUid) {
+      if (!pageUids.length) {
         highlightHtmlElt(".rm-reference-main");
-        pageUid = await getMainPageUid();
+        pageUids = [await getMainPageUid()];
       }
-
-      context += getFlattenedContentFromLinkedReferences(
-        pageUid,
-        maxDepth,
-        maxUid
+      pageUids.forEach(
+        (uid) =>
+          (context +=
+            "\n\n" +
+            getFlattenedContentFromLinkedReferences(uid, maxDepth, maxUid))
       );
     }
     if (roamContext.logPages) {
@@ -500,7 +516,7 @@ export const getAndNormalizeContext = async (
     }
   }
 
-  return context;
+  return context.trim();
 };
 
 export const getFlattenedContentFromTree = (
@@ -739,21 +755,15 @@ export const getTemplateFromPrompt = (prompt) => {
   };
 };
 
-export const getRoamContextFromPrompt = (prompt) => {
-  const elts = ["linkedRefs", "sidebar", "mainPage", "logPages"];
+export const getRoamContextFromPrompt = (prompt, alert = true) => {
+  const elts = ["linkedRefs", "sidebar", "page", "block"];
   const roamContext = {};
   let hasContext = false;
   const inlineCommand = getMatchingInlineCommand(prompt, contextRegex);
   if (!inlineCommand) return null;
   let { command, options } = inlineCommand;
-  prompt = prompt
-    .replace("ref", "linkedRefs")
-    .replace("page", "mainPage")
-    .replace("log", "logPages");
-  options = options
-    .replace("ref", "linkedRefs")
-    .replace("page", "mainPage")
-    .replace("log", "logPages");
+  prompt = prompt.replace("ref", "linkedRefs").replace("log", "logPages");
+  options = options.replace("ref", "linkedRefs").replace("log", "logPages");
   // console.log("options :>> ", options);
   elts.forEach((elt) => {
     if (options.includes(elt)) {
@@ -767,22 +777,44 @@ export const getRoamContextFromPrompt = (prompt) => {
       roamContext: roamContext,
       updatedPrompt: prompt.replace(command, "").trim(),
     };
-  AppToaster.show({
-    message:
-      "Valid options for ((context: )) command: mainPage or mainPage(page_title), linkedRefs or linkedRefs(page_title), sidebar, logPages. " +
-      "For the last one, you can precise the number of days, eg.: logPages(30)",
-    timeout: 0,
-  });
+  if (alert)
+    AppToaster.show({
+      message:
+        "Valid options for ((context: )) command: block(uid1+uid2+...), page or page(title1+title2+...), linkedRefs or linkedRefs(title), sidebar, logPages. " +
+        "For the last one, you can precise the number of days, eg.: logPages(30)",
+      timeout: 0,
+    });
   return null;
 };
 
 const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
   if (options.includes(`${optionName}(`)) {
+    if (optionName === "block")
+      prompt = prompt.replaceAll("((", "").replaceAll("))", "");
     let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
-    roamContext[`${optionName}Argument`] =
-      optionName === "logPages"
-        ? Number(argument)
-        : normlizePageTitle(argument);
+    const args = [];
+    const splittedArgument = argument.split("+");
+    console.log("splittedArgument :>> ", splittedArgument);
+    splittedArgument.forEach((arg) => {
+      switch (optionName) {
+        case "logPages":
+          arg = Number(arg);
+          break;
+        case "block":
+          arg = extractNormalizedUidFromRef(arg);
+          break;
+        case "linkedRefs":
+        case "page":
+          arg = normlizePageTitle(arg);
+      }
+      arg && args.push(arg);
+    });
+    roamContext[`${optionName}Argument`] = args;
+    console.log("args :>> ", args);
+    // optionName === "logPages"
+    //   ? Number(argument)
+    //   :
+    //   normlizePageTitle(argument);
     roamContext[`${optionName}`] = true;
   }
 };
@@ -857,9 +889,22 @@ export const getContextFromSbCommand = async (
   pageRegex.lastIndex = 0;
   if (context || selectedUids) {
     if (context && sbParamRegex.test(context.trim())) {
-      const contextObj = getRoamContextFromPrompt(
-        `((context: ${context.trim().slice(1, -1)}))`
-      );
+      let contextObj;
+      context = context.trim().slice(1, -1);
+      contextObj = getRoamContextFromPrompt(`((context: ${context}))`, false);
+      if (!contextObj) {
+        const splittedContext = context.split("+");
+        contextObj = {
+          roamContext: {
+            block: true,
+            blockArgument: [],
+          },
+        };
+        splittedContext.forEach((item) => {
+          const arg = extractNormalizedUidFromRef(item);
+          arg && contextObj.roamContext.blockArgument.push(arg);
+        });
+      }
       context = await getAndNormalizeContext(
         null,
         selectedUids,

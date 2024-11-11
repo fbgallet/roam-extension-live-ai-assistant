@@ -164,7 +164,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         ? getRoamContextFromPrompt(currentBlockContent)
         : null;
       if (inlineContext) prompt = inlineContext.updatedPrompt;
-      console.log("inlineContext :>> ", inlineContext);
 
       let context = await getAndNormalizeContext(
         // currentUid && selectionUids.length ? null : currentUid,
@@ -299,7 +298,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     help: `Live AI Assistant text generation and chat.
       \nParameters:
       \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
-      \n2: context or content to apply the prompt to (text or block ref or {current} block content or defined context, ex. {page(name)+ref(name)})
+      \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference | {replace[-]} | {append} (default: first child)
       \n4: model (default Live AI model or model ID)
       \n5: levels within the refs/log to include in the context (number, default fixed in settings)
@@ -368,8 +367,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
                 model
               );
 
-        if ((!target && !currentBlockContent.trim()) || target === "{current}")
+        if (
+          (!target && !currentBlockContent.trim()) ||
+          target === "{current}"
+        ) {
           target = "{replace}";
+          simulateClick(document.querySelector(".roam-body-main"));
+        }
 
         if (target && target.slice(0, 8) === "{append:") {
           toAppend = target.slice(8, -1);
@@ -420,7 +424,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     help: `Live AI Assistant response following a template.
       \nParameters:
       \n1: template ({children} or block ref, default: children blocks)
-      \n2: context or content to apply the template to (text or block ref or {current} block content or defined context, ex. {page(name)+ref(name)})
+      \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference (default: first child)
       \n4: model (default Live AI model or model ID)
       \n5: levels within the template to include (number, default: all)

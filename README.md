@@ -216,6 +216,7 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 
 1. Prompt: text or `{current}` block content or block reference in `uid` or `((uid))` format or list of block refs separated by a `+`: `{uid1+uid2+...}` between brackets. Default: {current}
 2. Context or content to apply the prompt to: text or `{current}` block content or block reference or `[[page title]]` (context will be page content + linked references) or a list, between braces, of the following possible contexts, separated by any character except a comma (e.g.: {page,sidebar}):
+   - `{uid1+uid2+...}` or `{block(uid1+uid2+...)}`: a list of block references in `uid` or `((uid))` format (only the second syntax can be used in combination with with other elements to add to the context)
    - `{sidebar}`: all the content (including children blocks) of the right sidebar.
    - `{page}` or `{page([[title]])}` or `{mainPage}`: the current page view in the main window or the specified page between parentheses.
    - `{ref}` or `{ref([[title]])}` or `{linkedRefs}`: the current or specified page linked references.

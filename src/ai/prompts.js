@@ -9,8 +9,8 @@ export const hierarchicalResponseFormat = `\n\nIMPORTANT RULE on your response f
 
 export const defaultContextInstructions = `
 Below is the context of the user request: it can consist of data to rely on, content to apply to the user instructions or additional instructions, depending on the user's prompt.
-The ((9-characters code)) within double parentheses preceding each piece of content (or block) in the context is its ID in the database and is called 'block reference'. In your response, you can refer to an existing block if needed, using the syntax ([source block](((9-characters code)))) to refer to it as a note or citation at the end of a sentence relying on its content. Example: Some sentence... ([source block](((kVZwmFnFF)))).
-If you need reproduce the entire and exact content of a block in your response, only put its ((9-characters code)) instead (so it won't then be necessary to reproduce its content).
+If your response will include exactly the content of an existing block, you can strictly replace this content by the ((9-characters code)) block reference: you have to choose: the content or the block reference, NOT BOTH.
+The ((9-characters code)) within double parentheses preceding each piece of content (or block) in the context is its ID in the database and is called 'block reference'. IF AND ONLY IF (take into account this condition) sourcing is requested by the user and ONLY IF (take into account this condition) it adds some information not already in your response, you can refer to an existing block using the syntax ([source](((9-characters code)))) to refer to it as a note or citation at the end of a sentence relying on its content. Example: Some sentence... ([source](((kVZwmFnFF)))).
 VERY IMPORTANT: you can ONLY refer to one of those that is currently present in the context!`;
 
 export const contextAsPrompt = `Follow the instructions provided in the context \
