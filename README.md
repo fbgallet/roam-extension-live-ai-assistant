@@ -123,7 +123,6 @@ A large number of [source languages are supported](https://platform.openai.com/d
   - maximum block depth level, distinctively defined for pages, linked refs, and DNPs (default is no limit for page, and limit to 2 levers for linked refs and 3 for DNPs)
   - maximum level where block references (uid) are copied in the context sent to the AI assistant (so he can refer to them, make some citaiton...). When many blocks have very brief content, the ((uid)) occupies a significant proportion of space in the context. (default: not limit for pages, limit to 1 and 2 levels for linked refs and DNPs)
   - blocks (and their children) to exclude if they contain a given string (like a tag `#private`)
-  - ⚠️ with the current pricing (02-2024), each request that reaches the token limit for GPT-3.5 cost $0.08, but up to $1.30 with GPT-4 !
 
 - for a more "surgical" defined context, simply select the required blocks. Using the native multi-select blocks feature to choose multiple separate blocks. The selection can be done before recording or updated just before sending the transcription to the GPT model. The block content of the initial focused block provide the initial context if no selection is made subsequently. As for simple transcription, the focused block right before completion is the target where your prompt and the answer will be inserted.
 
@@ -231,7 +230,7 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 
 **Examples**:
 
-`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}` => text prompt applied to the current block content, AI response appended to the current block content.
+`<%LIVEAIGEN:Summarize the content provided in context,{current},{append}%>` => text prompt applied to the current block content, AI response appended to the current block content.
 
 `<%LIVEAIGEN:{((cSoBrilIU))+((Iuq6UTY5C))},[[my last article]],,,4%>` => prompt in the first referenced block (and children) and instructions (for example about the output format) in the second referenced block, will be applied to the content of 'my last article' page and all its linked references (including up to the 4 levels).
 
@@ -257,7 +256,7 @@ NB: To complete the context used in these SmartBlocks, you can also select some 
 
 ## API usage fees
 
-Moderate but regular use should only cost a few tens of cents per month (costs may increase if you use GPT-4 (default is GPT-3.5), think to set a maximum monthly limit). You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
+Regular use should only cost a few tens of cents per month but think to set a maximum monthly limit. You can check the detailed daily cost of your usage of Whisper and other OpenAI models [here](https://platform.openai.com/usage), update is almost instantaneous.
 
 _OpenAI Whisper API pricing:_
 
