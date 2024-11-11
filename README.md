@@ -5,7 +5,7 @@
 ### 🆕 New in v.11:
 
 - New versions of Claude 3.5 Sonnet and Haiku (training data cut-off: Apr 2024 and July 2024)
-- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAIGEN and LIVEAITEMPLATE (see ["Using the SmartBlock commands" section](https://github.com/fbgallet/roam-extension-speech-to-roam?tab=readme-ov-file#using-the-smartblocks-commands))
+- New SmartBlocks commands to run Live AI assistant from your templates: LIVEAIGEN and LIVEAITEMPLATE (see ["Using the SmartBlock commands" section](https://github.com/fbgallet/roam-extension-speech-to-roam?tab=readme-ov-file#liveaigenpromptcontexttargetmodelcontext-levelscontext-uids))
 - `{text}` keyword to insert in any block of a template that should not be processed as a part of the prompt, but only as text.
 
 ### 🆕 New in v.10:
