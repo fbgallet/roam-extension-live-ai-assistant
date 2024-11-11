@@ -114,6 +114,10 @@ export const displaySpinner = async (targetUid) => {
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+    console.log("targetBlockElt 1:>> ", targetBlockElt);
+    if (targetBlockElt.tagName.toLowerCase() === "textarea") {
+      targetBlockElt = targetBlockElt.parentElement;
+    }
     const previousSpinner = targetBlockElt.querySelector(".speech-spinner");
     if (previousSpinner) previousSpinner.remove();
     spinner = document.createElement("strong");
@@ -139,7 +143,7 @@ export const removeSpinner = (intervalId) => {
 };
 
 export const insertParagraphForStream = (targetUid) => {
-  const targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+  let targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
   const previousStreamElt = targetBlockElt.querySelector(".speech-stream");
   if (previousStreamElt) previousStreamElt.remove();
   const streamElt = document.createElement("p");

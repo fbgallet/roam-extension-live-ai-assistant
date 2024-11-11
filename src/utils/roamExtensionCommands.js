@@ -321,7 +321,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         const currentUid = sbContext.currentUid;
         let { currentBlockContent, selectionUids } =
           getFocusAndSelection(currentUid);
-
+        let toAppend = "";
         let targetUid;
         let isContentToReplace = false;
 
@@ -371,6 +371,11 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         if ((!target && !currentBlockContent.trim()) || target === "{current}")
           target = "{replace}";
 
+        if (target && target.slice(0, 8) === "{append:") {
+          toAppend = target.slice(8, -1);
+          target = "{append}";
+        }
+
         switch (target) {
           case "{replace}":
           case "{replace-}":
@@ -390,7 +395,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
               ));
         }
         if (isContentToReplace) {
-          simulateClick(document.querySelector(".roam-body-main"));
           await window.roamAlphaAPI.updateBlock({
             block: {
               uid: currentUid,
@@ -407,7 +411,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           typeOfCompletion: "gptCompletion",
           isInConversation: false,
         });
-        return [""];
+        return [toAppend];
       },
   };
 
