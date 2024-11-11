@@ -261,7 +261,7 @@ async function insertChildrenBlocksRecursively(
     );
     if (children[i].string.includes(strToExclude)) uidsToExclude.push(uid);
     if (children[i].children && depth < maxDepth) {
-      let moreUidsToExclude = insertChildrenBlocksRecursively(
+      let moreUidsToExclude = await insertChildrenBlocksRecursively(
         uid,
         children[i].children,
         strToExclude,

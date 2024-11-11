@@ -216,14 +216,18 @@ async function aiCompletion(
   if (
     responseFormat === "json_object" &&
     !prompt[0].content.includes(instructionsOnJSONResponse)
-  )
+  ) {
     prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  else {
-    if (!content.includes(hierarchicalResponseFormat))
-      content += "\n\n" + hierarchicalResponseFormat;
   }
+  // else {
+  //   if (!content.includes(hierarchicalResponseFormat))
+  //     content += "\n\n" + hierarchicalResponseFormat;
+  // }
 
-  console.log("Context (eventually truncated):\n", content);
+  console.log(
+    "Initial instructions and context (eventually truncated):\n",
+    content
+  );
 
   if (prefix === "openRouter") {
     if (!openrouterLibrary?.apiKey) hasAPIkey = false;
@@ -347,13 +351,19 @@ async function claudeCompletion(
         model = "claude-3-5-haiku-20241022";
     }
     try {
+      let messages = [
+        {
+          role: "user",
+          content: content,
+        },
+      ].concat(prompt);
       const options = {
         max_tokens:
           model.includes("3-5") || model.includes("3.5") ? 8192 : 4096,
         model: model,
-        messages: prompt,
+        messages,
       };
-      if (content) options.system = content;
+      // if (content) options.system = content;
       if (modelTemperature !== null) options.temperature = modelTemperature;
       if (streamResponse && responseFormat === "text") options.stream = true;
 
@@ -363,6 +373,8 @@ async function claudeCompletion(
       //   options
       // );
       // See server code here: https://github.com/fbgallet/ai-api-back
+
+      console.log("Messages sent as prompt to the model:", messages);
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -482,6 +494,9 @@ export async function openaiCompletion(
       content: content,
     },
   ].concat(prompt);
+
+  console.log("Messages sent as prompt to the model:", messages);
+
   if (isModelSupportingImage(model)) {
     messages = addImagesUrlToMessages(messages, content);
   }
@@ -523,8 +538,6 @@ export async function openaiCompletion(
     }
     let streamEltCopy = "";
 
-    console.log(response);
-
     if (isToStream) {
       insertInstantButtons({
         model,
@@ -557,7 +570,6 @@ export async function openaiCompletion(
         else streamElt.remove();
       }
     }
-    console.log("OpenAI chat completion response :>>", response);
     return isToStream ? respStr : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
@@ -671,11 +683,11 @@ export const insertCompletion = async ({
   else {
     content =
       assistantCharacter +
-      // (responseFormat === "json_object" ? instructionsOnJSONResponse : "") +
+      (responseFormat === "text" ? hierarchicalResponseFormat : "") +
       (context && !context.includes(contextInstruction)
         ? (isContextInstructionToInsert ? contextInstruction : "") +
           userContextInstructions +
-          "\n\nHere is the content to rely to or apply the instructions to:\n" +
+          "\n\nUSER INPUT (content to rely to or apply the next user prompt to, and refered as 'context'):\n" +
           context
         : "");
     content = await verifyTokenLimitAndTruncate(model, prompt, content);
@@ -709,8 +721,6 @@ export const insertCompletion = async ({
   }
   // }
   const intervalId = await displaySpinner(targetUid);
-
-  console.log("prompt :>> ", prompt);
 
   let aiResponse = await aiCompletion(
     model,

@@ -297,7 +297,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   const chatCmd = {
     text: "LIVEAIGEN",
     help: `Live AI Assistant text generation and chat.
-      \nArguments:
+      \nParameters:
       \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
       \n2: context or content to apply the prompt to (text or block ref or {current} block content or defined context, ex. {page(name)+ref(name)})
       \n3: target block reference | {replace[-]} | {append} (default: first child)
@@ -330,7 +330,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
           const splittedPrompt = prompt.split("+");
           splittedPrompt.forEach((subPrompt) => {
-            console.log("subPrompt :>> ", subPrompt);
             if (subPrompt === "current")
               stringifiedPrompt +=
                 (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
@@ -415,7 +414,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   const templateCmd = {
     text: "LIVEAITEMPLATE",
     help: `Live AI Assistant response following a template.
-      \nArguments:
+      \nParameters:
       \n1: template ({children} or block ref, default: children blocks)
       \n2: context or content to apply the template to (text or block ref or {current} block content or defined context, ex. {page(name)+ref(name)})
       \n3: target block reference (default: first child)
