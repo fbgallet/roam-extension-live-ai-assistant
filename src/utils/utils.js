@@ -543,7 +543,7 @@ export const getFlattenedContentFromTree = (
         maxUid,
         withDash
       );
-      content = linearArray.join("\n");
+      let content = linearArray.join("\n");
       if (content.length > 1 && content.replace("\n", "").trim())
         flattenedBlocks = "\n" + content;
     }
