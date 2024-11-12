@@ -433,9 +433,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference (default: first child)
       \n4: model (default Live AI model or model ID)
-      \n5: levels within the template to include (number, default: all)
-      \n6: levels within the refs/log to include in the context (number, default fixed in settings)
-      \n7: includes all block references in context (true/false, default: false)`,
+      \n5: levels within the refs/log to include in the context (number, default fixed in settings)
+      \n6: includes all block references in context (true/false, default: false)`,
     handler:
       (sbContext) =>
       async (
@@ -443,7 +442,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         context,
         target,
         model,
-        depth,
         contextDepth,
         includeRefs = "false"
       ) => {
@@ -455,7 +453,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           getFocusAndSelection(currentUid);
         let targetUid;
         let uidsToExclude = [];
-        depth = depth && !isNaN(depth) ? parseInt(depth) : undefined;
+        // disabled option to extract only a limited amount of levels in the prompt
+        // depth = depth && !isNaN(depth) ? parseInt(depth) : undefined;
 
         if (target) targetUid = extractNormalizedUidFromRef(target.trim());
 
@@ -466,7 +465,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           uidsToExclude = await copyTemplate(
             targetUid || currentUid,
             templateUid,
-            depth
+            99 //depth
           );
           delay = 100;
         }
@@ -474,7 +473,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         setTimeout(async () => {
           template = await getTemplateForPostProcessing(
             targetUid || currentUid,
-            depth,
+            99, //depth,
             uidsToExclude
           );
           template =

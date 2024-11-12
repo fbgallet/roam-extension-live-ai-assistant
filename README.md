@@ -185,12 +185,13 @@ To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable 
 
 ## Keyboard & text only AI completion and post-processing
 
-You can also use AI assistant feature without vocal note, just using text content of some blocks in your graph and the dedicated command in command palette (see above).
+You can also use AI assistant feature without vocal note or button to click, just using text content of some blocks in your graph and the dedicated command in command palette (see above). For more precise and repetable workflows, you should use the new SmartBlocks commands described in the next section.
 
 - Focus your cursor in a block and run one of the AI completion command:
   - the content of the focused block will be used as prompt and the AI response will be inserted as child blocks, if you run the simple completion command,
   - the children structure will be used as prompt template, and the focused block as specific content to apply to the template, if your run the post-processing command
-- You can define the context with the following command, notifying one or more of the following items: `((context: linkedRefs, sidebar, mainPage, logPages))`.
+- You can define the context with the following command, notifying one or more of the following items: `((context: sidebar, block(uid1+uid2+...), page(title1+title2+...), linkedRefs(title1+title2+...), logPages))`.
+  - `page` or `linkedRefs` without parentheses nor page title will rely on the current page.
   - `logPages` means daily log. You can specify the number of DNP to take process (a default limit is fixed to 7 in the settings), this way: `((context: logPages(31)))`.
 - You can specify which template to use without having to copy it into the child blocks, using this command (or a block reference to this command), mentionning the block ref. of the root block of the template: `((template: ((block-reference))))`.
 - You can relauch the last AI completion. If no block is focused or if it was template-based post-processing, the new response will replace the precedent response. If a block is focused and it was a simple completion, the new response will be inserted in the focused block.
@@ -241,12 +242,11 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 **Parameters**: (all optional)
 
 1. Template: block reference of the parent block of the template, or `{children}` blocks. Default: {children}.
-2. Context or content to apply the templated prompt to: text or `{current}` block content or block reference or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{page(title)}`, `{ref(title)}`, `{log(nb)}` (see above in LIVEAIGEN command for details) NB: the current block content is always included in the context (as a way to provide some instruction to the AI model on how to complete the template).
+2. Context or content to apply the templated prompt to: text or `{current}` block content or block reference, or a list of block references `{uid1+uid2+...}` or a list, between braces, of the following possible contexts, separated by any character except a comma: `{sidebar}`, `{block(uid1+...)`, `{page(title1+...)}`, `{ref(title1+...)}`, `{log(nb)}` (see above in LIVEAIGEN command for details) NB: the current block content is always included in the context (as a way to provide some instruction to the AI model on how to complete the template).
 3. Block reference of the target block (in `uid` or `((uid))` format), where the templated response will be inserted. Default: first child of the current block
 4. AI model to query (see above in LIVEAIGEN command for details)
-5. Levels within the template to include: number. Default: all.
-6. Levels within the linked ref or DNP to include in the context: number. Default fixed in extension settings.
-7. insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
+5. Levels within the linked ref or DNP to include in the context: number. Default fixed in extension settings.
+6. insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
 
 **Examples**:
 

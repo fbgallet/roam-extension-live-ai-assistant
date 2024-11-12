@@ -457,7 +457,9 @@ export const getAndNormalizeContext = async (
         blockUids = roamContext.blockArgument;
       }
       blockUids.forEach(
-        (uid) => (context += "\n\n" + getFlattenedContentFromTree(uid))
+        (uid) =>
+          (context +=
+            "\n\n" + getFlattenedContentFromTree(uid, maxDepth, maxUid, true))
       );
     }
     if (roamContext.page) {
