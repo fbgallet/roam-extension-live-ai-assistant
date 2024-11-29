@@ -342,7 +342,7 @@ async function claudeCompletion(
       case "claude-3-5-haiku-20241022":
       case "claude haiku 3.5":
         model = "claude-3-5-haiku-20241022";
-      // break;
+        break;
       case "claude-haiku":
       case "claude-3-haiku-20240307":
       case "claude haiku":
@@ -364,6 +364,10 @@ async function claudeCompletion(
           model.includes("3-5") || model.includes("3.5") ? 8192 : 4096,
         model: model,
         messages,
+      };
+      const usage = {
+        input_tokens: 0,
+        output_tokens: 0,
       };
       // if (content) options.system = content;
       if (modelTemperature !== null) options.temperature = modelTemperature;
@@ -416,7 +420,6 @@ async function claudeCompletion(
               }
               const { done, value } = await reader.read();
               if (done) break;
-
               const chunk = decoder.decode(value);
               const lines = chunk.split("\n");
 
@@ -428,6 +431,11 @@ async function claudeCompletion(
                     const text = data.delta.text;
                     respStr += text;
                     streamElt.innerHTML += text;
+                  } else if (data.type === "message_start") {
+                    usage["input_tokens"] =
+                      data.message?.usage["input_tokens"] || 0;
+                  } else if (data.type === "message_delta" && data.usage) {
+                    usage["output_tokens"] = data.usage["output_tokens"] || 0;
                   }
                 }
               }
@@ -445,6 +453,10 @@ async function claudeCompletion(
       } else {
         const data = await response.json();
         respStr = data.content[0].text;
+        if (data.usage) {
+          usage["input_tokens"] = data.usage["input_tokens"];
+          usage["output_tokens"] = data.usage["output_tokens"];
+        }
       }
       let jsonOnly;
       if (responseFormat !== "text") {
@@ -452,6 +464,9 @@ async function claudeCompletion(
         jsonOnly = trimOutsideOuterBraces(respStr);
         jsonOnly = sanitizeJSONstring(jsonOnly);
       }
+
+      console.log(`Tokens usage (${model}):>> `, usage);
+
       return jsonOnly || respStr;
     } catch (error) {
       console.log("error :>> ");
@@ -490,6 +505,7 @@ export async function openaiCompletion(
   targetUid
 ) {
   let respStr = "";
+  let usage = {};
   let messages = [
     {
       role: model.startsWith("o1") ? "user" : "system",
@@ -513,6 +529,7 @@ export async function openaiCompletion(
       messages: messages,
       stream: isToStream,
     };
+    isToStream && (options["stream_options"] = { include_usage: true });
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
     if (
@@ -540,6 +557,8 @@ export async function openaiCompletion(
     }
     let streamEltCopy = "";
 
+    console.log("OpenAI response :>>", response);
+
     if (isToStream) {
       insertInstantButtons({
         model,
@@ -560,6 +579,7 @@ export async function openaiCompletion(
           }
           respStr += chunk.choices[0]?.delta?.content || "";
           streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
+          if (chunk.usage) usage = chunk.usage;
         }
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
@@ -571,7 +591,8 @@ export async function openaiCompletion(
           console.log("GPT response stream interrupted.");
         else streamElt.remove();
       }
-    }
+    } else usage = response.usage;
+    console.log(`Tokens usage (${model}):>> `, usage);
     return isToStream ? respStr : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
