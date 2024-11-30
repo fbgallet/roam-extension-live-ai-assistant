@@ -294,7 +294,9 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI Assistant: Tokens usage and cost overview",
     callback: () => {
-      displayTokensDialog();
+      setTimeout(() => {
+        displayTokensDialog();
+      }, 100);
     },
   });
 

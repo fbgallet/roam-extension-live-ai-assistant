@@ -263,6 +263,14 @@
   max-width: 750px;
   max-height: 90%;
 }
+.tokens-dialog h3 {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.tokens-dialog h3 .bp3-icon {
+  margin-right: 3px;
+}
 .tokens-dialog table {
   width: 100%;
   margin: 10px 0;

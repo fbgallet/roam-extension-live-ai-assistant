@@ -1,11 +1,21 @@
-import { Dialog, Classes } from "@blueprintjs/core";
+import {
+  Dialog,
+  DialogBody,
+  Classes,
+  Collapse,
+  Divider,
+  Icon,
+} from "@blueprintjs/core";
 import { extensionStorage } from "..";
 import { modelsPricing } from "../ai/modelsInfo";
+import { useState } from "react";
 
 const TokensDialog = ({ isOpen, onClose }) => {
-  // Fonction utilitaire pour calculer le coût
+  const [isCurrentOpen, setIsCurrentOpen] = useState(true);
+  const [isLastOpen, setIsLastOpen] = useState(false);
+  const [isTotalOpen, setIsTotalOpen] = useState(false);
+
   const tokensCounter = extensionStorage.get("tokensCounter");
-  console.log("tokensCounter from tokensDisplay :>> ", tokensCounter);
 
   const calculateCost = (tokens, pricePerK) => {
     if (!tokens || !pricePerK) return NaN;
@@ -82,14 +92,13 @@ const TokensDialog = ({ isOpen, onClose }) => {
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      useOverflowScrollContainer={true}
       title="Live AI Assistant - Tokens usage and cost"
       className="tokens-dialog"
     >
-      <div className={Classes.DIALOG_BODY}>
+      <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         {tokensCounter.lastRequest && (
           <div className="last-request">
-            <h3>Last request</h3>
+            <h4>Last request</h4>
             <div className="last-request-content">
               <table className={Classes.HTML_TABLE}>
                 <thead>
@@ -142,16 +151,35 @@ const TokensDialog = ({ isOpen, onClose }) => {
             </div>
           </div>
         )}
-        <h3>Current month</h3>
-        {generateTable(tokensCounter.monthly)}
+        <Divider />
+        <h3 onClick={() => setIsCurrentOpen((prev) => !prev)}>
+          <Icon icon={isCurrentOpen ? "chevron-down" : "chevron-right"} />
+          Current month
+        </h3>
+        <Collapse isOpen={isCurrentOpen}>
+          {generateTable(tokensCounter.monthly)}
+        </Collapse>
         {Object.keys(tokensCounter.lastMonth || {}).length > 0 && (
           <>
-            <h3>Last month</h3>
-            {generateTable(tokensCounter.lastMonth)}
+            <Divider />
+            <h3 onClick={() => setIsLastOpen((prev) => !prev)}>
+              <Icon icon={isLastOpen ? "chevron-down" : "chevron-right"} />
+              Last month
+            </h3>
+            <Collapse isOpen={isLastOpen}>
+              {generateTable(tokensCounter.lastMonth)}
+            </Collapse>
           </>
         )}
-        <h3>Total</h3>
-        {generateTable(tokensCounter.total)}
+        <Divider />
+
+        <h3 onClick={() => setIsTotalOpen((prev) => !prev)}>
+          <Icon icon={isTotalOpen ? "chevron-down" : "chevron-right"} />
+          Total
+        </h3>
+        <Collapse isOpen={isTotalOpen}>
+          {generateTable(tokensCounter.total)}
+        </Collapse>
       </div>
     </Dialog>
   );
