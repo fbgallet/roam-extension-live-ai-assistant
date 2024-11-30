@@ -14,7 +14,6 @@ import {
   defaultModel,
   isResponseToSplit,
   openaiLibrary,
-  tokensLimit,
   transcriptionLanguage,
   userContextInstructions,
   whisperPrompt,
@@ -49,6 +48,7 @@ import {
   roamImageRegex,
   uidRegex,
   updateArrayOfBlocks,
+  updateTokenCounter,
 } from "../utils/utils";
 import {
   hierarchicalResponseFormat,
@@ -71,6 +71,7 @@ import {
   trimOutsideOuterBraces,
 } from "../utils/format";
 import ModelsMenu from "../components/ModelsMenu";
+import { tokensLimit } from "./modelsInfo";
 
 export const lastCompletion = {
   prompt: null,
@@ -148,6 +149,7 @@ export async function transcribeAudio(filename) {
       isUsingGroqWhisper && groqLibrary
         ? await groqLibrary.audio.transcriptions.create(options)
         : await openaiLibrary.audio.transcriptions.create(options);
+    console.log(transcript);
     return transcript.text;
   } catch (error) {
     console.error(error.message);
@@ -466,6 +468,7 @@ async function claudeCompletion(
       }
 
       console.log(`Tokens usage (${model}):>> `, usage);
+      updateTokenCounter(model, usage);
 
       return jsonOnly || respStr;
     } catch (error) {
@@ -593,6 +596,10 @@ export async function openaiCompletion(
       }
     } else usage = response.usage;
     console.log(`Tokens usage (${model}):>> `, usage);
+    updateTokenCounter(model, {
+      input_tokens: usage.prompt_tokens,
+      output_tokens: usage.completion_tokens,
+    });
     return isToStream ? respStr : response.choices[0].message.content;
   } catch (error) {
     console.error(error);

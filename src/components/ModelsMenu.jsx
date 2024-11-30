@@ -20,9 +20,6 @@ const ModelsMenu = ({ command }) => {
     let model = e.target.innerText.split("\n")[0];
 
     switch (model) {
-      case "GPT 4 turbo preview":
-        model = "gpt-4-turbo-preview";
-        break;
       case "GPT 4o mini":
         model = "gpt-4o-mini";
         break;

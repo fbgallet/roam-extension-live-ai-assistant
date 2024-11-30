@@ -4,6 +4,7 @@ import InstantButtons from "../components/InstantButtons";
 import { isComponentVisible } from "..";
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
+import TokensDialog from "../components/TokensDisplay";
 
 export function mountComponent(position, props) {
   let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -169,4 +170,29 @@ export const insertInstantButtons = (props) => {
   targetBlockElt.parentElement.appendChild(container);
   // }
   ReactDOM.render(<InstantButtons {...props} />, container);
+};
+
+export const displayTokensDialog = () => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".tokens-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("tokens-dialog-container");
+  targetElt.appendChild(container);
+  function unmountTokensDialog() {
+    const node = document.querySelector(".tokens-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+  ReactDOM.render(
+    <TokensDialog isOpen={true} onClose={unmountTokensDialog} />,
+    container
+  );
 };

@@ -11,6 +11,7 @@ import {
   specificContentPromptBeforeTemplate,
 } from "../ai/prompts";
 import {
+  displayTokensDialog,
   mountComponent,
   simulateClickOnRecordingButton,
   toggleComponentVisibility,
@@ -287,6 +288,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           isRedone: true,
         });
       }
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Tokens usage and cost overview",
+    callback: () => {
+      displayTokensDialog();
     },
   });
 

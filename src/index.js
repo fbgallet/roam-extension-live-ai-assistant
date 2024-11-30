@@ -12,6 +12,7 @@ import {
   isExistingBlock,
   resolveReferences,
   uidRegex,
+  updateTokenCounter,
 } from "./utils/utils";
 import {
   defaultAssistantCharacter,
@@ -26,19 +27,6 @@ import {
   unmountComponent,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
-
-export const tokensLimit = {
-  "gpt-4o-mini": 131073,
-  "gpt-4o": 131073,
-  "o1-mini": 131073,
-  "o1-preview": 131073,
-  "gpt-4-turbo-preview": 131073,
-  "Claude Haiku": 200000,
-  "Claude Haiku 3.5": 200000,
-  "Claude Sonnet 3.5": 200000,
-  "Claude Opus": 200000,
-  custom: undefined,
-};
 
 let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -82,6 +70,7 @@ export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
 console.log("isSafari :>> ", isSafari);
+export let extensionStorage;
 
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
@@ -141,6 +130,7 @@ function getAssistantRoleRegex(assistantRoleStr) {
 
 export default {
   onload: async ({ extensionAPI }) => {
+    extensionStorage = extensionAPI.settings;
     const panelConfig = {
       tabTitle: "Live AI Assistant",
       settings: [
@@ -193,7 +183,6 @@ export default {
             items: [
               "gpt-4o-mini",
               "gpt-4o",
-              "gpt-4-turbo-preview",
               "Claude Haiku",
               "Claude Haiku 3.5",
               "Claude Sonnet 3.5",
@@ -914,6 +903,13 @@ export default {
     if (extensionAPI.settings.get("resImages") === null)
       await extensionAPI.settings.set("resImages", "auto");
     resImages = extensionAPI.settings.get("resImages");
+
+    if (extensionAPI.settings.get("tokensCounter") === null)
+      await updateTokenCounter(undefined, {});
+    console.log(
+      "Tokens usage :>> ",
+      extensionAPI.settings.get("tokensCounter")
+    );
 
     createContainer();
 

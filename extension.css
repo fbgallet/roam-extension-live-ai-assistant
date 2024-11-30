@@ -253,6 +253,38 @@
   }
 }
 
+/* Tokens usage dialog */
+.tokens-dialog-container {
+  z-index: 1000;
+}
+
+.tokens-dialog {
+  width: 95%;
+  max-width: 750px;
+  max-height: 90%;
+}
+.tokens-dialog table {
+  width: 100%;
+  margin: 10px 0;
+}
+.tokens-dialog th {
+  background-color: #f5f8fa;
+  padding: 8px;
+  text-align: left;
+}
+.tokens-dialog td {
+  padding: 8px;
+}
+.tokens-dialog .even-row {
+  background-color: transparent;
+}
+.tokens-dialog .odd-row {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+.last-request {
+  margin-bottom: 10px;
+}
+
 @media (max-width: 500px) {
   .roam-sidebar-content,
   .log-button {

@@ -274,9 +274,6 @@ The prices are for 1000 tokens. For comparison, this documentation is equivalent
 - gpt-4o (128k context)
   - input: `$0.0025` / 1K tokens
   - output: `$0.010` / 1K tokens
-- gpt-4-turbo-preview (128k context)
-  - input: `$0.01` / 1K tokens
-  - output: `$0.03` / 1K tokens
 
 See updated OpenAI API pricing [here](https://openai.com/pricing).
 
