@@ -6,8 +6,8 @@ import {
   Divider,
   Icon,
 } from "@blueprintjs/core";
-import { extensionStorage } from "..";
-import { modelsPricing } from "../ai/modelsInfo";
+import { extensionStorage, openRouterModelsInfo } from "..";
+import { modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
 import { useState } from "react";
 
 const TokensDialog = ({ isOpen, onClose }) => {
@@ -34,11 +34,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
       .map(([model, counts]) => {
         const inputCost = calculateCost(
           counts.input,
-          modelsPricing[model]?.input
+          modelsPricing[model]?.input || openRouterModelPricing(model, "input")
         );
         const outputCost = calculateCost(
           counts.output,
-          modelsPricing[model]?.output
+          modelsPricing[model]?.output ||
+            openRouterModelPricing(model, "output")
         );
         const totalCost =
           isNaN(inputCost) || isNaN(outputCost) ? NaN : inputCost + outputCost;
@@ -120,7 +121,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
                       {formatCost(
                         calculateCost(
                           tokensCounter.lastRequest.input,
-                          modelsPricing[tokensCounter.lastRequest.model]?.input
+                          modelsPricing[tokensCounter.lastRequest.model]
+                            ?.input ||
+                            openRouterModelPricing(
+                              tokensCounter.lastRequest.model,
+                              "input"
+                            )
                         )
                       )}
                     </td>
@@ -128,7 +134,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
                       {formatCost(
                         calculateCost(
                           tokensCounter.lastRequest.output,
-                          modelsPricing[tokensCounter.lastRequest.model]?.output
+                          modelsPricing[tokensCounter.lastRequest.model]
+                            ?.output ||
+                            openRouterModelPricing(
+                              tokensCounter.lastRequest.model,
+                              "output"
+                            )
                         )
                       )}
                     </td>
@@ -136,12 +147,21 @@ const TokensDialog = ({ isOpen, onClose }) => {
                       {formatCost(
                         calculateCost(
                           tokensCounter.lastRequest.input,
-                          modelsPricing[tokensCounter.lastRequest.model]?.input
+                          modelsPricing[tokensCounter.lastRequest.model]
+                            ?.input ||
+                            openRouterModelPricing(
+                              tokensCounter.lastRequest.model,
+                              "input"
+                            )
                         ) +
                           calculateCost(
                             tokensCounter.lastRequest.output,
                             modelsPricing[tokensCounter.lastRequest.model]
-                              ?.output
+                              ?.output ||
+                              openRouterModelPricing(
+                                tokensCounter.lastRequest.model,
+                                "output"
+                              )
                           )
                       )}
                     </td>

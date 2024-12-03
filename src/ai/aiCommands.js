@@ -867,31 +867,6 @@ const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
   return content;
 };
 
-export async function getModelsInfo() {
-  try {
-    const { data } = await axios.get("https://openrouter.ai/api/v1/models");
-    // console.log("data", data.data);
-    let result = data.data
-      .filter((model) => openRouterModels.includes(model.id))
-      .map((model) => {
-        tokensLimit["openRouter/" + model.id] = model.context_length;
-        return {
-          id: model.id,
-          name: model.name,
-          contextLength: Math.round(model.context_length / 1024),
-          description: model.description,
-          promptPricing: model.pricing.prompt * 1000000,
-          completionPricing: model.pricing.completion * 1000000,
-          imagePricing: model.pricing.image * 1000,
-        };
-      });
-    return result;
-  } catch (error) {
-    console.log("Impossible to get OpenRouter models infos:", error);
-    return [];
-  }
-}
-
 export function getValidLanguageCode(input) {
   if (!input) return "";
   let lggCode = input.toLowerCase().trim().slice(0, 2);

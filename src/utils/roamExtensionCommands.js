@@ -1,4 +1,5 @@
 import { chatRoles, getInstantAssistantRole, isUsingWhisper } from "..";
+import { calculAgent } from "../ai/agents/calcul-agent";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
@@ -299,6 +300,27 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       }, 100);
     },
   });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Calcul Agent",
+    callback: async () => {
+      const response = await calculAgent.invoke({
+        messages: [
+          {
+            role: "user",
+            content:
+              "Combient font 5*5 + 3 ? Pense à utiliser les outils à ta disposition",
+          },
+        ],
+      });
+      console.log("response :>> ", response);
+    },
+  });
+
+  // const agentNextState = await graph.invoke({
+  //   foo: [1],
+  // });
+  // console.log(agentNextState);
 
   // Add SmartBlock command
   const speechCmd = {

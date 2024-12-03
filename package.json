@@ -1,6 +1,6 @@
 {
-  "name": "Live AI Assistant",
-  "version": "12.0.1",
+  "name": "live-ai-assistant",
+  "version": "12.0.2",
   "description": "AI assistant with vocal transcription and vocal prompts",
   "main": "index.js",
   "scripts": {
@@ -15,12 +15,19 @@
     "@blueprintjs/core": "^5.9.1",
     "@fortawesome/free-solid-svg-icons": "^6.4.2",
     "@fortawesome/react-fontawesome": "^0.2.0",
+    "@langchain/core": "^0.3.19",
+    "@langchain/langgraph": "^0.2.23",
+    "@langchain/openai": "^0.3.14",
     "axios": "^0.28.0",
     "js-tiktoken": "^1.0.12",
     "lamejs": "zhuker/lamejs",
     "openai": "^4.19.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "roamjs-scripts": "^0.27.0"
+    "roamjs-scripts": "^0.27.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "node-polyfill-webpack-plugin": "^4.0.0"
   }
 }

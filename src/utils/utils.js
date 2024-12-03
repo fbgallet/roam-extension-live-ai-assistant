@@ -980,7 +980,7 @@ export const cleanFlagFromBlocks = (flag, blockUids) => {
   );
 };
 
-export const updateTokenCounter = async (
+export const updateTokenCounter = (
   model = "gpt-4o-mini",
   { input_tokens, output_tokens }
 ) => {
@@ -1026,5 +1026,5 @@ export const updateTokenCounter = async (
       output: output_tokens,
     };
   }
-  await extensionStorage.set("tokensCounter", tokensCounter);
+  extensionStorage.set("tokensCounter", { ...tokensCounter });
 };

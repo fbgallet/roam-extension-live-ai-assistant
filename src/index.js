@@ -1,5 +1,4 @@
 import {
-  getModelsInfo,
   getValidLanguageCode,
   initializeAnthropicAPI,
   initializeOpenAIAPI,
@@ -27,8 +26,9 @@ import {
   unmountComponent,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
+import { getModelsInfo } from "./ai/modelsInfo";
 
-let OPENAI_API_KEY = "";
+export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
 export let OPENROUTER_API_KEY = "";
 export let GROQ_API_KEY = "";
@@ -905,7 +905,7 @@ export default {
     resImages = extensionAPI.settings.get("resImages");
 
     if (extensionAPI.settings.get("tokensCounter") === null)
-      await updateTokenCounter(undefined, {});
+      updateTokenCounter(undefined, {});
     console.log(
       "Tokens usage :>> ",
       extensionAPI.settings.get("tokensCounter")
