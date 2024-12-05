@@ -1,5 +1,7 @@
+import { faLessThanEqual } from "@fortawesome/free-solid-svg-icons";
 import { chatRoles, getInstantAssistantRole, isUsingWhisper } from "..";
 import { calculAgent } from "../ai/agents/calcul-agent";
+import { transformerAgent } from "../ai/agents/canvas-agent";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
@@ -302,18 +304,32 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Calcul Agent",
+    label: "Live AI Assistant: Test Agent",
     callback: async () => {
-      const response = await calculAgent.invoke({
+      let { currentUid, currentBlockContent, selectionUids } =
+        getFocusAndSelection();
+      let outline = await getTemplateForPostProcessing(
+        "4z7fuKaHh",
+        99,
+        [],
+        false
+      );
+      console.log("outline :>> ", outline.stringified);
+      const response = await transformerAgent.invoke({
         messages: [
           {
             role: "user",
-            content:
-              "Combient font 5*5 + 3 ? Pense à utiliser les outils à ta disposition",
+            content: `${currentBlockContent}
+
+            Input outline:
+            ${outline.stringified}
+            `,
           },
         ],
       });
-      console.log("response :>> ", response);
+      // console.log("response from command:>> ", response);
+      const message = response.messages[1].content;
+      console.log("operations :>> ", message);
     },
   });
 

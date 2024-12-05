@@ -12,7 +12,6 @@ import {
   getInstantAssistantRole,
   openAiCustomModels,
   defaultModel,
-  isResponseToSplit,
   openaiLibrary,
   transcriptionLanguage,
   userContextInstructions,
@@ -33,7 +32,6 @@ import {
   groqModels,
 } from "..";
 import {
-  addContentToBlock,
   convertTreeToLinearArray,
   copyTreeBranches,
   createSiblingBlock,
@@ -64,10 +62,8 @@ import {
 } from "../utils/domElts";
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import {
-  hierarchyFlagRegex,
-  parseAndCreateBlocks,
+  insertStructuredAIResponse,
   sanitizeJSONstring,
-  splitParagraphs,
   trimOutsideOuterBraces,
 } from "../utils/format";
 import ModelsMenu from "../components/ModelsMenu";
@@ -766,15 +762,7 @@ export const insertCompletion = async ({
   if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
     updateArrayOfBlocks(aiResponse);
   } else {
-    const splittedResponse = splitParagraphs(aiResponse);
-    if (
-      (!isResponseToSplit || splittedResponse.length === 1) &&
-      !hierarchyFlagRegex.test(splittedResponse[0])
-    )
-      await addContentToBlock(targetUid, splittedResponse[0]);
-    else {
-      await parseAndCreateBlocks(targetUid, aiResponse);
-    }
+    insertStructuredAIResponse(targetUid, aiResponse);
   }
   setTimeout(() => {
     removeSpinner(intervalId);
@@ -784,7 +772,8 @@ export const insertCompletion = async ({
 export const getTemplateForPostProcessing = async (
   parentUid,
   depth,
-  uidsToExclude
+  uidsToExclude,
+  withInstructions = true
 ) => {
   let prompt = "";
   let excluded;
@@ -792,7 +781,9 @@ export const getTemplateForPostProcessing = async (
   let tree = getTreeByUid(parentUid);
   if (parentUid && tree) {
     if (tree.length && tree[0].children) {
-      let eltToHightlight = document.querySelector(`[id$="${parentUid}"]`);
+      let eltToHightlight = document.querySelector(
+        `.roam-block[id$="${parentUid}"]`
+      );
       eltToHightlight =
         eltToHightlight.tagName === "TEXTAREA"
           ? eltToHightlight.parentElement.parentElement.nextElementSibling
@@ -803,11 +794,13 @@ export const getTemplateForPostProcessing = async (
         tree[0].children,
         depth,
         99,
-        false,
+        true,
         uidsToExclude.length ? uidsToExclude : "{text}"
       );
       excluded = excludedUids;
-      prompt = instructionsOnTemplateProcessing + linearArray.join("\n");
+      prompt =
+        (withInstructions ? instructionsOnTemplateProcessing : "") +
+        linearArray.join("\n");
     } else {
       return null;
     }

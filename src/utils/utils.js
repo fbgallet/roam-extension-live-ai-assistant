@@ -185,6 +185,16 @@ export function focusOnBlockInMainWindow(blockUid) {
   });
 }
 
+export function updateBlock({ blockUid, newContent, format = {} }) {
+  window.roamAlphaAPI.updateBlock({
+    block: {
+      uid: blockUid,
+      string: newContent,
+      ...format,
+    },
+  });
+}
+
 export function updateArrayOfBlocks(arrayOfBlocks) {
   if (arrayOfBlocks.length) {
     arrayOfBlocks.forEach((block) =>
@@ -196,6 +206,25 @@ export function updateArrayOfBlocks(arrayOfBlocks) {
       })
     );
   }
+}
+
+export function moveBlock({ blockUid, targetParentUid, order }) {
+  window.roamAlphaAPI.moveBlock({
+    location: { "parent-uid": targetParentUid, order: order || "last" },
+    block: { uid: blockUid },
+  });
+}
+
+export function deleteBlock(blockUid) {
+  window.roamAlphaAPI.deleteBlock({ block: { uid: blockUid } });
+}
+
+export function reorderBlocks({ parentUid, newOrder }) {
+  console.log("parentUid :>> ", parentUid);
+  window.roamAlphaAPI.data.block.reorderBlocks({
+    location: { "parent-uid": parentUid },
+    blocks: newOrder,
+  });
 }
 
 export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
@@ -296,13 +325,14 @@ export async function insertBlockInCurrentView(content, order) {
   return newUid;
 }
 
-export async function addContentToBlock(uid, contentToAdd) {
+export async function addContentToBlock(uid, contentToAdd, format = {}) {
   const currentContent = getBlockContentByUid(uid).trimEnd();
   // currentContent += currentContent ? " " : "";
   await window.roamAlphaAPI.updateBlock({
     block: {
       uid: uid,
       string: (currentContent ? currentContent + " " : "") + contentToAdd,
+      ...format,
     },
   });
 }
@@ -412,12 +442,12 @@ export function convertTreeToLinearArray(
         }
         if (!toExcludeWithChildren /*&& !toExcludeAsBlock*/)
           linearArray.push(
-            (toExcludeAsBlock ? "" : uidString) +
-              leftShift +
-              ((!withDash || level === 1) &&
-              ((maxUid && level > maxUid) || !maxUid)
-                ? ""
+            leftShift +
+              (!withDash || level === 1 //&&
+                ? //((maxUid && level > maxUid) || !maxUid)
+                  ""
                 : "- ") +
+              (toExcludeAsBlock ? "" : uidString + " ") +
               resolveReferences(content)
           );
       } else level--;
