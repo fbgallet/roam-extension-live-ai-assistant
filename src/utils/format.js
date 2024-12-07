@@ -24,7 +24,7 @@ export const sanitizeJSONstring = (str) => {
     .replace(codeBlockRegex, (match) => match.replace(/\n/g, "\\n"))
     // escape line break in all content string, if not already escaped
     .replace(jsonContentStringRegex, (match) =>
-      match.replace(notEscapedBreakLineRegex, "\\n")
+      match.replace(notEscapedBreakLineRegex, " \\n")
     );
   return sanitized;
 };

@@ -13,7 +13,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { tool } from "@langchain/core/tools";
 import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
 import { arrayOutputType, z } from "zod";
-import { OPENAI_API_KEY } from "../..";
+import { OPENAI_API_KEY, groqLibrary, openaiLibrary } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
@@ -23,11 +23,16 @@ import {
   reorderBlocks,
   updateBlock,
 } from "../../utils/utils";
-import { insertStructuredAIResponse } from "../../utils/format";
+import {
+  insertStructuredAIResponse,
+  sanitizeJSONstring,
+} from "../../utils/format";
 import { getTemplateForPostProcessing } from "../aiCommands";
+import { CallbackManager } from "@langchain/core/callbacks/manager";
 
 const TransformerState = Annotation.Root({
   ...MessagesAnnotation.spec,
+  rootUid: Annotation<String>,
   remainingOperations: Annotation<string>,
   notCompletedOperations: Annotation<string>,
   lastTurn: Annotation<boolean>,
@@ -53,55 +58,66 @@ const transformerSchema = z.object({
           ),
         blockUid: z
           .string()
+          .optional()
+          .nullable()
           .describe(
-            "The unique 9-characters identifier of the existing block being updated or moved (be sure that it's 9-characters, alphanumerical, including '-' and '_'), void string if action is 'create'"
+            "The unique UID of the existing block being updated, completed or moved (make sure that it's strickly 9-characters, without parentheses)(optional)"
           ),
         newContent: z
           .string()
           .optional()
+          .nullable()
           .describe(
             "The new content to create or to insert in the block, replacing or appended to the former (optional)"
           ),
         newChildren: z
           .string()
           .optional()
+          .nullable()
           .describe(
-            "If the block created has to be the parent of a rich content to be insert as children, provide its this content here."
+            "If the block created has to be the parent of a rich content to be insert as children, provide its this content here. (optional)"
           ),
         targetParentUid: z
           .string()
           .optional()
+          .nullable()
           .describe(
-            "If action is 'create', 'move' or 'reorder', the unique AND existing 9-characters identifier (eventually including - or _) of the parent block where this block should be created or inserted or reordered, or 'root' if the first level blocks are concerned. If target has no existing 9-char identifier, set to 'new', NEVER make up any identifier ! (optional)"
+            "If action is 'create', 'move' or 'reorder', the unique AND existing UID () of the parent block where this block should be created or inserted or reordered, or 'root' if the first level blocks are concerned. If target has no existing identifier, set to 'new', NEVER make up any identifier ! (optional)"
           ),
         newOrder: z
           .array(z.string())
           .optional()
+          .nullable()
           .describe(
-            "If action is 'reorder', an array of the 9-characters identifiers (only provided ones!) representing the new order of the concerned blocks (optional)"
+            "If action is 'reorder', an array of the UIDs (only provided ones, and make sure that it's strickly 9-characters, without parentheses!) representing the new order of the concerned blocks (optional)"
           ),
         position: z
           .number()
           .optional()
+          .nullable()
           .describe(
-            "Position of a created or moved block in its new level. '0' is first, let undefined to append as last block"
+            "Position (as a number) of a created or moved block in its new level. 0 is first, ignore this key to append as last block (optional)"
           ),
         format: z
           .object({
             open: z
               .boolean()
               .optional()
+              .nullable()
               .describe("block is expanded (true) or collapsed (false)"),
             heading: z
               .number()
               .optional()
+              .nullable()
               .describe("normal text is 0 (default), heading is 1|2|3"),
             "children-view-type": z
               .string()
               .optional()
+              .nullable()
               .describe("bullet|numbered|document"),
           })
           .optional()
+          .nullable()
           .describe(
             "Block format options: needed if action is 'format', optional if 'update', 'append' or 'create'"
           ),
@@ -112,7 +128,7 @@ const transformerSchema = z.object({
 
 // System message
 const sys_msg = new SystemMessage({
-  content: `You are a powerful assistant helping the user to update rich and structured data. The data is presented in the form of an outliner, with a set of hierarchically organized bullets (each hierarchical level is marked by two additional spaces before the dash). Each bullet (also called a 'block') provided in input has a 9-characters identifier (named 'uid) between double parentheses.
+  content: `You are a powerful assistant helping the user to update rich and structured data. The data is presented in the form of an outliner, with a set of hierarchically organized bullets (each hierarchical level is marked by two additional spaces before the dash). Each bullet (also called a 'block') provided in input has a 9-alphanumerical-characters (eventualy including '-' and '_') between double parentheses (now named 'UID').
   Based on the user's request, asking for modifications or additions to the outline, you must propose a set of precise operations to be performed for each affected block, only modifying or adding elements directly concerned by the user's request. Be judicious in selecting operations to be as efficient as possible, knowing that the operations will be executed sequentially. Here is the list of operations you can propose:
     - "update": replace the content of a block by a new content (use this instead of deleting then creating a new block).
     - "append": add content to the existing content in a block.
@@ -129,7 +145,7 @@ const sys_msg = new SystemMessage({
   - to write Latex code: $$Use Katex syntax$$
   - to insert checkbox (always to prepend), uncheked: {{[[TODO]]}}, checked: {{[[DONE]]}}
   - to reference or mention some page name: [[page name]]
-  - to reference to an existing block: ((uid)), or embeding it with its children: {{embed: ((uid))}}
+  - to reference to an existing block: ((UID)), or embeding it with its children: {{embed: ((UID))}}
   - to replace some content by an alias: [alias](content or reference)
 
   IMPORTANT: if a block has to be updated with a structured content, update the block only with the top level part (simple line, without linebreak) of the new content, and in other operations create children blocks to the updated block, eventually with their respective rich children, to better fit to the outliner UI. If you have to create multiple blocks at the same level, it requires multiple 'create' operations.
@@ -138,7 +154,7 @@ const sys_msg = new SystemMessage({
 
   OUTPUT LANGUAGE: your response will always be in the same language as the user request and provided outline.
 
-  Your precise response will be an JSON object, formatted according to the provided JSON schema.`,
+  Your precise response will be an JSON object, formatted according to the provided JSON schema. If a key is optional and your response would be 'null', just IGNORE this key!`,
 });
 
 // Node
@@ -147,15 +163,36 @@ const transformer = async (state: typeof TransformerState.State) => {
   let lastTurn = state.lastTurn || false;
   // LLM with bound tool
   let llm: StructuredOutputType;
+
+  const tokensUsageCallback = CallbackManager.fromHandlers({
+    async handleLLMEnd(output: any) {
+      console.log("Used tokens", output.llmOutput?.tokenUsage);
+    },
+  });
+
+  // llm = new ChatOpenAI({
+  //   model: "gpt-4o",
+  //   apiKey: openaiLibrary.apiKey,
+  //   configuration: {
+  //     baseURL: openaiLibrary.baseURL,
+  //   },
+  // callbackManager: tokensUsageCallback,
+  // });
+
+  // Using Groq:
   llm = new ChatOpenAI({
-    model: "gpt-4o",
-    apiKey: OPENAI_API_KEY,
+    model: "llama-3.3-70b-versatile",
+    apiKey: groqLibrary.apiKey,
+    configuration: {
+      baseURL: groqLibrary.baseURL,
+    },
+    callbackManager: tokensUsageCallback,
   });
   llm = llm.withStructuredOutput(transformerSchema);
   let messages = [sys_msg].concat(state["messages"]);
   if (notCompletedOperations) {
     const outlineCurrentState = await getTemplateForPostProcessing(
-      "4z7fuKaHh",
+      state.rootUid,
       99,
       [],
       false
@@ -170,8 +207,16 @@ const transformer = async (state: typeof TransformerState.State) => {
     lastTurn = true;
     notCompletedOperations = "";
   }
+  const begin = performance.now();
   const response = await llm.invoke(messages);
+  const end = performance.now();
+  console.log("LLM response :>> ", response);
+  console.log(
+    "Transformer request duration: ",
+    `${((end - begin) / 1000).toFixed(2)}s`
+  );
   return {
+    rootUid: "4z7fuKaHh",
     messages: [new AIMessage(response.message)],
     remainingOperations:
       response.operations && response.operations.length
@@ -206,13 +251,24 @@ const agent = async (state: typeof TransformerState.State) => {
           format,
         });
         if (newChildren)
-          await insertStructuredAIResponse(blockUid, newChildren);
+          await insertStructuredAIResponse(
+            blockUid,
+            sanitizeJSONstring(newChildren)
+          );
         break;
       case "append":
         console.log("append! :>> ");
-        await insertStructuredAIResponse(blockUid, newContent, false, format);
+        await insertStructuredAIResponse(
+          blockUid,
+          sanitizeJSONstring(newContent),
+          false,
+          format
+        );
         if (newChildren)
-          await insertStructuredAIResponse(blockUid, newChildren);
+          await insertStructuredAIResponse(
+            blockUid,
+            sanitizeJSONstring(newChildren)
+          );
         break;
       case "move":
         console.log("move! :>> ");
@@ -231,14 +287,18 @@ const agent = async (state: typeof TransformerState.State) => {
           notCompletedOperations += JSON.stringify(nextOperation) + "\n";
         else {
           const newBlockUid = await createChildBlock(
-            targetParentUid === "root" ? "4z7fuKaHh" : targetParentUid,
+            targetParentUid === "root" ? state.rootUid : targetParentUid,
             newContent,
             position,
             format?.open,
             format?.heading
           );
           if (newChildren)
-            await insertStructuredAIResponse(newBlockUid, newChildren, true);
+            await insertStructuredAIResponse(
+              newBlockUid,
+              sanitizeJSONstring(newChildren),
+              true
+            );
         }
         break;
       case "reorder":
@@ -250,7 +310,7 @@ const agent = async (state: typeof TransformerState.State) => {
           reorderBlocks({
             parentUid:
               !targetParentUid || targetParentUid === "root"
-                ? "4z7fuKaHh"
+                ? state.rootUid
                 : targetParentUid,
             newOrder,
           });
@@ -266,6 +326,7 @@ const agent = async (state: typeof TransformerState.State) => {
     }
     operations.shift();
   } else operations = [];
+  // await new Promise((resolve) => setTimeout(resolve, 500));
   return {
     remainingOperations: operations.length ? JSON.stringify(operations) : "",
     notCompletedOperations,

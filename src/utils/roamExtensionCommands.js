@@ -315,6 +315,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         false
       );
       console.log("outline :>> ", outline.stringified);
+      const begin = performance.now();
       const response = await transformerAgent.invoke({
         messages: [
           {
@@ -328,8 +329,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         ],
       });
       // console.log("response from command:>> ", response);
+      const end = performance.now();
       const message = response.messages[1].content;
       console.log("operations :>> ", message);
+      console.log(
+        "Total Agent request duration: ",
+        `${((end - begin) / 1000).toFixed(2)}s`
+      );
     },
   });
 
