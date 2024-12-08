@@ -910,6 +910,7 @@ export default {
       "Tokens usage :>> ",
       extensionAPI.settings.get("tokensCounter")
     );
+    extensionStorage.set("outlinerRootUid", null);
 
     createContainer();
 

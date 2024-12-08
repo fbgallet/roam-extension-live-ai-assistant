@@ -1,5 +1,11 @@
 import { faLessThanEqual } from "@fortawesome/free-solid-svg-icons";
-import { chatRoles, getInstantAssistantRole, isUsingWhisper } from "..";
+import {
+  chatRoles,
+  defaultModel,
+  extensionStorage,
+  getInstantAssistantRole,
+  isUsingWhisper,
+} from "..";
 import { calculAgent } from "../ai/agents/calcul-agent";
 import { transformerAgent } from "../ai/agents/canvas-agent";
 import {
@@ -42,6 +48,7 @@ import {
   sbParamRegex,
   simulateClick,
 } from "./utils";
+import { AppToaster } from "../components/VoiceRecorder";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -304,23 +311,62 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Test Agent",
+    label: "Live AI Assistant: Set as target for Outliner Agent",
     callback: async () => {
       let { currentUid, currentBlockContent, selectionUids } =
         getFocusAndSelection();
+      await extensionStorage.set(
+        "outlinerRootUid",
+        currentUid || (selectionUids.length ? selectionUids[0] : undefined)
+      );
+      if (!extensionStorage.get("outlinerRootUid"))
+        AppToaster.show({
+          message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
+        });
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Send this prompt to Outliner Agent",
+    callback: async () => {
+      let { currentUid, currentBlockContent, selectionUids } =
+        getFocusAndSelection();
+      if (!extensionStorage.get("outlinerRootUid")) {
+        AppToaster.show({
+          message: `An outline has to be set as target for Outliner Agent`,
+        });
+        return;
+      }
+      let prompt;
+      if (currentUid) {
+        prompt = currentBlockContent;
+      } else if (
+        selectionUids.length &&
+        document.querySelector(".block-highlight-blue")
+      ) {
+        prompt = getResolvedContentFromBlocks(selectionUids, false);
+        selectionUids = [];
+      } else {
+        AppToaster.show({
+          message: `Some block as to be focused or selected to be used as prompt sent to Outliner Agent`,
+        });
+        return;
+      }
       let outline = await getTemplateForPostProcessing(
-        "4z7fuKaHh",
+        extensionStorage.get("outlinerRootUid"),
         99,
         [],
         false
       );
-      console.log("outline :>> ", outline.stringified);
+      // console.log("outline :>> ", outline.stringified);
+      console.log("defaultModel :>> ", defaultModel);
       const begin = performance.now();
       const response = await transformerAgent.invoke({
+        rootUid: extensionStorage.get("outlinerRootUid"),
         messages: [
           {
             role: "user",
-            content: `${currentBlockContent}
+            content: `${prompt}
 
             Input outline:
             ${outline.stringified}
@@ -332,6 +378,11 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       const end = performance.now();
       const message = response.messages[1].content;
       console.log("operations :>> ", message);
+      if (message && message !== "N/A") {
+        AppToaster.show({
+          message: "Outliner Agent: " + message,
+        });
+      }
       console.log(
         "Total Agent request duration: ",
         `${((end - begin) / 1000).toFixed(2)}s`

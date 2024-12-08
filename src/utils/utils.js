@@ -904,11 +904,15 @@ export const getConversationArray = (parentUid) => {
   return conversation;
 };
 
-export const extractNormalizedUidFromRef = (str) => {
+export const extractNormalizedUidFromRef = (str, testIfExist = true) => {
   if (!str || (str && !(str.length === 9 || str.length === 13))) return "";
   const matchingResult = str.match(flexibleUidRegex);
   if (!matchingResult) return "";
-  return isExistingBlock(matchingResult[1]) ? matchingResult[1] : "";
+  return testIfExist
+    ? isExistingBlock(matchingResult[1])
+      ? matchingResult[1]
+      : ""
+    : matchingResult[1];
 };
 
 const normlizePageTitle = (str) => {

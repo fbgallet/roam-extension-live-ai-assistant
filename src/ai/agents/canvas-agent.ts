@@ -18,10 +18,12 @@ import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
   deleteBlock,
+  extractNormalizedUidFromRef,
   getBlockContentByUid,
   moveBlock,
   reorderBlocks,
   updateBlock,
+  updateTokenCounter,
 } from "../../utils/utils";
 import {
   insertStructuredAIResponse,
@@ -61,7 +63,7 @@ const transformerSchema = z.object({
           .optional()
           .nullable()
           .describe(
-            "The unique UID of the existing block being updated, completed or moved (make sure that it's strickly 9-characters, without parentheses)(optional)"
+            "The unique UID of the existing block being updated, completed or moved (make sure that it's strickly 9-characters) (optional)"
           ),
         newContent: z
           .string()
@@ -82,7 +84,7 @@ const transformerSchema = z.object({
           .optional()
           .nullable()
           .describe(
-            "If action is 'create', 'move' or 'reorder', the unique AND existing UID () of the parent block where this block should be created or inserted or reordered, or 'root' if the first level blocks are concerned. If target has no existing identifier, set to 'new', NEVER make up any identifier ! (optional)"
+            "If action is 'create', 'move' or 'reorder', the unique AND existing UID (make sure that it's strickly 9-characters) of the parent block where this block should be created or inserted or reordered, or 'root' if the first level blocks are concerned. If target has no existing identifier, set to 'new', NEVER make up any identifier ! (optional)"
           ),
         newOrder: z
           .array(z.string())
@@ -167,27 +169,33 @@ const transformer = async (state: typeof TransformerState.State) => {
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {
       console.log("Used tokens", output.llmOutput?.tokenUsage);
+      const usage = {
+        input_tokens: output.llmOutput?.tokenUsage?.promptTokens,
+        output_tokens: output.llmOutput?.tokenUsage?.completionTokens,
+      };
+      updateTokenCounter("gpt-4o", usage);
     },
   });
 
-  // llm = new ChatOpenAI({
-  //   model: "gpt-4o",
-  //   apiKey: openaiLibrary.apiKey,
-  //   configuration: {
-  //     baseURL: openaiLibrary.baseURL,
-  //   },
-  // callbackManager: tokensUsageCallback,
-  // });
-
-  // Using Groq:
   llm = new ChatOpenAI({
-    model: "llama-3.3-70b-versatile",
-    apiKey: groqLibrary.apiKey,
+    model: "gpt-4o",
+    apiKey: openaiLibrary.apiKey,
     configuration: {
-      baseURL: groqLibrary.baseURL,
+      baseURL: openaiLibrary.baseURL,
     },
     callbackManager: tokensUsageCallback,
   });
+
+  // Using Groq:
+  // llm = new ChatOpenAI({
+  //   model: "llama-3.3-70b-versatile",
+  //   apiKey: groqLibrary.apiKey,
+  //   configuration: {
+  //     baseURL: groqLibrary.baseURL,
+  //   },
+  //   callbackManager: tokensUsageCallback,
+  // });
+
   llm = llm.withStructuredOutput(transformerSchema);
   let messages = [sys_msg].concat(state["messages"]);
   if (notCompletedOperations) {
@@ -216,7 +224,6 @@ const transformer = async (state: typeof TransformerState.State) => {
     `${((end - begin) / 1000).toFixed(2)}s`
   );
   return {
-    rootUid: "4z7fuKaHh",
     messages: [new AIMessage(response.message)],
     remainingOperations:
       response.operations && response.operations.length
@@ -232,7 +239,7 @@ const agent = async (state: typeof TransformerState.State) => {
   let operations = JSON.parse(state.remainingOperations);
   const nextOperation = operations && operations.length ? operations[0] : null;
   if (nextOperation) {
-    const {
+    let {
       action,
       blockUid,
       targetParentUid,
@@ -242,6 +249,14 @@ const agent = async (state: typeof TransformerState.State) => {
       position,
       format,
     } = nextOperation;
+    blockUid && (blockUid = extractNormalizedUidFromRef(blockUid, false));
+    targetParentUid &&
+      (targetParentUid = extractNormalizedUidFromRef(targetParentUid, false));
+    newChildren && (newChildren = sanitizeJSONstring(newChildren));
+    newOrder &&
+      newOrder.length &&
+      (newOrder = newOrder.map((item: string) => sanitizeJSONstring(item)));
+
     switch (action) {
       case "update":
         console.log("update! :>> ");
@@ -251,10 +266,7 @@ const agent = async (state: typeof TransformerState.State) => {
           format,
         });
         if (newChildren)
-          await insertStructuredAIResponse(
-            blockUid,
-            sanitizeJSONstring(newChildren)
-          );
+          await insertStructuredAIResponse(blockUid, newChildren);
         break;
       case "append":
         console.log("append! :>> ");
@@ -265,10 +277,7 @@ const agent = async (state: typeof TransformerState.State) => {
           format
         );
         if (newChildren)
-          await insertStructuredAIResponse(
-            blockUid,
-            sanitizeJSONstring(newChildren)
-          );
+          await insertStructuredAIResponse(blockUid, newChildren);
         break;
       case "move":
         console.log("move! :>> ");
@@ -294,11 +303,7 @@ const agent = async (state: typeof TransformerState.State) => {
             format?.heading
           );
           if (newChildren)
-            await insertStructuredAIResponse(
-              newBlockUid,
-              sanitizeJSONstring(newChildren),
-              true
-            );
+            await insertStructuredAIResponse(newBlockUid, newChildren, true);
         }
         break;
       case "reorder":
