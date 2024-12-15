@@ -67,7 +67,7 @@ import {
   trimOutsideOuterBraces,
 } from "../utils/format";
 import ModelsMenu from "../components/ModelsMenu";
-import { tokensLimit } from "./modelsInfo";
+import { normalizeClaudeModel, tokensLimit } from "./modelsInfo";
 
 export const lastCompletion = {
   prompt: null,
@@ -180,6 +180,71 @@ export async function translateAudio(filename) {
   }
 }
 
+export function modelAccordingToProvider(model) {
+  const llm = {
+    provider: "",
+    prefix: "",
+    id: "",
+    library: undefined,
+  };
+  model = model.toLowerCase();
+  console.log("model :>> ", model);
+  let prefix = model.split("/")[0];
+  if (model.includes("openrouter")) {
+    llm.provider = "openRouter";
+    llm.prefix = "openRouter/";
+    llm.id =
+      prefix === "openrouter"
+        ? model.replace("openrouter/", "")
+        : openRouterModels.length
+        ? openRouterModels[0]
+        : undefined;
+    llm.library = openrouterLibrary;
+  } else if (model.includes("ollama")) {
+    llm.provider = "ollama";
+    llm.prefix = "ollama/";
+    llm.id =
+      prefix === "ollama"
+        ? model.replace("ollama/", "")
+        : ollamaModels.length
+        ? ollamaModels[0]
+        : undefined;
+  } else if (model.includes("groq")) {
+    llm.provider = "groq";
+    llm.prefix = "groq/";
+    llm.id =
+      llm.prefix === "groq"
+        ? model.replace("groq/", "")
+        : groqModels.length
+        ? groqModels[0]
+        : undefined;
+    llm.library = groqLibrary;
+  } else if (model.slice(0, 6) === "claude") {
+    llm.provider = "Anthropic";
+    llm.id = normalizeClaudeModel(model);
+    llm.library = anthropicLibrary;
+  } else {
+    llm.provider = "OpenAI";
+    llm.id = model;
+    llm.library = openaiLibrary;
+  }
+  if (!llm.id) {
+    AppToaster.show({
+      message: `No model available in the settings for the current provider: ${llm.provider}.`,
+      timeout: 15000,
+    });
+    return null;
+  }
+  if (!llm.library.apiKey) {
+    AppToaster.show({
+      message: `Provide an API key to use ${llm.model} model. See doc and settings.`,
+      timeout: 15000,
+    });
+    return null;
+  }
+  return llm;
+}
+
 async function aiCompletion(
   instantModel,
   prompt,
@@ -192,101 +257,50 @@ async function aiCompletion(
   let hasAPIkey = true;
   let model = instantModel || defaultModel;
 
-  if (
-    (model === "first OpenRouter model" ||
-      model.toLowerCase() === "openrouter") &&
-    openRouterModels.length
-  ) {
-    model = "openRouter/" + openRouterModels[0];
-  } else if (
-    (model === "first Ollama local model" ||
-      model.toLowerCase() === "ollama") &&
-    ollamaModels.length
-  ) {
-    model = "ollama/" + ollamaModels[0];
-  } else if (
-    (model === "first Groq model" || model.toLowerCase() === "groq") &&
-    groqModels.length
-  ) {
-    model = "groq/" + groqModels[0];
-  }
-  let prefix = model.split("/")[0];
+  const llm = modelAccordingToProvider(model);
+  if (!llm) return "";
+
   if (
     responseFormat === "json_object" &&
     !prompt[0].content.includes(instructionsOnJSONResponse)
   ) {
     prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
   }
-  // else {
-  //   if (!content.includes(hierarchicalResponseFormat))
-  //     content += "\n\n" + hierarchicalResponseFormat;
-  // }
 
   console.log(
     "Initial instructions and context (eventually truncated):\n",
     content
   );
 
-  if (prefix === "openRouter") {
-    if (!openrouterLibrary?.apiKey) hasAPIkey = false;
-    else
-      aiResponse = await openaiCompletion(
-        openrouterLibrary,
-        model.replace("openRouter/", ""),
-        prompt,
-        content,
-        responseFormat,
-        targetUid
-      );
-  } else if (prefix === "groq") {
+  if (
+    llm.provider === "OpenAI" ||
+    llm.provider === "openRouter" ||
+    llm.provider === "groq"
+  ) {
     aiResponse = await openaiCompletion(
-      groqLibrary,
-      model.replace("groq/", ""),
+      llm.library,
+      llm.id,
       prompt,
       content,
       responseFormat,
       targetUid
     );
-  } else if (prefix === "ollama") {
+  } else if (llm.provider === "ollama") {
     aiResponse = await ollamaCompletion(
-      model.replace("ollama/", ""),
+      llm.id,
       prompt,
       content,
       responseFormat,
       targetUid
     );
   } else {
-    if (model.slice(0, 6).toLowerCase() === "claude") {
-      if (!ANTHROPIC_API_KEY) {
-        hasAPIkey = false;
-      } else
-        aiResponse = await claudeCompletion(
-          model,
-          prompt,
-          content,
-          responseFormat,
-          targetUid
-        );
-    } else {
-      if (!openaiLibrary?.apiKey) {
-        hasAPIkey = false;
-      } else
-        aiResponse = await openaiCompletion(
-          openaiLibrary,
-          model,
-          prompt,
-          content,
-          responseFormat,
-          targetUid
-        );
-    }
-    if (!hasAPIkey) {
-      AppToaster.show({
-        message: `Provide an API key to use ${model} model. See doc and settings.`,
-        timeout: 15000,
-      });
-      return "";
-    }
+    aiResponse = await claudeCompletion(
+      llm.id,
+      prompt,
+      content,
+      responseFormat,
+      targetUid
+    );
   }
 
   if (responseFormat === "json_object") {
@@ -297,7 +311,7 @@ async function aiCompletion(
   }
   if (aiResponse)
     insertInstantButtons({
-      model,
+      model: llm.prefix + llm.id,
       prompt,
       content,
       responseFormat,
@@ -319,37 +333,7 @@ async function claudeCompletion(
   targetUid
 ) {
   if (ANTHROPIC_API_KEY) {
-    // Anthropic models: https://docs.anthropic.com/claude/docs/models-overview#model-recommendations
-    // Claude 3 Opus : claude-3-opus-20240229
-    // Claude 3 Sonnet	: claude-3-sonnet-20240229
-    // Claude 3 Haiku :	claude-3-haiku-20240307
-    switch (model.toLowerCase()) {
-      case "claude-3-opus":
-      case "claude-3-opus-20240229":
-      case "claude opus":
-        model = "claude-3-opus-20240229";
-        break;
-      case "claude-sonnet-3.5":
-      case "claude-3-5-sonnet-20241022":
-      case "claude sonnet 3.5":
-        model = "claude-3-5-sonnet-20241022";
-        // model = "claude-3-5-sonnet-20240620"; previous version
-        // model = "claude-3-sonnet-20240229"; previous version
-        break;
-      case "claude-haiku-3.5":
-      case "claude-3-5-haiku-20241022":
-      case "claude haiku 3.5":
-        model = "claude-3-5-haiku-20241022";
-        break;
-      case "claude-haiku":
-      case "claude-3-haiku-20240307":
-      case "claude haiku":
-        model = "claude-3-haiku-20240307";
-        break;
-      default:
-        model = "claude-3-5-haiku-20241022";
-    }
-    console.log("model :>> ", model);
+    model = normalizeClaudeModel(model);
     try {
       let messages = [
         {

@@ -393,12 +393,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Natural Language Query",
+    label: "Live AI Assistant: Natural Language Query converter",
     callback: async () => {
       let { currentUid, currentBlockContent, selectionUids } =
         getFocusAndSelection();
 
       const response = await NLQueryInterpreter.invoke({
+        model: defaultModel,
         rootUid: currentUid,
         userNLQuery: currentBlockContent,
       });
