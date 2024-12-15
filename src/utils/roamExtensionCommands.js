@@ -49,6 +49,8 @@ import {
   simulateClick,
 } from "./utils";
 import { AppToaster } from "../components/VoiceRecorder";
+import { queryAgent } from "../ai/agents/query-agent";
+import { NLQueryInterpreter } from "../ai/agents/nl-query";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -387,6 +389,20 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         "Total Agent request duration: ",
         `${((end - begin) / 1000).toFixed(2)}s`
       );
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Natural Language Query",
+    callback: async () => {
+      let { currentUid, currentBlockContent, selectionUids } =
+        getFocusAndSelection();
+
+      const response = await NLQueryInterpreter.invoke({
+        rootUid: currentUid,
+        userNLQuery: currentBlockContent,
+      });
+      console.log("Agent response:>>", response);
     },
   });
 

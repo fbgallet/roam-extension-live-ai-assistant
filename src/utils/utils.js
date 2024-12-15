@@ -14,6 +14,8 @@ import { tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "../components/VoiceRecorder";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
+export const dnpUidRegex =
+  /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)\d{2}$/;
 export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
 export const pageRegex = /\[\[.*\]\]/g;
 export const strictPageRegex = /^\[\[.*\]\]$/; // very simplified, not recursive...
@@ -752,9 +754,26 @@ export const isCurrentPageDNP = async () => {
   return dateStringRegex.test(pageUid);
 };
 
+export const getDNPTitleFromDate = (date) => {
+  return window.roamAlphaAPI.util.dateToPageTitle(date);
+};
+
 const getYesterdayDate = (date = null) => {
   if (!date) date = new Date();
   return new Date(date.getTime() - 24 * 60 * 60 * 1000);
+};
+
+export const getDateStringFromDnpUid = (dnpUid) => {
+  const parts = dnpUid.split("-");
+  const date = new Date(parts[2], parts[0] - 1, parts[1]);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const formattedDate = formatter.format(date);
+  return formattedDate;
 };
 
 const getMatchingInlineCommand = (text, regex) => {

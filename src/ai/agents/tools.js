@@ -3,90 +3,69 @@
                                             */
 
 const qInitialA = `[:find ?uid ?str
-    :in $ % ?block-mentionA ?block-mentionB ?exclude-mention1 ?exclude-mention2
+    :in $ % [?block-mentions ...] [?exclude1 ?exclude2]
     :where
-      (or 
-        (has-mention ?blocks ?block-mentionA)
-        (has-mention ?blocks ?block-mentionB)
+      (or
+        (has-mention ?blocks ?block-mentions)
       )
       (not 
         (or
-          (has-mention ?blocks ?exclude-mention1)
-          (has-mention ?blocks ?exclude-mention2)
+          (has-mention ?blocks ?exclude1)
+          (has-mention ?blocks ?exclude2)
         )
       )
       (not [?blocks :block/parents ?parents] 
         (or
-          (has-mention ?parents ?exclude-mention1)
-          (has-mention ?parents ?exclude-mention2)
+          (has-mention ?parents ?exclude1)
+          (has-mention ?parents ?exclude2)
         ))
       [?blocks :block/uid ?uid]
       [?blocks :block/string ?str]]`;
 // 2. Parmi les résultats précédents, ceux qui contiennent aussi C ou D
 const qWithBC = `[:find ?uid ?str
-    :in $ % [[?filtered-uid ?filtered-str]] ?mentionC ?mentionD
-    :where
-      [?blocks :block/uid ?filtered-uid]
-      (or
-        (has-mention ?blocks ?mentionC)
-        (has-mention ?blocks ?mentionD)
-      )
-      [?blocks :block/string ?str]
-      [?blocks :block/uid ?uid]]`;
+  :in $ % [[?filtered-uid ?filtered-str]] [?mentions ...]
+  :where
+    [?blocks :block/uid ?filtered-uid]
+    (or
+      (has-mention ?blocks ?mentions)
+    )
+    [?blocks :block/string ?str]
+    [?blocks :block/uid ?uid]]`;
 // 3. Blocs avec B ou C dans leurs parents
 const qParentsBC = `[:find ?uid ?str
-    :in $ % [[?filtered-uid ?filtered-str]] ?mentionC ?mentionD
-    :where
-      [?blocks :block/uid ?filtered-uid]
-      [?blocks :block/parents ?parents]
-      (or
-        (has-mention ?parents ?mentionC)
-        (has-mention ?parents ?mentionD)
-      )
-      [?blocks :block/uid ?uid]
-      [?blocks :block/string ?str]]`;
+  :in $ % [[?filtered-uid ?filtered-str]] [?mentions ...]
+  :where
+    [?blocks :block/uid ?filtered-uid]
+    [?blocks :block/parents ?parents]
+    (or
+      (has-mention ?parents ?mentions)
+    )
+    [?blocks :block/uid ?uid]
+    [?blocks :block/string ?str]]`;
 // 4. Blocs avec B ou C dans leurs descendants
 const qDescendantsBC = `[:find ?uid ?str
-    :in $ % [[?filtered-uid ?filtered-str]] ?mentionC ?mentionD
-    :where
-      [?blocks :block/uid ?filtered-uid]
-      (ancestors ?children ?blocks)
-      (or
-        (has-mention ?children ?mentionC)
-        (has-mention ?children ?mentionD)
-      )
-      [?children :block/uid ?uid]
-      [?children :block/string ?str]]`;
+  :in $ % [[?filtered-uid ?filtered-str]] [?mentions ...]
+  :where
+    [?blocks :block/uid ?filtered-uid]
+    (ancestors ?children ?blocks)
+    (or
+      (has-mention ?children ?mentions)
+    )
+    [?children :block/uid ?uid]
+    [?children :block/string ?str]]`;
 const qSameLevel = `[:find ?uid ?str
-    :in $ % [[?filtered-uid _]] ?mentionC ?mentionD
-    :where
-      [?blocks :block/uid ?filtered-uid]
-      [?blocks :block/parents ?parents]
-      [?siblings :block/parents ?parents]
-      [(not= ?siblings ?blocks)]
-      [?parents :block/uid ?uid]
-      [?parents :block/string ?str]
-      [?parents :block/children ?blocks]
-      [?parents :block/children ?siblings]
-      (or
-        (has-mention ?siblings ?mentionC)
-        (has-mention ?siblings ?mentionD)
-      )
-      ]`;
-const qSameHierarchy = `[:find ?uid ?str
-    :in $ % [[?filtered-uid _]] ?mentionC ?mentionD
-    :where
-      [?blocks :block/uid ?filtered-uid]
-      [?blocks :block/parents ?parents]
-      [?siblings :block/parents ?parents]
-      [(not= ?siblings ?blocks)]
-      [?parents :block/uid ?uid]
-      [?parents :block/string ?str]
-      (or
-        (has-mention ?siblings ?mentionC)
-        (has-mention ?siblings ?mentionD)
-      )
-      ]`;
+  :in $ % [[?filtered-uid _]] [?mentions ...]
+  :where
+    [?blocks :block/uid ?filtered-uid]
+    [?blocks :block/parents ?parents]
+    [(not= ?siblings ?blocks)]
+    [?siblings :block/parents ?parents]
+    [?parents :block/children ?blocks]
+    [?parents :block/children ?siblings]
+    (has-mention ?siblings ?mentions)
+    [?parents :block/uid ?uid]
+    [?parents :block/string ?str]
+    ]`;
 const rules = `[[(ancestors ?child ?parent)
     [?parent :block/children ?child]]
     [(ancestors ?child ?ancestor)
