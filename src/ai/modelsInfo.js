@@ -30,13 +30,17 @@ export const modelsPricing = {
     input: 0.015,
     output: 0.06,
   },
+  o1: {
+    input: 0.015,
+    output: 0.06,
+  },
   "claude-3-haiku-20240307": {
     input: 0.00025,
     output: 0.00125,
   },
   "claude-3-5-haiku-20241022": {
-    input: 0.001,
-    output: 0.005,
+    input: 0.0008,
+    output: 0.004,
   },
   "claude-3-5-sonnet-20241022": {
     input: 0.003,

@@ -29,6 +29,31 @@ export const sanitizeJSONstring = (str) => {
   return sanitized;
 };
 
+export const sanitizeClaudeJSON = (str) => {
+  str = trimOutsideOuterBraces(str);
+  str = str.replace(/\\"/g, '"');
+  str = str.replace(/(begin|end|relative)/g, '"$1"');
+  str = sanitizeJSONstring(str);
+  return str;
+};
+
+export const balanceBraces = (str) => {
+  str = str.trim();
+  const openBraces = (str.match(/{/g) || []).length;
+  const closeBraces = (str.match(/}/g) || []).length;
+  if (openBraces === closeBraces) return str;
+  // if (!str.startsWith('{') || !str.endsWith('}')) {
+  //   throw new Error('str has to begin and end with braces');
+  // }
+  const diff = openBraces - closeBraces;
+  if (diff > 0) {
+    return str + "}".repeat(diff);
+  } else if (diff < 0) {
+    return str + "{".repeat(Math.abs(diff));
+  }
+  return str;
+};
+
 export const splitParagraphs = (str) => {
   codeBlockRegex.lastIndex = 0;
   // clean double line break

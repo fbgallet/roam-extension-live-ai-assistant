@@ -16,12 +16,10 @@ import {
   getPageUidByBlockUid,
   updateTokenCounter,
 } from "../../utils/utils";
-import {
-  interpreterSystemPrompt,
-  queryCheckerSysPrompt,
-} from "./agent-prompts";
+import { interpreterSystemPrompt } from "./agent-prompts";
 import { modelAccordingToProvider } from "../aiCommands";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
+import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
 
 interface PeriodType {
   begin: string;
@@ -37,6 +35,7 @@ const QueryAgentState = Annotation.Root({
   model: Annotation<string>,
   rootUid: Annotation<string>,
   userNLQuery: Annotation<string>,
+  llmResponse: Annotation<any>,
   roamQuery: Annotation<string>,
   period: Annotation<PeriodType>,
 });
@@ -101,30 +100,66 @@ const loadModel = async (state: typeof QueryAgentState.State) => {
 };
 
 const interpreter = async (state: typeof QueryAgentState.State) => {
-  // let llm: StructuredOutputType;
-
+  const isClaudeModel = state.model.toLowerCase().includes("claude");
   const currentPageUid = getPageUidByBlockUid(state.rootUid);
   const currentDate = dnpUidRegex.test(currentPageUid)
     ? getDateStringFromDnpUid(currentPageUid)
     : getDateStringFromDnpUid(new Date());
 
-  const structuredLlm = llm.withStructuredOutput(querySchema);
+  const rawOption = isClaudeModel
+    ? {
+        includeRaw: true,
+      }
+    : {};
+  const structuredLlm = llm.withStructuredOutput(querySchema, rawOption);
   const sys_msg = new SystemMessage({
-    content:
-      interpreterSystemPrompt.replace("<CURRENT_DATE>", currentDate) +
-      (state.model.toLowerCase().includes("claude")
-        ? '\nVERY IMPORTANT: You must always return valid JSON fenced by a markdown code block. Do not return any additional text and NEVER escape quotation marks for string values in the object! E.g., write {key: "value"} but NEVER {key: "value"}.'
-        : ""),
+    content: interpreterSystemPrompt.replace("<CURRENT_DATE>", currentDate),
   });
-  console.log("sys_msg :>> ", sys_msg);
+  // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([new HumanMessage(state.userNLQuery)]);
-  const response = await structuredLlm.invoke(messages);
-  console.log(response);
+  let response = await structuredLlm.invoke(messages);
+
   return {
-    roamQuery: response.roamQuery,
-    period: response.period || null,
+    llmResponse: response,
   };
 };
+
+const formatChecker = async (state: typeof QueryAgentState.State) => {
+  // let messages = [new SystemMessage({ content: queryCheckerSysPrompt })].concat(
+  //   [
+  //     new HumanMessage(
+  //       `Here is the initial user request: ${state.userNLQuery}
+  //   Here's how it is currently transcribed in Roam query syntax: ${state.roamQuery}`
+  //     ),
+  //   ]
+  // );
+  // const response = await llm.invoke(messages);
+  console.log("Query before correction :>>", state.llmResponse.roamQuery);
+  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  if (isClaudeModel) {
+    const raw = state.llmResponse.raw.content[0];
+    if (!state.llmResponse.parsed) {
+      console.log("raw: ", raw);
+      if (raw?.input?.period && raw?.input?.roamQuery) {
+        console.log("raw period: ", raw?.input?.period);
+        state.llmResponse.period = JSON.parse(
+          balanceBraces(sanitizeClaudeJSON(raw.input.period))
+        );
+        console.log("parsed period :>> ", state.llmResponse.period);
+        state.llmResponse.roamQuery = raw?.input?.roamQuery;
+      }
+    } else {
+      state.llmResponse = state.llmResponse.parsed;
+    }
+  }
+  const correctedQuery = balanceBraces(state.llmResponse.roamQuery);
+  console.log("Query after correction :>> ", correctedQuery);
+  return {
+    roamQuery: correctedQuery,
+    period: state.llmResponse.period || null,
+  };
+};
+
 const periodFormater = async (state: typeof QueryAgentState.State) => {
   const relative = state.period.relative;
   let begin =
@@ -165,41 +200,6 @@ const periodFormater = async (state: typeof QueryAgentState.State) => {
   };
 };
 
-const formatChecker = async (state: typeof QueryAgentState.State) => {
-  let messages = [new SystemMessage({ content: queryCheckerSysPrompt })].concat(
-    [
-      new HumanMessage(
-        `Here is the initial user request: ${state.userNLQuery}
-    Here's how it is currently transcribed in Roam query syntax: ${state.roamQuery}`
-      ),
-    ]
-  );
-  const response = await llm.invoke(messages);
-  const correctedQuery = balanceBraces(response.content);
-  console.log("Query before correction :>>", state.roamQuery);
-  console.log("Query after correction :>> ", correctedQuery);
-  return {
-    roamQuery: correctedQuery,
-  };
-};
-
-function balanceBraces(str: string): string {
-  str = str.trim();
-  const openBraces = (str.match(/{/g) || []).length;
-  const closeBraces = (str.match(/}/g) || []).length;
-  if (openBraces === closeBraces) return str;
-  // if (!str.startsWith('{') || !str.endsWith('}')) {
-  //   throw new Error('str has to begin and end with braces');
-  // }
-  const diff = openBraces - closeBraces;
-  if (diff > 0) {
-    return str + "}".repeat(diff);
-  } else if (diff < 0) {
-    return str + "{".repeat(Math.abs(diff));
-  }
-  return str;
-}
-
 const insertQuery = async (state: typeof QueryAgentState.State) => {
   createChildBlock(state.rootUid, state.roamQuery, "first");
   return state;
@@ -211,7 +211,7 @@ const insertQuery = async (state: typeof QueryAgentState.State) => {
 
 const hasPeriod = (state: typeof QueryAgentState.State) => {
   if (state.period) return "periodFormater";
-  return "checker";
+  return "insertQuery";
 };
 
 // const isToCheck = (state: typeof QueryAgentState.State) => {
@@ -224,15 +224,15 @@ const builder = new StateGraph(QueryAgentState);
 builder
   .addNode("loadModel", loadModel)
   .addNode("interpreter", interpreter)
-  .addNode("periodFormater", periodFormater)
   .addNode("checker", formatChecker)
+  .addNode("periodFormater", periodFormater)
   .addNode("insertQuery", insertQuery)
 
   .addEdge(START, "loadModel")
   .addEdge("loadModel", "interpreter")
-  .addConditionalEdges("interpreter", hasPeriod)
-  .addEdge("periodFormater", "checker")
-  .addEdge("checker", "insertQuery");
+  .addEdge("interpreter", "checker")
+  .addConditionalEdges("checker", hasPeriod)
+  .addEdge("periodFormater", "insertQuery");
 
 // Compile graph
 export const NLQueryInterpreter = builder.compile();

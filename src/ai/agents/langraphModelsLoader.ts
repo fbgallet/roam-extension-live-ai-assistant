@@ -14,17 +14,30 @@ export interface LlmInfos {
   library: any;
 }
 
+export interface TokensUsage {
+  input_tokens: number;
+  output_tokens: number;
+}
+
 export function modelViaLanggraph(llmInfos: LlmInfos) {
   let llm;
 
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {
-      console.log("Used tokens", output.llmOutput?.tokenUsage);
-      const usage = {
-        input_tokens: output.llmOutput?.tokenUsage?.promptTokens,
-        output_tokens: output.llmOutput?.tokenUsage?.completionTokens,
+      console.log(
+        "Used tokens",
+        output.llmOutput?.tokenUsage || output.llmOutput?.usage
+      );
+      const usage: TokensUsage = {
+        input_tokens:
+          output.llmOutput?.tokenUsage?.promptTokens ||
+          output.llmOutput?.usage?.input_tokens,
+        output_tokens:
+          output.llmOutput?.tokenUsage?.completionTokens ||
+          output.llmOutput?.usage?.output_tokens,
       };
-      updateTokenCounter(llmInfos.id, usage);
+      if (usage.input_tokens && usage.output_tokens)
+        updateTokenCounter(llmInfos.id, usage);
     },
   });
 
