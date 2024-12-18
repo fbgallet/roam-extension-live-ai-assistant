@@ -20,8 +20,11 @@ import {
   specificContentPromptBeforeTemplate,
 } from "../ai/prompts";
 import {
+  displaySpinner,
   displayTokensDialog,
+  insertInstantButtons,
   mountComponent,
+  removeSpinner,
   simulateClickOnRecordingButton,
   toggleComponentVisibility,
   unmountComponent,
@@ -50,7 +53,10 @@ import {
 } from "./utils";
 import { AppToaster } from "../components/VoiceRecorder";
 import { queryAgent } from "../ai/agents/query-agent";
-import { NLQueryInterpreter } from "../ai/agents/nl-query";
+import {
+  NLQueryInterpreter,
+  invokeNLQueryInterpreter,
+} from "../ai/agents/nl-query";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -393,24 +399,16 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Natural Language Query converter",
+    label: "Live AI Assistant: Natural language Query Agent",
     callback: async () => {
       let { currentUid, currentBlockContent, selectionUids } =
         getFocusAndSelection();
-
-      const response = await NLQueryInterpreter.invoke({
-        model: defaultModel,
-        rootUid: currentUid,
-        userNLQuery: currentBlockContent,
+      await invokeNLQueryInterpreter({
+        currentUid,
+        prompt: currentBlockContent,
       });
-      console.log("Agent response:>>", response);
     },
   });
-
-  // const agentNextState = await graph.invoke({
-  //   foo: [1],
-  // });
-  // console.log(agentNextState);
 
   // Add SmartBlock command
   const speechCmd = {
@@ -438,108 +436,25 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         context,
         target,
         model,
-        //  includeChildren = "true",
         contextDepth,
         includeRefs = "false"
       ) => {
-        const assistantRole = model
-          ? getInstantAssistantRole(model)
-          : chatRoles.assistant;
-        const currentUid = sbContext.currentUid;
-        let { currentBlockContent, selectionUids } =
-          getFocusAndSelection(currentUid);
-        let toAppend = "";
-        let targetUid;
-        let isContentToReplace = false;
-
-        let stringifiedPrompt = "";
-        if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
-          if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
-          const splittedPrompt = prompt.split("+");
-          splittedPrompt.forEach((subPrompt) => {
-            if (subPrompt === "current")
-              stringifiedPrompt +=
-                (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
-            else {
-              const promptUid = extractNormalizedUidFromRef(subPrompt);
-              if (promptUid) {
-                stringifiedPrompt +=
-                  (stringifiedPrompt ? "\n\n" : "") +
-                  getFlattenedContentFromTree(
-                    promptUid,
-                    99,
-                    // includeChildren === "false"
-                    //   ? 1
-                    //   : isNaN(parseInt(includeChildren))
-                    //   ? 99
-                    //   : parseInt(includeChildren),
-                    0
-                  );
-              } else
-                stringifiedPrompt +=
-                  (stringifiedPrompt ? "\n\n" : "") + subPrompt;
-            }
+        let { stringifiedPrompt, targetUid, stringifiedContext, instantModel } =
+          await getInfosFromSmartBlockParams({
+            sbContext,
+            prompt,
+            context,
+            target,
+            model,
+            contextDepth,
+            includeRefs,
           });
-        } else stringifiedPrompt = resolveReferences(prompt);
-        prompt = stringifiedPrompt;
-
-        context =
-          context === "{current}"
-            ? currentBlockContent
-            : await getContextFromSbCommand(
-                context,
-                currentUid,
-                selectionUids,
-                contextDepth,
-                includeRefs,
-                model
-              );
-
-        if (
-          (!target && !currentBlockContent.trim()) ||
-          target === "{current}"
-        ) {
-          target = "{replace}";
-          simulateClick(document.querySelector(".roam-body-main"));
-        }
-
-        if (target && target.slice(0, 8) === "{append:") {
-          toAppend = target.slice(8, -1);
-          target = "{append}";
-        }
-
-        switch (target) {
-          case "{replace}":
-          case "{replace-}":
-            isContentToReplace = true;
-          case "{append}":
-            targetUid = currentUid;
-            break;
-          default:
-            const uid = target
-              ? extractNormalizedUidFromRef(target.trim())
-              : "";
-            targetUid =
-              uid ||
-              (await createChildBlock(
-                currentUid,
-                model ? getInstantAssistantRole(model) : chatRoles.assistant
-              ));
-        }
-        if (isContentToReplace) {
-          await window.roamAlphaAPI.updateBlock({
-            block: {
-              uid: currentUid,
-              string: target === "{replace-}" ? "" : assistantRole,
-            },
-          });
-        }
 
         insertCompletion({
-          prompt: prompt,
+          prompt: stringifiedPrompt,
           targetUid,
-          context,
-          instantModel: model,
+          context: stringifiedContext,
+          instantModel: instantModel || model,
           typeOfCompletion: "gptCompletion",
           isInConversation: false,
         });
@@ -627,10 +542,153 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       },
   };
 
+  const agentCmd = {
+    text: "LIVEAIAGENT",
+    help: `Live AI Assistant Agent calling.
+      \nParameters:
+      \n1: Agent name
+      \n2: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
+      \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
+      \n3: target block reference (default: first child)
+      \n4: model (default Live AI model or model ID)`,
+    // \n5: levels within the refs/log to include in the context (number, default fixed in settings)
+    // \n6: includes all block references in context (true/false, default: false),
+    handler:
+      (sbContext) =>
+      async (agent, prompt = "{current}", context, target, model) => {
+        const currentUid = sbContext.currentUid;
+        let { stringifiedPrompt, targetUid, stringifiedContext, instantModel } =
+          await getInfosFromSmartBlockParams({
+            sbContext,
+            prompt,
+            context,
+            target,
+            model,
+            isRoleToInsert: false,
+          });
+        const agentName = agent.toLowerCase().trim().replace("agent", "");
+        switch (agentName) {
+          case "nlquery":
+            await invokeNLQueryInterpreter({
+              model: instantModel || model,
+              currentUid,
+              targetUid,
+              prompt: stringifiedPrompt,
+            });
+            break;
+          default:
+            return "ERROR: a correct agent name is needed as first parameter of this SmartBlock. Available agents: nlagent.";
+        }
+        return "";
+      },
+  };
+
+  const getInfosFromSmartBlockParams = async ({
+    sbContext,
+    prompt,
+    context,
+    target,
+    model,
+    contextDepth,
+    includeRefs,
+    isRoleToInsert = true,
+  }) => {
+    const assistantRole = isRoleToInsert
+      ? model
+        ? getInstantAssistantRole(model)
+        : chatRoles.assistant
+      : "";
+    const currentUid = sbContext.currentUid;
+    let currentBlockContent = sbContext.currentContent;
+    let { selectionUids } = getFocusAndSelection(currentUid);
+    let toAppend = "";
+    let targetUid;
+    let isContentToReplace = false;
+
+    let stringifiedPrompt = "";
+    if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
+      if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
+      const splittedPrompt = prompt.split("+");
+      splittedPrompt.forEach((subPrompt) => {
+        if (subPrompt === "current")
+          stringifiedPrompt +=
+            (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
+        else {
+          const promptUid = extractNormalizedUidFromRef(subPrompt);
+          if (promptUid) {
+            stringifiedPrompt +=
+              (stringifiedPrompt ? "\n\n" : "") +
+              getFlattenedContentFromTree(
+                promptUid,
+                99,
+                // includeChildren === "false"
+                //   ? 1
+                //   : isNaN(parseInt(includeChildren))
+                //   ? 99
+                //   : parseInt(includeChildren),
+                0
+              );
+          } else
+            stringifiedPrompt += (stringifiedPrompt ? "\n\n" : "") + subPrompt;
+        }
+      });
+    } else stringifiedPrompt = resolveReferences(prompt);
+    prompt = stringifiedPrompt;
+
+    context =
+      context === "{current}"
+        ? currentBlockContent
+        : await getContextFromSbCommand(
+            context,
+            currentUid,
+            selectionUids,
+            contextDepth,
+            includeRefs,
+            model
+          );
+
+    if ((!target && !currentBlockContent.trim()) || target === "{current}") {
+      target = "{replace}";
+    }
+
+    if (target && target.slice(0, 8) === "{append:") {
+      toAppend = target.slice(8, -1);
+      target = "{append}";
+    }
+
+    switch (target) {
+      case "{replace}":
+      case "{replace-}":
+        isContentToReplace = true;
+        simulateClick(document.querySelector(".roam-body-main"));
+      case "{append}":
+        targetUid = currentUid;
+        break;
+      default:
+        const uid = target ? extractNormalizedUidFromRef(target.trim()) : "";
+        targetUid = uid || (await createChildBlock(currentUid, assistantRole));
+    }
+    if (isContentToReplace) {
+      await window.roamAlphaAPI.updateBlock({
+        block: {
+          uid: currentUid,
+          string: target === "{replace-}" ? "" : assistantRole,
+        },
+      });
+    }
+    return {
+      stringifiedPrompt: prompt,
+      targetUid,
+      stringifiedContext: context,
+      instantModel: model,
+    };
+  };
+
   if (window.roamjs?.extension?.smartblocks) {
     window.roamjs.extension.smartblocks.registerCommand(speechCmd);
     window.roamjs.extension.smartblocks.registerCommand(chatCmd);
     window.roamjs.extension.smartblocks.registerCommand(templateCmd);
+    window.roamjs.extension.smartblocks.registerCommand(agentCmd);
   } else {
     document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
       window.roamjs?.extension.smartblocks &&
@@ -639,6 +697,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         window.roamjs.extension.smartblocks.registerCommand(chatCmd);
       window.roamjs?.extension.smartblocks &&
         window.roamjs.extension.smartblocks.registerCommand(templateCmd);
+      window.roamjs?.extension.smartblocks &&
+        window.roamjs.extension.smartblocks.registerCommand(agentCmd);
     });
   }
 };

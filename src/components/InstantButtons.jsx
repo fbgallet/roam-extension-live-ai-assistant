@@ -27,10 +27,12 @@ const InstantButtons = ({
   prompt,
   content,
   responseFormat,
+  currentUid,
   targetUid,
   isStreamStopped,
   response,
   isUserResponse,
+  aiCallback,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -49,15 +51,23 @@ const InstantButtons = ({
 
   const handleRedo = (e, instantModel) => {
     isCanceledStreamGlobal = true;
-    insertCompletion({
-      prompt,
-      targetUid,
-      context: content,
-      typeOfCompletion:
-        responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
-      instantModel: instantModel || model,
-      isRedone: true,
-    });
+    !aiCallback
+      ? insertCompletion({
+          prompt,
+          targetUid,
+          context: content,
+          typeOfCompletion:
+            responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
+          instantModel: instantModel || model,
+          isRedone: true,
+        })
+      : aiCallback({
+          model: instantModel || model,
+          prompt,
+          currentUid,
+          targetUid,
+          previousResponse: response,
+        });
     setIsToUnmount(true);
   };
 

@@ -697,8 +697,9 @@ export const insertCompletion = async ({
       (context && !context.includes(contextInstruction)
         ? (isContextInstructionToInsert ? contextInstruction : "") +
           userContextInstructions +
-          "\n\nUSER INPUT (content to rely to or apply the next user prompt to, and refered as 'context'):\n" +
-          context
+          "\n\nUSER INPUT (content to rely to or apply the next user prompt to, and refered as 'context', between double angle brackets):\n<< " +
+          context +
+          " >>"
         : "");
     content = await verifyTokenLimitAndTruncate(model, prompt, content);
   }

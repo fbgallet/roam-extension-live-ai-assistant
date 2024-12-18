@@ -125,7 +125,7 @@ export const displaySpinner = async (targetUid) => {
     if (targetBlockElt) targetBlockElt.appendChild(spinner);
     intervalId = setInterval(() => {
       updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
-    }, 600);
+    }, 300);
   }, 100);
   return intervalId;
 
@@ -133,6 +133,7 @@ export const displaySpinner = async (targetUid) => {
     const currentIndex = frames.indexOf(container.innerText);
     const nextIndex = currentIndex + 1 < frames.length ? currentIndex + 1 : 0;
     container.innerText = frames[nextIndex];
+    if (frames[nextIndex] === " ") container.innerHTML = "&nbsp;";
   }
 };
 
@@ -149,7 +150,7 @@ export const insertParagraphForStream = (targetUid) => {
   const streamElt = document.createElement("p");
   streamElt.classList.add("speech-stream");
   if (targetBlockElt) targetBlockElt.appendChild(streamElt);
-  displaySpinner(targetUid);
+  //displaySpinner(targetUid);
   return streamElt;
 };
 

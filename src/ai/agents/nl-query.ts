@@ -14,12 +14,19 @@ import {
   getDNPTitleFromDate,
   getDateStringFromDnpUid,
   getPageUidByBlockUid,
+  isExistingBlock,
+  updateBlock,
   updateTokenCounter,
 } from "../../utils/utils";
 import { interpreterSystemPrompt } from "./agent-prompts";
 import { modelAccordingToProvider } from "../aiCommands";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
+import {
+  displaySpinner,
+  insertInstantButtons,
+  removeSpinner,
+} from "../../utils/domElts";
 
 interface PeriodType {
   begin: string;
@@ -34,6 +41,7 @@ const QueryAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
   model: Annotation<string>,
   rootUid: Annotation<string>,
+  targetUid: Annotation<string>,
   userNLQuery: Annotation<string>,
   llmResponse: Annotation<any>,
   roamQuery: Annotation<string>,
@@ -116,7 +124,17 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
     content: interpreterSystemPrompt.replace("<CURRENT_DATE>", currentDate),
   });
   // console.log("sys_msg :>> ", sys_msg);
-  let messages = [sys_msg].concat([new HumanMessage(state.userNLQuery)]);
+  let messages = [sys_msg].concat([
+    new HumanMessage(
+      !state.roamQuery
+        ? state.userNLQuery
+        : `Here is the user request in natural language: ${state.userNLQuery}
+    
+    Here is the way this request has alreedy been transcribed by an AI assistant in a Roam Research query: ${state.roamQuery}
+    
+    The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
+    ),
+  ]);
   let response = await structuredLlm.invoke(messages);
 
   return {
@@ -125,16 +143,6 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
 };
 
 const formatChecker = async (state: typeof QueryAgentState.State) => {
-  // let messages = [new SystemMessage({ content: queryCheckerSysPrompt })].concat(
-  //   [
-  //     new HumanMessage(
-  //       `Here is the initial user request: ${state.userNLQuery}
-  //   Here's how it is currently transcribed in Roam query syntax: ${state.roamQuery}`
-  //     ),
-  //   ]
-  // );
-  // const response = await llm.invoke(messages);
-  console.log("Query before correction :>>", state.llmResponse.roamQuery);
   const isClaudeModel = state.model.toLowerCase().includes("claude");
   if (isClaudeModel) {
     const raw = state.llmResponse.raw.content[0];
@@ -153,7 +161,7 @@ const formatChecker = async (state: typeof QueryAgentState.State) => {
     }
   }
   const correctedQuery = balanceBraces(state.llmResponse.roamQuery);
-  console.log("Query after correction :>> ", correctedQuery);
+  // console.log("Query after correction :>> ", correctedQuery);
   return {
     roamQuery: correctedQuery,
     period: state.llmResponse.period || null,
@@ -201,8 +209,18 @@ const periodFormater = async (state: typeof QueryAgentState.State) => {
 };
 
 const insertQuery = async (state: typeof QueryAgentState.State) => {
-  createChildBlock(state.rootUid, state.roamQuery, "first");
-  return state;
+  if (state.targetUid && isExistingBlock(state.targetUid)) {
+    updateBlock({ blockUid: state.targetUid, newContent: state.roamQuery });
+  } else {
+    state.targetUid = await createChildBlock(
+      state.rootUid,
+      state.roamQuery,
+      "first"
+    );
+  }
+  return {
+    targetUid: state.targetUid,
+  };
 };
 
 /*********/
@@ -236,3 +254,43 @@ builder
 
 // Compile graph
 export const NLQueryInterpreter = builder.compile();
+
+interface AgentInvoker {
+  model: string;
+  currentUid: string;
+  targetUid?: string;
+  prompt: string;
+  previousResponse?: string;
+}
+// Invoke graph
+export const invokeNLQueryInterpreter = async ({
+  model = defaultModel,
+  currentUid,
+  targetUid,
+  prompt,
+  previousResponse,
+}: AgentInvoker) => {
+  const spinnerId = displaySpinner(currentUid);
+  const response = await NLQueryInterpreter.invoke({
+    model,
+    rootUid: currentUid,
+    userNLQuery: prompt,
+    targetUid,
+    roamQuery: previousResponse,
+  });
+  removeSpinner(spinnerId);
+  if (response) {
+    setTimeout(() => {
+      insertInstantButtons({
+        model: response.model,
+        prompt: response.userNLQuery,
+        currentUid,
+        targetUid: response.targetUid,
+        responseFormat: "text",
+        response: response.roamQuery,
+        aiCallback: invokeNLQueryInterpreter,
+      });
+    }, 100);
+  }
+  console.log("Agent response:>>", response);
+};
