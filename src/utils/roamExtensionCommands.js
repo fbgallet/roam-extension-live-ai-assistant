@@ -57,6 +57,7 @@ import {
   NLQueryInterpreter,
   invokeNLQueryInterpreter,
 } from "../ai/agents/nl-query";
+import { invokeNLDatomicQueryInterpreter } from "../ai/agents/nl-datomic-query";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -404,6 +405,18 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       let { currentUid, currentBlockContent, selectionUids } =
         getFocusAndSelection();
       await invokeNLQueryInterpreter({
+        currentUid,
+        prompt: currentBlockContent,
+      });
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Natural language Datomic :q Agent",
+    callback: async () => {
+      let { currentUid, currentBlockContent, selectionUids } =
+        getFocusAndSelection();
+      await invokeNLDatomicQueryInterpreter({
         currentUid,
         prompt: currentBlockContent,
       });

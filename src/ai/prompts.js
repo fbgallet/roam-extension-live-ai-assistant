@@ -16,6 +16,8 @@ VERY IMPORTANT: you can ONLY refer to one of those that is currently present in 
 export const contextAsPrompt = `Follow the instructions provided in the context \
 (the language in which they are written will determine the language of the response).`;
 
+const sameLanguage = `(IMPORTANT: you have to write your response in the same language as the following content to be processed)`;
+
 // For Post-Processing
 
 export const instructionsOnJSONResponse =
@@ -35,8 +37,37 @@ export const instructionsOnTemplateProcessing = `Instructions for processing the
 
 Here is the template:\n`;
 
-// export const defaultPostProcessingPrompt = `\
-// `;
+export const translatePrompt = `YOUR JOB: Translate the following content into clear and correct <language> (without verbosity or overly formal expressions), taking care to adapt idiomatic expressions rather than providing a too-literal translation.
+
+OUTPUT FORMAT:
+- Provide only the translation directly and nothing else, WITHOUT any introductory phrase or comment, unless they are explicity requested by the user.
+- Don't insert any line breaks if the provided statement doesn't have line breaks itself.
+
+Here is the content to translate:`;
+
+export const shortenPrompt = `Please rephrase the following text to make it more concise, focusing on shortening overly wordy sentences while retaining the original style, tone, and intent. Ensure that the rephrased text closely follows the original phrasing and structure to keep identifiable elements intact. Respond only with the shortened text, without any introductory phrases, explanations, or comments.
+
+Here is the text to shorten ${sameLanguage}:`;
+
+export const clearerPrompt = `Reformulate the provided text to enhance clarity and simplicity while maintaining the original style, tone, and intent. Focus on reducing verbosity, avoiding jargon, and eliminating overly long or allusive sentences. Ensure each sentence is explicit and easily understandable. Retain key phrases and main ideas from the original to ensure the reformulation closely follows it, making the original style and intention identifiable. Respond only with the reformulated text, without any introductory phrases, explanations, or comments.
+
+Here is the text to make clearer ${sameLanguage}:`;
+
+export const correctWordingPrompt = `Please correct the provided text for errors in spelling, grammar, syntax, and sentence structure. Do not rephrase or alter the original formatting; only make necessary corrections. Respond only with the corrected text, without any introductory phrases, explanations, or comments.
+
+Here is the text to correct ${sameLanguage}:`;
+
+export const examplePrompt = `Create a clear, concise example based on the given idea. The example should be illuminating, stimulating for the imagination, and paradigmatic of the concept it illustrates. Ensure it is relevant, avoids triviality, and directly exemplifies the essence of the idea without introductory phrases or commentary.
+
+Here is the statement or idea for which an argument needs to be made ${sameLanguage}:`;
+
+export const argumentPrompt = `Generate a powerful, rigorous, and conclusive argument to support the provided idea. Ensure the argument is well-chosen, based on solid evidence relevant to the domain of the idea (e.g., scientific evidence for a scientific idea, philosophical reasoning for a philosophical idea). The argument should be sufficiently developed, with concepts clearly and explicitly explained for full comprehension and persuasion. If the argument is a classic, identify and source it. Present the argument clearly and concisely, without introductory phrases or commentary.
+
+Here is the state or idea to justify ${sameLanguage}:`;
+
+export const summarizePrompt = `YOUR JOB: provide a clear and concise summary that highlights the key points and structure of the content provided. Focus on major themes, important details, and any significant conclusions or recommendations, while maintaining the original context. Gather the ideas into a single fully written paragraph or just a few if necessary, but do not break down your summary into a multitude of poorly written points. Of course, the summary must be substantially shorter than the original content!
+
+Here is the content to summarize ${sameLanguage}:`;
 
 export const socraticPostProcessingPrompt = `\
 Comment on the user's statement in a manner similar to Socrates in Plato's dialogues, \

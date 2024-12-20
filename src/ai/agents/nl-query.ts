@@ -18,7 +18,7 @@ import {
   updateBlock,
   updateTokenCounter,
 } from "../../utils/utils";
-import { interpreterSystemPrompt } from "./agent-prompts";
+import { roamQuerySystemPrompt } from "./agent-prompts";
 import { modelAccordingToProvider } from "../aiCommands";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
@@ -100,7 +100,6 @@ let llm: StructuredOutputType;
 const loadModel = async (state: typeof QueryAgentState.State) => {
   let modelShortcut: string = state.model || defaultModel;
   let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
-  console.log("llmInfos :>> ", llmInfos);
   llm = modelViaLanggraph(llmInfos);
   return {
     model: llmInfos.id,
@@ -121,7 +120,7 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
     : {};
   const structuredLlm = llm.withStructuredOutput(querySchema, rawOption);
   const sys_msg = new SystemMessage({
-    content: interpreterSystemPrompt.replace("<CURRENT_DATE>", currentDate),
+    content: roamQuerySystemPrompt.replace("<CURRENT_DATE>", currentDate),
   });
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
@@ -143,24 +142,24 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
 };
 
 const formatChecker = async (state: typeof QueryAgentState.State) => {
+  let query = state.llmResponse.roamQuery;
   const isClaudeModel = state.model.toLowerCase().includes("claude");
   if (isClaudeModel) {
     const raw = state.llmResponse.raw.content[0];
     if (!state.llmResponse.parsed) {
       console.log("raw: ", raw);
       if (raw?.input?.period && raw?.input?.roamQuery) {
-        console.log("raw period: ", raw?.input?.period);
+        // console.log("raw period: ", raw?.input?.period);
         state.llmResponse.period = JSON.parse(
           balanceBraces(sanitizeClaudeJSON(raw.input.period))
         );
-        console.log("parsed period :>> ", state.llmResponse.period);
-        state.llmResponse.roamQuery = raw?.input?.roamQuery;
+        query = raw?.input?.roamQuery;
       }
     } else {
       state.llmResponse = state.llmResponse.parsed;
     }
   }
-  const correctedQuery = balanceBraces(state.llmResponse.roamQuery);
+  const correctedQuery = balanceBraces(query);
   // console.log("Query after correction :>> ", correctedQuery);
   return {
     roamQuery: correctedQuery,

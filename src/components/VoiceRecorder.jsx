@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { ContextMenu, Tooltip } from "@blueprintjs/core";
+import {
+  ContextMenu,
+  ContextMenuChildrenProps,
+  Menu,
+  Popover,
+  Tooltip,
+} from "@blueprintjs/core";
 
 import {
   faMicrophone,
@@ -61,6 +67,7 @@ import {
 import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
 import TokensDisplay from "./TokensDisplay.jsx";
 import TokensDialog from "./TokensDisplay.jsx";
+import CommandsMenu from "./CommandsMenu.jsx";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",
@@ -352,11 +359,16 @@ function VoiceRecorder({
     lastCommand.current = translateAudio;
     initializeProcessing();
   };
-  const handleCompletion = async (e, model) => {
+  const handleCompletion = async (
+    e,
+    model,
+    commandPrompt = "",
+    withAssistantRole = true
+  ) => {
     if (model) instantModel.current = model;
     lastCommand.current = "gptCompletion";
     await handleModifierKeys(e);
-    initializeProcessing();
+    initializeProcessing(commandPrompt);
   };
   const handlePostProcessing = async (e, model) => {
     if (model) instantModel.current = model;
@@ -386,7 +398,7 @@ function VoiceRecorder({
     if (e.altKey) roamContext.current.page = true;
   };
 
-  const initializeProcessing = async () => {
+  const initializeProcessing = async (commandPrompt, withAssistantRole) => {
     targetBlock.current =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     const currentSelection = getBlocksSelectionUids();
@@ -398,12 +410,12 @@ function VoiceRecorder({
     } else if (record?.current || safariRecorder?.current?.activeStream)
       voiceProcessing();
     else {
-      let prompt = "";
+      let prompt = commandPrompt ? commandPrompt + "\n\n" : "";
       let toNextSibling = false;
       if (targetBlock.current) {
-        prompt = getBlockContentByUid(targetBlock.current).trim();
+        prompt += getBlockContentByUid(targetBlock.current).trim();
       } else if (blocksSelectionUids.current.length > 0) {
-        prompt = getResolvedContentFromBlocks(
+        prompt += getResolvedContentFromBlocks(
           blocksSelectionUids.current,
           false
         );
@@ -411,7 +423,12 @@ function VoiceRecorder({
         blocksSelectionUids.current = [];
         toNextSibling = true;
       } else return;
-      await completionProcessing(prompt, targetBlock.current, toNextSibling);
+      await completionProcessing(
+        prompt,
+        targetBlock.current,
+        toNextSibling,
+        withAssistantRole
+      );
     }
   };
 
@@ -501,12 +518,19 @@ function VoiceRecorder({
     initialize(true);
   };
 
-  const completionProcessing = async (prompt, promptUid, toNextSibling) => {
+  const completionProcessing = async (
+    prompt,
+    promptUid,
+    toNextSibling,
+    withAssistantRole = true
+  ) => {
     let uid;
     let waitForBlockCopy = false;
-    const assistantRole = instantModel.current
-      ? getInstantAssistantRole(instantModel.current)
-      : chatRoles.assistant;
+    const assistantRole = withAssistantRole
+      ? instantModel.current
+        ? getInstantAssistantRole(instantModel.current)
+        : chatRoles.assistant
+      : "";
     const context = await getAndNormalizeContext(
       lastCommand.current === "gptPostProcessing" ? null : startBlock.current,
       blocksSelectionUids.current,
@@ -792,6 +816,9 @@ function VoiceRecorder({
     );
   };
 
+  const handleClosePopover = () => {
+    setIsPopoverOpen(false);
+  };
   const jsxCommandIcon = (props, command, insertIconCallback) => {
     let commandClass =
       command === handleTranscribe
@@ -818,15 +845,17 @@ function VoiceRecorder({
             }}
             onContextMenu={(e) => {
               e.preventDefault();
+
               if (
                 command === handleCompletion ||
                 command === handlePostProcessing
-              )
+              ) {
                 ContextMenu.show(
-                  ModelsMenu({ command, instantModel }),
+                  CommandsMenu({ command, instantModel }),
                   { left: e.clientX, top: e.clientY },
                   null
                 );
+              }
             }}
             disabled={!areCommandsToDisplay}
             class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}

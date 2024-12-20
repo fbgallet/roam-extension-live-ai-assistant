@@ -5,7 +5,7 @@ export const tokensLimit = {
   "gpt-4o-mini": 131073,
   "gpt-4o": 131073,
   "o1-mini": 131073,
-  "o1-preview": 131073,
+  o1: 200000,
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,

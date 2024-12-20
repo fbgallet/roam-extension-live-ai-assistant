@@ -14,8 +14,9 @@ import {
   openRouterModelsInfo,
   openRouterOnly,
 } from "..";
+import { tokensLimit } from "../ai/modelsInfo";
 
-const ModelsMenu = ({ command }) => {
+const ModelsMenu = ({ command, roleStructure = "menuitem" }) => {
   const handleClickOnModel = (e, prefix) => {
     let model = e.target.innerText.split("\n")[0];
 
@@ -46,12 +47,12 @@ const ModelsMenu = ({ command }) => {
   };
 
   return (
-    <Menu className="str-aimodels-menu">
-      <MenuDivider
+    <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
+      {/* <MenuDivider
         title={
           "Choose AI model" + (openRouterOnly ? " (OpenRouter)" : "") + ":"
         }
-      />
+      /> */}
       {openRouterOnly ? null : (
         <>
           <MenuItem
@@ -78,25 +79,30 @@ const ModelsMenu = ({ command }) => {
             text="GPT 4o"
             labelElement="128k"
           />
-          <MenuItem
-            icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="GPT 4 turbo preview"
-            labelElement="128k"
-          />
-          {openAiCustomModels.map((model) => (
-            <MenuItem
-              icon={
-                defaultModel === "first custom OpenAI model" &&
-                openAiCustomModels[0] === model &&
-                "pin"
+          <MenuItem text="o1 'reasoning' models">
+            <MenuDivider
+              title={
+                <p>
+                  ⚠️ Use with caution,
+                  <br />
+                  expensive models!
+                  <br />
+                  See{" "}
+                  <a href="https://openai.com/api/pricing/" target="_blank">
+                    pricing
+                  </a>{" "}
+                  &{" "}
+                  <a
+                    href="https://openai.com/index/learning-to-reason-with-llms/"
+                    target="_blank"
+                  >
+                    purpose
+                  </a>
+                </p>
               }
+            />
+            <MenuItem
+              icon={defaultModel === "o1-mini" && "pin"}
               onClick={(e) => {
                 handleClickOnModel(e);
               }}
@@ -104,22 +110,49 @@ const ModelsMenu = ({ command }) => {
                 handleKeyDownOnModel(e);
               }}
               tabindex="0"
-              text={model}
+              text="o1-mini"
+              labelElement="128k"
             />
-          ))}
+            <MenuItem
+              icon={defaultModel === "o1" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              tabindex="0"
+              text="o1"
+              labelElement="200k"
+            />
+          </MenuItem>
+          {openAiCustomModels && openAiCustomModels.length ? (
+            <MenuItem tabindex="0" text="Custom OpenAI models">
+              {openAiCustomModels.map((model) => (
+                <MenuItem
+                  icon={
+                    defaultModel === "first custom OpenAI model" &&
+                    openAiCustomModels[0] === model &&
+                    "pin"
+                  }
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  tabindex="0"
+                  text={model}
+                  labelElement={
+                    tokensLimit[model]
+                      ? (tokensLimit[model] / 1000).toFixed(0).toString() + "k"
+                      : null
+                  }
+                />
+              ))}
+            </MenuItem>
+          ) : null}
           <MenuDivider />
-          <MenuItem
-            icon={defaultModel === "Claude Haiku" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="Claude Haiku"
-            labelElement="200k"
-          />
           <MenuItem
             icon={defaultModel === "Claude Haiku 3.5" && "pin"}
             onClick={(e) => {
@@ -144,18 +177,32 @@ const ModelsMenu = ({ command }) => {
             text="Claude Sonnet 3.5"
             labelElement="200k"
           />
-          <MenuItem
-            icon={defaultModel === "Claude Opus" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="Claude Opus"
-            labelElement="200k"
-          />
+          <MenuItem text="Claude 3 older models">
+            <MenuItem
+              icon={defaultModel === "Claude Haiku" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              tabindex="0"
+              text="Claude Haiku"
+              labelElement="200k"
+            />
+            <MenuItem
+              icon={defaultModel === "Claude Opus" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              tabindex="0"
+              text="Claude Opus"
+              labelElement="200k"
+            />
+          </MenuItem>
         </>
       )}
       {openRouterModels.length ? (
@@ -206,7 +253,7 @@ const ModelsMenu = ({ command }) => {
                       </>
                     }
                   >
-                    {model.name}
+                    {model.name.split("(")[0].trim()}
                   </Tooltip>
                 }
                 labelElement={model.contextLength + "k"}

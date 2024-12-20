@@ -25,6 +25,13 @@
 
 /******/
 
+.popover-target {
+  width: 10px;
+  height: 10px;
+  background-color: transparent;
+  border: none;
+}
+
 .color-toaster .bp3-toast {
   background: orange;
 }
