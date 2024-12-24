@@ -68,6 +68,7 @@ import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
 import TokensDisplay from "./TokensDisplay.jsx";
 import TokensDialog from "./TokensDisplay.jsx";
 import CommandsMenu from "./CommandsMenu.jsx";
+import { handleModifierKeys } from "../utils/roamExtensionCommands.js";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",
@@ -361,42 +362,44 @@ function VoiceRecorder({
   };
   const handleCompletion = async (
     e,
-    model,
     commandPrompt = "",
+    model,
     withAssistantRole = true
   ) => {
+    console.log("running handleCompletion !");
     if (model) instantModel.current = model;
     lastCommand.current = "gptCompletion";
-    await handleModifierKeys(e);
+    roamContext.current = await handleModifierKeys(e);
+    console.log("roamContext.current :>> ", roamContext.current);
     initializeProcessing(commandPrompt);
   };
   const handlePostProcessing = async (e, model) => {
     if (model) instantModel.current = model;
     lastCommand.current = "gptPostProcessing";
-    await handleModifierKeys(e);
+    roamContext.current = await handleModifierKeys(e);
     handleEltHighlight(e);
     initializeProcessing();
   };
-  const handleModifierKeys = async (e) => {
-    roamContext.current = {
-      linkedRefs: false,
-      sidebar: false,
-      mainPage: false,
-      logPages: false,
-    };
-    if (e.shiftKey) roamContext.current.sidebar = true;
-    if (e.metaKey || e.ctrlKey) {
-      if (isLogView() || (await isCurrentPageDNP())) {
-        AppToaster.show({
-          message:
-            "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. " +
-            "Be aware of the potentially high cost: for each request; around $0.02 with GPT-4o-mini, up to $1.30 with GPT-4.",
-        });
-        roamContext.current.logPages = true;
-      } else roamContext.current.linkedRefs = true;
-    }
-    if (e.altKey) roamContext.current.page = true;
-  };
+  // const handleModifierKeys = async (e) => {
+  //   roamContext.current = {
+  //     linkedRefs: false,
+  //     sidebar: false,
+  //     mainPage: false,
+  //     logPages: false,
+  //   };
+  //   if (e.shiftKey) roamContext.current.sidebar = true;
+  //   if (e.metaKey || e.ctrlKey) {
+  //     if (isLogView() || (await isCurrentPageDNP())) {
+  //       AppToaster.show({
+  //         message:
+  //           "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. " +
+  //           "Be aware of the potentially high cost: for each request; around $0.02 with GPT-4o-mini, up to $1.30 with GPT-4.",
+  //       });
+  //       roamContext.current.logPages = true;
+  //     } else roamContext.current.linkedRefs = true;
+  //   }
+  //   if (e.altKey) roamContext.current.page = true;
+  // };
 
   const initializeProcessing = async (commandPrompt, withAssistantRole) => {
     targetBlock.current =
@@ -833,7 +836,10 @@ function VoiceRecorder({
       <span class="bp3-popover-wrapper">
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
-            onClick={command}
+            onClick={(e) => {
+              console.log("onClick ? :>> ");
+              command(e);
+            }}
             // disabled={!safariRecorder.current.activeStream?.active}
             onMouseEnter={(e) => {
               if (
@@ -845,17 +851,28 @@ function VoiceRecorder({
             }}
             onContextMenu={(e) => {
               e.preventDefault();
-
+              e.stopPropagation();
               if (
                 command === handleCompletion ||
                 command === handlePostProcessing
               ) {
-                ContextMenu.show(
-                  CommandsMenu({ command, instantModel }),
-                  { left: e.clientX, top: e.clientY },
-                  null
-                );
+                window.LiveAI.toggleComponentOpen(e, command);
               }
+              // if (e.metaKey) {
+              //   window.toggleComponentOpen(e, instantModel, handleCompletion);
+              //   return;
+              // }
+
+              // if (
+              //   command === handleCompletion ||
+              //   command === handlePostProcessing
+              // ) {
+              //   ContextMenu.show(
+              //     CommandsMenu({ command, instantModel }),
+              //     { left: e.clientX, top: e.clientY },
+              //     null
+              //   );
+              // }
             }}
             disabled={!areCommandsToDisplay}
             class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}

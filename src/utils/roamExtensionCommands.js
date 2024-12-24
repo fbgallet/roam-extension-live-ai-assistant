@@ -47,6 +47,8 @@ import {
   getRoamContextFromPrompt,
   getTemplateFromPrompt,
   insertBlockInCurrentView,
+  isCurrentPageDNP,
+  isLogView,
   resolveReferences,
   sbParamRegex,
   simulateClick,
@@ -151,55 +153,9 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
     label:
       "Live AI Assistant: (text) AI completion of focused block as prompt & selection as context",
-    callback: async () => {
-      let prompt, targetUid;
-      let { currentUid, currentBlockContent, selectionUids } =
-        getFocusAndSelection();
-      if (!currentUid && !selectionUids.length) return;
-
-      const isInConversation = currentUid
-        ? isPromptInConversation(currentUid)
-        : false;
-      if (
-        !currentUid &&
-        selectionUids.length &&
-        document.querySelector(".block-highlight-blue")
-      ) {
-        targetUid = await createSiblingBlock(selectionUids[0]);
-        await addContentToBlock(targetUid, chatRoles.assistant);
-        prompt = getResolvedContentFromBlocks(selectionUids, false);
-        selectionUids = [];
-      } else {
-        targetUid = currentUid
-          ? await createChildBlock(
-              isInConversation ? getParentBlock(currentUid) : currentUid,
-              chatRoles.assistant
-            )
-          : await insertBlockInCurrentView(
-              chatRoles.user + " a selection of blocks"
-            );
-        prompt = currentBlockContent ? currentBlockContent : contextAsPrompt;
-      }
-
-      const inlineContext = currentBlockContent
-        ? getRoamContextFromPrompt(currentBlockContent)
-        : null;
-      if (inlineContext) prompt = inlineContext.updatedPrompt;
-
-      let context = await getAndNormalizeContext(
-        // currentUid && selectionUids.length ? null : currentUid,
-        null,
-        selectionUids,
-        inlineContext?.roamContext,
-        currentUid
-      );
-      insertCompletion({
-        prompt,
-        targetUid,
-        context,
-        typeOfCompletion: "gptCompletion",
-        isInConversation,
-      });
+    callback: async (test) => {
+      console.log("test :>> ", test);
+      aiCompletionRunner();
     },
   });
 
@@ -315,6 +271,18 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     callback: () => {
       setTimeout(() => {
         displayTokensDialog();
+      }, 100);
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Open Command Selector",
+    callback: (e) => {
+      setTimeout(() => {
+        // const focusedElement = document.activeElement;
+        const centerX = window.innerWidth / 2 - 100;
+        const centerY = window.innerHeight / 3;
+        window.toggleComponentOpen({ clientX: centerX, clientY: centerY });
       }, 100);
     },
   });
@@ -452,16 +420,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         contextDepth,
         includeRefs = "false"
       ) => {
-        let { stringifiedPrompt, targetUid, stringifiedContext, instantModel } =
-          await getInfosFromSmartBlockParams({
-            sbContext,
-            prompt,
-            context,
-            target,
-            model,
-            contextDepth,
-            includeRefs,
-          });
+        let {
+          stringifiedPrompt,
+          targetUid,
+          stringifiedContext,
+          instantModel,
+          toAppend,
+        } = await getInfosFromSmartBlockParams({
+          sbContext,
+          prompt,
+          context,
+          target,
+          model,
+          contextDepth,
+          includeRefs,
+        });
 
         insertCompletion({
           prompt: stringifiedPrompt,
@@ -596,107 +569,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       },
   };
 
-  const getInfosFromSmartBlockParams = async ({
-    sbContext,
-    prompt,
-    context,
-    target,
-    model,
-    contextDepth,
-    includeRefs,
-    isRoleToInsert = true,
-  }) => {
-    const assistantRole = isRoleToInsert
-      ? model
-        ? getInstantAssistantRole(model)
-        : chatRoles.assistant
-      : "";
-    const currentUid = sbContext.currentUid;
-    let currentBlockContent = sbContext.currentContent;
-    let { selectionUids } = getFocusAndSelection(currentUid);
-    let toAppend = "";
-    let targetUid;
-    let isContentToReplace = false;
-
-    let stringifiedPrompt = "";
-    if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
-      if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
-      const splittedPrompt = prompt.split("+");
-      splittedPrompt.forEach((subPrompt) => {
-        if (subPrompt === "current")
-          stringifiedPrompt +=
-            (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
-        else {
-          const promptUid = extractNormalizedUidFromRef(subPrompt);
-          if (promptUid) {
-            stringifiedPrompt +=
-              (stringifiedPrompt ? "\n\n" : "") +
-              getFlattenedContentFromTree(
-                promptUid,
-                99,
-                // includeChildren === "false"
-                //   ? 1
-                //   : isNaN(parseInt(includeChildren))
-                //   ? 99
-                //   : parseInt(includeChildren),
-                0
-              );
-          } else
-            stringifiedPrompt += (stringifiedPrompt ? "\n\n" : "") + subPrompt;
-        }
-      });
-    } else stringifiedPrompt = resolveReferences(prompt);
-    prompt = stringifiedPrompt;
-
-    context =
-      context === "{current}"
-        ? currentBlockContent
-        : await getContextFromSbCommand(
-            context,
-            currentUid,
-            selectionUids,
-            contextDepth,
-            includeRefs,
-            model
-          );
-
-    if ((!target && !currentBlockContent.trim()) || target === "{current}") {
-      target = "{replace}";
-    }
-
-    if (target && target.slice(0, 8) === "{append:") {
-      toAppend = target.slice(8, -1);
-      target = "{append}";
-    }
-
-    switch (target) {
-      case "{replace}":
-      case "{replace-}":
-        isContentToReplace = true;
-        simulateClick(document.querySelector(".roam-body-main"));
-      case "{append}":
-        targetUid = currentUid;
-        break;
-      default:
-        const uid = target ? extractNormalizedUidFromRef(target.trim()) : "";
-        targetUid = uid || (await createChildBlock(currentUid, assistantRole));
-    }
-    if (isContentToReplace) {
-      await window.roamAlphaAPI.updateBlock({
-        block: {
-          uid: currentUid,
-          string: target === "{replace-}" ? "" : assistantRole,
-        },
-      });
-    }
-    return {
-      stringifiedPrompt: prompt,
-      targetUid,
-      stringifiedContext: context,
-      instantModel: model,
-    };
-  };
-
   if (window.roamjs?.extension?.smartblocks) {
     window.roamjs.extension.smartblocks.registerCommand(speechCmd);
     window.roamjs.extension.smartblocks.registerCommand(chatCmd);
@@ -714,4 +586,233 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         window.roamjs.extension.smartblocks.registerCommand(agentCmd);
     });
   }
+};
+
+export const aiCompletionRunner = async (e, prompt = "", instantModel) => {
+  console.log("aiCompletionRunner ???");
+  let { completedPrompt, targetUid, context, isInConversation, noData } =
+    await getInputDataFromRoamContext(e, prompt, instantModel);
+  if (noData) return;
+
+  console.log("completedPrompt :>> ", completedPrompt);
+  console.log("targetUid :>> ", targetUid);
+  console.log("context :>> ", context);
+  console.log("isInConversation :>> ", isInConversation);
+  console.log("e", e);
+
+  insertCompletion({
+    prompt: completedPrompt,
+    targetUid,
+    context,
+    instantModel,
+    typeOfCompletion: "gptCompletion",
+    isInConversation,
+  });
+};
+
+const getInputDataFromRoamContext = async (e, prompt, instantModel) => {
+  let { currentUid, currentBlockContent, selectionUids } =
+    getFocusAndSelection();
+  if (!currentUid && !selectionUids.length && !e) return { noData: true };
+
+  if (currentBlockContent) prompt += currentBlockContent;
+  let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
+    await getFinalPromptAndTarget(
+      currentUid,
+      selectionUids,
+      prompt,
+      instantModel
+    );
+
+  const roamContextFromKeys = await handleModifierKeys(e);
+
+  const inlineContext = currentBlockContent
+    ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
+    : null;
+  // TO TEST
+  if (inlineContext)
+    completedPrompt = completedPrompt.replace(
+      currentBlockContent,
+      inlineContext.updatedPrompt
+    );
+
+  let context = await getAndNormalizeContext(
+    // currentUid && selectionUids.length ? null : currentUid,
+    null,
+    remaininSelectionUids,
+    inlineContext?.roamContext || roamContextFromKeys,
+    currentUid
+  );
+  return {
+    currentUid,
+    targetUid,
+    completedPrompt,
+    context,
+    isInConversation,
+  };
+};
+
+const getFinalPromptAndTarget = async (
+  currentUid,
+  selectionUids,
+  prompt,
+  instantModel
+) => {
+  const assistantRole = instantModel
+    ? getInstantAssistantRole(instantModel)
+    : chatRoles.assistant;
+  const isInConversation = currentUid
+    ? isPromptInConversation(currentUid)
+    : false;
+  let targetUid;
+  if (
+    !currentUid &&
+    selectionUids.length &&
+    document.querySelector(".block-highlight-blue")
+  ) {
+    targetUid = await createSiblingBlock(selectionUids[0]);
+    await addContentToBlock(targetUid, assistantRole);
+    prompt += getResolvedContentFromBlocks(selectionUids, false);
+    selectionUids = [];
+  } else {
+    targetUid = currentUid
+      ? await createChildBlock(
+          isInConversation ? getParentBlock(currentUid) : currentUid,
+          assistantRole
+        )
+      : await insertBlockInCurrentView(
+          chatRoles.user + " a selection of blocks"
+        );
+    if (!prompt) prompt = contextAsPrompt;
+    // prompt = getBlockContentByUid(currentUid) ? "" : contextAsPrompt;
+  }
+  return {
+    completedPrompt: prompt,
+    targetUid,
+    isInConversation,
+    remaininSelectionUids: selectionUids,
+  };
+};
+
+export const handleModifierKeys = async (e) => {
+  const roamContext = {
+    linkedRefs: false,
+    sidebar: false,
+    mainPage: false,
+    logPages: false,
+  };
+  if (e.shiftKey) roamContext.sidebar = true;
+  if (e.metaKey || e.ctrlKey) {
+    if (isLogView() || (await isCurrentPageDNP())) {
+      AppToaster.show({
+        message:
+          "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. ",
+      });
+      roamContext.logPages = true;
+    } else roamContext.linkedRefs = true;
+  }
+  if (e.altKey) roamContext.page = true;
+  return roamContext;
+};
+
+const getInfosFromSmartBlockParams = async ({
+  sbContext,
+  prompt,
+  context,
+  target,
+  model,
+  contextDepth,
+  includeRefs,
+  isRoleToInsert = true,
+}) => {
+  const assistantRole = isRoleToInsert
+    ? model
+      ? getInstantAssistantRole(model)
+      : chatRoles.assistant
+    : "";
+  const currentUid = sbContext.currentUid;
+  let currentBlockContent = sbContext.currentContent;
+  let { selectionUids } = getFocusAndSelection(currentUid);
+  let toAppend = "";
+  let targetUid;
+  let isContentToReplace = false;
+
+  let stringifiedPrompt = "";
+  if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
+    if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
+    const splittedPrompt = prompt.split("+");
+    splittedPrompt.forEach((subPrompt) => {
+      if (subPrompt === "current")
+        stringifiedPrompt +=
+          (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
+      else {
+        const promptUid = extractNormalizedUidFromRef(subPrompt);
+        if (promptUid) {
+          stringifiedPrompt +=
+            (stringifiedPrompt ? "\n\n" : "") +
+            getFlattenedContentFromTree(
+              promptUid,
+              99,
+              // includeChildren === "false"
+              //   ? 1
+              //   : isNaN(parseInt(includeChildren))
+              //   ? 99
+              //   : parseInt(includeChildren),
+              0
+            );
+        } else
+          stringifiedPrompt += (stringifiedPrompt ? "\n\n" : "") + subPrompt;
+      }
+    });
+  } else stringifiedPrompt = resolveReferences(prompt);
+  prompt = stringifiedPrompt;
+
+  context =
+    context === "{current}"
+      ? currentBlockContent
+      : await getContextFromSbCommand(
+          context,
+          currentUid,
+          selectionUids,
+          contextDepth,
+          includeRefs,
+          model
+        );
+
+  if ((!target && !currentBlockContent.trim()) || target === "{current}") {
+    target = "{replace}";
+  }
+
+  if (target && target.slice(0, 8) === "{append:") {
+    toAppend = target.slice(8, -1);
+    target = "{append}";
+  }
+
+  switch (target) {
+    case "{replace}":
+    case "{replace-}":
+      isContentToReplace = true;
+      simulateClick(document.querySelector(".roam-body-main"));
+    case "{append}":
+      targetUid = currentUid;
+      break;
+    default:
+      const uid = target ? extractNormalizedUidFromRef(target.trim()) : "";
+      targetUid = uid || (await createChildBlock(currentUid, assistantRole));
+  }
+  if (isContentToReplace) {
+    await window.roamAlphaAPI.updateBlock({
+      block: {
+        uid: currentUid,
+        string: target === "{replace-}" ? "" : assistantRole,
+      },
+    });
+  }
+  return {
+    stringifiedPrompt: prompt,
+    targetUid,
+    stringifiedContext: context,
+    instantModel: model,
+    toAppend,
+  };
 };

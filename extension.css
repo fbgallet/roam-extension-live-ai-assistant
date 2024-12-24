@@ -186,6 +186,24 @@
 
 /* CONTEXT MENU */
 
+.aicommands-div {
+  min-width: 230px;
+  width: auto;
+}
+
+.aicommands-div > ul,
+.aicommands-div > ul > li {
+  cursor: grab;
+}
+.aicommands-div:active *,
+.aicommands-div.dragging * {
+  cursor: grabbing;
+}
+
+.str-aimodels-menu {
+  height: fit-content;
+}
+
 .str-aimodels-menu .bp3-menu-item > div {
   margin-right: 15px;
 }
@@ -193,10 +211,39 @@
   align-self: center;
 }
 
-.str-aimodels-menu li > a:focus {
+.str-aicommands-menu .bp3-input-group *:focus {
+  outline: none !important;
+  box-shadow: 0;
+}
+.str-aicommands-menu .bp3-input-group .bp3-icon {
+  opacity: 0.6;
+}
+
+.str-aimodels-menu li a:focus,
+.str-aicommands-menu li a:focus {
   outline-width: 0px !important;
   text-decoration: none;
   font-weight: bold;
+}
+
+.str-aimodels-menu .menu-hint,
+.str-aicommands-menu .menu-hint {
+  opacity: 0.6;
+}
+.str-aimodels-menu .menu-hint *,
+.str-aicommands-menu .menu-hint * {
+  font-size: 12px;
+}
+
+.str-aicommands-menu .menu-hint div {
+  text-align: center;
+  line-height: 1.75;
+  margin: 0 0 8px 0;
+}
+
+.suggested-aicommands {
+  transform: translateX(-5px) translateY(5px);
+  z-index: 9999;
 }
 
 /* INLINE BUTTONS

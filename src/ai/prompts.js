@@ -16,13 +16,11 @@ VERY IMPORTANT: you can ONLY refer to one of those that is currently present in 
 export const contextAsPrompt = `Follow the instructions provided in the context \
 (the language in which they are written will determine the language of the response).`;
 
-const sameLanguage = `(IMPORTANT: you have to write your response in the same language as the following content to be processed)`;
-
 // For Post-Processing
 
 export const instructionsOnJSONResponse =
   ' Your response will be a JSON objects array with the following format, respecting strictly the syntax, \
-  especially the quotation marks around the keys and character strings: \
+especially the quotation marks around the keys and character strings: \
 {"response": [{"uid": "((9-characters-code))", "content": "your response for the corresponding line"}, ...]}".';
 
 export const specificContentPromptBeforeTemplate = `\
@@ -37,37 +35,106 @@ export const instructionsOnTemplateProcessing = `Instructions for processing the
 
 Here is the template:\n`;
 
-export const translatePrompt = `YOUR JOB: Translate the following content into clear and correct <language> (without verbosity or overly formal expressions), taking care to adapt idiomatic expressions rather than providing a too-literal translation.
+const outputConditions = `IMPORTANT:
+- respond only with the requested content, without any introductory phrases, explanations, or comments.
+- you have to write your response in the same language as the following provided content to process.
 
-OUTPUT FORMAT:
-- Provide only the translation directly and nothing else, WITHOUT any introductory phrase or comment, unless they are explicity requested by the user.
-- Don't insert any line breaks if the provided statement doesn't have line breaks itself.
+Here is the user content to <ACTION>: `;
 
-Here is the content to translate:`;
+export const completionCommands = {
+  translate: `YOUR JOB: Translate the following content into clear and correct <language> (without verbosity or overly formal expressions), taking care to adapt idiomatic expressions rather than providing a too-literal translation.
 
-export const shortenPrompt = `Please rephrase the following text to make it more concise, focusing on shortening overly wordy sentences while retaining the original style, tone, and intent. Ensure that the rephrased text closely follows the original phrasing and structure to keep identifiable elements intact. Respond only with the shortened text, without any introductory phrases, explanations, or comments.
+  OUTPUT FORMAT:
+  - Provide only the translation directly and nothing else, WITHOUT any introductory phrase or comment, unless they are explicity requested by the user.
+  - Don't insert any line breaks if the provided statement doesn't have line breaks itself.
+  
+  Here is the content to translate:`,
 
-Here is the text to shorten ${sameLanguage}:`;
+  summarizePrompt: `Please provide a concise, cohesive summary of the following content, focusing on:
+- Essential main ideas and key arguments
+- Critical supporting evidence and examples
+- Major conclusions or recommendations
+- Underlying themes or patterns
+Keep the summary significantly shorter than the original while preserving core meaning and context. Present it in well-structured paragraph(s) that flow naturally, avoiding fragmented bullet points. If the content has a clear chronological or logical progression, maintain this structure in your summary.
+${outputConditions.replace("<ACTION>", "summarize")}:`,
 
-export const clearerPrompt = `Reformulate the provided text to enhance clarity and simplicity while maintaining the original style, tone, and intent. Focus on reducing verbosity, avoiding jargon, and eliminating overly long or allusive sentences. Ensure each sentence is explicit and easily understandable. Retain key phrases and main ideas from the original to ensure the reformulation closely follows it, making the original style and intention identifiable. Respond only with the reformulated text, without any introductory phrases, explanations, or comments.
+  rephrase: `Please rephrase the following text, keeping exactly the same meaning and information, but using different words and structures. Use natural, straightforward language without jargon or flowery vocabulary. Ensure the paraphrase sounds idiomatic in the used language. Maintain the original tone and level of formality.
+${outputConditions.replace("<ACTION>", "rephrase")}`,
 
-Here is the text to make clearer ${sameLanguage}:`;
+  shorten: `Please rephrase the following text to be more concise while closely preserving its original style, tone, and intent. Keep the same key phrases and expressions where possible, only removing redundancies and shortening overly complex sentences. The result should be immediately recognizable as a more streamlined version of the source text, without changing its essential character or voice. Maintain the same level of formality and all core ideas.
+${outputConditions.replace("<ACTION>", "shorten")}`,
 
-export const correctWordingPrompt = `Please correct the provided text for errors in spelling, grammar, syntax, and sentence structure. Do not rephrase or alter the original formatting; only make necessary corrections. Respond only with the corrected text, without any introductory phrases, explanations, or comments.
+  accessible: `Rephrase the following text using simpler, more accessible language while keeping all the information. Avoid complex sentences and technical terms. The result should be easily understood by a general audience.
+  ${outputConditions.replace("<ACTION>", "rephrase")}`,
 
-Here is the text to correct ${sameLanguage}:`;
+  clearer: `Please rephrase the following text while following these specific guidelines:
+  1. Maintain the core meaning and main ideas of the original text
+  2. Keep a similar tone and style to preserve the author's voice
+  3. Break down complex or lengthy sentences into clearer, more digestible ones
+  4. Make clearer any vague or ambiguous or implicit statements by explaining its precise meaning
+  5. Replace any jargon or flowery vocabulary with clearer alternatives
+  6. Ensure each sentence is self-contained and fully understandable
+  7. Eliminate redundant or empty phrases
+  8. Keep some original phrasing where it effectively serves the message
+  9. Make every word count and serve a clear purpose
+The reformulated text should be more accessible while remaining faithful to the original's intent and character.
+${outputConditions.replace("<ACTION>", "rephrase")}`,
 
-export const examplePrompt = `Create a clear, concise example based on the given idea. The example should be illuminating, stimulating for the imagination, and paradigmatic of the concept it illustrates. Ensure it is relevant, avoids triviality, and directly exemplifies the essence of the idea without introductory phrases or commentary.
+  formal: `Rephrase the following text using more formal language and structure, while preserving all information. Keep it natural and professional, without being pompous. Use standard business language conventions.
+  ${outputConditions.replace("<ACTION>", "rephrase")}`,
 
-Here is the statement or idea for which an argument needs to be made ${sameLanguage}:`;
+  casual: `"Rephrase the following text in a more casual, conversational tone. Keep all the information but make it sound like natural spoken language. Use common expressions and straightforward structure while maintaining accuracy.
+  ${outputConditions.replace("<ACTION>", "rephrase")}`,
 
-export const argumentPrompt = `Generate a powerful, rigorous, and conclusive argument to support the provided idea. Ensure the argument is well-chosen, based on solid evidence relevant to the domain of the idea (e.g., scientific evidence for a scientific idea, philosophical reasoning for a philosophical idea). The argument should be sufficiently developed, with concepts clearly and explicitly explained for full comprehension and persuasion. If the argument is a classic, identify and source it. Present the argument clearly and concisely, without introductory phrases or commentary.
+  correctWording: `Please provide only the corrected version of the following text, fixing spelling, grammar, syntax and sentence structure errors while keeping the exact same meaning and wording wherever possible. If a word is clearly inappropriate, you can adapt the vocabulary as needed to make it more in line with usage in the target language. Do not rephrase or reformulate content unless absolutely necessary for correctness.
+${outputConditions.replace("<ACTION>", "fix")}:`,
 
-Here is the state or idea to justify ${sameLanguage}:`;
+  outline: `Please convert the following text into a hierarchically structured outline that reflects its logical organization. Important requirements:
+  1. Maintain the exact original wording and expressions when breaking down the content
+  2. Use appropriate levels of indentation to show the hierarchical relationships
+  3. Structure the outline so that the logical flow and relationships between ideas are immediately visible
+  4. Keep all content elements but reorganize them to show their relative importance and connections
+  5. Use consistent formatting with clear parent-child relationships between levels
+  6. Begin each bullet point with "-" character
+Do not paraphrase or modify the original text - simply reorganize it into a clear hierarchical structure that reveals its inherent logic.
+${outputConditions.replace("<ACTION>", "convert")}`,
 
-export const summarizePrompt = `YOUR JOB: provide a clear and concise summary that highlights the key points and structure of the content provided. Focus on major themes, important details, and any significant conclusions or recommendations, while maintaining the original context. Gather the ideas into a single fully written paragraph or just a few if necessary, but do not break down your summary into a multitude of poorly written points. Of course, the summary must be substantially shorter than the original content!
+  linearParagraph: `Transform the following hierarchically organized outline into a continuous text while strictly preserving the original wording of each element. Follow the hierarchical order, add minimal connecting words or phrases where necessary for fluidity, but never modify the original formulations. As much as possible, if the content naturally flows as a single development, present it as one paragraph. However, if distinct thematic developments are clearly identifiable, develop multiple parargaphs but as little as necessary for the clarity of the point and without any hierarchy or indentation.
+  ${outputConditions.replace("<ACTION>", "transform")}`,
 
-Here is the content to summarize ${sameLanguage}:`;
+  example: `Provide a paradigmatic example that illustrates the idea or statement provided below. Make it concrete, vivid, and thought-provoking while capturing the essence of what it exemplifies. Express it in clear, straightforward language without any introductory phrases or commentary.
+  ${outputConditions.replace("<ACTION>", "examplifly")}`,
+
+  argument: `Generate a robust argument (only one) supporting the provided statement or idea.
+
+Required characteristics:
+Ensure logical structure:
+- Present clear premises leading to a conclusive reasoning, but exclude any logical meta-discourse
+- Support claims with concrete evidence or established principles
+- Maintain rigorous logical connections between steps
+Follow domain-matching principles:
+- Draw evidence from the same field as the input statement
+- If referencing a classical argument, cite its origin
+Development requirements:
+- Provide sufficient detail to make reasoning transparent but still be concise
+- Don't scatter your argument - focus on developing just one line of reasoning in depth
+- Maintain focus throughout the argumentation
+Guarantee clarity:
+- Present argument directly without meta-commentary
+- Define key concepts explicitly
+- Use clear, straightforward, precise and unambiguous language
+- Maintain a neutral, academic tone
+${outputConditions.replace("<ACTION>", "justify")}`,
+
+  challengeMyIdeas: `Act as a rigorous critical thinker and challenge the ideas I will present by:
+- Identifying key hidden assumptions and questioning their validity
+- Pointing out potential logical flaws or inconsistencies
+- Highlighting practical implementation challenges
+- Raising specific counterexamples that test the robustness of the reasoning
+- Suggesting alternative perspectives that could lead to different conclusions
+Keep your response focused on only 2-3 most significant challenges. Be direct and specific in your questions. Aim to deepen the analysis rather than dismiss the ideas.
+${outputConditions.replace("<ACTION>", "be challenged")}`,
+};
 
 export const socraticPostProcessingPrompt = `\
 Comment on the user's statement in a manner similar to Socrates in Plato's dialogues, \
