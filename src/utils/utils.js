@@ -361,6 +361,9 @@ export const getBlocksSelectionUids = (reverse) => {
 export const getFocusAndSelection = (currentUid) => {
   !currentUid &&
     (currentUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
+  const activ = document.activeElement;
+  console.log("activ.selectionStart :>> ", activ.selectionStart);
+  console.log("activ.selectionEnd :>> ", activ.selectionEnd);
   const selectionUids = getBlocksSelectionUids();
   const currentBlockContent = currentUid
     ? resolveReferences(getBlockContentByUid(currentUid))
@@ -849,6 +852,7 @@ const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
   if (options.includes(`${optionName}(`)) {
     if (optionName === "block")
       prompt = prompt.replaceAll("((", "").replaceAll("))", "");
+    console.log("prompt in getArgumentFromOption :>> ", prompt);
     let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
     const args = [];
     const splittedArgument = argument.split("+");

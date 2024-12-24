@@ -11,7 +11,7 @@ import { defaultModel } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { getFocusAndSelection } from "../utils/utils";
 import { invokeNLQueryInterpreter } from "../ai/agents/nl-query";
-import { summarizePrompt, translatePrompt } from "../ai/prompts";
+import { completionCommands } from "../ai/prompts";
 
 function CommandsMenu({ command, instantModel }) {
   let defaultLgg = "English";
@@ -50,9 +50,13 @@ function CommandsMenu({ command, instantModel }) {
 
   return (
     <Menu className="str-aicommands-menu">
-      <MenuDivider title={"Apply to focused/selected block(s)"} />
+      <MenuDivider
+        className="menu-hint"
+        title={`Default model: ${defaultModel}`}
+      />
       <>
         <MenuItem
+          active={false}
           shouldDismissPopover={false}
           onClick={(e) => {
             handleClickOnCommand(e);
@@ -62,26 +66,158 @@ function CommandsMenu({ command, instantModel }) {
           }}
           onContextMenu={(e) => handleContextMenu(e, command)}
           tabindex="0"
-          text="Basic completion/generation"
-        />
+          text="Selected block(s) as prompt"
+        >
+          <ModelsMenu
+            command={command}
+            instantModel={instantModel}
+            roleStructure={"listoption"}
+          />
+        </MenuItem>
         <MenuItem text="Pre-build prompts">
           <MenuItem
             onClick={(e) => {
-              handleClickOnCommand(e, summarizePrompt);
+              handleClickOnCommand(e, completionCommands["correctWording"]);
             }}
             onKeyDown={(e) => {
               handleKeyDownOnModel(e);
             }}
             onContextMenu={(e) => handleContextMenu(e, command)}
             tabindex="0"
-            text="Summarize"
+            text="Fix wording"
+          />
+          <MenuItem
+            onClick={(e) => {
+              handleClickOnCommand(e, completionCommands["rephrase"]);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e, command)}
+            tabindex="0"
+            text="Rephrase"
+          >
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["shorten"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="Shorter"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["clearer"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="Clearer"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["accessible"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="More accessible"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["formal"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="More formal"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["casual"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="More casual"
+            />
+          </MenuItem>
+          <MenuItem text="Format...">
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["outline"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="Text to Outline"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["linearParagraph"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="Outline to Text"
+            />
+          </MenuItem>
+          <MenuItem text="Content Generator...">
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands["summarize"]);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="Summarize"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnCommand(e, completionCommands.argument);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e, command)}
+              tabindex="0"
+              text="Argument"
+            />
+          </MenuItem>
+          <MenuItem
+            onClick={(e) => {
+              handleClickOnCommand(e, completionCommands.challengeMyIdeas);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e, command)}
+            tabindex="0"
+            text="Challenge my ideas!"
           />
           <MenuItem
             onClick={(e) => {
               e.stopPropagation();
               handleClickOnCommand(
                 e,
-                translatePrompt.replace("<language>", defaultLgg)
+                completionCommands.translate.replace("<language>", defaultLgg)
               );
             }}
             onKeyDown={(e) => {
@@ -115,13 +251,13 @@ function CommandsMenu({ command, instantModel }) {
                   }
                   handleClickOnCommand(
                     e,
-                    translatePrompt.replace("<language>", lgg[0])
+                    completionCommands.translate.replace("<language>", lgg[0])
                   );
                 }}
                 onKeyDown={(e) => {
                   handleKeyDownOnModel(
                     e,
-                    translatePrompt.replace("<language>", lgg[0])
+                    completionCommands.translate.replace("<language>", lgg[0])
                   );
                 }}
                 onContextMenu={(e) => handleContextMenu(e, command)}
@@ -140,7 +276,10 @@ function CommandsMenu({ command, instantModel }) {
                 );
                 handleClickOnCommand(
                   e,
-                  translatePrompt.replace("<language>", inputElt.value)
+                  completionCommands.translate.replace(
+                    "<language>",
+                    inputElt.value
+                  )
                 );
               }}
               onKeyDown={(e) => {
@@ -178,14 +317,6 @@ function CommandsMenu({ command, instantModel }) {
           tabindex="0"
           text="Natural language Query converter"
         />
-        <MenuDivider />
-        <MenuItem tabindex="0" text="Change default model">
-          <ModelsMenu
-            command={command}
-            instantModel={instantModel}
-            roleStructure={"listoption"}
-          />
-        </MenuItem>
       </>
     </Menu>
   );
