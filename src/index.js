@@ -1,5 +1,4 @@
 import {
-  getModelsInfo,
   getValidLanguageCode,
   initializeAnthropicAPI,
   initializeOpenAIAPI,
@@ -27,8 +26,13 @@ import {
   unmountComponent,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
+import { getModelsInfo } from "./ai/modelsInfo";
+import {
+  cleanupContextMenu,
+  initializeContextMenu,
+} from "./components/ContextMenu";
 
-let OPENAI_API_KEY = "";
+export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
 export let OPENROUTER_API_KEY = "";
 export let GROQ_API_KEY = "";
@@ -64,13 +68,22 @@ export let openRouterModels = [];
 export let isComponentAlwaysVisible;
 export let isComponentVisible;
 export let resImages;
-let position;
+export let position;
 export let openaiLibrary, anthropicLibrary, openrouterLibrary, groqLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
 console.log("isSafari :>> ", isSafari);
 export let extensionStorage;
+
+export function setDefaultModel(str) {
+  defaultModel = str;
+  extensionStorage.set("defaultModel", str);
+  chatRoles = getRolesFromString(
+    extensionAPI.settings.get("chatRoles"),
+    defaultModel.includes("first") ? undefined : defaultModel
+  );
+}
 
 function getRolesFromString(str, model) {
   let splittedStr = str ? str.split(",") : [];
@@ -193,11 +206,7 @@ export default {
               "first Groq model",
             ],
             onChange: (evt) => {
-              defaultModel = evt;
-              chatRoles = getRolesFromString(
-                extensionAPI.settings.get("chatRoles"),
-                defaultModel.includes("first") ? undefined : defaultModel
-              );
+              setDefaultModel(evt);
             },
           },
         },
@@ -905,11 +914,12 @@ export default {
     resImages = extensionAPI.settings.get("resImages");
 
     if (extensionAPI.settings.get("tokensCounter") === null)
-      await updateTokenCounter(undefined, {});
+      updateTokenCounter(undefined, {});
     console.log(
       "Tokens usage :>> ",
       extensionAPI.settings.get("tokensCounter")
     );
+    extensionStorage.set("outlinerRootUid", null);
 
     createContainer();
 
@@ -938,11 +948,17 @@ export default {
     mountComponent(position);
     if (!isComponentAlwaysVisible) toggleComponentVisibility();
 
+    window.LiveAI = {};
+    initializeContextMenu();
+
     console.log("Extension loaded.");
   },
   onunload: async () => {
     unmountComponent(position);
     removeContainer(position);
+
+    cleanupContextMenu();
+
     console.log("Extension unloaded");
   },
 };

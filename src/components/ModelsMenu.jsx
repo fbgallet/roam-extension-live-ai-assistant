@@ -7,18 +7,48 @@ import {
 } from "@blueprintjs/core";
 import {
   defaultModel,
+  extensionStorage,
   groqModels,
   ollamaModels,
   openAiCustomModels,
   openRouterModels,
   openRouterModelsInfo,
   openRouterOnly,
+  setDefaultModel,
 } from "..";
+import { tokensLimit } from "../ai/modelsInfo";
+import { AppToaster } from "./VoiceRecorder";
 
-const ModelsMenu = ({ command }) => {
-  const handleClickOnModel = (e, prefix) => {
+const ModelsMenu = ({
+  callback,
+  commandPrompt,
+  roleStructure = "menuitem",
+}) => {
+  const handleClickOnModel = async (e, prefix, modelId) => {
+    console.log("handle click on model ?");
+    console.log("callback :>> ", callback);
+    let model = getModelFromMenu(e, prefix, modelId);
+    await callback(e, commandPrompt, model);
+  };
+
+  const handleKeyDownOnModel = (e, prefix, modelId) => {
+    if (e.code === "Enter" || e.code === "Space") {
+      handleClickOnModel(e, prefix, modelId);
+      //  ContextMenu.hide();
+    }
+  };
+
+  const handleContextMenu = (e, prefix, modelId) => {
+    let model = getModelFromMenu(e, prefix, modelId);
+    setDefaultModel(model);
+    AppToaster.show({
+      message: `Default AI model set to: ${model}`,
+      timeout: 5000,
+    });
+  };
+
+  const getModelFromMenu = (e, prefix, modelId) => {
     let model = e.target.innerText.split("\n")[0];
-
     switch (model) {
       case "GPT 4o mini":
         model = "gpt-4o-mini";
@@ -28,30 +58,20 @@ const ModelsMenu = ({ command }) => {
         break;
     }
     if (prefix === "openRouter/") {
-      const modelInfo = openRouterModelsInfo.find(
-        (item) => item.name === model
-      );
-      model = modelInfo.id;
+      model = modelId;
+      // const modelInfo = openRouterModelsInfo.find(
+      //   (item) => item.name === model
+      // );
+      // model = modelInfo.id;
     }
+    if (prefix) model = prefix + model;
     // if (typeof instantModel !== undefined) instantModel.current = model;
     // console.log("instantModel :>> ", instantModel);
-    command(e, prefix ? prefix + model : model);
-  };
-
-  const handleKeyDownOnModel = (e, prefix) => {
-    if (e.code === "Enter" || e.code === "Space") {
-      handleClickOnModel(e, prefix);
-      ContextMenu.hide();
-    }
+    return model;
   };
 
   return (
-    <Menu className="str-aimodels-menu">
-      <MenuDivider
-        title={
-          "Choose AI model" + (openRouterOnly ? " (OpenRouter)" : "") + ":"
-        }
-      />
+    <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
       {openRouterOnly ? null : (
         <>
           <MenuItem
@@ -62,6 +82,7 @@ const ModelsMenu = ({ command }) => {
             onKeyDown={(e) => {
               handleKeyDownOnModel(e);
             }}
+            onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
             text="GPT 4o mini"
             labelElement="128k"
@@ -74,52 +95,89 @@ const ModelsMenu = ({ command }) => {
             onKeyDown={(e) => {
               handleKeyDownOnModel(e);
             }}
+            onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
             text="GPT 4o"
             labelElement="128k"
           />
-          <MenuItem
-            icon={defaultModel === "gpt-4-turbo-preview" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="GPT 4 turbo preview"
-            labelElement="128k"
-          />
-          {openAiCustomModels.map((model) => (
+          <MenuItem text="o1 'reasoning' models">
             <MenuItem
-              icon={
-                defaultModel === "first custom OpenAI model" &&
-                openAiCustomModels[0] === model &&
-                "pin"
-              }
+              icon={defaultModel === "o1-mini" && "pin"}
               onClick={(e) => {
                 handleClickOnModel(e);
               }}
               onKeyDown={(e) => {
                 handleKeyDownOnModel(e);
               }}
+              onContextMenu={(e) => handleContextMenu(e)}
               tabindex="0"
-              text={model}
+              text="o1-mini"
+              labelElement="128k"
             />
-          ))}
+            <MenuItem
+              icon={defaultModel === "o1" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="o1"
+              labelElement="200k"
+            />
+            <MenuDivider
+              className="menu-hint"
+              title={
+                <p>
+                  ⚠️ Use with caution,
+                  <br />
+                  expensive models!
+                  <br />
+                  See{" "}
+                  <a href="https://openai.com/api/pricing/" target="_blank">
+                    pricing
+                  </a>{" "}
+                  &{" "}
+                  <a
+                    href="https://openai.com/index/learning-to-reason-with-llms/"
+                    target="_blank"
+                  >
+                    purpose
+                  </a>
+                </p>
+              }
+            />
+          </MenuItem>
+          {openAiCustomModels && openAiCustomModels.length ? (
+            <MenuItem tabindex="0" text="Custom OpenAI models">
+              {openAiCustomModels.map((model) => (
+                <MenuItem
+                  icon={
+                    defaultModel === "first custom OpenAI model" &&
+                    openAiCustomModels[0] === model &&
+                    "pin"
+                  }
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text={model}
+                  labelElement={
+                    tokensLimit[model]
+                      ? (tokensLimit[model] / 1000).toFixed(0).toString() + "k"
+                      : null
+                  }
+                />
+              ))}
+            </MenuItem>
+          ) : null}
           <MenuDivider />
-          <MenuItem
-            icon={defaultModel === "Claude Haiku" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="Claude Haiku"
-            labelElement="200k"
-          />
           <MenuItem
             icon={defaultModel === "Claude Haiku 3.5" && "pin"}
             onClick={(e) => {
@@ -128,6 +186,7 @@ const ModelsMenu = ({ command }) => {
             onKeyDown={(e) => {
               handleKeyDownOnModel(e);
             }}
+            onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
             text="Claude Haiku 3.5"
             labelElement="200k"
@@ -140,22 +199,39 @@ const ModelsMenu = ({ command }) => {
             onKeyDown={(e) => {
               handleKeyDownOnModel(e);
             }}
+            onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
             text="Claude Sonnet 3.5"
             labelElement="200k"
           />
-          <MenuItem
-            icon={defaultModel === "Claude Opus" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            tabindex="0"
-            text="Claude Opus"
-            labelElement="200k"
-          />
+          <MenuItem text="Claude 3 older models">
+            <MenuItem
+              icon={defaultModel === "Claude Haiku" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="Claude Haiku"
+              labelElement="200k"
+            />
+            <MenuItem
+              icon={defaultModel === "Claude Opus" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="Claude Opus"
+              labelElement="200k"
+            />
+          </MenuItem>
         </>
       )}
       {openRouterModels.length ? (
@@ -165,17 +241,21 @@ const ModelsMenu = ({ command }) => {
             openRouterModelsInfo.map((model) => (
               <MenuItem
                 icon={
-                  defaultModel.includes("OpenRouter") &&
-                  openRouterModels.length &&
-                  openRouterModels[0] === model &&
+                  ((defaultModel.includes("OpenRouter") &&
+                    openRouterModels.length &&
+                    openRouterModels[0] === model) ||
+                    defaultModel === `openRouter/${model.id}`) &&
                   "pin"
                 }
                 onClick={(e) => {
-                  handleClickOnModel(e, "openRouter/");
+                  handleClickOnModel(e, "openRouter/", model.id);
                 }}
                 onKeyDown={(e) => {
-                  handleKeyDownOnModel(e, "openRouter/");
+                  handleKeyDownOnModel(e, "openRouter/", model.id);
                 }}
+                onContextMenu={(e) =>
+                  handleContextMenu(e, "openRouter/", model.id)
+                }
                 tabindex="0"
                 text={
                   <Tooltip
@@ -206,7 +286,7 @@ const ModelsMenu = ({ command }) => {
                       </>
                     }
                   >
-                    {model.name}
+                    {model.name.split("(")[0].trim()}
                   </Tooltip>
                 }
                 labelElement={model.contextLength + "k"}
@@ -223,9 +303,10 @@ const ModelsMenu = ({ command }) => {
           {groqModels.map((model) => (
             <MenuItem
               icon={
-                defaultModel.includes("Groq") &&
-                groqModels.length &&
-                groqModels[0] === model &&
+                ((defaultModel.includes("Groq") &&
+                  groqModels.length &&
+                  groqModels[0] === model) ||
+                  defaultModel === `groq/${model}`) &&
                 "pin"
               }
               onClick={(e) => {
@@ -234,6 +315,7 @@ const ModelsMenu = ({ command }) => {
               onKeyDown={(e) => {
                 handleKeyDownOnModel(e, "groq/");
               }}
+              onContextMenu={(e) => handleContextMenu(e, "groq/")}
               tabindex="0"
               text={model}
             />
@@ -246,9 +328,10 @@ const ModelsMenu = ({ command }) => {
           {ollamaModels.map((model) => (
             <MenuItem
               icon={
-                defaultModel.includes("Ollama") &&
-                ollamaModels.length &&
-                ollamaModels[0] === model &&
+                ((defaultModel.includes("Ollama") &&
+                  ollamaModels.length &&
+                  ollamaModels[0] === model) ||
+                  defaultModel === `ollama/${model}`) &&
                 "pin"
               }
               onClick={(e) => {
@@ -257,6 +340,7 @@ const ModelsMenu = ({ command }) => {
               onKeyDown={(e) => {
                 handleKeyDownOnModel(e, "ollama/");
               }}
+              onContextMenu={(e) => handleContextMenu(e, "ollama/")}
               tabindex="0"
               text={model}
               labelElement="8k"
@@ -264,6 +348,10 @@ const ModelsMenu = ({ command }) => {
           ))}
         </>
       ) : null}
+      <MenuDivider
+        className="menu-hint"
+        title="ℹ︎ Right click on model to set as default"
+      />
     </Menu>
   );
 };

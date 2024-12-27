@@ -12,8 +12,11 @@ import {
 import { tokenizer } from "../ai/aiCommands";
 import { tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "../components/VoiceRecorder";
+import { highlightHtmlElt } from "./domElts";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
+export const dnpUidRegex =
+  /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)\d{2}$/;
 export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
 export const pageRegex = /\[\[.*\]\]/g;
 export const strictPageRegex = /^\[\[.*\]\]$/; // very simplified, not recursive...
@@ -81,6 +84,28 @@ export function getParentBlock(uid) {
     return directParent[":block/uid"];
   } else return "";
 }
+
+// export function getTopParentAmongBlocks(blockUids) {
+//   let result = window.roamAlphaAPI.q(
+//     `[:find ?uids
+//       :in $ [?all-uids ...]
+//   :where
+//   [?blocks :block/uid ?all-uids]
+//   [?parents :block/children ?blocks]
+//   [?children :block/parents ?parents]
+//   [?parents :block/uid ?uids]
+//   ]`,
+//     blockUids
+//   );
+//   let topParent;
+//   for (let i = 0; i < result.length; i++) {
+//     if (blockUids.includes(result[i][0])) {
+//       topParent = result[i][0];
+//       break;
+//     }
+//   }
+//   return topParent;
+// }
 
 export function getPreviousSiblingBlock(currentUid) {
   const parentUid = getParentBlock(currentUid);
@@ -185,6 +210,16 @@ export function focusOnBlockInMainWindow(blockUid) {
   });
 }
 
+export function updateBlock({ blockUid, newContent, format = {} }) {
+  window.roamAlphaAPI.updateBlock({
+    block: {
+      uid: blockUid,
+      string: newContent,
+      ...format,
+    },
+  });
+}
+
 export function updateArrayOfBlocks(arrayOfBlocks) {
   if (arrayOfBlocks.length) {
     arrayOfBlocks.forEach((block) =>
@@ -196,6 +231,25 @@ export function updateArrayOfBlocks(arrayOfBlocks) {
       })
     );
   }
+}
+
+export function moveBlock({ blockUid, targetParentUid, order }) {
+  window.roamAlphaAPI.moveBlock({
+    location: { "parent-uid": targetParentUid, order: order || "last" },
+    block: { uid: blockUid },
+  });
+}
+
+export function deleteBlock(blockUid) {
+  window.roamAlphaAPI.deleteBlock({ block: { uid: blockUid } });
+}
+
+export function reorderBlocks({ parentUid, newOrder }) {
+  console.log("parentUid :>> ", parentUid);
+  window.roamAlphaAPI.data.block.reorderBlocks({
+    location: { "parent-uid": parentUid },
+    blocks: newOrder,
+  });
 }
 
 export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
@@ -296,13 +350,14 @@ export async function insertBlockInCurrentView(content, order) {
   return newUid;
 }
 
-export async function addContentToBlock(uid, contentToAdd) {
+export async function addContentToBlock(uid, contentToAdd, format = {}) {
   const currentContent = getBlockContentByUid(uid).trimEnd();
   // currentContent += currentContent ? " " : "";
   await window.roamAlphaAPI.updateBlock({
     block: {
       uid: uid,
       string: (currentContent ? currentContent + " " : "") + contentToAdd,
+      ...format,
     },
   });
 }
@@ -329,6 +384,9 @@ export const getBlocksSelectionUids = (reverse) => {
 export const getFocusAndSelection = (currentUid) => {
   !currentUid &&
     (currentUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
+  const activ = document.activeElement;
+  console.log("activ.selectionStart :>> ", activ.selectionStart);
+  console.log("activ.selectionEnd :>> ", activ.selectionEnd);
   const selectionUids = getBlocksSelectionUids();
   const currentBlockContent = currentUid
     ? resolveReferences(getBlockContentByUid(currentUid))
@@ -412,12 +470,12 @@ export function convertTreeToLinearArray(
         }
         if (!toExcludeWithChildren /*&& !toExcludeAsBlock*/)
           linearArray.push(
-            (toExcludeAsBlock ? "" : uidString) +
-              leftShift +
-              ((!withDash || level === 1) &&
-              ((maxUid && level > maxUid) || !maxUid)
-                ? ""
+            leftShift +
+              (!withDash || level === 1 //&&
+                ? //((maxUid && level > maxUid) || !maxUid)
+                  ""
                 : "- ") +
+              (toExcludeAsBlock ? "" : uidString + " ") +
               resolveReferences(content)
           );
       } else level--;
@@ -471,7 +529,7 @@ export const getAndNormalizeContext = async (
         );
       }
       if (!pageUids.length) {
-        highlightHtmlElt(".roam-article > div:first-child");
+        highlightHtmlElt({ selector: ".roam-article > div:first-child" });
         pageUids = [
           await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid(),
         ];
@@ -488,7 +546,7 @@ export const getAndNormalizeContext = async (
         );
       }
       if (!pageUids.length) {
-        highlightHtmlElt(".rm-reference-main");
+        highlightHtmlElt({ selector: ".rm-reference-main" });
         pageUids = [await getMainPageUid()];
       }
       pageUids.forEach(
@@ -504,10 +562,10 @@ export const getAndNormalizeContext = async (
         if (focusedBlock) {
           startDate = new Date(getPageUidByBlockUid(focusedBlock));
         }
-        highlightHtmlElt(".roam-log-container");
+        highlightHtmlElt({ selector: ".roam-log-container" });
       } else if (isCurrentPageDNP()) {
         startDate = new Date(await getMainPageUid());
-        highlightHtmlElt(".rm-title-display");
+        highlightHtmlElt({ selector: ".rm-title-display" });
       } else {
         startDate = new Date();
       }
@@ -520,7 +578,7 @@ export const getAndNormalizeContext = async (
       );
     }
     if (roamContext.sidebar) {
-      highlightHtmlElt("#roam-right-sidebar-content");
+      highlightHtmlElt({ selector: "#roam-right-sidebar-content" });
       context += getFlattenedContentFromSidebar();
     }
   }
@@ -609,15 +667,6 @@ export function getFlattenedContentFromSidebar() {
   // console.log("flattedned blocks from Sidebar :>> ", flattednedBlocks);
   return flattednedBlocks;
 }
-
-export const highlightHtmlElt = (selector, elt) => {
-  if (!elt) elt = document.querySelector(selector);
-  if (!elt || elt.classList.contains("highlight-elt")) return;
-  elt.classList.add("highlight-elt");
-  setTimeout(() => {
-    elt.classList.remove("highlight-elt");
-  }, 6000);
-};
 
 export const simulateClick = (elt) => {
   const options = {
@@ -722,9 +771,26 @@ export const isCurrentPageDNP = async () => {
   return dateStringRegex.test(pageUid);
 };
 
+export const getDNPTitleFromDate = (date) => {
+  return window.roamAlphaAPI.util.dateToPageTitle(date);
+};
+
 const getYesterdayDate = (date = null) => {
   if (!date) date = new Date();
   return new Date(date.getTime() - 24 * 60 * 60 * 1000);
+};
+
+export const getDateStringFromDnpUid = (dnpUid) => {
+  const parts = dnpUid.split("-");
+  const date = new Date(parts[2], parts[0] - 1, parts[1]);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const formattedDate = formatter.format(date);
+  return formattedDate;
 };
 
 const getMatchingInlineCommand = (text, regex) => {
@@ -800,6 +866,7 @@ const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
   if (options.includes(`${optionName}(`)) {
     if (optionName === "block")
       prompt = prompt.replaceAll("((", "").replaceAll("))", "");
+    console.log("prompt in getArgumentFromOption :>> ", prompt);
     let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
     const args = [];
     const splittedArgument = argument.split("+");
@@ -874,11 +941,15 @@ export const getConversationArray = (parentUid) => {
   return conversation;
 };
 
-export const extractNormalizedUidFromRef = (str) => {
+export const extractNormalizedUidFromRef = (str, testIfExist = true) => {
   if (!str || (str && !(str.length === 9 || str.length === 13))) return "";
   const matchingResult = str.match(flexibleUidRegex);
   if (!matchingResult) return "";
-  return isExistingBlock(matchingResult[1]) ? matchingResult[1] : "";
+  return testIfExist
+    ? isExistingBlock(matchingResult[1])
+      ? matchingResult[1]
+      : ""
+    : matchingResult[1];
 };
 
 const normlizePageTitle = (str) => {
@@ -980,7 +1051,7 @@ export const cleanFlagFromBlocks = (flag, blockUids) => {
   );
 };
 
-export const updateTokenCounter = async (
+export const updateTokenCounter = (
   model = "gpt-4o-mini",
   { input_tokens, output_tokens }
 ) => {
@@ -1026,5 +1097,5 @@ export const updateTokenCounter = async (
       output: output_tokens,
     };
   }
-  await extensionStorage.set("tokensCounter", tokensCounter);
+  extensionStorage.set("tokensCounter", { ...tokensCounter });
 };

@@ -1,4 +1,5 @@
-import { createChildBlock } from "./utils";
+import { isResponseToSplit } from "..";
+import { addContentToBlock, createChildBlock } from "./utils";
 
 const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
@@ -23,9 +24,34 @@ export const sanitizeJSONstring = (str) => {
     .replace(codeBlockRegex, (match) => match.replace(/\n/g, "\\n"))
     // escape line break in all content string, if not already escaped
     .replace(jsonContentStringRegex, (match) =>
-      match.replace(notEscapedBreakLineRegex, "\\n")
+      match.replace(notEscapedBreakLineRegex, " \\n")
     );
   return sanitized;
+};
+
+export const sanitizeClaudeJSON = (str) => {
+  str = trimOutsideOuterBraces(str);
+  str = str.replace(/\\"/g, '"');
+  str = str.replace(/(begin|end|relative)/g, '"$1"');
+  str = sanitizeJSONstring(str);
+  return str;
+};
+
+export const balanceBraces = (str) => {
+  str = str.trim();
+  const openBraces = (str.match(/{/g) || []).length;
+  const closeBraces = (str.match(/}/g) || []).length;
+  if (openBraces === closeBraces) return str;
+  // if (!str.startsWith('{') || !str.endsWith('}')) {
+  //   throw new Error('str has to begin and end with braces');
+  // }
+  const diff = openBraces - closeBraces;
+  if (diff > 0) {
+    return str + "}".repeat(diff);
+  } else if (diff < 0) {
+    return str + "{".repeat(Math.abs(diff));
+  }
+  return str;
 };
 
 export const splitParagraphs = (str) => {
@@ -37,7 +63,6 @@ export const splitParagraphs = (str) => {
   return str.split(`\n\n`);
 };
 
-// Fonction principale pour parser le texte hiérarchisé et créer des blocs dans RoamResearch
 export const parseAndCreateBlocks = async (parentBlockRef, text) => {
   const lines = text.split("\n");
   let currentParentRef = parentBlockRef;
@@ -116,6 +141,30 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
     stack.push({ level, ref: newBlockRef });
   }
 };
+
+export async function insertStructuredAIResponse(
+  targetUid,
+  aiResponse,
+  forceInChildren = false,
+  format
+) {
+  const splittedResponse = splitParagraphs(aiResponse);
+  if (
+    (!isResponseToSplit || splittedResponse.length === 1) &&
+    !hierarchyFlagRegex.test(splittedResponse[0])
+  )
+    if (forceInChildren)
+      await createChildBlock(
+        targetUid,
+        splittedResponse[0],
+        format?.open,
+        format?.heading
+      );
+    else await addContentToBlock(targetUid, splittedResponse[0]);
+  else {
+    await parseAndCreateBlocks(targetUid, aiResponse);
+  }
+}
 
 function getLevel(line, minTitleLevel) {
   let level = 0;

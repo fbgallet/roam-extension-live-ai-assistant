@@ -283,8 +283,8 @@ _Claude API pricing:_
   - Input: `$0.00025` / 1K tokens
   - Output: `$0.00125` / 1K tokens
 - Haiku 3.5
-  - input: `$0.001` / 1K tokens
-  - output: `$0.005` / 1K tokens
+  - input: `$0.0008` / 1K tokens
+  - output: `$0.004` / 1K tokens
 - Sonnet 3.5
   - input: `$0.003` / 1K tokens
   - output: `$0.015` / 1K tokens
