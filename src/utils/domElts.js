@@ -1,7 +1,7 @@
 // import React from "react";
 import ReactDOM from "react-dom";
 import InstantButtons from "../components/InstantButtons";
-import { isComponentVisible } from "..";
+import { isComponentVisible, position } from "..";
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
@@ -125,7 +125,7 @@ export const displaySpinner = async (targetUid) => {
     if (targetBlockElt) targetBlockElt.appendChild(spinner);
     intervalId = setInterval(() => {
       updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
-    }, 600);
+    }, 300);
   }, 100);
   return intervalId;
 
@@ -133,6 +133,7 @@ export const displaySpinner = async (targetUid) => {
     const currentIndex = frames.indexOf(container.innerText);
     const nextIndex = currentIndex + 1 < frames.length ? currentIndex + 1 : 0;
     container.innerText = frames[nextIndex];
+    if (frames[nextIndex] === " ") container.innerHTML = "&nbsp;";
   }
 };
 
@@ -149,27 +150,51 @@ export const insertParagraphForStream = (targetUid) => {
   const streamElt = document.createElement("p");
   streamElt.classList.add("speech-stream");
   if (targetBlockElt) targetBlockElt.appendChild(streamElt);
-  displaySpinner(targetUid);
+  //displaySpinner(targetUid);
   return streamElt;
 };
 
 export const insertInstantButtons = (props) => {
-  const targetBlockElt = document.querySelector(`[id*="${props.targetUid}"]`);
-  const previousContainer =
-    targetBlockElt &&
-    targetBlockElt.parentElement.querySelector(".speech-instant-container");
-  let container;
-  if (previousContainer) {
-    ReactDOM.unmountComponentAtNode(previousContainer);
-    // container = previousContainer;
+  let targetElts = [...document.querySelectorAll(`[id$="${props.targetUid}"]`)];
+  targetElts = targetElts.map((elt) =>
+    elt.id.includes("sidebar")
+      ? elt.querySelector(`[id$="${props.targetUid}"]`)
+      : elt
+  );
+
+  targetElts = targetElts
+    .filter((elt) => elt != null)
+    .map((elt) => elt.closest(".rm-block-main"));
+
+  const selector = `.liveai-instant-btn-${
+    props.isOutlinerAgent ? "outliner-" : ""
+  }container`;
+
+  const previousContainerElts =
+    targetElts.length &&
+    targetElts
+      .map((elt) => elt.parentElement.querySelector(selector))
+      .filter((elt) => elt != null);
+
+  if (previousContainerElts.length) {
+    previousContainerElts.forEach((elt) => {
+      elt && ReactDOM.unmountComponentAtNode(elt);
+    });
+    if (props.isToRemove) {
+      setTimeout(() => {
+        previousContainerElts.forEach((elt) => elt.remove());
+      }, 200);
+      return;
+    }
   }
-  // else {
-  container = document.createElement("div");
-  container.classList.add("speech-instant-container");
-  // targetBlockElt.insertAdjacentElement("afterend", container);
-  targetBlockElt.parentElement.appendChild(container);
-  // }
-  ReactDOM.render(<InstantButtons {...props} />, container);
+
+  targetElts.forEach((elt) => {
+    let container = document.createElement("div");
+    container.classList.add(selector.slice(1));
+    if (props.isOutlinerAgent) elt.nextElementSibling.appendChild(container);
+    else elt.parentElement.appendChild(container);
+    ReactDOM.render(<InstantButtons {...props} />, container);
+  });
 };
 
 export const displayTokensDialog = () => {
@@ -195,4 +220,65 @@ export const displayTokensDialog = () => {
     <TokensDialog isOpen={true} onClose={unmountTokensDialog} />,
     container
   );
+};
+
+export const highlightHtmlElt = ({
+  selector,
+  eltUid,
+  isFixed = false,
+  color = "",
+  isToRemove,
+}) => {
+  let elts = [];
+  if (!eltUid) elts = [...document.querySelector(selector)];
+  else {
+    let eltToHighlight = [
+      ...document.querySelectorAll(`.roam-block[id$="${eltUid}"]`),
+    ];
+    eltToHighlight = eltToHighlight.concat([
+      ...document.querySelectorAll(`.rm-block-input[id$="${eltUid}"]`),
+    ]);
+    console.log("eltToHighlight :>> ", eltToHighlight);
+    elts = eltToHighlight.map((elt) =>
+      elt.tagName === "TEXTAREA"
+        ? elt.parentElement.parentElement.nextElementSibling
+        : elt.parentElement.nextElementSibling
+    );
+  }
+  const highightSelector = `${isFixed ? "fixed-" : ""}highlight-elt${
+    color ? "-" + color : ""
+  }`;
+  if (!elts.length) return;
+  elts.forEach((elt) => {
+    if (!elt.classList.contains(highightSelector) && !isToRemove) {
+      elt.classList.add(highightSelector);
+      if (isFixed) return;
+      setTimeout(() => {
+        elt.classList.remove(highightSelector);
+      }, 6000);
+    } else if (isToRemove) {
+      elt.classList.remove(highightSelector);
+    }
+  });
+};
+
+export const toggleOutlinerSelection = (targetUid, isSelected) => {
+  setTimeout(() => {
+    highlightHtmlElt({
+      eltUid: targetUid,
+      isFixed: true,
+      color: "blue",
+      isToRemove: !isSelected,
+    });
+    insertInstantButtons({
+      targetUid,
+      isOutlinerAgent: true,
+      isToRemove: !isSelected,
+    });
+  }, 100);
+  if (isComponentVisible) {
+    // remount Speech component to update Outliner Agent icon
+    unmountComponent(position);
+    mountComponent(position, { outlineState: isSelected });
+  }
 };

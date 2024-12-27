@@ -17,8 +17,16 @@ import {
   getFlattenedContentFromTree,
   getParentBlock,
 } from "../utils/utils.js";
-import { chatRoles, getInstantAssistantRole } from "../index.js";
-import { insertInstantButtons } from "../utils/domElts.js";
+import {
+  chatRoles,
+  extensionStorage,
+  getInstantAssistantRole,
+} from "../index.js";
+import {
+  highlightHtmlElt,
+  insertInstantButtons,
+  toggleOutlinerSelection,
+} from "../utils/domElts.js";
 
 export let isCanceledStreamGlobal = false;
 
@@ -27,10 +35,13 @@ const InstantButtons = ({
   prompt,
   content,
   responseFormat,
+  currentUid,
   targetUid,
   isStreamStopped,
   response,
   isUserResponse,
+  aiCallback,
+  isOutlinerAgent,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -49,15 +60,23 @@ const InstantButtons = ({
 
   const handleRedo = (e, instantModel) => {
     isCanceledStreamGlobal = true;
-    insertCompletion({
-      prompt,
-      targetUid,
-      context: content,
-      typeOfCompletion:
-        responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
-      instantModel: instantModel || model,
-      isRedone: true,
-    });
+    !aiCallback
+      ? insertCompletion({
+          prompt,
+          targetUid,
+          context: content,
+          typeOfCompletion:
+            responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
+          instantModel: instantModel || model,
+          isRedone: true,
+        })
+      : aiCallback({
+          model: instantModel || model,
+          prompt,
+          currentUid,
+          targetUid,
+          previousResponse: response,
+        });
     setIsToUnmount(true);
   };
 
@@ -81,6 +100,10 @@ const InstantButtons = ({
 
   const handleClose = () => {
     setIsToUnmount(true);
+    if (isOutlinerAgent) {
+      extensionStorage.set("outlinerRootUid", null);
+      toggleOutlinerSelection(targetUid, false);
+    }
   };
 
   if (isToUnmount) return null;
