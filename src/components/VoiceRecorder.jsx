@@ -14,6 +14,7 @@ import {
   faBackwardStep,
   faWandMagicSparkles,
   faLanguage,
+  faRectangleList,
   faListUl,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -39,7 +40,6 @@ import {
   getParentBlock,
   getResolvedContentFromBlocks,
   getTemplateFromPrompt,
-  highlightHtmlElt,
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
@@ -55,12 +55,14 @@ import {
   isUsingWhisper,
   openaiLibrary,
   isResponseToSplit,
+  extensionStorage,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
 import ModelsMenu from "./ModelsMenu.jsx";
 import {
   displaySpinner,
+  highlightHtmlElt,
   removeSpinner,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
@@ -68,7 +70,11 @@ import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
 import TokensDisplay from "./TokensDisplay.jsx";
 import TokensDialog from "./TokensDisplay.jsx";
 import CommandsMenu from "./CommandsMenu.jsx";
-import { handleModifierKeys } from "../utils/roamExtensionCommands.js";
+import {
+  handleModifierKeys,
+  runOutlinerAgent,
+  setAsOutline,
+} from "../utils/roamExtensionCommands.js";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",
@@ -89,6 +95,7 @@ function VoiceRecorder({
   position,
   worksOnPlatform,
   isVisible,
+  outlineState,
 }) {
   const [isWorking, setIsWorking] = useState(
     worksOnPlatform ? (mic === null && !isUsingWhisper ? false : true) : false
@@ -102,6 +109,7 @@ function VoiceRecorder({
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
+  const [isOutlineActive, setIsOutlineActive] = useState(outlineState);
 
   const isToTranscribe = useRef(false);
   const stream = useRef(null);
@@ -269,23 +277,24 @@ function VoiceRecorder({
       handleCompletion(e);
       return;
     }
-    if (e.keyCode === 80) {
-      // "p", to make it compatible with modifiers
-      handlePostProcessing(e);
+    if (e.keyCode === 79) {
+      // "o", to make it compatible with modifiers
+      handleOutlinerAgent(e);
     }
   };
 
   const handleEltHighlight = async (e) => {
     if (e.shiftKey) {
-      highlightHtmlElt("#roam-right-sidebar-content");
+      highlightHtmlElt({ selector: "#roam-right-sidebar-content" });
     }
     if (e.metaKey || e.ctrlKey) {
-      if (isLogView()) highlightHtmlElt(".roam-log-container");
-      else if (await isCurrentPageDNP()) highlightHtmlElt(".rm-title-display");
-      else highlightHtmlElt(".rm-reference-main");
+      if (isLogView()) highlightHtmlElt({ selector: ".roam-log-container" });
+      else if (await isCurrentPageDNP())
+        highlightHtmlElt({ selector: ".rm-title-display" });
+      else highlightHtmlElt({ selector: ".rm-reference-main" });
     }
     if (e.altKey) {
-      highlightHtmlElt(".roam-article > div:first-child");
+      highlightHtmlElt({ selector: ".roam-article > div:first-child" });
     }
   };
 
@@ -373,33 +382,18 @@ function VoiceRecorder({
     console.log("roamContext.current :>> ", roamContext.current);
     initializeProcessing(commandPrompt);
   };
-  const handlePostProcessing = async (e, model) => {
+  const handleOutlinerAgent = async (e, model) => {
+    if (!(await extensionStorage.get("outlinerRootUid"))) {
+      setAsOutline();
+      setIsOutlineActive(true);
+      return;
+    }
     if (model) instantModel.current = model;
-    lastCommand.current = "gptPostProcessing";
+    lastCommand.current = "outlinerAgent";
     roamContext.current = await handleModifierKeys(e);
     handleEltHighlight(e);
     initializeProcessing();
   };
-  // const handleModifierKeys = async (e) => {
-  //   roamContext.current = {
-  //     linkedRefs: false,
-  //     sidebar: false,
-  //     mainPage: false,
-  //     logPages: false,
-  //   };
-  //   if (e.shiftKey) roamContext.current.sidebar = true;
-  //   if (e.metaKey || e.ctrlKey) {
-  //     if (isLogView() || (await isCurrentPageDNP())) {
-  //       AppToaster.show({
-  //         message:
-  //           "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. " +
-  //           "Be aware of the potentially high cost: for each request; around $0.02 with GPT-4o-mini, up to $1.30 with GPT-4.",
-  //       });
-  //       roamContext.current.logPages = true;
-  //     } else roamContext.current.linkedRefs = true;
-  //   }
-  //   if (e.altKey) roamContext.current.page = true;
-  // };
 
   const initializeProcessing = async (commandPrompt, withAssistantRole) => {
     targetBlock.current =
@@ -469,7 +463,7 @@ function VoiceRecorder({
       (await insertBlockInCurrentView(""));
     if (
       lastCommand.current === "gptCompletion" ||
-      lastCommand.current === "gptPostProcessing"
+      lastCommand.current === "outlinerAgent"
     ) {
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
@@ -535,72 +529,73 @@ function VoiceRecorder({
         : chatRoles.assistant
       : "";
     const context = await getAndNormalizeContext(
-      lastCommand.current === "gptPostProcessing" ? null : startBlock.current,
+      lastCommand.current === "outlinerAgent" ? null : startBlock.current,
       blocksSelectionUids.current,
       roamContext.current,
       null,
       instantModel.current || defaultModel
     );
-    if (lastCommand.current === "gptPostProcessing") {
-      let inlineTemplate = getTemplateFromPrompt(
-        getBlockContentByUid(promptUid)
-      );
-      let uidsToExclude = [];
-      if (inlineTemplate) {
-        uidsToExclude = await copyTemplate(
-          promptUid,
-          inlineTemplate.templateUid
-        );
-        prompt = resolveReferences(inlineTemplate.updatedPrompt);
-        waitForBlockCopy = true;
-      } else if (!getFirstChildUid(promptUid)) {
-        await copyTemplate(promptUid);
-        waitForBlockCopy = true;
-      }
-      setTimeout(
-        async () => {
-          let template = await getTemplateForPostProcessing(
-            promptUid,
-            99,
-            uidsToExclude
-          );
-          // console.log("template :>> ", template);
-          let commandType;
-          if (!template) {
-            // default post-processing
-            AppToaster.show({
-              message:
-                "You are requesting a post-processing completion following a template, but there is neither provided template nor default template defined in settings.",
-            });
-            commandType = "gptCompletion";
-            prompt = prompt;
-            uid = await createChildBlock(promptUid, assistantRole);
-          } else {
-            commandType = "gptPostProcessing";
-            prompt =
-              specificContentPromptBeforeTemplate +
-              prompt +
-              "\n\n" +
-              template.stringified;
-            uid = getFirstChildUid(promptUid);
-          }
+    if (lastCommand.current === "outlinerAgent") {
+      runOutlinerAgent({ prompt, context, model: instantModel });
+      // let inlineTemplate = getTemplateFromPrompt(
+      //   getBlockContentByUid(promptUid)
+      // );
+      // let uidsToExclude = [];
+      // if (inlineTemplate) {
+      //   uidsToExclude = await copyTemplate(
+      //     promptUid,
+      //     inlineTemplate.templateUid
+      //   );
+      //   prompt = resolveReferences(inlineTemplate.updatedPrompt);
+      //   waitForBlockCopy = true;
+      // } else if (!getFirstChildUid(promptUid)) {
+      //   await copyTemplate(promptUid);
+      //   waitForBlockCopy = true;
+      // }
+      // setTimeout(
+      //   async () => {
+      //     let template = await getTemplateForPostProcessing(
+      //       promptUid,
+      //       99,
+      //       uidsToExclude
+      //     );
+      //     // console.log("template :>> ", template);
+      //     let commandType;
+      //     if (!template) {
+      //       // default post-processing
+      //       AppToaster.show({
+      //         message:
+      //           "You are requesting a post-processing completion following a template, but there is neither provided template nor default template defined in settings.",
+      //       });
+      //       commandType = "gptCompletion";
+      //       prompt = prompt;
+      //       uid = await createChildBlock(promptUid, assistantRole);
+      //     } else {
+      //       commandType = "outlinerAgent";
+      //       prompt =
+      //         specificContentPromptBeforeTemplate +
+      //         prompt +
+      //         "\n\n" +
+      //         template.stringified;
+      //       uid = getFirstChildUid(promptUid);
+      //     }
 
-          // remove {text} mentions from template
-          if (template.excluded && template.excluded.length) {
-            cleanFlagFromBlocks("{text}", template.excluded);
-          }
+      //     // remove {text} mentions from template
+      //     if (template.excluded && template.excluded.length) {
+      //       cleanFlagFromBlocks("{text}", template.excluded);
+      //     }
 
-          await insertCompletion({
-            prompt,
-            targetUid: uid,
-            context,
-            typeOfCompletion: commandType,
-            instantModel: instantModel.current,
-          });
-          initialize(true);
-        },
-        waitForBlockCopy ? 100 : 0
-      );
+      //     await insertCompletion({
+      //       prompt,
+      //       targetUid: uid,
+      //       context,
+      //       typeOfCompletion: commandType,
+      //       instantModel: instantModel.current,
+      //     });
+      //     initialize(true);
+      //   },
+      //   waitForBlockCopy ? 100 : 0
+      // );
     } else {
       const isInConversation = isPromptInConversation(promptUid);
       if (toNextSibling) {
@@ -830,21 +825,20 @@ function VoiceRecorder({
         ? "speech-translate"
         : command === handleCompletion
         ? "speech-completion"
-        : "speech-post-processing";
+        : "outliner-agent";
     return (
       // {(isListening || recording !== null) && (
       <span class="bp3-popover-wrapper">
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
             onClick={(e) => {
-              console.log("onClick ? :>> ");
               command(e);
             }}
             // disabled={!safariRecorder.current.activeStream?.active}
             onMouseEnter={(e) => {
               if (
                 command === handleCompletion ||
-                command === handlePostProcessing
+                command === handleOutlinerAgent
               ) {
                 handleEltHighlight(e);
               }
@@ -852,27 +846,11 @@ function VoiceRecorder({
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (
-                command === handleCompletion ||
-                command === handlePostProcessing
-              ) {
-                window.LiveAI.toggleComponentOpen(e, command);
+              if (command === handleCompletion) {
+                window.LiveAI.toggleContextMenu({ e });
+              } else if (command === handleOutlinerAgent) {
+                window.LiveAI.toggleContextMenu({ e, onlyOutliner: true });
               }
-              // if (e.metaKey) {
-              //   window.toggleComponentOpen(e, instantModel, handleCompletion);
-              //   return;
-              // }
-
-              // if (
-              //   command === handleCompletion ||
-              //   command === handlePostProcessing
-              // ) {
-              //   ContextMenu.show(
-              //     CommandsMenu({ command, instantModel }),
-              //     { left: e.clientX, top: e.clientY },
-              //     null
-              //   );
-              // }
             }}
             disabled={!areCommandsToDisplay}
             class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}
@@ -930,7 +908,7 @@ function VoiceRecorder({
               <Tooltip
                 content={
                   <p>
-                    AI assistant Completion (C)
+                    AI Completion following prompt (C)
                     <br />+<code>Alt</code>: <b>page</b> as context
                     <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
                     <b>linked refs or DNPs</b>
@@ -947,20 +925,32 @@ function VoiceRecorder({
         {
           /*isListening || areCommandsToDisplay && */
           isToDisplay.completionIcon &&
-            jsxCommandIcon({}, handlePostProcessing, () => (
+            jsxCommandIcon({}, handleOutlinerAgent, () => (
               <Tooltip
                 content={
-                  <p>
-                    AI Post-Processing following template (P)
-                    <br />+<code>Alt</code>: <b>page</b> as context
-                    <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
-                    <b>linked refs or DNPs</b>
-                    <br />+<code>Shift</code>: <b>sidebar</b>
-                  </p>
+                  isOutlineActive ? (
+                    <p>
+                      Outliner Agent (O)
+                      <br />+<code>Alt</code>: <b>page</b> as context
+                      <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
+                      <b>linked refs or DNPs</b>
+                      <br />+<code>Shift</code>: <b>sidebar</b>
+                    </p>
+                  ) : (
+                    <p>
+                      Outliner Agent (O)
+                      <br />
+                      Select focused block as target
+                    </p>
+                  )
                 }
                 hoverOpenDelay="500"
               >
-                <FontAwesomeIcon icon={faListUl} />
+                {isOutlineActive ? (
+                  <FontAwesomeIcon icon={faRectangleList} size="lg" />
+                ) : (
+                  <FontAwesomeIcon icon={faListUl} />
+                )}
               </Tooltip>
             ))
         }

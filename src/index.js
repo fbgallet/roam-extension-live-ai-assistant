@@ -68,7 +68,7 @@ export let openRouterModels = [];
 export let isComponentAlwaysVisible;
 export let isComponentVisible;
 export let resImages;
-let position;
+export let position;
 export let openaiLibrary, anthropicLibrary, openrouterLibrary, groqLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||

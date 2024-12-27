@@ -17,8 +17,16 @@ import {
   getFlattenedContentFromTree,
   getParentBlock,
 } from "../utils/utils.js";
-import { chatRoles, getInstantAssistantRole } from "../index.js";
-import { insertInstantButtons } from "../utils/domElts.js";
+import {
+  chatRoles,
+  extensionStorage,
+  getInstantAssistantRole,
+} from "../index.js";
+import {
+  highlightHtmlElt,
+  insertInstantButtons,
+  toggleOutlinerSelection,
+} from "../utils/domElts.js";
 
 export let isCanceledStreamGlobal = false;
 
@@ -33,6 +41,7 @@ const InstantButtons = ({
   response,
   isUserResponse,
   aiCallback,
+  isOutlinerAgent,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -91,6 +100,10 @@ const InstantButtons = ({
 
   const handleClose = () => {
     setIsToUnmount(true);
+    if (isOutlinerAgent) {
+      extensionStorage.set("outlinerRootUid", null);
+      toggleOutlinerSelection(targetUid, false);
+    }
   };
 
   if (isToUnmount) return null;

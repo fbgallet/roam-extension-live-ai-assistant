@@ -178,16 +178,31 @@
 }
 
 .highlight-elt {
-  /* outline: 6px dashed transparent; */
-  /* transition: border-color 1s; */
   animation: flash 5s;
-  /* -webkit-box-shadow: 0 0 10px 5px green; */
+}
+.fixed-highlight-elt-blue {
+  transition: 2.5s;
+  filter: brightness(0.8);
+  -webkit-box-shadow: 0 0 10px 5px #2196f380;
+}
+
+@keyframes flash {
+  0% {
+    -webkit-box-shadow: 0 0 10px 5px transparent;
+  }
+  50% {
+    filter: brightness(0.9);
+    -webkit-box-shadow: 0 0 10px 5px green;
+  }
+  100% {
+    -webkit-box-shadow: 0 0 10px 5px transparent;
+  }
 }
 
 /* CONTEXT MENU */
 
 .aicommands-div {
-  min-width: 230px;
+  min-width: 250px;
   width: auto;
 }
 
@@ -249,62 +264,74 @@
 /* INLINE BUTTONS
  on the right of assistant answer */
 
-.speech-instant-container {
+.liveai-instant-btn-container {
   position: absolute;
   top: -22px;
   right: 0;
-  z-index: 2;
+  z-index: 99;
   opacity: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-.speech-instant-container:not(:has(.fa-copy)) {
+.liveai-instant-btn-outliner-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 99;
+  opacity: 0.4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.rm-block-children:not(:has(.rm-block))
+  > .liveai-instant-btn-outliner-container {
+  top: -25px;
+}
+.liveai-instant-btn-container:not(:has(.fa-copy)) {
   top: 1px;
   opacity: 0.4;
 }
-.rm-block:has(.rm-block__ref-count) .speech-instant-container {
+.rm-block:has(.rm-block__ref-count) .liveai-instant-btn-container,
+.rm-block:has(.rm-block__ref-count) .liveai-instant-btn-outliner-container {
   top: 25px;
 }
-.rm-block:has(.speech-instant-container):hover
+.rm-block:has(.liveai-instant-btn-container):hover
   > div
-  > .speech-instant-container {
+  > .liveai-instant-btn-container {
   opacity: 0.4;
 }
-.rm-block:has(.speech-instant-container) .speech-instant-container:hover,
-.rm-block:has(.speech-instant-container):hover .speech-instant-container:hover {
+
+.rm-block:has(.liveai-instant-btn-outliner-container):hover
+  > div
+  > .liveai-instant-btn-outliner-container {
+  opacity: 0.6;
+}
+
+.rm-block:has(.liveai-instant-btn-container)
+  .liveai-instant-btn-container:hover,
+.rm-block:has(.liveai-instant-btn-container):hover
+  .liveai-instant-btn-container:hover,
+.rm-block:has(.liveai-instant-btn-outliner-container)
+  .liveai-instant-btn-outliner-container:hover,
+.rm-block:has(.liveai-instant-btn-outliner-container):hover
+  .liveai-instant-btn-outliner-container:hover {
   opacity: 1;
 }
-.speech-instant-container > div > span > .bp3-button {
+.liveai-instant-btn-container > div > span > .bp3-button,
+.liveai-instant-btn-outliner-container > div > span > .bp3-button {
   /* > div > span > */
   background-color: transparent;
-  min-height: 20px;
+  min-height: 18px;
   min-width: 20px;
   padding: 1px;
 }
-/* .speech-instant-container > svg {
+/* .liveai-instant-btn-container > svg {
   padding: 1px 0;
 } */
-.speech-instant-container svg:not(.fa-xmark) path {
+.liveai-instant-btn-container svg:not(.fa-xmark) path,
+.liveai-instant-btn-outliner-container svg:not(.fa-xmark) path {
   fill: var(--icon-color-top);
-}
-
-@keyframes flash {
-  0% {
-    /* filter: brightness(1.5); */
-    /* outline-color: transparent; */
-    -webkit-box-shadow: 0 0 10px 5px transparent;
-  }
-  50% {
-    filter: brightness(0.9);
-    /* outline-color: rgba(0, 128, 0, 0.65); */
-    -webkit-box-shadow: 0 0 10px 5px green;
-  }
-  100% {
-    /* filter: brightness(1); */
-    /* outline-color: transparent; */
-    -webkit-box-shadow: 0 0 10px 5px transparent;
-  }
 }
 
 /* Tokens usage dialog */

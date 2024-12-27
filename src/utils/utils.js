@@ -12,6 +12,7 @@ import {
 import { tokenizer } from "../ai/aiCommands";
 import { tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "../components/VoiceRecorder";
+import { highlightHtmlElt } from "./domElts";
 
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const dnpUidRegex =
@@ -83,6 +84,28 @@ export function getParentBlock(uid) {
     return directParent[":block/uid"];
   } else return "";
 }
+
+// export function getTopParentAmongBlocks(blockUids) {
+//   let result = window.roamAlphaAPI.q(
+//     `[:find ?uids
+//       :in $ [?all-uids ...]
+//   :where
+//   [?blocks :block/uid ?all-uids]
+//   [?parents :block/children ?blocks]
+//   [?children :block/parents ?parents]
+//   [?parents :block/uid ?uids]
+//   ]`,
+//     blockUids
+//   );
+//   let topParent;
+//   for (let i = 0; i < result.length; i++) {
+//     if (blockUids.includes(result[i][0])) {
+//       topParent = result[i][0];
+//       break;
+//     }
+//   }
+//   return topParent;
+// }
 
 export function getPreviousSiblingBlock(currentUid) {
   const parentUid = getParentBlock(currentUid);
@@ -506,7 +529,7 @@ export const getAndNormalizeContext = async (
         );
       }
       if (!pageUids.length) {
-        highlightHtmlElt(".roam-article > div:first-child");
+        highlightHtmlElt({ selector: ".roam-article > div:first-child" });
         pageUids = [
           await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid(),
         ];
@@ -523,7 +546,7 @@ export const getAndNormalizeContext = async (
         );
       }
       if (!pageUids.length) {
-        highlightHtmlElt(".rm-reference-main");
+        highlightHtmlElt({ selector: ".rm-reference-main" });
         pageUids = [await getMainPageUid()];
       }
       pageUids.forEach(
@@ -539,10 +562,10 @@ export const getAndNormalizeContext = async (
         if (focusedBlock) {
           startDate = new Date(getPageUidByBlockUid(focusedBlock));
         }
-        highlightHtmlElt(".roam-log-container");
+        highlightHtmlElt({ selector: ".roam-log-container" });
       } else if (isCurrentPageDNP()) {
         startDate = new Date(await getMainPageUid());
-        highlightHtmlElt(".rm-title-display");
+        highlightHtmlElt({ selector: ".rm-title-display" });
       } else {
         startDate = new Date();
       }
@@ -555,7 +578,7 @@ export const getAndNormalizeContext = async (
       );
     }
     if (roamContext.sidebar) {
-      highlightHtmlElt("#roam-right-sidebar-content");
+      highlightHtmlElt({ selector: "#roam-right-sidebar-content" });
       context += getFlattenedContentFromSidebar();
     }
   }
@@ -644,15 +667,6 @@ export function getFlattenedContentFromSidebar() {
   // console.log("flattedned blocks from Sidebar :>> ", flattednedBlocks);
   return flattednedBlocks;
 }
-
-export const highlightHtmlElt = (selector, elt) => {
-  if (!elt) elt = document.querySelector(selector);
-  if (!elt || elt.classList.contains("highlight-elt")) return;
-  elt.classList.add("highlight-elt");
-  setTimeout(() => {
-    elt.classList.remove("highlight-elt");
-  }, 6000);
-};
 
 export const simulateClick = (elt) => {
   const options = {
