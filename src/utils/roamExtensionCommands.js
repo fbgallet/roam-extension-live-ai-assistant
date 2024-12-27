@@ -22,11 +22,13 @@ import {
 import {
   displaySpinner,
   displayTokensDialog,
+  highlightHtmlElt,
   insertInstantButtons,
   mountComponent,
   removeSpinner,
   simulateClickOnRecordingButton,
   toggleComponentVisibility,
+  toggleOutlinerSelection,
   unmountComponent,
 } from "./domElts";
 import {
@@ -38,14 +40,17 @@ import {
   flexibleUidRegex,
   getAndNormalizeContext,
   getBlockContentByUid,
+  getBlocksSelectionUids,
   getContextFromSbCommand,
   getFirstChildUid,
   getFlattenedContentFromTree,
   getFocusAndSelection,
+  getOnlyParenstBlocks,
   getParentBlock,
   getResolvedContentFromBlocks,
   getRoamContextFromPrompt,
   getTemplateFromPrompt,
+  getTopParentAmongBlocks,
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
@@ -275,95 +280,51 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     },
   });
 
+  const openContextMenu = (blockUid, selectionUids) => {
+    setTimeout(() => {
+      const centerX = window.innerWidth / 2 - 100;
+      const centerY = window.innerHeight / 3;
+      window.LiveAI.toggleContextMenu({
+        e: { clientX: centerX, clientY: centerY },
+        source: blockUid ? [blockUid] : selectionUids,
+      });
+    }, 50);
+  };
+
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Open Command Selector",
-    callback: (e) => {
-      setTimeout(() => {
-        // const focusedElement = document.activeElement;
-        const centerX = window.innerWidth / 2 - 100;
-        const centerY = window.innerHeight / 3;
-        window.toggleComponentOpen({ clientX: centerX, clientY: centerY });
-      }, 100);
-    },
+    label: "Live AI Assistant: Open commands context Menu",
+    callback: (e) => openContextMenu(),
   });
+
+  window.roamAlphaAPI.ui.blockContextMenu.addCommand({
+    label: "Live AI Assistant: Open context Menu",
+    callback: (e) => openContextMenu(e["block-uid"]),
+  });
+
+  // Not reliable enought for prompting since it's not properly ordered
+  // ****
+  // window.roamAlphaAPI.ui.msContextMenu.addCommand({
+  //   label: "Live AI Assistant: Open context Menu",
+  //   callback: (e) => {
+  //     let selectionUids = e["blocks"].map((b) => b["block-uid"]); // not ordered !
+  //     const topParent = getTopParentAmongBlocks(selectionUids);
+  //     selectionUids.splice(selectionUids.indexOf(topParent), 1);
+  //     selectionUids = selectionUids.unshift(topParent);
+  //     openContextMenu(undefined, selectionUids.length ? selectionUids : null);
+  //   },
+  // });
 
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI Assistant: Set as target for Outliner Agent",
     callback: async () => {
-      let { currentUid, currentBlockContent, selectionUids } =
-        getFocusAndSelection();
-      await extensionStorage.set(
-        "outlinerRootUid",
-        currentUid || (selectionUids.length ? selectionUids[0] : undefined)
-      );
-      if (!extensionStorage.get("outlinerRootUid"))
-        AppToaster.show({
-          message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
-        });
+      setAsOutline();
     },
   });
 
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI Assistant: Send this prompt to Outliner Agent",
     callback: async () => {
-      let { currentUid, currentBlockContent, selectionUids } =
-        getFocusAndSelection();
-      if (!extensionStorage.get("outlinerRootUid")) {
-        AppToaster.show({
-          message: `An outline has to be set as target for Outliner Agent`,
-        });
-        return;
-      }
-      let prompt;
-      if (currentUid) {
-        prompt = currentBlockContent;
-      } else if (
-        selectionUids.length &&
-        document.querySelector(".block-highlight-blue")
-      ) {
-        prompt = getResolvedContentFromBlocks(selectionUids, false);
-        selectionUids = [];
-      } else {
-        AppToaster.show({
-          message: `Some block as to be focused or selected to be used as prompt sent to Outliner Agent`,
-        });
-        return;
-      }
-      let outline = await getTemplateForPostProcessing(
-        extensionStorage.get("outlinerRootUid"),
-        99,
-        [],
-        false
-      );
-      // console.log("outline :>> ", outline.stringified);
-      console.log("defaultModel :>> ", defaultModel);
-      const begin = performance.now();
-      const response = await transformerAgent.invoke({
-        rootUid: extensionStorage.get("outlinerRootUid"),
-        messages: [
-          {
-            role: "user",
-            content: `${prompt}
-
-            Input outline:
-            ${outline.stringified}
-            `,
-          },
-        ],
-      });
-      // console.log("response from command:>> ", response);
-      const end = performance.now();
-      const message = response.messages[1].content;
-      console.log("operations :>> ", message);
-      if (message && message !== "N/A") {
-        AppToaster.show({
-          message: "Outliner Agent: " + message,
-        });
-      }
-      console.log(
-        "Total Agent request duration: ",
-        `${((end - begin) / 1000).toFixed(2)}s`
-      );
+      runOutlinerAgent();
     },
   });
 
@@ -588,10 +549,14 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   }
 };
 
-export const aiCompletionRunner = async (e, prompt = "", instantModel) => {
-  console.log("aiCompletionRunner ???");
+export const aiCompletionRunner = async ({
+  e,
+  sourceUid,
+  prompt = "",
+  instantModel,
+}) => {
   let { completedPrompt, targetUid, context, isInConversation, noData } =
-    await getInputDataFromRoamContext(e, prompt, instantModel);
+    await getInputDataFromRoamContext(e, sourceUid, prompt, instantModel);
   if (noData) return;
 
   console.log("completedPrompt :>> ", completedPrompt);
@@ -610,9 +575,17 @@ export const aiCompletionRunner = async (e, prompt = "", instantModel) => {
   });
 };
 
-const getInputDataFromRoamContext = async (e, prompt, instantModel) => {
+const getInputDataFromRoamContext = async (
+  e,
+  sourceUid,
+  prompt,
+  instantModel
+) => {
   let { currentUid, currentBlockContent, selectionUids } =
     getFocusAndSelection();
+
+  if (sourceUid) currentBlockContent = getBlockContentByUid(currentUid);
+
   if (!currentUid && !selectionUids.length && !e) return { noData: true };
 
   if (currentBlockContent) prompt += currentBlockContent;
@@ -658,6 +631,8 @@ const getFinalPromptAndTarget = async (
   prompt,
   instantModel
 ) => {
+  console.log("selectionUids from finalPrompt :>> ", selectionUids);
+  console.log("hasBlueSelection :>> ", hasBlueSelection);
   const assistantRole = instantModel
     ? getInstantAssistantRole(instantModel)
     : chatRoles.assistant;
@@ -815,4 +790,85 @@ const getInfosFromSmartBlockParams = async ({
     instantModel: model,
     toAppend,
   };
+};
+
+// OUTLINER AGENT
+
+export const setAsOutline = async (rootUid) => {
+  let { currentUid, selectionUids } = getFocusAndSelection();
+  await extensionStorage.set(
+    "outlinerRootUid",
+    rootUid ||
+      currentUid ||
+      (selectionUids.length ? selectionUids[0] : undefined)
+  );
+  if (!extensionStorage.get("outlinerRootUid"))
+    AppToaster.show({
+      message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
+    });
+  else {
+    toggleOutlinerSelection(rootUid || currentUid, true);
+  }
+};
+
+export const runOutlinerAgent = async ({ prompt, context, model }) => {
+  let { currentUid, currentBlockContent, selectionUids } =
+    getFocusAndSelection();
+  if (!extensionStorage.get("outlinerRootUid")) {
+    AppToaster.show({
+      message: `An outline has to be set as target for Outliner Agent`,
+    });
+    return;
+  }
+  if (!prompt) {
+    if (currentUid) {
+      prompt = currentBlockContent;
+    } else if (
+      selectionUids.length &&
+      document.querySelector(".block-highlight-blue")
+    ) {
+      prompt = getResolvedContentFromBlocks(selectionUids, false);
+      selectionUids = [];
+    } else {
+      AppToaster.show({
+        message: `Some block as to be focused or selected to be used as prompt sent to Outliner Agent`,
+      });
+      return;
+    }
+  }
+  let outline = await getTemplateForPostProcessing(
+    extensionStorage.get("outlinerRootUid"),
+    99,
+    [],
+    false
+  );
+  // console.log("outline :>> ", outline.stringified);
+  console.log("defaultModel :>> ", defaultModel);
+  const begin = performance.now();
+  const response = await transformerAgent.invoke({
+    rootUid: extensionStorage.get("outlinerRootUid"),
+    messages: [
+      {
+        role: "user",
+        content: `${prompt}
+
+            Input outline:
+            ${outline.stringified}
+            `,
+      },
+    ],
+  });
+  // console.log("response from command:>> ", response);
+  const end = performance.now();
+  const message = response.messages[1].content;
+  console.log("operations :>> ", message);
+  if (message && message !== "N/A") {
+    AppToaster.show({
+      message: "Outliner Agent: " + message,
+    });
+  }
+  console.log(
+    "Total Agent request duration: ",
+    `${((end - begin) / 1000).toFixed(2)}s`
+  );
 };

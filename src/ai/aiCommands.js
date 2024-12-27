@@ -40,7 +40,6 @@ import {
   getParentBlock,
   getPreviousSiblingBlock,
   getTreeByUid,
-  highlightHtmlElt,
   insertBlockInCurrentView,
   isExistingBlock,
   roamImageRegex,
@@ -56,6 +55,7 @@ import {
 import { AppToaster } from "../components/VoiceRecorder";
 import {
   displaySpinner,
+  highlightHtmlElt,
   insertInstantButtons,
   insertParagraphForStream,
   removeSpinner,
@@ -766,14 +766,7 @@ export const getTemplateForPostProcessing = async (
   let tree = getTreeByUid(parentUid);
   if (parentUid && tree) {
     if (tree.length && tree[0].children) {
-      let eltToHightlight = document.querySelector(
-        `.roam-block[id$="${parentUid}"]`
-      );
-      eltToHightlight =
-        eltToHightlight.tagName === "TEXTAREA"
-          ? eltToHightlight.parentElement.parentElement.nextElementSibling
-          : eltToHightlight.parentElement.nextElementSibling;
-      highlightHtmlElt(null, eltToHightlight);
+      highlightHtmlElt({ eltUid: parentUid });
       // prompt is a template as children of the current block
       let { linearArray, excludedUids } = convertTreeToLinearArray(
         tree[0].children,
