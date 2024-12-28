@@ -3,7 +3,8 @@ import {
   faCopy,
   faComments,
   // faReply,
-  faRotateRight,
+  faClockRotateLeft,
+  faRepeat,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -27,6 +28,7 @@ import {
   insertInstantButtons,
   toggleOutlinerSelection,
 } from "../utils/domElts.js";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent.ts";
 
 export let isCanceledStreamGlobal = false;
 
@@ -42,6 +44,7 @@ const InstantButtons = ({
   isUserResponse,
   aiCallback,
   isOutlinerAgent,
+  treeSnapshot,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -56,6 +59,11 @@ const InstantButtons = ({
   const handleCancel = () => {
     setIsCanceledStream(true);
     isCanceledStreamGlobal = true;
+  };
+
+  const handleUndo = (e) => {
+    console.log("treeSnapshot :>> ", treeSnapshot);
+    invokeOutlinerAgent({ rootUid: targetUid, treeSnapshot });
   };
 
   const handleRedo = (e, instantModel) => {
@@ -156,7 +164,14 @@ const InstantButtons = ({
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <Tooltip content="Hide these buttons" hoverOpenDelay="500">
+              <Tooltip
+                content={
+                  isOutlinerAgent
+                    ? "Close Outliner Agent"
+                    : "Hide these buttons"
+                }
+                hoverOpenDelay="500"
+              >
                 <FontAwesomeIcon
                   icon={faXmark}
                   style={{ color: "red" }}
@@ -168,89 +183,110 @@ const InstantButtons = ({
           </span>
         </div>
       )}
-      <div class="bp3-popover-wrapper">
-        <span aria-haspopup="true" class="bp3-popover-target">
-          <span
-            // onKeyDown={handleKeys}
-            onClick={async () => {
-              const parentUid = getParentBlock(targetUid);
-              const nextBlock = await createChildBlock(
-                parentUid,
-                chatRoles.user
-              );
-              setTimeout(() => {
-                setIsToUnmount(true);
-                insertInstantButtons({
-                  prompt: prompt.concat({
-                    role: "assistant",
-                    content: response,
-                  }),
-                  model,
-                  targetUid: nextBlock,
-                  isUserResponse: true,
-                  content,
-                });
-              }, 100);
-              setTimeout(() => {
-                focusOnBlockInMainWindow(nextBlock);
-              }, 250);
-            }}
-            class="bp3-button bp3-minimal"
-            tabindex="0"
-          >
-            <Tooltip content="Continue the conversation" hoverOpenDelay="500">
-              <FontAwesomeIcon icon={faComments} size="sm" />
-            </Tooltip>
-          </span>
-        </span>
-      </div>
-      <div class="bp3-popover-wrapper">
-        <span aria-haspopup="true" class="bp3-popover-target">
-          <span
-            // onKeyDown={handleKeys}
-            onClick={handleRedo}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              ContextMenu.show(
-                ModelsMenu({ command: handleRedo }),
-                { left: e.clientX, top: e.clientY },
-                null
-              );
-            }}
-            class="bp3-button bp3-minimal"
-            tabindex="0"
-          >
-            <Tooltip
-              content={
-                <p>
-                  Generate a response again
-                  <br />
-                  <code>Right Click</code> to choose another AI model
-                </p>
-              }
-              hoverOpenDelay="500"
+      {!isOutlinerAgent && (
+        <div class="bp3-popover-wrapper">
+          <span aria-haspopup="true" class="bp3-popover-target">
+            <span
+              // onKeyDown={handleKeys}
+              onClick={async () => {
+                const parentUid = getParentBlock(targetUid);
+                const nextBlock = await createChildBlock(
+                  parentUid,
+                  chatRoles.user
+                );
+                setTimeout(() => {
+                  setIsToUnmount(true);
+                  insertInstantButtons({
+                    prompt: prompt.concat({
+                      role: "assistant",
+                      content: response,
+                    }),
+                    model,
+                    targetUid: nextBlock,
+                    isUserResponse: true,
+                    content,
+                  });
+                }, 100);
+                setTimeout(() => {
+                  focusOnBlockInMainWindow(nextBlock);
+                }, 250);
+              }}
+              class="bp3-button bp3-minimal"
+              tabindex="0"
             >
-              <FontAwesomeIcon icon={faRotateRight} size="sm" />
-            </Tooltip>
+              <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+                <FontAwesomeIcon icon={faComments} size="sm" />
+              </Tooltip>
+            </span>
           </span>
-        </span>
-      </div>
-      <div class="bp3-popover-wrapper">
-        <span aria-haspopup="true" class="bp3-popover-target">
-          <span
-            // onKeyDown={handleKeys}
-            onClick={() => {
-              navigator.clipboard.writeText(response);
-            }}
-            class="bp3-button bp3-minimal"
-            tabindex="0"
-          >
-            <Tooltip content="Copy to clipboard" hoverOpenDelay="500">
-              <FontAwesomeIcon icon={faCopy} size="sm" />
-            </Tooltip>
+        </div>
+      )}
+      {isOutlinerAgent && treeSnapshot ? (
+        <div class="bp3-popover-wrapper">
+          <span aria-haspopup="true" class="bp3-popover-target">
+            <span
+              onClick={handleUndo}
+              class="bp3-button bp3-minimal"
+              tabindex="0"
+            >
+              <Tooltip content="Undo last outline update" hoverOpenDelay="500">
+                <FontAwesomeIcon icon={faClockRotateLeft} size="sm" />
+              </Tooltip>
+            </span>
           </span>
-        </span>
-      </div>
+        </div>
+      ) : null}
+      {!(isOutlinerAgent && !treeSnapshot) && (
+        <div class="bp3-popover-wrapper">
+          <span aria-haspopup="true" class="bp3-popover-target">
+            <span
+              // onKeyDown={handleKeys}
+              onClick={handleRedo}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                ContextMenu.show(
+                  ModelsMenu({ command: handleRedo }),
+                  { left: e.clientX, top: e.clientY },
+                  null
+                );
+              }}
+              class="bp3-button bp3-minimal"
+              tabindex="0"
+            >
+              <Tooltip
+                content={
+                  <p>
+                    Generate a response again
+                    <br />
+                    <code>Right Click</code> to choose another AI model
+                  </p>
+                }
+                hoverOpenDelay="500"
+              >
+                <FontAwesomeIcon icon={faRepeat} size="sm" />
+              </Tooltip>
+            </span>
+          </span>
+        </div>
+      )}
+      {!isOutlinerAgent && (
+        <div class="bp3-popover-wrapper">
+          <span aria-haspopup="true" class="bp3-popover-target">
+            <span
+              // onKeyDown={handleKeys}
+              onClick={() => {
+                navigator.clipboard.writeText(response);
+              }}
+              class="bp3-button bp3-minimal"
+              tabindex="0"
+            >
+              <Tooltip content="Copy to clipboard" hoverOpenDelay="500">
+                <FontAwesomeIcon icon={faCopy} size="sm" />
+              </Tooltip>
+            </span>
+          </span>
+        </div>
+      )}
     </>
   );
 };

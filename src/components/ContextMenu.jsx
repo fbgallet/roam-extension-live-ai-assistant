@@ -13,7 +13,6 @@ import ModelsMenu from "./ModelsMenu";
 import { completionCommands } from "../ai/prompts";
 import {
   aiCompletionRunner,
-  runOutlinerAgent,
   setAsOutline,
 } from "../utils/roamExtensionCommands";
 import {
@@ -23,6 +22,7 @@ import {
   toggleOutlinerSelection,
   unmountComponent,
 } from "../utils/domElts";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 
 const SELECT_CMD = "Outliner Agent: Set selected outline as target";
 const UNSELECT_CMD = "Outliner Agent: Unselect current outline";
@@ -207,7 +207,7 @@ const StandaloneContextMenu = () => {
   };
 
   const handleOutlinePrompt = async () => {
-    if (rootUid) runOutlinerAgent();
+    if (rootUid) invokeOutlinerAgent();
   };
 
   const filterCommands = (query, item) => {

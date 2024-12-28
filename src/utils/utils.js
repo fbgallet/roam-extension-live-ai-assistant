@@ -30,7 +30,7 @@ export const sbParamRegex = /^\{.*\}$/;
 export function getTreeByUid(uid) {
   if (uid)
     return window.roamAlphaAPI.q(`[:find (pull ?page
-                     [:block/uid :block/string :block/children :block/refs :block/order
+                     [:block/uid :block/string :block/children :block/refs :block/order :block/open :block/heading :children/view-type
                         {:block/children ...} ])
                       :where [?page :block/uid "${uid}"]  ]`)[0];
   else return null;
@@ -240,8 +240,8 @@ export function moveBlock({ blockUid, targetParentUid, order }) {
   });
 }
 
-export function deleteBlock(blockUid) {
-  window.roamAlphaAPI.deleteBlock({ block: { uid: blockUid } });
+export async function deleteBlock(blockUid) {
+  await window.roamAlphaAPI.deleteBlock({ block: { uid: blockUid } });
 }
 
 export function reorderBlocks({ parentUid, newOrder }) {
@@ -269,12 +269,20 @@ export async function createChildBlock(
   content = "",
   order = "last",
   open = true,
-  heading = 0
+  heading = 0,
+  viewType = "bullet",
+  uid
 ) {
-  const uid = window.roamAlphaAPI.util.generateUID();
+  if (!uid) uid = window.roamAlphaAPI.util.generateUID();
   await window.roamAlphaAPI.createBlock({
     location: { "parent-uid": parentUid, order: order },
-    block: { string: content, uid: uid, open: open, heading: heading },
+    block: {
+      string: content,
+      uid: uid,
+      open: open,
+      heading: heading,
+      "children-view-type": viewType,
+    },
   });
   return uid;
 }
@@ -283,7 +291,8 @@ export async function copyTreeBranches(
   tree,
   targetUid,
   maxDepth,
-  strToExclude
+  strToExclude,
+  isClone = true
 ) {
   let uidsToExclude = [];
   // copy only the branches, not the parent block
@@ -292,7 +301,8 @@ export async function copyTreeBranches(
       targetUid,
       tree[0].children,
       strToExclude,
-      maxDepth
+      maxDepth,
+      isClone
     );
   } else return null;
   return uidsToExclude;
@@ -303,7 +313,8 @@ async function insertChildrenBlocksRecursively(
   children,
   strToExclude,
   maxDepth = 99,
-  depth = 1
+  depth = 1,
+  isClone
 ) {
   let uidsToExclude = [];
   for (let i = 0; i < children.length; i++) {
@@ -312,7 +323,11 @@ async function insertChildrenBlocksRecursively(
       strToExclude
         ? children[i].string.replace(strToExclude, "").trim()
         : children[i].string,
-      children[i].order
+      children[i].order,
+      children[i].open,
+      children[i].heading,
+      children[i]["view-type"],
+      !isClone && children[i].uid
     );
     if (children[i].string.includes(strToExclude)) uidsToExclude.push(uid);
     if (children[i].children && depth < maxDepth) {
@@ -321,13 +336,33 @@ async function insertChildrenBlocksRecursively(
         children[i].children,
         strToExclude,
         maxDepth,
-        ++depth
+        ++depth,
+        isClone
       );
       uidsToExclude = uidsToExclude.concat(moreUidsToExclude);
     }
   }
   return uidsToExclude;
 }
+
+const deleteChildren = async (parentUid) => {
+  const directChildren = getOrderedDirectChildren(parentUid);
+  console.log("directChildren :>> ", directChildren);
+  if (directChildren) {
+    await Promise.all(
+      directChildren.map(async (child) => await deleteBlock(child.uid))
+    );
+  }
+};
+
+export const replaceChildrenByNewTree = async (
+  parentUid,
+  newTree,
+  isClone = false
+) => {
+  await deleteChildren(parentUid);
+  await copyTreeBranches(newTree, parentUid, 99, null, isClone);
+};
 
 export async function insertBlockInCurrentView(content, order) {
   let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();

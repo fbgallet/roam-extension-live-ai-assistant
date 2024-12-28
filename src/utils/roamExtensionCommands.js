@@ -7,7 +7,6 @@ import {
   isUsingWhisper,
 } from "..";
 import { calculAgent } from "../ai/agents/calcul-agent";
-import { transformerAgent } from "../ai/agents/canvas-agent";
 import {
   copyTemplate,
   getTemplateForPostProcessing,
@@ -65,6 +64,7 @@ import {
   invokeNLQueryInterpreter,
 } from "../ai/agents/nl-query";
 import { invokeNLDatomicQueryInterpreter } from "../ai/agents/nl-datomic-query";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -324,7 +324,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI Assistant: Send this prompt to Outliner Agent",
     callback: async () => {
-      runOutlinerAgent();
+      invokeOutlinerAgent();
     },
   });
 
@@ -809,66 +809,4 @@ export const setAsOutline = async (rootUid) => {
   else {
     toggleOutlinerSelection(rootUid || currentUid, true);
   }
-};
-
-export const runOutlinerAgent = async ({ prompt, context, model }) => {
-  let { currentUid, currentBlockContent, selectionUids } =
-    getFocusAndSelection();
-  if (!extensionStorage.get("outlinerRootUid")) {
-    AppToaster.show({
-      message: `An outline has to be set as target for Outliner Agent`,
-    });
-    return;
-  }
-  if (!prompt) {
-    if (currentUid) {
-      prompt = currentBlockContent;
-    } else if (
-      selectionUids.length &&
-      document.querySelector(".block-highlight-blue")
-    ) {
-      prompt = getResolvedContentFromBlocks(selectionUids, false);
-      selectionUids = [];
-    } else {
-      AppToaster.show({
-        message: `Some block as to be focused or selected to be used as prompt sent to Outliner Agent`,
-      });
-      return;
-    }
-  }
-  let outline = await getTemplateForPostProcessing(
-    extensionStorage.get("outlinerRootUid"),
-    99,
-    [],
-    false
-  );
-  // console.log("outline :>> ", outline.stringified);
-  console.log("defaultModel :>> ", defaultModel);
-  const begin = performance.now();
-  const response = await transformerAgent.invoke({
-    rootUid: extensionStorage.get("outlinerRootUid"),
-    messages: [
-      {
-        role: "user",
-        content: `${prompt}
-
-            Input outline:
-            ${outline.stringified}
-            `,
-      },
-    ],
-  });
-  // console.log("response from command:>> ", response);
-  const end = performance.now();
-  const message = response.messages[1].content;
-  console.log("operations :>> ", message);
-  if (message && message !== "N/A") {
-    AppToaster.show({
-      message: "Outliner Agent: " + message,
-    });
-  }
-  console.log(
-    "Total Agent request duration: ",
-    `${((end - begin) / 1000).toFixed(2)}s`
-  );
 };
