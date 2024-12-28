@@ -3,6 +3,7 @@ import {
   MessagesAnnotation,
   StateGraph,
   START,
+  END,
 } from "@langchain/langgraph/web";
 import {
   SystemMessage,
@@ -13,15 +14,25 @@ import { ChatOpenAI } from "@langchain/openai";
 import { tool } from "@langchain/core/tools";
 import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
 import { arrayOutputType, z } from "zod";
-import { OPENAI_API_KEY, groqLibrary, openaiLibrary } from "../..";
+import {
+  OPENAI_API_KEY,
+  defaultModel,
+  extensionStorage,
+  groqLibrary,
+  openaiLibrary,
+} from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
   deleteBlock,
   extractNormalizedUidFromRef,
   getBlockContentByUid,
+  getFocusAndSelection,
+  getResolvedContentFromBlocks,
+  getTreeByUid,
   moveBlock,
   reorderBlocks,
+  replaceChildrenByNewTree,
   updateBlock,
   updateTokenCounter,
 } from "../../utils/utils";
@@ -29,22 +40,33 @@ import {
   insertStructuredAIResponse,
   sanitizeJSONstring,
 } from "../../utils/format";
-import { getTemplateForPostProcessing } from "../aiCommands";
+import {
+  getTemplateForPostProcessing,
+  modelAccordingToProvider,
+} from "../aiCommands";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
+import { outlinerAgentSystemPrompt } from "./agent-prompts";
+import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
+import { highlightHtmlElt, insertInstantButtons } from "../../utils/domElts";
+import { AppToaster } from "../../components/VoiceRecorder";
 
-const TransformerState = Annotation.Root({
+const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
+  model: Annotation<string>,
   rootUid: Annotation<String>,
   remainingOperations: Annotation<string>,
   notCompletedOperations: Annotation<string>,
   lastTurn: Annotation<boolean>,
+  treeSnapshot: Annotation<Array<any>>,
+  treeTarget: Annotation<Array<any>>,
+  historyCommand: Annotation<string>,
 });
 
 // Tools
 
 //   const tools = [];
 
-const transformerSchema = z.object({
+const planerSchema = z.object({
   message: z
     .string()
     .describe(
@@ -130,41 +152,30 @@ const transformerSchema = z.object({
 
 // System message
 const sys_msg = new SystemMessage({
-  content: `You are a powerful assistant helping the user to update rich and structured data. The data is presented in the form of an outliner, with a set of hierarchically organized bullets (each hierarchical level is marked by two additional spaces before the dash). Each bullet (also called a 'block') provided in input has a 9-alphanumerical-characters (eventualy including '-' and '_') between double parentheses (now named 'UID').
-  Based on the user's request, asking for modifications or additions to the outline, you must propose a set of precise operations to be performed for each affected block, only modifying or adding elements directly concerned by the user's request. Be judicious in selecting operations to be as efficient as possible, knowing that the operations will be executed sequentially. Here is the list of operations you can propose:
-    - "update": replace the content of a block by a new content (use this instead of deleting then creating a new block).
-    - "append": add content to the existing content in a block.
-    - "move": move a block to another location, under an existing block in the structure (or a 'new' block without identifier), and to a determined position.
-    - "create": create new content in a new block, inserted under a determined target parent block, and provide eventually children blocks whose content is to generate at once in the 'newChildren' key.
-    - "reorder": modify the order of a set of blocks under a determined parent block,
-    - "format": to change native block format parameters (heading level, children opened or not, and view type of children: basic bullet (default), numbered or without bullet (document)).
-    - "delete": remove a block (and all its children)
-
-  IMPORTANT intructions to update or create content: if the user requests
-  - to highlight some content, use this syntax: ^^highlighted^^
-  - to underline: __underlined__
-  - to cross out (strikethrough): ~~crossed out~~
-  - to write Latex code: $$Use Katex syntax$$
-  - to insert checkbox (always to prepend), uncheked: {{[[TODO]]}}, checked: {{[[DONE]]}}
-  - to reference or mention some page name: [[page name]]
-  - to reference to an existing block: ((UID)), or embeding it with its children: {{embed: ((UID))}}
-  - to replace some content by an alias: [alias](content or reference)
-
-  IMPORTANT: if a block has to be updated with a structured content, update the block only with the top level part (simple line, without linebreak) of the new content, and in other operations create children blocks to the updated block, eventually with their respective rich children, to better fit to the outliner UI. If you have to create multiple blocks at the same level, it requires multiple 'create' operations.
-
-  If the user's request doesn't involve any operation on the outline but asks a question about it, reply with a message.
-
-  OUTPUT LANGUAGE: your response will always be in the same language as the user request and provided outline.
-
-  Your precise response will be an JSON object, formatted according to the provided JSON schema. If a key is optional and your response would be 'null', just IGNORE this key!`,
+  content: outlinerAgentSystemPrompt,
 });
 
-// Node
-const transformer = async (state: typeof TransformerState.State) => {
+let llm: StructuredOutputType;
+
+/*********/
+// NODES //
+/*********/
+
+const loadModel = async (state: typeof outlinerAgentState.State) => {
+  let modelShortcut: string = state.model || defaultModel;
+  let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
+  llm = modelViaLanggraph(llmInfos);
+  return {
+    model: llmInfos.id,
+  };
+};
+
+const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
+  state.treeSnapshot = getTreeByUid(state.rootUid);
+
   let notCompletedOperations = state.notCompletedOperations || "";
   let lastTurn = state.lastTurn || false;
   // LLM with bound tool
-  let llm: StructuredOutputType;
 
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {
@@ -186,17 +197,7 @@ const transformer = async (state: typeof TransformerState.State) => {
     callbackManager: tokensUsageCallback,
   });
 
-  // Using Groq:
-  // llm = new ChatOpenAI({
-  //   model: "llama-3.3-70b-versatile",
-  //   apiKey: groqLibrary.apiKey,
-  //   configuration: {
-  //     baseURL: groqLibrary.baseURL,
-  //   },
-  //   callbackManager: tokensUsageCallback,
-  // });
-
-  llm = llm.withStructuredOutput(transformerSchema);
+  llm = llm.withStructuredOutput(planerSchema);
   let messages = [sys_msg].concat(state["messages"]);
   if (notCompletedOperations) {
     const outlineCurrentState = await getTemplateForPostProcessing(
@@ -220,7 +221,7 @@ const transformer = async (state: typeof TransformerState.State) => {
   const end = performance.now();
   console.log("LLM response :>> ", response);
   console.log(
-    "Transformer request duration: ",
+    "operationsPlanner request duration: ",
     `${((end - begin) / 1000).toFixed(2)}s`
   );
   return {
@@ -231,10 +232,11 @@ const transformer = async (state: typeof TransformerState.State) => {
         : "",
     notCompletedOperations,
     lastTurn,
+    treeSnapshot: state.treeSnapshot,
   };
 };
 
-const agent = async (state: typeof TransformerState.State) => {
+const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
   let notCompletedOperations = state.notCompletedOperations;
   let operations = JSON.parse(state.remainingOperations);
   const nextOperation = operations && operations.length ? operations[0] : null;
@@ -330,34 +332,172 @@ const agent = async (state: typeof TransformerState.State) => {
         break;
     }
     operations.shift();
-  } else operations = [];
+    const toHighlight = targetParentUid || blockUid;
+    // action !== "delete" &&
+    //   toHighlight !== "new" &&
+    //   toHighlight !== "root" &&
+    //   highlightHtmlElt({
+    //     eltUid: toHighlight,
+    //     onlyChildren: false,
+    //   });
+  } else {
+    operations = [];
+  }
+  // if (!operations.length && !notCompletedOperations)
+  // setTimeout(() => {
+  //   state.treeUpdated =
+  // }, 100);
   // await new Promise((resolve) => setTimeout(resolve, 500));
   return {
     remainingOperations: operations.length ? JSON.stringify(operations) : "",
     notCompletedOperations,
+    // treeUpdated: state.treeUpdated,
   };
 };
 
-const continueOperations = (state: typeof TransformerState.State) => {
-  if (state.remainingOperations) return "agent";
-  else if (state.notCompletedOperations) return "transformer";
+const timeTraveler = async (state: typeof outlinerAgentState.State) => {
+  state.treeSnapshot = getTreeByUid(state.rootUid);
+  if (state.historyCommand === "undo") {
+    await replaceChildrenByNewTree(state.rootUid, state.treeTarget);
+    updateInstantButtons(state);
+  }
+  return {
+    treeSnapshot: state.treeSnapshot,
+  };
+};
+
+/*********/
+// EDGES //
+/*********/
+
+const updateOrTravel = (state: typeof outlinerAgentState.State) => {
+  if (
+    state.treeTarget &&
+    state.treeTarget.length &&
+    (state.historyCommand === "undo" || state.historyCommand === "redo")
+  )
+    return "timeTraveler";
+  else return "loadModel";
+};
+
+const continueOperations = (state: typeof outlinerAgentState.State) => {
+  if (state.remainingOperations) return "sequentialAPIrunner";
+  else if (state.notCompletedOperations) return "operationsPlanner";
+  updateInstantButtons(state);
   return "__end__";
 };
 
-// Build graph
-const builder = new StateGraph(TransformerState);
-builder
-  .addNode("transformer", transformer)
-  .addNode("agent", agent)
+// other functions
+const updateInstantButtons = (state: typeof outlinerAgentState.State) => {
+  insertInstantButtons({
+    model: state.model,
+    targetUid: state.rootUid,
+    isOutlinerAgent: true,
+    treeSnapshot: state.treeSnapshot,
+  });
+};
 
-  .addEdge(START, "transformer")
-  .addEdge("transformer", "agent")
-  .addConditionalEdges("agent", continueOperations);
-//   // If the latest message (result) from assistant is a tool call -> tools_condition routes to tools
-//   // If the latest message (result) from assistant is a not a tool call -> tools_condition routes to END
-//   toolsCondition
-// )
+// Build graph
+const builder = new StateGraph(outlinerAgentState);
+builder
+  .addNode("loadModel", loadModel)
+  .addNode("operationsPlanner", operationsPlanner)
+  .addNode("sequentialAPIrunner", sequentialAPIrunner)
+  .addNode("timeTraveler", timeTraveler)
+
+  .addConditionalEdges(START, updateOrTravel)
+  .addEdge("loadModel", "operationsPlanner")
+  .addEdge("operationsPlanner", "sequentialAPIrunner")
+  .addConditionalEdges("sequentialAPIrunner", continueOperations)
+  .addEdge("timeTraveler", END);
 
 // Compile graph
+export const outlinerAgent = builder.compile();
 
-export const transformerAgent = builder.compile();
+// Invoke graph
+interface AgentInvoker {
+  rootUid?: string;
+  model?: string;
+  prompt?: string;
+  context?: string;
+  treeSnapshot?: string;
+}
+
+export const invokeOutlinerAgent = async ({
+  rootUid,
+  prompt,
+  context,
+  model,
+  treeSnapshot,
+}: AgentInvoker) => {
+  if (!rootUid) rootUid = extensionStorage.get("outlinerRootUid");
+  let outline;
+
+  if (!treeSnapshot) {
+    let { currentUid, currentBlockContent, selectionUids } =
+      getFocusAndSelection();
+    if (!rootUid) {
+      AppToaster.show({
+        message: `An outline has to be set as target for Outliner Agent`,
+      });
+      return;
+    }
+    if (!prompt && !treeSnapshot) {
+      if (currentUid) {
+        prompt = currentBlockContent;
+      } else if (
+        selectionUids.length &&
+        document.querySelector(".block-highlight-blue")
+      ) {
+        prompt = getResolvedContentFromBlocks(selectionUids, false);
+        selectionUids = [];
+      } else {
+        AppToaster.show({
+          message: `Some block as to be focused or selected to be used as prompt sent to Outliner Agent`,
+        });
+        return;
+      }
+    }
+    outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
+  }
+  console.log("defaultModel :>> ", defaultModel);
+
+  console.log("treeSnapshot from invoker :>> ", treeSnapshot);
+
+  const begin = performance.now();
+  const response = await outlinerAgent.invoke({
+    rootUid,
+    messages: [
+      {
+        role: "user",
+        content: !treeSnapshot
+          ? `${prompt}
+
+            Input outline:
+            ${outline.stringified}
+            `
+          : "",
+      },
+    ],
+    historyCommand: treeSnapshot ? "undo" : ",",
+    treeTarget: treeSnapshot,
+  });
+  const end = performance.now();
+  console.log("response from command:>> ", response);
+  const message = response.message.length > 1 && response.messages[1].content;
+  message && console.log("operations :>> ", message);
+  if (message && message !== "N/A") {
+    AppToaster.show({
+      message: "Outliner Agent: " + message,
+    });
+  }
+  console.log(
+    "Total Agent request duration: ",
+    `${((end - begin) / 1000).toFixed(2)}s`
+  );
+
+  setTimeout(() => {
+    const updatedTree = getTreeByUid(rootUid);
+    console.log("updatedTree :>> ", updatedTree);
+  }, 200);
+};

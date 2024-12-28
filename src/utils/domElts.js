@@ -157,14 +157,18 @@ export const insertParagraphForStream = (targetUid) => {
 export const insertInstantButtons = (props) => {
   let targetElts = [...document.querySelectorAll(`[id$="${props.targetUid}"]`)];
   targetElts = targetElts.map((elt) =>
-    elt.id.includes("sidebar")
+    elt.id.includes("sidebar-window")
       ? elt.querySelector(`[id$="${props.targetUid}"]`)
       : elt
   );
 
+  console.log("targetElts 1 :>> ", targetElts);
+
   targetElts = targetElts
     .filter((elt) => elt != null)
     .map((elt) => elt.closest(".rm-block-main"));
+
+  console.log("targetElts 2 :>> ", targetElts);
 
   const selector = `.liveai-instant-btn-${
     props.isOutlinerAgent ? "outliner-" : ""
@@ -180,10 +184,10 @@ export const insertInstantButtons = (props) => {
     previousContainerElts.forEach((elt) => {
       elt && ReactDOM.unmountComponentAtNode(elt);
     });
+    setTimeout(() => {
+      previousContainerElts.forEach((elt) => elt.remove());
+    }, 200);
     if (props.isToRemove) {
-      setTimeout(() => {
-        previousContainerElts.forEach((elt) => elt.remove());
-      }, 200);
       return;
     }
   }
@@ -223,11 +227,12 @@ export const displayTokensDialog = () => {
 };
 
 export const highlightHtmlElt = ({
-  selector,
-  eltUid,
+  selector = undefined,
+  eltUid = undefined,
   isFixed = false,
   color = "",
-  isToRemove,
+  onlyChildren = true,
+  isToRemove = false,
 }) => {
   let elts = [];
   if (!eltUid) elts = [...document.querySelector(selector)];
@@ -238,12 +243,14 @@ export const highlightHtmlElt = ({
     eltToHighlight = eltToHighlight.concat([
       ...document.querySelectorAll(`.rm-block-input[id$="${eltUid}"]`),
     ]);
-    console.log("eltToHighlight :>> ", eltToHighlight);
-    elts = eltToHighlight.map((elt) =>
-      elt.tagName === "TEXTAREA"
-        ? elt.parentElement.parentElement.nextElementSibling
-        : elt.parentElement.nextElementSibling
-    );
+    // console.log("eltToHighlight :>> ", eltToHighlight);
+    elts = eltToHighlight
+      .map((elt) =>
+        elt.tagName === "TEXTAREA"
+          ? elt.parentElement.parentElement
+          : elt.parentElement
+      )
+      .map((elt) => (onlyChildren ? elt.nextElementSibling : elt));
   }
   const highightSelector = `${isFixed ? "fixed-" : ""}highlight-elt${
     color ? "-" + color : ""

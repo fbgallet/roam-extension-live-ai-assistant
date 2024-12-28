@@ -72,9 +72,9 @@ import TokensDialog from "./TokensDisplay.jsx";
 import CommandsMenu from "./CommandsMenu.jsx";
 import {
   handleModifierKeys,
-  runOutlinerAgent,
   setAsOutline,
 } from "../utils/roamExtensionCommands.js";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",
@@ -536,7 +536,7 @@ function VoiceRecorder({
       instantModel.current || defaultModel
     );
     if (lastCommand.current === "outlinerAgent") {
-      runOutlinerAgent({ prompt, context, model: instantModel });
+      invokeOutlinerAgent({ prompt, context, model: instantModel });
       // let inlineTemplate = getTemplateFromPrompt(
       //   getBlockContentByUid(promptUid)
       // );

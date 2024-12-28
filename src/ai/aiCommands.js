@@ -758,7 +758,8 @@ export const getTemplateForPostProcessing = async (
   parentUid,
   depth,
   uidsToExclude,
-  withInstructions = true
+  withInstructions = true,
+  isToHighlight = true
 ) => {
   let prompt = "";
   let excluded;
@@ -766,7 +767,7 @@ export const getTemplateForPostProcessing = async (
   let tree = getTreeByUid(parentUid);
   if (parentUid && tree) {
     if (tree.length && tree[0].children) {
-      highlightHtmlElt({ eltUid: parentUid });
+      isToHighlight && highlightHtmlElt({ eltUid: parentUid });
       // prompt is a template as children of the current block
       let { linearArray, excludedUids } = convertTreeToLinearArray(
         tree[0].children,
