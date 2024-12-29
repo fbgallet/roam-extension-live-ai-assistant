@@ -188,15 +188,12 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     },
   });
 
-  llm = new ChatOpenAI({
-    model: "gpt-4o",
-    apiKey: openaiLibrary.apiKey,
-    configuration: {
-      baseURL: openaiLibrary.baseURL,
-    },
-    callbackManager: tokensUsageCallback,
-  });
-
+  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const rawOption = isClaudeModel
+    ? {
+        includeRaw: true,
+      }
+    : {};
   llm = llm.withStructuredOutput(planerSchema);
   let messages = [sys_msg].concat(state["messages"]);
   if (notCompletedOperations) {
@@ -224,6 +221,7 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     "operationsPlanner request duration: ",
     `${((end - begin) / 1000).toFixed(2)}s`
   );
+
   return {
     messages: [new AIMessage(response.message)],
     remainingOperations:
@@ -235,6 +233,31 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     treeSnapshot: state.treeSnapshot,
   };
 };
+
+// const formatChecker = async (state: typeof outlinerAgentState.State) => {
+//   const isClaudeModel = state.model.toLowerCase().includes("claude");
+//   if (isClaudeModel) {
+//     const raw = state.remainingOperations.raw.content[0];
+//     if (!state.llmResponse.parsed) {
+//       console.log("raw: ", raw);
+//       if (raw?.input?.period && raw?.input?.roamQuery) {
+//         // console.log("raw period: ", raw?.input?.period);
+//         state.llmResponse.period = JSON.parse(
+//           balanceBraces(sanitizeClaudeJSON(raw.input.period))
+//         );
+//         query = raw?.input?.roamQuery;
+//       }
+//     } else {
+//       state.llmResponse = state.llmResponse.parsed;
+//     }
+//   }
+//   const correctedQuery = balanceBraces(query);
+//   // console.log("Query after correction :>> ", correctedQuery);
+//   return {
+//     roamQuery: correctedQuery,
+//     period: state.llmResponse.period || null,
+//   };
+// };
 
 const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
   let notCompletedOperations = state.notCompletedOperations;
@@ -251,95 +274,114 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
       position,
       format,
     } = nextOperation;
-    blockUid && (blockUid = extractNormalizedUidFromRef(blockUid, false));
+    blockUid &&
+      blockUid !== "root" &&
+      blockUid !== "root" &&
+      (blockUid = extractNormalizedUidFromRef(blockUid, false));
     targetParentUid &&
+      targetParentUid !== "root" &&
+      targetParentUid !== "root" &&
       (targetParentUid = extractNormalizedUidFromRef(targetParentUid, false));
     newChildren && (newChildren = sanitizeJSONstring(newChildren));
     newOrder &&
       newOrder.length &&
       (newOrder = newOrder.map((item: string) => sanitizeJSONstring(item)));
-
-    switch (action) {
-      case "update":
-        console.log("update! :>> ");
-        updateBlock({
-          blockUid,
-          newContent,
-          format,
-        });
-        if (newChildren)
-          await insertStructuredAIResponse(blockUid, newChildren);
-        break;
-      case "append":
-        console.log("append! :>> ");
-        await insertStructuredAIResponse(
-          blockUid,
-          sanitizeJSONstring(newContent),
-          false,
-          format
-        );
-        if (newChildren)
-          await insertStructuredAIResponse(blockUid, newChildren);
-        break;
-      case "move":
-        console.log("move! :>> ");
-        if (!targetParentUid || targetParentUid === "new")
-          notCompletedOperations += JSON.stringify(nextOperation) + "\n";
-        else
-          moveBlock({
+    try {
+      switch (action) {
+        case "update":
+          console.log("update! :>> ");
+          updateBlock({
             blockUid,
-            targetParentUid,
-            order: position,
-          });
-        break;
-      case "create":
-        console.log("create block! :>> ");
-        if (!targetParentUid || targetParentUid === "new")
-          notCompletedOperations += JSON.stringify(nextOperation) + "\n";
-        else {
-          const newBlockUid = await createChildBlock(
-            targetParentUid === "root" ? state.rootUid : targetParentUid,
             newContent,
-            position,
-            format?.open,
-            format?.heading
+            format,
+          });
+          if (newChildren)
+            await insertStructuredAIResponse(blockUid, newChildren);
+          break;
+        case "append":
+          console.log("append! :>> ");
+          await insertStructuredAIResponse(
+            blockUid,
+            sanitizeJSONstring(newContent),
+            false,
+            format
           );
           if (newChildren)
-            await insertStructuredAIResponse(newBlockUid, newChildren, true);
-        }
-        break;
-      case "reorder":
-        console.log("targetParentUid :>> ", targetParentUid);
-        console.log("newOrder :>> ", newOrder);
-        if (!targetParentUid || targetParentUid === "new")
-          notCompletedOperations += JSON.stringify(nextOperation) + "\n";
-        else
-          reorderBlocks({
-            parentUid:
-              !targetParentUid || targetParentUid === "root"
-                ? state.rootUid
-                : targetParentUid,
-            newOrder,
-          });
-        console.log("reorder! :>> ");
-        break;
-      case "format":
-        updateBlock({ blockUid, newContent: undefined, format });
-        break;
-      case "delete":
-        console.log("reorder! :>> ");
-        deleteBlock(blockUid);
-        break;
+            await insertStructuredAIResponse(blockUid, newChildren);
+          break;
+        case "move":
+          console.log("move! :>> ");
+          if (!targetParentUid || targetParentUid === "new")
+            notCompletedOperations += JSON.stringify(nextOperation) + "\n";
+          else
+            moveBlock({
+              blockUid,
+              targetParentUid,
+              order: position,
+            });
+          break;
+        case "create":
+          console.log("create block! :>> ");
+          if (!targetParentUid || targetParentUid === "new")
+            notCompletedOperations += JSON.stringify(nextOperation) + "\n";
+          else {
+            const newBlockUid = await createChildBlock(
+              targetParentUid === "root" ? state.rootUid : targetParentUid,
+              newContent,
+              position,
+              format?.open,
+              format?.heading
+            );
+            if (newChildren)
+              await insertStructuredAIResponse(newBlockUid, newChildren, true);
+          }
+          break;
+        case "reorder":
+          console.log("targetParentUid :>> ", targetParentUid);
+          console.log("newOrder :>> ", newOrder);
+          if (!targetParentUid || targetParentUid === "new")
+            notCompletedOperations += JSON.stringify(nextOperation) + "\n";
+          else
+            reorderBlocks({
+              parentUid:
+                !targetParentUid || targetParentUid === "root"
+                  ? state.rootUid
+                  : targetParentUid,
+              newOrder,
+            });
+          console.log("reorder! :>> ");
+          break;
+        case "format":
+          updateBlock({ blockUid, newContent: undefined, format });
+          break;
+        case "delete":
+          console.log("reorder! :>> ");
+          deleteBlock(blockUid);
+          break;
+      }
+      const toHighlight = targetParentUid || blockUid;
+      toHighlight &&
+        action !== "delete" &&
+        toHighlight !== "new" &&
+        toHighlight !== "root" &&
+        highlightHtmlElt({
+          eltUid: toHighlight,
+          onlyChildren: action === "create" ? true : false,
+          isInset: true,
+          color: "orange",
+        });
+    } catch (error) {
+      console.log("error with Roam API call :>> ", error);
+    } finally {
+      console.log("finally");
+      operations.shift();
+      return {
+        remainingOperations: operations.length
+          ? JSON.stringify(operations)
+          : "",
+        notCompletedOperations,
+      };
     }
-    operations.shift();
-    const toHighlight = targetParentUid || blockUid;
-    // action !== "delete" &&
-    //   toHighlight !== "new" &&
-    //   toHighlight !== "root" &&
-    //   highlightHtmlElt({
-    //     eltUid: toHighlight,
-    //     onlyChildren: false,
-    //   });
   } else {
     operations = [];
   }
@@ -351,7 +393,6 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
   return {
     remainingOperations: operations.length ? JSON.stringify(operations) : "",
     notCompletedOperations,
-    // treeUpdated: state.treeUpdated,
   };
 };
 
@@ -462,7 +503,7 @@ export const invokeOutlinerAgent = async ({
   }
   console.log("defaultModel :>> ", defaultModel);
 
-  console.log("treeSnapshot from invoker :>> ", treeSnapshot);
+  highlightHtmlElt({ eltUid: rootUid, color: "blue" });
 
   const begin = performance.now();
   const response = await outlinerAgent.invoke({
@@ -482,9 +523,16 @@ export const invokeOutlinerAgent = async ({
     historyCommand: treeSnapshot ? "undo" : ",",
     treeTarget: treeSnapshot,
   });
+
+  highlightHtmlElt({
+    eltUid: rootUid,
+    color: "blue",
+    isToRemove: true,
+  });
+
   const end = performance.now();
   console.log("response from command:>> ", response);
-  const message = response.message.length > 1 && response.messages[1].content;
+  const message = response.messages.length > 1 && response.messages[1].content;
   message && console.log("operations :>> ", message);
   if (message && message !== "N/A") {
     AppToaster.show({
