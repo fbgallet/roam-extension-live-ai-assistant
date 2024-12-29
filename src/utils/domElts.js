@@ -230,6 +230,7 @@ export const highlightHtmlElt = ({
   selector = undefined,
   eltUid = undefined,
   isFixed = false,
+  isInset = false,
   color = "",
   onlyChildren = true,
   isToRemove = false,
@@ -254,12 +255,12 @@ export const highlightHtmlElt = ({
   }
   const highightSelector = `${isFixed ? "fixed-" : ""}highlight-elt${
     color ? "-" + color : ""
-  }`;
+  }${isInset ? "-inset" : ""}`;
   if (!elts.length) return;
   elts.forEach((elt) => {
     if (!elt.classList.contains(highightSelector) && !isToRemove) {
       elt.classList.add(highightSelector);
-      if (isFixed) return;
+      if (isFixed || color === "blue") return;
       setTimeout(() => {
         elt.classList.remove(highightSelector);
       }, 6000);
