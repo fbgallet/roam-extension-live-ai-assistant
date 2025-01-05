@@ -21,14 +21,15 @@ import { AppToaster } from "./VoiceRecorder";
 
 const ModelsMenu = ({
   callback,
-  commandPrompt,
+  command,
+  prompt,
   roleStructure = "menuitem",
 }) => {
   const handleClickOnModel = async (e, prefix, modelId) => {
     console.log("handle click on model ?");
     console.log("callback :>> ", callback);
     let model = getModelFromMenu(e, prefix, modelId);
-    await callback(e, commandPrompt, model);
+    await callback({ e, command, prompt, model });
   };
 
   const handleKeyDownOnModel = (e, prefix, modelId) => {

@@ -164,13 +164,11 @@ export const insertInstantButtons = async (props) => {
     )
     .filter((elt, index, array) => index === 0 || elt !== array[index - 1]);
 
-  console.log("targetElts 1 :>> ", targetElts);
-
   targetElts = targetElts
     .filter((elt) => elt != null)
     .map((elt) => elt.closest(".rm-block-main"));
 
-  console.log("targetElts 2 :>> ", targetElts);
+  console.log("targetElts :>> ", targetElts);
 
   const selector = `.liveai-instant-btn-${
     props.isOutlinerAgent ? "outliner-" : ""
@@ -181,8 +179,6 @@ export const insertInstantButtons = async (props) => {
     targetElts
       .map((elt) => elt.parentElement.querySelector(selector))
       .filter((elt) => elt != null);
-
-  console.log("previousContainerElts :>> ", previousContainerElts);
 
   if (previousContainerElts.length) {
     previousContainerElts.forEach((elt) => {
@@ -200,7 +196,7 @@ export const insertInstantButtons = async (props) => {
     let container = document.createElement("div");
     container.classList.add(selector.slice(1));
     if (props.isOutlinerAgent) elt.nextElementSibling.appendChild(container);
-    else elt.parentElement.appendChild(container);
+    else elt.appendChild(container);
     ReactDOM.render(<InstantButtons {...props} />, container);
   });
 };
