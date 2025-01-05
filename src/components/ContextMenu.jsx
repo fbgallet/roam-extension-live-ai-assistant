@@ -63,21 +63,21 @@ const AI_COMMANDS = [
   {
     id: 111,
     name: "Shorter",
-    prompt: "shorter",
+    prompt: "shorten",
     category: "REPHRASE",
     isSub: true,
   },
   {
     id: 112,
-    name: "Longer",
+    name: "Clearer",
     prompt: "longer",
     category: "REPHRASE",
     isSub: true,
   },
   {
     id: 113,
-    name: "Simpler",
-    prompt: "simpler",
+    name: "More accessible",
+    prompt: "accessible",
     category: "REPHRASE",
     isSub: true,
   },
@@ -150,7 +150,10 @@ const StandaloneContextMenu = () => {
 
   const handleClickOnCommand = (e, command, prompt, instantModel) => {
     console.log("Prompt clicker in context menu: ", prompt);
-    if (!command.onlyOutliner)
+    if (
+      !command.onlyOutliner &&
+      (!isOutlinerAgent || (!rootUid && command.id !== 20))
+    )
       aiCompletionRunner({
         e,
         blockUid,
@@ -160,19 +163,29 @@ const StandaloneContextMenu = () => {
       });
     else {
       if (command.id === 20) handleOutlineSelection();
-      else if (command.id === 21) handleOutlinePrompt();
+      else handleOutlinePrompt(prompt);
     }
   };
 
   const handleGlobalContextMenu = useCallback(async (e) => {
-    e.preventDefault();
-    if (!e.metaKey && !e.ctrlKey) return;
-
-    setPosition({
-      x: Math.min(e.clientX - 115, window.innerWidth - 200),
-      y: Math.min(e.clientY - 50, window.innerHeight - 300),
-    });
-    setIsOpen(true);
+    if (e.metaKey && e.ctrlKey) {
+      e.preventDefault();
+      setPosition({
+        x: Math.min(e.clientX - 115, window.innerWidth - 200),
+        y: Math.min(e.clientY - 50, window.innerHeight - 300),
+      });
+      const isOutlineHighlighted = document.querySelector(
+        ".fixed-highlight-elt-blue"
+      )
+        ? true
+        : false;
+      const outlinerRoot = extensionStorage.get("outlinerRootUid");
+      if (!isOutlineHighlighted && outlinerRoot) {
+        setRootUid(outlinerRoot);
+        setIsOutlinerAgent(true);
+      }
+      setIsOpen(true);
+    }
   }, []);
 
   const handleClickOutside = useCallback((e) => {
@@ -221,8 +234,8 @@ const StandaloneContextMenu = () => {
     });
   };
 
-  const handleOutlinePrompt = async () => {
-    if (rootUid) invokeOutlinerAgent();
+  const handleOutlinePrompt = async (prompt) => {
+    if (rootUid) invokeOutlinerAgent({ rootUid, prompt });
   };
 
   const filterCommands = (query, item) => {
@@ -283,7 +296,7 @@ const StandaloneContextMenu = () => {
                 label={subCommand.type}
                 active={modifiers.active}
                 onClick={(e) => {
-                  handleClick(e, command, prompt);
+                  handleClickOnCommand(e, subCommand, prompt);
                 }}
                 onContextMenu={() => {
                   setDisplayModelsMenu(true);

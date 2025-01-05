@@ -154,13 +154,15 @@ export const insertParagraphForStream = (targetUid) => {
   return streamElt;
 };
 
-export const insertInstantButtons = (props) => {
+export const insertInstantButtons = async (props) => {
   let targetElts = [...document.querySelectorAll(`[id$="${props.targetUid}"]`)];
-  targetElts = targetElts.map((elt) =>
-    elt.id.includes("sidebar-window")
-      ? elt.querySelector(`[id$="${props.targetUid}"]`)
-      : elt
-  );
+  targetElts = targetElts
+    .map((elt) =>
+      elt.id.includes("sidebar-window")
+        ? elt.querySelector(`[id$="${props.targetUid}"]`)
+        : elt
+    )
+    .filter((elt, index, array) => index === 0 || elt !== array[index - 1]);
 
   console.log("targetElts 1 :>> ", targetElts);
 
@@ -179,6 +181,8 @@ export const insertInstantButtons = (props) => {
     targetElts
       .map((elt) => elt.parentElement.querySelector(selector))
       .filter((elt) => elt != null);
+
+  console.log("previousContainerElts :>> ", previousContainerElts);
 
   if (previousContainerElts.length) {
     previousContainerElts.forEach((elt) => {

@@ -35,7 +35,7 @@ export const instructionsOnTemplateProcessing = `Instructions for processing the
 
 Here is the template:\n`;
 
-const outputConditions = `IMPORTANT:
+const outputConditions = `\nIMPORTANT:
 - respond only with the requested content, without any introductory phrases, explanations, or comments.
 - you have to write your response in the same language as the following provided content to process.
 
@@ -66,7 +66,7 @@ ${outputConditions.replace("<ACTION>", "rephrase")}`,
 ${outputConditions.replace("<ACTION>", "shorten")}`,
 
   accessible: `Rephrase the following text using simpler, more accessible language while keeping all the information. Avoid complex sentences and technical terms. The result should be easily understood by a general audience.
-  ${outputConditions.replace("<ACTION>", "rephrase")}`,
+${outputConditions.replace("<ACTION>", "rephrase")}`,
 
   clearer: `Please rephrase the following text while following these specific guidelines:
   1. Maintain the core meaning and main ideas of the original text
@@ -101,10 +101,10 @@ Do not paraphrase or modify the original text - simply reorganize it into a clea
 ${outputConditions.replace("<ACTION>", "convert")}`,
 
   linearParagraph: `Transform the following hierarchically organized outline into a continuous text while strictly preserving the original wording of each element. Follow the hierarchical order, add minimal connecting words or phrases where necessary for fluidity, but never modify the original formulations. As much as possible, if the content naturally flows as a single development, present it as one paragraph. However, if distinct thematic developments are clearly identifiable, develop multiple parargaphs but as little as necessary for the clarity of the point and without any hierarchy or indentation.
-  ${outputConditions.replace("<ACTION>", "transform")}`,
+${outputConditions.replace("<ACTION>", "transform")}`,
 
   example: `Provide a paradigmatic example that illustrates the idea or statement provided below. Make it concrete, vivid, and thought-provoking while capturing the essence of what it exemplifies. Express it in clear, straightforward language without any introductory phrases or commentary.
-  ${outputConditions.replace("<ACTION>", "examplifly")}`,
+${outputConditions.replace("<ACTION>", "examplifly")}`,
 
   argument: `Generate a robust argument (only one) supporting the provided statement or idea.
 
