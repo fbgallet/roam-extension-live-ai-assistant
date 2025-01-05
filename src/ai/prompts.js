@@ -39,7 +39,8 @@ const outputConditions = `IMPORTANT:
 - respond only with the requested content, without any introductory phrases, explanations, or comments.
 - you have to write your response in the same language as the following provided content to process.
 
-Here is the user content to <ACTION>: `;
+Here is the user content to <ACTION>:
+`;
 
 export const completionCommands = {
   translate: `YOUR JOB: Translate the following content into clear and correct <language> (without verbosity or overly formal expressions), taking care to adapt idiomatic expressions rather than providing a too-literal translation.
@@ -134,6 +135,33 @@ ${outputConditions.replace("<ACTION>", "justify")}`,
 - Suggesting alternative perspectives that could lead to different conclusions
 Keep your response focused on only 2-3 most significant challenges. Be direct and specific in your questions. Aim to deepen the analysis rather than dismiss the ideas.
 ${outputConditions.replace("<ACTION>", "be challenged")}`,
+
+  extractHighlights: `As a text extraction assistant, your task is to process input text and extract only the highlighted portions (text between double ^^ markers). Follow these exact rules:
+
+1. Extraction rules:
+  - Extract ONLY text between ^^ markers (e.g., from "^^highlighted text^^", extract "highlighted text")
+  - Maintain the exact content without adding or removing anything
+  - Remove the ^^ markers in the output
+  - Keep the original text's order
+
+2. Source block referencing:
+If the source blocks have unique ID (9-character string in double parentheses, containing alphanumeric, - or _):
+  - Add a markdown reference link immediately after each extract in this exact format: [*](((unique ID of the block)))
+  - Place the reference on the same line as the extract
+  - Carefully verify that the unique ID used to reference the source block contains strictly 9 characters and exactly matches the one indicated at the beginning of the block if applicable.
+  - Do not invent an identifier if there isn't one! If there is no identifier available, do not insert any mardown reference: doesn't add anything to the extracted text.
+
+3. Format requirements:
+  - Present each extraction in a bullet point, separated from the precedent by a line break
+  - Preserve exact spelling and punctuation
+  - Do not add any commentary or modifications
+  - Do not extract non-highlighted text
+  - Do not add any introductory text.
+
+Example:
+Input: "((abc123-d_)) Some text with ^^highlighted portion^^ in it"
+Output: "- highlighted portion [*](((abc123-d_)))"
+${outputConditions.replace("<ACTION>", "extract higlights from")}`,
 };
 
 export const socraticPostProcessingPrompt = `\

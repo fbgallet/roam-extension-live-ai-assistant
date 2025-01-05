@@ -417,16 +417,34 @@ export const getBlocksSelectionUids = (reverse) => {
 };
 
 export const getFocusAndSelection = (currentUid) => {
-  !currentUid &&
-    (currentUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]);
-  const activ = document.activeElement;
-  console.log("activ.selectionStart :>> ", activ.selectionStart);
-  console.log("activ.selectionEnd :>> ", activ.selectionEnd);
+  let currentBlockContent, position;
+  const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
   const selectionUids = getBlocksSelectionUids();
-  const currentBlockContent = currentUid
-    ? resolveReferences(getBlockContentByUid(currentUid))
-    : "";
-  return { currentUid, currentBlockContent, selectionUids };
+  if (focusedBlock) {
+    !currentUid && (currentUid = focusedBlock["block-uid"]);
+    currentBlockContent = currentUid
+      ? resolveReferences(getBlockContentByUid(currentUid))
+      : "";
+    position = focusedBlock["window-id"].includes("sidebar")
+      ? "sidebar"
+      : "main";
+  } else {
+    if (selectionUids.length) {
+      let firstSelectionElt =
+        document.querySelector(".block-highlight-blue") ||
+        document.querySelector(".rm-multiselect-block-overlay");
+      if (!firstSelectionElt)
+        firstSelectionElt = document.querySelector(
+          `.roam-block[id$="${selectionUids[0]}"]`
+        );
+      let sidebar =
+        firstSelectionElt &&
+        firstSelectionElt.closest("roam-right-sidebar-content");
+      position = sidebar ? "sidebar" : "main";
+    } else position = null;
+  }
+
+  return { currentUid, currentBlockContent, selectionUids, position };
 };
 
 export const getReferencesCitation = (blockUids) => {
