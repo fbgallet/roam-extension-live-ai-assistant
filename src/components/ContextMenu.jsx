@@ -28,9 +28,9 @@ const SELECT_CMD = "Outliner Agent: Set selected outline as target";
 const UNSELECT_CMD = "Outliner Agent: Unselect current outline";
 
 const AI_COMMANDS = [
-  { id: 1, name: "Selected blocks as prompt", category: "", onlyGen: true },
+  { id: 10, name: "Selected blocks as prompt", category: "", onlyGen: true },
   {
-    id: 2,
+    id: 20,
     icon: "properties",
     name: SELECT_CMD,
     prompt: "",
@@ -38,42 +38,50 @@ const AI_COMMANDS = [
     onlyOutliner: true,
   },
   {
-    id: 3,
+    id: 21,
     icon: "properties",
     name: "Outliner Agent: Apply selected blocks as prompt",
     prompt: "",
     category: "",
     onlyOutliner: true,
   },
-  { id: 4, name: "Translate", prompt: "", category: "REPHRASE" },
   {
-    id: 4,
+    id: 12,
+    name: "Extract highlighted texts",
+    prompt: "extractHighlights",
+    category: "EXTRACT",
+    includeUids: true,
+  },
+  { id: 110, name: "Translate", prompt: "", category: "REPHRASE" },
+  {
+    id: 11,
     name: "Rephrase",
     prompt: "rephrase",
     category: "REPHRASE",
-    submenu: [4, 5, 6],
+    submenu: [111, 112, 113],
   },
   {
-    id: 5,
+    id: 111,
     name: "Shorter",
     prompt: "shorter",
     category: "REPHRASE",
     isSub: true,
   },
   {
-    id: 6,
+    id: 112,
     name: "Longer",
     prompt: "longer",
     category: "REPHRASE",
     isSub: true,
   },
   {
-    id: 7,
+    id: 113,
     name: "Simpler",
     prompt: "simpler",
     category: "REPHRASE",
     isSub: true,
   },
+
   { id: 8, name: "Convert", prompt: "", category: "user" },
   { id: 9, name: "My command", prompt: "", category: "user" },
   // ... autres commandes
@@ -141,11 +149,18 @@ const StandaloneContextMenu = () => {
   };
 
   const handleClickOnCommand = (e, command, prompt, instantModel) => {
+    console.log("Prompt clicker in context menu: ", prompt);
     if (!command.onlyOutliner)
-      aiCompletionRunner({ e, blockUid, prompt, instantModel });
+      aiCompletionRunner({
+        e,
+        blockUid,
+        prompt,
+        instantModel,
+        includeUids: command.includeUids,
+      });
     else {
-      if (command.id === 2) handleOutlineSelection();
-      else if (command.id === 3) handleOutlinePrompt();
+      if (command.id === 20) handleOutlineSelection();
+      else if (command.id === 21) handleOutlinePrompt();
     }
   };
 
@@ -200,7 +215,7 @@ const StandaloneContextMenu = () => {
 
   const updateOutlineSelectionCommand = ({ isToSelect = true }) => {
     setCommands((prev) => {
-      let outlinerCommand = prev.find((cmd) => cmd.id === 2);
+      let outlinerCommand = prev.find((cmd) => cmd.id === 20);
       outlinerCommand.name = isToSelect ? SELECT_CMD : UNSELECT_CMD;
       return [...prev];
     });
@@ -212,20 +227,20 @@ const StandaloneContextMenu = () => {
 
   const filterCommands = (query, item) => {
     if (!query) {
-      if (item.id === 1 && rootUid) return false;
+      if (item.id === 10 && rootUid) return false;
       // TODO : display if the current outline is not visible...
-      if (item.id === 2 && rootUid && rootUid !== focusedBlock.current)
+      if (item.id === 20 && rootUid && rootUid !== focusedBlock.current)
         return false;
       if (
-        item.id === 3 &&
+        item.id === 21 &&
         (!rootUid || (rootUid && rootUid === focusedBlock.current))
       )
         return false;
       return item.isSub ? false : true;
     }
-    if (query.length === 1 && item.isSub) return false;
+    if (query.length === 10 && item.isSub) return false;
     const normalizedQuery = query.toLowerCase();
-    console.log("normalizedQuery :>> ", normalizedQuery);
+    // console.log("normalizedQuery :>> ", normalizedQuery);
     return (
       item.name.toLowerCase().includes(normalizedQuery) ||
       item.category.toLowerCase().includes(normalizedQuery)
@@ -240,6 +255,7 @@ const StandaloneContextMenu = () => {
 
   const renderCommand = (command, { handleClick, modifiers }) => {
     let prompt = command.prompt ? completionCommands[command.prompt] : "";
+
     return (
       <MenuItem
         key={command.id}
@@ -277,7 +293,7 @@ const StandaloneContextMenu = () => {
               </MenuItem>
             );
           })
-        ) : displayModelsMenu || command.id === 1 ? (
+        ) : displayModelsMenu || command.id === 10 ? (
           <ModelsMenu callback={aiCompletionRunner} commandPrompt={prompt} />
         ) : null}
       </MenuItem>

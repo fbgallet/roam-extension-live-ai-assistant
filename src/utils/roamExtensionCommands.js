@@ -554,9 +554,18 @@ export const aiCompletionRunner = async ({
   sourceUid,
   prompt = "",
   instantModel,
+  includeUids = false,
 }) => {
+  console.log("Prompt from the menu: ", prompt);
+
   let { completedPrompt, targetUid, context, isInConversation, noData } =
-    await getInputDataFromRoamContext(e, sourceUid, prompt, instantModel);
+    await getInputDataFromRoamContext(
+      e,
+      sourceUid,
+      prompt,
+      instantModel,
+      includeUids
+    );
   if (noData) return;
 
   console.log("completedPrompt :>> ", completedPrompt);
@@ -579,7 +588,8 @@ const getInputDataFromRoamContext = async (
   e,
   sourceUid,
   prompt,
-  instantModel
+  instantModel,
+  includeUids
 ) => {
   let { currentUid, currentBlockContent, selectionUids } =
     getFocusAndSelection();
@@ -594,10 +604,12 @@ const getInputDataFromRoamContext = async (
       currentUid,
       selectionUids,
       prompt,
-      instantModel
+      instantModel,
+      includeUids
     );
 
   const roamContextFromKeys = await handleModifierKeys(e);
+  console.log("roamContextFromKeys :>> ", roamContextFromKeys);
 
   const inlineContext = currentBlockContent
     ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
@@ -616,6 +628,9 @@ const getInputDataFromRoamContext = async (
     inlineContext?.roamContext || roamContextFromKeys,
     currentUid
   );
+
+  console.log("context :>> ", context);
+
   return {
     currentUid,
     targetUid,
@@ -629,10 +644,11 @@ const getFinalPromptAndTarget = async (
   currentUid,
   selectionUids,
   prompt,
-  instantModel
+  instantModel,
+  includeUids
 ) => {
   console.log("selectionUids from finalPrompt :>> ", selectionUids);
-  console.log("hasBlueSelection :>> ", hasBlueSelection);
+
   const assistantRole = instantModel
     ? getInstantAssistantRole(instantModel)
     : chatRoles.assistant;
@@ -647,7 +663,7 @@ const getFinalPromptAndTarget = async (
   ) {
     targetUid = await createSiblingBlock(selectionUids[0]);
     await addContentToBlock(targetUid, assistantRole);
-    prompt += getResolvedContentFromBlocks(selectionUids, false);
+    prompt += getResolvedContentFromBlocks(selectionUids, includeUids);
     selectionUids = [];
   } else {
     targetUid = currentUid
@@ -802,7 +818,7 @@ export const setAsOutline = async (rootUid) => {
       currentUid ||
       (selectionUids.length ? selectionUids[0] : undefined)
   );
-  if (!extensionStorage.get("outlinerRootUid"))
+  if (!(await extensionStorage.get("outlinerRootUid")))
     AppToaster.show({
       message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
     });

@@ -47,7 +47,11 @@ import {
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { outlinerAgentSystemPrompt } from "./agent-prompts";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
-import { highlightHtmlElt, insertInstantButtons } from "../../utils/domElts";
+import {
+  highlightHtmlElt,
+  insertInstantButtons,
+  toggleOutlinerSelection,
+} from "../../utils/domElts";
 import { AppToaster } from "../../components/VoiceRecorder";
 
 const outlinerAgentState = Annotation.Root({
@@ -461,7 +465,7 @@ interface AgentInvoker {
   model?: string;
   prompt?: string;
   context?: string;
-  treeSnapshot?: string;
+  treeSnapshot?: any[];
 }
 
 export const invokeOutlinerAgent = async ({
@@ -471,18 +475,25 @@ export const invokeOutlinerAgent = async ({
   model,
   treeSnapshot,
 }: AgentInvoker) => {
-  if (!rootUid) rootUid = extensionStorage.get("outlinerRootUid");
   let outline;
+  if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
+  console.log("rootUid :>> ", rootUid);
+  if (!rootUid) return;
 
   if (!treeSnapshot) {
-    let { currentUid, currentBlockContent, selectionUids } =
+    let { currentUid, currentBlockContent, selectionUids, position } =
       getFocusAndSelection();
+    await checkOutlineAvailability(rootUid, position);
+    console.log("position :>> ", position);
     if (!rootUid) {
       AppToaster.show({
         message: `An outline has to be set as target for Outliner Agent`,
       });
       return;
     }
+
+    return;
+
     if (!prompt && !treeSnapshot) {
       if (currentUid) {
         prompt = currentBlockContent;
@@ -500,7 +511,7 @@ export const invokeOutlinerAgent = async ({
       }
     }
     outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
-  }
+  } else return;
   console.log("defaultModel :>> ", defaultModel);
 
   highlightHtmlElt({ eltUid: rootUid, color: "blue" });
@@ -548,4 +559,38 @@ export const invokeOutlinerAgent = async ({
     const updatedTree = getTreeByUid(rootUid);
     console.log("updatedTree :>> ", updatedTree);
   }, 200);
+};
+
+const checkOutlineAvailability = async (
+  rootUid: string,
+  position: string | null
+) => {
+  const isOutlineHighlighted = document.querySelector(
+    ".fixed-highlight-elt-blue"
+  )
+    ? true
+    : false;
+  if (!isOutlineHighlighted) {
+    let delay = 0;
+
+    // TODO: verify if sidebar is open: id=roam-right-sidebar-content
+    // if: id=sidebar-window-sidebar-block-uid
+    // => open in sidebar:
+    // => open in main window: simulate click on .rm-block-ref
+
+    const outlineInstances = document.querySelectorAll(
+      `.roam-block[id$="${rootUid}"]`
+    );
+    const isOutlineVisible = outlineInstances.length ? true : false;
+
+    if (!isOutlineVisible) {
+      (window as any).roamAlphaAPI.ui.rightSidebar.addWindow({
+        window: { type: "block", "block-uid": rootUid },
+      });
+      delay = 200;
+    }
+    setTimeout(() => {
+      toggleOutlinerSelection(rootUid, true);
+    }, delay);
+  }
 };
