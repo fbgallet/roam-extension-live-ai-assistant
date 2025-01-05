@@ -818,11 +818,11 @@ export const setAsOutline = async (rootUid) => {
       currentUid ||
       (selectionUids.length ? selectionUids[0] : undefined)
   );
-  if (!(await extensionStorage.get("outlinerRootUid")))
+  if (!extensionStorage.get("outlinerRootUid"))
     AppToaster.show({
       message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
     });
   else {
-    toggleOutlinerSelection(rootUid || currentUid, true);
+    toggleOutlinerSelection(extensionStorage.get("outlinerRootUid"), true);
   }
 };

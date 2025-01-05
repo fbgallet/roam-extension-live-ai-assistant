@@ -477,8 +477,8 @@ export const invokeOutlinerAgent = async ({
 }: AgentInvoker) => {
   let outline;
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
-  console.log("rootUid :>> ", rootUid);
   if (!rootUid) return;
+  console.log("rootUid :>> ", rootUid);
 
   if (!treeSnapshot) {
     let { currentUid, currentBlockContent, selectionUids, position } =
@@ -505,10 +505,16 @@ export const invokeOutlinerAgent = async ({
       }
     }
     outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
-  } else return;
+  } else {
+    insertInstantButtons({
+      rootUid,
+      isOutlinerAgent: true,
+      isToRemove: true,
+    });
+  }
   console.log("defaultModel :>> ", defaultModel);
 
-  // highlightHtmlElt({ eltUid: rootUid, color: "blue" });
+  highlightHtmlElt({ eltUid: rootUid, color: "blue" });
 
   const begin = performance.now();
   const response = await outlinerAgent.invoke({
