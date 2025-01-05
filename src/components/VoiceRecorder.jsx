@@ -419,7 +419,7 @@ function VoiceRecorder({
         targetBlock.current = blocksSelectionUids.current[0];
         blocksSelectionUids.current = [];
         toNextSibling = true;
-      } else return;
+      } else if (lastCommand.current === "gptCompletion") return;
       await completionProcessing(
         prompt,
         targetBlock.current,

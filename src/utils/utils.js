@@ -439,7 +439,7 @@ export const getFocusAndSelection = (currentUid) => {
         );
       let sidebar =
         firstSelectionElt &&
-        firstSelectionElt.closest("roam-right-sidebar-content");
+        firstSelectionElt.closest("#roam-right-sidebar-content");
       position = sidebar ? "sidebar" : "main";
     } else position = null;
   }

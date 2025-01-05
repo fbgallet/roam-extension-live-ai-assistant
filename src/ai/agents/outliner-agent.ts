@@ -484,7 +484,6 @@ export const invokeOutlinerAgent = async ({
     let { currentUid, currentBlockContent, selectionUids, position } =
       getFocusAndSelection();
     await checkOutlineAvailability(rootUid, position);
-    console.log("position :>> ", position);
     if (!rootUid) {
       AppToaster.show({
         message: `An outline has to be set as target for Outliner Agent`,
@@ -492,15 +491,10 @@ export const invokeOutlinerAgent = async ({
       return;
     }
 
-    return;
-
     if (!prompt && !treeSnapshot) {
-      if (currentUid) {
+      if (currentUid && !selectionUids.length) {
         prompt = currentBlockContent;
-      } else if (
-        selectionUids.length &&
-        document.querySelector(".block-highlight-blue")
-      ) {
+      } else if (selectionUids.length) {
         prompt = getResolvedContentFromBlocks(selectionUids, false);
         selectionUids = [];
       } else {
@@ -514,7 +508,7 @@ export const invokeOutlinerAgent = async ({
   } else return;
   console.log("defaultModel :>> ", defaultModel);
 
-  highlightHtmlElt({ eltUid: rootUid, color: "blue" });
+  // highlightHtmlElt({ eltUid: rootUid, color: "blue" });
 
   const begin = performance.now();
   const response = await outlinerAgent.invoke({
@@ -573,21 +567,37 @@ const checkOutlineAvailability = async (
   if (!isOutlineHighlighted) {
     let delay = 0;
 
-    // TODO: verify if sidebar is open: id=roam-right-sidebar-content
-    // if: id=sidebar-window-sidebar-block-uid
-    // => open in sidebar:
-    // => open in main window: simulate click on .rm-block-ref
-
     const outlineInstances = document.querySelectorAll(
       `.roam-block[id$="${rootUid}"]`
     );
     const isOutlineVisible = outlineInstances.length ? true : false;
 
     if (!isOutlineVisible) {
-      (window as any).roamAlphaAPI.ui.rightSidebar.addWindow({
-        window: { type: "block", "block-uid": rootUid },
-      });
-      delay = 200;
+      if (position === "sidebar") {
+        (window as any).roamAlphaAPI.ui.mainWindow.openBlock({
+          block: { uid: rootUid },
+        });
+      } else {
+        if (!document.querySelector("#roam-right-sidebar-content")) {
+          (window as any).roamAlphaAPI.ui.rightSidebar.open();
+        }
+        setTimeout(() => {
+          if (
+            document.querySelector(
+              `div[id="sidebar-window-sidebar-block-${rootUid}"`
+            )
+          ) {
+            (window as any).roamAlphaAPI.ui.rightSidebar.expandWindow({
+              window: { type: "block", "block-uid": rootUid },
+            });
+          } else {
+            (window as any).roamAlphaAPI.ui.rightSidebar.addWindow({
+              window: { type: "block", "block-uid": rootUid },
+            });
+          }
+        }, 100);
+      }
+      delay = 100;
     }
     setTimeout(() => {
       toggleOutlinerSelection(rootUid, true);
