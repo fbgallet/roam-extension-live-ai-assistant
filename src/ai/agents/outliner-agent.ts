@@ -533,6 +533,7 @@ export const invokeOutlinerAgent = async ({
     ],
     historyCommand: treeSnapshot ? "undo" : ",",
     treeTarget: treeSnapshot,
+    model,
   });
 
   highlightHtmlElt({

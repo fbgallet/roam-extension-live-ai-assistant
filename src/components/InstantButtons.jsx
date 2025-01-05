@@ -66,7 +66,7 @@ const InstantButtons = ({
     invokeOutlinerAgent({ rootUid: targetUid, treeSnapshot });
   };
 
-  const handleRedo = (e, instantModel) => {
+  const handleRedo = ({ e, model = model }) => {
     isCanceledStreamGlobal = true;
     !aiCallback
       ? insertCompletion({
@@ -75,7 +75,7 @@ const InstantButtons = ({
           context: content,
           typeOfCompletion:
             responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
-          instantModel: instantModel || model,
+          instantModel: model,
           isRedone: true,
         })
       : aiCallback({
@@ -245,7 +245,7 @@ const InstantButtons = ({
               onContextMenu={(e) => {
                 e.preventDefault();
                 ContextMenu.show(
-                  ModelsMenu({ command: handleRedo }),
+                  ModelsMenu({ callback: handleRedo, prompt }),
                   { left: e.clientX, top: e.clientY },
                   null
                 );

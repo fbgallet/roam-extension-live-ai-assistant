@@ -148,7 +148,7 @@ const StandaloneContextMenu = () => {
     }
   };
 
-  const handleClickOnCommand = (e, command, prompt, instantModel) => {
+  const handleClickOnCommand = ({ e, command, prompt, model }) => {
     console.log("Prompt clicker in context menu: ", prompt);
     if (
       !command.onlyOutliner &&
@@ -158,18 +158,18 @@ const StandaloneContextMenu = () => {
         e,
         blockUid,
         prompt,
-        instantModel,
+        instantModel: model,
         includeUids: command.includeUids,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
-      else handleOutlinePrompt(prompt);
+      else handleOutlinePrompt(prompt, model);
     }
   };
 
   const handleGlobalContextMenu = useCallback(async (e) => {
-    if (e.metaKey && e.ctrlKey) {
-      e.preventDefault();
+    e.preventDefault();
+    if (e.metaKey || e.ctrlKey) {
       setPosition({
         x: Math.min(e.clientX - 115, window.innerWidth - 200),
         y: Math.min(e.clientY - 50, window.innerHeight - 300),
@@ -234,8 +234,8 @@ const StandaloneContextMenu = () => {
     });
   };
 
-  const handleOutlinePrompt = async (prompt) => {
-    if (rootUid) invokeOutlinerAgent({ rootUid, prompt });
+  const handleOutlinePrompt = async (prompt, model) => {
+    if (rootUid) invokeOutlinerAgent({ rootUid, prompt, model });
   };
 
   const filterCommands = (query, item) => {
@@ -260,9 +260,9 @@ const StandaloneContextMenu = () => {
     );
   };
 
-  const insertModelsMenu = (callback, prompt) => {
-    return displayModelsMenu ? (
-      <ModelsMenu callback={callback} commandPrompt={prompt} />
+  const insertModelsMenu = (callback, command, prompt) => {
+    return displayModelsMenu || command.id === 10 ? (
+      <ModelsMenu callback={callback} command={command} prompt={prompt} />
     ) : null;
   };
 
@@ -276,39 +276,41 @@ const StandaloneContextMenu = () => {
         text={command.name}
         active={command === modifiers.active}
         onClick={(e) => {
-          handleClickOnCommand(e, command, prompt);
+          handleClickOnCommand({ e, command, prompt });
         }}
         onSelect={(e) => console.log("Select")}
-        onContextMenu={() => {
-          setDisplayModelsMenu(true);
-        }}
+        onContextMenu={
+          command.id !== 20
+            ? () => {
+                setDisplayModelsMenu(true);
+              }
+            : null
+        }
       >
-        {command.submenu ? (
-          command.submenu.map((sub) => {
-            const subCommand = commands.find((item) => item.id === sub);
-            prompt = subCommand.prompt
-              ? completionCommands[subCommand.prompt]
-              : "";
-            return (
-              <MenuItem
-                key={subCommand.id}
-                text={subCommand.name}
-                label={subCommand.type}
-                active={modifiers.active}
-                onClick={(e) => {
-                  handleClickOnCommand(e, subCommand, prompt);
-                }}
-                onContextMenu={() => {
-                  setDisplayModelsMenu(true);
-                }}
-              >
-                {insertModelsMenu(aiCompletionRunner, prompt)}
-              </MenuItem>
-            );
-          })
-        ) : displayModelsMenu || command.id === 10 ? (
-          <ModelsMenu callback={aiCompletionRunner} commandPrompt={prompt} />
-        ) : null}
+        {command.submenu
+          ? command.submenu.map((sub) => {
+              const subCommand = commands.find((item) => item.id === sub);
+              prompt = subCommand.prompt
+                ? completionCommands[subCommand.prompt]
+                : "";
+              return (
+                <MenuItem
+                  key={subCommand.id}
+                  text={subCommand.name}
+                  label={subCommand.type}
+                  active={modifiers.active}
+                  onClick={(e) => {
+                    handleClickOnCommand({ e, command: subCommand, prompt });
+                  }}
+                  onContextMenu={() => {
+                    setDisplayModelsMenu(true);
+                  }}
+                >
+                  {insertModelsMenu(handleClickOnCommand, command, prompt)}
+                </MenuItem>
+              );
+            })
+          : insertModelsMenu(handleClickOnCommand, command, prompt)}
       </MenuItem>
     );
   };

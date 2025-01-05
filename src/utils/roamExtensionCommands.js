@@ -556,8 +556,6 @@ export const aiCompletionRunner = async ({
   instantModel,
   includeUids = false,
 }) => {
-  console.log("Prompt from the menu: ", prompt);
-
   let { completedPrompt, targetUid, context, isInConversation, noData } =
     await getInputDataFromRoamContext(
       e,
@@ -567,12 +565,6 @@ export const aiCompletionRunner = async ({
       includeUids
     );
   if (noData) return;
-
-  console.log("completedPrompt :>> ", completedPrompt);
-  console.log("targetUid :>> ", targetUid);
-  console.log("context :>> ", context);
-  console.log("isInConversation :>> ", isInConversation);
-  console.log("e", e);
 
   insertCompletion({
     prompt: completedPrompt,

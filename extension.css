@@ -299,7 +299,7 @@
 
 .liveai-instant-btn-container {
   position: absolute;
-  top: -22px;
+  /* top: -22px; */
   right: 0;
   z-index: 99;
   opacity: 0;
@@ -325,8 +325,11 @@
   top: 1px;
   opacity: 0.4;
 }
+
 .rm-block:has(.rm-block__ref-count) .liveai-instant-btn-container,
-.rm-block:has(.rm-block__ref-count) .liveai-instant-btn-outliner-container {
+.fixed-highlight-elt-blue
+  > :first-of-type(.rm-block):has(.rm-block__ref-count)
+  .liveai-instant-btn-outliner-container {
   top: 25px;
 }
 .rm-block:has(.liveai-instant-btn-container):hover
