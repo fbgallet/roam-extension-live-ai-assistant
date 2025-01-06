@@ -544,15 +544,16 @@ export function convertTreeToLinearArray(
   return { linearArray, excludedUids };
 }
 
-export const getAndNormalizeContext = async (
-  startBlock,
-  blocksSelectionUids,
+export const getAndNormalizeContext = async ({
+  startBlock = undefined,
+  blocksSelectionUids = undefined,
   roamContext,
-  focusedBlock,
+  focusedBlock = undefined,
   model = defaultModel,
-  maxDepth,
-  maxUid
-) => {
+  maxDepth = null,
+  maxUid = null,
+  uidToExclude,
+}) => {
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
     context = getResolvedContentFromBlocks(blocksSelectionUids);
@@ -632,7 +633,7 @@ export const getAndNormalizeContext = async (
     }
     if (roamContext.sidebar) {
       highlightHtmlElt({ selector: "#roam-right-sidebar-content" });
-      context += getFlattenedContentFromSidebar();
+      context += getFlattenedContentFromSidebar(uidToExclude);
     }
   }
 
@@ -692,7 +693,7 @@ export const getFlattenedContentFromLinkedReferences = (
   return flattenedRefsString;
 };
 
-export function getFlattenedContentFromSidebar() {
+export function getFlattenedContentFromSidebar(uidToExclude) {
   let sidebarNodes = window.roamAlphaAPI.ui.rightSidebar.getWindows();
   let flattednedBlocks = "\n";
   sidebarNodes.forEach((node, index) => {
@@ -704,7 +705,7 @@ export function getFlattenedContentFromSidebar() {
       if (node.type === "outline")
         flattednedBlocks += `\nContent of [[${pageName}]] page:\n`;
     }
-    if (uid !== "") {
+    if (uid !== "" && uid !== uidToExclude) {
       if (node.type !== "mentions")
         flattednedBlocks += getFlattenedContentFromTree(
           uid,
@@ -1038,15 +1039,14 @@ export const getContextFromSbCommand = async (
           arg && contextObj.roamContext.blockArgument.push(arg);
         });
       }
-      context = await getAndNormalizeContext(
-        null,
-        selectedUids,
-        contextObj?.roamContext,
-        currentUid,
+      context = await getAndNormalizeContext({
+        blocksSelectionUids: selectedUids,
+        roamContext: contextObj?.roamContext,
+        focusedBlock: currentUid,
         model,
-        contextDepth,
-        includeRefs === "true" ? contextDepth || undefined : undefined
-      );
+        maxDepth: contextDepth,
+        maxUid: includeRefs === "true" ? contextDepth || undefined : undefined,
+      });
     } else if (context && pageRegex.test(context.trim())) {
       pageRegex.lastIndex = 0;
       const matchingName = context.trim().match(pageRegex);

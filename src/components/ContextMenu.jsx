@@ -11,14 +11,12 @@ import ReactDOM from "react-dom";
 import { defaultModel, extensionStorage, isComponentVisible } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands } from "../ai/prompts";
-import {
-  aiCompletionRunner,
-  setAsOutline,
-} from "../utils/roamExtensionCommands";
+import { aiCompletionRunner } from "../utils/roamExtensionCommands";
 import {
   highlightHtmlElt,
   insertInstantButtons,
   mountComponent,
+  setAsOutline,
   toggleOutlinerSelection,
   unmountComponent,
 } from "../utils/domElts";
@@ -163,13 +161,13 @@ const StandaloneContextMenu = () => {
       });
     else {
       if (command.id === 20) handleOutlineSelection();
-      else handleOutlinePrompt(prompt, model);
+      else handleOutlinePrompt(e, prompt, model);
     }
   };
 
   const handleGlobalContextMenu = useCallback(async (e) => {
-    e.preventDefault();
     if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
       setPosition({
         x: Math.min(e.clientX - 115, window.innerWidth - 200),
         y: Math.min(e.clientY - 50, window.innerHeight - 300),
@@ -234,8 +232,8 @@ const StandaloneContextMenu = () => {
     });
   };
 
-  const handleOutlinePrompt = async (prompt, model) => {
-    if (rootUid) invokeOutlinerAgent({ rootUid, prompt, model });
+  const handleOutlinePrompt = async (e, prompt, model) => {
+    if (rootUid) invokeOutlinerAgent({ e, rootUid, prompt, model });
   };
 
   const filterCommands = (query, item) => {

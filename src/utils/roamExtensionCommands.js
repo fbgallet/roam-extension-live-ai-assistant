@@ -601,7 +601,6 @@ const getInputDataFromRoamContext = async (
     );
 
   const roamContextFromKeys = await handleModifierKeys(e);
-  console.log("roamContextFromKeys :>> ", roamContextFromKeys);
 
   const inlineContext = currentBlockContent
     ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
@@ -798,23 +797,4 @@ const getInfosFromSmartBlockParams = async ({
     instantModel: model,
     toAppend,
   };
-};
-
-// OUTLINER AGENT
-
-export const setAsOutline = async (rootUid) => {
-  let { currentUid, selectionUids } = getFocusAndSelection();
-  await extensionStorage.set(
-    "outlinerRootUid",
-    rootUid ||
-      currentUid ||
-      (selectionUids.length ? selectionUids[0] : undefined)
-  );
-  if (!extensionStorage.get("outlinerRootUid"))
-    AppToaster.show({
-      message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
-    });
-  else {
-    toggleOutlinerSelection(extensionStorage.get("outlinerRootUid"), true);
-  }
 };

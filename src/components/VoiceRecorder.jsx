@@ -64,16 +64,14 @@ import {
   displaySpinner,
   highlightHtmlElt,
   removeSpinner,
+  setAsOutline,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
 import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
 import TokensDisplay from "./TokensDisplay.jsx";
 import TokensDialog from "./TokensDisplay.jsx";
 import CommandsMenu from "./CommandsMenu.jsx";
-import {
-  handleModifierKeys,
-  setAsOutline,
-} from "../utils/roamExtensionCommands.js";
+import { handleModifierKeys } from "../utils/roamExtensionCommands.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 
 export const AppToaster = Toaster.create({
@@ -384,8 +382,8 @@ function VoiceRecorder({
   };
   const handleOutlinerAgent = async (e, model) => {
     if (!(await extensionStorage.get("outlinerRootUid"))) {
-      setAsOutline();
-      setIsOutlineActive(true);
+      const rootUid = await setAsOutline();
+      if (rootUid) setIsOutlineActive(true);
       return;
     }
     if (model) instantModel.current = model;
@@ -528,13 +526,13 @@ function VoiceRecorder({
         ? getInstantAssistantRole(instantModel.current)
         : chatRoles.assistant
       : "";
-    const context = await getAndNormalizeContext(
-      lastCommand.current === "outlinerAgent" ? null : startBlock.current,
-      blocksSelectionUids.current,
-      roamContext.current,
-      null,
-      instantModel.current || defaultModel
-    );
+    const context = await getAndNormalizeContext({
+      startBlock:
+        lastCommand.current === "outlinerAgent" ? null : startBlock.current,
+      blocksSelectionUids: blocksSelectionUids.current,
+      roamContext: roamContext.current,
+      model: instantModel.current || defaultModel,
+    });
     if (lastCommand.current === "outlinerAgent") {
       invokeOutlinerAgent({ prompt, context, model: instantModel });
       // let inlineTemplate = getTemplateFromPrompt(
