@@ -26,6 +26,7 @@ import {
   createChildBlock,
   deleteBlock,
   extractNormalizedUidFromRef,
+  getAndNormalizeContext,
   getBlockContentByUid,
   getFocusAndSelection,
   getResolvedContentFromBlocks,
@@ -53,6 +54,7 @@ import {
   toggleOutlinerSelection,
 } from "../../utils/domElts";
 import { AppToaster } from "../../components/VoiceRecorder";
+import { handleModifierKeys } from "../../utils/roamExtensionCommands";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -461,6 +463,7 @@ export const outlinerAgent = builder.compile();
 
 // Invoke graph
 interface AgentInvoker {
+  e?: MouseEvent;
   rootUid?: string;
   model?: string;
   prompt?: string;
@@ -469,13 +472,14 @@ interface AgentInvoker {
 }
 
 export const invokeOutlinerAgent = async ({
+  e,
   rootUid,
   prompt,
   context,
   model,
   treeSnapshot,
 }: AgentInvoker) => {
-  let outline;
+  let outline, roamContextFromKeys;
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
   if (!rootUid) return;
   console.log("rootUid :>> ", rootUid);
@@ -505,6 +509,13 @@ export const invokeOutlinerAgent = async ({
       }
     }
     outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
+    roamContextFromKeys = await handleModifierKeys(e);
+    context = await getAndNormalizeContext({
+      roamContext: roamContextFromKeys,
+      model,
+      uidToExclude: rootUid,
+    });
+    console.log("context :>> ", context);
   } else {
     insertInstantButtons({
       rootUid,

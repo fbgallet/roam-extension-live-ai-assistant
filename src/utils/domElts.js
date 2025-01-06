@@ -1,10 +1,12 @@
 // import React from "react";
 import ReactDOM from "react-dom";
 import InstantButtons from "../components/InstantButtons";
-import { isComponentVisible, position } from "..";
+import { extensionStorage, isComponentVisible, position } from "..";
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
+import { getFocusAndSelection } from "./utils";
+import { AppToaster } from "../components/VoiceRecorder";
 
 export function mountComponent(position, props) {
   let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -236,7 +238,7 @@ export const highlightHtmlElt = ({
   isToRemove = false,
 }) => {
   let elts = [];
-  if (!eltUid) elts = [...document.querySelector(selector)];
+  if (!eltUid) elts = [...document.querySelectorAll(selector)];
   else {
     let eltToHighlight = [
       ...document.querySelectorAll(`.roam-block[id$="${eltUid}"]`),
@@ -268,6 +270,24 @@ export const highlightHtmlElt = ({
       elt.classList.remove(highightSelector);
     }
   });
+};
+
+export const setAsOutline = async (rootUid) => {
+  let { currentUid, selectionUids } = getFocusAndSelection();
+  !rootUid &&
+    (rootUid =
+      currentUid || (selectionUids.length ? selectionUids[0] : undefined));
+
+  if (!rootUid) {
+    AppToaster.show({
+      message: `A block has to be focused or an outline has to selected to be set as the target for Outliner Agent`,
+    });
+    return null;
+  } else {
+    await extensionStorage.set("outlinerRootUid", rootUid);
+    toggleOutlinerSelection(extensionStorage.get("outlinerRootUid"), true);
+    return rootUid;
+  }
 };
 
 export const toggleOutlinerSelection = (targetUid, isSelected) => {
