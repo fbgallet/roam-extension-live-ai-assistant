@@ -147,6 +147,9 @@ const StandaloneContextMenu = () => {
   };
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
+    if (!prompt) {
+      prompt = command.prompt ? completionCommands[command.prompt] : "";
+    }
     console.log("Prompt clicker in context menu: ", prompt);
     if (
       !command.onlyOutliner &&
@@ -258,15 +261,13 @@ const StandaloneContextMenu = () => {
     );
   };
 
-  const insertModelsMenu = (callback, command, prompt) => {
+  const insertModelsMenu = (callback, command) => {
     return displayModelsMenu || command.id === 10 ? (
-      <ModelsMenu callback={callback} command={command} prompt={prompt} />
+      <ModelsMenu callback={callback} command={command} />
     ) : null;
   };
 
   const renderCommand = (command, { handleClick, modifiers }) => {
-    let prompt = command.prompt ? completionCommands[command.prompt] : "";
-
     return (
       <MenuItem
         key={command.id}
@@ -274,23 +275,21 @@ const StandaloneContextMenu = () => {
         text={command.name}
         active={command === modifiers.active}
         onClick={(e) => {
-          handleClickOnCommand({ e, command, prompt });
+          handleClickOnCommand({ e, command });
         }}
         onSelect={(e) => console.log("Select")}
-        onContextMenu={
+        onContextMenu={(e) => {
+          e.preventDefault();
           command.id !== 20
             ? () => {
                 setDisplayModelsMenu(true);
               }
-            : null
-        }
+            : null;
+        }}
       >
         {command.submenu
           ? command.submenu.map((sub) => {
               const subCommand = commands.find((item) => item.id === sub);
-              prompt = subCommand.prompt
-                ? completionCommands[subCommand.prompt]
-                : "";
               return (
                 <MenuItem
                   key={subCommand.id}
@@ -298,17 +297,18 @@ const StandaloneContextMenu = () => {
                   label={subCommand.type}
                   active={modifiers.active}
                   onClick={(e) => {
-                    handleClickOnCommand({ e, command: subCommand, prompt });
+                    handleClickOnCommand({ e, command: subCommand });
                   }}
-                  onContextMenu={() => {
+                  onContextMenu={(e) => {
+                    e.preventDefault();
                     setDisplayModelsMenu(true);
                   }}
                 >
-                  {insertModelsMenu(handleClickOnCommand, command, prompt)}
+                  {insertModelsMenu(handleClickOnCommand, command)}
                 </MenuItem>
               );
             })
-          : insertModelsMenu(handleClickOnCommand, command, prompt)}
+          : insertModelsMenu(handleClickOnCommand, command)}
       </MenuItem>
     );
   };
@@ -348,7 +348,8 @@ const StandaloneContextMenu = () => {
                 text="Outliner Agent: Apply this custom prompt"
                 active={true}
                 onClick={(e) => handleOutline(query)}
-                onContextMenu={() => {
+                onContextMenu={(e) => {
+                  e.preventDefault();
                   setDisplayModelsMenu(true);
                 }}
               >
@@ -359,7 +360,8 @@ const StandaloneContextMenu = () => {
               text="Use this custom prompt"
               active={!rootUid ? true : false}
               onClick={(e) => aiCompletionRunner(e, query + ":\n")}
-              onContextMenu={() => {
+              onContextMenu={(e) => {
+                e.preventDefault();
                 setDisplayModelsMenu(true);
               }}
             >
@@ -453,7 +455,7 @@ const StandaloneContextMenu = () => {
               onItemSelect={(command, e) => {
                 console.log("e :>> ", e);
                 // setSelectedCommand(command);
-                handleClick(e, command);
+                handleClickOnCommand(e, command);
                 console.log("Selected Command :>>", command);
               }}
               inputProps={{

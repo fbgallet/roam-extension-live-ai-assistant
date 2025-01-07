@@ -612,13 +612,11 @@ const getInputDataFromRoamContext = async (
       inlineContext.updatedPrompt
     );
 
-  let context = await getAndNormalizeContext(
-    // currentUid && selectionUids.length ? null : currentUid,
-    null,
-    remaininSelectionUids,
-    inlineContext?.roamContext || roamContextFromKeys,
-    currentUid
-  );
+  let context = await getAndNormalizeContext({
+    blocksSelectionUids: remaininSelectionUids,
+    roamContext: inlineContext?.roamContext || roamContextFromKeys,
+    focusedBlock: currentUid,
+  });
 
   console.log("context :>> ", context);
 
