@@ -19,6 +19,13 @@ export const languages = [
 ];
 
 export const PREBUILD_COMMANDS = [
+  { id: 0, name: "Use this custom prompt", category: "", onlyGen: true },
+  {
+    id: 2,
+    name: "Outliner Agent: Apply this custom prompt",
+    category: "",
+    onlyOutliner: true,
+  },
   { id: 10, name: "Selected blocks as prompt", category: "", onlyGen: true },
   {
     id: 11,
@@ -38,35 +45,76 @@ export const PREBUILD_COMMANDS = [
     isSub: true,
   },
   {
-    id: 12,
-    name: "Rephrase",
-    prompt: "rephrase",
+    id: 120,
+    name: "Fix spelling & grammar",
+    prompt: "correctWording",
     category: "REPHRASE",
-    submenu: [121, 122, 123],
+    submenu: [1200],
+  },
+  {
+    id: 1200,
+    name: "Fix and explain spelling mistakes",
+    prompt: "correctWordingAndExplain",
+    category: "REPHRASE",
+    isSub: true,
   },
   {
     id: 121,
+    name: "Rephrase",
+    prompt: "rephrase",
+    category: "REPHRASE",
+    submenu: [1210, 1211, 1212, 1213, 1214],
+  },
+  {
+    id: 1210,
     name: "Shorter",
     prompt: "shorten",
     category: "REPHRASE",
     isSub: true,
   },
   {
-    id: 122,
-    name: "Clearer",
-    prompt: "longer",
-    category: "REPHRASE",
-    isSub: true,
-  },
-  {
-    id: 123,
+    id: 1211,
     name: "More accessible",
     prompt: "accessible",
     category: "REPHRASE",
     isSub: true,
   },
   {
-    id: 13,
+    id: 1212,
+    name: "Clearer and more explicit",
+    prompt: "clearer",
+    category: "REPHRASE",
+    isSub: true,
+  },
+  {
+    id: 1213,
+    name: "More formal",
+    prompt: "formal",
+    category: "REPHRASE",
+    isSub: true,
+  },
+  {
+    id: 1214,
+    name: "More casual",
+    prompt: "casual",
+    category: "REPHRASE",
+    isSub: true,
+  },
+  {
+    id: 122,
+    name: "Summarize",
+    prompt: "summarize",
+    category: "REPHRASE",
+  },
+  {
+    id: 130,
+    name: "Extract key insights",
+    prompt: "extractHighlights",
+    category: "EXTRACT",
+    includeUids: true,
+  },
+  {
+    id: 131,
     name: "Extract highlighted texts",
     prompt: "extractHighlights",
     category: "EXTRACT",
@@ -104,5 +152,3 @@ export const PREBUILD_COMMANDS = [
     };
   })
 );
-
-console.log("PREBUILD_COMMANDS :>> ", PREBUILD_COMMANDS);

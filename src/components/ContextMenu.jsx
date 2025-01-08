@@ -22,6 +22,7 @@ import {
 } from "../utils/domElts";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 import { PREBUILD_COMMANDS, languages } from "../ai/prebuildCommands";
+import { simulateClick } from "../utils/utils";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
@@ -55,7 +56,6 @@ const StandaloneContextMenu = () => {
       instantModel,
       blockUid,
     }) => {
-      console.log("HERE window.LiveAI");
       setIsOutlinerAgent(onlyOutliner);
       instantModel && setModel(instantModel);
       blockUid && setBlockUid(blockUid);
@@ -98,8 +98,6 @@ const StandaloneContextMenu = () => {
     focusedBlock.current =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     const currentRootUid = extensionStorage.get("outlinerRootUid");
-    console.log("rootUid :>> ", rootUid);
-    console.log("currentRootUid :>> ", currentRootUid);
     const isSelectCmd = !commands[1].name.toLowerCase().includes("unselect");
     if (rootUid != currentRootUid) {
       setRootUid(currentRootUid);
@@ -116,11 +114,10 @@ const StandaloneContextMenu = () => {
   };
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
+    console.log("prompt :>> ", prompt);
     if (!prompt) {
       prompt = command.prompt ? completionCommands[command.prompt] : "";
     }
-    console.log("command :>> ", command);
-    console.log("customLgg :>> ", customLgg);
     if (command.id === 11 || Math.floor(command.id / 100) === 11) {
       const selectedLgg =
         command.id === 11
@@ -128,7 +125,6 @@ const StandaloneContextMenu = () => {
           : command.id === 1199
           ? customLgg
           : command.name;
-      console.log("selectedLgg :>> ", selectedLgg);
       if (defaultLgg !== selectedLgg) {
         setDefaultLgg(selectedLgg);
         extensionStorage.set("translationDefaultLgg", selectedLgg);
@@ -185,8 +181,6 @@ const StandaloneContextMenu = () => {
     document.addEventListener("contextmenu", handleGlobalContextMenu);
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      console.log("popoverRef :>> ", popoverRef.current);
-      console.log("inputRef.current :>> ", inputRef.current);
       setTimeout(() => {
         inputRef.current.focus();
       }, 10);
@@ -226,6 +220,7 @@ const StandaloneContextMenu = () => {
 
   const filterCommands = (query, item) => {
     if (!query) {
+      if (item.id === 0 || item.id === 2) return false;
       if (item.id === 10 && rootUid) return false;
       // TODO : display if the current outline is not visible...
       if (item.id === 20 && rootUid && rootUid !== focusedBlock.current)
@@ -255,32 +250,24 @@ const StandaloneContextMenu = () => {
   const renderCommand = (command, { handleClick, modifiers }) => {
     return (
       <MenuItem
+        // active={index === 0 ? true : false}
         key={command.id}
         icon={command.icon}
-        text={
-          // command.id === 11
-          //   ? command.name.replace("<default>", defaultLgg)
-          //   :
-          command.name
-        }
-        label={
-          // command.id === 11
-          //   ? languages.find((elt) => elt[0] === defaultLgg)[1]
-          //   :
-          command.label
-        }
-        active={command === modifiers.active}
+        text={command.name}
+        label={command.label}
+        active={modifiers.active || command.id === 0}
+        tabindex="0"
         onClick={(e) => {
-          handleClickOnCommand({ e, command });
+          handleClickOnCommand({
+            e,
+            command,
+            prompt: command.id === 0 && command.prompt,
+          });
         }}
         onSelect={(e) => console.log("Select")}
         onContextMenu={(e) => {
           e.preventDefault();
-          command.id !== 20
-            ? () => {
-                setDisplayModelsMenu(true);
-              }
-            : null;
+          command.id !== 20 ? setDisplayModelsMenu(true) : null;
         }}
       >
         {command.submenu
@@ -290,6 +277,7 @@ const StandaloneContextMenu = () => {
                 customLggMenuItem(subCommand)
               ) : (
                 <MenuItem
+                  tabindex="0"
                   key={subCommand.id}
                   text={subCommand.name}
                   label={subCommand.label}
@@ -318,55 +306,33 @@ const StandaloneContextMenu = () => {
     query,
   }) => {
     const grouped = {};
+
     const filteredItems = items.filter((item) => filterCommands(query, item));
+    if (!filteredItems.length) {
+      const customCommand = rootUid ? items[1] : items[0];
+      customCommand.prompt = query + ":\n";
+      filteredItems.push(customCommand);
+    }
+
     filteredItems.forEach((item) => {
       if (!grouped[item.category]) {
         grouped[item.category] = [];
       }
       grouped[item.category].push(item);
     });
-    // console.log("grouped :>> ", grouped);
+
     return (
-      <Menu className="str-aicommands-menu" ulRef={itemsParentRef}>
-        {filteredItems.length ? (
-          Object.entries(grouped)
-            .filter(([_, categoryItems]) => categoryItems.length > 0)
-            .map(([category, categoryItems]) => (
-              <React.Fragment key={category}>
-                {category && (
-                  <MenuDivider className="menu-hint" title={category} />
-                )}
-                {categoryItems.map((item) => renderItem(item))}
-              </React.Fragment>
-            ))
-        ) : (
-          <>
-            {rootUid ? (
-              <MenuItem
-                text="Outliner Agent: Apply this custom prompt"
-                active={true}
-                onClick={(e) => handleOutline(query)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setDisplayModelsMenu(true);
-                }}
-              >
-                {insertModelsMenu(aiCompletionRunner, query)}
-              </MenuItem>
-            ) : null}
-            <MenuItem
-              text="Use this custom prompt"
-              active={!rootUid ? true : false}
-              onClick={(e) => aiCompletionRunner(e, query + ":\n")}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setDisplayModelsMenu(true);
-              }}
-            >
-              {insertModelsMenu(aiCompletionRunner, query + ":\n")}
-            </MenuItem>
-          </>
-        )}
+      <Menu className="str-aicommands-menu" ulRef={itemsParentRef} small={true}>
+        {Object.entries(grouped)
+          .filter(([_, categoryItems]) => categoryItems.length > 0)
+          .map(([category, categoryItems]) => (
+            <React.Fragment key={category}>
+              {category && (
+                <MenuDivider className="menu-hint" title={category} />
+              )}
+              {categoryItems.map((item) => renderItem(item))}
+            </React.Fragment>
+          ))}
         <MenuDivider
           className="menu-hint"
           title={"ℹ︎ Right click to switch model"}
@@ -482,21 +448,17 @@ const StandaloneContextMenu = () => {
               }
             />
             <Suggest
-              // style={{
-              //   zIndex: 999,
-              // }}
               popoverRef={popoverRef}
-              tabIndex="0"
               fill={true}
               items={commands}
               itemListRenderer={groupedItemRenderer}
               itemRenderer={renderCommand}
               itemPredicate={filterCommands}
               onItemSelect={(command, e) => {
-                console.log("e :>> ", e);
-                // setSelectedCommand(command);
-                handleClickOnCommand(e, command);
-                console.log("Selected Command :>>", command);
+                // console.log("command :>> ", command);
+                // console.log("e :>> ", e);
+                // e.preventDefault();
+                handleClickOnCommand({ e, command });
               }}
               inputProps={{
                 placeholder: "Live AI command...",
@@ -504,12 +466,20 @@ const StandaloneContextMenu = () => {
                 fill: true,
                 leftIcon: "filter-list",
                 onClick: (e) => e.stopPropagation(),
+                onKeyPress: (e) => {
+                  if (e.code === "Enter") {
+                    const activeMenuElt = document.querySelector(".bp3-active");
+                    if (activeMenuElt.innerText === "Use this custom prompt")
+                      simulateClick(document.querySelector(".bp3-active"));
+                  }
+                },
               }}
               popoverProps={{
                 minimal: true,
                 placement: "right-start",
                 popoverClassName: "suggested-aicommands",
               }}
+              inputValueRenderer={(item) => item.label}
             />
           </Menu>
         </div>

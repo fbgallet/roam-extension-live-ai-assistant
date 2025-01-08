@@ -259,6 +259,11 @@
   align-self: center;
 }
 
+.bp3-menu.str-aicommands-menu {
+  max-height: 450px;
+  /* overflow: scroll; */
+}
+
 .str-aicommands-menu .bp3-input-group *:focus {
   outline: none !important;
   box-shadow: 0;

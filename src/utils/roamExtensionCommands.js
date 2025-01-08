@@ -636,8 +636,6 @@ const getFinalPromptAndTarget = async (
   instantModel,
   includeUids
 ) => {
-  console.log("selectionUids from finalPrompt :>> ", selectionUids);
-
   const assistantRole = instantModel
     ? getInstantAssistantRole(instantModel)
     : chatRoles.assistant;
