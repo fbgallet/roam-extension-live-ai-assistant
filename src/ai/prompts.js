@@ -36,8 +36,8 @@ export const instructionsOnTemplateProcessing = `Instructions for processing the
 Here is the template:\n`;
 
 const outputConditions = `\nIMPORTANT:
-- respond only with the requested content, without any introductory phrases, explanations, or comments.
-- you have to write your response in the same language as the following provided content to process.
+- respond only with the requested content, without any introductory phrases, explanations, or comments (unless they are explicitly required).
+- you have to write your whole response in the same language as the following provided content to process (unless another output language is explicitly required by the user).
 
 Here is the user content to <ACTION>:
 `;
@@ -51,7 +51,7 @@ export const completionCommands = {
   
   Here is the content to translate:`,
 
-  summarizePrompt: `Please provide a concise, cohesive summary of the following content, focusing on:
+  summarize: `Please provide a concise, cohesive summary of the following content, focusing on:
 - Essential main ideas and key arguments
 - Critical supporting evidence and examples
 - Major conclusions or recommendations
@@ -87,7 +87,11 @@ ${outputConditions.replace("<ACTION>", "rephrase")}`,
   casual: `"Rephrase the following text in a more casual, conversational tone. Keep all the information but make it sound like natural spoken language. Use common expressions and straightforward structure while maintaining accuracy.
   ${outputConditions.replace("<ACTION>", "rephrase")}`,
 
-  correctWording: `Please provide only the corrected version of the following text, fixing spelling, grammar, syntax and sentence structure errors while keeping the exact same meaning and wording wherever possible. If a word is clearly inappropriate, you can adapt the vocabulary as needed to make it more in line with usage in the target language. Do not rephrase or reformulate content unless absolutely necessary for correctness.
+  correctWording: `Provide only the corrected version of the following text, fixing spelling, grammar, syntax and sentence structure errors while keeping the exact same meaning and wording wherever possible. If a word is clearly inappropriate, you can adapt the vocabulary as needed to make it more in line with usage in the target language. Do not rephrase or reformulate content unless absolutely necessary for correctness.
+${outputConditions.replace("<ACTION>", "fix")}:`,
+
+  correctWordingAndExplain: `Provide a corrected version of the following text, fixing spelling, grammar, syntax and sentence structure errors while keeping the exact same meaning and wording wherever possible. If a word is clearly inappropriate, you can adapt the vocabulary as needed to make it more in line with usage in the target language. Do not rephrase or reformulate content unless absolutely necessary for correctness.
+After correcting the text, go through each mistake and briefly explain it, state the rule to follow (only in case of grammar mistake), and eventually provide a tip to avoid making the same mistake in the future (only if you find a VERY smart and useful tip, not an obvious one like "Double-check spelling"!). Provide this explanations in the same language as the text to fix.
 ${outputConditions.replace("<ACTION>", "fix")}:`,
 
   outline: `Please convert the following text into a hierarchically structured outline that reflects its logical organization. Important requirements:
