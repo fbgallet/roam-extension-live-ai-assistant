@@ -21,80 +21,27 @@ import {
   unmountComponent,
 } from "../utils/domElts";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
+import { PREBUILD_COMMANDS, languages } from "../ai/prebuildCommands";
 
-const SELECT_CMD = "Outliner Agent: Set selected outline as target";
-const UNSELECT_CMD = "Outliner Agent: Unselect current outline";
-
-const AI_COMMANDS = [
-  { id: 10, name: "Selected blocks as prompt", category: "", onlyGen: true },
-  {
-    id: 20,
-    icon: "properties",
-    name: SELECT_CMD,
-    prompt: "",
-    category: "",
-    onlyOutliner: true,
-  },
-  {
-    id: 21,
-    icon: "properties",
-    name: "Outliner Agent: Apply selected blocks as prompt",
-    prompt: "",
-    category: "",
-    onlyOutliner: true,
-  },
-  {
-    id: 12,
-    name: "Extract highlighted texts",
-    prompt: "extractHighlights",
-    category: "EXTRACT",
-    includeUids: true,
-  },
-  { id: 110, name: "Translate", prompt: "", category: "REPHRASE" },
-  {
-    id: 11,
-    name: "Rephrase",
-    prompt: "rephrase",
-    category: "REPHRASE",
-    submenu: [111, 112, 113],
-  },
-  {
-    id: 111,
-    name: "Shorter",
-    prompt: "shorten",
-    category: "REPHRASE",
-    isSub: true,
-  },
-  {
-    id: 112,
-    name: "Clearer",
-    prompt: "longer",
-    category: "REPHRASE",
-    isSub: true,
-  },
-  {
-    id: 113,
-    name: "More accessible",
-    prompt: "accessible",
-    category: "REPHRASE",
-    isSub: true,
-  },
-
-  { id: 8, name: "Convert", prompt: "", category: "user" },
-  { id: 9, name: "My command", prompt: "", category: "user" },
-  // ... autres commandes
-];
+const SELECT_CMD = "Outliner Agent: Set as active outline";
+const UNSELECT_CMD = "Outliner Agent: Disable current outline";
 
 const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [commands, setCommands] = useState(AI_COMMANDS);
+  const [commands, setCommands] = useState(PREBUILD_COMMANDS);
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [displayModelsMenu, setDisplayModelsMenu] = useState(false);
   const [blockUid, setBlockUid] = useState(null);
   const [rootUid, setRootUid] = useState(null);
+  const [defaultLgg, setDefaultLgg] = useState(
+    extensionStorage.get("translationDefaultLgg")
+  );
+  const [customLgg, setCustomLgg] = useState(
+    extensionStorage.get("translationCustomLgg")
+  );
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlock = useRef(
@@ -125,6 +72,28 @@ const StandaloneContextMenu = () => {
     else updateMenu();
   }, [isOpen]);
 
+  useEffect(() => {
+    setCommands((prev) => {
+      const updatedCommands = [...prev];
+      const customLggCmd = updatedCommands.find((cmd) => cmd.id === 1199);
+      customLggCmd.name = customLgg;
+      return updatedCommands;
+    });
+    if (!languages.find((lgg) => lgg[0] === defaultLgg))
+      setDefaultLgg(customLgg);
+  }, [customLgg]);
+
+  useEffect(() => {
+    setCommands((prev) => {
+      const updatedCommands = [...prev];
+      const defaultLggCmd = updatedCommands.find((cmd) => cmd.id === 11);
+      const defaultLggMap = languages.find((elt) => elt[0] === defaultLgg);
+      defaultLggCmd.name = `Translate to... (${defaultLgg})`;
+      defaultLggCmd.label = defaultLggMap ? defaultLggMap[1] : "";
+      return updatedCommands;
+    });
+  }, [defaultLgg]);
+
   const updateMenu = () => {
     focusedBlock.current =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -149,6 +118,22 @@ const StandaloneContextMenu = () => {
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
     if (!prompt) {
       prompt = command.prompt ? completionCommands[command.prompt] : "";
+    }
+    console.log("command :>> ", command);
+    console.log("customLgg :>> ", customLgg);
+    if (command.id === 11 || Math.floor(command.id / 100) === 11) {
+      const selectedLgg =
+        command.id === 11
+          ? defaultLgg
+          : command.id === 1199
+          ? customLgg
+          : command.name;
+      console.log("selectedLgg :>> ", selectedLgg);
+      if (defaultLgg !== selectedLgg) {
+        setDefaultLgg(selectedLgg);
+        extensionStorage.set("translationDefaultLgg", selectedLgg);
+      }
+      prompt = prompt.replace("<language>", selectedLgg);
     }
     console.log("Prompt clicker in context menu: ", prompt);
     if (
@@ -272,7 +257,18 @@ const StandaloneContextMenu = () => {
       <MenuItem
         key={command.id}
         icon={command.icon}
-        text={command.name}
+        text={
+          // command.id === 11
+          //   ? command.name.replace("<default>", defaultLgg)
+          //   :
+          command.name
+        }
+        label={
+          // command.id === 11
+          //   ? languages.find((elt) => elt[0] === defaultLgg)[1]
+          //   :
+          command.label
+        }
         active={command === modifiers.active}
         onClick={(e) => {
           handleClickOnCommand({ e, command });
@@ -290,11 +286,13 @@ const StandaloneContextMenu = () => {
         {command.submenu
           ? command.submenu.map((sub) => {
               const subCommand = commands.find((item) => item.id === sub);
-              return (
+              return subCommand.id === 1199 ? (
+                customLggMenuItem(subCommand)
+              ) : (
                 <MenuItem
                   key={subCommand.id}
                   text={subCommand.name}
-                  label={subCommand.type}
+                  label={subCommand.label}
                   active={modifiers.active}
                   onClick={(e) => {
                     handleClickOnCommand({ e, command: subCommand });
@@ -374,6 +372,48 @@ const StandaloneContextMenu = () => {
           title={"ℹ︎ Right click to switch model"}
         />
       </Menu>
+    );
+  };
+
+  const customLggMenuItem = (command) => {
+    return (
+      <MenuItem
+        className={"custom-lgg-menu"}
+        key={1199}
+        // icon={defaultLgg === "this?" ? "pin" : ""}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (customLgg)
+            handleClickOnCommand({
+              e,
+              command,
+            });
+        }}
+        onKeyDown={(e) => {
+          // handleKeyDownOnModel(e);
+        }}
+        tabindex="0"
+        text={
+          <>
+            User defined:
+            <InputGroup
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              value={customLgg}
+              onChange={(e) => {
+                extensionStorage.set("translationCustomLgg", e.target.value);
+                setCustomLgg(e.target.value);
+              }}
+              fill={true}
+              className={"custom-lgg-input"}
+            />
+          </>
+        }
+        label="✍️"
+      />
     );
   };
 

@@ -289,6 +289,14 @@
   margin: 0 0 8px 0;
 }
 
+.str-aicommands-menu .custom-lgg-menu {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  /* margin: 0;
+  padding: 0; */
+}
+
 .suggested-aicommands {
   transform: translateX(-5px) translateY(5px);
   z-index: 9999;
