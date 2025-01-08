@@ -913,6 +913,12 @@ export default {
       await extensionAPI.settings.set("resImages", "auto");
     resImages = extensionAPI.settings.get("resImages");
 
+    // persistant variables for context menu
+    if (extensionAPI.settings.get("translationCustomLgg") === null)
+      await extensionAPI.settings.set("translationCustomLgg", "");
+    if (extensionAPI.settings.get("translationDefaultLgg") === null)
+      await extensionAPI.settings.set("translationDefaultLgg", "English");
+
     if (extensionAPI.settings.get("tokensCounter") === null)
       updateTokenCounter(undefined, {});
     console.log(
