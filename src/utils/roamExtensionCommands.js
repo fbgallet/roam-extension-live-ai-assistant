@@ -282,8 +282,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   const openContextMenu = (blockUid, selectionUids) => {
     setTimeout(() => {
-      const centerX = window.innerWidth / 2 - 100;
-      const centerY = window.innerHeight / 3;
+      const centerX = window.innerWidth / 2 - 200;
+      const centerY = window.innerHeight / 4;
       window.LiveAI.toggleContextMenu({
         e: { clientX: centerX, clientY: centerY },
         source: blockUid ? [blockUid] : selectionUids,
@@ -583,6 +583,7 @@ const getInputDataFromRoamContext = async (
   instantModel,
   includeUids
 ) => {
+  const isCommandPrompt = prompt ? true : false;
   let { currentUid, currentBlockContent, selectionUids } =
     getFocusAndSelection();
 
@@ -590,14 +591,22 @@ const getInputDataFromRoamContext = async (
 
   if (!currentUid && !selectionUids.length && !e) return { noData: true };
 
-  if (currentBlockContent) prompt += currentBlockContent;
+  if (currentBlockContent) {
+    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
+      prompt = prompt.replace(
+        "<REPLACE BY TARGET CONTENT>",
+        currentBlockContent
+      );
+    else prompt += currentBlockContent;
+  }
   let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
     await getFinalPromptAndTarget(
       currentUid,
       selectionUids,
       prompt,
       instantModel,
-      includeUids
+      includeUids,
+      isCommandPrompt
     );
 
   const roamContextFromKeys = await handleModifierKeys(e);
@@ -634,14 +643,14 @@ const getFinalPromptAndTarget = async (
   selectionUids,
   prompt,
   instantModel,
-  includeUids
+  includeUids,
+  isCommandPrompt
 ) => {
   const assistantRole = instantModel
     ? getInstantAssistantRole(instantModel)
     : chatRoles.assistant;
-  const isInConversation = currentUid
-    ? isPromptInConversation(currentUid)
-    : false;
+  const isInConversation =
+    currentUid && !isCommandPrompt ? isPromptInConversation(currentUid) : false;
   let targetUid;
   if (
     !currentUid &&
@@ -650,7 +659,10 @@ const getFinalPromptAndTarget = async (
   ) {
     targetUid = await createSiblingBlock(selectionUids[0]);
     await addContentToBlock(targetUid, assistantRole);
-    prompt += getResolvedContentFromBlocks(selectionUids, includeUids);
+    const content = getResolvedContentFromBlocks(selectionUids, includeUids);
+    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
+      prompt = prompt.replace("<REPLACE BY TARGET CONTENT>", content);
+    else prompt += content;
     selectionUids = [];
   } else {
     targetUid = currentUid

@@ -1,11 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import {
-  ContextMenu,
-  ContextMenuChildrenProps,
-  Menu,
-  Popover,
-  Tooltip,
-} from "@blueprintjs/core";
+import { Tooltip } from "@blueprintjs/core";
 
 import {
   faMicrophone,
@@ -70,7 +64,6 @@ import {
 import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
 import TokensDisplay from "./TokensDisplay.jsx";
 import TokensDialog from "./TokensDisplay.jsx";
-import CommandsMenu from "./CommandsMenu.jsx";
 import { handleModifierKeys } from "../utils/roamExtensionCommands.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 

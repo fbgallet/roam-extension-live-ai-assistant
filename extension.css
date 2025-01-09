@@ -260,8 +260,9 @@
 }
 
 .bp3-menu.str-aicommands-menu {
-  max-height: 450px;
+  max-height: 55vh;
   /* overflow: scroll; */
+  z-index: 9999;
 }
 
 .str-aicommands-menu .bp3-input-group *:focus {
@@ -302,8 +303,8 @@
   padding: 0; */
 }
 
-.suggested-aicommands {
-  transform: translateX(-5px) translateY(5px);
+.bp3-popover.suggested-aicommands {
+  transform: translateX(5px) translateY(-33px) !important;
   z-index: 9999;
 }
 
