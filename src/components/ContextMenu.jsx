@@ -219,8 +219,8 @@ const StandaloneContextMenu = () => {
   };
 
   const filterCommands = (query, item) => {
+    if (item.id === 0 || item.id === 2) return false;
     if (!query) {
-      if (item.id === 0 || item.id === 2) return false;
       if (item.id === 10 && rootUid) return false;
       // TODO : display if the current outline is not visible...
       if (item.id === 20 && rootUid && rootUid !== focusedBlock.current)
@@ -237,7 +237,8 @@ const StandaloneContextMenu = () => {
     // console.log("normalizedQuery :>> ", normalizedQuery);
     return (
       item.name.toLowerCase().includes(normalizedQuery) ||
-      item.category.toLowerCase().includes(normalizedQuery)
+      item.category?.toLowerCase().includes(normalizedQuery) ||
+      item.keyWords?.toLowerCase().includes(normalizedQuery)
     );
   };
 
@@ -247,7 +248,7 @@ const StandaloneContextMenu = () => {
     ) : null;
   };
 
-  const renderCommand = (command, { handleClick, modifiers }) => {
+  const renderCommand = (command, { handleClick, modifiers, query }) => {
     return (
       <MenuItem
         // active={index === 0 ? true : false}
@@ -270,7 +271,7 @@ const StandaloneContextMenu = () => {
           command.id !== 20 ? setDisplayModelsMenu(true) : null;
         }}
       >
-        {command.submenu
+        {command.submenu && !query
           ? command.submenu.map((sub) => {
               const subCommand = commands.find((item) => item.id === sub);
               return subCommand.id === 1199 ? (
@@ -323,6 +324,12 @@ const StandaloneContextMenu = () => {
 
     return (
       <Menu className="str-aicommands-menu" ulRef={itemsParentRef} small={true}>
+        {!query || !filteredItems[0].category ? (
+          <MenuDivider
+            className="menu-hint"
+            title={"ℹ︎ Right click to switch model"}
+          />
+        ) : null}
         {Object.entries(grouped)
           .filter(([_, categoryItems]) => categoryItems.length > 0)
           .map(([category, categoryItems]) => (
@@ -333,10 +340,12 @@ const StandaloneContextMenu = () => {
               {categoryItems.map((item) => renderItem(item))}
             </React.Fragment>
           ))}
-        <MenuDivider
-          className="menu-hint"
-          title={"ℹ︎ Right click to switch model"}
-        />
+        {query && filteredItems[0].category ? (
+          <MenuDivider
+            className="menu-hint"
+            title={"ℹ︎ Right click to switch model"}
+          />
+        ) : null}
       </Menu>
     );
   };
@@ -455,10 +464,8 @@ const StandaloneContextMenu = () => {
               itemRenderer={renderCommand}
               itemPredicate={filterCommands}
               onItemSelect={(command, e) => {
-                // console.log("command :>> ", command);
-                // console.log("e :>> ", e);
-                // e.preventDefault();
                 handleClickOnCommand({ e, command });
+                setIsOpen(false);
               }}
               inputProps={{
                 placeholder: "Live AI command...",
