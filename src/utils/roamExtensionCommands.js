@@ -56,6 +56,7 @@ import {
   resolveReferences,
   sbParamRegex,
   simulateClick,
+  updateBlock,
 } from "./utils";
 import { AppToaster } from "../components/VoiceRecorder";
 import { queryAgent } from "../ai/agents/query-agent";
@@ -555,6 +556,8 @@ export const aiCompletionRunner = async ({
   prompt = "",
   instantModel,
   includeUids = false,
+  target,
+  withSuggestions,
 }) => {
   let { completedPrompt, targetUid, context, isInConversation, noData } =
     await getInputDataFromRoamContext(
@@ -562,9 +565,12 @@ export const aiCompletionRunner = async ({
       sourceUid,
       prompt,
       instantModel,
-      includeUids
+      includeUids,
+      target
     );
   if (noData) return;
+
+  console.log("prompt :>> ", prompt);
 
   insertCompletion({
     prompt: completedPrompt,
@@ -573,6 +579,8 @@ export const aiCompletionRunner = async ({
     instantModel,
     typeOfCompletion: "gptCompletion",
     isInConversation,
+    withSuggestions,
+    target,
   });
 };
 
@@ -581,13 +589,16 @@ const getInputDataFromRoamContext = async (
   sourceUid,
   prompt,
   instantModel,
-  includeUids
+  includeUids,
+  target
 ) => {
   const isCommandPrompt = prompt ? true : false;
   let { currentUid, currentBlockContent, selectionUids } =
     getFocusAndSelection();
 
-  if (sourceUid) currentBlockContent = getBlockContentByUid(currentUid);
+  if (sourceUid) currentUid = sourceUid;
+
+  if (currentUid) currentBlockContent = getBlockContentByUid(currentUid);
 
   if (!currentUid && !selectionUids.length && !e) return { noData: true };
 
@@ -606,10 +617,11 @@ const getInputDataFromRoamContext = async (
       prompt,
       instantModel,
       includeUids,
-      isCommandPrompt
+      isCommandPrompt,
+      target
     );
 
-  const roamContextFromKeys = await handleModifierKeys(e);
+  const roamContextFromKeys = e && (await handleModifierKeys(e));
 
   const inlineContext = currentBlockContent
     ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
@@ -644,7 +656,8 @@ const getFinalPromptAndTarget = async (
   prompt,
   instantModel,
   includeUids,
-  isCommandPrompt
+  isCommandPrompt,
+  target
 ) => {
   const assistantRole = instantModel
     ? getInstantAssistantRole(instantModel)
@@ -665,14 +678,19 @@ const getFinalPromptAndTarget = async (
     else prompt += content;
     selectionUids = [];
   } else {
-    targetUid = currentUid
-      ? await createChildBlock(
-          isInConversation ? getParentBlock(currentUid) : currentUid,
-          assistantRole
-        )
-      : await insertBlockInCurrentView(
-          chatRoles.user + " a selection of blocks"
-        );
+    if (target === "replace") {
+      targetUid = currentUid;
+      // updateBlock({ blockUid: targetUid, newContent: "" });
+    } else {
+      targetUid = currentUid
+        ? await createChildBlock(
+            isInConversation ? getParentBlock(currentUid) : currentUid,
+            assistantRole
+          )
+        : await insertBlockInCurrentView(
+            chatRoles.user + " a selection of blocks"
+          );
+    }
     if (!prompt) prompt = contextAsPrompt;
     // prompt = getBlockContentByUid(currentUid) ? "" : contextAsPrompt;
   }

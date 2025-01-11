@@ -296,7 +296,7 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
       switch (action) {
         case "update":
           console.log("update! :>> ");
-          updateBlock({
+          await updateBlock({
             blockUid,
             newContent,
             format,
@@ -358,7 +358,7 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
           console.log("reorder! :>> ");
           break;
         case "format":
-          updateBlock({ blockUid, newContent: undefined, format });
+          await updateBlock({ blockUid, newContent: undefined, format });
           break;
         case "delete":
           console.log("reorder! :>> ");

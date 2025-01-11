@@ -211,7 +211,10 @@ const formatChecker = async (state: typeof QueryAgentState.State) => {
 const insertQuery = async (state: typeof QueryAgentState.State) => {
   console.log("state.datomicQuery :>> ", state.datomicQuery);
   if (state.targetUid && isExistingBlock(state.targetUid)) {
-    updateBlock({ blockUid: state.targetUid, newContent: state.datomicQuery });
+    await updateBlock({
+      blockUid: state.targetUid,
+      newContent: state.datomicQuery,
+    });
   } else {
     state.targetUid = await createChildBlock(
       state.rootUid,

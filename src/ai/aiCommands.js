@@ -45,6 +45,7 @@ import {
   roamImageRegex,
   uidRegex,
   updateArrayOfBlocks,
+  updateBlock,
   updateTokenCounter,
 } from "../utils/utils";
 import {
@@ -251,7 +252,8 @@ async function aiCompletion(
   content = "",
   responseFormat,
   targetUid,
-  isInConversation
+  isInConversation,
+  withSuggestions
 ) {
   let aiResponse;
   let hasAPIkey = true;
@@ -321,6 +323,7 @@ async function aiCompletion(
         responseFormat === "text"
           ? aiResponse
           : getFlattenedContentFromArrayOfBlocks(aiResponse),
+      withSuggestions,
     });
   return aiResponse;
 }
@@ -660,6 +663,9 @@ export const insertCompletion = async ({
   instantModel,
   isRedone,
   isInConversation,
+  withAssistantRole = true,
+  withSuggestions,
+  target,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.targetUid = targetUid;
@@ -679,9 +685,11 @@ export const insertCompletion = async ({
   }
   const responseFormat =
     typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
-  const assistantRole = instantModel
-    ? getInstantAssistantRole(instantModel)
-    : chatRoles.assistant;
+  const assistantRole = withAssistantRole
+    ? instantModel
+      ? getInstantAssistantRole(instantModel)
+      : chatRoles.assistant
+    : "";
 
   let content;
 
@@ -706,7 +714,7 @@ export const insertCompletion = async ({
 
   // if (typeOfCompletion === "gptCompletion") {
   if (isRedone) {
-    if (isExistingBlock(targetUid)) {
+    if (isExistingBlock(targetUid) && target !== "replace") {
       targetUid = await createSiblingBlock(targetUid, "before");
       window.roamAlphaAPI.updateBlock({
         block: {
@@ -739,7 +747,8 @@ export const insertCompletion = async ({
     content,
     responseFormat,
     targetUid,
-    isInConversation
+    isInConversation,
+    withSuggestions
   );
   console.log("aiResponse :>> ", aiResponse);
   if (isInConversation)
@@ -747,6 +756,8 @@ export const insertCompletion = async ({
   if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
     updateArrayOfBlocks(aiResponse);
   } else {
+    if (target === "replace")
+      await updateBlock({ blockUid: targetUid, newContent: "" });
     insertStructuredAIResponse(targetUid, aiResponse);
   }
   setTimeout(() => {

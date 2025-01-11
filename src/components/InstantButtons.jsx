@@ -1,5 +1,6 @@
 import {
   faStop,
+  faCheck,
   faCopy,
   faComments,
   // faReply,
@@ -29,6 +30,8 @@ import {
   toggleOutlinerSelection,
 } from "../utils/domElts.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent.ts";
+import { aiCompletionRunner } from "../utils/roamExtensionCommands.js";
+import { completionCommands } from "../ai/prompts.js";
 
 export let isCanceledStreamGlobal = false;
 
@@ -45,6 +48,7 @@ const InstantButtons = ({
   aiCallback,
   isOutlinerAgent,
   treeSnapshot,
+  withSuggestions,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -77,6 +81,7 @@ const InstantButtons = ({
             responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
           instantModel: model,
           isRedone: true,
+          withSuggestions,
         })
       : aiCallback({
           model: instantModel || model,
@@ -179,6 +184,28 @@ const InstantButtons = ({
                 />
               </Tooltip>
               {/* size="lg" */}
+            </span>
+          </span>
+        </div>
+      )}
+      {withSuggestions && (
+        <div class="bp3-popover-wrapper">
+          <span aria-haspopup="true" class="bp3-popover-target">
+            <span
+              // onKeyDown={handleKeys}
+              onClick={() => {
+                aiCompletionRunner({
+                  sourceUid: targetUid,
+                  prompt: completionCommands["acceptSuggestions"],
+                  target: "replace",
+                });
+              }}
+              class="bp3-button bp3-minimal"
+              tabindex="0"
+            >
+              <Tooltip content="Accept suggestions" hoverOpenDelay="500">
+                <FontAwesomeIcon icon={faCheck} size="sm" />
+              </Tooltip>
             </span>
           </span>
         </div>

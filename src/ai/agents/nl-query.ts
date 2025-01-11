@@ -209,7 +209,10 @@ const periodFormater = async (state: typeof QueryAgentState.State) => {
 
 const insertQuery = async (state: typeof QueryAgentState.State) => {
   if (state.targetUid && isExistingBlock(state.targetUid)) {
-    updateBlock({ blockUid: state.targetUid, newContent: state.roamQuery });
+    await updateBlock({
+      blockUid: state.targetUid,
+      newContent: state.roamQuery,
+    });
   } else {
     state.targetUid = await createChildBlock(
       state.rootUid,

@@ -210,8 +210,8 @@ export function focusOnBlockInMainWindow(blockUid) {
   });
 }
 
-export function updateBlock({ blockUid, newContent, format = {} }) {
-  window.roamAlphaAPI.updateBlock({
+export async function updateBlock({ blockUid, newContent, format = {} }) {
+  await window.roamAlphaAPI.updateBlock({
     block: {
       uid: blockUid,
       string: newContent,
