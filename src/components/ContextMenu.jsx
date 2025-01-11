@@ -114,7 +114,7 @@ const StandaloneContextMenu = () => {
   };
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
-    console.log("prompt :>> ", prompt);
+    console.log("command :>> ", command);
     if (!prompt) {
       prompt = command.prompt ? completionCommands[command.prompt] : "";
     }
@@ -132,6 +132,7 @@ const StandaloneContextMenu = () => {
       prompt = prompt.replace("<language>", selectedLgg);
     }
     console.log("Prompt clicker in context menu: ", prompt);
+
     if (
       !command.onlyOutliner &&
       (!isOutlinerAgent || (!rootUid && command.id !== 20))
@@ -143,6 +144,7 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids: command.includeUids,
         withSuggestions: command.withSuggestions,
+        target: command.target,
       });
     else {
       if (command.id === 20) handleOutlineSelection();

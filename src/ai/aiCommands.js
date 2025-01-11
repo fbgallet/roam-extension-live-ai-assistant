@@ -43,6 +43,7 @@ import {
   insertBlockInCurrentView,
   isExistingBlock,
   roamImageRegex,
+  simulateClick,
   uidRegex,
   updateArrayOfBlocks,
   updateBlock,
@@ -714,7 +715,11 @@ export const insertCompletion = async ({
 
   // if (typeOfCompletion === "gptCompletion") {
   if (isRedone) {
-    if (isExistingBlock(targetUid) && target !== "replace") {
+    if (
+      isExistingBlock(targetUid) &&
+      target !== "replace" &&
+      target !== "append"
+    ) {
       targetUid = await createSiblingBlock(targetUid, "before");
       window.roamAlphaAPI.updateBlock({
         block: {
@@ -756,8 +761,10 @@ export const insertCompletion = async ({
   if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
     updateArrayOfBlocks(aiResponse);
   } else {
-    if (target === "replace")
+    if (target === "replace") {
+      simulateClick();
       await updateBlock({ blockUid: targetUid, newContent: "" });
+    }
     insertStructuredAIResponse(targetUid, aiResponse);
   }
   setTimeout(() => {
