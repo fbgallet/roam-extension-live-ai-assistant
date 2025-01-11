@@ -142,6 +142,7 @@ const StandaloneContextMenu = () => {
         prompt,
         instantModel: model,
         includeUids: command.includeUids,
+        withSuggestions: command.withSuggestions,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
@@ -409,6 +410,7 @@ const StandaloneContextMenu = () => {
             zIndex: 999,
           }}
           // onClick={(e) => e.stopPropagation()}
+          onKeyPress={(e) => console.log("e div:", e)}
           onDragStart={(e) => {
             const transparentImage = document.createElement("img");
             e.dataTransfer.clearData();
@@ -441,6 +443,9 @@ const StandaloneContextMenu = () => {
         >
           <Menu
             className="bp3-menu str-aicommands-menu"
+            onKeyDown={(e) => {
+              e.stopPropagation();
+            }}
             onClick={(e) => {
               setIsOpen(false);
               e.stopPropagation();
@@ -474,6 +479,7 @@ const StandaloneContextMenu = () => {
                 leftIcon: "filter-list",
                 onClick: (e) => e.stopPropagation(),
                 onKeyPress: (e) => {
+                  e.stopPropagation();
                   if (e.code === "Enter") {
                     const activeMenuElt = document.querySelector(".bp3-active");
                     if (activeMenuElt.innerText === "Use this custom prompt")
