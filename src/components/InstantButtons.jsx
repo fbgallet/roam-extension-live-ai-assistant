@@ -84,7 +84,7 @@ const InstantButtons = ({
           withSuggestions,
         })
       : aiCallback({
-          model: instantModel || model,
+          model: model,
           prompt,
           currentUid,
           targetUid,

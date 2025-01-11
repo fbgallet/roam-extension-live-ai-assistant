@@ -570,7 +570,7 @@ export const aiCompletionRunner = async ({
     );
   if (noData) return;
 
-  console.log("prompt :>> ", prompt);
+  console.log("targetUid :>> ", targetUid);
 
   insertCompletion({
     prompt: completedPrompt,
@@ -580,6 +580,8 @@ export const aiCompletionRunner = async ({
     typeOfCompletion: "gptCompletion",
     isInConversation,
     withSuggestions,
+    withAssistantRole:
+      target === "append" || target === "replace" ? false : true,
     target,
   });
 };
@@ -678,7 +680,7 @@ const getFinalPromptAndTarget = async (
     else prompt += content;
     selectionUids = [];
   } else {
-    if (target === "replace") {
+    if (target === "replace" || target === "append") {
       targetUid = currentUid;
       // updateBlock({ blockUid: targetUid, newContent: "" });
     } else {

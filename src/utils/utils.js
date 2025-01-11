@@ -722,7 +722,9 @@ export function getFlattenedContentFromSidebar(uidToExclude) {
   return flattednedBlocks;
 }
 
-export const simulateClick = (elt) => {
+export const simulateClick = (
+  elt = document.querySelector(".roam-body-main")
+) => {
   const options = {
     bubbles: true,
     cancelable: true,

@@ -99,18 +99,18 @@ It will be in the following format: ((indication, optional explanation, written 
 Example: 'curantly' will be replaced by '{{or: currently | ~~curantly~~ }} (("curantly" => "currently" (Incorrect wording)))'
 ${outputConditions.replace("<ACTION>", "fix")}:`,
 
-  acceptSuggestions: `In the content provided as input, replace the list of alternative suggestions or ~~original text~~ ALWAYS with the FIRST CHOICE in the list.
-  Some parts of the text are components that offer multiple suggestions or correction to the user (named 'suggestion component').
-  They are in the following format: '{{or: selected choice | suggestion 1 | suggestion 2 | .... }} ((correction type and explanation))'.
+  acceptSuggestions: `Context:
+  You are part of an AI Assistant to help writting. The user was offered several alternatives for certain words or expressions. In the content provided as input, this appears in the form of suggestion components in the following format: '{{or:selected choice | alternative 1 | alternative 2 | ... | ~~original expression~~ }} ((correction type and explanation))'. The user chose the one that best suited them, which is always the one placed first in the list, right after 'or:' (here: 'selected choice').
   
   YOU JOB:
-  - Replace the suggestion component by the selected choice: the first item in the list.
-  - Remove also the correction indication between double parentheses, here: '((correction type and explanation))', but ONLY if its right after a suggestion component.
+  - Replace the whole suggestion component by the selected choice (the first item in the list, after 'or:'), and remove the (optional) correction indication between double parentheses, right after a suggestion component.
+  - Make sure that the rest of the sentence remains syntactically correct after inserting the chosen alternative, otherwise make the necessary syntax correction to ensure the insertion is correct.
   
   VERY IMPORTANT: If the first choice in the list is the '~~original text~~' between double tilde, even if it's incorrect, it means that the user want (for some reason) to keep the original incorrect text. ABSOLUTLY AND STRICTLY RESPECT ITS CHOICE, it's the core meaning of your function here. So keep the original text (after removing the tildes) and discard all other suggestions.
   
-  IMPORTANT: Do not rephrase or reformulate anything else, strictly keep the exact structure, wording and syntax !
-  Do not remove ((content)) between double parenthese if it's not right after a {{or: suggesion component | other suggestion}}
+  IMPORTANT:
+  - If the insertion of a given suggestion requires a minor grammatical modification of the sentence to fix its syntax or grammar, YOU HAVE TO FIX THE SYNTAX but never change the chosen word or expression! Do not rephrase or reformulate anything else.
+  - Do not remove ((content)) between double parenthese if it's not right after a {{or: suggesion component | other suggestion}}, NEVER remove a string of this kind: ((9-characters-identifier))
 
 Example 1: '{{or: currently | ~~curantly~~ }} ((incorrect wording))' will be replaced by 'currently'
 Example 2: '{{or: ~~some originnal incorect wording~~ | correction suggested}} ((indication about mistake type))' will be replaced by 'some originnal incorect wording'
@@ -130,24 +130,28 @@ ${outputConditions.replace("<ACTION>", "enhance")}:`,
 
   vocabularySuggestions: `Review the provided text and act as an expert linguist and editor to enhance its vocabulary precision and richness. Please:
 
-1. Identify the main key terms (verbs, nouns, adjectives, or adverbs) that could be improved for:
+1. Identify the key terms (nouns, verbs, adjectives, or adverbs) that could be improved for:
 - Greater accuracy
 - Enhanced sophistication
 - Better contextual fit
 - Stronger impact
 
-2. For each identified term, 
-- Present 2 to 4 alternative words or expressions
-- Insert your best recommandation first in the list of the alternatives
+2. For each identified term that it would be truly relevant to replace, 
+- Insert directly in the text 2 (up to 4 if useful) alternative words or expressions, in a dedicated component (see format below) 
+- In the alternative list, the first item will be your best recommandation that enhance clarity, precision, and impact
+- Be sure that each alternative is relevant in the context, would fit correctly in the rest of the sentence, and differs from the original expression
 
-IMPORTANT: Make sure that each suggestion fits perfectly into the rest of the sentence (correct syntactical structure), which may require adding or removing linking terms. If an alternative involves modifying a previous word or removing it, it must be associated with the original expression to be modified and ensure that all changes are correctly integrated if they are selected.
+IMPORTANT: Make sure that each suggestion would perfectly fit into the resulting sentence when replacing the original word or expression. It could require to include in the 'original content' other syntaxic elements than the word or expression to enhance itself, in such a way that if the original content is replaced by one of the alternatives, the entire sentence remains perfectly correct from a syntactic and grammatical point of view.
 
 3. Format your response as follows:
-For each suggested vocabulary improvement, replace the concerned word or expression by using this format:
-'{{or: best alternative | alternative 2 | ... | ~~original word~~ }}'
+- Reproduce exactly the original text (preserving strictly its wording and structure)
+- And, directly inside the text, for each suggested vocabulary improvement, replace the concerned original content by a suggestion component using this format:
+'{{or: best alternative | alternative 2 | ... | ~~original content~~ }}'
 IMPORTANT: BE SURE that each alternative and original word are separated by a pipe symbol '|', verify that this symbol is inserted between the last alternative and the original word or expression.
 
-VERY IMPORTANT: maintain exactly the original text wording, structure, tone and style while suggesting improvements that enhance clarity, precision, and impact."
+Example:
+- input text: 'This painting is beautiful'
+- your response: 'This painting is {{or: exquisite | resplendent | sublime | mesmerizing | ~~beautiful~~ }}'
 ${outputConditions.replace("<ACTION>", "review and enhance")}:`,
 
   outline: `Convert the following text into a hierarchically structured outline that reflects its logical organization. Important requirements:
@@ -162,6 +166,65 @@ ${outputConditions.replace("<ACTION>", "convert")}`,
 
   linearParagraph: `Transform the following hierarchically organized outline into a continuous text while strictly preserving the original wording of each element. Follow the hierarchical order, add minimal connecting words or phrases where necessary for fluidity, but never modify the original formulations. As much as possible, if the content naturally flows as a single development, present it as one paragraph. However, if distinct thematic developments are clearly identifiable, develop multiple parargaphs but as little as necessary for the clarity of the point and without any hierarchy or indentation.
 ${outputConditions.replace("<ACTION>", "transform")}`,
+
+  // CONTENT CREATION
+
+  sentenceCompletion: `Complete the sentence provided as input in a meaningful, insightful and creative way. The completion should:
+- Flow naturally from the beginning of the sentence
+- Be grammatically correct
+- Use clear, concise language
+- Avoid clichés and obvious endings
+- Add genuine value or insight to the initial premise
+- Be coherent with the context and style of the beginning
+- Not exceed reasonable length and remain within the limit of a single sentence
+
+IMPORTANT: your response must contain only the content added to the provided setence beginning, without any separation sign except a space if the provided content does not itself end with a space.
+${outputConditions.replace("<ACTION>", "complete")}`,
+
+  paragraphCompletion: `Complete the paragraph provided as input in a coherent and meaningful way, while ensuring:
+- A natural flow from the existing content
+- Proper grammar and punctuation
+- Clear and concise language
+- Logical progression of ideas
+- A satisfying conclusion that fits the paragraph's context
+- Consistency with the original writing style
+- No unnecessary embellishments or digressions
+- Not exceed reasonable length (a few sentences) and remain within the limit of a single paragraph
+
+IMPORTANT: your response must contain only the content added to the provided paragraph beginning, without any separation sign except a space if the provided content does not itself end with a space.
+${outputConditions.replace("<ACTION>", "complete")}`,
+
+  similarContent: `Generate new content that mirrors the structure and style of a provided example (possibly provided in several different variants) while developing a different content but about the same subject within the same category, with the purpose of broadening our understanding and knowledge of the subject category through additional, well-structured content.
+
+Using the provided content  as a structural and stylistic template, generate new content that:
+1. Follows the same topic category and specific subject, but with a different content
+  - Examples:
+      - If arguing for a position, provide a new argument supporting the same position
+      - If providing a cause of a given event, propose another possiblel cause
+      - If touristic tips about Paris, provide another touristic tip about Paris
+
+2. Strictly maintains the original's:
+  - Writing style and tone
+  - Level of detail
+  - Organizational structure (especially hierarchical if present)
+  - Format and presentation patterns
+
+3. Identifies and replicates:
+  - Any recurring structural elements
+  - The pattern of how information is organized
+  - The scope and boundaries of the subject matter
+
+4. Ensures thematic consistency:
+  - If multiple examples are provided, analyze their common characteristics and whether they follow a certain logic that would need to be extended
+  - Keep the new content within the same thematic framework or logic
+  - Example: if all travel destinations are European, provide another European destination
+
+  IMPORTANT: When dealing with an argument, objection, or example or similar reasoning about a given point, it is essential that the content produced focuses on the same statement or idea; in this case, the purpose is to discover alternative ways to justify, critique, or illustrate the same point.
+
+  The generated content should feel like a natural and meaningful addition to the original (or set of original contents), as if both were written by the same author with the same intent and approach.
+  ${outputConditions.replace("<ACTION>", "reproduce for a new subject")}`,
+
+  // CRITICAL THINKING
 
   example: `Provide a paradigmatic example that illustrates the idea or statement provided below. Make it concrete, vivid, and thought-provoking while capturing the essence of what it exemplifies. Express it in clear, straightforward language without any introductory phrases or commentary.
 ${outputConditions.replace("<ACTION>", "examplifly")}`,
