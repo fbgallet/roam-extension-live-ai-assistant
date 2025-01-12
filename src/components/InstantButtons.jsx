@@ -52,6 +52,8 @@ const InstantButtons = ({
   isOutlinerAgent,
   treeSnapshot,
   withSuggestions,
+  target,
+  selectedUids,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -81,10 +83,12 @@ const InstantButtons = ({
           targetUid,
           context: content,
           typeOfCompletion:
-            responseFormat === "text" ? "gptCompletion" : "gptPostProcessing",
+            responseFormat === "text" ? "gptCompletion" : "SelectionOutline",
           instantModel: model,
           isRedone: true,
           withSuggestions,
+          target,
+          selectedUids,
         })
       : aiCallback({
           model: model,
@@ -197,10 +201,13 @@ const InstantButtons = ({
             <span
               // onKeyDown={handleKeys}
               onClick={() => {
+                console.log("selectedUids :>> ", selectedUids);
                 aiCompletionRunner({
-                  sourceUid: targetUid,
+                  sourceUid: selectedUids ? null : targetUid,
                   prompt: completionCommands["acceptSuggestions"],
+                  includeUids: true,
                   target: "replace",
+                  selectedUids,
                 });
               }}
               class="bp3-button bp3-minimal"

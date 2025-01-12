@@ -23,6 +23,12 @@ export const instructionsOnJSONResponse =
 especially the quotation marks around the keys and character strings: \
 {"response": [{"uid": "((9-characters-code))", "content": "your response for the corresponding line"}, ...]}".';
 
+export const instructionsOnOutline = `\
+The content to process, presented below between <begin> and <end>, is a template in which each item to update has a ((9-characters-code)) to record them in the JSON array. Update this template, in accordance with the following instructions. Your response will be a JSON objects array with the following format, respecting strictly the syntax, \
+especially the quotation marks around the keys and character strings: \
+{"response": [{"uid": "((9-characters-code))", "content": "your response for the corresponding line"}, ...]}".
+Here are the instructions, then the template to process:\n\n`;
+
 export const specificContentPromptBeforeTemplate = `\
 Complete the template below, in accordance with the following content, statement or request, and any formatting instructions provided \
 (the language in which the template is written will determine the language of your response): \n\n`;

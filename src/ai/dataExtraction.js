@@ -13,6 +13,7 @@ import {
   numbersRegex,
   pageRegex,
   sbParamRegex,
+  uidRegex,
 } from "../utils/regex";
 import {
   addContentToBlock,
@@ -37,13 +38,17 @@ export const getInputDataFromRoamContext = async (
   instantModel,
   includeUids,
   withHierarchy,
-  target
+  target,
+  selectedUids
 ) => {
   const isCommandPrompt = prompt ? true : false;
   let { currentUid, currentBlockContent, selectionUids } =
     getFocusAndSelection();
-
   if (sourceUid) currentUid = sourceUid;
+  if (selectedUids) {
+    currentUid = null;
+    selectionUids = selectedUids;
+  }
 
   if (currentUid) currentBlockContent = getBlockContentByUid(currentUid);
 
@@ -57,6 +62,10 @@ export const getInputDataFromRoamContext = async (
       );
     else prompt += currentBlockContent;
   }
+  selectedUids = selectionUids;
+
+  console.log("selectionUids before final prompt :>> ", selectionUids);
+
   let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
     await getFinalPromptAndTarget(
       currentUid,
@@ -96,6 +105,7 @@ export const getInputDataFromRoamContext = async (
     completedPrompt,
     context,
     isInConversation,
+    selectionUids: selectedUids,
   };
 };
 
@@ -118,11 +128,17 @@ const getFinalPromptAndTarget = async (
   if (
     !currentUid &&
     selectionUids.length &&
-    document.querySelector(".block-highlight-blue")
+    (document.querySelector(".block-highlight-blue") ||
+      target === "replace" ||
+      target === "append")
   ) {
-    const lastTopLevelBlock = getLastTopLevelOfSeletion(selectionUids);
-    targetUid = await createSiblingBlock(lastTopLevelBlock);
-    await addContentToBlock(targetUid, assistantRole);
+    if (target !== "replace" && target !== "append") {
+      const lastTopLevelBlock = getLastTopLevelOfSeletion(selectionUids);
+      targetUid = await createSiblingBlock(lastTopLevelBlock);
+      await addContentToBlock(targetUid, assistantRole);
+    } else {
+      targetUid = selectionUids[0];
+    }
     const content = getResolvedContentFromBlocks(
       selectionUids,
       includeUids,
@@ -286,11 +302,11 @@ export const getResolvedContentFromBlocks = (
   let content = "";
   let parents = [];
   if (blocksUids.length > 0)
-    blocksUids.forEach((uid) => {
+    blocksUids.forEach((uid, index) => {
       let directParent = getParentBlock(uid);
-      let level = parents.indexOf(directParent) + 1;
+      let level = parents.indexOf(directParent);
 
-      if (level === 0) {
+      if (level === -1) {
         parents.push(directParent);
         level += parents.length;
       }
@@ -298,7 +314,7 @@ export const getResolvedContentFromBlocks = (
         withHierarchy && level > 0 ? getNChar(" ", level - 1) + "- " : "";
       let resolvedContent = resolveReferences(getBlockContentByUid(uid));
       content +=
-        "\n" +
+        (index > 0 ? "\n" : "") +
         hierarchyShift +
         (withUid ? `((${uid})) ` : "") +
         resolvedContent;

@@ -29,6 +29,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
   const generateTable = (data) => {
     if (!data || Object.keys(data).length === 0) return null;
     // Préparation des données avec calcul des coûts totaux
+    let periodTotal = 0;
     const tableData = Object.entries(data)
       .filter(([model]) => model !== "month")
       .map(([model, counts]) => {
@@ -43,6 +44,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
         );
         const totalCost =
           isNaN(inputCost) || isNaN(outputCost) ? NaN : inputCost + outputCost;
+        !isNaN(totalCost) && (periodTotal += totalCost);
         return {
           model,
           inputTokens: counts.input,
@@ -59,6 +61,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
       if (isNaN(b.totalCost)) return -1;
       return b.totalCost - a.totalCost;
     });
+    sortedData.push({ model: "TOTAL", totalCost: periodTotal });
     return (
       <table className={Classes.HTML_TABLE}>
         <thead>

@@ -213,16 +213,20 @@ export async function updateBlock({ blockUid, newContent, format = {} }) {
   });
 }
 
-export function updateArrayOfBlocks(arrayOfBlocks) {
+export function updateArrayOfBlocks(arrayOfBlocks, mode) {
   if (arrayOfBlocks.length) {
-    arrayOfBlocks.forEach((block) =>
+    arrayOfBlocks.forEach((block) => {
+      const uid = block.uid.replaceAll("(", "").replaceAll(")", "").trim();
       window.roamAlphaAPI.updateBlock({
         block: {
-          uid: block.uid.replaceAll("(", "").replaceAll(")", "").trim(),
-          string: block.content,
+          uid: uid,
+          string:
+            mode === "append"
+              ? getBlockContentByUid(uid).trim() + " " + block.content.trim()
+              : block.content,
         },
-      })
-    );
+      });
+    });
   }
 }
 
