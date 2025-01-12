@@ -45,6 +45,9 @@ export const PREBUILD_COMMANDS = [
     name: "Fix spelling/grammar + suggestions",
     prompt: "correctWordingAndSuggestions",
     category: "REPHRASING",
+    withSuggestions: true,
+    target: "replace",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -53,6 +56,7 @@ export const PREBUILD_COMMANDS = [
     prompt: "acceptSuggestions",
     category: "REPHRASING",
     withSuggestions: true,
+    target: "replace",
     isSub: true,
   },
   {
@@ -112,6 +116,8 @@ export const PREBUILD_COMMANDS = [
     category: "REPHRASING",
     keyWords: "enhance, synonym",
     withSuggestions: true,
+    target: "replace",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -122,6 +128,7 @@ export const PREBUILD_COMMANDS = [
     keyWords: "enhance, synonym",
     withSuggestions: true,
     target: "replace",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -181,7 +188,6 @@ export const PREBUILD_COMMANDS = [
     prompt: "paragraphCompletion",
     category: "CREATION",
     target: "append",
-    includeUids: true,
   },
   {
     id: 141,

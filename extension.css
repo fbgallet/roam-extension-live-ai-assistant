@@ -260,7 +260,7 @@
 }
 
 .bp3-menu.str-aicommands-menu {
-  max-height: 55vh;
+  max-height: 50vh;
   /* overflow: scroll; */
   z-index: 9999;
 }

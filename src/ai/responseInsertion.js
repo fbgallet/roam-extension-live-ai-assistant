@@ -24,6 +24,7 @@ import {
 import {
   hierarchicalResponseFormat,
   instructionsOnJSONResponse,
+  instructionsOnOutline,
 } from "./prompts";
 import { AppToaster } from "../components/VoiceRecorder";
 import {
@@ -58,28 +59,22 @@ export const lastCompletion = {
   typeOfCompletion: null,
 };
 
-async function aiCompletion(
+async function aiCompletion({
   instantModel,
   prompt,
   content = "",
   responseFormat,
   targetUid,
   isInConversation,
-  withSuggestions
-) {
+  withSuggestions,
+  selectedUids,
+  target,
+}) {
   let aiResponse;
-  let hasAPIkey = true;
   let model = instantModel || defaultModel;
 
   const llm = modelAccordingToProvider(model);
   if (!llm) return "";
-
-  if (
-    responseFormat === "json_object" &&
-    !prompt[0].content.includes(instructionsOnJSONResponse)
-  ) {
-    prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  }
 
   if (
     llm.provider === "OpenAI" ||
@@ -131,6 +126,8 @@ async function aiCompletion(
           ? aiResponse
           : getFlattenedContentFromArrayOfBlocks(aiResponse),
       withSuggestions,
+      selectedUids,
+      target,
     });
   return aiResponse;
 }
@@ -143,17 +140,25 @@ export const aiCompletionRunner = async ({
   includeUids = false,
   target,
   withSuggestions,
+  selectedUids,
 }) => {
-  let { completedPrompt, targetUid, context, isInConversation, noData } =
-    await getInputDataFromRoamContext(
-      e,
-      sourceUid,
-      prompt,
-      instantModel,
-      includeUids,
-      true, // withHierarchy
-      target
-    );
+  let {
+    completedPrompt,
+    targetUid,
+    context,
+    isInConversation,
+    noData,
+    selectionUids,
+  } = await getInputDataFromRoamContext(
+    e,
+    sourceUid,
+    prompt,
+    instantModel,
+    includeUids,
+    true, // withHierarchy
+    target,
+    selectedUids
+  );
   if (noData) return;
 
   insertCompletion({
@@ -161,12 +166,18 @@ export const aiCompletionRunner = async ({
     targetUid,
     context,
     instantModel,
-    typeOfCompletion: "gptCompletion",
+    typeOfCompletion:
+      (target === "replace" || target === "append") &&
+      selectionUids &&
+      selectionUids.length
+        ? "SelectionOutline"
+        : "gptCompletion",
     isInConversation,
     withSuggestions,
     withAssistantRole:
       target === "append" || target === "replace" ? false : true,
     target,
+    selectedUids: selectionUids,
   });
 };
 
@@ -174,21 +185,24 @@ export const insertCompletion = async ({
   prompt,
   targetUid,
   context,
-  typeOfCompletion,
+  typeOfCompletion = "gptCompletion",
   instantModel,
   isRedone,
   isInConversation,
   withAssistantRole = true,
   withSuggestions,
   target,
+  selectedUids,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.targetUid = targetUid;
   lastCompletion.context = context;
   lastCompletion.typeOfCompletion = typeOfCompletion;
   lastCompletion.instantModel = instantModel;
-
-  // console.log("prompt in insertCompletion :>> ", prompt);
+  lastCompletion.withAssistantRole = withAssistantRole;
+  lastCompletion.withSuggestions = withSuggestions;
+  lastCompletion.target = target;
+  lastCompletion.selectedUids = selectedUids;
 
   let model = instantModel || defaultModel;
   if (model === "first OpenRouter model") {
@@ -199,7 +213,7 @@ export const insertCompletion = async ({
     model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-4o-mini";
   }
   const responseFormat =
-    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
+    typeOfCompletion === "SelectionOutline" ? "json_object" : "text";
   const assistantRole = withAssistantRole
     ? instantModel
       ? getInstantAssistantRole(instantModel)
@@ -228,6 +242,10 @@ export const insertCompletion = async ({
   }
 
   // if (typeOfCompletion === "gptCompletion") {
+  if (typeOfCompletion === "SelectionOutline" && !isRedone) {
+    prompt = instructionsOnOutline + prompt;
+  }
+
   if (isRedone) {
     if (
       isExistingBlock(targetUid) &&
@@ -241,7 +259,10 @@ export const insertCompletion = async ({
           string: assistantRole,
         },
       });
-    } else targetUid = await insertBlockInCurrentView(assistantRole);
+    } else {
+      if (target !== "replace" && target !== "append")
+        targetUid = await insertBlockInCurrentView(assistantRole);
+    }
   } else {
     if (typeof prompt === "string") {
       // else prompt is already conversation object
@@ -260,20 +281,25 @@ export const insertCompletion = async ({
   // }
   const intervalId = await displaySpinner(targetUid);
 
-  let aiResponse = await aiCompletion(
-    model,
+  let aiResponse = await aiCompletion({
+    instantModel: model,
     prompt,
     content,
     responseFormat,
     targetUid,
     isInConversation,
-    withSuggestions
-  );
+    withSuggestions,
+    selectedUids,
+    target,
+  });
   console.log("aiResponse :>> ", aiResponse);
+  console.log("target :>> ", target);
+  console.log("selectedUids :>> ", selectedUids);
+  console.log("typeOfCompletion :>> ", typeOfCompletion);
   if (isInConversation)
     aiResponse = aiResponse.replace(assistantRole, "").trim();
-  if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
-    updateArrayOfBlocks(aiResponse);
+  if (typeOfCompletion === "SelectionOutline" && Array.isArray(aiResponse)) {
+    updateArrayOfBlocks(aiResponse, target);
   } else {
     if (target === "replace") {
       simulateClick();

@@ -239,6 +239,10 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           context: lastCompletion.context,
           typeOfCompletion: lastCompletion.typeOfCompletion,
           instantModel: lastCompletion.instantModel,
+          withAssistantRole: lastCompletion.withAssistantRole,
+          withSuggestions: lastCompletion.withSuggestions,
+          target: lastCompletion.target,
+          selectionUids: lastCompletion.selectionUids,
           isRedone: true,
         });
       }
