@@ -1,3 +1,10 @@
+import {
+  dateStringRegex,
+  flexibleUidRegex,
+  strictPageRegex,
+  uidRegex,
+} from "./regex";
+
 export function getTreeByUid(uid) {
   if (uid)
     return window.roamAlphaAPI.q(`[:find (pull ?page

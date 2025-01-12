@@ -1,10 +1,25 @@
-import { chatRoles, getInstantAssistantRole } from "..";
+import {
+  chatRoles,
+  defaultModel,
+  exclusionStrings,
+  getInstantAssistantRole,
+  isMobileViewContext,
+  maxCapturingDepth,
+  maxUidDepth,
+} from "..";
 import { highlightHtmlElt } from "../utils/domElts";
+import {
+  contextRegex,
+  numbersRegex,
+  pageRegex,
+  sbParamRegex,
+} from "../utils/regex";
 import {
   addContentToBlock,
   createChildBlock,
   createSiblingBlock,
   getBlockContentByUid,
+  getBlocksSelectionUids,
   getLastTopLevelOfSeletion,
   getParentBlock,
   getPreviousSiblingBlock,
@@ -12,6 +27,7 @@ import {
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
+  resolveReferences,
 } from "../utils/roamAPI";
 
 export const getInputDataFromRoamContext = async (
@@ -150,6 +166,7 @@ export const handleModifierKeys = async (e) => {
     mainPage: false,
     logPages: false,
   };
+  if (!e) return null;
   if (e.shiftKey) roamContext.sidebar = true;
   if (e.metaKey || e.ctrlKey) {
     if (isLogView() || (await isCurrentPageDNP())) {

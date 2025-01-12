@@ -20,6 +20,7 @@ import {
   groqLibrary,
   isUsingGroqWhisper,
   groqModels,
+  maxImagesNb,
 } from "..";
 import { AppToaster } from "../components/VoiceRecorder";
 import {
@@ -33,6 +34,7 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
+import { roamImageRegex } from "../utils/regex";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -132,7 +134,7 @@ export function modelAccordingToProvider(model) {
     id: "",
     library: undefined,
   };
-  model = model.toLowerCase();
+  model = model && model.toLowerCase();
   console.log("model :>> ", model);
   let prefix = model.split("/")[0];
   if (model.includes("openrouter")) {

@@ -186,8 +186,6 @@ export const insertInstantButtons = async (props) => {
     .filter((elt) => elt != null)
     .map((elt) => elt.closest(".rm-block-main"));
 
-  console.log("targetElts :>> ", targetElts);
-
   const selector = `.liveai-instant-btn-${
     props.isOutlinerAgent ? "outliner-" : ""
   }container`;
