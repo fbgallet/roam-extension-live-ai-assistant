@@ -10,16 +10,13 @@ import { defaultModel } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
-  dnpUidRegex,
   getDNPTitleFromDate,
   getDateStringFromDnpUid,
   getPageUidByBlockUid,
   isExistingBlock,
   updateBlock,
-  updateTokenCounter,
-} from "../../utils/utils";
+} from "../../utils/roamAPI";
 import { roamQuerySystemPrompt } from "./agent-prompts";
-import { modelAccordingToProvider } from "../aiCommands";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
 import {
@@ -27,6 +24,8 @@ import {
   insertInstantButtons,
   removeSpinner,
 } from "../../utils/domElts";
+import { modelAccordingToProvider } from "../aiAPIsHub";
+import { dnpUidRegex } from "../../utils/regex";
 
 interface PeriodType {
   begin: string;

@@ -116,3 +116,52 @@ export function normalizeClaudeModel(model) {
   }
   return model;
 }
+
+export const updateTokenCounter = (
+  model = "gpt-4o-mini",
+  { input_tokens, output_tokens }
+) => {
+  let tokensCounter = extensionStorage.get("tokensCounter");
+  if (!tokensCounter) {
+    tokensCounter = {
+      total: {},
+    };
+  }
+  if (!tokensCounter.total[model]) {
+    tokensCounter.total[model] = {
+      input: 0,
+      output: 0,
+    };
+  }
+  const currentMonth = new Date().getMonth() + 1;
+
+  if (currentMonth !== tokensCounter?.monthly?.month) {
+    tokensCounter.lastMonth = { ...tokensCounter.monthly };
+    tokensCounter.monthly = {
+      month: currentMonth,
+    };
+    tokensCounter.monthly[model] = {
+      input: 0,
+      output: 0,
+    };
+  }
+  if (!tokensCounter.monthly[model]) {
+    tokensCounter.monthly[model] = {
+      input: 0,
+      output: 0,
+    };
+  }
+
+  tokensCounter.total[model].input += input_tokens || 0;
+  tokensCounter.total[model].output += output_tokens || 0;
+  tokensCounter.monthly[model].input += input_tokens || 0;
+  tokensCounter.monthly[model].output += output_tokens || 0;
+  if (input_tokens && output_tokens) {
+    tokensCounter.lastRequest = {
+      model,
+      input: input_tokens,
+      output: output_tokens,
+    };
+  }
+  extensionStorage.set("tokensCounter", { ...tokensCounter });
+};

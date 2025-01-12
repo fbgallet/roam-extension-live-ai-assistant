@@ -2,10 +2,10 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOllama } from "@langchain/ollama";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
-import { updateTokenCounter } from "../../utils/utils";
 import { ANTHROPIC_API_KEY } from "../..";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { BaseMessage, AIMessage } from "@langchain/core/messages";
+import { updateTokenCounter } from "../modelsInfo";
 
 export interface LlmInfos {
   provider: string;

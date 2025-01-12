@@ -5,8 +5,8 @@ import { extensionStorage, isComponentVisible, position } from "..";
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
-import { getFocusAndSelection } from "./utils";
 import { AppToaster } from "../components/VoiceRecorder";
+import { getFocusAndSelection } from "../ai/dataExtraction";
 
 export function mountComponent(position, props) {
   let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -66,6 +66,22 @@ export function toggleComponentVisibility() {
     ? (componentElt.style.display = "inherit")
     : (componentElt.style.display = "none");
 }
+
+export const simulateClick = (
+  elt = document.querySelector(".roam-body-main")
+) => {
+  const options = {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    target: elt,
+    which: 1,
+    button: 0,
+  };
+  elt.dispatchEvent(new MouseEvent("mousedown", options));
+  elt.dispatchEvent(new MouseEvent("mouseup", options));
+  elt.dispatchEvent(new MouseEvent("click", options));
+};
 
 export function simulateClickOnRecordingButton() {
   const button = document.getElementsByClassName("speech-record-button")[0];

@@ -1,256 +1,222 @@
-// import assert from "node:assert";
+import { chatRoles, getInstantAssistantRole } from "..";
+import { highlightHtmlElt } from "../utils/domElts";
 import {
-  exclusionStrings,
-  defaultModel,
-  isMobileViewContext,
-  logPagesNbDefault,
-  maxCapturingDepth,
-  maxUidDepth,
-  chatRoles,
-  extensionStorage,
-} from "..";
-import { tokenizer } from "../ai/aiCommands";
-import { tokensLimit } from "../ai/modelsInfo";
-import { AppToaster } from "../components/VoiceRecorder";
-import { highlightHtmlElt } from "./domElts";
+  addContentToBlock,
+  createChildBlock,
+  createSiblingBlock,
+  getBlockContentByUid,
+  getLastTopLevelOfSeletion,
+  getParentBlock,
+  getPreviousSiblingBlock,
+  getTreeByUid,
+  insertBlockInCurrentView,
+  isCurrentPageDNP,
+  isLogView,
+} from "../utils/roamAPI";
 
-export const uidRegex = /\(\([^\)]{9}\)\)/g;
-export const dnpUidRegex =
-  /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)\d{2}$/;
-export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
-export const pageRegex = /\[\[.*\]\]/g;
-export const strictPageRegex = /^\[\[.*\]\]$/; // very simplified, not recursive...
-export const contextRegex = /\(\(context:.?(.*)\)\)/;
-export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
-export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
-export const numbersRegex = /\d+/g;
-export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
-export const sbParamRegex = /^\{.*\}$/;
+export const getInputDataFromRoamContext = async (
+  e,
+  sourceUid,
+  prompt,
+  instantModel,
+  includeUids,
+  withHierarchy,
+  target
+) => {
+  const isCommandPrompt = prompt ? true : false;
+  let { currentUid, currentBlockContent, selectionUids } =
+    getFocusAndSelection();
 
-export function getTreeByUid(uid) {
-  if (uid)
-    return window.roamAlphaAPI.q(`[:find (pull ?page
-                     [:block/uid :block/string :block/children :block/refs :block/order :block/open :block/heading :children/view-type
-                        {:block/children ...} ])
-                      :where [?page :block/uid "${uid}"]  ]`)[0];
-  else return null;
-}
+  if (sourceUid) currentUid = sourceUid;
 
-export async function getFirstLevelBlocksInCurrentView() {
-  let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-  if (!zoomUid) return null;
-  return getOrderedDirectChildren(zoomUid);
-}
+  if (currentUid) currentBlockContent = getBlockContentByUid(currentUid);
 
-function getOrderedDirectChildren(uid) {
-  if (!uid) return null;
-  let result = window.roamAlphaAPI.q(`[:find (pull ?page
-                      [:block/uid :block/string :block/children :block/order
-                         {:block/children  ...} ])
-                       :where [?page :block/uid "${uid}"] ]`)[0][0];
-  if (!result.children) {
-    return null;
+  if (!currentUid && !selectionUids.length && !e) return { noData: true };
+
+  if (currentBlockContent) {
+    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
+      prompt = prompt.replace(
+        "<REPLACE BY TARGET CONTENT>",
+        currentBlockContent
+      );
+    else prompt += currentBlockContent;
   }
-  return result.children
-    .sort((a, b) => a.order - b.order)
-    .map((block) => ({
-      string: block.string,
-      uid: block.uid,
-      order: block.order,
-    }));
-}
-
-export function getBlockContentByUid(uid) {
-  let result = window.roamAlphaAPI.pull("[:block/string]", [":block/uid", uid]);
-  if (result) return result[":block/string"];
-  else return "";
-}
-
-export function isExistingBlock(uid) {
-  let result = window.roamAlphaAPI.pull("[:block/uid]", [":block/uid", uid]);
-  if (result) return true;
-  return false;
-}
-
-export function getParentBlock(uid) {
-  let result = window.roamAlphaAPI.pull(
-    "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",
-    [":block/uid", uid]
-  );
-  if (result) {
-    const directParent = result[":block/parents"]?.find((parent) =>
-      parent[":block/children"]?.some((child) => child[":block/uid"] === uid)
+  let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
+    await getFinalPromptAndTarget(
+      currentUid,
+      selectionUids,
+      prompt,
+      instantModel,
+      includeUids,
+      withHierarchy,
+      isCommandPrompt,
+      target
     );
-    return directParent[":block/uid"];
-  } else return "";
-}
 
-// export function getTopParentAmongBlocks(blockUids) {
-//   let result = window.roamAlphaAPI.q(
-//     `[:find ?uids
-//       :in $ [?all-uids ...]
-//   :where
-//   [?blocks :block/uid ?all-uids]
-//   [?parents :block/children ?blocks]
-//   [?children :block/parents ?parents]
-//   [?parents :block/uid ?uids]
-//   ]`,
-//     blockUids
-//   );
-//   let topParent;
-//   for (let i = 0; i < result.length; i++) {
-//     if (blockUids.includes(result[i][0])) {
-//       topParent = result[i][0];
-//       break;
-//     }
-//   }
-//   return topParent;
-// }
+  const roamContextFromKeys = e && (await handleModifierKeys(e));
 
-export function getPreviousSiblingBlock(currentUid) {
-  const parentUid = getParentBlock(currentUid);
-  const tree = getOrderedDirectChildren(parentUid);
-  const currentBlockOrder = tree.find(
-    (block) => block.uid === currentUid
-  ).order;
-  if (!currentBlockOrder) return null;
-  return tree.find((block) => block.order === currentBlockOrder - 1);
-}
-
-export function getPageUidByBlockUid(uid) {
-  let result = window.roamAlphaAPI.pull("[:block/uid {:block/page ...}]", [
-    ":block/uid",
-    uid,
-  ]);
-  if (result) return result[":block/page"][":block/uid"];
-  else return "";
-}
-
-export function getPageUidByPageName(title) {
-  let r = window.roamAlphaAPI.data.pull("[:block/uid]", [":node/title", title]);
-  if (r != null) return r[":block/uid"];
-  else return null;
-}
-
-export async function getMainPageUid() {
-  let uid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-  let pageUid = window.roamAlphaAPI.pull("[{:block/page [:block/uid]}]", [
-    ":block/uid",
-    uid,
-  ]);
-  if (pageUid === null) return uid;
-  return pageUid[":block/page"][":block/uid"];
-}
-
-function getPageNameByPageUid(uid) {
-  let r = window.roamAlphaAPI.data.pull("[:node/title]", [":block/uid", uid]);
-  if (r != null) return r[":node/title"];
-  else return "undefined";
-}
-
-function getBlockOrderByUid(uid) {
-  let result = window.roamAlphaAPI.pull("[:block/order]", [":block/uid", uid]);
-  if (result) return result[":block/order"];
-  else return "";
-}
-
-export function getLinkedReferencesTrees(pageUid) {
-  if (!pageUid) return null;
-  let result = window.roamAlphaAPI.q(
-    `[:find
-      (pull ?node [:block/uid :block/string :edit/time :block/children
-      {:block/children ...}])
-  :where
-    [?test-Ref :block/uid "${pageUid}"]
-    [?node :block/refs ?test-Ref]
-  ]`
-  );
-  // sorted by edit time from most recent to older
-  const reverseTimeSorted = result.sort((a, b) => b[0].time - a[0].time);
-  return reverseTimeSorted;
-}
-
-export async function createSiblingBlock(currentUid, position) {
-  const currentOrder = getBlockOrderByUid(currentUid);
-  const parentUid = getParentBlock(currentUid);
-  const siblingUid = await createChildBlock(
-    parentUid,
-    "",
-    position === "before" ? currentOrder : currentOrder + 1
-  );
-  return siblingUid;
-}
-
-export async function getTopOrActiveBlockUid() {
-  let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-  if (currentBlockUid) return currentBlockUid;
-  else {
-    let uid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-    if (getBlockContentByUid(uid)) return uid;
-    return getFirstChildUid(uid);
-  }
-}
-
-export function getFirstChildUid(uid) {
-  let q = `[:find (pull ?c
-                       [:block/uid :block/children {:block/children ...}])
-                    :where [?c :block/uid "${uid}"]  ]`;
-  let result = window.roamAlphaAPI.q(q);
-  if (!result.length) return null;
-  if (result[0][0].children) return result[0][0].children[0].uid;
-  return null;
-}
-
-export function focusOnBlockInMainWindow(blockUid) {
-  window.roamAlphaAPI.ui.setBlockFocusAndSelection({
-    location: {
-      "block-uid": blockUid,
-      "window-id": "main-window",
-    },
-  });
-}
-
-export async function updateBlock({ blockUid, newContent, format = {} }) {
-  await window.roamAlphaAPI.updateBlock({
-    block: {
-      uid: blockUid,
-      string: newContent,
-      ...format,
-    },
-  });
-}
-
-export function updateArrayOfBlocks(arrayOfBlocks) {
-  if (arrayOfBlocks.length) {
-    arrayOfBlocks.forEach((block) =>
-      window.roamAlphaAPI.updateBlock({
-        block: {
-          uid: block.uid.replaceAll("(", "").replaceAll(")", "").trim(),
-          string: block.content,
-        },
-      })
+  const inlineContext = currentBlockContent
+    ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
+    : null;
+  // TO TEST
+  if (inlineContext)
+    completedPrompt = completedPrompt.replace(
+      currentBlockContent,
+      inlineContext.updatedPrompt
     );
+
+  let context = await getAndNormalizeContext({
+    blocksSelectionUids: remaininSelectionUids,
+    roamContext: inlineContext?.roamContext || roamContextFromKeys,
+    focusedBlock: currentUid,
+    withHierarchy: true,
+  });
+
+  console.log("context :>> ", context);
+
+  return {
+    currentUid,
+    targetUid,
+    completedPrompt,
+    context,
+    isInConversation,
+  };
+};
+
+const getFinalPromptAndTarget = async (
+  currentUid,
+  selectionUids,
+  prompt,
+  instantModel,
+  includeUids,
+  withHierarchy,
+  isCommandPrompt,
+  target
+) => {
+  const assistantRole = instantModel
+    ? getInstantAssistantRole(instantModel)
+    : chatRoles.assistant;
+  const isInConversation =
+    currentUid && !isCommandPrompt ? isPromptInConversation(currentUid) : false;
+  let targetUid;
+  if (
+    !currentUid &&
+    selectionUids.length &&
+    document.querySelector(".block-highlight-blue")
+  ) {
+    const lastTopLevelBlock = getLastTopLevelOfSeletion(selectionUids);
+    targetUid = await createSiblingBlock(lastTopLevelBlock);
+    await addContentToBlock(targetUid, assistantRole);
+    const content = getResolvedContentFromBlocks(
+      selectionUids,
+      includeUids,
+      withHierarchy
+    );
+
+    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
+      prompt = prompt.replace("<REPLACE BY TARGET CONTENT>", content);
+    else prompt += content;
+    selectionUids = [];
+  } else {
+    if (target === "replace" || target === "append") {
+      targetUid = currentUid;
+      // updateBlock({ blockUid: targetUid, newContent: "" });
+    } else {
+      targetUid = currentUid
+        ? await createChildBlock(
+            isInConversation ? getParentBlock(currentUid) : currentUid,
+            assistantRole
+          )
+        : await insertBlockInCurrentView(
+            chatRoles.user + " a selection of blocks"
+          );
+    }
+    if (!prompt) prompt = contextAsPrompt;
+    console.log("complete prompt :>> ", prompt);
+    // prompt = getBlockContentByUid(currentUid) ? "" : contextAsPrompt;
   }
-}
+  return {
+    completedPrompt: prompt,
+    targetUid,
+    isInConversation,
+    remaininSelectionUids: selectionUids,
+  };
+};
 
-export function moveBlock({ blockUid, targetParentUid, order }) {
-  window.roamAlphaAPI.moveBlock({
-    location: { "parent-uid": targetParentUid, order: order || "last" },
-    block: { uid: blockUid },
-  });
-}
+export const handleModifierKeys = async (e) => {
+  const roamContext = {
+    linkedRefs: false,
+    sidebar: false,
+    mainPage: false,
+    logPages: false,
+  };
+  if (e.shiftKey) roamContext.sidebar = true;
+  if (e.metaKey || e.ctrlKey) {
+    if (isLogView() || (await isCurrentPageDNP())) {
+      AppToaster.show({
+        message:
+          "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. ",
+      });
+      roamContext.logPages = true;
+    } else roamContext.linkedRefs = true;
+  }
+  if (e.altKey) roamContext.page = true;
+  return roamContext;
+};
 
-export async function deleteBlock(blockUid) {
-  await window.roamAlphaAPI.deleteBlock({ block: { uid: blockUid } });
-}
+export const isPromptInConversation = (promptUid) => {
+  const previousSiblingUid = getPreviousSiblingBlock(promptUid);
+  const isInConversation =
+    previousSiblingUid &&
+    chatRoles.genericAssistantRegex &&
+    chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
+      ? true
+      : false;
+  if (isInConversation) {
+    const conversationButton = document.querySelector(
+      ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
+    );
+    conversationButton && conversationButton.remove();
+  }
+  return isInConversation;
+};
 
-export function reorderBlocks({ parentUid, newOrder }) {
-  console.log("parentUid :>> ", parentUid);
-  window.roamAlphaAPI.data.block.reorderBlocks({
-    location: { "parent-uid": parentUid },
-    blocks: newOrder,
-  });
-}
+export const getTemplateForPostProcessing = async (
+  parentUid,
+  depth,
+  uidsToExclude,
+  withInstructions = true,
+  isToHighlight = true
+) => {
+  let prompt = "";
+  let excluded;
+  let isInMultipleBlocks = true;
+  let tree = getTreeByUid(parentUid);
+  if (parentUid && tree) {
+    if (tree.length && tree[0].children) {
+      isToHighlight && highlightHtmlElt({ eltUid: parentUid });
+      // prompt is a template as children of the current block
+      let { linearArray, excludedUids } = convertTreeToLinearArray(
+        tree[0].children,
+        depth,
+        99,
+        true,
+        uidsToExclude.length ? uidsToExclude : "{text}"
+      );
+      excluded = excludedUids;
+      prompt =
+        (withInstructions ? instructionsOnTemplateProcessing : "") +
+        linearArray.join("\n");
+    } else {
+      return null;
+    }
+  } else return null;
+  return {
+    stringified: prompt,
+    isInMultipleBlocks: isInMultipleBlocks,
+    excluded,
+  };
+};
 
 export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
   let flattenedContent = "";
@@ -263,158 +229,6 @@ export function getFlattenedContentFromArrayOfBlocks(arrayOfBlocks) {
   }
   return flattenedContent.trim();
 }
-
-export async function createChildBlock(
-  parentUid,
-  content = "",
-  order = "last",
-  open = true,
-  heading = 0,
-  viewType = "bullet",
-  uid
-) {
-  if (!uid) uid = window.roamAlphaAPI.util.generateUID();
-  await window.roamAlphaAPI.createBlock({
-    location: { "parent-uid": parentUid, order: order },
-    block: {
-      string: content,
-      uid: uid,
-      open: open,
-      heading: heading,
-      "children-view-type": viewType,
-    },
-  });
-  return uid;
-}
-
-export async function copyTreeBranches(
-  tree,
-  targetUid,
-  maxDepth,
-  strToExclude,
-  isClone = true
-) {
-  let uidsToExclude = [];
-  // copy only the branches, not the parent block
-  if (tree[0].string && tree[0].children) {
-    uidsToExclude = await insertChildrenBlocksRecursively(
-      targetUid,
-      tree[0].children,
-      strToExclude,
-      maxDepth,
-      isClone
-    );
-  } else return null;
-  return uidsToExclude;
-}
-
-async function insertChildrenBlocksRecursively(
-  parentUid,
-  children,
-  strToExclude,
-  maxDepth = 99,
-  depth = 1,
-  isClone
-) {
-  let uidsToExclude = [];
-  for (let i = 0; i < children.length; i++) {
-    let uid = await createChildBlock(
-      parentUid,
-      strToExclude
-        ? children[i].string.replace(strToExclude, "").trim()
-        : children[i].string,
-      children[i].order,
-      children[i].open,
-      children[i].heading,
-      children[i]["view-type"],
-      !isClone && children[i].uid
-    );
-    if (children[i].string.includes(strToExclude)) uidsToExclude.push(uid);
-    if (children[i].children && depth < maxDepth) {
-      let moreUidsToExclude = await insertChildrenBlocksRecursively(
-        uid,
-        children[i].children,
-        strToExclude,
-        maxDepth,
-        ++depth,
-        isClone
-      );
-      uidsToExclude = uidsToExclude.concat(moreUidsToExclude);
-    }
-  }
-  return uidsToExclude;
-}
-
-const deleteChildren = async (parentUid) => {
-  const directChildren = getOrderedDirectChildren(parentUid);
-  console.log("directChildren :>> ", directChildren);
-  if (directChildren) {
-    await Promise.all(
-      directChildren.map(async (child) => await deleteBlock(child.uid))
-    );
-  }
-};
-
-export const replaceChildrenByNewTree = async (
-  parentUid,
-  newTree,
-  isClone = false
-) => {
-  await deleteChildren(parentUid);
-  await copyTreeBranches(newTree, parentUid, 99, null, isClone);
-};
-
-export async function insertBlockInCurrentView(content, order) {
-  let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-  // If not on a given page, but in Daily Log
-  if (!zoomUid) {
-    zoomUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
-    // TODO : send a message "Added on DNP page"
-  }
-  const newUid = window.roamAlphaAPI.util.generateUID();
-  window.roamAlphaAPI.createBlock({
-    location: {
-      "parent-uid": zoomUid,
-      order: order === "first" || order === 0 ? 0 : "last",
-    },
-    block: {
-      string: content,
-      uid: newUid,
-    },
-  });
-  return newUid;
-}
-
-export async function addContentToBlock(uid, contentToAdd, format = {}) {
-  const currentContent = getBlockContentByUid(uid).trimEnd();
-  // currentContent += currentContent ? " " : "";
-  await window.roamAlphaAPI.updateBlock({
-    block: {
-      uid: uid,
-      string: (currentContent ? currentContent + " " : "") + contentToAdd,
-      ...format,
-    },
-  });
-}
-
-export const getBlocksSelectionUids = (reverse) => {
-  let selectedBlocksUids = [];
-  let blueSelection = !reverse
-    ? document.querySelectorAll(".block-highlight-blue")
-    : document.querySelectorAll(".rm-block-main");
-  let checkSelection = roamAlphaAPI.ui.individualMultiselect.getSelectedUids();
-  if (blueSelection.length === 0) blueSelection = null;
-  if (blueSelection) {
-    blueSelection.forEach((node) => {
-      let inputBlock = node.querySelector(".rm-block__input");
-      if (!inputBlock) return;
-      selectedBlocksUids.push(inputBlock.id.slice(-9));
-    });
-  } else if (checkSelection.length !== 0) {
-    selectedBlocksUids = checkSelection;
-  }
-  return selectedBlocksUids;
-};
 
 export const getFocusAndSelection = (currentUid) => {
   let currentBlockContent, position;
@@ -447,48 +261,41 @@ export const getFocusAndSelection = (currentUid) => {
   return { currentUid, currentBlockContent, selectionUids, position };
 };
 
-export const getReferencesCitation = (blockUids) => {
-  let citation = "";
-  if (blockUids.length > 0) {
-    blockUids.forEach(
-      (uid, index) =>
-        (citation += ` [${index}](((${uid})))${
-          index < blockUids.length - 1 ? "," : ""
-        }`)
-    );
-    return "blocks used as context:" + citation;
-  }
-  return "";
-};
-
-export const getResolvedContentFromBlocks = (blocksUids, withUid = false) => {
+export const getResolvedContentFromBlocks = (
+  blocksUids,
+  withUid = false,
+  withHierarchy
+) => {
   let content = "";
+  let parents = [];
   if (blocksUids.length > 0)
     blocksUids.forEach((uid) => {
+      let directParent = getParentBlock(uid);
+      let level = parents.indexOf(directParent) + 1;
+
+      if (level === 0) {
+        parents.push(directParent);
+        level += parents.length;
+      }
+      let hierarchyShift =
+        withHierarchy && level > 0 ? getNChar(" ", level - 1) + "- " : "";
       let resolvedContent = resolveReferences(getBlockContentByUid(uid));
-      content += "\n" + (withUid ? `((${uid})) ` : "") + resolvedContent;
+      content +=
+        "\n" +
+        hierarchyShift +
+        (withUid ? `((${uid})) ` : "") +
+        resolvedContent;
     });
   return content;
 };
 
-export const resolveReferences = (content, refsArray = [], once = false) => {
-  uidRegex.lastIndex = 0;
-  if (uidRegex.test(content)) {
-    uidRegex.lastIndex = 0;
-    let matches = content.matchAll(uidRegex);
-    for (const match of matches) {
-      let refUid = match[0].slice(2, -2);
-      // prevent infinite loop !
-      let isNewRef = !refsArray.includes(refUid);
-      refsArray.push(refUid);
-      let resolvedRef = getBlockContentByUid(refUid);
-      uidRegex.lastIndex = 0;
-      if (uidRegex.test(resolvedRef) && isNewRef && !once)
-        resolvedRef = resolveReferences(resolvedRef, refsArray);
-      content = content.replace(match, resolvedRef);
-    }
+const getNChar = (char, nb, factor = 2) => {
+  let str = "";
+  if (nb <= 0) return str;
+  for (let i = 0; i < nb * factor; i++) {
+    str += char;
   }
-  return content;
+  return str;
 };
 
 export function convertTreeToLinearArray(
@@ -553,15 +360,22 @@ export const getAndNormalizeContext = async ({
   maxDepth = null,
   maxUid = null,
   uidToExclude,
+  withHierarchy = false,
 }) => {
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
-    context = getResolvedContentFromBlocks(blocksSelectionUids);
+    context = getResolvedContentFromBlocks(
+      blocksSelectionUids,
+      maxUid,
+      withHierarchy
+    );
   // else if (startBlock)
   //   context = resolveReferences(getBlockContentByUid(startBlock));
   else if (isMobileViewContext && window.innerWidth < 500)
     context = getResolvedContentFromBlocks(
-      getBlocksSelectionUids(true).slice(0, -1)
+      getBlocksSelectionUids(true).slice(0, -1),
+      maxUid,
+      withHierarchy
     );
   if (roamContext) {
     if (roamContext.block) {
@@ -722,22 +536,6 @@ export function getFlattenedContentFromSidebar(uidToExclude) {
   return flattednedBlocks;
 }
 
-export const simulateClick = (
-  elt = document.querySelector(".roam-body-main")
-) => {
-  const options = {
-    bubbles: true,
-    cancelable: true,
-    view: window,
-    target: elt,
-    which: 1,
-    button: 0,
-  };
-  elt.dispatchEvent(new MouseEvent("mousedown", options));
-  elt.dispatchEvent(new MouseEvent("mouseup", options));
-  elt.dispatchEvent(new MouseEvent("click", options));
-};
-
 export const getFlattenedContentFromLog = (
   nbOfDays,
   startDate,
@@ -815,38 +613,6 @@ export const getFlattenedContentFromLog = (
   // console.log("processedDays :>> ", processedDays);
   // console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
-};
-
-export const isLogView = () => {
-  if (document.querySelector("#rm-log-container")) return true;
-  return false;
-};
-
-export const isCurrentPageDNP = async () => {
-  const pageUid = await getMainPageUid();
-  return dateStringRegex.test(pageUid);
-};
-
-export const getDNPTitleFromDate = (date) => {
-  return window.roamAlphaAPI.util.dateToPageTitle(date);
-};
-
-const getYesterdayDate = (date = null) => {
-  if (!date) date = new Date();
-  return new Date(date.getTime() - 24 * 60 * 60 * 1000);
-};
-
-export const getDateStringFromDnpUid = (dnpUid) => {
-  const parts = dnpUid.split("-");
-  const date = new Date(parts[2], parts[0] - 1, parts[1]);
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const formattedDate = formatter.format(date);
-  return formattedDate;
 };
 
 const getMatchingInlineCommand = (text, regex) => {
@@ -997,22 +763,6 @@ export const getConversationArray = (parentUid) => {
   return conversation;
 };
 
-export const extractNormalizedUidFromRef = (str, testIfExist = true) => {
-  if (!str || (str && !(str.length === 9 || str.length === 13))) return "";
-  const matchingResult = str.match(flexibleUidRegex);
-  if (!matchingResult) return "";
-  return testIfExist
-    ? isExistingBlock(matchingResult[1])
-      ? matchingResult[1]
-      : ""
-    : matchingResult[1];
-};
-
-const normlizePageTitle = (str) => {
-  if (strictPageRegex.test(str)) return str.slice(2, -2);
-  else return str;
-};
-
 export const getContextFromSbCommand = async (
   context = "",
   currentUid,
@@ -1082,75 +832,4 @@ export const getContextFromSbCommand = async (
     }
   }
   return context;
-};
-
-// export const getInstructionsFromSbCommand = (instructions) => {
-//   if (instructions) {
-//     const instructionsUid = extractNormalizedUidFromRef(instructions.trim());
-//     if (instructionsUid) {
-//       instructions = getFlattenedContentFromTree(instructionsUid, 99, 0);
-//     } else instructions = resolveReferences(instructions);
-//   }
-//   return instructions;
-// };
-
-// only used on templates to remove {text} flag
-export const cleanFlagFromBlocks = (flag, blockUids) => {
-  blockUids.forEach((uid) =>
-    window.roamAlphaAPI.updateBlock({
-      block: {
-        uid: uid,
-        string: getBlockContentByUid(uid).replace(flag, "").trim(),
-      },
-    })
-  );
-};
-
-export const updateTokenCounter = (
-  model = "gpt-4o-mini",
-  { input_tokens, output_tokens }
-) => {
-  let tokensCounter = extensionStorage.get("tokensCounter");
-  if (!tokensCounter) {
-    tokensCounter = {
-      total: {},
-    };
-  }
-  if (!tokensCounter.total[model]) {
-    tokensCounter.total[model] = {
-      input: 0,
-      output: 0,
-    };
-  }
-  const currentMonth = new Date().getMonth() + 1;
-
-  if (currentMonth !== tokensCounter?.monthly?.month) {
-    tokensCounter.lastMonth = { ...tokensCounter.monthly };
-    tokensCounter.monthly = {
-      month: currentMonth,
-    };
-    tokensCounter.monthly[model] = {
-      input: 0,
-      output: 0,
-    };
-  }
-  if (!tokensCounter.monthly[model]) {
-    tokensCounter.monthly[model] = {
-      input: 0,
-      output: 0,
-    };
-  }
-
-  tokensCounter.total[model].input += input_tokens || 0;
-  tokensCounter.total[model].output += output_tokens || 0;
-  tokensCounter.monthly[model].input += input_tokens || 0;
-  tokensCounter.monthly[model].output += output_tokens || 0;
-  if (input_tokens && output_tokens) {
-    tokensCounter.lastRequest = {
-      model,
-      input: input_tokens,
-      output: output_tokens,
-    };
-  }
-  extensionStorage.set("tokensCounter", { ...tokensCounter });
 };

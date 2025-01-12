@@ -11,14 +11,17 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { ContextMenu, Tooltip } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
-import { insertCompletion, lastCompletion } from "../ai/aiCommands.js";
+import {
+  aiCompletionRunner,
+  insertCompletion,
+  lastCompletion,
+} from "../ai/responseInsertion.js";
 import ModelsMenu from "./ModelsMenu.jsx";
 import {
   createChildBlock,
   focusOnBlockInMainWindow,
-  getFlattenedContentFromTree,
   getParentBlock,
-} from "../utils/utils.js";
+} from "../utils/roamAPI.js";
 import {
   chatRoles,
   extensionStorage,
@@ -30,8 +33,8 @@ import {
   toggleOutlinerSelection,
 } from "../utils/domElts.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent.ts";
-import { aiCompletionRunner } from "../utils/roamExtensionCommands.js";
 import { completionCommands } from "../ai/prompts.js";
+import { getFlattenedContentFromTree } from "../ai/dataExtraction.js";
 
 export let isCanceledStreamGlobal = false;
 

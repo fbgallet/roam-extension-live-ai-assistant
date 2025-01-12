@@ -16,24 +16,13 @@ import { arrayOutputType, z } from "zod";
 import { OPENAI_API_KEY, groqLibrary, openaiLibrary } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
-  createChildBlock,
-  deleteBlock,
-  dnpUidRegex,
-  extractNormalizedUidFromRef,
-  getBlockContentByUid,
   getDateStringFromDnpUid,
   getPageUidByBlockUid,
-  moveBlock,
-  reorderBlocks,
-  updateBlock,
-  updateTokenCounter,
-} from "../../utils/utils";
-import {
-  insertStructuredAIResponse,
-  sanitizeJSONstring,
-} from "../../utils/format";
-import { getTemplateForPostProcessing } from "../aiCommands";
+} from "../../utils/roamAPI";
+import { sanitizeJSONstring } from "../../utils/format";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
+import { updateTokenCounter } from "../modelsInfo";
+import { dnpUidRegex } from "../../utils/regex";
 
 const QueryAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
