@@ -35,7 +35,6 @@ import {
   isTranslateIconDisplayed,
   isUsingWhisper,
   openaiLibrary,
-  isResponseToSplit,
   extensionStorage,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
@@ -516,7 +515,7 @@ function VoiceRecorder({
       model: instantModel.current || defaultModel,
     });
     if (lastCommand.current === "outlinerAgent") {
-      invokeOutlinerAgent({ prompt, context, model: instantModel });
+      invokeOutlinerAgent({ prompt, context, model: instantModel.current });
       // let inlineTemplate = getTemplateFromPrompt(
       //   getBlockContentByUid(promptUid)
       // );

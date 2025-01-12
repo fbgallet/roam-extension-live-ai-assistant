@@ -156,8 +156,6 @@ export const aiCompletionRunner = async ({
     );
   if (noData) return;
 
-  console.log("targetUid :>> ", targetUid);
-
   insertCompletion({
     prompt: completedPrompt,
     targetUid,
