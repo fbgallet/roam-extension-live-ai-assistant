@@ -8,21 +8,18 @@ import {
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { defaultModel, extensionStorage, isComponentVisible } from "..";
+import { defaultModel, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands } from "../ai/prompts";
-import { aiCompletionRunner } from "../utils/roamExtensionCommands";
 import {
-  highlightHtmlElt,
-  insertInstantButtons,
-  mountComponent,
   setAsOutline,
+  simulateClick,
   toggleOutlinerSelection,
-  unmountComponent,
 } from "../utils/domElts";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
-import { PREBUILD_COMMANDS, languages } from "../ai/prebuildCommands";
-import { simulateClick } from "../utils/utils";
+import { PREBUILD_COMMANDS } from "../ai/prebuildCommands";
+import { aiCompletionRunner } from "../ai/responseInsertion";
+import { languages } from "../ai/languagesSupport";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
@@ -114,7 +111,6 @@ const StandaloneContextMenu = () => {
   };
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
-    console.log("command :>> ", command);
     if (!prompt) {
       prompt = command.prompt ? completionCommands[command.prompt] : "";
     }
@@ -131,7 +127,6 @@ const StandaloneContextMenu = () => {
       }
       prompt = prompt.replace("<language>", selectedLgg);
     }
-    console.log("Prompt clicker in context menu: ", prompt);
 
     if (
       !command.onlyOutliner &&
@@ -412,7 +407,6 @@ const StandaloneContextMenu = () => {
             zIndex: 999,
           }}
           // onClick={(e) => e.stopPropagation()}
-          onKeyPress={(e) => console.log("e div:", e)}
           onDragStart={(e) => {
             const transparentImage = document.createElement("img");
             e.dataTransfer.clearData();

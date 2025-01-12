@@ -1,5 +1,5 @@
 import { isResponseToSplit } from "..";
-import { addContentToBlock, createChildBlock } from "./utils";
+import { addContentToBlock, createChildBlock } from "./roamAPI";
 
 const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
@@ -141,30 +141,6 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
     stack.push({ level, ref: newBlockRef });
   }
 };
-
-export async function insertStructuredAIResponse(
-  targetUid,
-  aiResponse,
-  forceInChildren = false,
-  format
-) {
-  const splittedResponse = splitParagraphs(aiResponse);
-  if (
-    (!isResponseToSplit || splittedResponse.length === 1) &&
-    !hierarchyFlagRegex.test(splittedResponse[0])
-  )
-    if (forceInChildren)
-      await createChildBlock(
-        targetUid,
-        splittedResponse[0],
-        format?.open,
-        format?.heading
-      );
-    else await addContentToBlock(targetUid, splittedResponse[0]);
-  else {
-    await parseAndCreateBlocks(targetUid, aiResponse);
-  }
-}
 
 function getLevel(line, minTitleLevel) {
   let level = 0;

@@ -5,23 +5,13 @@ import axios from "axios";
 
 import {
   ANTHROPIC_API_KEY,
-  assistantCharacter,
-  chatRoles,
-  contextInstruction,
-  defaultTemplate,
-  getInstantAssistantRole,
-  openAiCustomModels,
-  defaultModel,
   openaiLibrary,
   transcriptionLanguage,
-  userContextInstructions,
   whisperPrompt,
   streamResponse,
   openrouterLibrary,
   openRouterModels,
   ollamaModels,
-  openRouterModelsInfo,
-  maxImagesNb,
   modelTemperature,
   ollamaServer,
   resImages,
@@ -31,65 +21,18 @@ import {
   isUsingGroqWhisper,
   groqModels,
 } from "..";
-import {
-  convertTreeToLinearArray,
-  copyTreeBranches,
-  createSiblingBlock,
-  getConversationArray,
-  getFlattenedContentFromArrayOfBlocks,
-  getParentBlock,
-  getPreviousSiblingBlock,
-  getTreeByUid,
-  insertBlockInCurrentView,
-  isExistingBlock,
-  roamImageRegex,
-  simulateClick,
-  uidRegex,
-  updateArrayOfBlocks,
-  updateBlock,
-  updateTokenCounter,
-} from "../utils/utils";
-import {
-  hierarchicalResponseFormat,
-  instructionsOnJSONResponse,
-  instructionsOnTemplateProcessing,
-} from "./prompts";
 import { AppToaster } from "../components/VoiceRecorder";
 import {
-  displaySpinner,
-  highlightHtmlElt,
   insertInstantButtons,
   insertParagraphForStream,
-  removeSpinner,
 } from "../utils/domElts";
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
+import { sanitizeJSONstring, trimOutsideOuterBraces } from "../utils/format";
 import {
-  insertStructuredAIResponse,
-  sanitizeJSONstring,
-  trimOutsideOuterBraces,
-} from "../utils/format";
-import ModelsMenu from "../components/ModelsMenu";
-import { normalizeClaudeModel, tokensLimit } from "./modelsInfo";
-
-export const lastCompletion = {
-  prompt: null,
-  targetUid: null,
-  context: null,
-  typeOfCompletion: null,
-};
-
-const getTokenizer = async () => {
-  try {
-    const { data } = await axios.get(
-      "https://tiktoken.pages.dev/js/cl100k_base.json"
-    );
-    return new Tiktoken(data);
-  } catch (error) {
-    console.log("Fetching tiktoken rank error:>> ", error);
-    return null;
-  }
-};
-export let tokenizer = await getTokenizer();
+  normalizeClaudeModel,
+  tokensLimit,
+  updateTokenCounter,
+} from "./modelsInfo";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -247,89 +190,7 @@ export function modelAccordingToProvider(model) {
   return llm;
 }
 
-async function aiCompletion(
-  instantModel,
-  prompt,
-  content = "",
-  responseFormat,
-  targetUid,
-  isInConversation,
-  withSuggestions
-) {
-  let aiResponse;
-  let hasAPIkey = true;
-  let model = instantModel || defaultModel;
-
-  const llm = modelAccordingToProvider(model);
-  if (!llm) return "";
-
-  if (
-    responseFormat === "json_object" &&
-    !prompt[0].content.includes(instructionsOnJSONResponse)
-  ) {
-    prompt[0].content += "\n\nResponse format:\n" + instructionsOnJSONResponse;
-  }
-
-  console.log(
-    "Initial instructions and context (eventually truncated):\n",
-    content
-  );
-
-  if (
-    llm.provider === "OpenAI" ||
-    llm.provider === "openRouter" ||
-    llm.provider === "groq"
-  ) {
-    aiResponse = await openaiCompletion(
-      llm.library,
-      llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid
-    );
-  } else if (llm.provider === "ollama") {
-    aiResponse = await ollamaCompletion(
-      llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid
-    );
-  } else {
-    aiResponse = await claudeCompletion(
-      llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid
-    );
-  }
-
-  if (responseFormat === "json_object") {
-    let parsedResponse = JSON.parse(aiResponse);
-    if (typeof parsedResponse.response === "string")
-      parsedResponse.response = JSON.parse(parsedResponse.response);
-    aiResponse = parsedResponse.response;
-  }
-  if (aiResponse)
-    insertInstantButtons({
-      model: llm.prefix + llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid,
-      isStreamStopped: true,
-      response:
-        responseFormat === "text"
-          ? aiResponse
-          : getFlattenedContentFromArrayOfBlocks(aiResponse),
-      withSuggestions,
-    });
-  return aiResponse;
-}
-
-async function claudeCompletion(
+export async function claudeCompletion(
   model,
   prompt,
   content,
@@ -656,324 +517,6 @@ export async function ollamaCompletion(
   }
 }
 
-export const insertCompletion = async ({
-  prompt,
-  targetUid,
-  context,
-  typeOfCompletion,
-  instantModel,
-  isRedone,
-  isInConversation,
-  withAssistantRole = true,
-  withSuggestions,
-  target,
-}) => {
-  lastCompletion.prompt = prompt;
-  lastCompletion.targetUid = targetUid;
-  lastCompletion.context = context;
-  lastCompletion.typeOfCompletion = typeOfCompletion;
-  lastCompletion.instantModel = instantModel;
-
-  // console.log("prompt in insertCompletion :>> ", prompt);
-
-  let model = instantModel || defaultModel;
-  if (model === "first OpenRouter model") {
-    model = openRouterModels.length
-      ? "openRouter/" + openRouterModels[0]
-      : "gpt-4o-mini";
-  } else if (model === "first Ollama local model") {
-    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-4o-mini";
-  }
-  const responseFormat =
-    typeOfCompletion === "gptPostProcessing" ? "json_object" : "text";
-  const assistantRole = withAssistantRole
-    ? instantModel
-      ? getInstantAssistantRole(instantModel)
-      : chatRoles.assistant
-    : "";
-
-  let content;
-
-  let isContextInstructionToInsert = false;
-  uidRegex.lastIndex = 0;
-  if (uidRegex.test(context)) isContextInstructionToInsert = true;
-
-  if (isRedone || isInConversation) content = context;
-  else {
-    content =
-      assistantCharacter +
-      (responseFormat === "text" ? hierarchicalResponseFormat : "") +
-      (context && !context.includes(contextInstruction)
-        ? (isContextInstructionToInsert ? contextInstruction : "") +
-          userContextInstructions +
-          "\n\nUSER INPUT (content to rely to or apply the next user prompt to, and refered as 'context', between double angle brackets):\n<< " +
-          context +
-          " >>"
-        : "");
-    content = await verifyTokenLimitAndTruncate(model, prompt, content);
-  }
-
-  // if (typeOfCompletion === "gptCompletion") {
-  if (isRedone) {
-    if (
-      isExistingBlock(targetUid) &&
-      target !== "replace" &&
-      target !== "append"
-    ) {
-      targetUid = await createSiblingBlock(targetUid, "before");
-      window.roamAlphaAPI.updateBlock({
-        block: {
-          uid: targetUid,
-          string: assistantRole,
-        },
-      });
-    } else targetUid = await insertBlockInCurrentView(assistantRole);
-  } else {
-    if (typeof prompt === "string") {
-      // else prompt is already conversation object
-      if (isInConversation) {
-        prompt = getConversationArray(getParentBlock(targetUid));
-      } else {
-        prompt = [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ];
-      }
-    }
-  }
-  // }
-  const intervalId = await displaySpinner(targetUid);
-
-  let aiResponse = await aiCompletion(
-    model,
-    prompt,
-    content,
-    responseFormat,
-    targetUid,
-    isInConversation,
-    withSuggestions
-  );
-  console.log("aiResponse :>> ", aiResponse);
-  if (isInConversation)
-    aiResponse = aiResponse.replace(assistantRole, "").trim();
-  if (typeOfCompletion === "gptPostProcessing" && Array.isArray(aiResponse)) {
-    updateArrayOfBlocks(aiResponse);
-  } else {
-    if (target === "replace") {
-      simulateClick();
-      await updateBlock({ blockUid: targetUid, newContent: "" });
-    }
-    insertStructuredAIResponse(targetUid, aiResponse);
-  }
-  setTimeout(() => {
-    removeSpinner(intervalId);
-  }, 100);
-};
-
-export const getTemplateForPostProcessing = async (
-  parentUid,
-  depth,
-  uidsToExclude,
-  withInstructions = true,
-  isToHighlight = true
-) => {
-  let prompt = "";
-  let excluded;
-  let isInMultipleBlocks = true;
-  let tree = getTreeByUid(parentUid);
-  if (parentUid && tree) {
-    if (tree.length && tree[0].children) {
-      isToHighlight && highlightHtmlElt({ eltUid: parentUid });
-      // prompt is a template as children of the current block
-      let { linearArray, excludedUids } = convertTreeToLinearArray(
-        tree[0].children,
-        depth,
-        99,
-        true,
-        uidsToExclude.length ? uidsToExclude : "{text}"
-      );
-      excluded = excludedUids;
-      prompt =
-        (withInstructions ? instructionsOnTemplateProcessing : "") +
-        linearArray.join("\n");
-    } else {
-      return null;
-    }
-  } else return null;
-  return {
-    stringified: prompt,
-    isInMultipleBlocks: isInMultipleBlocks,
-    excluded,
-  };
-};
-
-export const copyTemplate = async (
-  targetUid,
-  templateUid,
-  maxDepth,
-  strToExclude = "{text}"
-) => {
-  let uidsToExclude = [];
-  if (!templateUid && !defaultTemplate) return;
-  const tree = getTreeByUid(templateUid || defaultTemplate);
-  uidsToExclude = await copyTreeBranches(
-    tree,
-    targetUid,
-    maxDepth,
-    strToExclude
-  );
-  return uidsToExclude;
-};
-
-const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
-  // console.log("tokensLimit object :>> ", tokensLimit);
-  if (!tokenizer) {
-    tokenizer = await getTokenizer();
-  }
-  if (!tokenizer) return content;
-  const tokens = tokenizer.encode(prompt + content);
-  console.log("context tokens :", tokens.length);
-
-  const limit = tokensLimit[model];
-  if (!limit) {
-    console.log("No context length provided for this model.");
-    return content;
-  }
-
-  if (tokens.length > limit) {
-    AppToaster.show({
-      message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
-    });
-    // 1% margin of error
-    const ratio = limit / tokens.length - 0.01;
-    content = content.slice(0, content.length * ratio);
-    console.log(
-      "tokens of truncated context:",
-      tokenizer.encode(prompt + content).length
-    );
-  }
-  return content;
-};
-
-export function getValidLanguageCode(input) {
-  if (!input) return "";
-  let lggCode = input.toLowerCase().trim().slice(0, 2);
-  if (supportedLanguage.includes(lggCode)) {
-    AppToaster.clear();
-    return lggCode;
-  } else {
-    AppToaster.show({
-      message:
-        "Live AI Assistant: Incorrect language code for transcription, see instructions in settings panel.",
-    });
-    return "";
-  }
-}
-
-const supportedLanguage = [
-  "af",
-  "am",
-  "ar",
-  "as",
-  "az",
-  "ba",
-  "be",
-  "bg",
-  "bn",
-  "bo",
-  "br",
-  "bs",
-  "ca",
-  "cs",
-  "cy",
-  "da",
-  "de",
-  "el",
-  "en",
-  "es",
-  "et",
-  "eu",
-  "fa",
-  "fi",
-  "fo",
-  "fr",
-  "gl",
-  "gu",
-  "ha",
-  "haw",
-  "he",
-  "hi",
-  "hr",
-  "ht",
-  "hu",
-  "hy",
-  "id",
-  "is",
-  "it",
-  "ja",
-  "jw",
-  "ka",
-  "kk",
-  "km",
-  "kn",
-  "ko",
-  "la",
-  "lb",
-  "ln",
-  "lo",
-  "lt",
-  "lv",
-  "mg",
-  "mi",
-  "mk",
-  "ml",
-  "mn",
-  "mr",
-  "ms",
-  "mt",
-  "my",
-  "ne",
-  "nl",
-  "nn",
-  "no",
-  "oc",
-  "pa",
-  "pl",
-  "ps",
-  "pt",
-  "ro",
-  "ru",
-  "sa",
-  "sd",
-  "si",
-  "sk",
-  "sl",
-  "sn",
-  "so",
-  "sq",
-  "sr",
-  "su",
-  "sv",
-  "sw",
-  "ta",
-  "te",
-  "tg",
-  "th",
-  "tk",
-  "tl",
-  "tr",
-  "tt",
-  "uk",
-  "ur",
-  "uz",
-  "vi",
-  "yi",
-  "yo",
-  "zh",
-];
-
 const addImagesUrlToMessages = (messages, content) => {
   let nbCountdown = maxImagesNb;
 
@@ -1044,19 +587,46 @@ const isModelSupportingImage = (model) => {
   return false;
 };
 
-export const isPromptInConversation = (promptUid) => {
-  const previousSiblingUid = getPreviousSiblingBlock(promptUid);
-  const isInConversation =
-    previousSiblingUid &&
-    chatRoles.genericAssistantRegex &&
-    chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
-      ? true
-      : false;
-  if (isInConversation) {
-    const conversationButton = document.querySelector(
-      ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
+export const getTokenizer = async () => {
+  try {
+    const { data } = await axios.get(
+      "https://tiktoken.pages.dev/js/cl100k_base.json"
     );
-    conversationButton && conversationButton.remove();
+    return new Tiktoken(data);
+  } catch (error) {
+    console.log("Fetching tiktoken rank error:>> ", error);
+    return null;
   }
-  return isInConversation;
+};
+
+export let tokenizer = await getTokenizer();
+
+export const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
+  // console.log("tokensLimit object :>> ", tokensLimit);
+  if (!tokenizer) {
+    tokenizer = await getTokenizer();
+  }
+  if (!tokenizer) return content;
+  const tokens = tokenizer.encode(prompt + content);
+  console.log("context tokens :", tokens.length);
+
+  const limit = tokensLimit[model];
+  if (!limit) {
+    console.log("No context length provided for this model.");
+    return content;
+  }
+
+  if (tokens.length > limit) {
+    AppToaster.show({
+      message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
+    });
+    // 1% margin of error
+    const ratio = limit / tokens.length - 0.01;
+    content = content.slice(0, content.length * ratio);
+    console.log(
+      "tokens of truncated context:",
+      tokenizer.encode(prompt + content).length
+    );
+  }
+  return content;
 };

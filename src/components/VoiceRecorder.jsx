@@ -14,31 +14,18 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Intent, Position, Toaster } from "@blueprintjs/core";
 import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
-import {
-  copyTemplate,
-  getTemplateForPostProcessing,
-  insertCompletion,
-  isPromptInConversation,
-  transcribeAudio,
-  translateAudio,
-} from "../ai/aiCommands.js";
+import { insertCompletion } from "../ai/responseInsertion.js";
 import {
   addContentToBlock,
-  cleanFlagFromBlocks,
   createChildBlock,
   createSiblingBlock,
-  getAndNormalizeContext,
   getBlockContentByUid,
   getBlocksSelectionUids,
-  getFirstChildUid,
   getParentBlock,
-  getResolvedContentFromBlocks,
-  getTemplateFromPrompt,
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
-  resolveReferences,
-} from "../utils/utils.js";
+} from "../utils/roamAPI.js";
 import Timer from "./Timer.jsx";
 import {
   chatRoles,
@@ -53,7 +40,6 @@ import {
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import OpenAILogo from "./OpenAILogo.jsx";
-import ModelsMenu from "./ModelsMenu.jsx";
 import {
   displaySpinner,
   highlightHtmlElt,
@@ -61,11 +47,14 @@ import {
   setAsOutline,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
-import { specificContentPromptBeforeTemplate } from "../ai/prompts.js";
-import TokensDisplay from "./TokensDisplay.jsx";
-import TokensDialog from "./TokensDisplay.jsx";
-import { handleModifierKeys } from "../utils/roamExtensionCommands.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
+import { transcribeAudio, translateAudio } from "../ai/aiAPIsHub.js";
+import {
+  getAndNormalizeContext,
+  getResolvedContentFromBlocks,
+  handleModifierKeys,
+  isPromptInConversation,
+} from "../ai/dataExtraction.js";
 
 export const AppToaster = Toaster.create({
   className: "color-toaster",

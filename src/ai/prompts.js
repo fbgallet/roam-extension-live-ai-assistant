@@ -198,15 +198,15 @@ ${outputConditions.replace("<ACTION>", "complete")}`,
 
 Using the provided content  as a structural and stylistic template, generate new content that:
 1. Follows the same topic category and specific subject, but with a different content
-  - Examples:
-      - If arguing for a position, provide a new argument supporting the same position
-      - If providing a cause of a given event, propose another possiblel cause
-      - If touristic tips about Paris, provide another touristic tip about Paris
+Examples:
+  - If arguing for a position, provide a new argument supporting the same position
+  - If providing a cause of a given event, propose another possible cause
+  - If touristic tips about Paris, provide another touristic tip about Paris
 
 2. Strictly maintains the original's:
   - Writing style and tone
   - Level of detail
-  - Organizational structure (especially hierarchical if present)
+  - Organizational structure (especially hierarchical or bullet points if present)
   - Format and presentation patterns
 
 3. Identifies and replicates:
@@ -214,10 +214,15 @@ Using the provided content  as a structural and stylistic template, generate new
   - The pattern of how information is organized
   - The scope and boundaries of the subject matter
 
-4. Ensures thematic consistency:
-  - If multiple examples are provided, analyze their common characteristics and whether they follow a certain logic that would need to be extended
+4. Ensures thematic or logic consistency:
+  - If multiple examples are provided, analyze their common characteristics and whether their order follows a certain logic that would need to be extended
   - Keep the new content within the same thematic framework or logic
-  - Example: if all travel destinations are European, provide another European destination
+  Examples:
+    - if all travel destinations are European, provide another European destination
+    - if a series of concepts about ethic and their definition are provided, provide another concept about ethic and its definition
+    - if there's a series of Flemish painters and their brief biographies in chronological order, suggest another Flemish painter and his biography who would come next in the biographical sequence.
+
+  IMPORTANT: Even if multiple examples of the same type of contentare provided as input, you have always (unless otherwise specified) to generate only a single new content of the same type.
 
   IMPORTANT: When dealing with an argument, objection, or example or similar reasoning about a given point, it is essential that the content produced focuses on the same statement or idea; in this case, the purpose is to discover alternative ways to justify, critique, or illustrate the same point.
 

@@ -10,41 +10,23 @@ import {
   HumanMessage,
   AIMessage,
 } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { tool } from "@langchain/core/tools";
 import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
 import { arrayOutputType, z } from "zod";
-import {
-  OPENAI_API_KEY,
-  defaultModel,
-  extensionStorage,
-  groqLibrary,
-  openaiLibrary,
-} from "../..";
+import { defaultModel, extensionStorage } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
   deleteBlock,
   extractNormalizedUidFromRef,
-  getAndNormalizeContext,
-  getBlockContentByUid,
-  getFocusAndSelection,
-  getResolvedContentFromBlocks,
   getTreeByUid,
   moveBlock,
   reorderBlocks,
   replaceChildrenByNewTree,
   updateBlock,
-  updateTokenCounter,
-} from "../../utils/utils";
-import {
-  insertStructuredAIResponse,
-  sanitizeJSONstring,
-} from "../../utils/format";
-import {
-  getTemplateForPostProcessing,
-  modelAccordingToProvider,
-} from "../aiCommands";
+} from "../../utils/roamAPI";
+import { sanitizeJSONstring } from "../../utils/format";
+
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { outlinerAgentSystemPrompt } from "./agent-prompts";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
@@ -54,7 +36,16 @@ import {
   toggleOutlinerSelection,
 } from "../../utils/domElts";
 import { AppToaster } from "../../components/VoiceRecorder";
-import { handleModifierKeys } from "../../utils/roamExtensionCommands";
+import { modelAccordingToProvider } from "../aiAPIsHub";
+import {
+  getAndNormalizeContext,
+  getFocusAndSelection,
+  getResolvedContentFromBlocks,
+  getTemplateForPostProcessing,
+  handleModifierKeys,
+} from "../dataExtraction";
+import { insertStructuredAIResponse } from "../responseInsertion";
+import { updateTokenCounter } from "../modelsInfo";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,

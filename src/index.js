@@ -1,18 +1,10 @@
-import {
-  getValidLanguageCode,
-  initializeAnthropicAPI,
-  initializeOpenAIAPI,
-} from "./ai/aiCommands";
+import { initializeAnthropicAPI, initializeOpenAIAPI } from "./ai/aiAPIsHub";
 import { webLangCodes } from "./audio/audio";
 import {
-  getArrayFromList,
   getBlockContentByUid,
-  getMaxDephObjectFromList,
   isExistingBlock,
   resolveReferences,
-  uidRegex,
-  updateTokenCounter,
-} from "./utils/utils";
+} from "./utils/roamAPI";
 import {
   defaultAssistantCharacter,
   defaultContextInstructions,
@@ -26,11 +18,17 @@ import {
   unmountComponent,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
-import { getModelsInfo } from "./ai/modelsInfo";
+import { getModelsInfo, updateTokenCounter } from "./ai/modelsInfo";
 import {
   cleanupContextMenu,
   initializeContextMenu,
 } from "./components/ContextMenu";
+import { getValidLanguageCode } from "./ai/languagesSupport";
+import {
+  getArrayFromList,
+  getMaxDephObjectFromList,
+} from "./ai/dataExtraction";
+import { uidRegex } from "./utils/regex";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";

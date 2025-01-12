@@ -1,64 +1,27 @@
 import { faLessThanEqual } from "@fortawesome/free-solid-svg-icons";
-import {
-  chatRoles,
-  defaultModel,
-  extensionStorage,
-  getInstantAssistantRole,
-  isUsingWhisper,
-} from "..";
-import { calculAgent } from "../ai/agents/calcul-agent";
+import { chatRoles, getInstantAssistantRole, isUsingWhisper } from "..";
 import {
   copyTemplate,
-  getTemplateForPostProcessing,
   insertCompletion,
-  isPromptInConversation,
   lastCompletion,
-} from "../ai/aiCommands";
+} from "../ai/responseInsertion";
+import { specificContentPromptBeforeTemplate } from "../ai/prompts";
 import {
-  contextAsPrompt,
-  specificContentPromptBeforeTemplate,
-} from "../ai/prompts";
-import {
-  displaySpinner,
   displayTokensDialog,
-  highlightHtmlElt,
-  insertInstantButtons,
   mountComponent,
-  removeSpinner,
+  simulateClick,
   simulateClickOnRecordingButton,
   toggleComponentVisibility,
-  toggleOutlinerSelection,
   unmountComponent,
 } from "./domElts";
 import {
-  addContentToBlock,
   cleanFlagFromBlocks,
   createChildBlock,
-  createSiblingBlock,
   extractNormalizedUidFromRef,
-  flexibleUidRegex,
-  getAndNormalizeContext,
   getBlockContentByUid,
-  getBlocksSelectionUids,
-  getContextFromSbCommand,
   getFirstChildUid,
-  getFlattenedContentFromTree,
-  getFocusAndSelection,
-  getOnlyParenstBlocks,
-  getParentBlock,
-  getResolvedContentFromBlocks,
-  getRoamContextFromPrompt,
-  getTemplateFromPrompt,
-  getTopParentAmongBlocks,
-  insertBlockInCurrentView,
-  isCurrentPageDNP,
-  isLogView,
   resolveReferences,
-  sbParamRegex,
-  simulateClick,
-  updateBlock,
-} from "./utils";
-import { AppToaster } from "../components/VoiceRecorder";
+} from "./roamAPI";
 import { queryAgent } from "../ai/agents/query-agent";
 import {
   NLQueryInterpreter,
@@ -66,6 +29,16 @@ import {
 } from "../ai/agents/nl-query";
 import { invokeNLDatomicQueryInterpreter } from "../ai/agents/nl-datomic-query";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
+import {
+  getAndNormalizeContext,
+  getContextFromSbCommand,
+  getFlattenedContentFromTree,
+  getFocusAndSelection,
+  getRoamContextFromPrompt,
+  getTemplateForPostProcessing,
+  getTemplateFromPrompt,
+} from "../ai/dataExtraction";
+import { flexibleUidRegex, sbParamRegex } from "./regex";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -548,181 +521,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         window.roamjs.extension.smartblocks.registerCommand(agentCmd);
     });
   }
-};
-
-export const aiCompletionRunner = async ({
-  e,
-  sourceUid,
-  prompt = "",
-  instantModel,
-  includeUids = false,
-  target,
-  withSuggestions,
-}) => {
-  let { completedPrompt, targetUid, context, isInConversation, noData } =
-    await getInputDataFromRoamContext(
-      e,
-      sourceUid,
-      prompt,
-      instantModel,
-      includeUids,
-      target
-    );
-  if (noData) return;
-
-  console.log("targetUid :>> ", targetUid);
-
-  insertCompletion({
-    prompt: completedPrompt,
-    targetUid,
-    context,
-    instantModel,
-    typeOfCompletion: "gptCompletion",
-    isInConversation,
-    withSuggestions,
-    withAssistantRole:
-      target === "append" || target === "replace" ? false : true,
-    target,
-  });
-};
-
-const getInputDataFromRoamContext = async (
-  e,
-  sourceUid,
-  prompt,
-  instantModel,
-  includeUids,
-  target
-) => {
-  const isCommandPrompt = prompt ? true : false;
-  let { currentUid, currentBlockContent, selectionUids } =
-    getFocusAndSelection();
-
-  if (sourceUid) currentUid = sourceUid;
-
-  if (currentUid) currentBlockContent = getBlockContentByUid(currentUid);
-
-  if (!currentUid && !selectionUids.length && !e) return { noData: true };
-
-  if (currentBlockContent) {
-    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
-      prompt = prompt.replace(
-        "<REPLACE BY TARGET CONTENT>",
-        currentBlockContent
-      );
-    else prompt += currentBlockContent;
-  }
-  let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
-    await getFinalPromptAndTarget(
-      currentUid,
-      selectionUids,
-      prompt,
-      instantModel,
-      includeUids,
-      isCommandPrompt,
-      target
-    );
-
-  const roamContextFromKeys = e && (await handleModifierKeys(e));
-
-  const inlineContext = currentBlockContent
-    ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
-    : null;
-  // TO TEST
-  if (inlineContext)
-    completedPrompt = completedPrompt.replace(
-      currentBlockContent,
-      inlineContext.updatedPrompt
-    );
-
-  let context = await getAndNormalizeContext({
-    blocksSelectionUids: remaininSelectionUids,
-    roamContext: inlineContext?.roamContext || roamContextFromKeys,
-    focusedBlock: currentUid,
-  });
-
-  console.log("context :>> ", context);
-
-  return {
-    currentUid,
-    targetUid,
-    completedPrompt,
-    context,
-    isInConversation,
-  };
-};
-
-const getFinalPromptAndTarget = async (
-  currentUid,
-  selectionUids,
-  prompt,
-  instantModel,
-  includeUids,
-  isCommandPrompt,
-  target
-) => {
-  const assistantRole = instantModel
-    ? getInstantAssistantRole(instantModel)
-    : chatRoles.assistant;
-  const isInConversation =
-    currentUid && !isCommandPrompt ? isPromptInConversation(currentUid) : false;
-  let targetUid;
-  if (
-    !currentUid &&
-    selectionUids.length &&
-    document.querySelector(".block-highlight-blue")
-  ) {
-    targetUid = await createSiblingBlock(selectionUids[0]);
-    await addContentToBlock(targetUid, assistantRole);
-    const content = getResolvedContentFromBlocks(selectionUids, includeUids);
-    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
-      prompt = prompt.replace("<REPLACE BY TARGET CONTENT>", content);
-    else prompt += content;
-    selectionUids = [];
-  } else {
-    if (target === "replace" || target === "append") {
-      targetUid = currentUid;
-      // updateBlock({ blockUid: targetUid, newContent: "" });
-    } else {
-      targetUid = currentUid
-        ? await createChildBlock(
-            isInConversation ? getParentBlock(currentUid) : currentUid,
-            assistantRole
-          )
-        : await insertBlockInCurrentView(
-            chatRoles.user + " a selection of blocks"
-          );
-    }
-    if (!prompt) prompt = contextAsPrompt;
-    // prompt = getBlockContentByUid(currentUid) ? "" : contextAsPrompt;
-  }
-  return {
-    completedPrompt: prompt,
-    targetUid,
-    isInConversation,
-    remaininSelectionUids: selectionUids,
-  };
-};
-
-export const handleModifierKeys = async (e) => {
-  const roamContext = {
-    linkedRefs: false,
-    sidebar: false,
-    mainPage: false,
-    logPages: false,
-  };
-  if (e.shiftKey) roamContext.sidebar = true;
-  if (e.metaKey || e.ctrlKey) {
-    if (isLogView() || (await isCurrentPageDNP())) {
-      AppToaster.show({
-        message:
-          "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. ",
-      });
-      roamContext.logPages = true;
-    } else roamContext.linkedRefs = true;
-  }
-  if (e.altKey) roamContext.page = true;
-  return roamContext;
 };
 
 const getInfosFromSmartBlockParams = async ({

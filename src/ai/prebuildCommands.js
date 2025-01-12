@@ -1,22 +1,4 @@
-export const languages = [
-  ["Arabic", "🇸🇦"],
-  ["Bengali", "🇧🇩"],
-  ["Dutch", "🇳🇱"],
-  ["English", "🇺🇸"],
-  ["French", "🇫🇷"],
-  ["German", "🇩🇪"],
-  ["Hindi", "🇮🇳"],
-  ["Indonesian", "🇮🇩"],
-  ["Italian", "🇮🇹"],
-  ["Japanese", "🇯🇵"],
-  ["Korean", "🇰🇷"],
-  ["Mandarin Chinese", "🇨🇳"],
-  ["Portuguese", "🇵🇹"],
-  ["Russian", "🇷🇺"],
-  ["Spanish", "🇪🇸"],
-  ["Turkish", "🇹🇷"],
-  ["Urdu", "🇵🇰"],
-];
+import { languages } from "./languagesSupport";
 
 export const PREBUILD_COMMANDS = [
   { id: 0, name: "Use this custom prompt", category: "", onlyGen: true },
@@ -203,7 +185,7 @@ export const PREBUILD_COMMANDS = [
   },
   {
     id: 141,
-    name: "Similar but new content",
+    name: "Another similar content",
     prompt: "similarContent",
     category: "CREATION",
     keyWords: "extend, variant, clone",
