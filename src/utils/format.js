@@ -1,5 +1,11 @@
 import { isResponseToSplit } from "..";
-import { addContentToBlock, createChildBlock } from "./roamAPI";
+import {
+  addContentToBlock,
+  createChildBlock,
+  createSiblingBlock,
+  getBlockOrderByUid,
+  updateBlock,
+} from "./roamAPI";
 
 const codeBlockRegex = /\`\`\`((?:(?!\`\`\`)[\s\S])*?)\`\`\`/g;
 const jsonContentStringRegex = /"content": "([^"]*\n[^"]*)+"/g;
@@ -63,7 +69,11 @@ export const splitParagraphs = (str) => {
   return str.split(`\n\n`);
 };
 
-export const parseAndCreateBlocks = async (parentBlockRef, text) => {
+export const parseAndCreateBlocks = async (
+  parentBlockRef,
+  text,
+  isParentToReplace = false
+) => {
   const lines = text.split("\n");
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
@@ -72,6 +82,10 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
   let inCodeBlock = false;
   let codeBlockContent = "";
   let codeBlockShift = 0;
+  let isFistParent = true;
+  let position = isParentToReplace
+    ? getBlockOrderByUid(parentBlockRef)
+    : undefined;
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -131,13 +145,37 @@ export const parseAndCreateBlocks = async (parentBlockRef, text) => {
         ? stack[stack.length - 1].ref
         : parentBlockRef;
 
-    const newBlockRef = await createChildBlock(
-      currentParentRef,
-      content,
-      "last",
-      true,
-      titleDegree ? (titleDegree > 3 ? 3 : titleDegree) : undefined
-    );
+    let newBlockRef;
+    let heading = titleDegree ? (titleDegree > 3 ? 3 : titleDegree) : undefined;
+
+    console.log("position :>> ", position);
+    console.log("currentParentRef :>> ", currentParentRef);
+
+    if (position === undefined || level > 0) {
+      newBlockRef = await createChildBlock(
+        currentParentRef,
+        content,
+        "last",
+        true,
+        heading
+      );
+    } else if (position !== undefined && !isFistParent) {
+      newBlockRef = await createSiblingBlock(
+        currentParentRef,
+        position++,
+        content,
+        { open: true, heading }
+      );
+    } else if (isFistParent) {
+      newBlockRef = currentParentRef;
+      position++;
+      updateBlock({
+        blockUid: currentParentRef,
+        newContent: content,
+        format: { heading },
+      });
+      isFistParent = false;
+    }
     stack.push({ level, ref: newBlockRef });
   }
 };

@@ -142,6 +142,8 @@ export const aiCompletionRunner = async ({
   withSuggestions,
   selectedUids,
 }) => {
+  const withAssistantRole = target === "new" ? true : false;
+
   let {
     completedPrompt,
     targetUid,
@@ -156,6 +158,7 @@ export const aiCompletionRunner = async ({
     instantModel,
     includeUids,
     true, // withHierarchy
+    withAssistantRole,
     target,
     selectedUids
   );
@@ -174,8 +177,7 @@ export const aiCompletionRunner = async ({
         : "gptCompletion",
     isInConversation,
     withSuggestions,
-    withAssistantRole:
-      target === "append" || target === "replace" ? false : true,
+    withAssistantRole,
     target,
     selectedUids: selectionUids,
   });
@@ -204,6 +206,8 @@ export const insertCompletion = async ({
   lastCompletion.target = target;
   lastCompletion.selectedUids = selectedUids;
 
+  console.log("selectedUids :>> ", selectedUids);
+
   let model = instantModel || defaultModel;
   if (model === "first OpenRouter model") {
     model = openRouterModels.length
@@ -214,11 +218,12 @@ export const insertCompletion = async ({
   }
   const responseFormat =
     typeOfCompletion === "SelectionOutline" ? "json_object" : "text";
-  const assistantRole = withAssistantRole
-    ? instantModel
-      ? getInstantAssistantRole(instantModel)
-      : chatRoles.assistant
-    : "";
+  const assistantRole =
+    withAssistantRole || isInConversation
+      ? instantModel
+        ? getInstantAssistantRole(instantModel)
+        : chatRoles.assistant
+      : "";
 
   let content;
 
@@ -245,6 +250,8 @@ export const insertCompletion = async ({
   if (typeOfCompletion === "SelectionOutline" && !isRedone) {
     prompt = instructionsOnOutline + prompt;
   }
+
+  console.log("assistantRole :>> ", assistantRole);
 
   if (isRedone) {
     if (
@@ -294,8 +301,7 @@ export const insertCompletion = async ({
   });
   console.log("aiResponse :>> ", aiResponse);
   console.log("target :>> ", target);
-  console.log("selectedUids :>> ", selectedUids);
-  console.log("typeOfCompletion :>> ", typeOfCompletion);
+
   if (isInConversation)
     aiResponse = aiResponse.replace(assistantRole, "").trim();
   if (typeOfCompletion === "SelectionOutline" && Array.isArray(aiResponse)) {
@@ -305,20 +311,21 @@ export const insertCompletion = async ({
       simulateClick();
       await updateBlock({ blockUid: targetUid, newContent: "" });
     }
-    insertStructuredAIResponse(targetUid, aiResponse);
+    insertStructuredAIResponse({ targetUid, content: aiResponse, target });
   }
   setTimeout(() => {
     removeSpinner(intervalId);
   }, 100);
 };
 
-export async function insertStructuredAIResponse(
+export async function insertStructuredAIResponse({
   targetUid,
-  aiResponse,
+  content,
   forceInChildren = false,
-  format
-) {
-  const splittedResponse = splitParagraphs(aiResponse);
+  format = undefined,
+  target = undefined,
+}) {
+  const splittedResponse = splitParagraphs(content);
   if (
     (!isResponseToSplit || splittedResponse.length === 1) &&
     !hierarchyFlagRegex.test(splittedResponse[0])
@@ -332,7 +339,11 @@ export async function insertStructuredAIResponse(
       );
     else await addContentToBlock(targetUid, splittedResponse[0]);
   else {
-    await parseAndCreateBlocks(targetUid, aiResponse);
+    await parseAndCreateBlocks(
+      targetUid,
+      content,
+      target === "replace" || target === "new w/o"
+    );
   }
 }
 

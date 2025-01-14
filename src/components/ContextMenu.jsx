@@ -4,6 +4,9 @@ import {
   MenuItem,
   Popover,
   MenuDivider,
+  Button,
+  HTMLSelect,
+  Tooltip,
 } from "@blueprintjs/core";
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -20,6 +23,7 @@ import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 import { PREBUILD_COMMANDS } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
+import { getFocusAndSelection } from "../ai/dataExtraction";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
@@ -40,11 +44,14 @@ const StandaloneContextMenu = () => {
   const [customLgg, setCustomLgg] = useState(
     extensionStorage.get("translationCustomLgg")
   );
+  const [targetBlock, setTargetBlock] = useState("auto");
+  const [style, setStyle] = useState("Normal");
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlock = useRef(
     window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
   );
+  const selectedBlocks = useRef(null);
 
   useEffect(() => {
     window.LiveAI.toggleContextMenu = ({
@@ -60,6 +67,9 @@ const StandaloneContextMenu = () => {
         x: Math.min(e.clientX, window.innerWidth - 200),
         y: Math.min(e.clientY, window.innerHeight - 300),
       });
+      const { selectionUids } = getFocusAndSelection();
+      console.log("selectionUids in ContextMenu :>> ", selectionUids);
+      selectedBlocks.current = selectionUids;
       setIsOpen(true);
     };
   }, []);
@@ -139,7 +149,8 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids: command.includeUids,
         withSuggestions: command.withSuggestions,
-        target: command.target,
+        target: targetBlock === "auto" ? command.target || "new" : targetBlock,
+        selectedUids: selectedBlocks.current,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
@@ -150,6 +161,7 @@ const StandaloneContextMenu = () => {
   const handleGlobalContextMenu = useCallback(async (e) => {
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
+      e.stopPropagation();
       setPosition({
         x: Math.min(e.clientX - 115, window.innerWidth - 200),
         y: Math.min(e.clientY - 50, window.innerHeight - 300),
@@ -164,6 +176,9 @@ const StandaloneContextMenu = () => {
         setRootUid(outlinerRoot);
         setIsOutlinerAgent(true);
       }
+      const { selectionUids } = getFocusAndSelection();
+      console.log("selectionUids in ContextMenu :>> ", selectionUids);
+      selectedBlocks.current = selectionUids;
       setIsOpen(true);
     }
   }, []);
@@ -394,7 +409,7 @@ const StandaloneContextMenu = () => {
     <Popover
       isOpen={isOpen}
       onClose={() => setIsOpen(false)}
-      // onClick={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       {isOpen && (
         <div
@@ -457,6 +472,28 @@ const StandaloneContextMenu = () => {
                 </div>
               }
             />
+            <MenuDivider
+              title={
+                <div className="aicommands-style">
+                  Style{" "}
+                  <HTMLSelect
+                    options={[
+                      "Normal",
+                      "Concise",
+                      "Detailed",
+                      "No bullet points",
+                      "Socratic",
+                    ]}
+                    minimal={true}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onChange={(e) => setStyle(e.currentTarget.value)}
+                    value={style}
+                  />
+                </div>
+              }
+            ></MenuDivider>
             <Suggest
               popoverRef={popoverRef}
               fill={true}
@@ -464,6 +501,9 @@ const StandaloneContextMenu = () => {
               itemListRenderer={groupedItemRenderer}
               itemRenderer={renderCommand}
               itemPredicate={filterCommands}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
               onItemSelect={(command, e) => {
                 handleClickOnCommand({ e, command });
                 setIsOpen(false);
@@ -482,6 +522,23 @@ const StandaloneContextMenu = () => {
                       simulateClick(document.querySelector(".bp3-active"));
                   }
                 },
+                rightElement: (
+                  <Tooltip
+                    content="Target of the AI response"
+                    openOnTargetFocus={false}
+                  >
+                    <HTMLSelect
+                      // rightIcon="caret-down"
+                      options={["auto", "new", "new w/o", "replace", "append"]}
+                      minimal={true}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      onChange={(e) => setTargetBlock(e.currentTarget.value)}
+                      value={targetBlock}
+                    />
+                  </Tooltip>
+                ),
               }}
               popoverProps={{
                 minimal: true,
