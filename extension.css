@@ -248,8 +248,22 @@
   cursor: grabbing;
 }
 
+.aicommands-style {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transform: translateX(11px);
+}
+
 .str-aimodels-menu {
   height: fit-content;
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+.str-aicommands-menu select {
+  text-align: end;
+  padding-right: 28px;
 }
 
 .str-aimodels-menu .bp3-menu-item > div {

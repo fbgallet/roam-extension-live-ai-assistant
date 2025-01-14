@@ -141,7 +141,7 @@ function getPageNameByPageUid(uid) {
   else return "undefined";
 }
 
-function getBlockOrderByUid(uid) {
+export function getBlockOrderByUid(uid) {
   let result = window.roamAlphaAPI.pull("[:block/order]", [":block/uid", uid]);
   if (result) return result[":block/order"];
   else return "";
@@ -163,13 +163,20 @@ export function getLinkedReferencesTrees(pageUid) {
   return reverseTimeSorted;
 }
 
-export async function createSiblingBlock(currentUid, position) {
+export async function createSiblingBlock(
+  currentUid,
+  position,
+  content = "",
+  format
+) {
   const currentOrder = getBlockOrderByUid(currentUid);
   const parentUid = getParentBlock(currentUid);
   const siblingUid = await createChildBlock(
     parentUid,
-    "",
-    position === "before" ? currentOrder : currentOrder + 1
+    content,
+    position === "before" ? currentOrder : currentOrder + 1,
+    format?.open || true,
+    format?.heading
   );
   return siblingUid;
 }

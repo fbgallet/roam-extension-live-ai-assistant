@@ -1,3 +1,4 @@
+import { ControlGroup } from "@blueprintjs/core";
 import {
   chatRoles,
   defaultModel,
@@ -30,6 +31,7 @@ import {
   isLogView,
   resolveReferences,
 } from "../utils/roamAPI";
+import { contextAsPrompt } from "./prompts";
 
 export const getInputDataFromRoamContext = async (
   e,
@@ -38,6 +40,7 @@ export const getInputDataFromRoamContext = async (
   instantModel,
   includeUids,
   withHierarchy,
+  withAssistantRole,
   target,
   selectedUids
 ) => {
@@ -74,6 +77,7 @@ export const getInputDataFromRoamContext = async (
       instantModel,
       includeUids,
       withHierarchy,
+      withAssistantRole,
       isCommandPrompt,
       target
     );
@@ -116,21 +120,30 @@ const getFinalPromptAndTarget = async (
   instantModel,
   includeUids,
   withHierarchy,
+  withAssistantRole,
   isCommandPrompt,
   target
 ) => {
-  const assistantRole = instantModel
-    ? getInstantAssistantRole(instantModel)
-    : chatRoles.assistant;
   const isInConversation =
     currentUid && !isCommandPrompt ? isPromptInConversation(currentUid) : false;
+  const assistantRole =
+    withAssistantRole || isInConversation
+      ? instantModel
+        ? getInstantAssistantRole(instantModel)
+        : chatRoles.assistant
+      : "";
   let targetUid;
+  console.log("currentUid :>> ", currentUid);
+  console.log("target :>> ", target);
+  console.log("selectionUids in getFinalPromptTarget:>> ", selectionUids);
+
   if (
     !currentUid &&
-    selectionUids.length &&
-    (document.querySelector(".block-highlight-blue") ||
-      target === "replace" ||
-      target === "append")
+    selectionUids.length
+    // &&
+    // (document.querySelector(".block-highlight-blue") ||
+    //   target === "replace" ||
+    //   target === "append")
   ) {
     if (target !== "replace" && target !== "append") {
       const lastTopLevelBlock = getLastTopLevelOfSeletion(selectionUids);
@@ -141,7 +154,7 @@ const getFinalPromptAndTarget = async (
     }
     const content = getResolvedContentFromBlocks(
       selectionUids,
-      includeUids,
+      includeUids || target === "replace",
       withHierarchy
     );
 
@@ -159,9 +172,7 @@ const getFinalPromptAndTarget = async (
             isInConversation ? getParentBlock(currentUid) : currentUid,
             assistantRole
           )
-        : await insertBlockInCurrentView(
-            chatRoles.user + " a selection of blocks"
-          );
+        : await insertBlockInCurrentView(assistantRole);
     }
     if (!prompt) prompt = contextAsPrompt;
     console.log("complete prompt :>> ", prompt);
@@ -267,6 +278,7 @@ export const getFocusAndSelection = (currentUid) => {
   let currentBlockContent, position;
   const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
   const selectionUids = getBlocksSelectionUids();
+  console.log("selectionUids in getFocusAndSelection:>> ", selectionUids);
   if (focusedBlock) {
     !currentUid && (currentUid = focusedBlock["block-uid"]);
     currentBlockContent = currentUid

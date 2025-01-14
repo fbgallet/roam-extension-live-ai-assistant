@@ -293,18 +293,23 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
             format,
           });
           if (newChildren)
-            await insertStructuredAIResponse(blockUid, newChildren);
+            await insertStructuredAIResponse({
+              targetUid: blockUid,
+              content: newChildren,
+            });
           break;
         case "append":
           console.log("append! :>> ");
-          await insertStructuredAIResponse(
-            blockUid,
-            sanitizeJSONstring(newContent),
-            false,
-            format
-          );
+          await insertStructuredAIResponse({
+            targetUid: blockUid,
+            content: sanitizeJSONstring(newContent),
+            format,
+          });
           if (newChildren)
-            await insertStructuredAIResponse(blockUid, newChildren);
+            await insertStructuredAIResponse({
+              targetUid: blockUid,
+              content: newChildren,
+            });
           break;
         case "move":
           console.log("move! :>> ");
@@ -330,7 +335,11 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
               format?.heading
             );
             if (newChildren)
-              await insertStructuredAIResponse(newBlockUid, newChildren, true);
+              await insertStructuredAIResponse({
+                targetUid: newBlockUid,
+                content: newChildren,
+                forceInChildren: true,
+              });
           }
           break;
         case "reorder":

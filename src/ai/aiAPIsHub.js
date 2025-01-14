@@ -21,6 +21,7 @@ import {
   isUsingGroqWhisper,
   groqModels,
   maxImagesNb,
+  openRouterModelsInfo,
 } from "..";
 import { AppToaster } from "../components/VoiceRecorder";
 import {
