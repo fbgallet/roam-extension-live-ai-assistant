@@ -258,13 +258,13 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     },
   });
 
-  const openContextMenu = (blockUid, selectionUids) => {
+  const openContextMenu = (blockUid) => {
     setTimeout(() => {
       const centerX = window.innerWidth / 2 - 200;
       const centerY = window.innerHeight / 4;
       window.LiveAI.toggleContextMenu({
         e: { clientX: centerX, clientY: centerY },
-        source: blockUid ? [blockUid] : selectionUids,
+        focusUid: blockUid ? [blockUid] : undefined,
       });
     }, 50);
   };

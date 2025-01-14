@@ -145,8 +145,8 @@ export const aiCompletionRunner = async ({
   const withAssistantRole = target === "new" ? true : false;
 
   let {
-    completedPrompt,
     targetUid,
+    completedPrompt,
     context,
     isInConversation,
     noData,
@@ -156,7 +156,7 @@ export const aiCompletionRunner = async ({
     sourceUid,
     prompt,
     instantModel,
-    includeUids,
+    includeUids || target === "replace" || target === "append",
     true, // withHierarchy
     withAssistantRole,
     target,
@@ -206,8 +206,6 @@ export const insertCompletion = async ({
   lastCompletion.target = target;
   lastCompletion.selectedUids = selectedUids;
 
-  console.log("selectedUids :>> ", selectedUids);
-
   let model = instantModel || defaultModel;
   if (model === "first OpenRouter model") {
     model = openRouterModels.length
@@ -250,8 +248,6 @@ export const insertCompletion = async ({
   if (typeOfCompletion === "SelectionOutline" && !isRedone) {
     prompt = instructionsOnOutline + prompt;
   }
-
-  console.log("assistantRole :>> ", assistantRole);
 
   if (isRedone) {
     if (
@@ -300,7 +296,6 @@ export const insertCompletion = async ({
     target,
   });
   console.log("aiResponse :>> ", aiResponse);
-  console.log("target :>> ", target);
 
   if (isInConversation)
     aiResponse = aiResponse.replace(assistantRole, "").trim();
