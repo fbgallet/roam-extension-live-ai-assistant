@@ -45,17 +45,16 @@ export const getInputDataFromRoamContext = async (
   selectedUids
 ) => {
   const isCommandPrompt = prompt ? true : false;
-  let { currentUid, currentBlockContent, selectionUids } =
-    getFocusAndSelection();
-  if (sourceUid) currentUid = sourceUid;
-  if (selectedUids) {
-    currentUid = null;
-    selectionUids = selectedUids;
+  if (selectedUids && selectedUids.length) sourceUid = undefined;
+  if (!sourceUid && !selectedUids) {
+    let { currentUid, selectionUids } = getFocusAndSelection();
+    sourceUid = currentUid;
+    selectedUids = selectionUids;
   }
+  let currentBlockContent;
+  if (sourceUid) currentBlockContent = getBlockContentByUid(sourceUid);
 
-  if (currentUid) currentBlockContent = getBlockContentByUid(currentUid);
-
-  if (!currentUid && !selectionUids.length && !e) return { noData: true };
+  if (!sourceUid && !selectedUids.length && !e) return { noData: true };
 
   if (currentBlockContent) {
     if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
@@ -65,14 +64,11 @@ export const getInputDataFromRoamContext = async (
       );
     else prompt += currentBlockContent;
   }
-  selectedUids = selectionUids;
-
-  console.log("selectionUids before final prompt :>> ", selectionUids);
 
   let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
     await getFinalPromptAndTarget(
-      currentUid,
-      selectionUids,
+      sourceUid,
+      selectedUids,
       prompt,
       instantModel,
       includeUids,
@@ -85,7 +81,7 @@ export const getInputDataFromRoamContext = async (
   const roamContextFromKeys = e && (await handleModifierKeys(e));
 
   const inlineContext = currentBlockContent
-    ? getRoamContextFromPrompt(getBlockContentByUid(currentUid)) // non resolved content
+    ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
     : null;
   // TO TEST
   if (inlineContext)
@@ -97,14 +93,13 @@ export const getInputDataFromRoamContext = async (
   let context = await getAndNormalizeContext({
     blocksSelectionUids: remaininSelectionUids,
     roamContext: inlineContext?.roamContext || roamContextFromKeys,
-    focusedBlock: currentUid,
+    focusedBlock: sourceUid,
     withHierarchy: true,
   });
 
   console.log("context :>> ", context);
 
   return {
-    currentUid,
     targetUid,
     completedPrompt,
     context,
@@ -114,7 +109,7 @@ export const getInputDataFromRoamContext = async (
 };
 
 const getFinalPromptAndTarget = async (
-  currentUid,
+  sourceUid,
   selectionUids,
   prompt,
   instantModel,
@@ -125,7 +120,7 @@ const getFinalPromptAndTarget = async (
   target
 ) => {
   const isInConversation =
-    currentUid && !isCommandPrompt ? isPromptInConversation(currentUid) : false;
+    sourceUid && !isCommandPrompt ? isPromptInConversation(sourceUid) : false;
   const assistantRole =
     withAssistantRole || isInConversation
       ? instantModel
@@ -133,12 +128,9 @@ const getFinalPromptAndTarget = async (
         : chatRoles.assistant
       : "";
   let targetUid;
-  console.log("currentUid :>> ", currentUid);
-  console.log("target :>> ", target);
-  console.log("selectionUids in getFinalPromptTarget:>> ", selectionUids);
 
   if (
-    !currentUid &&
+    !sourceUid &&
     selectionUids.length
     // &&
     // (document.querySelector(".block-highlight-blue") ||
@@ -154,7 +146,7 @@ const getFinalPromptAndTarget = async (
     }
     const content = getResolvedContentFromBlocks(
       selectionUids,
-      includeUids || target === "replace",
+      includeUids,
       withHierarchy
     );
 
@@ -164,19 +156,19 @@ const getFinalPromptAndTarget = async (
     selectionUids = [];
   } else {
     if (target === "replace" || target === "append") {
-      targetUid = currentUid;
+      targetUid = sourceUid;
       // updateBlock({ blockUid: targetUid, newContent: "" });
     } else {
-      targetUid = currentUid
+      targetUid = sourceUid
         ? await createChildBlock(
-            isInConversation ? getParentBlock(currentUid) : currentUid,
+            isInConversation ? getParentBlock(sourceUid) : sourceUid,
             assistantRole
           )
         : await insertBlockInCurrentView(assistantRole);
     }
     if (!prompt) prompt = contextAsPrompt;
     console.log("complete prompt :>> ", prompt);
-    // prompt = getBlockContentByUid(currentUid) ? "" : contextAsPrompt;
+    // prompt = getBlockContentByUid(sourceUid) ? "" : contextAsPrompt;
   }
   return {
     completedPrompt: prompt,
@@ -278,7 +270,7 @@ export const getFocusAndSelection = (currentUid) => {
   let currentBlockContent, position;
   const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
   const selectionUids = getBlocksSelectionUids();
-  console.log("selectionUids in getFocusAndSelection:>> ", selectionUids);
+
   if (focusedBlock) {
     !currentUid && (currentUid = focusedBlock["block-uid"]);
     currentBlockContent = currentUid

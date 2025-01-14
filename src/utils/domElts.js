@@ -130,10 +130,11 @@ export function removeContainer(position) {
 }
 
 export const displaySpinner = async (targetUid) => {
+  console.log("targetUid :>> ", targetUid);
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
-    if (targetBlockElt.tagName.toLowerCase() === "textarea") {
+    if (targetBlockElt?.tagName.toLowerCase() === "textarea") {
       targetBlockElt = targetBlockElt.parentElement;
     }
     const previousSpinner = targetBlockElt.querySelector(".speech-spinner");

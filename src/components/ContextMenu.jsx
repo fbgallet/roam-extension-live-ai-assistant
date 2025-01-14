@@ -36,7 +36,6 @@ const StandaloneContextMenu = () => {
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [displayModelsMenu, setDisplayModelsMenu] = useState(false);
-  const [blockUid, setBlockUid] = useState(null);
   const [rootUid, setRootUid] = useState(null);
   const [defaultLgg, setDefaultLgg] = useState(
     extensionStorage.get("translationDefaultLgg")
@@ -48,6 +47,7 @@ const StandaloneContextMenu = () => {
   const [style, setStyle] = useState("Normal");
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
+  const blockUid = useRef(null);
   const focusedBlock = useRef(
     window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
   );
@@ -58,17 +58,16 @@ const StandaloneContextMenu = () => {
       e,
       onlyOutliner = false,
       instantModel,
-      blockUid,
+      focusUid,
     }) => {
       setIsOutlinerAgent(onlyOutliner);
       instantModel && setModel(instantModel);
-      blockUid && setBlockUid(blockUid);
       setPosition({
         x: Math.min(e.clientX, window.innerWidth - 200),
         y: Math.min(e.clientY, window.innerHeight - 300),
       });
-      const { selectionUids } = getFocusAndSelection();
-      console.log("selectionUids in ContextMenu :>> ", selectionUids);
+      const { currentUid, selectionUids } = getFocusAndSelection();
+      blockUid.current = focusUid || currentUid;
       selectedBlocks.current = selectionUids;
       setIsOpen(true);
     };
@@ -144,12 +143,15 @@ const StandaloneContextMenu = () => {
     )
       aiCompletionRunner({
         e,
-        blockUid,
+        sourceUid: blockUid.current,
         prompt,
         instantModel: model,
         includeUids: command.includeUids,
         withSuggestions: command.withSuggestions,
-        target: targetBlock === "auto" ? command.target || "new" : targetBlock,
+        target:
+          targetBlock === "auto"
+            ? command.target || "new"
+            : targetBlock || "new",
         selectedUids: selectedBlocks.current,
       });
     else {
