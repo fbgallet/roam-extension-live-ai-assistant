@@ -23,6 +23,8 @@ import {
   getBlockContentByUid,
   getBlocksSelectionUids,
   getLastTopLevelOfSeletion,
+  getMainPageUid,
+  getPageUidByBlockUid,
   getParentBlock,
   getPreviousSiblingBlock,
   getTopOrActiveBlockUid,
@@ -44,7 +46,8 @@ export const getInputDataFromRoamContext = async (
   withHierarchy,
   withAssistantRole,
   target,
-  selectedUids
+  selectedUids,
+  roamContext
 ) => {
   const isCommandPrompt = prompt ? true : false;
   if (selectedUids && selectedUids.length) sourceUid = undefined;
@@ -92,9 +95,28 @@ export const getInputDataFromRoamContext = async (
       inlineContext.updatedPrompt
     );
 
+  const globalContext = {
+    linkedRefs:
+      roamContext?.linkedRefs ||
+      roamContextFromKeys?.linkedRefs ||
+      inlineContext?.roamContext?.linkedRefs,
+    sidebar:
+      roamContext?.sidebar ||
+      roamContextFromKeys?.sidebar ||
+      inlineContext?.roamContext?.sidebar,
+    mainPage:
+      roamContext?.mainPage ||
+      roamContextFromKeys?.mainPage ||
+      inlineContext?.roamContext?.mainPage,
+    logPages:
+      roamContext?.logPages ||
+      roamContextFromKeys?.logPages ||
+      inlineContext?.roamContext?.logPages,
+  };
+
   let context = await getAndNormalizeContext({
     blocksSelectionUids: remaininSelectionUids,
-    roamContext: inlineContext?.roamContext || roamContextFromKeys,
+    roamContext: globalContext,
     focusedBlock: sourceUid,
     withHierarchy: true,
     withUid: includeUids,

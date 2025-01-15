@@ -244,6 +244,7 @@ export const displayTokensDialog = () => {
 };
 
 export const highlightHtmlElt = ({
+  roamElt = undefined,
   selector = undefined,
   eltUid = undefined,
   isFixed = false,
@@ -252,6 +253,24 @@ export const highlightHtmlElt = ({
   onlyChildren = true,
   isToRemove = false,
 }) => {
+  if (roamElt) {
+    switch (roamElt) {
+      case "sidebar":
+        selector = "#roam-right-sidebar-content";
+        break;
+      case "logPages":
+        selector = ".roam-log-container";
+        break;
+      case "pageTitle":
+        selector = ".rm-title-display";
+      case "linkedRefs":
+        selector = ".rm-reference-main";
+        break;
+      case "mainPage":
+        selector = ".roam-article > div:first-child";
+        break;
+    }
+  }
   let elts = [];
   if (!eltUid) elts = [...document.querySelectorAll(selector)];
   else {

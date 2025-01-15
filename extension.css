@@ -248,34 +248,52 @@
   cursor: grabbing;
 }
 
-.aicommands-style {
+.aicommands-style,
+.aicommands-context {
   opacity: 0.6;
-  padding: 5px 0;
+  padding: 10px 0 5px 0;
   display: flex;
-  gap: 5px;
+  gap: 12px;
   align-items: center;
   justify-content: flex-end;
+  font-size: 12px;
+}
+.aicommands-style {
+  gap: 5px;
+  padding-top: 0;
+}
+.aicommands-context {
+  padding-right: 5px;
+}
+.aicommands-context .bp3-control {
+  margin-bottom: 0;
+}
+.aicommands-context .bp3-control.bp3-inline {
+  margin-right: 0px;
+}
+.aicommands-context label {
+  margin-bottom: 0;
+  font-weight: normal;
 }
 .aicommands-style .bp3-icon-pin,
 .aicommands-style .bp3-icon-unpin {
   cursor: pointer !important;
   padding: 5px;
 }
-.aicommands-style select {
+.aicommands-style select,
+.str-aicommands-input select {
+  font-size: 12px;
   text-align: end;
   padding-right: 28px;
+}
+.str-aicommands-input select {
+  opacity: 0.6;
 }
 
 .str-aimodels-menu {
   height: fit-content;
   opacity: 0.6;
   font-size: 12px;
-}
-
-.str-aicommands-input select {
-  opacity: 0.6;
-  text-align: end;
-  padding-right: 28px;
 }
 
 .str-aimodels-menu .bp3-menu-item > div {

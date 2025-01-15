@@ -8,6 +8,7 @@ import {
   HTMLSelect,
   Tooltip,
   Icon,
+  Checkbox,
 } from "@blueprintjs/core";
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -16,6 +17,7 @@ import { defaultModel, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands } from "../ai/prompts";
 import {
+  highlightHtmlElt,
   setAsOutline,
   simulateClick,
   toggleOutlinerSelection,
@@ -25,6 +27,7 @@ import { PREBUILD_COMMANDS } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
 import { getFocusAndSelection } from "../ai/dataExtraction";
+import { isLogView } from "../utils/roamAPI";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
@@ -54,6 +57,12 @@ const StandaloneContextMenu = () => {
     window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
   );
   const selectedBlocks = useRef(null);
+  const [roamContext, setRoamContext] = useState({
+    linkedRefs: false,
+    sidebar: false,
+    mainPage: false,
+    logPages: false,
+  });
 
   useEffect(() => {
     window.LiveAI.toggleContextMenu = ({
@@ -80,6 +89,12 @@ const StandaloneContextMenu = () => {
       setDisplayModelsMenu(false);
       setTargetBlock("auto");
       if (!isPinnedStyle) setStyle("Normal");
+      setRoamContext({
+        linkedRefs: false,
+        sidebar: false,
+        mainPage: false,
+        logPages: false,
+      });
     } else updateMenu();
   }, [isOpen]);
 
@@ -163,6 +178,7 @@ const StandaloneContextMenu = () => {
           command.isIncompatibleWith?.specificStyle.includes(style)
             ? "Normal"
             : style,
+        roamContext,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
@@ -417,6 +433,19 @@ const StandaloneContextMenu = () => {
     );
   };
 
+  const updateContext = (context) => {
+    if (!roamContext[context])
+      highlightHtmlElt({
+        roamElt: context === "logPages" && !isLogView() ? "pageTitle" : context,
+      });
+    setRoamContext((prev) => {
+      const clone = { ...prev };
+      clone[context] = !clone[context];
+      return clone;
+    });
+    inputRef.current.focus();
+  };
+
   return (
     <Popover
       isOpen={isOpen}
@@ -486,6 +515,41 @@ const StandaloneContextMenu = () => {
             />
             {/* <MenuDivider
               title={ */}
+            <div
+              className="aicommands-context"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              Context:{" "}
+              <Checkbox
+                checked={roamContext.mainPage}
+                label="Page"
+                inline={true}
+                onChange={() => updateContext("mainPage")}
+              />
+              {isLogView() ? (
+                <Checkbox
+                  checked={roamContext.logPages}
+                  label="DNPs"
+                  inline={true}
+                  onChange={() => updateContext("logPages")}
+                />
+              ) : (
+                <Checkbox
+                  checked={roamContext.linkedRefs}
+                  label="Linked Refs"
+                  inline={true}
+                  onChange={() => updateContext("linkedRefs")}
+                />
+              )}
+              <Checkbox
+                checked={roamContext.sidebar}
+                label="Sidebar"
+                inline={true}
+                onChange={() => updateContext("sidebar")}
+              />
+            </div>
             <div
               className="aicommands-style"
               onClick={(e) => {
