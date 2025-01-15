@@ -167,7 +167,6 @@ export const aiCompletionRunner = async ({
   );
   if (noData) return;
 
-  console.log("completedPrompt :>> ", completedPrompt);
   if (style !== "Normal") {
     completedPrompt += introduceStylePrompt + stylePrompts[style];
   }

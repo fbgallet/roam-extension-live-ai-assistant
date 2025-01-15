@@ -8,13 +8,22 @@ export const PREBUILD_COMMANDS = [
     category: "",
     onlyOutliner: true,
   },
-  { id: 10, name: "Selected blocks as prompt", category: "", onlyGen: true },
+  {
+    id: 10,
+    name: "Selected blocks as prompt",
+    category: "",
+    includeUids: true,
+    onlyGen: true,
+  },
   {
     id: 11,
     name: "Translate to... (<default>)",
     prompt: "translate",
     category: "TRANSLATION",
     target: "new w/o",
+    isIncompatibleWith: {
+      style: true,
+    },
     submenu: [
       1100, 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111,
       1112, 1113, 1114, 1115, 1116, 1199,
@@ -33,6 +42,10 @@ export const PREBUILD_COMMANDS = [
     name: "Fix spelling & grammar",
     prompt: "correctWording",
     category: "REPHRASING",
+    target: "new w/o",
+    isIncompatibleWith: {
+      style: true,
+    },
     submenu: [1200, 1201, 1202],
   },
   {
@@ -40,6 +53,7 @@ export const PREBUILD_COMMANDS = [
     name: "Fix spelling & grammar + explain",
     prompt: "correctWordingAndExplain",
     category: "REPHRASING",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -50,6 +64,9 @@ export const PREBUILD_COMMANDS = [
     withSuggestions: true,
     target: "replace",
     includeUids: true,
+    isIncompatibleWith: {
+      style: true,
+    },
     isSub: true,
   },
   {
@@ -59,6 +76,10 @@ export const PREBUILD_COMMANDS = [
     category: "REPHRASING",
     withSuggestions: true,
     target: "replace",
+    includeUids: true,
+    isIncompatibleWith: {
+      style: true,
+    },
     isSub: true,
   },
   {
@@ -66,6 +87,7 @@ export const PREBUILD_COMMANDS = [
     name: "Rephrase",
     prompt: "rephrase",
     category: "REPHRASING",
+    target: "new w/o",
     submenu: [1210, 1211, 1212, 1213, 1214, 1215, 1216, 1217],
   },
   {
@@ -73,6 +95,7 @@ export const PREBUILD_COMMANDS = [
     name: "Shorter",
     prompt: "shorten",
     category: "REPHRASING",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -80,6 +103,7 @@ export const PREBUILD_COMMANDS = [
     name: "More accessible",
     prompt: "accessible",
     category: "REPHRASING",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -87,6 +111,7 @@ export const PREBUILD_COMMANDS = [
     name: "Clearer and more explicit",
     prompt: "clearer",
     category: "REPHRASING",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -94,6 +119,7 @@ export const PREBUILD_COMMANDS = [
     name: "More formal",
     prompt: "formal",
     category: "REPHRASING",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -101,6 +127,7 @@ export const PREBUILD_COMMANDS = [
     name: "More casual",
     prompt: "casual",
     category: "REPHRASING",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -109,6 +136,7 @@ export const PREBUILD_COMMANDS = [
     prompt: "enhance",
     category: "REPHRASING",
     keyWords: "enhance, synonym",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -131,6 +159,9 @@ export const PREBUILD_COMMANDS = [
     withSuggestions: true,
     target: "replace",
     includeUids: true,
+    isIncompatibleWith: {
+      style: true,
+    },
     isSub: true,
   },
   {
@@ -138,6 +169,10 @@ export const PREBUILD_COMMANDS = [
     name: "Outline to Paragraph",
     prompt: "linearParagraph",
     category: "REPHRASING",
+    isIncompatibleWith: {
+      specificStyles: ["Atomic"],
+    },
+    target: "new w/o",
     submenu: [1220],
   },
   {
@@ -145,6 +180,10 @@ export const PREBUILD_COMMANDS = [
     name: "Paragraph to Outline",
     prompt: "outline",
     category: "REPHRASING",
+    isIncompatibleWith: {
+      specificStyles: ["No bullet points"],
+    },
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -152,6 +191,7 @@ export const PREBUILD_COMMANDS = [
     name: "Summarize",
     prompt: "summarize",
     category: "REPHRASING",
+    target: "new w/o",
   },
   {
     id: 131,
@@ -165,6 +205,9 @@ export const PREBUILD_COMMANDS = [
     name: "Extract actionable items",
     prompt: "keyInsights",
     category: "EXTRACTING",
+    isIncompatibleWith: {
+      specificStyles: ["Quiz"],
+    },
     includeUids: true,
   },
   {
@@ -172,6 +215,7 @@ export const PREBUILD_COMMANDS = [
     name: "Extract highlighted texts",
     prompt: "extractHighlights",
     category: "EXTRACTING",
+    target: "new w/o",
     includeUids: true,
   },
 
@@ -182,8 +226,10 @@ export const PREBUILD_COMMANDS = [
     prompt: "sentenceCompletion",
     category: "CREATION",
     target: "append",
+    isIncompatibleWith: {
+      specificStyles: ["Atomic", "Quiz"],
+    },
     submenu: [1400],
-    includeUids: true,
   },
   {
     id: 1400,
@@ -191,6 +237,9 @@ export const PREBUILD_COMMANDS = [
     prompt: "paragraphCompletion",
     category: "CREATION",
     target: "append",
+    isIncompatibleWith: {
+      specificStyles: ["Atomic", "Quiz"],
+    },
     isSub: true,
   },
   {
@@ -199,6 +248,10 @@ export const PREBUILD_COMMANDS = [
     prompt: "similarContent",
     category: "CREATION",
     keyWords: "extend, variant, clone",
+    isIncompatibleWith: {
+      style: true,
+    },
+    target: "append",
   },
 
   // CRITICAL REASONING TOOLKIT
@@ -207,7 +260,6 @@ export const PREBUILD_COMMANDS = [
     name: "Argument",
     prompt: "argument",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     submenu: [1511, 1512, 1513],
   },
   {
@@ -216,7 +268,6 @@ export const PREBUILD_COMMANDS = [
     prompt: "consolidate",
     category: "CRITICAL REASONING TOOLKIT",
     keyWords: "argument",
-    includeUids: true,
     isSub: true,
   },
   {
@@ -224,7 +275,6 @@ export const PREBUILD_COMMANDS = [
     name: "Objection, counterargument",
     prompt: "objection",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     isSub: true,
   },
   {
@@ -232,7 +282,6 @@ export const PREBUILD_COMMANDS = [
     name: "Counterexample",
     prompt: "counterExample",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     isSub: true,
   },
   {
@@ -240,7 +289,6 @@ export const PREBUILD_COMMANDS = [
     name: "Explanation",
     prompt: "explanation",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     submenu: [1540, 1541, 1542, 1543],
   },
   {
@@ -249,7 +297,7 @@ export const PREBUILD_COMMANDS = [
     prompt: "meaning",
     category: "CRITICAL REASONING TOOLKIT",
     keyWords: "explanation",
-    includeUids: true,
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -257,7 +305,6 @@ export const PREBUILD_COMMANDS = [
     name: "Example",
     prompt: "example",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     isSub: true,
   },
   {
@@ -265,7 +312,6 @@ export const PREBUILD_COMMANDS = [
     name: "Causal explanation",
     prompt: "causalExplanation",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     isSub: true,
   },
   {
@@ -273,7 +319,6 @@ export const PREBUILD_COMMANDS = [
     name: "Explanation by analogy",
     prompt: "analogicalExplanation",
     category: "CRITICAL REASONING TOOLKIT",
-    includeUids: true,
     isSub: true,
   },
   {
@@ -299,14 +344,18 @@ export const PREBUILD_COMMANDS = [
     name: "Natural language query",
     prompt: "extractHighlights",
     category: "AGENTS",
-    includeUids: true,
+    isIncompatibleWith: {
+      style: true,
+    },
   },
   {
     id: 81,
     name: "Natural language :q Datomic query",
     prompt: "extractHighlights",
     category: "AGENTS",
-    includeUids: true,
+    isIncompatibleWith: {
+      style: true,
+    },
   },
 
   // OUTLINER AGENT COMMANDS
@@ -339,6 +388,9 @@ export const PREBUILD_COMMANDS = [
       prompt: "translate",
       category: "TRANSLATION",
       target: "new w/o",
+      isIncompatibleWith: {
+        style: true,
+      },
       isSub: true,
     };
   })

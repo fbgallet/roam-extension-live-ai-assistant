@@ -201,9 +201,9 @@ const InstantButtons = ({
             <span
               // onKeyDown={handleKeys}
               onClick={() => {
-                console.log("selectedUids :>> ", selectedUids);
                 aiCompletionRunner({
-                  sourceUid: selectedUids ? null : targetUid,
+                  sourceUid:
+                    selectedUids && selectedUids.length ? null : targetUid,
                   prompt: completionCommands["acceptSuggestions"],
                   includeUids: true,
                   target: "replace",

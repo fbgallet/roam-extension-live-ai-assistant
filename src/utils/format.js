@@ -78,6 +78,7 @@ export const parseAndCreateBlocks = async (
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
   let minTitleLevel;
+  let minLevel;
   let updatedMinLevel = false;
   let inCodeBlock = false;
   let codeBlockContent = "";
@@ -120,6 +121,7 @@ export const parseAndCreateBlocks = async (
     }
 
     const { level, titleDegree } = getLevel(line, minTitleLevel);
+    if (!minLevel) minLevel = level;
 
     if (titleDegree !== null) {
       if (!updatedMinLevel) {
@@ -148,7 +150,7 @@ export const parseAndCreateBlocks = async (
     let newBlockRef;
     let heading = titleDegree ? (titleDegree > 3 ? 3 : titleDegree) : undefined;
 
-    if (position === undefined || level > 0) {
+    if (position === undefined || level > minLevel) {
       newBlockRef = await createChildBlock(
         currentParentRef,
         content,
@@ -194,10 +196,12 @@ function getLevel(line, minTitleLevel) {
     return { level, titleDegree };
   }
 
-  if (/^\*?\*?\(?\d+(?:\.|\))/.test(trimmedLine)) level += 1; // Numbers 1. 2. or 1) 2)
-  if (/^\*?\*?[a-z]\)/.test(trimmedLine)) level += 1; // Lettres a) b) etc.
-  if (/^\*?\*?[ivx]+(?:\.|\))/i.test(trimmedLine)) level += 1; // Roman numbers i) ii) or I. II.
-  if (/^\*?\*?(?:-|•)\s?/.test(trimmedLine)) level += 1; // Dash -
+  if (/^\*?\*?\(?\d+(?:\.|\))/.test(trimmedLine))
+    level += 1; // Numbers 1. 2. or 1) 2)
+  else if (/^\*?\*?[a-z]\)/.test(trimmedLine)) level += 1; // Lettres a) b) etc.
+  else if (/^\*?\*?[ivx]+(?:\.|\))/i.test(trimmedLine))
+    level += 1; // Roman numbers i) ii) or I. II.
+  else if (/^\*?\*?(?:-|•)\s?/.test(trimmedLine)) level += 1; // Dash -
 
   return { level, titleDegree };
 }
