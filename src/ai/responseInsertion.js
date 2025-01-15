@@ -144,6 +144,7 @@ export const aiCompletionRunner = async ({
   withSuggestions,
   selectedUids,
   style,
+  roamContext,
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
@@ -163,7 +164,8 @@ export const aiCompletionRunner = async ({
     true, // withHierarchy
     withAssistantRole,
     target,
-    selectedUids
+    selectedUids,
+    roamContext
   );
   if (noData) return;
 
