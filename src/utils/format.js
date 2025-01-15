@@ -148,9 +148,6 @@ export const parseAndCreateBlocks = async (
     let newBlockRef;
     let heading = titleDegree ? (titleDegree > 3 ? 3 : titleDegree) : undefined;
 
-    console.log("position :>> ", position);
-    console.log("currentParentRef :>> ", currentParentRef);
-
     if (position === undefined || level > 0) {
       newBlockRef = await createChildBlock(
         currentParentRef,

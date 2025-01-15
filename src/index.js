@@ -78,7 +78,7 @@ export function setDefaultModel(str) {
   defaultModel = str;
   extensionStorage.set("defaultModel", str);
   chatRoles = getRolesFromString(
-    extensionAPI.settings.get("chatRoles"),
+    extensionStorage.get("chatRoles"),
     defaultModel.includes("first") ? undefined : defaultModel
   );
 }

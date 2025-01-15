@@ -14,6 +14,7 @@ export const PREBUILD_COMMANDS = [
     name: "Translate to... (<default>)",
     prompt: "translate",
     category: "TRANSLATION",
+    target: "new w/o",
     submenu: [
       1100, 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111,
       1112, 1113, 1114, 1115, 1116, 1199,
@@ -24,6 +25,7 @@ export const PREBUILD_COMMANDS = [
     name: "User defined",
     prompt: "translate",
     category: "TRANSLATATION",
+    target: "new w/o",
     isSub: true,
   },
   {
@@ -336,6 +338,7 @@ export const PREBUILD_COMMANDS = [
       label: lgg[1],
       prompt: "translate",
       category: "TRANSLATION",
+      target: "new w/o",
       isSub: true,
     };
   })

@@ -25,6 +25,8 @@ import {
   hierarchicalResponseFormat,
   instructionsOnJSONResponse,
   instructionsOnOutline,
+  introduceStylePrompt,
+  stylePrompts,
 } from "./prompts";
 import { AppToaster } from "../components/VoiceRecorder";
 import {
@@ -141,6 +143,7 @@ export const aiCompletionRunner = async ({
   target,
   withSuggestions,
   selectedUids,
+  style,
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
@@ -163,6 +166,12 @@ export const aiCompletionRunner = async ({
     selectedUids
   );
   if (noData) return;
+
+  console.log("completedPrompt :>> ", completedPrompt);
+  if (style !== "Normal") {
+    completedPrompt += introduceStylePrompt + stylePrompts[style];
+  }
+  console.log("completedPrompt :>> ", completedPrompt);
 
   insertCompletion({
     prompt: completedPrompt,

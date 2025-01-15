@@ -249,10 +249,21 @@
 }
 
 .aicommands-style {
+  opacity: 0.6;
+  padding: 5px 0;
   display: flex;
+  gap: 5px;
   align-items: center;
-  justify-content: space-between;
-  transform: translateX(11px);
+  justify-content: flex-end;
+}
+.aicommands-style .bp3-icon-pin,
+.aicommands-style .bp3-icon-unpin {
+  cursor: pointer !important;
+  padding: 5px;
+}
+.aicommands-style select {
+  text-align: end;
+  padding-right: 28px;
 }
 
 .str-aimodels-menu {
@@ -261,7 +272,8 @@
   font-size: 12px;
 }
 
-.str-aicommands-menu select {
+.str-aicommands-input select {
+  opacity: 0.6;
   text-align: end;
   padding-right: 28px;
 }
@@ -306,7 +318,7 @@
 .str-aicommands-menu .menu-hint div {
   text-align: center;
   line-height: 1.75;
-  margin: 0 0 8px 0;
+  /* margin: 0 0 8px 0; */
 }
 
 .str-aicommands-menu .custom-lgg-menu {
