@@ -46,7 +46,7 @@ export const getInputDataFromRoamContext = async (
 ) => {
   const isCommandPrompt = prompt ? true : false;
   if (selectedUids && selectedUids.length) sourceUid = undefined;
-  if (!sourceUid && !selectedUids) {
+  if (!sourceUid && !selectedUids?.length) {
     let { currentUid, selectionUids } = getFocusAndSelection();
     sourceUid = currentUid;
     selectedUids = selectionUids;

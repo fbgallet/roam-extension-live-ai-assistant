@@ -7,13 +7,18 @@ import {
   Button,
   HTMLSelect,
   Tooltip,
+  Icon,
 } from "@blueprintjs/core";
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { defaultModel, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
-import { completionCommands } from "../ai/prompts";
+import {
+  completionCommands,
+  introduceStylePrompt,
+  stylePrompts,
+} from "../ai/prompts";
 import {
   setAsOutline,
   simulateClick,
@@ -45,6 +50,7 @@ const StandaloneContextMenu = () => {
   );
   const [targetBlock, setTargetBlock] = useState("auto");
   const [style, setStyle] = useState("Normal");
+  const [isPinnedStyle, setIsPinnedStyle] = useState(false);
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const blockUid = useRef(null);
@@ -74,8 +80,11 @@ const StandaloneContextMenu = () => {
   }, []);
 
   useEffect(() => {
-    if (!isOpen) setDisplayModelsMenu(false);
-    else updateMenu();
+    if (!isOpen) {
+      setDisplayModelsMenu(false);
+      setTargetBlock("auto");
+      if (!isPinnedStyle) setStyle("Normal");
+    } else updateMenu();
   }, [isOpen]);
 
   useEffect(() => {
@@ -153,6 +162,7 @@ const StandaloneContextMenu = () => {
             ? command.target || "new"
             : targetBlock || "new",
         selectedUids: selectedBlocks.current,
+        style,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
@@ -474,28 +484,46 @@ const StandaloneContextMenu = () => {
                 </div>
               }
             />
-            <MenuDivider
-              title={
-                <div className="aicommands-style">
-                  Style{" "}
-                  <HTMLSelect
-                    options={[
-                      "Normal",
-                      "Concise",
-                      "Detailed",
-                      "No bullet points",
-                      "Socratic",
-                    ]}
-                    minimal={true}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                    onChange={(e) => setStyle(e.currentTarget.value)}
-                    value={style}
-                  />
-                </div>
-              }
-            ></MenuDivider>
+            {/* <MenuDivider
+              title={ */}
+            <div
+              className="aicommands-style"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              Style{" "}
+              <Icon
+                icon={isPinnedStyle ? "unpin" : "pin"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPinnedStyle((prev) => !prev);
+                }}
+                intent={isPinnedStyle ? "primary" : "none"}
+              />
+              <HTMLSelect
+                options={[
+                  "Normal",
+                  "Concise",
+                  "Conversational",
+                  "No bullet points",
+                  "Atomic",
+                  "Quiz",
+                  "Socratic",
+                ]}
+                minimal={true}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                onChange={(e) => {
+                  setStyle(e.currentTarget.value);
+                  inputRef.current.focus();
+                }}
+                value={style}
+              />
+            </div>
+            {/* }
+            ></MenuDivider> */}
             <Suggest
               popoverRef={popoverRef}
               fill={true}
@@ -511,6 +539,7 @@ const StandaloneContextMenu = () => {
                 setIsOpen(false);
               }}
               inputProps={{
+                className: "str-aicommands-input",
                 placeholder: "Live AI command...",
                 inputRef: inputRef,
                 fill: true,
@@ -536,7 +565,10 @@ const StandaloneContextMenu = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                       }}
-                      onChange={(e) => setTargetBlock(e.currentTarget.value)}
+                      onChange={(e) => {
+                        setTargetBlock(e.currentTarget.value);
+                        inputRef.current.focus();
+                      }}
                       value={targetBlock}
                     />
                   </Tooltip>
