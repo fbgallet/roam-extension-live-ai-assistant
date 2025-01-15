@@ -25,6 +25,7 @@ import {
   getLastTopLevelOfSeletion,
   getParentBlock,
   getPreviousSiblingBlock,
+  getTopOrActiveBlockUid,
   getTreeByUid,
   insertBlockInCurrentView,
   isCurrentPageDNP,
@@ -32,13 +33,14 @@ import {
   resolveReferences,
 } from "../utils/roamAPI";
 import { contextAsPrompt } from "./prompts";
+import { faArrowRightArrowLeft } from "@fortawesome/free-solid-svg-icons";
 
 export const getInputDataFromRoamContext = async (
   e,
   sourceUid,
   prompt,
   instantModel,
-  includeUids,
+  includeUids = false,
   withHierarchy,
   withAssistantRole,
   target,
@@ -95,7 +97,15 @@ export const getInputDataFromRoamContext = async (
     roamContext: inlineContext?.roamContext || roamContextFromKeys,
     focusedBlock: sourceUid,
     withHierarchy: true,
+    withUid: includeUids,
   });
+
+  if (completedPrompt.includes("<REPLACE BY TARGET CONTENT>") && context) {
+    completedPrompt = completedPrompt.replace(
+      "<REPLACE BY TARGET CONTENT>",
+      context
+    );
+  }
 
   console.log("context :>> ", context);
 
@@ -139,7 +149,12 @@ const getFinalPromptAndTarget = async (
   ) {
     if (target !== "replace" && target !== "append") {
       const lastTopLevelBlock = getLastTopLevelOfSeletion(selectionUids);
-      targetUid = await createSiblingBlock(lastTopLevelBlock);
+      const topLevelInView =
+        await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+      // can't create sibling if top parent block is top block in view
+      if (lastTopLevelBlock === topLevelInView)
+        targetUid = await createChildBlock(topLevelInView);
+      else targetUid = await createSiblingBlock(lastTopLevelBlock);
       await addContentToBlock(targetUid, assistantRole);
     } else {
       targetUid = selectionUids[0];
@@ -157,7 +172,6 @@ const getFinalPromptAndTarget = async (
   } else {
     if (target === "replace" || target === "append") {
       targetUid = sourceUid;
-      // updateBlock({ blockUid: targetUid, newContent: "" });
     } else {
       targetUid = sourceUid
         ? await createChildBlock(
@@ -167,7 +181,6 @@ const getFinalPromptAndTarget = async (
         : await insertBlockInCurrentView(assistantRole);
     }
     if (!prompt) prompt = contextAsPrompt;
-    console.log("complete prompt :>> ", prompt);
     // prompt = getBlockContentByUid(sourceUid) ? "" : contextAsPrompt;
   }
   return {
@@ -314,8 +327,7 @@ export const getResolvedContentFromBlocks = (
         parents.push(directParent);
         level += parents.length;
       }
-      let hierarchyShift =
-        withHierarchy && level > 0 ? getNChar(" ", level - 1) + "- " : "";
+      let hierarchyShift = withHierarchy ? getNChar(" ", level) + "- " : "";
       let resolvedContent = resolveReferences(getBlockContentByUid(uid));
       content +=
         (index > 0 ? "\n" : "") +
@@ -398,6 +410,7 @@ export const getAndNormalizeContext = async ({
   maxUid = null,
   uidToExclude,
   withHierarchy = false,
+  withUid = true,
 }) => {
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
@@ -423,7 +436,13 @@ export const getAndNormalizeContext = async ({
       blockUids.forEach(
         (uid) =>
           (context +=
-            "\n\n" + getFlattenedContentFromTree(uid, maxDepth, maxUid, true))
+            "\n\n" +
+            getFlattenedContentFromTree({
+              parentUid: uid,
+              maxCapturing: maxDepth || 99,
+              maxUid: withUid && 99,
+              withDash: withHierarchy,
+            }))
       );
     }
     if (roamContext.page) {
@@ -440,7 +459,15 @@ export const getAndNormalizeContext = async ({
         ];
       }
       pageUids.forEach(
-        (uid) => (context += "\n\n" + getFlattenedContentFromTree(uid))
+        (uid) =>
+          (context +=
+            "\n\n" +
+            getFlattenedContentFromTree({
+              parentUid: uid,
+              maxCapturing: maxDepth || 99,
+              maxUid: withUid && 99,
+              withDash: withHierarchy,
+            }))
       );
     }
     if (roamContext.linkedRefs) {
@@ -484,19 +511,19 @@ export const getAndNormalizeContext = async ({
     }
     if (roamContext.sidebar) {
       highlightHtmlElt({ selector: "#roam-right-sidebar-content" });
-      context += getFlattenedContentFromSidebar(uidToExclude);
+      context += getFlattenedContentFromSidebar(uidToExclude, withUid);
     }
   }
 
   return context.trim();
 };
 
-export const getFlattenedContentFromTree = (
+export const getFlattenedContentFromTree = ({
   parentUid,
   maxCapturing,
   maxUid,
-  withDash = false
-) => {
+  withDash = false,
+}) => {
   let flattenedBlocks = "";
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
@@ -544,7 +571,7 @@ export const getFlattenedContentFromLinkedReferences = (
   return flattenedRefsString;
 };
 
-export function getFlattenedContentFromSidebar(uidToExclude) {
+export function getFlattenedContentFromSidebar(uidToExclude, withUid = true) {
   let sidebarNodes = window.roamAlphaAPI.ui.rightSidebar.getWindows();
   let flattednedBlocks = "\n";
   sidebarNodes.forEach((node, index) => {
@@ -558,11 +585,12 @@ export function getFlattenedContentFromSidebar(uidToExclude) {
     }
     if (uid !== "" && uid !== uidToExclude) {
       if (node.type !== "mentions")
-        flattednedBlocks += getFlattenedContentFromTree(
-          uid,
-          maxCapturingDepth.page,
-          maxUidDepth.page
-        );
+        flattednedBlocks += getFlattenedContentFromTree({
+          parentUid: uid,
+          maxCapturing: maxCapturingDepth.page,
+          maxUid: withUid && maxUidDepth.page,
+          withDash: true,
+        });
       else {
         flattednedBlocks += getFlattenedContentFromLinkedReferences(uid);
       }
@@ -585,43 +613,17 @@ export const getFlattenedContentFromLog = (
   let tokens = 0;
   let date = startDate || getYesterdayDate();
 
-  // In the absence of using a tokenizer,
-  // a very approximate lower limit would be 3 tokens per character
-  // while (
-  //   flattenedBlocks.length < tokensLimit[model] * 3 &&
-  //   (!nbOfDays || processedDays < nbOfDays)
-  // ) {
-  //   let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
-  //   let dayContent = getFlattenedContentFromTree(
-  //     dnpUid,
-  //     maxCapturingDepth.dnp,
-  //     maxUidDepth.dnp
-  //   );
-  //   if (dayContent.length > 0) {
-  //     let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
-  //     flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
-  //     if (flattenedBlocks.length > tokensLimit[model] * 3) {
-  //       flattenedBlocks = flattenedBlocks.slice(
-  //         0,
-  //         -(dayContent.length + dayTitle.length + 4)
-  //       );
-  //     }
-  //   }
-  //   processedDays++;
-  //   date = getYesterdayDate(date);
-  // }
-
   // **** Version using tokenizer from js-tiktoken
   while (
     tokens < tokensLimit[model] &&
     (!nbOfDays || processedDays < nbOfDays)
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
-    let dayContent = getFlattenedContentFromTree(
-      dnpUid,
-      maxDepth || maxCapturingDepth.dnp,
-      maxUid || maxUidDepth.dnp
-    );
+    let dayContent = getFlattenedContentFromTree({
+      parentUid: dnpUid,
+      maxCapturing: maxDepth || maxCapturingDepth.dnp,
+      maxUid: maxUid || maxUidDepth.dnp,
+    });
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
@@ -787,11 +789,12 @@ export const getConversationArray = (parentUid) => {
     );
     for (let i = 0; i < orderedChildrenTree.length - 1; i++) {
       const child = orderedChildrenTree[i];
-      let turnFlattenedContent = getFlattenedContentFromTree(
-        child.uid,
-        99,
-        null
-      );
+      let turnFlattenedContent = getFlattenedContentFromTree({
+        parentUid: child.uid,
+        maxCapturing: 99,
+        maxUid: null,
+        withDash: true,
+      });
       if (chatRoles.genericAssistantRegex.test(getBlockContentByUid(child.uid)))
         conversation.push({ role: "assistant", content: turnFlattenedContent });
       else conversation.push({ role: "user", content: turnFlattenedContent });
@@ -841,7 +844,10 @@ export const getContextFromSbCommand = async (
       const matchingName = context.trim().match(pageRegex);
       const pageName = matchingName[0].slice(2, -2);
       const pageUid = getPageUidByPageName(pageName);
-      context = getFlattenedContentFromTree(pageUid);
+      context = getFlattenedContentFromTree({
+        parentUid: pageUid,
+        withDash: true,
+      });
       context +=
         "\n\n" +
         getFlattenedContentFromLinkedReferences(
@@ -852,12 +858,12 @@ export const getContextFromSbCommand = async (
     } else {
       const contextUid = extractNormalizedUidFromRef(context.trim());
       if (contextUid) {
-        context = getFlattenedContentFromTree(
-          contextUid,
-          99,
-          includeRefs === "true" ? contextDepth || undefined : 0,
-          true // always insert a dash at the beginning of a line to mimick block structure
-        );
+        context = getFlattenedContentFromTree({
+          parentUid: contextUid,
+          maxCapturing: 99,
+          maxUid: includeRefs === "true" ? contextDepth || undefined : 0,
+          withDash: true, // always insert a dash at the beginning of a line to mimick block structure
+        });
       } else context = resolveReferences(context);
       if (selectedUids && selectedUids.length > 0)
         context +=

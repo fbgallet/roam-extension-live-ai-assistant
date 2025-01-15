@@ -14,11 +14,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { defaultModel, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
-import {
-  completionCommands,
-  introduceStylePrompt,
-  stylePrompts,
-} from "../ai/prompts";
+import { completionCommands } from "../ai/prompts";
 import {
   setAsOutline,
   simulateClick,
@@ -162,7 +158,11 @@ const StandaloneContextMenu = () => {
             ? command.target || "new"
             : targetBlock || "new",
         selectedUids: selectedBlocks.current,
-        style,
+        style:
+          command.isIncompatibleWith?.style ||
+          command.isIncompatibleWith?.specificStyle.includes(style)
+            ? "Normal"
+            : style,
       });
     else {
       if (command.id === 20) handleOutlineSelection();

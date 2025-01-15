@@ -342,7 +342,8 @@ export const getBlocksSelectionUids = (reverse) => {
     blueSelection.forEach((node) => {
       let inputBlock = node.querySelector(".rm-block__input");
       if (!inputBlock) return;
-      selectedBlocksUids.push(inputBlock.id.slice(-9));
+      const uid = inputBlock.id.slice(-9);
+      if (!selectedBlocksUids.includes(uid)) selectedBlocksUids.push(uid);
     });
   } else if (checkSelection.length !== 0) {
     selectedBlocksUids = checkSelection;
