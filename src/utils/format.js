@@ -121,7 +121,8 @@ export const parseAndCreateBlocks = async (
     }
 
     const { level, titleDegree } = getLevel(line, minTitleLevel);
-    if (!minLevel) minLevel = level;
+
+    if (minLevel === undefined) minLevel = level;
 
     if (titleDegree !== null) {
       if (!updatedMinLevel) {
