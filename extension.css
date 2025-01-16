@@ -290,6 +290,14 @@
   opacity: 0.6;
 }
 
+.str-aicommands-additional {
+  margin-top: 10px;
+}
+.str-aicommands-additional textarea {
+  scrollbar-width: 5px;
+  max-height: 32vh;
+}
+
 .str-aimodels-menu {
   height: fit-content;
   opacity: 0.6;

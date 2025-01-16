@@ -9,6 +9,7 @@ import {
   Tooltip,
   Icon,
   Checkbox,
+  TextArea,
 } from "@blueprintjs/core";
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -36,10 +37,12 @@ const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(PREBUILD_COMMANDS);
+  const [activeCommand, setActiveCommand] = useState();
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [displayModelsMenu, setDisplayModelsMenu] = useState(false);
+  const [displayAddPrompt, setDisplayAddPrompt] = useState(false);
   const [rootUid, setRootUid] = useState(null);
   const [defaultLgg, setDefaultLgg] = useState(
     extensionStorage.get("translationDefaultLgg")
@@ -50,6 +53,7 @@ const StandaloneContextMenu = () => {
   const [targetBlock, setTargetBlock] = useState("auto");
   const [style, setStyle] = useState("Normal");
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
+  const [additionalPrompt, setAdditionalPrompt] = useState("");
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const blockUid = useRef(null);
@@ -157,6 +161,9 @@ const StandaloneContextMenu = () => {
       prompt = prompt.replace("<language>", selectedLgg);
     }
 
+    if (additionalPrompt)
+      prompt += "\n\nIMPORTANT additional instructions:\n" + additionalPrompt;
+
     if (
       !command.onlyOutliner &&
       (!isOutlinerAgent || (!rootUid && command.id !== 20))
@@ -191,8 +198,8 @@ const StandaloneContextMenu = () => {
       e.preventDefault();
       e.stopPropagation();
       setPosition({
-        x: Math.min(e.clientX - 115, window.innerWidth - 200),
-        y: Math.min(e.clientY - 50, window.innerHeight - 300),
+        x: Math.min(e.clientX - 140, window.innerWidth - 200),
+        y: Math.min(e.clientY - 140, window.innerHeight - 300),
       });
       const isOutlineHighlighted = document.querySelector(
         ".fixed-highlight-elt-blue"
@@ -260,7 +267,7 @@ const StandaloneContextMenu = () => {
   };
 
   const filterCommands = (query, item) => {
-    if (item.id === 0 || item.id === 2) return false;
+    if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
     if (!query) {
       if (item.id === 10 && rootUid) return false;
       // TODO : display if the current outline is not visible...
@@ -273,7 +280,11 @@ const StandaloneContextMenu = () => {
         return false;
       return item.isSub ? false : true;
     }
-    if (query.length === 10 && item.isSub) return false;
+    if (additionalPrompt) {
+      if (item.id === 0 && !isOutlinerAgent) return true;
+      if (item.id === 2 && isOutlinerAgent) return true;
+    }
+    // if (query.length === 10 && item.isSub) return false;
     const normalizedQuery = query.toLowerCase();
     // console.log("normalizedQuery :>> ", normalizedQuery);
     return (
@@ -297,23 +308,37 @@ const StandaloneContextMenu = () => {
         icon={command.icon}
         text={command.name}
         label={command.label}
-        active={modifiers.active || command.id === 0}
+        active={
+          activeCommand === command.id ||
+          (activeCommand === undefined && modifiers.active)
+        }
+        aria-haspopup={true}
         tabindex="0"
         onClick={(e) => {
           handleClickOnCommand({
             e,
             command,
-            prompt: command.id === 0 && command.prompt,
+            prompt:
+              command.id === 0 || command.id === 2
+                ? additionalPrompt || command.prompt
+                : "",
           });
         }}
         onSelect={(e) => console.log("Select")}
         onContextMenu={(e) => {
           e.preventDefault();
           command.id !== 20 ? setDisplayModelsMenu(true) : null;
+          setActiveCommand(command.id);
         }}
       >
-        {command.submenu && !query
-          ? command.submenu.map((sub) => {
+        {command.submenu && !query ? (
+          <>
+            {displayModelsMenu && (
+              <MenuItem text={`Model for ${command.name}`}>
+                {insertModelsMenu(handleClickOnCommand, command)}
+              </MenuItem>
+            )}
+            {command.submenu.map((sub) => {
               const subCommand = commands.find((item) => item.id === sub);
               return subCommand.id === 1199 ? (
                 customLggMenuItem(subCommand)
@@ -330,13 +355,17 @@ const StandaloneContextMenu = () => {
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setDisplayModelsMenu(true);
+                    setActiveCommand(subCommand.id);
                   }}
                 >
                   {insertModelsMenu(handleClickOnCommand, command)}
                 </MenuItem>
               );
-            })
-          : insertModelsMenu(handleClickOnCommand, command)}
+            })}
+          </>
+        ) : (
+          insertModelsMenu(handleClickOnCommand, command)
+        )}
       </MenuItem>
     );
   };
@@ -444,6 +473,14 @@ const StandaloneContextMenu = () => {
       return clone;
     });
     inputRef.current.focus();
+  };
+
+  const handleAddPrompt = (e) => {
+    e.stopPropagation();
+    setDisplayAddPrompt((prev) => {
+      if (prev && additionalPrompt) setAdditionalPrompt("");
+      return !prev;
+    });
   };
 
   return (
@@ -595,6 +632,7 @@ const StandaloneContextMenu = () => {
               itemListRenderer={groupedItemRenderer}
               itemRenderer={renderCommand}
               itemPredicate={filterCommands}
+              scrollToActiveItem={true}
               onClick={(e) => {
                 e.stopPropagation();
               }}
@@ -607,7 +645,13 @@ const StandaloneContextMenu = () => {
                 placeholder: "Live AI command...",
                 inputRef: inputRef,
                 fill: true,
-                leftIcon: "filter-list",
+                leftElement: (
+                  <Icon
+                    icon={displayAddPrompt ? "minus" : "add"}
+                    onClick={(e) => handleAddPrompt(e)}
+                  />
+                ),
+                // leftIcon: "filter-list",
                 onClick: (e) => e.stopPropagation(),
                 onKeyPress: (e) => {
                   e.stopPropagation();
@@ -645,6 +689,30 @@ const StandaloneContextMenu = () => {
               }}
               inputValueRenderer={(item) => item.label}
             />
+            {displayAddPrompt && (
+              <div
+                className="str-aicommands-additional"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <TextArea
+                  // autoResize={true}
+                  growVertically={true}
+                  fill={true}
+                  small={true}
+                  placeholder="Enter additional prompt to selected command..."
+                  value={additionalPrompt}
+                  onChange={(e) => {
+                    setAdditionalPrompt(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.code === "Escape" || e.code === "Tab") {
+                      e.preventDefault();
+                      inputRef.current.focus();
+                    }
+                  }}
+                />
+              </div>
+            )}
           </Menu>
         </div>
       )}
