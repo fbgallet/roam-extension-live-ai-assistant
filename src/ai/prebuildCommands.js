@@ -1,6 +1,6 @@
 import { languages } from "./languagesSupport";
 
-export const PREBUILD_COMMANDS = [
+export const BUILTIN_COMMANDS = [
   { id: 0, name: "Use this custom prompt", category: "", onlyGen: true },
   {
     id: 2,
