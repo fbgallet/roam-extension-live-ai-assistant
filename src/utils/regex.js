@@ -10,3 +10,4 @@ export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
 export const sbParamRegex = /^\{.*\}$/;
+export const builtInPromptRegex = /<built-in:([^>:]+)(?::([^>:]+))?>/i;

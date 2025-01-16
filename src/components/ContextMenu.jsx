@@ -27,8 +27,13 @@ import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 import { PREBUILD_COMMANDS } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
-import { getFocusAndSelection } from "../ai/dataExtraction";
-import { isLogView } from "../utils/roamAPI";
+import {
+  getCustomPromptByUid,
+  getFlattenedContentFromTree,
+  getFocusAndSelection,
+  getResolvedContentFromBlocks,
+} from "../ai/dataExtraction";
+import { getBlocksMentioningTitle, isLogView } from "../utils/roamAPI";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
@@ -37,6 +42,7 @@ const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(PREBUILD_COMMANDS);
+  const [userCommands, setUserCommands] = useState([]);
   const [activeCommand, setActiveCommand] = useState();
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [model, setModel] = useState(null);
@@ -86,10 +92,12 @@ const StandaloneContextMenu = () => {
       selectedBlocks.current = selectionUids;
       setIsOpen(true);
     };
+    updateUserCommands();
   }, []);
 
   useEffect(() => {
     if (!isOpen) {
+      blockUid.current = null;
       setDisplayModelsMenu(false);
       setTargetBlock("auto");
       if (!isPinnedStyle) setStyle("Normal");
@@ -143,9 +151,44 @@ const StandaloneContextMenu = () => {
     }
   };
 
+  const updateUserCommands = () => {
+    const userCommandsUids = getBlocksMentioningTitle("liveai/prompt");
+    let userCmds =
+      userCommandsUids &&
+      userCommandsUids
+        .map((cmd) => {
+          return {
+            uid: cmd.uid,
+            content: cmd.content
+              .replace(/\#?\[?\[?liveai\/prompt\]?\]?/i, "")
+              .trim(),
+          };
+        })
+        .sort((a, b) =>
+          a.content?.localeCompare(b.content, undefined, {
+            sensitivity: "base",
+            ignorePunctuation: true,
+          })
+        )
+        .map((cmd, index) => {
+          return {
+            id: 3000 + index,
+            name: cmd.content,
+            category: "CUSTOM PROMPTS",
+            keyWords: "user",
+            prompt: cmd.uid,
+          };
+        });
+    console.log("Live AI user prompts :>> ", userCmds);
+    setUserCommands(userCmds);
+  };
+
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
-    if (!prompt) {
+    if (!prompt && command.category !== "CUSTOM PROMPTS") {
       prompt = command.prompt ? completionCommands[command.prompt] : "";
+    }
+    if (command.category === "CUSTOM PROMPTS") {
+      prompt = getCustomPromptByUid(command.prompt);
     }
     if (command.id === 11 || Math.floor(command.id / 100) === 11) {
       const selectedLgg =
@@ -540,6 +583,25 @@ const StandaloneContextMenu = () => {
               e.stopPropagation();
             }}
           >
+            <div className="aicommands-topbar">
+              <Icon
+                icon="help"
+                size={12}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              />
+              <Icon
+                icon="reset"
+                size={10}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateUserCommands(true);
+                  inputRef.current.focus();
+                }}
+              />
+              <Icon icon="cross" size={12} onClick={() => setIsOpen(false)} />
+            </div>
             <MenuDivider
               className="menu-hint"
               title={
@@ -628,7 +690,7 @@ const StandaloneContextMenu = () => {
             <Suggest
               popoverRef={popoverRef}
               fill={true}
-              items={commands}
+              items={userCommands ? commands.concat(userCommands) : commands}
               itemListRenderer={groupedItemRenderer}
               itemRenderer={renderCommand}
               itemPredicate={filterCommands}
@@ -699,7 +761,7 @@ const StandaloneContextMenu = () => {
                   growVertically={true}
                   fill={true}
                   small={true}
-                  placeholder="Enter additional prompt to selected command..."
+                  placeholder="Write additional instructions to selected command..."
                   value={additionalPrompt}
                   onChange={(e) => {
                     setAdditionalPrompt(e.target.value);

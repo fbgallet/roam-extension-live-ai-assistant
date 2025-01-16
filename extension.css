@@ -238,6 +238,22 @@
   min-width: 250px;
   width: auto;
 }
+.aicommands-div > .str-aicommands-menu {
+  padding: 10px;
+}
+
+.aicommands-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-right: 5px;
+  margin-bottom: -5px;
+  opacity: 0.6;
+}
+.aicommands-topbar {
+  cursor: pointer;
+}
 
 .aicommands-div > ul,
 .aicommands-div > ul > li {
@@ -323,6 +339,7 @@
 }
 .str-aicommands-menu .bp3-input-group .bp3-icon {
   opacity: 0.6;
+  cursor: pointer;
 }
 
 .str-aimodels-menu li a:focus,

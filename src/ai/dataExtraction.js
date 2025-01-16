@@ -10,6 +10,7 @@ import {
 } from "..";
 import { highlightHtmlElt } from "../utils/domElts";
 import {
+  builtInPromptRegex,
   contextRegex,
   numbersRegex,
   pageRegex,
@@ -34,8 +35,13 @@ import {
   isLogView,
   resolveReferences,
 } from "../utils/roamAPI";
-import { contextAsPrompt } from "./prompts";
+import {
+  completionCommands,
+  contextAsPrompt,
+  instructionsOnTemplateProcessing,
+} from "./prompts";
 import { faArrowRightArrowLeft } from "@fortawesome/free-solid-svg-icons";
+import { PREBUILD_COMMANDS } from "./prebuildCommands";
 
 export const getInputDataFromRoamContext = async (
   e,
@@ -62,11 +68,8 @@ export const getInputDataFromRoamContext = async (
   if (!sourceUid && !selectedUids.length && !e) return { noData: true };
 
   if (currentBlockContent) {
-    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
-      prompt = prompt.replace(
-        "<REPLACE BY TARGET CONTENT>",
-        currentBlockContent
-      );
+    if (prompt.toLowerCase().includes("<target content>"))
+      prompt = prompt.replace(/<target content>/i, currentBlockContent);
     else prompt += currentBlockContent;
   }
 
@@ -122,11 +125,8 @@ export const getInputDataFromRoamContext = async (
     withUid: includeUids,
   });
 
-  if (completedPrompt.includes("<REPLACE BY TARGET CONTENT>") && context) {
-    completedPrompt = completedPrompt.replace(
-      "<REPLACE BY TARGET CONTENT>",
-      context
-    );
+  if (completedPrompt.toLowerCase().includes("<target content>") && context) {
+    completedPrompt = completedPrompt.replace(/<target content>/i, context);
   }
 
   console.log("context :>> ", context);
@@ -187,8 +187,8 @@ const getFinalPromptAndTarget = async (
       withHierarchy
     );
 
-    if (prompt.includes("<REPLACE BY TARGET CONTENT>"))
-      prompt = prompt.replace("<REPLACE BY TARGET CONTENT>", content);
+    if (prompt.toLowerCase().includes("<target content>"))
+      prompt = prompt.replace(/<target content>/i, content);
     else prompt += content;
     selectionUids = [];
   } else {
@@ -236,6 +236,9 @@ export const handleModifierKeys = async (e) => {
 };
 
 export const isPromptInConversation = (promptUid) => {
+  const directParentUid = getParentBlock(promptUid);
+  // If current is at top level, it's not in a conversation
+  if (directParentUid === getPageUidByBlockUid(promptUid)) return false;
   const previousSiblingUid = getPreviousSiblingBlock(promptUid);
   const isInConversation =
     previousSiblingUid &&
@@ -545,13 +548,14 @@ export const getFlattenedContentFromTree = ({
   maxCapturing,
   maxUid,
   withDash = false,
+  isParentToIgnore = false,
 }) => {
   let flattenedBlocks = "";
   if (parentUid) {
     let tree = getTreeByUid(parentUid);
     if (tree) {
       let { linearArray } = convertTreeToLinearArray(
-        tree,
+        isParentToIgnore ? tree[0].children : tree,
         maxCapturing,
         maxUid,
         withDash
@@ -897,4 +901,37 @@ export const getContextFromSbCommand = async (
     }
   }
   return context;
+};
+
+export const getCustomPromptByUid = (uid) => {
+  let prompt =
+    getFlattenedContentFromTree({
+      parentUid: uid,
+      maxCapturing: 99,
+      maxUid: 0,
+      withDash: true,
+      isParentToIgnore: true,
+    }) + "\n";
+  if (prompt.toLowerCase().includes("<built-in:")) {
+    let matchingPrompt = prompt.match(builtInPromptRegex);
+    if (matchingPrompt) {
+      const builtInName = matchingPrompt[1].trim().toLowerCase();
+      let secondParam;
+      if (matchingPrompt.length > 2) secondParam = matchingPrompt[2];
+      const builtInCommand = PREBUILD_COMMANDS.find(
+        (cmd) =>
+          cmd.name.toLowerCase() === builtInName ||
+          cmd.prompt?.toLowerCase() === builtInName
+      );
+      if (builtInCommand) {
+        prompt = prompt.replace(
+          matchingPrompt[0],
+          completionCommands[builtInCommand.prompt]
+        );
+        if (builtInCommand === "translate" && secondParam)
+          prompt = prompt.replace("<language>", secondParam);
+      }
+    }
+  }
+  return prompt;
 };

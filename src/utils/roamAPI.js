@@ -59,6 +59,19 @@ export function getBlockContentByUid(uid) {
   else return "";
 }
 
+export function getBlocksMentioningTitle(title) {
+  let result = window.roamAlphaAPI.q(`[:find ?block-uid ?block-string
+    :where 
+    [?page :node/title "${title}"]
+    [?block :block/refs ?page]
+    [?block :block/uid ?block-uid]
+    [?block :block/string ?block-string]]`);
+  if (!result.length) return null;
+  return result.map((block) => {
+    return { uid: block[0], content: block[1] };
+  });
+}
+
 export function isExistingBlock(uid) {
   let result = window.roamAlphaAPI.pull("[:block/uid]", [":block/uid", uid]);
   if (result) return true;

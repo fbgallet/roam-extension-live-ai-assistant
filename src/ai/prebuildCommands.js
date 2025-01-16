@@ -375,10 +375,6 @@ export const PREBUILD_COMMANDS = [
     category: "",
     onlyOutliner: true,
   },
-  // USER commands ?
-  { id: 8, name: "Convert", prompt: "", category: "user" },
-  { id: 9, name: "My command", prompt: "", category: "user" },
-  // ... autres commandes
 ].concat(
   languages.map((lgg, index) => {
     return {
