@@ -16,7 +16,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { defaultModel, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
-import { completionCommands } from "../ai/prompts";
+import { completionCommands, stylePrompts } from "../ai/prompts";
 import {
   highlightHtmlElt,
   setAsOutline,
@@ -24,24 +24,35 @@ import {
   toggleOutlinerSelection,
 } from "../utils/domElts";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
-import { PREBUILD_COMMANDS } from "../ai/prebuildCommands";
+import { BUILTIN_COMMANDS } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
 import {
   getCustomPromptByUid,
   getFlattenedContentFromTree,
   getFocusAndSelection,
+  getOrderedCustomPromptBlocks,
   getResolvedContentFromBlocks,
 } from "../ai/dataExtraction";
 import { getBlocksMentioningTitle, isLogView } from "../utils/roamAPI";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
+export const BUILTIN_STYLES = [
+  "Normal",
+  "Concise",
+  "Conversational",
+  "No bullet points",
+  "Atomic",
+  "Quiz",
+  "Socratic",
+];
+export let customStyles;
 
 const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [commands, setCommands] = useState(PREBUILD_COMMANDS);
+  const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
   const [activeCommand, setActiveCommand] = useState();
   const [selectedCommand, setSelectedCommand] = useState(null);
@@ -58,6 +69,8 @@ const StandaloneContextMenu = () => {
   );
   const [targetBlock, setTargetBlock] = useState("auto");
   const [style, setStyle] = useState("Normal");
+  // const [styleTitle, setStyleTitles] = useState(BUILTIN_STYLES);
+  const [customStyleTitles, setCustomStyleTitles] = useState([]);
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const inputRef = useRef(null);
@@ -152,35 +165,39 @@ const StandaloneContextMenu = () => {
   };
 
   const updateUserCommands = () => {
-    const userCommandsUids = getBlocksMentioningTitle("liveai/prompt");
-    let userCmds =
-      userCommandsUids &&
-      userCommandsUids
-        .map((cmd) => {
-          return {
-            uid: cmd.uid,
-            content: cmd.content
-              .replace(/\#?\[?\[?liveai\/prompt\]?\]?/i, "")
-              .trim(),
-          };
-        })
-        .sort((a, b) =>
-          a.content?.localeCompare(b.content, undefined, {
-            sensitivity: "base",
-            ignorePunctuation: true,
-          })
-        )
-        .map((cmd, index) => {
-          return {
-            id: 3000 + index,
-            name: cmd.content,
-            category: "CUSTOM PROMPTS",
-            keyWords: "user",
-            prompt: cmd.uid,
-          };
-        });
-    console.log("Live AI user prompts :>> ", userCmds);
-    setUserCommands(userCmds);
+    const orderedCmds = getOrderedCustomPromptBlocks("liveai/prompt");
+    const orderedStyles = getOrderedCustomPromptBlocks("liveai/style");
+
+    if (orderedCmds) {
+      const userCmds = orderedCmds.map((cmd, index) => {
+        return {
+          id: 3000 + index,
+          name: cmd.content,
+          category: "CUSTOM PROMPTS",
+          keyWords: "user",
+          prompt: cmd.uid,
+        };
+      });
+      console.log("Live AI user custom prompts :>> ", userCmds);
+      setUserCommands(userCmds);
+    }
+    if (orderedStyles) {
+      const userStyleTitles = orderedStyles.map((custom) => custom.content);
+      customStyles = orderedStyles.map((custom) => {
+        return {
+          name: custom.content,
+          prompt: getFlattenedContentFromTree({
+            parentUid: custom.uid,
+            maxCapturing: 99,
+            maxUid: 0,
+            withDash: true,
+            isParentToIgnore: true,
+          }),
+        };
+      });
+      console.log("Live AI user custom styles :>> ", customStyles);
+      setCustomStyleTitles(userStyleTitles);
+    }
   };
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
@@ -665,15 +682,7 @@ const StandaloneContextMenu = () => {
                 intent={isPinnedStyle ? "primary" : "none"}
               />
               <HTMLSelect
-                options={[
-                  "Normal",
-                  "Concise",
-                  "Conversational",
-                  "No bullet points",
-                  "Atomic",
-                  "Quiz",
-                  "Socratic",
-                ]}
+                options={BUILTIN_STYLES.concat(customStyleTitles)}
                 minimal={true}
                 onClick={(e) => {
                   e.stopPropagation();

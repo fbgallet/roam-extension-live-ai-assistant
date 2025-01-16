@@ -53,6 +53,7 @@ import {
   getInputDataFromRoamContext,
 } from "./dataExtraction";
 import { uidRegex } from "../utils/regex";
+import { BUILTIN_STYLES, customStyles } from "../components/ContextMenu";
 
 export const lastCompletion = {
   prompt: null,
@@ -170,7 +171,14 @@ export const aiCompletionRunner = async ({
   if (noData) return;
 
   if (style !== "Normal") {
-    completedPrompt += introduceStylePrompt + stylePrompts[style];
+    let stylePromptText;
+    if (BUILTIN_STYLES.includes(style)) stylePromptText = stylePrompts[style];
+    else {
+      const customStl = customStyles.find((custom) => custom.name === style);
+      if (customStl) stylePromptText = customStl.prompt;
+    }
+    if (stylePromptText)
+      completedPrompt += introduceStylePrompt + stylePromptText;
   }
   console.log("completedPrompt:", completedPrompt);
 

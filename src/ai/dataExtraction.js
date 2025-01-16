@@ -12,6 +12,8 @@ import { highlightHtmlElt } from "../utils/domElts";
 import {
   builtInPromptRegex,
   contextRegex,
+  customPromptTagRegex,
+  customStyleTagRegex,
   numbersRegex,
   pageRegex,
   sbParamRegex,
@@ -22,6 +24,7 @@ import {
   createChildBlock,
   createSiblingBlock,
   getBlockContentByUid,
+  getBlocksMentioningTitle,
   getBlocksSelectionUids,
   getLastTopLevelOfSeletion,
   getMainPageUid,
@@ -41,7 +44,7 @@ import {
   instructionsOnTemplateProcessing,
 } from "./prompts";
 import { faArrowRightArrowLeft } from "@fortawesome/free-solid-svg-icons";
-import { PREBUILD_COMMANDS } from "./prebuildCommands";
+import { BUILTIN_COMMANDS, PREBUILD_COMMANDS } from "./prebuildCommands";
 
 export const getInputDataFromRoamContext = async (
   e,
@@ -918,7 +921,7 @@ export const getCustomPromptByUid = (uid) => {
       const builtInName = matchingPrompt[1].trim().toLowerCase();
       let secondParam;
       if (matchingPrompt.length > 2) secondParam = matchingPrompt[2];
-      const builtInCommand = PREBUILD_COMMANDS.find(
+      const builtInCommand = BUILTIN_COMMANDS.find(
         (cmd) =>
           cmd.name.toLowerCase() === builtInName ||
           cmd.prompt?.toLowerCase() === builtInName
@@ -934,4 +937,34 @@ export const getCustomPromptByUid = (uid) => {
     }
   }
   return prompt;
+};
+
+export const getOrderedCustomPromptBlocks = (tag) => {
+  let blocks = getBlocksMentioningTitle(tag);
+  let ordered =
+    blocks &&
+    blocks
+      .map((cmd) => {
+        return {
+          uid: cmd.uid,
+          content: cmd.content
+            .replace(
+              tag === "liveai/prompt"
+                ? customPromptTagRegex
+                : customStyleTagRegex,
+              ""
+            )
+            .trim()
+            .split(" ")
+            .slice(0, tag === "liveai/prompt" ? 6 : 4)
+            .join(" "),
+        };
+      })
+      .sort((a, b) =>
+        a.content?.localeCompare(b.content, undefined, {
+          sensitivity: "base",
+          ignorePunctuation: true,
+        })
+      );
+  return ordered;
 };
