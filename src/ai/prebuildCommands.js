@@ -343,19 +343,13 @@ export const BUILTIN_COMMANDS = [
     id: 80,
     name: "Natural language query",
     prompt: "extractHighlights",
-    category: "AGENTS",
-    isIncompatibleWith: {
-      style: true,
-    },
+    category: "SEARCH & QUERY",
   },
   {
     id: 81,
     name: "Natural language :q Datomic query",
     prompt: "extractHighlights",
-    category: "AGENTS",
-    isIncompatibleWith: {
-      style: true,
-    },
+    category: "SEARCH & QUERY",
   },
 
   // OUTLINER AGENT COMMANDS
@@ -364,7 +358,7 @@ export const BUILTIN_COMMANDS = [
     icon: "properties",
     name: "Outliner Agent: Set as active outline",
     prompt: "",
-    category: "",
+    category: "OUTLINER AGENT",
     onlyOutliner: true,
   },
   {
@@ -372,7 +366,7 @@ export const BUILTIN_COMMANDS = [
     icon: "properties",
     name: "Outliner Agent: Apply selected blocks as prompt",
     prompt: "",
-    category: "",
+    category: "OUTLINER AGENT",
     onlyOutliner: true,
   },
 ].concat(
