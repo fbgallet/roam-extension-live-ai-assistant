@@ -19,7 +19,9 @@ import {
   createChildBlock,
   deleteBlock,
   extractNormalizedUidFromRef,
+  getBlockContentByUid,
   getTreeByUid,
+  insertBlockInCurrentView,
   moveBlock,
   reorderBlocks,
   replaceChildrenByNewTree,
@@ -44,8 +46,9 @@ import {
   getTemplateForPostProcessing,
   handleModifierKeys,
 } from "../dataExtraction";
-import { insertStructuredAIResponse } from "../responseInsertion";
+import { copyTemplate, insertStructuredAIResponse } from "../responseInsertion";
 import { updateTokenCounter } from "../modelsInfo";
+import { customTagRegex } from "../../utils/regex";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -487,7 +490,7 @@ export const invokeOutlinerAgent = async ({
   if (!treeSnapshot) {
     let { currentUid, currentBlockContent, selectionUids, position } =
       getFocusAndSelection();
-    await checkOutlineAvailability(rootUid, position);
+    await checkOutlineAvailabilityOrOpen(rootUid, position);
     if (!rootUid) {
       AppToaster.show({
         message: `An outline has to be set as target for Outliner Agent`,
@@ -573,7 +576,7 @@ export const invokeOutlinerAgent = async ({
   }, 200);
 };
 
-const checkOutlineAvailability = async (
+export const checkOutlineAvailabilityOrOpen = async (
   rootUid: string,
   position: string | null
 ) => {
@@ -621,4 +624,44 @@ const checkOutlineAvailability = async (
       toggleOutlinerSelection(rootUid, true);
     }, delay);
   }
+};
+
+export const insertNewOutline = async (
+  currentUid: string,
+  templateUid: string,
+  position: string = "sidebar"
+) => {
+  // TODO if no template, insert default template ?
+  // or blank outline ?
+  if (!templateUid) return;
+  if (!currentUid)
+    currentUid = await insertBlockInCurrentView("Live AI Outliner Agent");
+  const commandsUid = await createChildBlock(currentUid, "");
+  let templateTitle = getBlockContentByUid(templateUid);
+  const rootUid = await createChildBlock(
+    currentUid,
+    templateTitle.replace(customTagRegex["liveai/template"], "").trim()
+  );
+  updateBlock({
+    blockUid: commandsUid,
+    newContent: `Prompts to update Live Outline ((${rootUid}))`,
+  });
+  setTimeout(async () => {
+    (window as any).roamAlphaAPI.ui.mainWindow.openBlock({
+      block: { uid: position === "sidebar" ? rootUid : commandsUid },
+    });
+    if (position === "sidebar")
+      updateBlock({ blockUid: rootUid, format: { open: false } });
+    else
+      (window as any).roamAlphaAPI.ui.rightSidebar.addWindow({
+        window: {
+          type: "block",
+          "block-uid": rootUid,
+        },
+      });
+    await copyTemplate(rootUid, templateUid);
+    checkOutlineAvailabilityOrOpen(rootUid, position);
+    const firstCommandBlockUid = await createChildBlock(commandsUid, "");
+    // (window as any).roamAlphaAPI.ui.mainWindow.focusFirstBlock();
+  }, 200);
 };

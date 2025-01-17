@@ -393,6 +393,7 @@ export const copyTreeBranches = async (
       tree[0].children,
       strToExclude,
       maxDepth,
+      1,
       isClone
     );
   } else return null;

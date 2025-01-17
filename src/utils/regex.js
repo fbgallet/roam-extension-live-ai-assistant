@@ -10,6 +10,10 @@ export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[[^\]]*\]\((http[^\s)]+)\)/g;
 export const sbParamRegex = /^\{.*\}$/;
-export const customPromptTagRegex = /\#?\[?\[?liveai\/prompt\]?\]?/i;
-export const customStyleTagRegex = /\#?\[?\[?liveai\/style\]?\]?/i;
+export const customTagRegex = {
+  "liveai/prompt": /\#?\[?\[?liveai\/prompt\]?\]?/i,
+  "liveai/style": /\#?\[?\[?liveai\/style\]?\]?/i,
+  "liveai/outline": /\#?\[?\[?liveai\/outline\]?\]?/i,
+  "liveai/template": /\#?\[?\[?liveai\/template\]?\]?/i,
+};
 export const builtInPromptRegex = /<built-in:([^>:]+)(?::([^>:]+))?>/i;

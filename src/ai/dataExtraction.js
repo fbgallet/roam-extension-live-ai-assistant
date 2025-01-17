@@ -14,6 +14,7 @@ import {
   contextRegex,
   customPromptTagRegex,
   customStyleTagRegex,
+  customTagRegex,
   numbersRegex,
   pageRegex,
   sbParamRegex,
@@ -948,15 +949,10 @@ export const getOrderedCustomPromptBlocks = (tag) => {
         return {
           uid: cmd.uid,
           content: cmd.content
-            .replace(
-              tag === "liveai/prompt"
-                ? customPromptTagRegex
-                : customStyleTagRegex,
-              ""
-            )
+            .replace(customTagRegex[tag], "")
             .trim()
             .split(" ")
-            .slice(0, tag === "liveai/prompt" ? 6 : 4)
+            .slice(0, tag.includes("style") ? 4 : 6)
             .join(" "),
         };
       })
