@@ -14,13 +14,17 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Intent, Position, Toaster } from "@blueprintjs/core";
 import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
-import { insertCompletion } from "../ai/responseInsertion.js";
+import {
+  aiCompletionRunner,
+  insertCompletion,
+} from "../ai/responseInsertion.js";
 import {
   addContentToBlock,
   createChildBlock,
   createSiblingBlock,
   getBlockContentByUid,
   getBlocksSelectionUids,
+  getLastTopLevelOfSeletion,
   getParentBlock,
   insertBlockInCurrentView,
   isCurrentPageDNP,
@@ -340,26 +344,19 @@ function VoiceRecorder({
     }
   };
 
-  const handleTranscribe = () => {
+  const handleTranscribe = (e) => {
     lastCommand.current = transcribeAudio;
-    initializeProcessing();
+    initializeProcessing(e);
   };
-  const handleTranslate = () => {
+  const handleTranslate = (e) => {
     lastCommand.current = translateAudio;
-    initializeProcessing();
+    initializeProcessing(e);
   };
-  const handleCompletion = async (
-    e,
-    commandPrompt = "",
-    model,
-    withAssistantRole = true
-  ) => {
-    console.log("running handleCompletion !");
+  const handleCompletion = async (e, model) => {
     if (model) instantModel.current = model;
     lastCommand.current = "gptCompletion";
     roamContext.current = await handleModifierKeys(e);
-    console.log("roamContext.current :>> ", roamContext.current);
-    initializeProcessing(commandPrompt);
+    initializeProcessing(e);
   };
   const handleOutlinerAgent = async (e, model) => {
     if (!(await extensionStorage.get("outlinerRootUid"))) {
@@ -371,40 +368,17 @@ function VoiceRecorder({
     lastCommand.current = "outlinerAgent";
     roamContext.current = await handleModifierKeys(e);
     handleEltHighlight(e);
-    initializeProcessing();
+    initializeProcessing(e);
   };
 
-  const initializeProcessing = async (commandPrompt, withAssistantRole) => {
-    targetBlock.current =
-      window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-    const currentSelection = getBlocksSelectionUids();
-    if (!blocksSelectionUids.current || currentSelection.length > 0)
-      blocksSelectionUids.current = [...currentSelection];
+  const initializeProcessing = async (e) => {
     if (isListening) {
       isToTranscribe.current = true;
       setIsListening(false);
     } else if (record?.current || safariRecorder?.current?.activeStream)
       voiceProcessing();
     else {
-      let prompt = commandPrompt ? commandPrompt + "\n\n" : "";
-      let toNextSibling = false;
-      if (targetBlock.current) {
-        prompt += getBlockContentByUid(targetBlock.current).trim();
-      } else if (blocksSelectionUids.current.length > 0) {
-        prompt += getResolvedContentFromBlocks(
-          blocksSelectionUids.current,
-          false
-        );
-        targetBlock.current = blocksSelectionUids.current[0];
-        blocksSelectionUids.current = [];
-        toNextSibling = true;
-      } else if (lastCommand.current === "gptCompletion") return;
-      await completionProcessing(
-        prompt,
-        targetBlock.current,
-        toNextSibling,
-        withAssistantRole
-      );
+      await completionProcessing(e);
     }
   };
 
@@ -434,12 +408,21 @@ function VoiceRecorder({
   };
 
   const audioFileProcessing = async (audioFile) => {
+    let nextSiblingOfSelection;
     let toChain = false;
     let voiceProcessingCommand = lastCommand.current;
+    if (blocksSelectionUids.current) {
+      const lastTopUid = await getLastTopLevelOfSeletion(
+        blocksSelectionUids.current
+      );
+      nextSiblingOfSelection = await createSiblingBlock(lastTopUid);
+    }
     let targetUid =
+      nextSiblingOfSelection ||
       targetBlock.current ||
       startBlock.current ||
       (await insertBlockInCurrentView(""));
+    console.log("targetUid in audioFileProcessing :>> ", targetUid);
     if (
       lastCommand.current === "gptCompletion" ||
       lastCommand.current === "outlinerAgent"
@@ -451,7 +434,7 @@ function VoiceRecorder({
         targetUid === startBlock.current
       ) {
         const targetBlockContent = getBlockContentByUid(targetUid).trim();
-        if (targetBlockContent && lastCommand.current === "gptCompletion")
+        if (targetBlockContent /*&& lastCommand.current === "gptCompletion"*/)
           targetUid = await createChildBlock(targetUid, "");
       }
     }
@@ -488,34 +471,15 @@ function VoiceRecorder({
         : transcribe;
     removeSpinner(intervalId);
     // isResponseToSplit ? await parseAndCreateBlocks(targetUid, toInsert) :
-    addContentToBlock(targetUid, toInsert);
+    await addContentToBlock(targetUid, toInsert);
     if (toChain && transcribe)
-      await completionProcessing(transcribe, targetUid);
+      await completionProcessing(null, transcribe, targetUid);
     initialize(true);
   };
 
-  const completionProcessing = async (
-    prompt,
-    promptUid,
-    toNextSibling,
-    withAssistantRole = true
-  ) => {
-    let uid;
-    let waitForBlockCopy = false;
-    const assistantRole = withAssistantRole
-      ? instantModel.current
-        ? getInstantAssistantRole(instantModel.current)
-        : chatRoles.assistant
-      : "";
-    const context = await getAndNormalizeContext({
-      startBlock:
-        lastCommand.current === "outlinerAgent" ? null : startBlock.current,
-      blocksSelectionUids: blocksSelectionUids.current,
-      roamContext: roamContext.current,
-      model: instantModel.current || defaultModel,
-    });
+  const completionProcessing = async (e, prompt, targetUid) => {
     if (lastCommand.current === "outlinerAgent") {
-      invokeOutlinerAgent({ prompt, context, model: instantModel.current });
+      invokeOutlinerAgent({ e, prompt, model: instantModel.current });
       // let inlineTemplate = getTemplateFromPrompt(
       //   getBlockContentByUid(promptUid)
       // );
@@ -576,27 +540,16 @@ function VoiceRecorder({
       //   waitForBlockCopy ? 100 : 0
       // );
     } else {
-      const isInConversation = isPromptInConversation(promptUid);
-      if (toNextSibling) {
-        uid = await createSiblingBlock(promptUid);
-        await addContentToBlock(uid, assistantRole);
-      } else {
-        uid = await createChildBlock(
-          isInConversation ? getParentBlock(promptUid) : promptUid,
-          assistantRole
-        );
-      }
-      await insertCompletion({
+      aiCompletionRunner({
+        e,
         prompt,
-        targetUid: uid,
-        context,
-        typeOfCompletion: lastCommand.current,
-        instantModel: instantModel.current,
-        isRedone: false,
-        isInConversation,
+        selectedUids: blocksSelectionUids.current,
+        model: instantModel.current,
+        sourceUid: targetUid,
+        target: "new",
       });
-      initialize(true);
     }
+    initialize(true);
   };
 
   const initialize = (complete = true) => {
@@ -927,9 +880,9 @@ function VoiceRecorder({
               >
                 {isOutlineActive ? (
                   <FontAwesomeIcon icon={faRectangleList} size="lg" />
-                ) : (
+                ) : !isListening ? (
                   <FontAwesomeIcon icon={faListUl} />
-                )}
+                ) : null}
               </Tooltip>
             ))
         }

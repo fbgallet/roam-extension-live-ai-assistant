@@ -193,7 +193,7 @@ const getFinalPromptAndTarget = async (
 
     if (prompt.toLowerCase().includes("<target content>"))
       prompt = prompt.replace(/<target content>/i, content);
-    else prompt += content;
+    else prompt += "\n" + content;
     selectionUids = [];
   } else {
     if (target === "replace" || target === "append") {

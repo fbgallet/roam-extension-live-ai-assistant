@@ -149,6 +149,8 @@ export const aiCompletionRunner = async ({
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
+  console.log("prompt in aiCompletionRunner :>> ", prompt);
+
   let {
     targetUid,
     completedPrompt,
