@@ -54,6 +54,7 @@ const InstantButtons = ({
   withSuggestions,
   target,
   selectedUids,
+  undo,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
@@ -72,7 +73,7 @@ const InstantButtons = ({
 
   const handleUndo = (e) => {
     console.log("treeSnapshot :>> ", treeSnapshot);
-    invokeOutlinerAgent({ rootUid: targetUid, treeSnapshot });
+    invokeOutlinerAgent({ rootUid: targetUid, treeSnapshot, undo });
   };
 
   const handleRedo = ({ e, model = model }) => {
@@ -131,7 +132,7 @@ const InstantButtons = ({
   return isUserResponse ? (
     <>
       <div class="bp3-popover-wrapper">
-        <span aria-haspopup="true" class="bp3-popover-target">
+        <span /*aria-haspopup="true"*/ class="bp3-popover-target">
           <span
             // onKeyDown={handleKeys}
             onClick={async () => {
@@ -151,7 +152,7 @@ const InstantButtons = ({
     <>
       {!isCanceledStream && isStreamStopped === false && (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               onClick={handleCancel}
               class="bp3-button bp3-minimal"
@@ -169,7 +170,7 @@ const InstantButtons = ({
       )}
       {(isStreamStopped !== false || isCanceledStream) && (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               // onKeyDown={handleKeys}
               onClick={handleClose}
@@ -197,7 +198,7 @@ const InstantButtons = ({
       )}
       {withSuggestions && (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               // onKeyDown={handleKeys}
               onClick={() => {
@@ -222,7 +223,7 @@ const InstantButtons = ({
       )}
       {!isOutlinerAgent && (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               // onKeyDown={handleKeys}
               onClick={async () => {
@@ -260,14 +261,23 @@ const InstantButtons = ({
       )}
       {isOutlinerAgent && treeSnapshot ? (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               onClick={handleUndo}
               class="bp3-button bp3-minimal"
               tabindex="0"
             >
-              <Tooltip content="Undo last outline update" hoverOpenDelay="500">
-                <FontAwesomeIcon icon={faClockRotateLeft} size="sm" />
+              <Tooltip
+                content={
+                  undo ? "Undo last outline update" : "Redo last outline update"
+                }
+                hoverOpenDelay="500"
+              >
+                <FontAwesomeIcon
+                  icon={faClockRotateLeft}
+                  size="sm"
+                  flip={undo ? null : "horizontal"}
+                />
               </Tooltip>
             </span>
           </span>
@@ -275,7 +285,7 @@ const InstantButtons = ({
       ) : null}
       {!(isOutlinerAgent && !treeSnapshot) && (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               // onKeyDown={handleKeys}
               onClick={handleRedo}
@@ -308,7 +318,7 @@ const InstantButtons = ({
       )}
       {!isOutlinerAgent && (
         <div class="bp3-popover-wrapper">
-          <span aria-haspopup="true" class="bp3-popover-target">
+          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
             <span
               // onKeyDown={handleKeys}
               onClick={() => {

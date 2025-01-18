@@ -14,7 +14,7 @@ import {
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { defaultModel, extensionStorage } from "..";
+import { defaultModel, defaultStyle, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands, stylePrompts } from "../ai/prompts";
 import {
@@ -51,6 +51,9 @@ export const BUILTIN_STYLES = [
   "Quiz",
   "Socratic",
 ];
+export let customStyleTitles = getOrderedCustomPromptBlocks("liveai/style").map(
+  (custom) => custom.content
+);
 export let customStyles;
 
 const StandaloneContextMenu = () => {
@@ -72,9 +75,8 @@ const StandaloneContextMenu = () => {
     extensionStorage.get("translationCustomLgg")
   );
   const [targetBlock, setTargetBlock] = useState("auto");
-  const [style, setStyle] = useState("Normal");
-  // const [styleTitle, setStyleTitles] = useState(BUILTIN_STYLES);
-  const [customStyleTitles, setCustomStyleTitles] = useState([]);
+  const [style, setStyle] = useState(defaultStyle);
+  // const [customStyleTitles, setCustomStyleTitles] = useState([]);
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [liveOutlines, setLiveOutlines] = useState([]);
@@ -101,13 +103,14 @@ const StandaloneContextMenu = () => {
       setIsOutlinerAgent(onlyOutliner);
       instantModel && setModel(instantModel);
       setPosition({
-        x: Math.min(e.clientX, window.innerWidth - 200),
+        x: Math.min(e.clientX, window.innerWidth - 300),
         y: Math.min(e.clientY, window.innerHeight - 300),
       });
       focusedBlockUid.current = focusUid;
       setIsOpen(true);
     };
     updateUserCommands();
+    updateCustomStyles();
     updateLiveOutlines();
     updateTemplates();
   }, []);
@@ -117,7 +120,7 @@ const StandaloneContextMenu = () => {
       focusedBlockUid.current = null;
       setDisplayModelsMenu(false);
       setTargetBlock("auto");
-      if (!isPinnedStyle) setStyle("Normal");
+      if (!isPinnedStyle) setStyle(defaultStyle);
       setRoamContext({
         linkedRefs: false,
         sidebar: false,
@@ -129,6 +132,7 @@ const StandaloneContextMenu = () => {
       focusedBlockUid.current = !focusedBlockUid.current && currentUid;
       selectedBlocks.current = selectionUids;
       positionInRoamWindow.current = position;
+      // if (!isPinnedStyle) setStyle(defaultStyle);
       updateMenu();
     }
   }, [isOpen]);
@@ -582,7 +586,6 @@ const StandaloneContextMenu = () => {
 
   const updateUserCommands = () => {
     const orderedCmds = getOrderedCustomPromptBlocks("liveai/prompt");
-    const orderedStyles = getOrderedCustomPromptBlocks("liveai/style");
 
     if (orderedCmds) {
       const userCmds = orderedCmds.map((cmd, index) => {
@@ -597,9 +600,13 @@ const StandaloneContextMenu = () => {
       console.log("Live AI user custom prompts :>> ", userCmds);
       setUserCommands(userCmds);
     } else if (userCommands.length) setUserCommands([]);
+  };
+
+  const updateCustomStyles = () => {
+    const orderedStyles = getOrderedCustomPromptBlocks("liveai/style");
     if (orderedStyles) {
-      const userStyleTitles = orderedStyles.map((custom) => custom.content);
-      customStyles = orderedStyles.map((custom) => {
+      customStyleTitles = orderedStyles.map((custom) => custom.content);
+      customStyles = customStyleTitles.map((custom) => {
         return {
           name: custom.content,
           prompt: getFlattenedContentFromTree({
@@ -612,7 +619,7 @@ const StandaloneContextMenu = () => {
         };
       });
       console.log("Live AI user custom styles :>> ", customStyles);
-      setCustomStyleTitles(userStyleTitles);
+      // setCustomStyleTitles(customStyleTitles);
     }
   };
 
@@ -721,6 +728,7 @@ const StandaloneContextMenu = () => {
                 onClick={(e) => {
                   e.stopPropagation();
                   displayTokensDialog();
+                  setIsOpen(false);
                 }}
               />
               <Icon
@@ -729,6 +737,7 @@ const StandaloneContextMenu = () => {
                 onClick={(e) => {
                   e.stopPropagation();
                   updateUserCommands(true);
+                  updateCustomStyles();
                   updateLiveOutlines();
                   updateTemplates();
                   inputRef.current.focus();

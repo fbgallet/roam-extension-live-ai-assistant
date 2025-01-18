@@ -46,7 +46,11 @@ import {
   getTemplateForPostProcessing,
   handleModifierKeys,
 } from "../dataExtraction";
-import { copyTemplate, insertStructuredAIResponse } from "../responseInsertion";
+import {
+  aiCompletionRunner,
+  copyTemplate,
+  insertStructuredAIResponse,
+} from "../responseInsertion";
 import { updateTokenCounter } from "../modelsInfo";
 import { customTagRegex } from "../../utils/regex";
 
@@ -60,6 +64,7 @@ const outlinerAgentState = Annotation.Root({
   treeSnapshot: Annotation<Array<any>>,
   treeTarget: Annotation<Array<any>>,
   historyCommand: Annotation<string>,
+  undo: Annotation<boolean>,
 });
 
 // Tools
@@ -444,6 +449,7 @@ const updateInstantButtons = (state: typeof outlinerAgentState.State) => {
     targetUid: state.rootUid,
     isOutlinerAgent: true,
     treeSnapshot: state.treeSnapshot,
+    undo: state.undo ? false : true,
   });
 };
 
@@ -472,6 +478,8 @@ interface AgentInvoker {
   prompt?: string;
   context?: string;
   treeSnapshot?: any[];
+  style?: string;
+  undo?: boolean;
 }
 
 export const invokeOutlinerAgent = async ({
@@ -481,6 +489,8 @@ export const invokeOutlinerAgent = async ({
   context,
   model,
   treeSnapshot,
+  style,
+  undo,
 }: AgentInvoker) => {
   let outline, roamContextFromKeys;
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
@@ -519,6 +529,21 @@ export const invokeOutlinerAgent = async ({
       uidToExclude: rootUid,
     });
     console.log("context :>> ", context);
+    console.log("outline :>> ", outline);
+
+    if (!outline || !outline?.stringified?.trim()) {
+      await aiCompletionRunner({
+        e,
+        sourceUid: rootUid,
+        prompt,
+        instantModel: model,
+        target: "new w/o",
+        roamContext: roamContextFromKeys,
+        style,
+        isButtonToInsert: false,
+      });
+      return;
+    }
   } else {
     insertInstantButtons({
       rootUid,
@@ -548,6 +573,7 @@ export const invokeOutlinerAgent = async ({
     historyCommand: treeSnapshot ? "undo" : ",",
     treeTarget: treeSnapshot,
     model,
+    undo,
   });
 
   highlightHtmlElt({

@@ -339,6 +339,19 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       return [""];
     },
   };
+  const menuCmd = {
+    text: "LIVEAIMENU",
+    help: "Open Live AI Assisant menu",
+    handler: (sbContext) => () => {
+      const centerX = window.innerWidth / 2 - 250;
+      const centerY = window.innerHeight / 5;
+      window.LiveAI.toggleContextMenu({
+        e: { clientX: centerX, clientY: centerY },
+        focusUid: sbContext.currentUid,
+      });
+      return [""];
+    },
+  };
   const chatCmd = {
     text: "LIVEAIGEN",
     help: `Live AI Assistant text generation and chat.
@@ -510,6 +523,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   if (window.roamjs?.extension?.smartblocks) {
     window.roamjs.extension.smartblocks.registerCommand(speechCmd);
+    window.roamjs.extension.smartblocks.registerCommand(menuCmd);
     window.roamjs.extension.smartblocks.registerCommand(chatCmd);
     window.roamjs.extension.smartblocks.registerCommand(templateCmd);
     window.roamjs.extension.smartblocks.registerCommand(agentCmd);
@@ -517,6 +531,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     document.body.addEventListener(`roamjs:smartblocks:loaded`, () => {
       window.roamjs?.extension.smartblocks &&
         window.roamjs.extension.smartblocks.registerCommand(speechCmd);
+      window.roamjs?.extension.smartblocks &&
+        window.roamjs.extension.smartblocks.registerCommand(menuCmd);
       window.roamjs?.extension.smartblocks &&
         window.roamjs.extension.smartblocks.registerCommand(chatCmd);
       window.roamjs?.extension.smartblocks &&

@@ -234,9 +234,10 @@
 
 /* CONTEXT MENU */
 
-.aicommands-div {
+.bp3-elevation-3.aicommands-div {
   min-width: 250px;
   width: auto;
+  z-index: 9999 !important;
 }
 .aicommands-div > .str-aicommands-menu {
   padding: 10px;
@@ -373,7 +374,7 @@
 }
 
 .bp3-popover.suggested-aicommands {
-  transform: translateX(5px) translateY(-33px) !important;
+  transform: translateX(10px) translateY(-33px) !important;
   z-index: 9999;
 }
 
@@ -538,6 +539,22 @@
     justify-content: center;
     gap: 10px;
     scale: 2.5;
+  }
+
+  .bp3-elevation-3.aicommands-div {
+    min-width: 200px;
+    width: 300px;
+    transform: scale(0.9);
+  }
+  .bp3-popover.suggested-aicommands {
+    transform: translateX(5px) translateY(15px) scale(0.9) !important;
+  }
+
+  .tokens-dialog .bp3-dialog-body {
+    font-size: 8px;
+    overflow: hidden;
+    overflow-x: scroll;
+    margin: 10px;
   }
 }
 
