@@ -18,6 +18,7 @@ import { defaultModel, extensionStorage } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands, stylePrompts } from "../ai/prompts";
 import {
+  displayTokensDialog,
   highlightHtmlElt,
   setAsOutline,
   simulateClick,
@@ -446,7 +447,13 @@ const StandaloneContextMenu = () => {
         {!query && (
           <>
             <MenuDivider className="menu-hint" title="OUTLINER AGENT" />
-            <MenuItem text="My Live Outlines">
+            <MenuItem
+              text="Favorite Live Outlines"
+              style={{ opacity: 0.6, cursor: "default" }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
               {liveOutlines.length ? (
                 liveOutlines.map((outline) => renderItem(outline))
               ) : (
@@ -462,7 +469,10 @@ const StandaloneContextMenu = () => {
                 />
               )}
             </MenuItem>
-            <MenuItem text="My Outline Templates">
+            <MenuItem
+              text="New Outline from Template..."
+              style={{ opacity: 0.6, cursor: "default" }}
+            >
               {templates.length ? (
                 templates.map((template) => renderItem(template))
               ) : (
@@ -703,6 +713,14 @@ const StandaloneContextMenu = () => {
                 size={12}
                 onClick={(e) => {
                   e.stopPropagation();
+                }}
+              />
+              <Icon
+                icon="dollar"
+                size={12}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  displayTokensDialog();
                 }}
               />
               <Icon
