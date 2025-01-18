@@ -20,7 +20,9 @@ import {
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import { getModelsInfo, updateTokenCounter } from "./ai/modelsInfo";
 import {
+  BUILTIN_STYLES,
   cleanupContextMenu,
+  customStyleTitles,
   initializeContextMenu,
 } from "./components/ContextMenu";
 import { getValidLanguageCode } from "./ai/languagesSupport";
@@ -49,6 +51,7 @@ export let ollamaServer;
 export let groqModels = [];
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
+export let defaultStyle;
 export let contextInstruction = defaultContextInstructions;
 export let userContextInstructions;
 export let isMobileViewContext;
@@ -205,6 +208,19 @@ export default {
             ],
             onChange: (evt) => {
               setDefaultModel(evt);
+            },
+          },
+        },
+        {
+          id: "defaultStyle",
+          name: "Default AI Style",
+          description:
+            "Choose the AI assistant character/style applied by default to each response",
+          action: {
+            type: "select",
+            items: BUILTIN_STYLES.concat(customStyleTitles),
+            onChange: (evt) => {
+              defaultStyle = evt;
             },
           },
         },
@@ -431,18 +447,18 @@ export default {
           name: "Assistant's character",
           className: "liveai-settings-largeinput",
           description:
-            "You can describe here the character and tone of the AI assistant (text or ((block-ref))):",
+            "(DEPRECATED, replace it by a custom style) You can describe here the character and tone of the AI assistant (text or ((block-ref))):",
           action: {
             type: "input",
             onChange: (evt) => {
-              if (evt.target.value) {
-                let input = evt.target.value;
-                uidRegex.lastIndex = 0;
-                assistantCharacter = uidRegex.test(input)
-                  ? resolveReferences(getBlockContentByUid(input.slice(2, -2)))
-                  : input;
-                console.log(assistantCharacter);
-              }
+              // if (evt.target.value) {
+              //   let input = evt.target.value;
+              //   uidRegex.lastIndex = 0;
+              //   assistantCharacter = uidRegex.test(input)
+              //     ? resolveReferences(getBlockContentByUid(input.slice(2, -2)))
+              //     : input;
+              //   console.log(assistantCharacter);
+              // }
             },
           },
         },
@@ -861,9 +877,12 @@ export default {
       );
     const chatRolesStr = extensionAPI.settings.get("chatRoles");
     chatRoles = getRolesFromString(chatRolesStr, defaultModel);
-    if (extensionAPI.settings.get("assistantCharacter") === null)
-      await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
-    assistantCharacter = extensionAPI.settings.get("assistantCharacter");
+    //if (extensionAPI.settings.get("assistantCharacter") === null)
+    //   await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
+    // assistantCharacter = extensionAPI.settings.get("assistantCharacter");
+    if (extensionAPI.settings.get("defaultStyle") === null)
+      await extensionAPI.settings.set("defaultStyle", "Normal");
+    defaultStyle = extensionAPI.settings.get("defaultStyle");
     if (extensionAPI.settings.get("contextInstructions") === null)
       await extensionAPI.settings.set("contextInstructions", "");
     userContextInstructions = extensionAPI.settings.get("contextInstructions");

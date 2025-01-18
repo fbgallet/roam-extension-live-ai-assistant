@@ -13,6 +13,7 @@ export function mountComponent(
   props,
   isCapturingCurrentFocus = true
 ) {
+  if (window.roamAlphaAPI.platform.isMobile) position = "top";
   let currentBlockUid = isCapturingCurrentFocus
     ? window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
     : undefined;

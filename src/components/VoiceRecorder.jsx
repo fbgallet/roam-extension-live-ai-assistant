@@ -764,7 +764,13 @@ function VoiceRecorder({
         <span aria-haspopup="true" class="bp3-popover-target">
           <span
             onClick={(e) => {
-              command(e);
+              if (window.roamAlphaAPI.platform.isMobile) {
+                if (command === handleCompletion) {
+                  window.LiveAI.toggleContextMenu({ e });
+                } else if (command === handleOutlinerAgent) {
+                  window.LiveAI.toggleContextMenu({ e, onlyOutliner: true });
+                } else command(e);
+              } else command(e);
             }}
             // disabled={!safariRecorder.current.activeStream?.active}
             onMouseEnter={(e) => {
@@ -838,6 +844,7 @@ function VoiceRecorder({
           isToDisplay.completionIcon &&
             jsxCommandIcon({}, handleCompletion, () => (
               <Tooltip
+                openOnTargetFocus={false}
                 content={
                   <p>
                     AI Completion following prompt (C)
@@ -848,7 +855,7 @@ function VoiceRecorder({
                   </p>
                 }
                 hoverOpenDelay="500"
-                style={{ display: "flex", alignItems: "center" }}
+                style={{ display: "flex", alignItems: "center", zIndex: "99" }}
               >
                 <OpenAILogo />
               </Tooltip>
@@ -859,6 +866,7 @@ function VoiceRecorder({
           isToDisplay.completionIcon &&
             jsxCommandIcon({}, handleOutlinerAgent, () => (
               <Tooltip
+                openOnTargetFocus={false}
                 content={
                   isOutlineActive ? (
                     <p>

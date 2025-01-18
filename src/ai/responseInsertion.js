@@ -9,6 +9,7 @@ import {
   openRouterModels,
   ollamaModels,
   isResponseToSplit,
+  defaultStyle,
 } from "..";
 import {
   addContentToBlock,
@@ -72,6 +73,7 @@ async function aiCompletion({
   withSuggestions,
   selectedUids,
   target,
+  isButtonToInsert,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;
@@ -90,7 +92,8 @@ async function aiCompletion({
       prompt,
       content,
       responseFormat,
-      targetUid
+      targetUid,
+      isButtonToInsert
     );
   } else if (llm.provider === "ollama") {
     aiResponse = await ollamaCompletion(
@@ -98,7 +101,8 @@ async function aiCompletion({
       prompt,
       content,
       responseFormat,
-      targetUid
+      targetUid,
+      isButtonToInsert
     );
   } else {
     aiResponse = await claudeCompletion(
@@ -106,7 +110,8 @@ async function aiCompletion({
       prompt,
       content,
       responseFormat,
-      targetUid
+      targetUid,
+      isButtonToInsert
     );
   }
 
@@ -116,7 +121,8 @@ async function aiCompletion({
       parsedResponse.response = JSON.parse(parsedResponse.response);
     aiResponse = parsedResponse.response;
   }
-  if (aiResponse)
+
+  if (aiResponse && isButtonToInsert)
     insertInstantButtons({
       model: llm.prefix + llm.id,
       prompt,
@@ -139,13 +145,14 @@ export const aiCompletionRunner = async ({
   e,
   sourceUid,
   prompt = "",
-  instantModel,
+  instantModel = undefined,
   includeUids = false,
-  target,
-  withSuggestions,
-  selectedUids,
-  style,
-  roamContext,
+  target = "new",
+  withSuggestions = false,
+  selectedUids = [],
+  style = defaultStyle,
+  roamContext = undefined,
+  isButtonToInsert = true,
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
@@ -190,9 +197,7 @@ export const aiCompletionRunner = async ({
     context,
     instantModel,
     typeOfCompletion:
-      (target === "replace" || target === "append") &&
-      selectionUids &&
-      selectionUids.length
+      (target === "replace" || target === "append") && selectionUids.length
         ? "SelectionOutline"
         : "gptCompletion",
     isInConversation,
@@ -200,6 +205,7 @@ export const aiCompletionRunner = async ({
     withAssistantRole,
     target,
     selectedUids: selectionUids,
+    isButtonToInsert,
   });
 };
 
@@ -215,6 +221,7 @@ export const insertCompletion = async ({
   withSuggestions,
   target,
   selectedUids,
+  isButtonToInsert,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.targetUid = targetUid;
@@ -314,6 +321,7 @@ export const insertCompletion = async ({
     withSuggestions,
     selectedUids,
     target,
+    isButtonToInsert,
   });
   console.log("aiResponse :>> ", aiResponse);
 

@@ -198,7 +198,8 @@ export async function claudeCompletion(
   prompt,
   content,
   responseFormat,
-  targetUid
+  targetUid,
+  isButtonToInsert = true
 ) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
@@ -250,7 +251,7 @@ export async function claudeCompletion(
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let streamEltCopy = "";
-        if (true) {
+        if (isButtonToInsert)
           insertInstantButtons({
             model,
             prompt,
@@ -259,46 +260,45 @@ export async function claudeCompletion(
             targetUid,
             isStreamStopped: false,
           });
-          const streamElt = insertParagraphForStream(targetUid);
+        const streamElt = insertParagraphForStream(targetUid);
 
-          try {
-            while (true) {
-              if (isCanceledStreamGlobal) {
-                streamElt.innerHTML += "(⚠️ stream interrupted by user)";
-                respStr = "";
-                break;
-              }
-              const { done, value } = await reader.read();
-              if (done) break;
-              const chunk = decoder.decode(value);
-              const lines = chunk.split("\n");
+        try {
+          while (true) {
+            if (isCanceledStreamGlobal) {
+              streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+              respStr = "";
+              break;
+            }
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            const lines = chunk.split("\n");
 
-              for (const line of lines) {
-                if (line.startsWith("data:")) {
-                  const data = JSON.parse(line.slice(5));
-                  // console.log("data :>> ", data);
-                  if (data.type === "content_block_delta") {
-                    const text = data.delta.text;
-                    respStr += text;
-                    streamElt.innerHTML += text;
-                  } else if (data.type === "message_start") {
-                    usage["input_tokens"] =
-                      data.message?.usage["input_tokens"] || 0;
-                  } else if (data.type === "message_delta" && data.usage) {
-                    usage["output_tokens"] = data.usage["output_tokens"] || 0;
-                  }
+            for (const line of lines) {
+              if (line.startsWith("data:")) {
+                const data = JSON.parse(line.slice(5));
+                // console.log("data :>> ", data);
+                if (data.type === "content_block_delta") {
+                  const text = data.delta.text;
+                  respStr += text;
+                  streamElt.innerHTML += text;
+                } else if (data.type === "message_start") {
+                  usage["input_tokens"] =
+                    data.message?.usage["input_tokens"] || 0;
+                } else if (data.type === "message_delta" && data.usage) {
+                  usage["output_tokens"] = data.usage["output_tokens"] || 0;
                 }
               }
             }
-          } catch (e) {
-            console.log("Error during stream response: ", e);
-            return "";
-          } finally {
-            streamEltCopy = streamElt.innerHTML;
-            if (isCanceledStreamGlobal)
-              console.log("Anthropic API response stream interrupted.");
-            else streamElt.remove();
           }
+        } catch (e) {
+          console.log("Error during stream response: ", e);
+          return "";
+        } finally {
+          streamEltCopy = streamElt.innerHTML;
+          if (isCanceledStreamGlobal)
+            console.log("Anthropic API response stream interrupted.");
+          else streamElt.remove();
         }
       } else {
         const data = await response.json();
@@ -353,7 +353,8 @@ export async function openaiCompletion(
   prompt,
   content,
   responseFormat = "text",
-  targetUid
+  targetUid,
+  isButtonToInsert
 ) {
   let respStr = "";
   let usage = {};
@@ -411,14 +412,15 @@ export async function openaiCompletion(
     console.log("OpenAI response :>>", response);
 
     if (isToStream) {
-      insertInstantButtons({
-        model,
-        prompt,
-        content,
-        responseFormat,
-        targetUid,
-        isStreamStopped: false,
-      });
+      if (isButtonToInsert)
+        insertInstantButtons({
+          model,
+          prompt,
+          content,
+          responseFormat,
+          targetUid,
+          isStreamStopped: false,
+        });
       const streamElt = insertParagraphForStream(targetUid);
 
       try {
