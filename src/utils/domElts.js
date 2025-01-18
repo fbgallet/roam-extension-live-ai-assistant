@@ -8,8 +8,14 @@ import TokensDialog from "../components/TokensDisplay";
 import { AppToaster } from "../components/VoiceRecorder";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 
-export function mountComponent(position, props) {
-  let currentBlockUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+export function mountComponent(
+  position,
+  props,
+  isCapturingCurrentFocus = true
+) {
+  let currentBlockUid = isCapturingCurrentFocus
+    ? window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
+    : undefined;
   let container = document.querySelector(
     `.speech-to-roam-container-${position}`
   );
@@ -43,6 +49,8 @@ export function mountComponent(position, props) {
       : null;
 
   // isSafari = true;
+
+  console.log("currentBlockUid :>> ", currentBlockUid);
 
   ReactDOM.render(
     <App
@@ -341,6 +349,6 @@ export const toggleOutlinerSelection = (targetUid, isSelected) => {
   if (isComponentVisible) {
     // remount Speech component to update Outliner Agent icon
     unmountComponent(position);
-    mountComponent(position, { outlineState: isSelected });
+    mountComponent(position, { outlineState: isSelected }, false);
   }
 };
