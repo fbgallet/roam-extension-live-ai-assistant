@@ -29,7 +29,13 @@ const TokensDialog = ({ isOpen, onClose }) => {
   const generateTable = (data) => {
     if (!data || Object.keys(data).length === 0) return null;
     // Préparation des données avec calcul des coûts totaux
-    let periodTotal = 0;
+    let [
+      periodInputTotal,
+      periodOutputTotal,
+      periodInputTotalCost,
+      periodOutputTotalCost,
+      periodTotalCost,
+    ] = [0, 0, 0, 0, 0];
     const tableData = Object.entries(data)
       .filter(([model]) => model !== "month")
       .map(([model, counts]) => {
@@ -44,7 +50,13 @@ const TokensDialog = ({ isOpen, onClose }) => {
         );
         const totalCost =
           isNaN(inputCost) || isNaN(outputCost) ? NaN : inputCost + outputCost;
-        !isNaN(totalCost) && (periodTotal += totalCost);
+
+        periodInputTotal += counts.input;
+        periodOutputTotal += counts.output;
+        periodInputTotalCost += isNaN(inputCost) ? 0 : inputCost;
+        periodOutputTotalCost += isNaN(outputCost) ? 0 : outputCost;
+        periodTotalCost += isNaN(totalCost) ? 0 : totalCost;
+
         return {
           model,
           inputTokens: counts.input,
@@ -61,7 +73,14 @@ const TokensDialog = ({ isOpen, onClose }) => {
       if (isNaN(b.totalCost)) return -1;
       return b.totalCost - a.totalCost;
     });
-    sortedData.push({ model: "TOTAL", totalCost: periodTotal });
+    sortedData.push({
+      model: "TOTAL",
+      inputTokens: periodInputTotal,
+      outputTokens: periodOutputTotal,
+      inputCost: periodInputTotalCost,
+      outputCost: periodOutputTotalCost,
+      totalCost: periodTotalCost,
+    });
     return (
       <table className={Classes.HTML_TABLE}>
         <thead>
@@ -79,6 +98,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
             <tr
               key={row.model}
               className={index % 2 === 0 ? "even-row" : "odd-row"}
+              style={row.model === "TOTAL" ? { fontWeight: "bolder" } : null}
             >
               <td>{row.model}</td>
               <td>{row.inputTokens}</td>

@@ -251,7 +251,7 @@ export const BUILTIN_COMMANDS = [
     isIncompatibleWith: {
       style: true,
     },
-    target: "append",
+    target: "new w/o",
   },
 
   // CRITICAL REASONING TOOLKIT
@@ -358,7 +358,7 @@ export const BUILTIN_COMMANDS = [
     icon: "properties",
     name: "Outliner Agent: Set as active outline",
     prompt: "",
-    category: "OUTLINER AGENT",
+    category: "",
     onlyOutliner: true,
   },
   {
@@ -366,7 +366,7 @@ export const BUILTIN_COMMANDS = [
     icon: "properties",
     name: "Outliner Agent: Apply selected blocks as prompt",
     prompt: "",
-    category: "OUTLINER AGENT",
+    category: "",
     onlyOutliner: true,
   },
 ].concat(
