@@ -438,13 +438,20 @@
   .liveai-instant-btn-outliner-container:hover {
   opacity: 1;
 }
-.liveai-instant-btn-container > div > span > .bp3-button,
-.liveai-instant-btn-outliner-container > div > span > .bp3-button {
-  /* > div > span > */
+.rm-block .liveai-instant-btn-container > .bp3-button,
+.rm-block .liveai-instant-btn-outliner-container > button.bp3-button {
   background-color: transparent;
   min-height: 18px;
   min-width: 20px;
+  max-height: 20px;
+  max-width: 20px;
   padding: 1px;
+  box-shadow: none;
+  background-image: none;
+}
+.rm-block .liveai-instant-btn-container > .bp3-button:hover,
+.rm-block .liveai-instant-btn-outliner-container > button.bp3-button:hover {
+  background-color: rgba(0, 0, 0, 0.1);
 }
 /* .liveai-instant-btn-container > svg {
   padding: 1px 0;

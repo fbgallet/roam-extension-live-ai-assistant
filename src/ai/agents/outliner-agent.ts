@@ -63,6 +63,7 @@ const outlinerAgentState = Annotation.Root({
   lastTurn: Annotation<boolean>,
   treeSnapshot: Annotation<Array<any>>,
   treeTarget: Annotation<Array<any>>,
+  uidsInOutline: Annotation<Array<string>>,
   historyCommand: Annotation<string>,
   undo: Annotation<boolean>,
 });
@@ -176,6 +177,8 @@ const loadModel = async (state: typeof outlinerAgentState.State) => {
 };
 
 const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
+  console.log("state.uidsInOutline :>> ", state.uidsInOutline);
+
   state.treeSnapshot = getTreeByUid(state.rootUid);
 
   let notCompletedOperations = state.notCompletedOperations || "";
@@ -217,6 +220,7 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     console.log("messages :>> ", messages);
     lastTurn = true;
     notCompletedOperations = "";
+    state.uidsInOutline = outlineCurrentState.allBlocks;
   }
   const begin = performance.now();
   const response = await llm.invoke(messages);
@@ -236,6 +240,7 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     notCompletedOperations,
     lastTurn,
     treeSnapshot: state.treeSnapshot,
+    uidsInOutline: state.uidsInOutline,
   };
 };
 
@@ -279,22 +284,35 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
       position,
       format,
     } = nextOperation;
-    blockUid &&
-      blockUid !== "root" &&
-      blockUid !== "root" &&
-      (blockUid = extractNormalizedUidFromRef(blockUid, false));
-    targetParentUid &&
-      targetParentUid !== "root" &&
-      targetParentUid !== "root" &&
-      (targetParentUid = extractNormalizedUidFromRef(targetParentUid, false));
+    let isBlockInOutline = true;
+    if (blockUid) {
+      if (blockUid !== "root" && blockUid !== "new") {
+        blockUid = extractNormalizedUidFromRef(blockUid, false);
+        isBlockInOutline = state.uidsInOutline.includes(blockUid);
+      }
+    }
+    if (targetParentUid) {
+      if (targetParentUid !== "root" && targetParentUid !== "new") {
+        targetParentUid = extractNormalizedUidFromRef(targetParentUid, false);
+        isBlockInOutline = state.uidsInOutline.includes(targetParentUid);
+      }
+    }
     newChildren && (newChildren = sanitizeJSONstring(newChildren));
     newOrder &&
       newOrder.length &&
       (newOrder = newOrder.map((item: string) => sanitizeJSONstring(item)));
     try {
+      if (!isBlockInOutline) {
+        throw new Error(
+          `Targeted block (${blockUid ? "blockUid: " + blockUid : ""} ${
+            targetParentUid ? "targetParentUid:" + targetParentUid : ""
+          }) not included in the Outline !`
+        );
+      }
       switch (action) {
         case "update":
           console.log("update! :>> ");
+          if (!state.uidsInOutline.includes(blockUid)) break;
           await updateBlock({
             blockUid,
             newContent,
@@ -412,7 +430,11 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
 
 const timeTraveler = async (state: typeof outlinerAgentState.State) => {
   state.treeSnapshot = getTreeByUid(state.rootUid);
-  if (state.historyCommand === "undo") {
+  console.log(
+    "state.historyCommand in timeTraveler :>> ",
+    state.historyCommand
+  );
+  if (state.historyCommand === "undo" || state.historyCommand === "redo") {
     await replaceChildrenByNewTree(state.rootUid, state.treeTarget);
     updateInstantButtons(state);
   }
@@ -449,11 +471,17 @@ const updateInstantButtons = (state: typeof outlinerAgentState.State) => {
     targetUid: state.rootUid,
     isOutlinerAgent: true,
     treeSnapshot: state.treeSnapshot,
-    undo: state.undo ? false : true,
+    historyCommand:
+      !state.historyCommand || state.historyCommand === "redo"
+        ? "undo"
+        : "redo",
   });
 };
 
-// Build graph
+/**************** */
+/*  Build graph   */
+/**************** */
+
 const builder = new StateGraph(outlinerAgentState);
 builder
   .addNode("loadModel", loadModel)
@@ -470,7 +498,10 @@ builder
 // Compile graph
 export const outlinerAgent = builder.compile();
 
-// Invoke graph
+/**************** */
+/*  Invoke graph  */
+/**************** */
+
 interface AgentInvoker {
   e?: MouseEvent;
   rootUid?: string;
@@ -479,7 +510,7 @@ interface AgentInvoker {
   context?: string;
   treeSnapshot?: any[];
   style?: string;
-  undo?: boolean;
+  historyCommand?: string;
 }
 
 export const invokeOutlinerAgent = async ({
@@ -490,7 +521,7 @@ export const invokeOutlinerAgent = async ({
   model,
   treeSnapshot,
   style,
-  undo,
+  historyCommand,
 }: AgentInvoker) => {
   let outline, roamContextFromKeys;
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
@@ -565,15 +596,15 @@ export const invokeOutlinerAgent = async ({
           ? `${prompt}
 
             Input outline:
-            ${outline.stringified}
+            ${outline?.stringified}
             `
           : "",
       },
     ],
-    historyCommand: treeSnapshot ? "undo" : ",",
+    uidsInOutline: outline?.allBlocks,
+    historyCommand,
     treeTarget: treeSnapshot,
     model,
-    undo,
   });
 
   highlightHtmlElt({
