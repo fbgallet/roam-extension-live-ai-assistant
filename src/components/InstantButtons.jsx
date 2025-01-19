@@ -9,7 +9,7 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { ContextMenu, Tooltip } from "@blueprintjs/core";
+import { Button, ContextMenu, Tooltip } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
 import {
   aiCompletionRunner,
@@ -54,10 +54,12 @@ const InstantButtons = ({
   withSuggestions,
   target,
   selectedUids,
-  undo,
+  historyCommand,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
+
+  console.log("historyCommand in InstantButtons :>> ", historyCommand);
 
   useEffect(() => {
     isCanceledStreamGlobal = false;
@@ -73,7 +75,12 @@ const InstantButtons = ({
 
   const handleUndo = (e) => {
     console.log("treeSnapshot :>> ", treeSnapshot);
-    invokeOutlinerAgent({ rootUid: targetUid, treeSnapshot, undo });
+    console.log("historyCommand :>> ", historyCommand);
+    invokeOutlinerAgent({
+      rootUid: targetUid,
+      treeSnapshot,
+      historyCommand,
+    });
   };
 
   const handleRedo = ({ e, model = model }) => {
@@ -131,208 +138,140 @@ const InstantButtons = ({
 
   return isUserResponse ? (
     <>
-      <div class="bp3-popover-wrapper">
-        <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-          <span
-            // onKeyDown={handleKeys}
-            onClick={async () => {
-              await handleConversation();
-            }}
-            class="bp3-button bp3-minimal"
-            tabindex="0"
-          >
-            <Tooltip content="Continue the conversation" hoverOpenDelay="500">
-              <FontAwesomeIcon icon={faComments} size="sm" />
-            </Tooltip>
-          </span>
-        </span>
-      </div>
+      <Button
+        onClick={async () => {
+          await handleConversation();
+        }}
+      >
+        <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+          <FontAwesomeIcon icon={faComments} size="sm" />
+        </Tooltip>
+      </Button>
     </>
   ) : (
     <>
       {!isCanceledStream && isStreamStopped === false && (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              onClick={handleCancel}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip
-                content="Stop AI assistant response"
-                hoverOpenDelay="500"
-              >
-                <FontAwesomeIcon icon={faStop} size="sm" />
-              </Tooltip>
-            </span>
-          </span>
-        </div>
+        <Button onClick={handleCancel}>
+          <Tooltip content="Stop AI assistant response" hoverOpenDelay="500">
+            <FontAwesomeIcon icon={faStop} size="sm" />
+          </Tooltip>
+        </Button>
       )}
       {(isStreamStopped !== false || isCanceledStream) && (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              // onKeyDown={handleKeys}
-              onClick={handleClose}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip
-                content={
-                  isOutlinerAgent
-                    ? "Close Outliner Agent"
-                    : "Hide these buttons"
-                }
-                hoverOpenDelay="500"
-              >
-                <FontAwesomeIcon
-                  icon={faXmark}
-                  style={{ color: "red" }}
-                  size="sm"
-                />
-              </Tooltip>
-              {/* size="lg" */}
-            </span>
-          </span>
-        </div>
+        <Button onClick={handleClose}>
+          <Tooltip
+            content={
+              isOutlinerAgent ? "Close Outliner Agent" : "Hide these buttons"
+            }
+            hoverOpenDelay="500"
+          >
+            <FontAwesomeIcon
+              icon={faXmark}
+              style={{ color: "red" }}
+              size="sm"
+            />
+          </Tooltip>
+        </Button>
       )}
       {withSuggestions && (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              // onKeyDown={handleKeys}
-              onClick={() => {
-                aiCompletionRunner({
-                  sourceUid:
-                    selectedUids && selectedUids.length ? null : targetUid,
-                  prompt: completionCommands["acceptSuggestions"],
-                  includeUids: true,
-                  target: "replace",
-                  selectedUids,
-                });
-              }}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip content="Accept suggestions" hoverOpenDelay="500">
-                <FontAwesomeIcon icon={faCheck} size="sm" />
-              </Tooltip>
-            </span>
-          </span>
-        </div>
+        <Button
+          onClick={() => {
+            aiCompletionRunner({
+              sourceUid: selectedUids && selectedUids.length ? null : targetUid,
+              prompt: completionCommands["acceptSuggestions"],
+              includeUids: true,
+              target: "replace",
+              selectedUids,
+            });
+          }}
+        >
+          <Tooltip content="Accept suggestions" hoverOpenDelay="500">
+            <FontAwesomeIcon icon={faCheck} size="sm" />
+          </Tooltip>
+        </Button>
       )}
       {!isOutlinerAgent && (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              // onKeyDown={handleKeys}
-              onClick={async () => {
-                const parentUid = getParentBlock(targetUid);
-                const nextBlock = await createChildBlock(
-                  parentUid,
-                  chatRoles.user
-                );
-                setTimeout(() => {
-                  setIsToUnmount(true);
-                  insertInstantButtons({
-                    prompt: prompt.concat({
-                      role: "assistant",
-                      content: response,
-                    }),
-                    model,
-                    targetUid: nextBlock,
-                    isUserResponse: true,
-                    content,
-                  });
-                }, 100);
-                setTimeout(() => {
-                  focusOnBlockInMainWindow(nextBlock);
-                }, 250);
-              }}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip content="Continue the conversation" hoverOpenDelay="500">
-                <FontAwesomeIcon icon={faComments} size="sm" />
-              </Tooltip>
-            </span>
-          </span>
-        </div>
+        <Button
+          onClick={async () => {
+            const parentUid = getParentBlock(targetUid);
+            const nextBlock = await createChildBlock(parentUid, chatRoles.user);
+            setTimeout(() => {
+              setIsToUnmount(true);
+              insertInstantButtons({
+                prompt: prompt.concat({
+                  role: "assistant",
+                  content: response,
+                }),
+                model,
+                targetUid: nextBlock,
+                isUserResponse: true,
+                content,
+              });
+            }, 100);
+            setTimeout(() => {
+              focusOnBlockInMainWindow(nextBlock);
+            }, 250);
+          }}
+        >
+          <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+            <FontAwesomeIcon icon={faComments} size="sm" />
+          </Tooltip>
+        </Button>
       )}
       {isOutlinerAgent && treeSnapshot ? (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              onClick={handleUndo}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip
-                content={
-                  undo ? "Undo last outline update" : "Redo last outline update"
-                }
-                hoverOpenDelay="500"
-              >
-                <FontAwesomeIcon
-                  icon={faClockRotateLeft}
-                  size="sm"
-                  flip={undo ? null : "horizontal"}
-                />
-              </Tooltip>
-            </span>
-          </span>
-        </div>
+        <Button onClick={handleUndo}>
+          <Tooltip
+            content={
+              historyCommand === "undo"
+                ? "Undo last outline update"
+                : "Redo last outline update"
+            }
+            hoverOpenDelay="500"
+          >
+            <FontAwesomeIcon
+              icon={faClockRotateLeft}
+              size="sm"
+              flip={historyCommand === "undo" ? null : "horizontal"}
+            />
+          </Tooltip>
+        </Button>
       ) : null}
       {!(isOutlinerAgent && !treeSnapshot) && (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              // onKeyDown={handleKeys}
-              onClick={handleRedo}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                ContextMenu.show(
-                  ModelsMenu({ callback: handleRedo, prompt }),
-                  { left: e.clientX, top: e.clientY },
-                  null
-                );
-              }}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip
-                content={
-                  <p>
-                    Generate a response again
-                    <br />
-                    <code>Right Click</code> to choose another AI model
-                  </p>
-                }
-                hoverOpenDelay="500"
-              >
-                <FontAwesomeIcon icon={faRepeat} size="sm" />
-              </Tooltip>
-            </span>
-          </span>
-        </div>
+        <Button
+          onClick={handleRedo}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({ callback: handleRedo, prompt }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
+          }}
+        >
+          <Tooltip
+            content={
+              <p>
+                Generate a response again
+                <br />
+                <code>Right Click</code> to choose another AI model
+              </p>
+            }
+            hoverOpenDelay="500"
+          >
+            <FontAwesomeIcon icon={faRepeat} size="sm" />
+          </Tooltip>
+        </Button>
       )}
       {!isOutlinerAgent && (
-        <div class="bp3-popover-wrapper">
-          <span /*aria-haspopup="true"*/ class="bp3-popover-target">
-            <span
-              // onKeyDown={handleKeys}
-              onClick={() => {
-                navigator.clipboard.writeText(response);
-              }}
-              class="bp3-button bp3-minimal"
-              tabindex="0"
-            >
-              <Tooltip content="Copy to clipboard" hoverOpenDelay="500">
-                <FontAwesomeIcon icon={faCopy} size="sm" />
-              </Tooltip>
-            </span>
-          </span>
-        </div>
+        <Button
+          onClick={() => {
+            navigator.clipboard.writeText(response);
+          }}
+        >
+          <Tooltip content="Copy to clipboard" hoverOpenDelay="500">
+            <FontAwesomeIcon icon={faCopy} size="sm" />
+          </Tooltip>
+        </Button>
       )}
     </>
   );

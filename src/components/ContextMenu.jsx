@@ -865,6 +865,7 @@ const StandaloneContextMenu = () => {
                   <Tooltip
                     content="Target of the AI response"
                     openOnTargetFocus={false}
+                    style={{ zIndex: "9999" }}
                   >
                     <HTMLSelect
                       // rightIcon="caret-down"

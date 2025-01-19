@@ -268,19 +268,22 @@ export const getTemplateForPostProcessing = async (
 ) => {
   let prompt = "";
   let excluded;
+  let allBlocks = [];
   let isInMultipleBlocks = true;
   let tree = getTreeByUid(parentUid);
   if (parentUid && tree) {
     if (tree.length && tree[0].children) {
       isToHighlight && highlightHtmlElt({ eltUid: parentUid });
       // prompt is a template as children of the current block
-      let { linearArray, excludedUids } = convertTreeToLinearArray(
-        tree[0].children,
-        depth,
-        99,
-        true,
-        uidsToExclude.length ? uidsToExclude : "{text}"
-      );
+      let { linearArray, excludedUids, allBlocksUids } =
+        convertTreeToLinearArray(
+          tree[0].children,
+          depth,
+          99,
+          true,
+          uidsToExclude.length ? uidsToExclude : "{text}"
+        );
+      allBlocks = allBlocksUids;
       excluded = excludedUids;
       prompt =
         (withInstructions ? instructionsOnTemplateProcessing : "") +
@@ -292,6 +295,7 @@ export const getTemplateForPostProcessing = async (
   return {
     stringified: prompt,
     isInMultipleBlocks: isInMultipleBlocks,
+    allBlocks,
     excluded,
   };
 };
@@ -384,11 +388,13 @@ export function convertTreeToLinearArray(
   uidsToExclude = ""
 ) {
   let linearArray = [];
+  let allBlocksUids = [];
   let excludedUids = [];
 
   function traverseArray(tree, leftShift = "", level = 1) {
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
     tree.forEach((element) => {
+      allBlocksUids.push(element.uid);
       let toExcludeWithChildren = false;
       let content = element.string;
       if (content) {
@@ -426,7 +432,7 @@ export function convertTreeToLinearArray(
 
   traverseArray(tree);
 
-  return { linearArray, excludedUids };
+  return { linearArray, allBlocksUids, excludedUids };
 }
 
 export const getAndNormalizeContext = async ({
