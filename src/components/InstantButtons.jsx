@@ -86,18 +86,26 @@ const InstantButtons = ({
   const handleRedo = ({ e, model = model }) => {
     isCanceledStreamGlobal = true;
     !aiCallback
-      ? insertCompletion({
-          prompt,
-          targetUid,
-          context: content,
-          typeOfCompletion:
-            responseFormat === "text" ? "gptCompletion" : "SelectionOutline",
-          instantModel: model,
-          isRedone: true,
-          withSuggestions,
-          target,
-          selectedUids,
-        })
+      ? isOutlinerAgent
+        ? invokeOutlinerAgent({
+            e,
+            prompt,
+            rootUid: targetUid,
+            treeSnapshot,
+            retry: true,
+          })
+        : insertCompletion({
+            prompt,
+            targetUid,
+            context: content,
+            typeOfCompletion:
+              responseFormat === "text" ? "gptCompletion" : "SelectionOutline",
+            instantModel: model,
+            isRedone: true,
+            withSuggestions,
+            target,
+            selectedUids,
+          })
       : aiCallback({
           model: model,
           prompt,
@@ -250,11 +258,21 @@ const InstantButtons = ({
         >
           <Tooltip
             content={
-              <p>
-                Generate a response again
-                <br />
-                <code>Right Click</code> to choose another AI model
-              </p>
+              isOutlinerAgent ? (
+                <p>
+                  Try again and improve the outline modification
+                  <br />
+                  Add eventually instructions in focus block
+                  <br />
+                  <code>Right Click</code> to choose another AI model
+                </p>
+              ) : (
+                <p>
+                  Generate a response again
+                  <br />
+                  <code>Right Click</code> to choose another AI model
+                </p>
+              )
             }
             hoverOpenDelay="500"
           >
@@ -262,17 +280,32 @@ const InstantButtons = ({
           </Tooltip>
         </Button>
       )}
-      {!isOutlinerAgent && (
-        <Button
-          onClick={() => {
-            navigator.clipboard.writeText(response);
-          }}
+
+      <Button
+        onClick={() => {
+          if (isOutlinerAgent) {
+            response = getFlattenedContentFromTree({
+              parentUid: targetUid,
+              maxUid: 0,
+              withDash: true,
+              isParentToIgnore: true,
+            });
+            console.log("response :>> ", response);
+          }
+          navigator.clipboard.writeText(response);
+        }}
+      >
+        <Tooltip
+          content={
+            isOutlinerAgent
+              ? "Copy to clipboard"
+              : "Copy resolved content to clipboard"
+          }
+          hoverOpenDelay="500"
         >
-          <Tooltip content="Copy to clipboard" hoverOpenDelay="500">
-            <FontAwesomeIcon icon={faCopy} size="sm" />
-          </Tooltip>
-        </Button>
-      )}
+          <FontAwesomeIcon icon={faCopy} size="sm" />
+        </Tooltip>
+      </Button>
     </>
   );
 };
