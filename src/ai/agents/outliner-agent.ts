@@ -41,6 +41,7 @@ import { AppToaster } from "../../components/VoiceRecorder";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import {
   getAndNormalizeContext,
+  getFlattenedContentFromTree,
   getFocusAndSelection,
   getResolvedContentFromBlocks,
   getTemplateForPostProcessing,
@@ -58,6 +59,7 @@ const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
   model: Annotation<string>,
   rootUid: Annotation<String>,
+  humanPrompt: Annotation<String>,
   remainingOperations: Annotation<string>,
   notCompletedOperations: Annotation<string>,
   lastTurn: Annotation<boolean>,
@@ -65,7 +67,7 @@ const outlinerAgentState = Annotation.Root({
   treeTarget: Annotation<Array<any>>,
   uidsInOutline: Annotation<Array<string>>,
   historyCommand: Annotation<string>,
-  undo: Annotation<boolean>,
+  retry: Annotation<boolean>,
 });
 
 // Tools
@@ -177,8 +179,6 @@ const loadModel = async (state: typeof outlinerAgentState.State) => {
 };
 
 const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
-  console.log("state.uidsInOutline :>> ", state.uidsInOutline);
-
   state.treeSnapshot = getTreeByUid(state.rootUid);
 
   let notCompletedOperations = state.notCompletedOperations || "";
@@ -429,15 +429,17 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
 };
 
 const timeTraveler = async (state: typeof outlinerAgentState.State) => {
-  state.treeSnapshot = getTreeByUid(state.rootUid);
+  state.treeSnapshot = state.retry
+    ? state.treeTarget
+    : getTreeByUid(state.rootUid);
   console.log(
     "state.historyCommand in timeTraveler :>> ",
     state.historyCommand
   );
-  if (state.historyCommand === "undo" || state.historyCommand === "redo") {
-    await replaceChildrenByNewTree(state.rootUid, state.treeTarget);
-    updateInstantButtons(state);
-  }
+  // if (state.historyCommand === "undo" || state.historyCommand === "redo") {
+  await replaceChildrenByNewTree(state.rootUid, state.treeTarget);
+  if (!state.retry) updateInstantButtons(state);
+  // }
   return {
     treeSnapshot: state.treeSnapshot,
   };
@@ -457,11 +459,16 @@ const updateOrTravel = (state: typeof outlinerAgentState.State) => {
   else return "loadModel";
 };
 
+const retryOrEnd = (state: typeof outlinerAgentState.State) => {
+  if (state.retry) return "loadModel";
+  else return END;
+};
+
 const continueOperations = (state: typeof outlinerAgentState.State) => {
   if (state.remainingOperations) return "sequentialAPIrunner";
   else if (state.notCompletedOperations) return "operationsPlanner";
   updateInstantButtons(state);
-  return "__end__";
+  return END;
 };
 
 // other functions
@@ -470,6 +477,7 @@ const updateInstantButtons = (state: typeof outlinerAgentState.State) => {
     model: state.model,
     targetUid: state.rootUid,
     isOutlinerAgent: true,
+    prompt: state.humanPrompt,
     treeSnapshot: state.treeSnapshot,
     historyCommand:
       !state.historyCommand || state.historyCommand === "redo"
@@ -493,7 +501,7 @@ builder
   .addEdge("loadModel", "operationsPlanner")
   .addEdge("operationsPlanner", "sequentialAPIrunner")
   .addConditionalEdges("sequentialAPIrunner", continueOperations)
-  .addEdge("timeTraveler", END);
+  .addConditionalEdges("timeTraveler", retryOrEnd);
 
 // Compile graph
 export const outlinerAgent = builder.compile();
@@ -511,6 +519,7 @@ interface AgentInvoker {
   treeSnapshot?: any[];
   style?: string;
   historyCommand?: string;
+  retry?: boolean;
 }
 
 export const invokeOutlinerAgent = async ({
@@ -522,13 +531,15 @@ export const invokeOutlinerAgent = async ({
   treeSnapshot,
   style,
   historyCommand,
+  retry,
 }: AgentInvoker) => {
-  let outline, roamContextFromKeys;
+  let outline, roamContextFromKeys, retryPrompt, retryReasons;
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
   if (!rootUid) return;
   console.log("rootUid :>> ", rootUid);
+  console.log("treeSnapshot :>> ", treeSnapshot);
 
-  if (!treeSnapshot) {
+  if (!treeSnapshot || retry) {
     let { currentUid, currentBlockContent, selectionUids, position } =
       getFocusAndSelection();
     await checkOutlineAvailabilityOrOpen(rootUid, position);
@@ -539,7 +550,7 @@ export const invokeOutlinerAgent = async ({
       return;
     }
 
-    if (!prompt && !treeSnapshot) {
+    if (!prompt && !treeSnapshot && !retry) {
       if (currentUid && !selectionUids.length) {
         prompt = currentBlockContent;
       } else if (selectionUids.length) {
@@ -551,6 +562,8 @@ export const invokeOutlinerAgent = async ({
         });
         return;
       }
+    } else if (retry) {
+      retryReasons = currentBlockContent;
     }
     outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
     roamContextFromKeys = await handleModifierKeys(e);
@@ -560,7 +573,6 @@ export const invokeOutlinerAgent = async ({
       uidToExclude: rootUid,
     });
     console.log("context :>> ", context);
-    console.log("outline :>> ", outline);
 
     if (!outline || !outline?.stringified?.trim()) {
       await aiCompletionRunner({
@@ -577,12 +589,44 @@ export const invokeOutlinerAgent = async ({
     }
   } else {
     insertInstantButtons({
-      rootUid,
+      targetUid: rootUid,
       isOutlinerAgent: true,
       isToRemove: true,
     });
   }
   console.log("defaultModel :>> ", defaultModel);
+
+  if (retry && treeSnapshot) {
+    historyCommand = null;
+    const initialOutlineState = getFlattenedContentFromTree({
+      parentUid: undefined,
+      maxCapturing: 99,
+      maxUid: 99,
+      withDash: true,
+      isParentToIgnore: true,
+      tree: treeSnapshot,
+    });
+
+    retryPrompt = `CONTEXT:
+The user has already asked an LLM to modify a structured content (in the form of an outline) according to their instructions, but the result is not satisfactory ${
+      retryReasons ? "for the following reason:\n'" + retryReasons + "'" : ""
+    }.
+    
+YOUR JOB:
+The user request needs to be carefully reexamined and the requested operations must be carried out while taking into account previous errors, in order to produce the most satisfactory result possible. Make sure to evaluate the relevant and necessary operations to meet the user's request.
+IMPORTANT: you must perform your modifications starting from the initial state provided below, and understand the errors in the modified state provided later. BUT only the content, blocks, and identifiers of the initial state are to be considered for your modification operations!
+
+Here is their INITIAL USER REQUEST:
+${prompt}
+
+Here is the outline in its INITIAL STATE, before any modification:
+${initialOutlineState}
+
+Here is the outline after the first modification by an LLM, a state which does not satisfy the user:
+${outline.stringified}`;
+  }
+
+  console.log("retryPrompt :>> ", retryPrompt);
 
   highlightHtmlElt({ eltUid: rootUid, color: "blue" });
 
@@ -598,13 +642,17 @@ export const invokeOutlinerAgent = async ({
             Input outline:
             ${outline?.stringified}
             `
+          : retry
+          ? retryPrompt
           : "",
       },
     ],
+    humanPrompt: prompt,
     uidsInOutline: outline?.allBlocks,
     historyCommand,
     treeTarget: treeSnapshot,
     model,
+    retry,
   });
 
   highlightHtmlElt({
@@ -629,7 +677,6 @@ export const invokeOutlinerAgent = async ({
 
   setTimeout(() => {
     const updatedTree = getTreeByUid(rootUid);
-    console.log("updatedTree :>> ", updatedTree);
   }, 200);
 };
 

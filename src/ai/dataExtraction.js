@@ -401,7 +401,7 @@ export function convertTreeToLinearArray(
         let uidString =
           (maxUid && level > maxUid) || !maxUid
             ? ""
-            : "((" + element.uid + "))";
+            : "((" + element.uid + ")) ";
         toExcludeWithChildren = exclusionStrings.some((str) =>
           content.includes(str)
         );
@@ -419,7 +419,7 @@ export function convertTreeToLinearArray(
                 ? //((maxUid && level > maxUid) || !maxUid)
                   ""
                 : "- ") +
-              (toExcludeAsBlock ? "" : uidString + " ") +
+              (toExcludeAsBlock ? "" : uidString) +
               resolveReferences(content)
           );
       } else level--;
@@ -559,10 +559,11 @@ export const getFlattenedContentFromTree = ({
   maxUid,
   withDash = false,
   isParentToIgnore = false,
+  tree = undefined,
 }) => {
   let flattenedBlocks = "";
-  if (parentUid) {
-    let tree = getTreeByUid(parentUid);
+  if (parentUid || tree) {
+    if (!tree) tree = getTreeByUid(parentUid);
     if (tree) {
       let { linearArray } = convertTreeToLinearArray(
         isParentToIgnore ? tree[0].children : tree,
