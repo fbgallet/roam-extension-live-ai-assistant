@@ -354,13 +354,8 @@ export async function insertStructuredAIResponse({
     !hierarchyFlagRegex.test(splittedResponse[0])
   )
     if (forceInChildren)
-      await createChildBlock(
-        targetUid,
-        splittedResponse[0],
-        format?.open,
-        format?.heading
-      );
-    else await addContentToBlock(targetUid, splittedResponse[0]);
+      await createChildBlock(targetUid, content, format?.open, format?.heading);
+    else await addContentToBlock(targetUid, content);
   else {
     await parseAndCreateBlocks(
       targetUid,
