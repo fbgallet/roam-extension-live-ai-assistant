@@ -38,7 +38,11 @@ import {
   getFocusAndSelection,
   getOrderedCustomPromptBlocks,
 } from "../ai/dataExtraction";
-import { getBlocksMentioningTitle, isLogView } from "../utils/roamAPI";
+import {
+  getBlockContentByUid,
+  getBlocksMentioningTitle,
+  isLogView,
+} from "../utils/roamAPI";
 
 const SELECT_CMD = "Outliner Agent: Set as active outline";
 const UNSELECT_CMD = "Outliner Agent: Disable current outline";
@@ -160,6 +164,17 @@ const StandaloneContextMenu = () => {
   }, [defaultLgg]);
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
+    if (command.category === "SEARCH & QUERY") {
+      if (command.callback) {
+        command.callback({
+          model,
+          currentUid: focusedBlockUid.current,
+          targetUid: focusedBlockUid.current,
+          prompt: getBlockContentByUid(focusedBlockUid.current),
+        });
+        return;
+      }
+    }
     if (command.category === "MY LIVE OUTLINES") {
       checkOutlineAvailabilityOrOpen(
         command.prompt,
@@ -199,8 +214,11 @@ const StandaloneContextMenu = () => {
       prompt += "\n\nIMPORTANT additional instructions:\n" + additionalPrompt;
 
     if (
-      !command.onlyOutliner &&
-      (!isOutlinerAgent || (!rootUid && command.id !== 20))
+      command.name === "Selected blocks as prompt" ||
+      (command.id !== 20 &&
+        (focusedBlockUid.current || selectedBlocks.current?.length)) ||
+      (!command.onlyOutliner &&
+        (!isOutlinerAgent || (!rootUid && command.id !== 20)))
     )
       aiCompletionRunner({
         e,
@@ -223,7 +241,9 @@ const StandaloneContextMenu = () => {
       });
     else {
       if (command.id === 20) handleOutlineSelection();
-      else handleOutlinePrompt(e, prompt, model);
+      else {
+        handleOutlinePrompt(e, prompt, model);
+      }
     }
   };
 

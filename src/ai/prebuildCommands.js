@@ -1,3 +1,6 @@
+import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
+import { invokeNLQueryInterpreter } from "./agents/nl-query";
+import { invokeSearchAgent } from "./agents/search-agent";
 import { languages } from "./languagesSupport";
 
 export const BUILTIN_COMMANDS = [
@@ -342,13 +345,19 @@ export const BUILTIN_COMMANDS = [
   {
     id: 80,
     name: "Natural language query",
-    prompt: "extractHighlights",
+    callback: invokeNLQueryInterpreter,
     category: "SEARCH & QUERY",
   },
   {
     id: 81,
     name: "Natural language :q Datomic query",
-    prompt: "extractHighlights",
+    callback: invokeNLDatomicQueryInterpreter,
+    category: "SEARCH & QUERY",
+  },
+  {
+    id: 82,
+    name: "Natural language search Agent",
+    callback: invokeSearchAgent,
     category: "SEARCH & QUERY",
   },
 

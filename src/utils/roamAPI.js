@@ -462,3 +462,66 @@ export const cleanFlagFromBlocks = (flag, blockUids) => {
     })
   );
 };
+
+export const getBlocksMatchingRegexQuery = (withExcludeRegex) => {
+  const q = `[:find ?uid ?content
+    :in $ ?regex${withExcludeRegex ? " ?regex-not" : ""}
+    :where
+    [?b :block/uid ?uid]
+   [?b :block/string ?content]
+   [(re-pattern ?regex) ?pattern]
+   [(re-find ?pattern ?content)]
+   ${
+     withExcludeRegex
+       ? `[(re-pattern ?regex-not) ?pattern-not]
+      (not [(re-find ?pattern-not ?content)])`
+       : ""
+   }]`;
+  return q;
+};
+
+export const descendantRule = `[[(descendants ?parent ?child)
+  [?parent :block/children ?child]]
+  [(descendants ?descendant ?child)
+  [?parent :block/children ?child]
+  (descendants ?descendant ?parent)]]]`;
+
+export const getMultipleMatchingRegexInTreeQuery = (
+  nbOfRegex,
+  withExcludeRegex
+) => {
+  let regexVarStr = "";
+  let findStr = "";
+  let resultStr = "";
+  for (let i = 0; i < nbOfRegex; i++) {
+    resultStr += `?child-content${i} `;
+    regexVarStr += `?regex${i} `;
+    findStr += `
+    [(re-pattern ?regex${i}) ?pattern${i}]
+    (descendants ?b ?c${i})
+    [?c${i} :block/string ?child-content${i}]
+    (or
+      [(re-find ?pattern${i} ?child-content${i})]
+      [(re-find ?pattern${i} ?content)])\n`;
+  }
+
+  const q = `[:find ?matching-b ?content ${resultStr}
+    :in $ % [?matching-b ...] ${regexVarStr}${
+    withExcludeRegex ? " ?regex-not" : ""
+  }
+    :where
+    [?b :block/uid ?matching-b]
+    [?b :block/string ?content]
+    ${
+      withExcludeRegex
+        ? `[(re-pattern ?regex-not) ?pattern-not]
+      [?b :block/children ?direct-child]
+      [?direct-child :block/string ?child-content]
+      (not [(re-find ?pattern-not ?content)])
+      (not [(re-find ?pattern-not ?child-content)])`
+        : ""
+    }
+    ${findStr}
+    ]`;
+  return q;
+};

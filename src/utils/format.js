@@ -44,6 +44,7 @@ export const sanitizeClaudeJSON = (str) => {
 };
 
 export const balanceBraces = (str) => {
+  if (!str) return str;
   str = str.trim();
   const openBraces = (str.match(/{/g) || []).length;
   const closeBraces = (str.match(/}/g) || []).length;
