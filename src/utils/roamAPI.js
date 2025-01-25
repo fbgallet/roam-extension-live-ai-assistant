@@ -464,11 +464,12 @@ export const cleanFlagFromBlocks = (flag, blockUids) => {
 };
 
 export const getBlocksMatchingRegexQuery = (withExcludeRegex) => {
-  const q = `[:find ?uid ?content
+  const q = `[:find ?uid ?content ?time
     :in $ ?regex${withExcludeRegex ? " ?regex-not" : ""}
     :where
     [?b :block/uid ?uid]
    [?b :block/string ?content]
+   [?b :edit/time ?time]
    [(re-pattern ?regex) ?pattern]
    [(re-find ?pattern ?content)]
    ${
@@ -477,6 +478,7 @@ export const getBlocksMatchingRegexQuery = (withExcludeRegex) => {
       (not [(re-find ?pattern-not ?content)])`
        : ""
    }]`;
+  console.log("q :>> ", q);
   return q;
 };
 
@@ -505,13 +507,14 @@ export const getMultipleMatchingRegexInTreeQuery = (
       [(re-find ?pattern${i} ?content)])\n`;
   }
 
-  const q = `[:find ?matching-b ?content ${resultStr}
+  const q = `[:find ?matching-b ?content ?time ${resultStr}
     :in $ % [?matching-b ...] ${regexVarStr}${
     withExcludeRegex ? " ?regex-not" : ""
   }
     :where
     [?b :block/uid ?matching-b]
     [?b :block/string ?content]
+    [?b :edit/time ?time]
     ${
       withExcludeRegex
         ? `[(re-pattern ?regex-not) ?pattern-not]
@@ -523,5 +526,6 @@ export const getMultipleMatchingRegexInTreeQuery = (
     }
     ${findStr}
     ]`;
+  console.log("q :>> ", q);
   return q;
 };

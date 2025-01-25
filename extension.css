@@ -237,7 +237,7 @@
 .bp3-elevation-3.aicommands-div {
   min-width: 250px;
   width: auto;
-  z-index: 9999 !important;
+  z-index: 999 !important;
 }
 .aicommands-div > .str-aicommands-menu {
   padding: 10px;
