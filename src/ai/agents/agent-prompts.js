@@ -19,8 +19,8 @@ You must interpret the structure of the query that will be necessary to answer t
 OUTPUT: a JSON following the provided schema, with two main keys:
 1) 'roamQuery':
 You will formulate a query in the format of Roam Research queries. You need to interpret the logical structure of the user request by identifying possible hierarchical nesting of conjunctive and disjunctive logics: you must identify the logic condition expressed by the user and reproduce them by nesting logic components available for queries:
-    - '{and: }': conjonction, all mentioned items have to be simultaneously present,
-    - '{or: }': disjonction, at least one of the items has to be present,
+    - '{and: }': conjunction, all mentioned items have to be simultaneously present,
+    - '{or: }': disjunction, at least one of the items has to be present,
     - '{not: }': negation, excluded element (only one by component),
     - '{search: string}': search blocks matching string. if '{search: stringA stringB}' = used: this will search text containing 'stringA' AND 'stringB'. If a disjonctive logic is needed, use multiple string search: {or: {search: stringA} {search: stringB}. IMPORTANT: Strings should not be enclosed in quotation marks !
     - '{between: }': defined period limits of the query. At this point, if the user request mention a period to limit the query, insert exactly '{between: [[<begin>]] [[<end>]]}'. '<begin>' and '<end>' are placeholder that will be replaced later. Always insert this period indication as the last condition of a nesting {and: } condition (so, if the main codition is {or: }, you have to nest it in {and: } to add the conjunction with the period {between: }). 
@@ -28,10 +28,10 @@ You will formulate a query in the format of Roam Research queries. You need to i
 When structuring the query, check meticulously if it respects all these rules:
 - all logical conditions in the user request are correctly transcribed in nested logic components and there are no unnecessary condition components (pay attention to subtleties in the natural language request, such as comma or parentheses positioning).
 - Roam Research query syntax is: {{[[query]]: {nested logic components...}}}
-- there is one and only one main nesting logic components, and it can be only only {and: } or {or: }.
-- each {not: } component has only one componant; if multiples elements have to be excluded, create a conjonction of {not: }.
+- there is one and only one main nesting logic components, and it can be only {and: } or {or: }.
+- each {not: } component has only one item; if multiples elements have to be excluded, create a conjunction of {not: }.
 - {between: } component has always to be nested in a {and: } component.
-- {seach: } component has only strings as conditions, WITHOUT brackets NEITHER quotation mark, and is always nested in a logic component like {and:} or {or: } (e.g.: '{{[[query]]: {search: string}}}' = incorrect, it should be '{{[[query]]: {or: {search: string}}}}').
+- {search: } component has only strings as conditions, WITHOUT brackets NEITHER quotation mark, and is always nested in a logic component like {and:} or {or: } (e.g.: '{{[[query]]: {search: string}}}' = incorrect, it should be '{{[[query]]: {or: {search: string}}}}').
 - the number of opening braces and closing should be strictly equal.
 
 2) 'period':
@@ -49,7 +49,7 @@ Your response:  {roamQuery: "{{[[query]]: {and: [[meeting]] [[John]] {or: {searc
 
 3. "Blocks where [[A]] or [[B]] were mentioned, and always [[C]], but not [[E]]"
 Your response: {roamQuery: "{{[[query]]: {and: [[C]] {or: [[A]] [[B]]} {not: [[E]]}}}}}"
-(be aware here that 'and aways [[C]] expressed an {and: } condition, distinct of the previous {or: } condition)
+(be aware here that 'and always [[C]] expressed an '{and: }' condition, distinct of the previous '{or: }' condition)
 
 4. "Every tasks to do today and yesterday"
 Your response (suppose that today is 2024/12/13): {roamQuery: "{{[[query]]: {and: [[TODO]] {between: [[<begin>]] [[<end>]]}}}}", period: {begin: "2024/12/12", end: "2024/12/13", relative: {begin: "yesterday",end: "today"}}
@@ -241,28 +241,62 @@ OUTPUT LANGUAGE: your response will always be in the same language as the user r
 
 Your precise response will be a JSON object, formatted according to the provided JSON schema. If a key is optional and your response would be 'null', just IGNORE this key!`;
 
-export const searchAgentSystemPrompt = `You are a smart and rigorous AI Agent that breaks down a natural language request into a set of elements that will serve as conjunctively joined filters to prepare a text search in a database using regular expressions (regex).
+export const searchAgentNLtoKeywordsSystempPrompt = `You are a search query analyzer specialized in converting natural language requests into optimized database search parameters. Your task is to process user queries according to these precise rules:
+INPUT ANALYSIS:
+- For keyword-style queries:
+    - Preserve exact quoted expressions ("...")
+    - Remove non-essential syntactic elements (articles, pronouns)
+    - Interpret properly logical operators or symbols if present ('+', '&' as 'and', '|' as 'or', '-' as 'not)
+- For natural language queries (sentences/questions):
+    - Extract essential search terms
+    - Disregard obvious search instructions (e.g., "find," "search for," "look up") or indicating that the search is about the database (or the graph, since it's a graph database) (e.g. "in the db, "in my graph")
+    - Do not consider the time or period indications that specify the scope of the research, as they will not constitute any keywords at this stage; they will be addressed later.
+    - Extract the number of results requested if expressed
+    - Evaluate keyword sufficiency and relevance
+    - IF AND ONLY in case of natural language query, and if extracted keywords (and possible variants) might not be relevant enough to get the most relevant results (taking into account the kind of response that can be expected), create a new search list with different keywords that could better fit. For example, if the user asks for 'All colors in my db', the first search string would be 'color' but a second search list could focus on the names of the main colors themselves, such as 'red|blue|green|yellow|black|white|purple|orange|pink|brown'. Add an alternative search list ONLY IF its content differs significantly from the keywords of the first search list (keywords have to be different) and can substantially increase the chances of a satisfactory result.
+- Period indications:
+If dates or period are mentioned in the user's request, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter, and "these last few days" as a month.
 
-INPUT: The user's natural language request can be either a) a database search request, or b) a question that first requires extracting potentially relevant elements from the database.
-a) A search request can be formulated as a question, a sentence (or incomplete setence) or a simple sequence of terms or expressions separated by spaces. When an expression is placed in quotation marks "like this for example", the entire expression must be searched exactly as is, as a single block, respecting case, and if it's a "word" in quotes, a regex must be formed to search for it only as a word, e.g.: '\\bword\\b'.
-The logical structure can be expressed implicitly in the sentence logic, or with symbols (as '|' for OR, '+' or '&' for AND, '-' for NOT), or explicitly with logical terms. In a simple juxtaposition of terms, space between terms means AND.
+OUTPUT FORMAT: Provide either one or, if needed, two search lists (following the provided JSON schema), where:
+- Each list contains items separated by ' + ' (interpreted as AND), aside from the excluded item after '-'
+- Do not use quotation mark, unless they were present in the user request (so preserve the exact quoted expression)
+- Each item can contain multiple alternatives term or expression separated by '|' (interpreted as OR)
+- A single negation (eventually with variants) per list is allowed, marked with leading '-'
+- Each item, term, expression or variant is in the same language as the user query
+- Format example: 'term1|variant1 + term2 -exclusion|variantExclusion'
+- set 'isQuestion' property to true if the user request ask for some processing of the possible results
 
-  
+IMPORTANT:
+Since each item in the search list will be combined conjunctively, be careful not to multiply the items, as too many conjunctive conditions might result in finding no content that meets all of them. Therefore, prioritize variants and alternatives in the form of disjunctions, and generally do not exceed 3 items, unless the user explicitly makes a very precise request with more conditions to be joined.
 
-b) A question that first requires searching for potentially relevant elements in the database: in this case, you must deduce from this question what search logic (what set of filters) it requires initially.
+Note that sometimes the conjunction "and" in a query should be interpreted as a disjunction for search purposes. For example, if I want "the singers and the soloists," the search item should be "singer|soloist", not "singer + soloist". When there is ambiguity about interpreting an "and," it's generally better to interpret it as an "or" to avoid overly restricting the search.
 
-YOUR JOB: interpret the user's request into a set of filter items
-The logic expressed (or implicit) in natural language must then be interpreted to identify conjunctions, disjunctions or negations, and not consider as search strings all logical elements or those serving the syntactic construction of the sentence: search keywords will generally be words, disregarding pronouns and other purely syntactic terms (except when in quotes).
-IMPORTANT: only keep the key terms that will truly be useful for a research by string, ignore the terms that only have a syntactic role in natural language. For example in the sentence "my meetings with John on funding", the relevant keywords as filters are only "meeting", "John", and "funding".
+Process the following query and structure your response exactly as specified above, maintaining search precision while ensuring optimal recall.`;
 
-IMPORTANT RULES: In order to find the maximum number of relevant contents, and find content that would not exactly match the query terms but would still be relevant:
-- For each term that might vary in plural or feminine form, create a regex that includes the main possible variations. If a verb is conjugated, create a regex that will allow capturing the different possible conjugations, ideally mainly capturing the verb stem.
-- If certain terms are meant to be articulated together to create specific meaning, the relevant term for a filter will be the entire expression and not each word taken separately. For example, "civil status" should not lead to two filters "civil" and "status" but makes sense as the expression "civil status". Never articulate together more than 2 words (unless they are between quotation marks). Only use this rule with caution, as it is generally relevant to search for terms separately
-- when relevant, suggest semantic variations (related words, synonyms). VERY IMPORTANT: include them directly in the regex about the provided and concerned term, with a disjunctive logic, but above all DO NOT create an additional filter for each variation (since each new filter reduces the set of results, while here the goal is broader results)
-If the user's request is a question requiring preliminary search (case b), only produce the filter items needed for this search but do not answer the question.
+export const searchAgentListToFiltersSystemPrompt = `You are a smart and rigorous AI Agent that breaks down search list items into a set of elements that will serve as conjunctively joined filters to prepare a text search in a database.
 
-YOUR OUTPUT: all the filter items in a JSON following the provided schema
-- "filters": array of filter, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
-  - regexString: the searched content, expressed as a regex to express disjunctive relationships (OR). Eg. 'a OR b' will be 'a|b'.
-  - caseSensitive: true only for words or expressions provided between quotation marks, otherwise this property is to ignore
-  - isToExclude: true only if this filter expresses a negation. Any content matching this regex will be excluded. Otherwise this property is to ignore.`;
+INPUT ANALYSIS:
+- the input is one or two search list(s) (first and alternative) of key terms or expressions, eventually with variants, separated by logic symbols to be properly interpreted
+- each search item separated by ' + ' (meaning AND) has to be interpreted as a distinct filter that will be used conjunctively with the others 
+- each item can combine a set of terms or expression and alternatives, separated by '|' (meaning OR)
+- an item begin with '-' symbol (meaning NOT) is the exclusion item
+- when an expression is placed in quotation marks "like this for example", the entire expression must conserved exactly as it is
+
+YOUR JOB: interprete, enhance and complete the input query into a set of filter items using regex, following these rules:
+- extract each search item in a distinct filter, do not add or remove any search item
+- transform each search item into a correct regex, properly expressing disjunctive logic, and escaping special characters that interfere with regex syntax
+- for "word" in quotes, use the following syntax to search for it only as a word: '\\bword\\b'
+- always insert '(?i)' at the beginning of each filter string for case insensitive search, unless for single word or expression between quotation marks
+- in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant, use the correct regex syntax to complete the search itemm so that:
+  a) terms that might vary in plural or feminine form or conjugated verbs can be matched in their main possible forms,
+  b) add relevant semantic variations (related words, synonyms). E.g. if the searched term is 'practice', semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'
+
+IMPORTANT:
+Variants and alternatives for a given search item should always be combined with the disjunctive logic '|' to the initial form, and thus, they form only a single filter!
+VERY IMPORTANT:
+Since each filters will be combined conjunctively with the other, be careful not to multiply them, as too many conjunctive conditions might result in finding no content that meets all of them. Therefore, prioritize variants and alternatives in the form of disjunctions, and generally do not exceed 3 filters (plus eventually an exclusion filter), unless the search list have really a higher number of conjunctions.
+
+OUTPUT FORMAT: For each provided search list, create a set of filters following the provided JSON schema, where:
+- "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
+  - regexString: the searched content, expressed as a regex to express disjunctive relationships (OR).
+  - isToExclude: true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.`;

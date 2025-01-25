@@ -845,6 +845,7 @@ function VoiceRecorder({
             jsxCommandIcon({}, handleCompletion, () => (
               <Tooltip
                 openOnTargetFocus={false}
+                disabled={window.roamAlphaAPI.platform.isMobile}
                 content={
                   <p>
                     AI Completion following prompt (C)
@@ -855,7 +856,11 @@ function VoiceRecorder({
                   </p>
                 }
                 hoverOpenDelay="500"
-                style={{ display: "flex", alignItems: "center", zIndex: "99" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  zIndex: "99",
+                }}
               >
                 <OpenAILogo />
               </Tooltip>
@@ -867,6 +872,7 @@ function VoiceRecorder({
             jsxCommandIcon({}, handleOutlinerAgent, () => (
               <Tooltip
                 openOnTargetFocus={false}
+                disabled={window.roamAlphaAPI.platform.isMobile}
                 content={
                   isOutlineActive ? (
                     <p>

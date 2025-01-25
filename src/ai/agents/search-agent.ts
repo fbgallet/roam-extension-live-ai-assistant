@@ -21,7 +21,8 @@ import {
 } from "../../utils/roamAPI";
 import {
   roamQuerySystemPrompt,
-  searchAgentSystemPrompt,
+  searchAgentListToFiltersSystemPrompt,
+  searchAgentNLtoKeywordsSystempPrompt,
 } from "./agent-prompts";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
@@ -32,7 +33,10 @@ import {
 } from "../../utils/domElts";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import { dnpUidRegex } from "../../utils/regex";
-import { excludeItemsInArray } from "../../utils/dataProcessing";
+import {
+  concatWithoutDuplicates,
+  excludeItemsInArray,
+} from "../../utils/dataProcessing";
 
 interface PeriodType {
   begin: string;
@@ -50,61 +54,82 @@ const SearchAgentState = Annotation.Root({
   targetUid: Annotation<string>,
   userNLQuery: Annotation<string>,
   llmResponse: Annotation<any>,
+  searchLists: Annotation<any>,
+  isQuestion: Annotation<boolean>,
+  nbOfResults: Annotation<number>,
+  matchingBlocks: Annotation<any>,
+  remainingQueryFilters: Annotation<any>,
   period: Annotation<PeriodType>,
 });
 
-const RoamRelativeDates = [
-  "last month",
-  "last week",
-  "yesterday",
-  "today",
-  "tomorrow",
-  "next week",
-  "next month",
-] as const;
-const searchFiltersSchema = z.object({
-  filters: z
-    .array(
-      z.object({
-        regexString: z
-          .string()
-          .describe(
-            "Regex string (eventually with disjonctive logic) to search"
-          ),
-        isToExclude: z
-          .boolean()
-          .describe("True if this regexString is to exclude"),
-      })
-    )
-    .describe("Array of conjuctive (AND) filters defining the search"),
-  // period: z
-  //   .object({
-  //     begin: z
-  //       .string()
-  //       .describe(
-  //         "Date of the beginning of the period, in the format yyyy/mm/dd"
-  //       ),
-  //     end: z
-  //       .string()
-  //       .describe("Date of the end of the period, in the format yyyy/mm/dd"),
-  //     relative: z
-  //       .object({
-  //         begin: z.enum(RoamRelativeDates).catch(undefined),
-  //         end: z.enum(RoamRelativeDates).catch(undefined),
-  //       })
-  //       .optional()
-  //       .nullable()
-  //       .describe(
-  //         "Relative dates, only if corresponding to one the available item"
-  //       ),
-  //   })
-  //   .optional()
-  //   .nullable()
-  //   .describe(
-  //     "Restricted period of the request, only if mentioned by the user"
-  //   ),
-  // values are \
+const searchListSchema = z.object({
+  isQuestion: z
+    .boolean()
+    .optional()
+    .describe(
+      "True if the user query ask not only for a search but also for processing of the search results"
+    ),
+  nbOfResults: z
+    .number()
+    .optional()
+    .nullable()
+    .describe("Number of requested results, otherwise null"),
+  directList: z
+    .string()
+    .describe("Search list of key terms directly extracted from user query"),
+  alternativeList: z
+    .string()
+    .optional()
+    .nullable()
+    .describe(
+      "Alternative search list if key terms in user query are likely to be too limited"
+    ),
+  period: z
+    .object({
+      begin: z
+        .string()
+        .optional()
+        .nullable()
+        .describe(
+          "Date of the beginning of the period (older than the end), in the format yyyy/mm/dd"
+        ),
+      end: z
+        .string()
+        .optional()
+        .nullable()
+        .describe("Date of the end of the period, in the format yyyy/mm/dd"),
+    })
+    .optional()
+    .nullable()
+    .describe(
+      "Restricted period of the request, only if mentioned by the user"
+    ),
 });
+
+const filtersArray = z
+  .array(
+    z.object({
+      regexString: z
+        .string()
+        .describe("Regex string (eventually with disjonctive logic) to search"),
+      isToExclude: z
+        .boolean()
+        .describe("True if this regexString is to exclude"),
+    })
+  )
+  .nullable()
+  .describe(
+    "Array of filters defining the search, to be combined conjunctively"
+  );
+
+const searchFiltersSchema = z
+  .object({
+    firstListFilters: filtersArray,
+    alternativeListFilters: filtersArray,
+  })
+  .describe(
+    "Each search list converted in an array of filters. If no alternative list, set corresponding property to null"
+  );
 
 let llm: StructuredOutputType;
 
@@ -121,24 +146,24 @@ const loadModel = async (state: typeof SearchAgentState.State) => {
   };
 };
 
-const interpreter = async (state: typeof SearchAgentState.State) => {
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
   const currentPageUid = getPageUidByBlockUid(state.rootUid);
   const currentDate = dnpUidRegex.test(currentPageUid)
     ? getDateStringFromDnpUid(currentPageUid)
     : getDateStringFromDnpUid(new Date());
 
+  const isClaudeModel = state.model.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
     ? {
         includeRaw: true,
       }
     : {};
-  const structuredLlm = llm.withStructuredOutput(
-    searchFiltersSchema,
-    rawOption
-  );
+  const structuredLlm = llm.withStructuredOutput(searchListSchema, rawOption);
   const sys_msg = new SystemMessage({
-    content: searchAgentSystemPrompt.replace("<CURRENT_DATE>", currentDate),
+    content: searchAgentNLtoKeywordsSystempPrompt.replace(
+      "<CURRENT_DATE>",
+      currentDate
+    ),
   });
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
@@ -158,6 +183,52 @@ const interpreter = async (state: typeof SearchAgentState.State) => {
   return {
     llmResponse: response,
   };
+};
+
+const searchlistConverter = async (state: typeof SearchAgentState.State) => {
+  console.log("llmResponse after step1 :>> ", state.llmResponse);
+  state.searchLists = [state.llmResponse?.directList];
+  if (state.llmResponse?.alternativeList)
+    state.searchLists.push(state.llmResponse?.alternativeList);
+
+  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const rawOption = isClaudeModel
+    ? {
+        includeRaw: true,
+      }
+    : {};
+  const structuredLlm = llm.withStructuredOutput(
+    searchFiltersSchema,
+    rawOption
+  );
+  const sys_msg = new SystemMessage({
+    content: searchAgentListToFiltersSystemPrompt,
+  });
+  // console.log("sys_msg :>> ", sys_msg);
+  let messages = [sys_msg].concat([
+    new HumanMessage(
+      // !state.roamQuery
+      // ?
+      "First search list: " +
+        state.searchLists[0] +
+        (state.searchLists.length > 1
+          ? "\nAlternative search list: " + state.searchLists
+          : "")
+      //     : `Here is the user request in natural language: ${state.userNLQuery}
+
+      // Here is the way this request has alreedy been transcribed by an AI assistant in a Roam Research query: ${state.roamQuery}
+
+      // The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
+    ),
+  ]);
+  let response = await structuredLlm.invoke(messages);
+  console.log("response after step 2 :>> ", response);
+  state.llmResponse = response;
+  state.remainingQueryFilters = [state.llmResponse.firstListFilters];
+  state.llmResponse?.alternativeListFilters &&
+    state.remainingQueryFilters.push(state.llmResponse?.alternativeListFilters);
+  state.period = state.llmResponse?.period || null;
+  return state;
 };
 
 const formatChecker = async (state: typeof SearchAgentState.State) => {
@@ -187,124 +258,148 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
 };
 
 const periodFormater = async (state: typeof SearchAgentState.State) => {
-  const relative = state.period.relative;
-  let begin =
-    relative &&
-    relative.begin &&
-    RoamRelativeDates.includes(
-      state.period.begin as (typeof RoamRelativeDates)[number]
-    )
-      ? relative.begin
-      : getDNPTitleFromDate(new Date(state.period.begin));
-  let end =
-    relative &&
-    relative.end &&
-    RoamRelativeDates.includes(
-      state.period.end as (typeof RoamRelativeDates)[number]
-    )
-      ? relative.end
-      : getDNPTitleFromDate(new Date(state.period.end));
+  let begin = getDNPTitleFromDate(new Date(state.period.begin));
+  let end = getDNPTitleFromDate(new Date(state.period.end));
 
-  if (
-    (begin === "last week" && end === "last week") ||
-    (begin === "last month" && end === "last month")
-  ) {
-    end = "today";
-  } else if (
-    (begin === "next week" && end === "next week") ||
-    (begin === "next month" && end === "next month")
-  ) {
-    begin = "today";
-  }
-  // if (begin && !RoamRelativeDates.includes(begin)) begin = state.begin;
-  // const formatedQuery = roamQuery
-  //   .replace("<begin>", begin)
-  //   .replace("<end>", end);
+  console.log("begin :>> ", begin);
+  console.log("end :>> ", end);
+
   return state;
 };
 
 const queryRunner = async (state: typeof SearchAgentState.State) => {
-  console.log("llmResponse :>> ", state.llmResponse);
-  const toExcludeFilter = state.llmResponse.filters.find(
-    (f: any) => f.isToExclude
-  );
-  const formatedRegexToExclude =
-    toExcludeFilter &&
-    (toExcludeFilter.caseSensitive ? "" : "(?i)" + toExcludeFilter.regexString);
+  const currentFilter = state.remainingQueryFilters.shift();
+  console.log("currentFilter :>> ", currentFilter);
 
-  const allFormatedRegex: string[] = state.llmResponse.filters
+  const toExcludeFilter = currentFilter.find((f: any) => f.isToExclude);
+  const regexToExclude = toExcludeFilter && toExcludeFilter.regexString;
+
+  const allIncludeRegex: string[] = currentFilter
     .filter((f: any) => !f.isToExclude)
-    .map((f: any) => (f.caseSensitive ? "" : "(?i)") + f.regexString);
-  const neededRegexNumber = allFormatedRegex.length - 1;
+    .map((f: any) => f.regexString);
+  const neededRegexNumber = allIncludeRegex.length - 1;
 
-  let blocksMatchingAllFilters: string[] = [];
-  if (allFormatedRegex.length > 1) {
+  let blocksMatchingAllFilters: any[] = [];
+  if (allIncludeRegex.length > 1) {
     let totalRegexControl = "^";
-    for (let i = 0; i < allFormatedRegex.length; i++) {
-      totalRegexControl += `(?=.*${allFormatedRegex[i].replace("(?i)", "")})`;
+    for (let i = 0; i < allIncludeRegex.length; i++) {
+      totalRegexControl += `(?=.*${allIncludeRegex[i].replace("(?i)", "")})`;
     }
     totalRegexControl += ".*";
     let params = [totalRegexControl];
-    if (toExcludeFilter) params.push(formatedRegexToExclude);
+    if (toExcludeFilter) params.push(regexToExclude);
     blocksMatchingAllFilters =
       (window as any).roamAlphaAPI.q(
         getBlocksMatchingRegexQuery(toExcludeFilter),
         ...params
       ) || [];
+    blocksMatchingAllFilters = blocksMatchingAllFilters.map((block) => {
+      return { uid: block[0], content: block[1], editTime: block[2] };
+    });
+    blocksMatchingAllFilters = excludeItemsInArray(blocksMatchingAllFilters, [
+      state.rootUid,
+    ]);
   }
   // console.log("blocks matching all filters :>>", blocksMatchingAllFilters);
 
-  let allMatchingUids = blocksMatchingAllFilters.map((elt: any) => elt[0]);
+  let allMatchingUids = blocksMatchingAllFilters.map((elt: any) => elt.uid);
   let matchingBlocks = blocksMatchingAllFilters;
 
-  allFormatedRegex.forEach((filter: any) => {
+  console.log("allIncludeRegex :>> ", allIncludeRegex);
+  allIncludeRegex.forEach((filter: any) => {
     let params = [filter];
-    if (toExcludeFilter) params.push(formatedRegexToExclude);
-    let uidsMatchingOneFilter = (window as any).roamAlphaAPI
-      .q(getBlocksMatchingRegexQuery(toExcludeFilter), ...params)
-      .map((elt: any) => elt[0]);
+    if (toExcludeFilter) params.push(regexToExclude);
+    let blocksMatchingOneFilter: any[] =
+      (window as any).roamAlphaAPI.q(
+        getBlocksMatchingRegexQuery(toExcludeFilter),
+        ...params
+      ) || [];
+    blocksMatchingOneFilter = blocksMatchingOneFilter.map((block) => {
+      return { uid: block[0], content: block[1], editTime: block[2] };
+    });
+    console.log("blocksMatchingOneFilter :>> ", blocksMatchingOneFilter);
+    if (blocksMatchingOneFilter.length) {
+      let uidsMatchingOneFilter = blocksMatchingOneFilter.map(
+        (elt: any) => elt.uid
+      );
 
-    uidsMatchingOneFilter = excludeItemsInArray(
-      uidsMatchingOneFilter,
-      allMatchingUids
-    );
+      uidsMatchingOneFilter = excludeItemsInArray(
+        uidsMatchingOneFilter,
+        allMatchingUids
+      );
 
-    const otherRegexString = allFormatedRegex.filter((f) => f !== filter);
+      const otherRegexString = allIncludeRegex.filter((f) => f !== filter);
+      console.log("otherRegexString :>> ", otherRegexString);
 
-    let blocksAndChildrenMatchingAllFilters;
+      let blocksAndChildrenMatchingAllFilters: any[] = [];
 
-    const additionalRegex = toExcludeFilter
-      ? otherRegexString.concat(formatedRegexToExclude)
-      : otherRegexString;
-    // console.log("additionalRegex :>> ", additionalRegex);
-    if (additionalRegex.length) {
-      blocksAndChildrenMatchingAllFilters =
-        (window as any).roamAlphaAPI.q(
-          getMultipleMatchingRegexInTreeQuery(
-            neededRegexNumber,
-            toExcludeFilter
-          ),
-          descendantRule,
-          uidsMatchingOneFilter,
-          ...additionalRegex
-        ) || [];
+      const additionalRegex = toExcludeFilter
+        ? otherRegexString.concat(regexToExclude)
+        : otherRegexString;
+      console.log("additionalRegex :>> ", additionalRegex);
+      if (additionalRegex.length) {
+        blocksAndChildrenMatchingAllFilters =
+          (window as any).roamAlphaAPI.q(
+            getMultipleMatchingRegexInTreeQuery(
+              neededRegexNumber,
+              toExcludeFilter
+            ),
+            descendantRule,
+            uidsMatchingOneFilter,
+            ...additionalRegex
+          ) || [];
+        blocksAndChildrenMatchingAllFilters =
+          blocksAndChildrenMatchingAllFilters.map((block) => {
+            return {
+              uid: block[0],
+              content: block[1],
+              editTime: block[2],
+              childMatchingContent: block.length > 2 ? block.slice(3) : null,
+            };
+          });
+      } else
+        blocksAndChildrenMatchingAllFilters = blocksMatchingOneFilter || [];
+      // console.log("resultInChildren :>> ", blocksAndChildrenMatchingAllFilters);
+
+      matchingBlocks = concatWithoutDuplicates(
+        matchingBlocks,
+        blocksAndChildrenMatchingAllFilters,
+        "uid"
+      );
+      allMatchingUids = concatWithoutDuplicates(
+        allMatchingUids,
+        blocksAndChildrenMatchingAllFilters.map((elt: any) => elt.uid) || []
+      );
     }
-    // console.log("resultInChildren :>> ", blocksAndChildrenMatchingAllFilters);
-    matchingBlocks = matchingBlocks.concat(blocksAndChildrenMatchingAllFilters);
-    allMatchingUids = allMatchingUids.concat(
-      blocksAndChildrenMatchingAllFilters.map((elt: any) => elt[0])
-    );
   });
   console.log("matchingBlocks :>> ", matchingBlocks);
+
+  return {
+    remainingQueryFilters: state.remainingQueryFilters,
+    matchingBlocks:
+      matchingBlocks && matchingBlocks.length
+        ? concatWithoutDuplicates(state.matchingBlocks, matchingBlocks, "uid")
+        : matchingBlocks,
+  };
+};
+
+const preselection = async (state: typeof SearchAgentState.State) => {
+  console.log("state :>> ", state);
 };
 
 /*********/
 // EDGES //
 /*********/
 
-const hasPeriod = (state: typeof SearchAgentState.State) => {
-  if (state.period) return "periodFormater";
+const afterCheckRouter = (state: typeof SearchAgentState.State) => {
+  if ("directList" in state.llmResponse) return "searchlist-converter";
   return "queryRunner";
+};
+
+const alternativeQuery = (state: typeof SearchAgentState.State) => {
+  console.log("state.remainingQueryFilters :>> ", state.remainingQueryFilters);
+  if (state.remainingQueryFilters.length) return "queryRunner";
+  return "preselection";
 };
 
 // const isToCheck = (state: typeof SearchAgentState.State) => {
@@ -316,16 +411,20 @@ const hasPeriod = (state: typeof SearchAgentState.State) => {
 const builder = new StateGraph(SearchAgentState);
 builder
   .addNode("loadModel", loadModel)
-  .addNode("interpreter", interpreter)
+  .addNode("nl-query-interpreter", nlQueryInterpreter)
+  .addNode("searchlist-converter", searchlistConverter)
   .addNode("checker", formatChecker)
   .addNode("periodFormater", periodFormater)
   .addNode("queryRunner", queryRunner)
+  .addNode("preselection", preselection)
 
   .addEdge(START, "loadModel")
-  .addEdge("loadModel", "interpreter")
-  .addEdge("interpreter", "checker")
-  .addConditionalEdges("checker", hasPeriod)
-  .addEdge("periodFormater", "queryRunner");
+  .addEdge("loadModel", "nl-query-interpreter")
+  .addEdge("nl-query-interpreter", "checker")
+  .addEdge("searchlist-converter", "checker")
+  .addConditionalEdges("checker", afterCheckRouter)
+  .addEdge("periodFormater", "queryRunner")
+  .addConditionalEdges("queryRunner", alternativeQuery);
 
 // Compile graph
 export const SearchAgent = builder.compile();
