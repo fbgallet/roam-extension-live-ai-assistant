@@ -34,6 +34,7 @@ import { uidRegex } from "./utils/regex";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
+export let DEEPSEEK_API_KEY = "";
 export let OPENROUTER_API_KEY = "";
 export let GROQ_API_KEY = "";
 export let isUsingWhisper;
@@ -70,7 +71,11 @@ export let isComponentAlwaysVisible;
 export let isComponentVisible;
 export let resImages;
 export let position;
-export let openaiLibrary, anthropicLibrary, openrouterLibrary, groqLibrary;
+export let openaiLibrary,
+  anthropicLibrary,
+  openrouterLibrary,
+  groqLibrary,
+  deepseekLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
@@ -201,6 +206,8 @@ export default {
               "Claude Haiku 3.5",
               "Claude Sonnet 3.5",
               "Claude Opus",
+              "deepseek-chat",
+              "deepseek-reasoner",
               "first custom OpenAI model",
               "first OpenRouter model",
               "first Ollama local model",
@@ -304,6 +311,36 @@ export default {
               setTimeout(() => {
                 ANTHROPIC_API_KEY = evt.target.value;
                 anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+              }, 200);
+              setTimeout(() => {
+                mountComponent(position);
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "deepseekapi",
+          name: "DeepSeek API Key",
+          description: (
+            <>
+              <span>Copy here your DeepSeek API key</span>
+              <br></br>
+              <a href="https://platform.deepseek.com/api_keys" target="_blank">
+                (Follow this link to generate a new one)
+              </a>
+              <br></br>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: async (evt) => {
+              unmountComponent(position);
+              setTimeout(() => {
+                DEEPSEEK_API_KEY = evt.target.value;
+                deepseekLibrary = initializeOpenAIAPI(
+                  DEEPSEEK_API_KEY,
+                  "https://api.deepseek.com"
+                );
               }, 200);
               setTimeout(() => {
                 mountComponent(position);
@@ -819,6 +856,9 @@ export default {
     if (extensionAPI.settings.get("openrouterapi") === null)
       await extensionAPI.settings.set("openrouterapi", "");
     OPENROUTER_API_KEY = extensionAPI.settings.get("openrouterapi");
+    if (extensionAPI.settings.get("deepseekapi") === null)
+      await extensionAPI.settings.set("deepseekapi", "");
+    DEEPSEEK_API_KEY = extensionAPI.settings.get("deepseekapi");
     if (extensionAPI.settings.get("openrouterOnly") === null)
       await extensionAPI.settings.set("openrouterOnly", false);
     openRouterOnly = extensionAPI.settings.get("openrouterOnly");
@@ -950,6 +990,11 @@ export default {
       openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
     if (ANTHROPIC_API_KEY)
       anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+    if (DEEPSEEK_API_KEY)
+      deepseekLibrary = initializeOpenAIAPI(
+        DEEPSEEK_API_KEY,
+        "https://api.deepseek.com"
+      );
     if (OPENROUTER_API_KEY) {
       openrouterLibrary = initializeOpenAIAPI(
         OPENROUTER_API_KEY,

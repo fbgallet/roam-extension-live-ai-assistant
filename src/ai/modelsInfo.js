@@ -10,6 +10,8 @@ export const tokensLimit = {
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,
   "Claude Opus": 200000,
+  "deepseek-chat": 64000,
+  "deepseek-reasoner": 64000,
   custom: undefined,
 };
 
@@ -49,6 +51,14 @@ export const modelsPricing = {
   "claude-3-opus-20240229": {
     input: 0.015,
     output: 0.075,
+  },
+  "deepseek-chat": {
+    input: 0.00027,
+    output: 0.0011,
+  },
+  "deepseek-reasoner": {
+    input: 0.00055,
+    output: 0.00219,
   },
 };
 
