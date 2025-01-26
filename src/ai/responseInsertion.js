@@ -84,7 +84,8 @@ async function aiCompletion({
   if (
     llm.provider === "OpenAI" ||
     llm.provider === "openRouter" ||
-    llm.provider === "groq"
+    llm.provider === "groq" ||
+    llm.provider === "DeepSeek"
   ) {
     aiResponse = await openaiCompletion(
       llm.library,

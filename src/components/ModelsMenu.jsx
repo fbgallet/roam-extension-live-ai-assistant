@@ -6,6 +6,8 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 import {
+  anthropicLibrary,
+  deepseekLibrary,
   defaultModel,
   extensionStorage,
   groqModels,
@@ -14,6 +16,7 @@ import {
   openRouterModels,
   openRouterModelsInfo,
   openRouterOnly,
+  openaiLibrary,
   setDefaultModel,
 } from "..";
 import { tokensLimit } from "../ai/modelsInfo";
@@ -26,8 +29,6 @@ const ModelsMenu = ({
   roleStructure = "menuitem",
 }) => {
   const handleClickOnModel = async (e, prefix, modelId) => {
-    console.log("handle click on model ?");
-    console.log("callback :>> ", callback);
     let model = getModelFromMenu(e, prefix, modelId);
     await callback({ e, command, prompt, model });
   };
@@ -50,6 +51,7 @@ const ModelsMenu = ({
 
   const getModelFromMenu = (e, prefix, modelId) => {
     let model = e.target.innerText.split("\n")[0];
+    console.log("model :>> ", model);
     switch (model) {
       case "GPT 4o mini":
         model = "gpt-4o-mini";
@@ -73,37 +75,11 @@ const ModelsMenu = ({
 
   return (
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
-      {openRouterOnly ? null : (
-        <>
-          <MenuItem
-            icon={defaultModel === "gpt-4o-mini" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="GPT 4o mini"
-            labelElement="128k"
-          />
-          <MenuItem
-            icon={defaultModel === "gpt-4o" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="GPT 4o"
-            labelElement="128k"
-          />
-          <MenuItem text="o1 'reasoning' models">
+      {
+        openRouterOnly ? null : openaiLibrary ? (
+          <>
             <MenuItem
-              icon={defaultModel === "o1-mini" && "pin"}
+              icon={defaultModel === "gpt-4o-mini" && "pin"}
               onClick={(e) => {
                 handleClickOnModel(e);
               }}
@@ -112,11 +88,11 @@ const ModelsMenu = ({
               }}
               onContextMenu={(e) => handleContextMenu(e)}
               tabindex="0"
-              text="o1-mini"
+              text="GPT 4o mini"
               labelElement="128k"
             />
             <MenuItem
-              icon={defaultModel === "o1" && "pin"}
+              icon={defaultModel === "gpt-4o" && "pin"}
               onClick={(e) => {
                 handleClickOnModel(e);
               }}
@@ -125,60 +101,96 @@ const ModelsMenu = ({
               }}
               onContextMenu={(e) => handleContextMenu(e)}
               tabindex="0"
-              text="o1"
-              labelElement="200k"
+              text="GPT 4o"
+              labelElement="128k"
             />
-            <MenuDivider
-              className="menu-hint"
-              title={
-                <p>
-                  ⚠️ Use with caution,
-                  <br />
-                  expensive models!
-                  <br />
-                  See{" "}
-                  <a href="https://openai.com/api/pricing/" target="_blank">
-                    pricing
-                  </a>{" "}
-                  &{" "}
-                  <a
-                    href="https://openai.com/index/learning-to-reason-with-llms/"
-                    target="_blank"
-                  >
-                    purpose
-                  </a>
-                </p>
-              }
-            />
-          </MenuItem>
-          {openAiCustomModels && openAiCustomModels.length ? (
-            <MenuItem tabindex="0" text="Custom OpenAI models">
-              {openAiCustomModels.map((model) => (
-                <MenuItem
-                  icon={
-                    defaultModel === "first custom OpenAI model" &&
-                    openAiCustomModels[0] === model &&
-                    "pin"
-                  }
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text={model}
-                  labelElement={
-                    tokensLimit[model]
-                      ? (tokensLimit[model] / 1000).toFixed(0).toString() + "k"
-                      : null
-                  }
-                />
-              ))}
+            <MenuItem text="o1 'reasoning' models">
+              <MenuItem
+                icon={defaultModel === "o1-mini" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="o1-mini"
+                labelElement="128k"
+              />
+              <MenuItem
+                icon={defaultModel === "o1" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="o1"
+                labelElement="200k"
+              />
+              <MenuDivider
+                className="menu-hint"
+                title={
+                  <p>
+                    ⚠️ Use with caution,
+                    <br />
+                    expensive models!
+                    <br />
+                    See{" "}
+                    <a href="https://openai.com/api/pricing/" target="_blank">
+                      pricing
+                    </a>{" "}
+                    &{" "}
+                    <a
+                      href="https://openai.com/index/learning-to-reason-with-llms/"
+                      target="_blank"
+                    >
+                      purpose
+                    </a>
+                  </p>
+                }
+              />
             </MenuItem>
-          ) : null}
-          <MenuDivider />
+            {openAiCustomModels && openAiCustomModels.length ? (
+              <MenuItem tabindex="0" text="Custom OpenAI models">
+                {openAiCustomModels.map((model) => (
+                  <MenuItem
+                    icon={
+                      defaultModel === "first custom OpenAI model" &&
+                      openAiCustomModels[0] === model &&
+                      "pin"
+                    }
+                    onClick={(e) => {
+                      handleClickOnModel(e);
+                    }}
+                    onKeyDown={(e) => {
+                      handleKeyDownOnModel(e);
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e)}
+                    tabindex="0"
+                    text={model}
+                    labelElement={
+                      tokensLimit[model]
+                        ? (tokensLimit[model] / 1000).toFixed(0).toString() +
+                          "k"
+                        : null
+                    }
+                  />
+                ))}
+              </MenuItem>
+            ) : null}
+          </>
+        ) : (
+          <MenuDivider className="menu-hint" title="No OpenAI API key" />
+        )
+        // <MenuDivider />
+      }
+      {anthropicLibrary ? (
+        <>
+          {openaiLibrary && <MenuDivider />}
           <MenuItem
             icon={defaultModel === "Claude Haiku 3.5" && "pin"}
             onClick={(e) => {
@@ -234,6 +246,41 @@ const ModelsMenu = ({
             />
           </MenuItem>
         </>
+      ) : (
+        <MenuDivider className="menu-hint" title="No Anthropic API key" />
+      )}
+      {openRouterOnly ? null : deepseekLibrary ? (
+        <>
+          {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
+          <MenuItem
+            icon={defaultModel === "deepseek-chat" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="deepseek-chat"
+            labelElement="64k"
+          />
+          <MenuItem
+            icon={defaultModel === "deepseek-reasoner" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="deepseek-reasoner"
+            labelElement="64k"
+          />
+        </>
+      ) : (
+        <MenuDivider className="menu-hint" title="No DeepSeek API key" />
       )}
       {openRouterModels.length ? (
         <>

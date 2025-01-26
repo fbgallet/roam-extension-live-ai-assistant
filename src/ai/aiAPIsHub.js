@@ -22,6 +22,7 @@ import {
   groqModels,
   maxImagesNb,
   openRouterModelsInfo,
+  deepseekLibrary,
 } from "..";
 import { AppToaster } from "../components/VoiceRecorder";
 import {
@@ -171,6 +172,10 @@ export function modelAccordingToProvider(model) {
     llm.provider = "Anthropic";
     llm.id = normalizeClaudeModel(model);
     llm.library = anthropicLibrary;
+  } else if (model.includes("deepseek")) {
+    llm.provider = "DeepSeek";
+    llm.id = model;
+    llm.library = deepseekLibrary;
   } else {
     llm.provider = "OpenAI";
     llm.id = model;

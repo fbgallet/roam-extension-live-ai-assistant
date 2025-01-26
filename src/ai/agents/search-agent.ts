@@ -41,10 +41,6 @@ import {
 interface PeriodType {
   begin: string;
   end: string;
-  relative?: {
-    begin: string;
-    end: string;
-  };
 }
 
 const SearchAgentState = Annotation.Root({
@@ -182,6 +178,9 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 
   return {
     llmResponse: response,
+    isQuestion: response.isQuestion,
+    nbOfResults: response.nbOfResults,
+    period: response.period,
   };
 };
 
@@ -227,7 +226,6 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   state.remainingQueryFilters = [state.llmResponse.firstListFilters];
   state.llmResponse?.alternativeListFilters &&
     state.remainingQueryFilters.push(state.llmResponse?.alternativeListFilters);
-  state.period = state.llmResponse?.period || null;
   return state;
 };
 
@@ -253,7 +251,7 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
   // console.log("Query after correction :>> ", correctedQuery);
   return {
     roamQuery: correctedQuery,
-    period: state.llmResponse.period || null,
+    period: state.period || state.llmResponse.period || null,
   };
 };
 
@@ -385,6 +383,25 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
 
 const preselection = async (state: typeof SearchAgentState.State) => {
   console.log("state :>> ", state);
+  let filteredBlocks = state.matchingBlocks;
+  if (state.period) {
+    let begin = state.period.begin ? new Date(state.period.begin) : null;
+    console.log("begin :>> ", begin);
+    let end = state.period.end ? new Date(state.period.end) : null;
+    console.log("end :>> ", end);
+    filteredBlocks = filteredBlocks.filter(
+      (block: any) =>
+        (!begin || block.editTime > begin.getTime()) &&
+        (!end || block.editTime < end.getTime())
+    );
+  }
+  console.log("filteredBlocks :>> ", filteredBlocks);
+  if (state.nbOfResults) {
+    filteredBlocks = filteredBlocks
+      .sort((a: any, b: any) => a.editTime > b.editTime)
+      .slice(0, state.nbOfResults);
+  }
+  console.log("filteredBlocks & sorted :>> ", filteredBlocks);
 };
 
 /*********/
