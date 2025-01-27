@@ -496,12 +496,13 @@ export const getMultipleMatchingRegexInTreeQuery = (
   let findStr = "";
   let resultStr = "";
   for (let i = 0; i < nbOfRegex; i++) {
-    resultStr += `?child-content${i} `;
+    resultStr += `?child-uid${i} ?child-content${i} `;
     regexVarStr += `?regex${i} `;
     findStr += `
     [(re-pattern ?regex${i}) ?pattern${i}]
-    (descendants ?b ?c${i})
-    [?c${i} :block/string ?child-content${i}]
+    (descendants ?b ?child${i})
+    [?child${i} :block/uid ?child-uid${i}]
+    [?child${i} :block/string ?child-content${i}]
     (or
       [(re-find ?pattern${i} ?child-content${i})]
       [(re-find ?pattern${i} ?content)])\n`;

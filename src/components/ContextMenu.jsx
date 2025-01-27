@@ -735,43 +735,44 @@ const StandaloneContextMenu = () => {
             }}
           >
             <div className="aicommands-topbar">
-              <Icon
-                icon="help"
-                size={12}
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-              />
-              <Icon
-                icon="dollar"
-                size={12}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  displayTokensDialog();
-                  setIsOpen(false);
-                }}
-              />
-              <Icon
-                icon="reset"
-                size={10}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  updateUserCommands(true);
-                  updateCustomStyles();
-                  updateLiveOutlines();
-                  updateTemplates();
-                  inputRef.current.focus();
-                }}
-              />
-              <Icon icon="cross" size={12} onClick={() => setIsOpen(false)} />
+              <div>LIVE AI ASSISTANT</div>
+              <div className="laia-topbar-icons">
+                <Icon
+                  icon="help"
+                  size={12}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                />
+                <Icon
+                  icon="dollar"
+                  size={12}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    displayTokensDialog();
+                    setIsOpen(false);
+                  }}
+                />
+                <Icon
+                  icon="reset"
+                  size={10}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateUserCommands(true);
+                    updateCustomStyles();
+                    updateLiveOutlines();
+                    updateTemplates();
+                    inputRef.current.focus();
+                  }}
+                />
+                <Icon icon="cross" size={12} onClick={() => setIsOpen(false)} />
+              </div>
             </div>
             <MenuDivider
               className="menu-hint"
               title={
                 <div>
-                  LIVE AI ASSISTANT
-                  <br />
-                  Default model: {defaultModel}
+                  Default model: <b>{defaultModel}</b>
                 </div>
               }
             />

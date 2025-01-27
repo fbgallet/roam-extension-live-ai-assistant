@@ -300,3 +300,25 @@ OUTPUT FORMAT: For each provided search list, create a set of filters following 
 - "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
   - regexString: the searched content, expressed as a regex to express disjunctive relationships (OR).
   - isToExclude: true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.`;
+
+export const searchtAgentProcessResultsPrompt = `Generate the most appropriate response to the user's request provided below using content extracted from their database (called the user's "Roam graph"). This request has been pre-processed to create specific database queries (based on identified keywords) to extract potentially relevant data. The data provided below corresponds to content meeting all query conditions.
+
+Context: A Roam graph consists of hierarchically organized blocks. Some blocks have been selected if the conditions expressed in the user request were met by its content or by the content of its child blocks.
+
+Structure of the input content (resulting from previous db queries):
+1) '((9-charecters-identifier)) in [[Page Title]] > path > ... >
+The 9-charecters-identif is the unique dentifier (called 'uid') of each parent block meeting the query conditions, followed by the page name and complete path where the bloc is located (the hierarchy of its parent blocks).
+2) Content and hierarchy of sub-content:
+The content of the matching block and the content of its potential child blocks (only up to two levels).
+
+Output format:
+Format your response according to these rules:
+- If the user's response requires commenting on one or more relevant blocks:
+    1. First, reproduce the identifier exactly as shown ((uid))
+    2. Then provide your comment below it, like this:
+      - ((uid1))
+        - comment...
+      - ((uid2))
+        - comment...
+- Otherwise:
+Organize your response in the most appropriate way for the user's question or request, citing source blocks discreetly within a markdown alias that must always follow this format: '([block source](((uid))))'`;

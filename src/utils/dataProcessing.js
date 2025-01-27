@@ -7,8 +7,6 @@ export function concatWithoutDuplicates(
   arrayToConcat = [],
   matchingProperty
 ) {
-  console.log("sourceArray :>> ", sourceArray);
-  console.log("arrayToConcat :>> ", arrayToConcat);
   if (!sourceArray || !sourceArray.length) return arrayToConcat;
   if (!sourceArray || !arrayToConcat.length) return sourceArray;
   for (let i = 0; i < arrayToConcat.length; i++) {
