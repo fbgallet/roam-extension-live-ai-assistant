@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Tooltip } from "@blueprintjs/core";
 
 import {
+  faBolt,
   faMicrophone,
   faMicrophoneSlash,
   faRecordVinyl,
@@ -862,7 +863,8 @@ function VoiceRecorder({
                   zIndex: "99",
                 }}
               >
-                <OpenAILogo />
+                <FontAwesomeIcon icon={faBolt} />
+                {/* <OpenAILogo /> */}
               </Tooltip>
             ))
         }

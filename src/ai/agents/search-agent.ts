@@ -37,6 +37,7 @@ import {
   concatWithoutDuplicates,
   excludeItemsInArray,
 } from "../../utils/dataProcessing";
+import { insertStructuredAIResponse } from "../responseInsertion";
 
 interface PeriodType {
   begin: string;
@@ -281,7 +282,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   if (allIncludeRegex.length > 1) {
     let totalRegexControl = "^";
     for (let i = 0; i < allIncludeRegex.length; i++) {
-      totalRegexControl += `(?=.*${allIncludeRegex[i].replace("(?i)", "")})`;
+      totalRegexControl += `(?=.*${allIncludeRegex[i].replaceAll("(?i)", "")})`;
     }
     totalRegexControl += ".*";
     let params = [totalRegexControl];
@@ -352,7 +353,28 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
               uid: block[0],
               content: block[1],
               editTime: block[2],
-              childMatchingContent: block.length > 2 ? block.slice(3) : null,
+              childMatchingContent:
+                block.length > 2
+                  ? block
+                      .slice(3)
+                      .reduce(
+                        (
+                          result: any[],
+                          _: string,
+                          index: number,
+                          original: string[]
+                        ) => {
+                          if (index % 2 === 0) {
+                            result.push({
+                              uid: original[index],
+                              content: original[index + 1],
+                            });
+                          }
+                          return result;
+                        },
+                        []
+                      )
+                  : null,
             };
           });
       } else
@@ -381,7 +403,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   };
 };
 
-const preselection = async (state: typeof SearchAgentState.State) => {
+const limitAndOrder = async (state: typeof SearchAgentState.State) => {
   console.log("state :>> ", state);
   let filteredBlocks = state.matchingBlocks;
   if (state.period) {
@@ -395,13 +417,61 @@ const preselection = async (state: typeof SearchAgentState.State) => {
         (!end || block.editTime < end.getTime())
     );
   }
-  console.log("filteredBlocks :>> ", filteredBlocks);
-  if (state.nbOfResults) {
-    filteredBlocks = filteredBlocks
-      .sort((a: any, b: any) => a.editTime > b.editTime)
-      .slice(0, state.nbOfResults);
-  }
+  filteredBlocks = filteredBlocks.sort(
+    (a: any, b: any) => a.editTime < b.editTime
+  );
+  let requestedNb = state.nbOfResults
+    ? state.nbOfResults * (state.isQuestion ? 5 : 1)
+    : null;
+  let maxNumber = requestedNb && requestedNb < 100 ? requestedNb : 100;
+  maxNumber;
+  if (maxNumber < filteredBlocks.length)
+    filteredBlocks = filteredBlocks.slice(0, maxNumber);
   console.log("filteredBlocks & sorted :>> ", filteredBlocks);
+};
+
+const preselection = async (state: typeof SearchAgentState.State) => {
+  console.log("Preselection Node");
+};
+
+const processResults = async (state: typeof SearchAgentState.State) => {
+  console.log("Process results");
+  const results = state.matchingBlocks;
+  const sys_msg = new SystemMessage({
+    content: searchAgentListToFiltersSystemPrompt,
+  });
+  // console.log("sys_msg :>> ", sys_msg);
+  let messages = [sys_msg].concat([
+    new HumanMessage(`Here is the user's initial request:
+Here is the content of the main blocks that match with this request:`),
+  ]);
+  let response = await llm.invoke(messages);
+  console.log("AI results processed response :>> ", response);
+};
+
+const displayResults = async (state: typeof SearchAgentState.State) => {
+  console.log("Display results !");
+
+  let resultStringified = "";
+
+  if (!state.matchingBlocks.length) {
+    resultStringified = "No result !";
+  } else {
+    state.matchingBlocks.forEach((block: any) => {
+      resultStringified += `- ((${block.uid}))\n`;
+      if (block.childMatchingContent) {
+        let children = block.childMatchingContent;
+        for (let i = 0; i < children.length; i++) {
+          resultStringified += `  - ((${children[i].uid}))\n`;
+        }
+      }
+    });
+  }
+  await insertStructuredAIResponse({
+    targetUid: state.rootUid,
+    content: resultStringified.trim(),
+    forceInChildren: true,
+  });
 };
 
 /*********/
@@ -416,9 +486,20 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
 const alternativeQuery = (state: typeof SearchAgentState.State) => {
   console.log("state.remainingQueryFilters :>> ", state.remainingQueryFilters);
   if (state.remainingQueryFilters.length) return "queryRunner";
-  return "preselection";
+  return "limitAndOrder";
 };
 
+const processOrDisplay = (state: typeof SearchAgentState.State) => {
+  if (state.isQuestion) {
+    if (
+      state.matchingBlocks.length < 11 ||
+      (state.nbOfResults && state.matchingBlocks.length < state.nbOfResults * 3)
+    )
+      return "results-processor";
+    return "preselection-filter";
+  }
+  return "output";
+};
 // const isToCheck = (state: typeof SearchAgentState.State) => {
 //   if (state.period) return "formatChecker";
 //   return "queryRunner";
@@ -433,7 +514,10 @@ builder
   .addNode("checker", formatChecker)
   .addNode("periodFormater", periodFormater)
   .addNode("queryRunner", queryRunner)
-  .addNode("preselection", preselection)
+  .addNode("limitAndOrder", limitAndOrder)
+  .addNode("preselection-filter", preselection)
+  .addNode("results-processor", processResults)
+  .addNode("output", displayResults)
 
   .addEdge(START, "loadModel")
   .addEdge("loadModel", "nl-query-interpreter")
@@ -441,7 +525,8 @@ builder
   .addEdge("searchlist-converter", "checker")
   .addConditionalEdges("checker", afterCheckRouter)
   .addEdge("periodFormater", "queryRunner")
-  .addConditionalEdges("queryRunner", alternativeQuery);
+  .addConditionalEdges("queryRunner", alternativeQuery)
+  .addConditionalEdges("limitAndOrder", processOrDisplay);
 
 // Compile graph
 export const SearchAgent = builder.compile();

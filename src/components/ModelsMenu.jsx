@@ -51,7 +51,6 @@ const ModelsMenu = ({
 
   const getModelFromMenu = (e, prefix, modelId) => {
     let model = e.target.innerText.split("\n")[0];
-    console.log("model :>> ", model);
     switch (model) {
       case "GPT 4o mini":
         model = "gpt-4o-mini";

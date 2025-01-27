@@ -246,13 +246,15 @@
 .aicommands-topbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  justify-content: flex-end;
-  padding-right: 5px;
-  margin-bottom: -5px;
+  justify-content: space-between;
   opacity: 0.6;
+  font-size: 12px;
+  font-weight: 500;
 }
-.aicommands-topbar {
+.aicommands-topbar .laia-topbar-icons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
   cursor: pointer;
 }
 
@@ -268,11 +270,11 @@
 .aicommands-style,
 .aicommands-context {
   opacity: 0.6;
-  padding: 10px 0 5px 0;
+  padding: 5px 0;
   display: flex;
   gap: 12px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   font-size: 12px;
 }
 .aicommands-style {

@@ -60,7 +60,7 @@ export const getInputDataFromRoamContext = async (
   roamContext
 ) => {
   const isCommandPrompt = prompt ? true : false;
-  if (selectedUids.length) sourceUid = undefined;
+  if (selectedUids?.length) sourceUid = undefined;
   if (!sourceUid && !selectedUids?.length) {
     let { currentUid, selectionUids } = getFocusAndSelection();
     sourceUid = currentUid;
@@ -69,7 +69,7 @@ export const getInputDataFromRoamContext = async (
   let currentBlockContent;
   if (sourceUid) currentBlockContent = getBlockContentByUid(sourceUid);
 
-  if (!sourceUid && !selectedUids.length && !e) return { noData: true };
+  if (!sourceUid && !selectedUids?.length && !e) return { noData: true };
 
   if (currentBlockContent) {
     if (prompt.toLowerCase().includes("<target content>"))
