@@ -1,5 +1,15 @@
-export function excludeItemsInArray(sourceArray, itemsToExclude) {
-  return sourceArray.filter((item) => !itemsToExclude.includes(item));
+export function excludeItemsInArray(
+  sourceArray,
+  itemsToExclude,
+  matchingProperty
+) {
+  return sourceArray.filter((item) =>
+    matchingProperty !== undefined
+      ? !itemsToExclude.some(
+          (elt) => elt[matchingProperty] === item[matchingProperty]
+        )
+      : !itemsToExclude.includes(item)
+  );
 }
 
 export function concatWithoutDuplicates(
@@ -22,4 +32,12 @@ export function concatWithoutDuplicates(
       sourceArray.push(arrayToConcat[i]);
   }
   return sourceArray;
+}
+
+export function sliceByWordLimit(text, wordLimit) {
+  const words = text.split(" ");
+  if (words.length <= wordLimit) {
+    return text;
+  }
+  return words.slice(0, wordLimit).join(" ") + "...";
 }

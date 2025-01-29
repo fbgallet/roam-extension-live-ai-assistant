@@ -1,6 +1,7 @@
 import { copyTreeBranches } from "../ai/responseInsertion";
 import {
   dateStringRegex,
+  dnpUidRegex,
   flexibleUidRegex,
   strictPageRegex,
   uidRegex,
@@ -71,6 +72,15 @@ export function getBlocksMentioningTitle(title) {
   return result.map((block) => {
     return { uid: block[0], content: block[1] };
   });
+}
+
+export function getPathOfBlock(uid) {
+  let result = window.roamAlphaAPI
+    .q(`[:find (pull ?block [{:block/parents [:block/string]}])
+  :where
+  [?block :block/uid "${uid}"]]`);
+  if (!result) return null;
+  return result[0][0].parents?.map((p) => p.string);
 }
 
 export function isExistingBlock(uid) {
@@ -213,6 +223,17 @@ export function getFirstChildUid(uid) {
   if (!result.length) return null;
   if (result[0][0].children) return result[0][0].children[0].uid;
   return null;
+}
+
+export function getFirstChildContent(uid) {
+  let result = window.roamAlphaAPI.q(`[:find ?first-child-uid
+    :where
+    [?parent-block :block/uid "${uid}"]
+    [?parent-block :block/children ?first-child]
+    [?first-child :block/order 0]
+    [?first-child :block/uid ?first-child-uid]]`);
+  if (!result.length) return null;
+  return result[0][0];
 }
 
 export function focusOnBlockInMainWindow(blockUid) {
@@ -463,12 +484,23 @@ export const cleanFlagFromBlocks = (flag, blockUids) => {
   );
 };
 
-export const getBlocksMatchingRegexQuery = (withExcludeRegex) => {
-  const q = `[:find ?uid ?content ?time
+export const getBlocksMatchingRegexQuery = (withExcludeRegex, pageRegex) => {
+  const pageStr = pageRegex
+    ? pageRegex === "dnp"
+      ? `[?page :block/uid ?page-uid]
+      [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?page-regex]
+  [(re-find ?page-regex ?page-uid)]`
+      : `[(re-pattern "${pageRegex}") ?page-regex]
+  [(re-find ?page-regex ?page-title)]`
+    : "";
+  const q = `[:find ?uid ?content ?time ?page-title
     :in $ ?regex${withExcludeRegex ? " ?regex-not" : ""}
     :where
     [?b :block/uid ?uid]
    [?b :block/string ?content]
+   [?b :block/page ?page]
+   [?page :node/title ?page-title]
+   ${pageStr}
    [?b :edit/time ?time]
    [(re-pattern ?regex) ?pattern]
    [(re-find ?pattern ?content)]
@@ -490,11 +522,20 @@ export const descendantRule = `[[(descendants ?parent ?child)
 
 export const getMultipleMatchingRegexInTreeQuery = (
   nbOfRegex,
-  withExcludeRegex
+  withExcludeRegex,
+  pageRegex
 ) => {
   let regexVarStr = "";
   let findStr = "";
   let resultStr = "";
+  const pageStr = pageRegex
+    ? pageRegex === "dnp"
+      ? `[?page :block/uid ?page-uid]
+    [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?page-regex]
+[(re-find ?page-regex ?page-uid)]`
+      : `[(re-pattern "${pageRegex}") ?page-regex]
+[(re-find ?page-regex ?page-title)]`
+    : "";
   for (let i = 0; i < nbOfRegex; i++) {
     resultStr += `?child-uid${i} ?child-content${i} `;
     regexVarStr += `?regex${i} `;
@@ -508,13 +549,16 @@ export const getMultipleMatchingRegexInTreeQuery = (
       [(re-find ?pattern${i} ?content)])\n`;
   }
 
-  const q = `[:find ?matching-b ?content ?time ${resultStr}
+  const q = `[:find ?matching-b ?content ?time ?page-title ${resultStr}
     :in $ % [?matching-b ...] ${regexVarStr}${
     withExcludeRegex ? " ?regex-not" : ""
   }
     :where
     [?b :block/uid ?matching-b]
     [?b :block/string ?content]
+    [?b :block/page ?page]
+    [?page :node/title ?page-title]
+    ${pageStr}
     [?b :edit/time ?time]
     ${
       withExcludeRegex
@@ -527,6 +571,5 @@ export const getMultipleMatchingRegexInTreeQuery = (
     }
     ${findStr}
     ]`;
-  console.log("q :>> ", q);
   return q;
 };

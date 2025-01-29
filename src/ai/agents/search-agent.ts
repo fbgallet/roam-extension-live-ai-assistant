@@ -3,26 +3,27 @@ import {
   MessagesAnnotation,
   StateGraph,
   START,
+  END,
 } from "@langchain/langgraph/web";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { arrayOutputType, z } from "zod";
 import { defaultModel } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
-  createChildBlock,
   descendantRule,
   getBlocksMatchingRegexQuery,
   getDNPTitleFromDate,
   getDateStringFromDnpUid,
+  getFirstChildContent,
   getMultipleMatchingRegexInTreeQuery,
   getPageUidByBlockUid,
-  isExistingBlock,
-  updateBlock,
+  getPathOfBlock,
 } from "../../utils/roamAPI";
 import {
-  roamQuerySystemPrompt,
   searchAgentListToFiltersSystemPrompt,
   searchAgentNLtoKeywordsSystempPrompt,
+  searchtAgentPreselectionPrompt,
+  searchtAgentPostProcessingPrompt,
 } from "./agent-prompts";
 import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
@@ -36,8 +37,10 @@ import { dnpUidRegex } from "../../utils/regex";
 import {
   concatWithoutDuplicates,
   excludeItemsInArray,
+  sliceByWordLimit,
 } from "../../utils/dataProcessing";
 import { insertStructuredAIResponse } from "../responseInsertion";
+import { getFlattenedContentFromTree } from "../dataExtraction";
 
 interface PeriodType {
   begin: string;
@@ -52,25 +55,18 @@ const SearchAgentState = Annotation.Root({
   userNLQuery: Annotation<string>,
   llmResponse: Annotation<any>,
   searchLists: Annotation<any>,
-  isQuestion: Annotation<boolean>,
+  isPostProcessingNeeded: Annotation<boolean>,
   nbOfResults: Annotation<number>,
   matchingBlocks: Annotation<any>,
+  filteredBlocks: Annotation<any>,
   remainingQueryFilters: Annotation<any>,
   period: Annotation<PeriodType>,
+  pagesLimitation: Annotation<string>,
+  isRandom: Annotation<boolean>,
+  strigifiedResultToDisplay: Annotation<string>,
 });
 
 const searchListSchema = z.object({
-  isQuestion: z
-    .boolean()
-    .optional()
-    .describe(
-      "True if the user query ask not only for a search but also for processing of the search results"
-    ),
-  nbOfResults: z
-    .number()
-    .optional()
-    .nullable()
-    .describe("Number of requested results, otherwise null"),
   directList: z
     .string()
     .describe("Search list of key terms directly extracted from user query"),
@@ -81,6 +77,28 @@ const searchListSchema = z.object({
     .describe(
       "Alternative search list if key terms in user query are likely to be too limited"
     ),
+  isPostProcessingNeeded: z
+    .boolean()
+    .optional()
+    .describe(
+      "True if the user query ask not only for a search but also for post-processing search results"
+    ),
+  pagesLimitation: z
+    .string()
+    .optional()
+    .nullable()
+    .describe(
+      "Limitation to a set of pages: 'dnp' or expression to be matched by the page titles"
+    ),
+  nbOfResults: z
+    .number()
+    .optional()
+    .nullable()
+    .describe("Number of requested results, otherwise null"),
+  isRandom: z
+    .boolean()
+    .optional()
+    .describe("Number of requested results, otherwise null"),
   period: z
     .object({
       begin: z
@@ -105,18 +123,22 @@ const searchListSchema = z.object({
 
 const filtersArray = z
   .array(
-    z.object({
-      regexString: z
-        .string()
-        .describe("Regex string (eventually with disjonctive logic) to search"),
-      isToExclude: z
-        .boolean()
-        .describe("True if this regexString is to exclude"),
-    })
+    z
+      .object({
+        regexString: z
+          .string()
+          .describe(
+            "Regex string (eventually with disjonctive logic) to search"
+          ),
+        isToExclude: z
+          .boolean()
+          .describe("True if this regexString is to exclude"),
+      })
+      .describe("Filter object")
   )
   .nullable()
   .describe(
-    "Array of filters defining the search, to be combined conjunctively"
+    "Array of filter objects defining conjunctively combined search conditions"
   );
 
 const searchFiltersSchema = z
@@ -127,6 +149,12 @@ const searchFiltersSchema = z
   .describe(
     "Each search list converted in an array of filters. If no alternative list, set corresponding property to null"
   );
+
+const preselectionSchema = z.object({
+  relevantUids: z
+    .array(z.string().describe("uid without parentheses, exactly 9 characters"))
+    .describe("Array of relevant uids only"),
+});
 
 let llm: StructuredOutputType;
 
@@ -179,9 +207,11 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 
   return {
     llmResponse: response,
-    isQuestion: response.isQuestion,
+    isPostProcessingNeeded: response.isPostProcessingNeeded,
     nbOfResults: response.nbOfResults,
     period: response.period,
+    pagesLimitation: response.pagesLimitation,
+    isRandom: response.isRandom,
   };
 };
 
@@ -213,8 +243,8 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
         state.searchLists[0] +
         (state.searchLists.length > 1
           ? "\nAlternative search list: " + state.searchLists
-          : "")
-      //     : `Here is the user request in natural language: ${state.userNLQuery}
+          : "") +
+        `\n\nInitial user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${state.userNLQuery}`
 
       // Here is the way this request has alreedy been transcribed by an AI assistant in a Roam Research query: ${state.roamQuery}
 
@@ -289,15 +319,23 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
     if (toExcludeFilter) params.push(regexToExclude);
     blocksMatchingAllFilters =
       (window as any).roamAlphaAPI.q(
-        getBlocksMatchingRegexQuery(toExcludeFilter),
+        getBlocksMatchingRegexQuery(toExcludeFilter, state.pagesLimitation),
         ...params
       ) || [];
+    console.log("blocksMatchingAllFilters :>> ", blocksMatchingAllFilters);
     blocksMatchingAllFilters = blocksMatchingAllFilters.map((block) => {
-      return { uid: block[0], content: block[1], editTime: block[2] };
+      return {
+        uid: block[0],
+        content: block[1],
+        editTime: block[2],
+        pageTitle: block[3],
+      };
     });
-    blocksMatchingAllFilters = excludeItemsInArray(blocksMatchingAllFilters, [
-      state.rootUid,
-    ]);
+    blocksMatchingAllFilters = excludeItemsInArray(
+      blocksMatchingAllFilters,
+      [{ uid: state.rootUid }],
+      "uid"
+    );
   }
   // console.log("blocks matching all filters :>>", blocksMatchingAllFilters);
 
@@ -310,13 +348,18 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
     if (toExcludeFilter) params.push(regexToExclude);
     let blocksMatchingOneFilter: any[] =
       (window as any).roamAlphaAPI.q(
-        getBlocksMatchingRegexQuery(toExcludeFilter),
+        getBlocksMatchingRegexQuery(toExcludeFilter, state.pagesLimitation),
         ...params
       ) || [];
     blocksMatchingOneFilter = blocksMatchingOneFilter.map((block) => {
-      return { uid: block[0], content: block[1], editTime: block[2] };
+      return {
+        uid: block[0],
+        content: block[1],
+        editTime: block[2],
+        pageTitle: block[3],
+      };
     });
-    console.log("blocksMatchingOneFilter :>> ", blocksMatchingOneFilter);
+
     if (blocksMatchingOneFilter.length) {
       let uidsMatchingOneFilter = blocksMatchingOneFilter.map(
         (elt: any) => elt.uid
@@ -324,24 +367,24 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
 
       uidsMatchingOneFilter = excludeItemsInArray(
         uidsMatchingOneFilter,
-        allMatchingUids
+        allMatchingUids.concat(state.rootUid)
       );
 
       const otherRegexString = allIncludeRegex.filter((f) => f !== filter);
-      console.log("otherRegexString :>> ", otherRegexString);
 
       let blocksAndChildrenMatchingAllFilters: any[] = [];
 
       const additionalRegex = toExcludeFilter
         ? otherRegexString.concat(regexToExclude)
         : otherRegexString;
-      console.log("additionalRegex :>> ", additionalRegex);
+
       if (additionalRegex.length) {
         blocksAndChildrenMatchingAllFilters =
           (window as any).roamAlphaAPI.q(
             getMultipleMatchingRegexInTreeQuery(
               neededRegexNumber,
-              toExcludeFilter
+              toExcludeFilter,
+              state.pagesLimitation
             ),
             descendantRule,
             uidsMatchingOneFilter,
@@ -353,10 +396,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
               uid: block[0],
               content: block[1],
               editTime: block[2],
+              pageTitle: block[3],
               childMatchingContent:
                 block.length > 2
                   ? block
-                      .slice(3)
+                      .slice(4)
                       .reduce(
                         (
                           result: any[],
@@ -397,7 +441,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   return {
     remainingQueryFilters: state.remainingQueryFilters,
     matchingBlocks:
-      matchingBlocks && matchingBlocks.length
+      state.matchingBlocks && state.matchingBlocks.length
         ? concatWithoutDuplicates(state.matchingBlocks, matchingBlocks, "uid")
         : matchingBlocks,
   };
@@ -405,7 +449,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
 
 const limitAndOrder = async (state: typeof SearchAgentState.State) => {
   console.log("state :>> ", state);
-  let filteredBlocks = state.matchingBlocks;
+  let filteredBlocks = excludeItemsInArray(
+    state.matchingBlocks,
+    [{ uid: state.rootUid }],
+    "uid"
+  );
   if (state.period) {
     let begin = state.period.begin ? new Date(state.period.begin) : null;
     console.log("begin :>> ", begin);
@@ -421,55 +469,164 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
     (a: any, b: any) => a.editTime < b.editTime
   );
   let requestedNb = state.nbOfResults
-    ? state.nbOfResults * (state.isQuestion ? 5 : 1)
+    ? state.nbOfResults * (state.isPostProcessingNeeded ? 5 : 1)
     : null;
   let maxNumber = requestedNb && requestedNb < 100 ? requestedNb : 100;
   maxNumber;
   if (maxNumber < filteredBlocks.length)
     filteredBlocks = filteredBlocks.slice(0, maxNumber);
   console.log("filteredBlocks & sorted :>> ", filteredBlocks);
+  return {
+    filteredBlocks,
+  };
 };
 
 const preselection = async (state: typeof SearchAgentState.State) => {
   console.log("Preselection Node");
-};
+  let flattenedQueryResults = "";
+  state.filteredBlocks.forEach((block: any, index: number) => {
+    const path = getPathOfBlock(block.uid);
+    const directParent = path ? sliceByWordLimit(path.at(-1), 20) : null;
+    let flattenedBlockContent = `${index}) Block ((${block.uid})) in page [[${
+      block.pageTitle
+    }]]${directParent ? '. Direct parent is: "' + directParent + '"' : ""}\n`;
+    flattenedBlockContent += `Content:\n${sliceByWordLimit(
+      block.content,
+      100
+    )}\n`; // TODO: normalize uids
 
-const processResults = async (state: typeof SearchAgentState.State) => {
-  console.log("Process results");
-  const results = state.matchingBlocks;
+    // add matching children blocks if not present in 3 level children
+    if (block.childMatchingContent) {
+      block.childMatchingContent.forEach((child: any) => {
+        if (!flattenedBlockContent.includes(child.content))
+          flattenedBlockContent +=
+            "  - " + sliceByWordLimit(child.content, 100) + "\n";
+      });
+    } else {
+      let firstChildContent = getFirstChildContent(block.uid);
+      firstChildContent &&
+        (flattenedBlockContent +=
+          " - " + sliceByWordLimit(firstChildContent, 100));
+    }
+    flattenedQueryResults += flattenedBlockContent + "\n\n";
+  });
+
+  flattenedQueryResults = flattenedQueryResults.trim();
+  console.log("flattenedQueryResults :>> ", flattenedQueryResults);
+
   const sys_msg = new SystemMessage({
-    content: searchAgentListToFiltersSystemPrompt,
+    content: searchtAgentPreselectionPrompt.replace(
+      "<MAX_NUMBER>",
+      state.nbOfResults ? Math.min(20, state.nbOfResults * 3).toString() : "20"
+    ),
   });
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
-    new HumanMessage(`Here is the user's initial request:
-Here is the content of the main blocks that match with this request:`),
+    new HumanMessage(`Here is the user's initial request: ${state.userNLQuery}
+
+Here are the blocks in Roam graph database that match with this request:
+${flattenedQueryResults}`),
+  ]);
+  const structuredLlm = llm.withStructuredOutput(preselectionSchema);
+  let response = await structuredLlm.invoke(messages);
+  console.log("AI preselection :>> ", response);
+
+  const preselectedBlocks = state.filteredBlocks.filter((block: any) =>
+    response.relevantUids?.includes(block.uid)
+  );
+
+  return {
+    filteredBlocks: preselectedBlocks,
+  };
+};
+
+const postProcessing = async (state: typeof SearchAgentState.State) => {
+  console.log("Process results");
+  // const results = state.matchingBlocks;
+
+  let flattenedDetailedResults = "";
+  state.filteredBlocks.forEach((block: any, index: number) => {
+    let path = getPathOfBlock(block.uid);
+    let pathString = "";
+    if (path)
+      for (let i = 0; i < path.length; i++) {
+        const isDirectParent = i === path.length - 1;
+        pathString +=
+          sliceByWordLimit(path[i], isDirectParent ? 6 : 30) +
+          (isDirectParent ? "" : " > ");
+      }
+    let flattenedBlockContent = `${index}) Block ((${block.uid})) in page [[${
+      block.pageTitle
+    }]]${pathString ? '. Parent blocks: "' + pathString + '"' : ""}\n`;
+    flattenedBlockContent += `Content:\n${block.content}`; // TODO: normalize uids
+    flattenedBlockContent +=
+      getFlattenedContentFromTree({
+        parentUid: block.uid,
+        maxCapturing: 3,
+        maxUid: 0,
+        withDash: true,
+      }) + "\n";
+    // arbitrary limit to 1000 words by block + 3 level children
+    flattenedBlockContent = sliceByWordLimit(flattenedBlockContent, 1000);
+    // add matching children blocks if not present in 3 level children
+    if (block.childMatchingContent) {
+      block.childMatchingContent.forEach((child: any) => {
+        if (!flattenedBlockContent.includes(child.content))
+          flattenedBlockContent += "  - " + child.content + "\n";
+      });
+    }
+    flattenedDetailedResults += flattenedBlockContent + "\n\n";
+  });
+
+  flattenedDetailedResults = flattenedDetailedResults.trim();
+  console.log("flattenedDetailedResults :>> ", flattenedDetailedResults);
+
+  const sys_msg = new SystemMessage({
+    content: searchtAgentPostProcessingPrompt,
+  });
+  // console.log("sys_msg :>> ", sys_msg);
+  let messages = [sys_msg].concat([
+    new HumanMessage(`Here is the user's initial request: ${state.userNLQuery}
+
+Here are the main blocks in Roam graph database that match with this request:
+${flattenedDetailedResults}`),
   ]);
   let response = await llm.invoke(messages);
   console.log("AI results processed response :>> ", response);
+  return {
+    strigifiedResultToDisplay: response.content,
+  };
 };
 
 const displayResults = async (state: typeof SearchAgentState.State) => {
   console.log("Display results !");
+  console.log(
+    "state.strigifiedResultToDisplay :>> ",
+    state.strigifiedResultToDisplay
+  );
 
-  let resultStringified = "";
-
-  if (!state.matchingBlocks.length) {
-    resultStringified = "No result !";
-  } else {
-    state.matchingBlocks.forEach((block: any) => {
-      resultStringified += `- ((${block.uid}))\n`;
-      if (block.childMatchingContent) {
-        let children = block.childMatchingContent;
-        for (let i = 0; i < children.length; i++) {
-          resultStringified += `  - ((${children[i].uid}))\n`;
-        }
-      }
-    });
+  if (!state.strigifiedResultToDisplay) {
+    state.strigifiedResultToDisplay = "";
+    if (!state.filteredBlocks.length) {
+      state.strigifiedResultToDisplay = "No matching blocks";
+    } else {
+      // Limit to 20 the number of displayed blocks
+      const filteredBlocks = state.filteredBlocks.slice(0, 20);
+      filteredBlocks.forEach((block: any) => {
+        state.strigifiedResultToDisplay += `- {{embed-path: ((${block.uid}))}}\n`;
+        // if (block.childMatchingContent) {
+        //   let children = block.childMatchingContent;
+        //   for (let i = 0; i < children.length; i++) {
+        //     state.strigifiedResultToDisplay += `  - ((${children[i].uid}))\n`;
+        //   }
+        // }
+      });
+    }
   }
+
   await insertStructuredAIResponse({
     targetUid: state.rootUid,
-    content: resultStringified.trim(),
+    content: state.strigifiedResultToDisplay.trim(),
     forceInChildren: true,
   });
 };
@@ -484,18 +641,18 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
 };
 
 const alternativeQuery = (state: typeof SearchAgentState.State) => {
-  console.log("state.remainingQueryFilters :>> ", state.remainingQueryFilters);
   if (state.remainingQueryFilters.length) return "queryRunner";
   return "limitAndOrder";
 };
 
 const processOrDisplay = (state: typeof SearchAgentState.State) => {
-  if (state.isQuestion) {
+  if (state.isPostProcessingNeeded) {
     if (
-      state.matchingBlocks.length < 11 ||
-      (state.nbOfResults && state.matchingBlocks.length < state.nbOfResults * 3)
+      state.filteredBlocks.length <= 20 ||
+      (state.nbOfResults &&
+        state.filteredBlocks.length < Math.min(20, state.nbOfResults * 3))
     )
-      return "results-processor";
+      return "post-processing";
     return "preselection-filter";
   }
   return "output";
@@ -516,7 +673,7 @@ builder
   .addNode("queryRunner", queryRunner)
   .addNode("limitAndOrder", limitAndOrder)
   .addNode("preselection-filter", preselection)
-  .addNode("results-processor", processResults)
+  .addNode("post-processing", postProcessing)
   .addNode("output", displayResults)
 
   .addEdge(START, "loadModel")
@@ -525,8 +682,12 @@ builder
   .addEdge("searchlist-converter", "checker")
   .addConditionalEdges("checker", afterCheckRouter)
   .addEdge("periodFormater", "queryRunner")
-  .addConditionalEdges("queryRunner", alternativeQuery)
-  .addConditionalEdges("limitAndOrder", processOrDisplay);
+  // .addConditionalEdges("queryRunner", alternativeQuery)
+  .addEdge("queryRunner", END)
+  .addConditionalEdges("limitAndOrder", processOrDisplay)
+  .addConditionalEdges("preselection-filter", processOrDisplay)
+  .addEdge("post-processing", "output")
+  .addEdge("output", END);
 
 // Compile graph
 export const SearchAgent = builder.compile();
