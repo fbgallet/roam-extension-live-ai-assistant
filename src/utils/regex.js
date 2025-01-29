@@ -17,3 +17,12 @@ export const customTagRegex = {
   "liveai/template": /\#?\[?\[?liveai\/template\]?\]?/i,
 };
 export const builtInPromptRegex = /<built-in:([^>:]+)(?::([^>:]+))?>/i;
+
+export const getConjunctiveRegex = (allRegex) => {
+  let totalRegexControl = "^";
+  for (let i = 0; i < allRegex.length; i++) {
+    totalRegexControl += `(?=.*${allRegex[i].replaceAll("(?i)", "")})`;
+  }
+  totalRegexControl += ".*";
+  return totalRegexControl;
+};

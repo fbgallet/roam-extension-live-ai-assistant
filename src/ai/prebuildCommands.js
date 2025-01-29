@@ -1,6 +1,6 @@
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
-import { invokeSearchAgent } from "./agents/search-agent";
+import { invokeAskAgent, invokeSearchAgent } from "./agents/search-agent";
 import { languages } from "./languagesSupport";
 
 export const BUILTIN_COMMANDS = [
@@ -356,9 +356,17 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 82,
-    name: "Natural language search Agent",
+    name: "Smart Search Agent",
     callback: invokeSearchAgent,
     category: "SEARCH & QUERY",
+    keyWords: "Natural language Agent",
+  },
+  {
+    id: 83,
+    name: "Ask to your graph...",
+    callback: invokeAskAgent,
+    category: "SEARCH & QUERY",
+    keyWords: "Natural language Agent, post-processing",
   },
 
   // OUTLINER AGENT COMMANDS

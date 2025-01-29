@@ -243,7 +243,7 @@ OUTPUT LANGUAGE: your response will always be in the same language as the user r
 
 Your precise response will be a JSON object, formatted according to the provided JSON schema. If a key is optional and your response would be 'null', just IGNORE this key!`;
 
-export const searchAgentNLtoKeywordsSystempPrompt = `CONTEXT:
+export const searchAgentNLtoKeywordsGenericPrompt = `CONTEXT:
 You are a search query analyzer specialized in converting natural language requests into optimized database search parameters. The database in question is a Roam Research graph database owned by the user, where they take notes and store all their knowledge and thoughts. A Roam database is a large set of hierarchically organized blocks located in different pages. Your task is to process the natural language user query and convert it in a formatted set of search items according to the following rules.
 
 INPUT ANALYSIS (user query):
@@ -252,28 +252,29 @@ INPUT ANALYSIS (user query):
   - All terms separated by a space (except for expressions in quotes) should be considered as an item defining a search condition
   - Remove non-essential syntactic elements (articles, pronouns)
   - Interpret properly logical operators or symbols if present ('+', '&' as 'AND', '|' as 'OR', '-' as 'NOT')
+  - Interpret '>' symbol as a hierarchical condition: filters will be directed (e.g. in 'A > B', matching blocks are blocks including 'A' in themself and 'B' in one of their children)
 - For natural language queries (sentences/questions):
   - Extract only essential and key search terms! To do this, it's necessary to correctly interpret the request or question to distinguish what defines the conditions of the search and what is about the post-processing or the question asked about the content that will be extracted.
   - IMPORTANT: Disregard and do not use as search terms:
     - obvious search instructions (e.g., "find," "search for," "look up")
     - indications that do not restrict the search and do not change anything (e.g. "in the db", "in my graph", "in my Roam graph" since the database is a graph in Roam Research)
-    - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit are blocks, or "in all pages" because pages are set of blocks)
+    - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit are blocks, or "in all pages" because pages are set of blocks) or hierarchical direction of the conditions ("parent", "child", "children", etc.)
     - any obvious type of content typically sought but which doesn't constitute a keyword (e.g. "all ideas", "all mentions of", "all content including")
     - anything that indicates the post-processing required on the search results but not the type of content being sought
     - words preceded by '\\' have to be ignored
-- For any type of queries, you have also to extract:
-  - Do not add quotation marks arout words or expression (unless already present)
-  - IMPORTANT: expressions in quotes have to be reproduced verbatim with the quotation marks (for exact match, not by keyword; e.g. "Allegory of the cave")
+- The analysis of any query type must determine if it contains the following information:
   - the number of results requested if expressed
-  - indication that requested result should be randomly selected from the results
+  - instruction to randomly select items from the results
+  - directed conditions (with '>' symbol but also with natural language expression like "in parent", "in children", etc. e.g. 'A > B' can be expressed as 'all blocks with A, and B in one of their children)
   - period indications: if dates or period are mentioned in the user's request, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.
   - any restriction on the field of research that will not be interpreted as keywords: the user can restrict its search to a limited set of pages either defined by an expression that the page titles should contain or by targeting a special type of page called "Daily notes" or DNP.
+IMPORTANT: expressions in quotes have to be reproduced verbatim with the quotation marks (for exact match, not by keyword; e.g. "Allegory of the cave"). Otherwise, NEVER add quotation marks arout words or expression that don't have them in the initial request
 
 YOUR JOB:
 - Your goal is to prepare an accurate query in the database, so analyze the user's natural language query and convert it into a strictly formatted search list (following the output format below). Interpret rigorously the logic expressed in the user request to present it in the search list, knowing that each item in the list will be used as a condition in conjunction with others (AND), and within each item, elements separated by | will be treated as alternatives (OR) for each condition.
 - IMPORTANT: If the main logic of the query is a disjunction with a clear distinction between two sets of conditions (they separated by a strong disjunctive term, e.g. 'OR' or double '||' symbol), then these two sets should be processed separately, creating two search lists: the first in 'directList' property and the other in 'alternativeList'. They will be handled complementarily by adding their results.
 - IF AND ONLY in case of natural language query and if an alternativeList is not already defined, evaluate if extracted keywords might not be relevant enough to get the most relevant results (taking into account the kind of response that can be expected). If not, create a second and alternative search list with different keywords that could better fit. For example, if the user asks for 'All colors in my db', the first search string would be 'color' but a second search list could focus on the names of the main colors themselves, such as 'red|blue|green|yellow|black|white|purple|orange|pink|brown' (this type of list needs to be comprehensive enough to be relevant.). IMPORTANT: Add an alternative search list ONLY IF its content differs significantly from the keywords of the first search list (keywords have to be different) and can substantially increase the chances of a satisfactory result. Otherwise, it will just be a matter of adding alternatives separated by | to some terms in the initial list.
-- Determine if the user request will require post-processing of the results that will be extracted from the database using the formatted query.
+<POST_PROCESSING_ANALYSIS>
 
 OUTPUT FORMAT: Following the JSON schema provided,
 - Generate either one or, if needed, two search lists (following the provided JSON schema), where:
@@ -281,10 +282,10 @@ OUTPUT FORMAT: Following the JSON schema provided,
   - Quotation marks around words or expressions are allowed ONLY AND ONLY IF they were present in the user request (so preserve the exact quoted expression)
   - Each item can contain multiple alternatives term or expression separated by '|' (interpreted as OR)
   - A single negation (eventually with variants) per list is allowed, marked with leading '-'
+  - To express a directed order of the filters, use ' > ' symbol. Example: 'conditionInParent > conditionInChildren'
   - IMPORTANT: each item, term, expression or variant has to be in the same language as the user query (unless expressly stated otherwise)
   - Format example: 'term1|variant1 + term2 -exclusion|variantExclusion'
-- set 'isPostProcessingNeeded' property to true if the user request require some processing of the possible results of the query and not only their extraction of the database according to the search items. Set it to false if the required processing only involves filtering the number of elements or their period (as this will be done directly in the database query)
-- set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise ignore this property
+<POST_PROCESSING_PROPERTY>- set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise ignore this property
 - set 'nbOfResults' limitation if specified, otherwise ignore this property
 - set 'period' range if specified, otherwise ignore this property
 - set 'isRandom' to true if a random result is requested
@@ -294,6 +295,25 @@ Since each item in the search list will be combined conjunction (AND) to each ot
 
 Note that sometimes the conjunction "and" in a query should be interpreted as a disjunction for search purposes. For example, if I want "the singers and the soloists," the search item should be "singer|soloist", not "singer + soloist". When there is ambiguity about interpreting an "and," it's generally better to interpret it as an "or" to avoid overly restricting the search.`;
 
+export const searchAgentNLtoKeywordsSearchOnlyPrompt =
+  searchAgentNLtoKeywordsGenericPrompt
+    .replace("<POST_PROCESSING_ANALYSIS>", "")
+    .replace(
+      "<POST_PROCESSING_PROPERTY>",
+      "- set 'isPostProcessingNeeded' to null (search only mode)\n"
+    );
+
+export const searchAgentNLtoKeywordsPostProPrompt =
+  searchAgentNLtoKeywordsGenericPrompt
+    .replace(
+      "<POST_PROCESSING_ANALYSIS>",
+      "- Determine if the user request will require post-processing of the results that will be extracted from the database using the formatted query."
+    )
+    .replace(
+      "<POST_PROCESSING_PROPERTY>",
+      "- set 'isPostProcessingNeeded' property to true if the user request require some processing of the possible results of the query and not only their extraction of the database according to the search items. Set it to false if the required processing only involves filtering the number of elements or their period (as this will be done directly in the database query)\n"
+    );
+
 export const searchAgentListToFiltersSystemPrompt = `You are a smart and rigorous AI Agent that breaks down search list items into a set of elements that will serve as conjunctively joined filters to prepare a text search in a database.
 
 INPUT ANALYSIS:
@@ -301,6 +321,7 @@ INPUT ANALYSIS:
 - each search item separated by ' + ' (meaning AND) has to be interpreted as a distinct filter that will be combined with other following a conjunctive logic
 - each item can itself combine a set of terms or expression and alternatives, separated by '|' (meaning OR, disjunctive logic)
 - an item begining with '-' symbol (meaning NOT) is the exclusion item
+- a search list including ' > ' symbol means that the search is hierarchicaly directed. The conditions are met only for each block that satisfies the conditions on the left of the '>' symbol, AND has some children that meet the conditions on the right.
 - when an expression is placed in quotation marks "like this for example", the entire expression must conserved exactly as it is
 
 YOUR JOB: interprete, enhance and complete the input query into a set of filter items using regex, following these rules:
@@ -308,6 +329,7 @@ YOUR JOB: interprete, enhance and complete the input query into a set of filter 
 - transform each search item into a correct regex, properly expressing disjunctive logic using '|' symbol
 - if and only if a word is between quotation marks, use the following syntax to search for it only as a word: "word" become '\\bword\\b'
 - insert '(?i)' at the beginning of a search filter regex for case insensitive search, unless for single word or expression between quotation marks
+- if an search list include ' > ' symbol, count the number of search items on the left of this symbol
 - in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant, use the correct regex syntax to complete the search item with alternatives so that:
   a) terms that might vary in plural or feminine form or conjugated verbs can be matched in their different possible forms,
   b) add most relevant semantic variations (synonyms, alias, related words). E.g. if the searched term is 'practice', semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
@@ -321,8 +343,9 @@ Since each filters will be combined following the conjunctive logic with the oth
 
 OUTPUT FORMAT: For each provided search list, create a set of filters following the provided JSON schema, where:
 - "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
-  - regexString: the searched content, expressed as a regex to express disjunctive relationships (OR).
-  - isToExclude: true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.`;
+  - 'regexString': the searched content, expressed as a regex to express disjunctive relationships (OR).
+  - 'isToExclude': true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.
+  - 'isParentFilter': true only if this filter is to apply to parent blocks only, in the case of hierarchically directed search.`;
 
 export const searchtAgentPreselectionPrompt = `You are an expert assistant in data analysis who helps the user make the most of their data. Your job is to extract the most relevant records from the data provided below, according to the user's request provided below. The goal is to reduce the data that will be subject to further post-processing.
 
