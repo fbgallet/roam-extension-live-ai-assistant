@@ -1,6 +1,6 @@
 export const uidRegex = /\(\([^\)]{9}\)\)/g;
 export const dnpUidRegex =
-  /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)\d{2}$/;
+  /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)[0-9][0-9]$/;
 export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
 export const pageRegex = /\[\[.*\]\]/g;
 export const strictPageRegex = /^\[\[.*\]\]$/; // very simplified, not recursive...
