@@ -20,7 +20,7 @@ import {
   setDefaultModel,
 } from "..";
 import { tokensLimit } from "../ai/modelsInfo";
-import { AppToaster } from "./VoiceRecorder";
+import { AppToaster } from "./Toaster";
 
 const ModelsMenu = ({
   callback,

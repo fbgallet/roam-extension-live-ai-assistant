@@ -15,6 +15,7 @@ import {
   getDNPTitleFromDate,
   getDateStringFromDnpUid,
   getFirstChildContent,
+  getFormattedPath,
   getMultipleMatchingRegexInTreeQuery,
   getPageUidByBlockUid,
   getPathOfBlock,
@@ -45,11 +46,15 @@ import {
 } from "../../utils/dataProcessing";
 import { insertStructuredAIResponse } from "../responseInsertion";
 import { getFlattenedContentFromTree } from "../dataExtraction";
+import { AgentToaster, AppToaster } from "../../components/Toaster";
+import { Intent, ProgressBar } from "@blueprintjs/core";
 
 interface PeriodType {
   begin: string;
   end: string;
 }
+
+let beginPerf: number, endPerf: number;
 
 const SearchAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -63,6 +68,7 @@ const SearchAgentState = Annotation.Root({
   nbOfResults: Annotation<number>,
   matchingBlocks: Annotation<any>,
   filteredBlocks: Annotation<any>,
+  filters: Annotation<any>,
   remainingQueryFilters: Annotation<any>,
   period: Annotation<PeriodType>,
   pagesLimitation: Annotation<string>,
@@ -140,9 +146,13 @@ const filtersArray = z
           ),
         isToExclude: z
           .boolean()
+          .optional()
+          .nullable()
           .describe("True if this regexString is to exclude"),
         isParentFilter: z
           .boolean()
+          .optional()
+          .nullable()
           .describe(
             "True if this filter is to apply to parent blocks in the case of a hierarchically directed search"
           ),
@@ -170,6 +180,7 @@ const preselectionSchema = z.object({
 });
 
 let llm: StructuredOutputType;
+let toasterInstance: string;
 
 /*********/
 // NODES //
@@ -185,6 +196,8 @@ const loadModel = async (state: typeof SearchAgentState.State) => {
 };
 
 const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
+  displayAgentStatus(state, "nl-query-interpreter");
+
   const currentPageUid = getPageUidByBlockUid(state.rootUid);
   const currentDate = dnpUidRegex.test(currentPageUid)
     ? getDateStringFromDnpUid(currentPageUid)
@@ -224,8 +237,13 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
   ]);
   let response = await structuredLlm.invoke(messages);
 
+  state.searchLists = [response?.directList];
+  if (response?.alternativeList)
+    state.searchLists.push(response?.alternativeList);
+
   return {
     llmResponse: response,
+    searchLists: state.searchLists,
     isPostProcessingNeeded:
       state.isPostProcessingNeeded === false
         ? false
@@ -242,10 +260,10 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 };
 
 const searchlistConverter = async (state: typeof SearchAgentState.State) => {
+  console.log("state.searchLists :>> ", state.searchLists);
+  displayAgentStatus(state, "searchlist-converter");
+
   console.log("llmResponse after step1 :>> ", state.llmResponse);
-  state.searchLists = [state.llmResponse?.directList];
-  if (state.llmResponse?.alternativeList)
-    state.searchLists.push(state.llmResponse?.alternativeList);
 
   const isClaudeModel = state.model.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
@@ -268,7 +286,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
       "First search list: " +
         state.searchLists[0] +
         (state.searchLists.length > 1
-          ? "\nAlternative search list: " + state.searchLists
+          ? "\nAlternative search list: " + state.searchLists[1]
           : "") +
         `\n\nInitial user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${state.userNLQuery}`
 
@@ -283,6 +301,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   state.remainingQueryFilters = [state.llmResponse.firstListFilters];
   state.llmResponse?.alternativeListFilters &&
     state.remainingQueryFilters.push(state.llmResponse?.alternativeListFilters);
+  state.filters = [...state.remainingQueryFilters];
   return state;
 };
 
@@ -323,9 +342,11 @@ const periodFormater = async (state: typeof SearchAgentState.State) => {
 };
 
 const queryRunner = async (state: typeof SearchAgentState.State) => {
+  displayAgentStatus(state, "queryRunner");
+  beginPerf = performance.now();
+
   const currentFilter = state.remainingQueryFilters.shift();
   console.log("currentFilter :>> ", currentFilter);
-
   const parentFilterNb = currentFilter.reduce((count: number, item: any) => {
     return item.isParentFilter ? count + 1 : count;
   }, 0);
@@ -366,9 +387,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   //console.log("allIncludeRegex :>> ", allIncludeRegex);
   allIncludeRegex.forEach((filter: any, index: number) => {
     if (!isDirectedFilter || index === 0) {
-      let params = isDirectedFilter
-        ? [getConjunctiveRegex(allIncludeRegex.slice(0, parentFilterNb))]
-        : [filter];
+      let params =
+        isDirectedFilter && parentFilterNb > 1
+          ? [getConjunctiveRegex(allIncludeRegex.slice(0, parentFilterNb))]
+          : [filter];
       if (toExcludeFilter) params.push(regexToExclude);
       let blocksMatchingOneFilter: any[] =
         (window as any).roamAlphaAPI.q(
@@ -388,9 +410,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
         );
 
         let blocksAndChildrenMatchingAllFilters: any[] = [];
-        const otherRegexString = !isDirectedFilter
-          ? allIncludeRegex.filter((f) => f !== filter)
-          : allIncludeRegex.slice(parentFilterNb);
+        const otherRegexString =
+          !isDirectedFilter || parentFilterNb <= 1
+            ? allIncludeRegex.filter((f) => f !== filter)
+            : allIncludeRegex.slice(parentFilterNb);
         const additionalRegex = toExcludeFilter
           ? otherRegexString.concat(regexToExclude)
           : otherRegexString;
@@ -474,31 +497,42 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   });
   console.log("matchingBlocks :>> ", matchingBlocks);
 
+  const allMatchingBlocks =
+    state.matchingBlocks && state.matchingBlocks.length
+      ? concatWithoutDuplicates(state.matchingBlocks, matchingBlocks, "uid")
+      : matchingBlocks;
+
+  endPerf = performance.now();
+  console.log(
+    "Datomic query delay :>> ",
+    ((endPerf - beginPerf) / 1000).toFixed(2) + "s"
+  );
+
   return {
     remainingQueryFilters: state.remainingQueryFilters,
-    matchingBlocks:
-      state.matchingBlocks && state.matchingBlocks.length
-        ? concatWithoutDuplicates(state.matchingBlocks, matchingBlocks, "uid")
-        : matchingBlocks,
+    matchingBlocks: removeDuplicatesByProperty(allMatchingBlocks, "uid"),
   };
 };
 
 const limitAndOrder = async (state: typeof SearchAgentState.State) => {
-  console.log("state :>> ", state);
+  const rootPath = getPathOfBlock(state.rootUid);
+  const rootPathUids = rootPath ? rootPath.map((elt: any) => elt.uid) : [];
   let filteredBlocks = excludeItemsInArray(
     state.matchingBlocks,
-    [{ uid: state.rootUid }],
-    "uid"
+    [state.rootUid].concat(rootPathUids),
+    "uid",
+    false
   );
+
+  displayAgentStatus(state, "limitAndOrder");
+
   if (state.period) {
     let begin = state.period.begin ? new Date(state.period.begin) : null;
-    console.log("begin :>> ", begin);
     let end = state.period.end ? new Date(state.period.end) : null;
-    console.log("end :>> ", end);
     filteredBlocks = filteredBlocks.filter(
       (block: any) =>
         (!begin || block.editTime > begin.getTime()) &&
-        (!end || block.editTime < end.getTime())
+        (!end || block.editTime < end.getTime() + 24 * 60 * 60 * 1000)
     );
   }
   filteredBlocks = filteredBlocks.sort(
@@ -508,6 +542,7 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
   let requestedNb = state.nbOfResults
     ? state.nbOfResults * (state.isPostProcessingNeeded ? 5 : 1)
     : null;
+  // Arbitrary limit to 100 blocks before preselection (approx. 100 * 200 words maximum => approx. 30 000 tokens)
   let maxNumber = requestedNb && requestedNb < 100 ? requestedNb : 100;
 
   if (state.isRandom)
@@ -522,10 +557,11 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
 
 const preselection = async (state: typeof SearchAgentState.State) => {
   console.log("Preselection Node");
+  displayAgentStatus(state, "preselection-filter");
   let flattenedQueryResults = "";
   state.filteredBlocks.forEach((block: any, index: number) => {
     const path = getPathOfBlock(block.uid);
-    const directParent = path ? sliceByWordLimit(path.at(-1), 20) : null;
+    const directParent = path ? sliceByWordLimit(path.at(-1).string, 20) : null;
     let flattenedBlockContent = `${index}) Block ((${block.uid})) in page [[${
       block.pageTitle
     }]]${directParent ? '. Direct parent is: "' + directParent + '"' : ""}\n`;
@@ -582,18 +618,10 @@ ${flattenedQueryResults}`),
 const postProcessing = async (state: typeof SearchAgentState.State) => {
   console.log("Process results");
   // const results = state.matchingBlocks;
-
+  displayAgentStatus(state, "post-processing");
   let flattenedDetailedResults = "";
   state.filteredBlocks.forEach((block: any, index: number) => {
-    let path = getPathOfBlock(block.uid);
-    let pathString = "";
-    if (path)
-      for (let i = 0; i < path.length; i++) {
-        const isDirectParent = i === path.length - 1;
-        pathString +=
-          sliceByWordLimit(path[i], isDirectParent ? 6 : 30) +
-          (isDirectParent ? "" : " > ");
-      }
+    let pathString = getFormattedPath(block.uid, 6, 30);
     let flattenedBlockContent = `${index}) Block ((${block.uid})) in page [[${
       block.pageTitle
     }]]${pathString ? '. Parent blocks: "' + pathString + '"' : ""}\n`;
@@ -638,7 +666,7 @@ ${flattenedDetailedResults}`),
 };
 
 const displayResults = async (state: typeof SearchAgentState.State) => {
-  console.log("Display results !");
+  displayAgentStatus(state, "output");
   console.log(
     "state.strigifiedResultToDisplay :>> ",
     state.strigifiedResultToDisplay
@@ -649,16 +677,13 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     if (!state.filteredBlocks.length) {
       state.strigifiedResultToDisplay = "No matching blocks";
     } else {
-      // Limit to 20 the number of displayed blocks
-      const filteredBlocks = state.filteredBlocks.slice(0, 20);
+      // Limit to 10 the number of displayed blocks
+      const filteredBlocks = state.filteredBlocks.slice(
+        0,
+        state.nbOfResults || 10
+      );
       filteredBlocks.forEach((block: any) => {
         state.strigifiedResultToDisplay += `- {{embed-path: ((${block.uid}))}}\n`;
-        // if (block.childMatchingContent) {
-        //   let children = block.childMatchingContent;
-        //   for (let i = 0; i < children.length; i++) {
-        //     state.strigifiedResultToDisplay += `  - ((${children[i].uid}))\n`;
-        //   }
-        // }
       });
     }
   }
@@ -764,6 +789,15 @@ export const invokeAskAgent = async ({
   previousResponse,
   onlySearch,
 }: AgentInvoker) => {
+  let begin = performance.now();
+
+  toasterInstance = AgentToaster.show({
+    message: "",
+    // icon: "form",
+    // intent: Intent.SUCCESS,
+    // className: "search-agent-toaster",
+  });
+
   const spinnerId = displaySpinner(currentUid);
   const response = await SearchAgent.invoke({
     model,
@@ -773,6 +807,13 @@ export const invokeAskAgent = async ({
     isPostProcessingNeeded: false,
     // roamQuery: previousResponse,
   });
+
+  let end = performance.now();
+  console.log(
+    "Search Agent delay :>> ",
+    ((end - begin) / 1000).toFixed(2) + "s"
+  );
+
   removeSpinner(spinnerId);
   if (response) {
     setTimeout(() => {
@@ -821,4 +862,115 @@ const parseQueryResults = (queryResults: any[]) => {
     };
   });
   return parsed;
+};
+
+const displayAgentStatus = (
+  state: typeof SearchAgentState.State,
+  status: string
+) => {
+  let completion = 0;
+  switch (status) {
+    case "searchlist-converter":
+      completion = 0.2;
+      break;
+    case "queryRunner":
+      completion = 0.4;
+      break;
+    case "limitAndOrder":
+      completion = 0.5;
+      break;
+    case "preselection-filter":
+      completion = 0.6;
+      break;
+    case "post-processing":
+      completion = 0.8;
+      break;
+    case "output":
+      completion = 1;
+      break;
+  }
+  if (completion >= 0.4) {
+    console.log("state.filters :>> ", state.filters);
+  }
+  console.log("toasterInstance :>> ", toasterInstance);
+  AgentToaster.show(
+    {
+      message: (
+        <>
+          {progressBarDisplay(
+            state.isPostProcessingNeeded ? completion : completion + 0.2
+          )}
+          <ul>
+            {completion === 0 && (
+              <li>Interpreting natural language query..."</li>
+            )}
+            {completion >= 0.2 && (
+              <li>
+                ✔️ Search list(s) interpreted:
+                <ol>
+                  {state.searchLists.map((list: string, index: number) => (
+                    <li>
+                      <code>{list}</code>
+                      {completion >= 0.4 && (
+                        <ul>
+                          <li>
+                            ✔️ Regex filters:
+                            <ol>
+                              {state.filters.length > index &&
+                                state.filters[index].map((elt: any) => (
+                                  <li>
+                                    <code>{elt.regexString}</code>
+                                  </li>
+                                ))}
+                            </ol>
+                          </li>
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </li>
+            )}
+            {completion === 0.2 && (
+              <li>Converting search list to Regex filters...</li>
+            )}
+            {completion === 0.4 && <li>Running Roam database queries...</li>}
+            {completion >= 0.5 && (
+              <li>
+                ✔️ Roam database queries: {state.matchingBlocks.length} matching
+                blocks
+              </li>
+            )}
+            {completion === 0.6 && (
+              <li>Preselection of most relevant blocks...</li>
+            )}
+            {completion === 0.8 && (
+              <li>Post-processing {state.filteredBlocks.length} blocks...</li>
+            )}
+            {completion === 1 && (
+              <li>
+                ✔️ Insert {state.nbOfResults || state.filteredBlocks.length}{" "}
+                results in your graph.
+              </li>
+            )}
+          </ul>
+        </>
+      ),
+      timeout: 20000,
+    },
+    toasterInstance
+  );
+};
+
+const progressBarDisplay = (value: number) => {
+  if (value > 1) value = 1;
+  return (
+    <ProgressBar
+      value={value}
+      className="laia-progressbar"
+      intent={value < 1 ? Intent.PRIMARY : Intent.SUCCESS}
+      animate={value < 1 ? true : false}
+      stripes={value < 1 ? true : false}
+    />
+  );
 };

@@ -24,7 +24,6 @@ import {
   openRouterModelsInfo,
   deepseekLibrary,
 } from "..";
-import { AppToaster } from "../components/VoiceRecorder";
 import {
   insertInstantButtons,
   insertParagraphForStream,
@@ -37,6 +36,7 @@ import {
   updateTokenCounter,
 } from "./modelsInfo";
 import { roamImageRegex } from "../utils/regex";
+import { AppToaster } from "../components/Toaster";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {

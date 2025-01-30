@@ -13,7 +13,6 @@ import {
   faListUl,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { Intent, Position, Toaster } from "@blueprintjs/core";
 import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
 import {
   aiCompletionRunner,
@@ -59,15 +58,7 @@ import {
   handleModifierKeys,
   isPromptInConversation,
 } from "../ai/dataExtraction.js";
-
-export const AppToaster = Toaster.create({
-  className: "color-toaster",
-  position: Position.TOP,
-  intent: Intent.WARNING,
-  icon: "warning-sign",
-  maxToasts: 1,
-  timeout: 12000,
-});
+import { AppToaster } from "./Toaster.js";
 
 function VoiceRecorder({
   blockUid,

@@ -38,6 +38,23 @@
 .color-toaster .bp3-toast-messge {
   color: black;
 }
+.search-agent-toaster .bp3-toast {
+  font-size: 13px;
+  padding: 5px;
+}
+.search-agent-toaster .bp3-toast li {
+  padding: 3px 0;
+}
+.search-agent-toaster .bp3-toast ul,
+.search-agent-toaster .bp3-toast ol {
+  padding-left: 10px;
+}
+.laia-progressbar {
+  margin-bottom: 20px;
+}
+.search-agent-toaster .bp3-button {
+  transform: translateX(10px) translateY(-10px);
+}
 
 .speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {
   border: none;

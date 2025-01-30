@@ -5,8 +5,8 @@ import { extensionStorage, isComponentVisible, position } from "..";
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
-import { AppToaster } from "../components/VoiceRecorder";
 import { getFocusAndSelection } from "../ai/dataExtraction";
+import { AppToaster } from "../components/Toaster";
 
 export function mountComponent(
   position,

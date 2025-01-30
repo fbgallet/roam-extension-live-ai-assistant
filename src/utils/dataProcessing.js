@@ -17,15 +17,16 @@ export function removeDuplicatesByProperty(arr, property) {
 
 export function excludeItemsInArray(
   sourceArray,
-  itemsToExclude,
-  matchingProperty
+  toExcludeArray,
+  property,
+  isValueToExcludeInProperty = true
 ) {
   return sourceArray.filter((item) =>
-    matchingProperty !== undefined
-      ? !itemsToExclude.some(
-          (elt) => elt[matchingProperty] === item[matchingProperty]
-        )
-      : !itemsToExclude.includes(item)
+    property !== undefined
+      ? isValueToExcludeInProperty
+        ? !toExcludeArray.some((elt) => elt[property] === item[property])
+        : !toExcludeArray.includes(item[property])
+      : !toExcludeArray.includes(item)
   );
 }
 

@@ -9,7 +9,6 @@ import {
   defaultAssistantCharacter,
   defaultContextInstructions,
 } from "./ai/prompts";
-import { AppToaster } from "./components/VoiceRecorder";
 import {
   createContainer,
   mountComponent,
@@ -31,6 +30,7 @@ import {
   getMaxDephObjectFromList,
 } from "./ai/dataExtraction";
 import { uidRegex } from "./utils/regex";
+import { AppToaster } from "./components/Toaster";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";

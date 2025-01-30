@@ -252,7 +252,7 @@ INPUT ANALYSIS (user query):
   - All terms separated by a space (except for expressions in quotes) should be considered as an item defining a search condition
   - Remove non-essential syntactic elements (articles, pronouns)
   - Interpret properly logical operators or symbols if present ('+', '&' as 'AND', '|' as 'OR', '-' as 'NOT')
-  - Interpret '>' symbol as a hierarchical condition: filters will be directed (e.g. in 'A > B', matching blocks are blocks including 'A' in themself and 'B' in one of their children)
+  - Interpret '>' symbol as a hierarchical condition: filters will be directed (e.g. in 'A > B', matching blocks are all blocks including 'A' and including 'B' in one of their children)
 - For natural language queries (sentences/questions):
   - Extract only essential and key search terms! To do this, it's necessary to correctly interpret the request or question to distinguish what defines the conditions of the search and what is about the post-processing or the question asked about the content that will be extracted.
   - IMPORTANT: Disregard and do not use as search terms:
@@ -263,7 +263,7 @@ INPUT ANALYSIS (user query):
     - anything that indicates the post-processing required on the search results but not the type of content being sought
     - words preceded by '\\' have to be ignored
 - The analysis of any query type must determine if it contains the following information:
-  - the number of results requested if expressed
+  - the number of results requested if expressed (explicitly with a number or implicitly, for example, "the most recent block" is only 1 block requested)
   - instruction to randomly select items from the results
   - directed conditions (with '>' symbol but also with natural language expression like "in parent", "in children", etc. e.g. 'A > B' can be expressed as 'all blocks with A, and B in one of their children)
   - period indications: if dates or period are mentioned in the user's request, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.
@@ -291,9 +291,8 @@ OUTPUT FORMAT: Following the JSON schema provided,
 - set 'isRandom' to true if a random result is requested
 
 IMPORTANT:
-Since each item in the search list will be combined conjunction (AND) to each other, be careful not to multiply the items, as too many conjunctive conditions might result in finding no content that meets all of them. Therefore, prioritize variants and alternatives in the form of disjunctions, and generally do not exceed 3 items, unless the user explicitly makes a very precise request with more conditions to be joined.
-
-Note that sometimes the conjunction "and" in a query should be interpreted as a disjunction for search purposes. For example, if I want "the singers and the soloists," the search item should be "singer|soloist", not "singer + soloist". When there is ambiguity about interpreting an "and," it's generally better to interpret it as an "or" to avoid overly restricting the search.`;
+Since each item in the search list will be combined in conjunction (AND) to each other, be careful not to multiply items, as too many conjunctive conditions might result in finding no content that meets all of them. Generally do not exceed 3 or 4 items, unless the user explicitly makes a very precise request with more conditions to be met.
+Note that sometimes the conjunction "and" in a query should be interpreted as a disjunction for search purposes. For example, if I request for "the singers and the soloists," the search item should be "singer|soloist", not "singer + soloist". When there is ambiguity about interpreting an "and," it's generally better to interpret it as an "or" to avoid overly restricting the search.`;
 
 export const searchAgentNLtoKeywordsSearchOnlyPrompt =
   searchAgentNLtoKeywordsGenericPrompt
@@ -321,8 +320,8 @@ INPUT ANALYSIS:
 - each search item separated by ' + ' (meaning AND) has to be interpreted as a distinct filter that will be combined with other following a conjunctive logic
 - each item can itself combine a set of terms or expression and alternatives, separated by '|' (meaning OR, disjunctive logic)
 - an item begining with '-' symbol (meaning NOT) is the exclusion item
-- a search list including ' > ' symbol means that the search is hierarchicaly directed. The conditions are met only for each block that satisfies the conditions on the left of the '>' symbol, AND has some children that meet the conditions on the right.
-- when an expression is placed in quotation marks "like this for example", the entire expression must conserved exactly as it is
+- a search list including ' > ' symbol means that the search is hierarchicaly directed. The conditions are met only for each block that satisfies the conditions on the left of the ' > ' symbol, AND has some children that meet the conditions on the right.
+- when an expression is placed in quotation marks "like this for example", the entire expression must conserved exactly as it is with quotes.
 
 YOUR JOB: interprete, enhance and complete the input query into a set of filter items using regex, following these rules:
 - extract each search item in a distinct filter, do not add any other search item
@@ -330,16 +329,12 @@ YOUR JOB: interprete, enhance and complete the input query into a set of filter 
 - if and only if a word is between quotation marks, use the following syntax to search for it only as a word: "word" become '\\bword\\b'
 - insert '(?i)' at the beginning of a search filter regex for case insensitive search, unless for single word or expression between quotation marks
 - if an search list include ' > ' symbol, count the number of search items on the left of this symbol
-- in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant, use the correct regex syntax to complete the search item with alternatives so that:
+- in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant, use the correct regex syntax to complete the search item with alternatives. IMPORTANT: alternatives for a given search item should always be combined with the disjunctive logic '|' to the initial form, and thus, they form only a single filter. Two types of variations are possible:
   a) terms that might vary in plural or feminine form or conjugated verbs can be matched in their different possible forms,
-  b) add most relevant semantic variations (synonyms, alias, related words). E.g. if the searched term is 'practice', semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
-VERY IMPORTANT: semantic variations should be strictly limited to the language used in the initial user's request (or explicitly mentioned) !
-
-IMPORTANT:
-Variants and alternatives for a given search item should always be combined with the disjunctive logic '|' to the initial form, and thus, they form only a single filter!
+  b) add most relevant semantic variations (synonym, acronym, common alias or abbreviation). E.g. if the searched term is 'practice', semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'. WARNING: Adding variations should be done with great care to avoid any alternative that might introduce ambiguity and lead search down the wrong path or expand it too much. VERY IMPORTANT: semantic variations should be strictly limited to the same language used in the initial user's request (unless otherwise specified) !
 
 VERY IMPORTANT:
-Since each filters will be combined following the conjunctive logic with the other, be careful not to multiply them, as too many conjunctive conditions might result in finding no content that meets all of them. Therefore, prioritize variants and alternatives in the form of disjunctions, and generally do not exceed 3 filters (plus eventually an exclusion filter), unless the search list have really a higher number of conjunctions.
+Since each filters will be combined following the conjunctive logic with the other, be careful not to multiply them, as too many conjunctive conditions might result in finding no content that meets all of them. In general, the number of filters should be the same as the number of search items and should rarely exceed 3.
 
 OUTPUT FORMAT: For each provided search list, create a set of filters following the provided JSON schema, where:
 - "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
