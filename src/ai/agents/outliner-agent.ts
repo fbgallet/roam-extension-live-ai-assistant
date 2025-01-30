@@ -37,7 +37,6 @@ import {
   insertInstantButtons,
   toggleOutlinerSelection,
 } from "../../utils/domElts";
-import { AppToaster } from "../../components/VoiceRecorder";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import {
   getAndNormalizeContext,
@@ -54,6 +53,7 @@ import {
 } from "../responseInsertion";
 import { updateTokenCounter } from "../modelsInfo";
 import { customTagRegex } from "../../utils/regex";
+import { AppToaster } from "../../components/Toaster";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,

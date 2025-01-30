@@ -76,11 +76,28 @@ export function getBlocksMentioningTitle(title) {
 
 export function getPathOfBlock(uid) {
   let result = window.roamAlphaAPI
-    .q(`[:find (pull ?block [{:block/parents [:block/string]}])
+    .q(`[:find (pull ?block [{:block/parents [:block/uid :block/string]}])
   :where
   [?block :block/uid "${uid}"]]`);
   if (!result) return null;
-  return result[0][0].parents?.map((p) => p.string);
+  return result[0][0].parents?.map((p) => {
+    return { uid: p.uid, string: p.string };
+  });
+}
+
+export function getFormattedPath(uid, maxWords, directParentMaxWords) {
+  const path = getPathOfBlock(uid);
+  if (!path) return "";
+  const isDirectParent = i === path.length - 1;
+  let formattedPath = "";
+  for (let i = 0; i < path.length; i++) {
+    formattedPath +=
+      sliceByWordLimit(
+        path[i].string,
+        isDirectParent && directParentMaxWords ? maxWords : directParentMaxWords
+      ) + (isDirectParent ? "" : " > ");
+  }
+  return formattedPath;
 }
 
 export function isExistingBlock(uid) {
