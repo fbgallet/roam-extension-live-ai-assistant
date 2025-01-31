@@ -7,9 +7,10 @@ import {
 } from "@langchain/langgraph/web";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { arrayOutputType, z } from "zod";
-import { defaultModel } from "../..";
+import { chatRoles, defaultModel, getInstantAssistantRole } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
+  createChildBlock,
   descendantRule,
   getBlocksMatchingRegexQuery,
   getDNPTitleFromDate,
@@ -61,6 +62,7 @@ const SearchAgentState = Annotation.Root({
   model: Annotation<string>,
   rootUid: Annotation<string>,
   targetUid: Annotation<string>,
+  target: Annotation<string>,
   userNLQuery: Annotation<string>,
   llmResponse: Annotation<any>,
   searchLists: Annotation<any>,
@@ -561,7 +563,10 @@ const preselection = async (state: typeof SearchAgentState.State) => {
   let flattenedQueryResults = "";
   state.filteredBlocks.forEach((block: any, index: number) => {
     const path = getPathOfBlock(block.uid);
-    const directParent = path ? sliceByWordLimit(path.at(-1).string, 20) : null;
+    const directParent =
+      path && path.at(-1).string
+        ? sliceByWordLimit(path.at(-1).string, 20)
+        : null;
     let flattenedBlockContent = `${index}) Block ((${block.uid})) in page [[${
       block.pageTitle
     }]]${directParent ? '. Direct parent is: "' + directParent + '"' : ""}\n`;
@@ -688,8 +693,18 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     }
   }
 
+  const assistantRole = state.model
+    ? getInstantAssistantRole(state.model)
+    : chatRoles.assistant;
+  let targetUid;
+  if (state.target === "new")
+    targetUid = await createChildBlock(state.rootUid, assistantRole);
+
+  console.log("state :>> ", state);
+
   await insertStructuredAIResponse({
-    targetUid: state.rootUid,
+    target: state.target,
+    targetUid: targetUid || state.rootUid,
     content: state.strigifiedResultToDisplay.trim(),
     forceInChildren: true,
   });
@@ -758,6 +773,7 @@ export const SearchAgent = builder.compile();
 interface AgentInvoker {
   model: string;
   currentUid: string;
+  target: string;
   targetUid?: string;
   prompt: string;
   previousResponse?: string;
@@ -768,12 +784,14 @@ export const invokeSearchAgent = async ({
   model = defaultModel,
   currentUid,
   targetUid,
+  target,
   prompt,
   previousResponse,
 }: AgentInvoker) => {
   invokeAskAgent({
     model,
     currentUid,
+    target,
     targetUid,
     prompt,
     previousResponse,
@@ -784,6 +802,7 @@ export const invokeSearchAgent = async ({
 export const invokeAskAgent = async ({
   model = defaultModel,
   currentUid,
+  target,
   targetUid,
   prompt,
   previousResponse,
@@ -793,9 +812,6 @@ export const invokeAskAgent = async ({
 
   toasterInstance = AgentToaster.show({
     message: "",
-    // icon: "form",
-    // intent: Intent.SUCCESS,
-    // className: "search-agent-toaster",
   });
 
   const spinnerId = displaySpinner(currentUid);
@@ -803,8 +819,9 @@ export const invokeAskAgent = async ({
     model,
     rootUid: currentUid,
     userNLQuery: prompt,
+    target,
     targetUid,
-    isPostProcessingNeeded: false,
+    isPostProcessingNeeded: onlySearch,
     // roamQuery: previousResponse,
   });
 
@@ -895,6 +912,7 @@ const displayAgentStatus = (
   console.log("toasterInstance :>> ", toasterInstance);
   AgentToaster.show(
     {
+      icon: "form",
       message: (
         <>
           {progressBarDisplay(
@@ -902,7 +920,7 @@ const displayAgentStatus = (
           )}
           <ul>
             {completion === 0 && (
-              <li>Interpreting natural language query..."</li>
+              <li>Interpreting natural language query...</li>
             )}
             {completion >= 0.2 && (
               <li>

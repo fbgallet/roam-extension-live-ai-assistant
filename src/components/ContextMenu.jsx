@@ -164,10 +164,13 @@ const StandaloneContextMenu = () => {
   }, [defaultLgg]);
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
-    if (command.category === "SEARCH & QUERY") {
+    const target =
+      targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
+    if (command.category === "QUERY AGENTS") {
       if (command.callback) {
         command.callback({
           model,
+          target,
           currentUid: focusedBlockUid.current,
           targetUid: focusedBlockUid.current,
           prompt: getBlockContentByUid(focusedBlockUid.current),
@@ -227,10 +230,7 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids: command.includeUids,
         withSuggestions: command.withSuggestions,
-        target:
-          targetBlock === "auto"
-            ? command.target || "new"
-            : targetBlock || "new",
+        target,
         selectedUids: selectedBlocks.current,
         style:
           command.isIncompatibleWith?.style ||

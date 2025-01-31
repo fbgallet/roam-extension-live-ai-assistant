@@ -52,7 +52,7 @@ export function concatWithoutDuplicates(
   return sourceArray;
 }
 
-export function sliceByWordLimit(text, wordLimit) {
+export function sliceByWordLimit(text = "", wordLimit) {
   const words = text.split(" ");
   if (words.length <= wordLimit) {
     return text;

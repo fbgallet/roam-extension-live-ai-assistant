@@ -12,8 +12,6 @@ import { highlightHtmlElt } from "../utils/domElts";
 import {
   builtInPromptRegex,
   contextRegex,
-  customPromptTagRegex,
-  customStyleTagRegex,
   customTagRegex,
   numbersRegex,
   pageRegex,
