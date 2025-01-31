@@ -45,9 +45,12 @@
 .search-agent-toaster .bp3-toast li {
   padding: 3px 0;
 }
+.search-agent-toaster .bp3-toast ul {
+  list-style-type: none;
+}
 .search-agent-toaster .bp3-toast ul,
 .search-agent-toaster .bp3-toast ol {
-  padding-left: 10px;
+  padding-left: 20px;
 }
 .laia-progressbar {
   margin-bottom: 20px;

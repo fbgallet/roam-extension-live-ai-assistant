@@ -1,4 +1,5 @@
 import { copyTreeBranches } from "../ai/responseInsertion";
+import { sliceByWordLimit } from "./dataProcessing";
 import {
   dateStringRegex,
   dnpUidRegex,
@@ -88,12 +89,12 @@ export function getPathOfBlock(uid) {
 export function getFormattedPath(uid, maxWords, directParentMaxWords) {
   const path = getPathOfBlock(uid);
   if (!path) return "";
-  const isDirectParent = i === path.length - 1;
   let formattedPath = "";
   for (let i = 0; i < path.length; i++) {
+    const isDirectParent = i === path.length - 1;
     formattedPath +=
       sliceByWordLimit(
-        path[i].string,
+        path[i].string || "",
         isDirectParent && directParentMaxWords ? maxWords : directParentMaxWords
       ) + (isDirectParent ? "" : " > ");
   }
