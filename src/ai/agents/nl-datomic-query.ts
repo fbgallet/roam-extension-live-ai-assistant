@@ -260,7 +260,7 @@ export const NLDatomicQueryInterpreter = builder.compile();
 
 interface AgentInvoker {
   model: string;
-  currentUid: string;
+  rootUid: string;
   targetUid?: string;
   prompt: string;
   previousResponse?: string;
@@ -268,15 +268,15 @@ interface AgentInvoker {
 // Invoke graph
 export const invokeNLDatomicQueryInterpreter = async ({
   model = defaultModel,
-  currentUid,
+  rootUid,
   targetUid,
   prompt,
   previousResponse,
 }: AgentInvoker) => {
-  const spinnerId = displaySpinner(currentUid);
+  const spinnerId = displaySpinner(rootUid);
   const response = await NLDatomicQueryInterpreter.invoke({
     model,
-    rootUid: currentUid,
+    rootUid,
     userNLQuery: prompt,
     targetUid,
     datomicQuery: previousResponse,
@@ -287,7 +287,7 @@ export const invokeNLDatomicQueryInterpreter = async ({
       insertInstantButtons({
         model: response.model,
         prompt: response.userNLQuery,
-        currentUid,
+        currentUid: rootUid,
         targetUid: response.targetUid,
         responseFormat: "text",
         response: response.datomicQuery,

@@ -171,7 +171,7 @@ const StandaloneContextMenu = () => {
         command.callback({
           model,
           target,
-          currentUid: focusedBlockUid.current,
+          rootUid: focusedBlockUid.current,
           targetUid: focusedBlockUid.current,
           prompt: getBlockContentByUid(focusedBlockUid.current),
         });

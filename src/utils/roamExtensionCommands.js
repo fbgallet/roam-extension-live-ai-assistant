@@ -279,56 +279,43 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     callback: (e) => openContextMenu(e["block-uid"]),
   });
 
-  // Not reliable enought for prompting since it's not properly ordered
-  // ****
-  // window.roamAlphaAPI.ui.msContextMenu.addCommand({
-  //   label: "Live AI Assistant: Open context Menu",
-  //   callback: (e) => {
-  //     let selectionUids = e["blocks"].map((b) => b["block-uid"]); // not ordered !
-  //     const topParent = getTopParentAmongBlocks(selectionUids);
-  //     selectionUids.splice(selectionUids.indexOf(topParent), 1);
-  //     selectionUids = selectionUids.unshift(topParent);
-  //     openContextMenu(undefined, selectionUids.length ? selectionUids : null);
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label: "Live AI Assistant: Set as target for Outliner Agent",
+  //   callback: async () => {
+  //     setAsOutline();
   //   },
   // });
 
-  extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Set as target for Outliner Agent",
-    callback: async () => {
-      setAsOutline();
-    },
-  });
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label: "Live AI Assistant: Send this prompt to Outliner Agent",
+  //   callback: async () => {
+  //     invokeOutlinerAgent();
+  //   },
+  // });
 
-  extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Send this prompt to Outliner Agent",
-    callback: async () => {
-      invokeOutlinerAgent();
-    },
-  });
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label: "Live AI Assistant: Natural language Query Agent",
+  //   callback: async () => {
+  //     let { currentUid, currentBlockContent, selectionUids } =
+  //       getFocusAndSelection();
+  //     await invokeNLQueryInterpreter({
+  //       rootUid: currentUid,
+  //       prompt: currentBlockContent,
+  //     });
+  //   },
+  // });
 
-  extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Natural language Query Agent",
-    callback: async () => {
-      let { currentUid, currentBlockContent, selectionUids } =
-        getFocusAndSelection();
-      await invokeNLQueryInterpreter({
-        currentUid,
-        prompt: currentBlockContent,
-      });
-    },
-  });
-
-  extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Natural language Datomic :q Agent",
-    callback: async () => {
-      let { currentUid, currentBlockContent, selectionUids } =
-        getFocusAndSelection();
-      await invokeNLDatomicQueryInterpreter({
-        currentUid,
-        prompt: currentBlockContent,
-      });
-    },
-  });
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label: "Live AI Assistant: Natural language Datomic :q Agent",
+  //   callback: async () => {
+  //     let { currentUid, currentBlockContent, selectionUids } =
+  //       getFocusAndSelection();
+  //     await invokeNLDatomicQueryInterpreter({
+  //       rootUid: currentUid,
+  //       prompt: currentBlockContent,
+  //     });
+  //   },
+  // });
 
   // Add SmartBlock command
   const speechCmd = {

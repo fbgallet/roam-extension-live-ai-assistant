@@ -9,7 +9,7 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { Button, ContextMenu, Tooltip } from "@blueprintjs/core";
+import { Button, ContextMenu, Icon, Tooltip } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
 import {
   aiCompletionRunner,
@@ -35,6 +35,10 @@ import {
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent.ts";
 import { completionCommands } from "../ai/prompts.js";
 import { getFlattenedContentFromTree } from "../ai/dataExtraction.js";
+import {
+  invokeAskAgent,
+  invokeSearchAgent,
+} from "../ai/agents/search-agent.tsx";
 
 export let isCanceledStreamGlobal = false;
 
@@ -83,7 +87,7 @@ const InstantButtons = ({
     });
   };
 
-  const handleRedo = ({ e, model = model }) => {
+  const handleRedo = ({ e, model = model, options = {} }) => {
     isCanceledStreamGlobal = true;
     !aiCallback
       ? isOutlinerAgent
@@ -112,6 +116,7 @@ const InstantButtons = ({
           currentUid,
           targetUid,
           previousResponse: response,
+          options,
         });
     setIsToUnmount(true);
   };
@@ -244,6 +249,40 @@ const InstantButtons = ({
           </Tooltip>
         </Button>
       ) : null}
+      {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) && (
+        <Button
+          onClick={(e) => {
+            aiCallback = invokeAskAgent;
+            handleRedo({
+              e,
+              options: { isPostProcessingNeeded: true, searchLists: content },
+            });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({ callback: handleRedo, prompt }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
+          }}
+        >
+          <Tooltip
+            content={
+              <p>
+                Instructions or question on results
+                <br />
+                for post-processing by AI
+                <br />
+                <code>Right Click</code> to choose another AI model
+              </p>
+            }
+            hoverOpenDelay="500"
+          >
+            <Icon icon="search-template" />
+          </Tooltip>
+        </Button>
+      )}
       {!(isOutlinerAgent && !treeSnapshot) && (
         <Button
           onClick={handleRedo}
