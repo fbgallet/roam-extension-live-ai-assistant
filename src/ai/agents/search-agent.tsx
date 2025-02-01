@@ -697,8 +697,11 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     ? getInstantAssistantRole(state.model)
     : chatRoles.assistant;
   let targetUid;
-  if (state.target === "new")
-    targetUid = await createChildBlock(state.rootUid, assistantRole);
+  if (state.target.includes("new"))
+    targetUid = await createChildBlock(
+      state.rootUid,
+      state.target === "new" ? assistantRole : ""
+    );
 
   console.log("state :>> ", state);
 
@@ -916,7 +919,7 @@ const displayAgentStatus = (
       message: (
         <>
           {progressBarDisplay(
-            state.isPostProcessingNeeded ? completion : completion + 0.2
+            state.isPostProcessingNeeded ? completion : completion + 0.3
           )}
           <ul>
             {completion === 0 && (

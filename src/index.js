@@ -202,6 +202,7 @@ export default {
             items: [
               "gpt-4o-mini",
               "gpt-4o",
+              "o3-mini",
               "Claude Haiku",
               "Claude Haiku 3.5",
               "Claude Sonnet 3.5",
