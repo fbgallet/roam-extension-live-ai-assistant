@@ -46,7 +46,10 @@ import {
   sliceByWordLimit,
 } from "../../utils/dataProcessing";
 import { insertStructuredAIResponse } from "../responseInsertion";
-import { getFlattenedContentFromTree } from "../dataExtraction";
+import {
+  getFlattenedContentFromTree,
+  getFocusAndSelection,
+} from "../dataExtraction";
 import { AgentToaster, AppToaster } from "../../components/Toaster";
 import { Intent, ProgressBar } from "@blueprintjs/core";
 
@@ -697,10 +700,10 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     ? getInstantAssistantRole(state.model)
     : chatRoles.assistant;
   let targetUid;
-  if (state.target.includes("new"))
+  if (state.target?.includes("new") || !state.target)
     targetUid = await createChildBlock(
       state.rootUid,
-      state.target === "new" ? assistantRole : ""
+      state.target === "new" || !state.target ? assistantRole : ""
     );
 
   console.log("state :>> ", state);
@@ -716,6 +719,19 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
 /*********/
 // EDGES //
 /*********/
+
+const turnRouter = (state: typeof SearchAgentState.State) => {
+  if (state.filteredBlocks && state.isPostProcessingNeeded) {
+    if (
+      state.filteredBlocks.length <= 20 ||
+      (state.nbOfResults &&
+        state.filteredBlocks.length < Math.min(20, state.nbOfResults * 3))
+    )
+      return "post-processing";
+    return "preselection-filter";
+  }
+  return "nl-query-interpreter";
+};
 
 const afterCheckRouter = (state: typeof SearchAgentState.State) => {
   if ("directList" in state.llmResponse) return "searchlist-converter";
@@ -759,7 +775,8 @@ builder
   .addNode("output", displayResults)
 
   .addEdge(START, "loadModel")
-  .addEdge("loadModel", "nl-query-interpreter")
+  .addConditionalEdges("loadModel", turnRouter)
+  // .addEdge("loadModel", "nl-query-interpreter")
   .addEdge("nl-query-interpreter", "checker")
   .addEdge("searchlist-converter", "checker")
   .addConditionalEdges("checker", afterCheckRouter)
@@ -775,17 +792,18 @@ export const SearchAgent = builder.compile();
 
 interface AgentInvoker {
   model: string;
-  currentUid: string;
+  rootUid: string;
   target: string;
   targetUid?: string;
   prompt: string;
   previousResponse?: string;
   onlySearch?: boolean;
+  options?: any;
 }
 // Invoke graph
 export const invokeSearchAgent = async ({
   model = defaultModel,
-  currentUid,
+  rootUid,
   targetUid,
   target,
   prompt,
@@ -793,7 +811,7 @@ export const invokeSearchAgent = async ({
 }: AgentInvoker) => {
   invokeAskAgent({
     model,
-    currentUid,
+    rootUid,
     target,
     targetUid,
     prompt,
@@ -804,12 +822,13 @@ export const invokeSearchAgent = async ({
 
 export const invokeAskAgent = async ({
   model = defaultModel,
-  currentUid,
+  rootUid,
   target,
   targetUid,
   prompt,
   previousResponse,
   onlySearch,
+  options = {},
 }: AgentInvoker) => {
   let begin = performance.now();
 
@@ -817,15 +836,31 @@ export const invokeAskAgent = async ({
     message: "",
   });
 
-  const spinnerId = displaySpinner(currentUid);
+  console.log("options :>> ", options);
+
+  if (options?.isPostProcessingNeeded) {
+    let { currentUid, currentBlockContent } = getFocusAndSelection();
+    if (!currentBlockContent) {
+      AppToaster.show({
+        message:
+          "You have to focus a block to provide instructions or question for post-processing",
+      });
+      return;
+    }
+    rootUid = currentUid;
+    prompt = currentBlockContent;
+  }
+
+  const spinnerId = displaySpinner(rootUid);
   const response = await SearchAgent.invoke({
     model,
-    rootUid: currentUid,
+    rootUid,
     userNLQuery: prompt,
     target,
     targetUid,
     isPostProcessingNeeded: onlySearch,
-    // roamQuery: previousResponse,
+    filteredBlocks: previousResponse,
+    ...options,
   });
 
   let end = performance.now();
@@ -834,17 +869,21 @@ export const invokeAskAgent = async ({
     ((end - begin) / 1000).toFixed(2) + "s"
   );
 
+  console.log("Agent response :>> ", response);
+  console.log("options :>> ", options);
+
   removeSpinner(spinnerId);
   if (response) {
     setTimeout(() => {
       insertInstantButtons({
         model: response.model,
         prompt: response.userNLQuery,
-        currentUid,
+        content: response.searchLists,
+        currentUid: rootUid,
         targetUid: response.targetUid,
         responseFormat: "text",
-        // response: response.roamQuery,
-        aiCallback: invokeSearchAgent,
+        response: response.filteredBlocks,
+        aiCallback: onlySearch ? invokeSearchAgent : invokeAskAgent,
       });
     }, 100);
   }
@@ -888,96 +927,95 @@ const displayAgentStatus = (
   state: typeof SearchAgentState.State,
   status: string
 ) => {
-  let completion = 0;
+  let completion = 0.1;
   switch (status) {
     case "searchlist-converter":
-      completion = 0.2;
+      completion = 0.3;
       break;
     case "queryRunner":
-      completion = 0.4;
-      break;
-    case "limitAndOrder":
       completion = 0.5;
       break;
-    case "preselection-filter":
+    case "limitAndOrder":
       completion = 0.6;
       break;
+    case "preselection-filter":
+      completion = 0.7;
+      break;
     case "post-processing":
-      completion = 0.8;
+      completion = 0.9;
       break;
     case "output":
       completion = 1;
       break;
   }
-  if (completion >= 0.4) {
-    console.log("state.filters :>> ", state.filters);
-  }
-  console.log("toasterInstance :>> ", toasterInstance);
   AgentToaster.show(
     {
       icon: "form",
       message: (
         <>
           {progressBarDisplay(
-            state.isPostProcessingNeeded ? completion : completion + 0.3
+            state.isPostProcessingNeeded || completion <= 0.1
+              ? completion
+              : completion + 0.4
           )}
           <ul>
-            {completion === 0 && (
+            {completion === 0.1 && (
               <li>Interpreting natural language query...</li>
             )}
-            {completion >= 0.2 && (
+            {completion >= 0.3 && (
               <li>
                 ✔️ Search list(s) interpreted:
                 <ol>
-                  {state.searchLists.map((list: string, index: number) => (
-                    <li>
-                      <code>{list}</code>
-                      {completion >= 0.4 && (
-                        <ul>
-                          <li>
-                            ✔️ Regex filters:
-                            <ol>
-                              {state.filters.length > index &&
-                                state.filters[index].map((elt: any) => (
-                                  <li>
-                                    <code>{elt.regexString}</code>
-                                  </li>
-                                ))}
-                            </ol>
-                          </li>
-                        </ul>
-                      )}
-                    </li>
-                  ))}
+                  {state.searchLists?.length &&
+                    state.searchLists.map((list: string, index: number) => (
+                      <li>
+                        <code>{list}</code>
+                        {completion >= 0.5 && (
+                          <ul>
+                            <li>
+                              ✔️ Regex filters:
+                              <ol>
+                                {state.filters?.length > index &&
+                                  state.filters[index].map((elt: any) => (
+                                    <li>
+                                      <code>{elt.regexString}</code>
+                                    </li>
+                                  ))}
+                              </ol>
+                            </li>
+                          </ul>
+                        )}
+                      </li>
+                    ))}
                 </ol>
               </li>
             )}
-            {completion === 0.2 && (
+            {completion === 0.3 && (
               <li>Converting search list to Regex filters...</li>
             )}
-            {completion === 0.4 && <li>Running Roam database queries...</li>}
-            {completion >= 0.5 && (
+            {completion === 0.5 && <li>Running Roam database queries...</li>}
+            {completion >= 0.6 && (
               <li>
-                ✔️ Roam database queries: {state.matchingBlocks.length} matching
-                blocks
+                ✔️ Roam database queries: {state.matchingBlocks?.length}{" "}
+                matching blocks
               </li>
             )}
-            {completion === 0.6 && (
+            {completion === 0.7 && (
               <li>Preselection of most relevant blocks...</li>
             )}
-            {completion === 0.8 && (
-              <li>Post-processing {state.filteredBlocks.length} blocks...</li>
+            {completion === 0.9 && (
+              <li>Post-processing {state.filteredBlocks?.length} blocks...</li>
             )}
             {completion === 1 && (
               <li>
-                ✔️ Insert {state.nbOfResults || state.filteredBlocks.length}{" "}
+                ✔️ Insert {state.nbOfResults || state.filteredBlocks?.length}{" "}
                 results in your graph.
               </li>
             )}
           </ul>
         </>
       ),
-      timeout: 20000,
+      timeout: 15000,
     },
     toasterInstance
   );
