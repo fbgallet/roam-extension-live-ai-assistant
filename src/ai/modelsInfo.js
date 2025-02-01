@@ -5,7 +5,9 @@ export const tokensLimit = {
   "gpt-4o-mini": 131073,
   "gpt-4o": 131073,
   "o1-mini": 131073,
+  "o1-preview": 200000,
   o1: 200000,
+  "o3-mini": 200000,
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,
@@ -24,9 +26,13 @@ export const modelsPricing = {
     input: 0.0025,
     output: 0.01,
   },
+  "o3-mini": {
+    input: 0.0011,
+    output: 0.0044,
+  },
   "o1-mini": {
-    input: 0.003,
-    output: 0.012,
+    input: 0.0011,
+    output: 0.0044,
   },
   "o1-preview": {
     input: 0.015,

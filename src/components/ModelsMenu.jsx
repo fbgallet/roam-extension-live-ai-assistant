@@ -105,6 +105,19 @@ const ModelsMenu = ({
             />
             <MenuItem text="o1 'reasoning' models">
               <MenuItem
+                icon={defaultModel === "o3-mini" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="o3-mini"
+                labelElement="200k"
+              />
+              <MenuItem
                 icon={defaultModel === "o1-mini" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
@@ -136,7 +149,9 @@ const ModelsMenu = ({
                   <p>
                     ⚠️ Use with caution,
                     <br />
-                    expensive models!
+                    quite expensive models!
+                    <br />
+                    & not available for all users
                     <br />
                     See{" "}
                     <a href="https://openai.com/api/pricing/" target="_blank">
