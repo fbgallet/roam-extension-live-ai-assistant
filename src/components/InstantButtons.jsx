@@ -67,8 +67,7 @@ const InstantButtons = ({
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
 
-  console.log("historyCommand in InstantButtons :>> ", historyCommand);
-  console.log("agentData :>> ", agentData);
+  // console.log("historyCommand in InstantButtons :>> ", historyCommand);
 
   useEffect(() => {
     isCanceledStreamGlobal = false;
@@ -83,8 +82,7 @@ const InstantButtons = ({
   };
 
   const handleUndo = (e) => {
-    console.log("treeSnapshot :>> ", treeSnapshot);
-    console.log("historyCommand :>> ", historyCommand);
+    // console.log("historyCommand :>> ", historyCommand);
     invokeOutlinerAgent({
       rootUid: targetUid,
       treeSnapshot,
@@ -96,7 +94,7 @@ const InstantButtons = ({
     isCanceledStreamGlobal = true;
     const { currentBlockContent } = getFocusAndSelection();
     let retryInstruction = currentBlockContent || "";
-    console.log("retryInstruction :>> ", retryInstruction);
+
     !aiCallback
       ? isOutlinerAgent
         ? invokeOutlinerAgent({
@@ -128,12 +126,6 @@ const InstantButtons = ({
           previousResponse: response,
           options: {
             retryInstruction,
-            // isRandom: agentData?.isRandom,
-            // matchingBlocks: agentData?.isRandom && agentData?.matchingBlocks,
-            // filters: agentData?.isRandom && agentData?.filters,
-            // nbOfResults: agentData?.nbOfResults,
-            // period: agentData?.period,
-            // pageLimitation: agentData?.pageLimitation,
           },
         });
     setIsToUnmount(true);

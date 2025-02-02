@@ -6,7 +6,6 @@ import {
   END,
 } from "@langchain/langgraph/web";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { arrayOutputType, z } from "zod";
 import { chatRoles, defaultModel, getInstantAssistantRole } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
@@ -29,7 +28,11 @@ import {
   searchAgentNLtoKeywordsSearchOnlyPrompt,
   searchAgentNLtoKeywordsPostProPrompt,
 } from "./agent-prompts";
-import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
+import {
+  LlmInfos,
+  TokensUsage,
+  modelViaLanggraph,
+} from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
 import {
   displaySpinner,
@@ -52,6 +55,12 @@ import {
 } from "../dataExtraction";
 import { AgentToaster, AppToaster } from "../../components/Toaster";
 import { Intent, ProgressBar } from "@blueprintjs/core";
+import {
+  preselectionSchema,
+  searchFiltersSchema,
+  searchListSchema,
+} from "./structuredOutput-schemas";
+import { updateTokenCounter } from "../modelsInfo";
 
 interface PeriodType {
   begin: string;
@@ -59,6 +68,9 @@ interface PeriodType {
 }
 
 let beginPerf: number, endPerf: number;
+let llm: StructuredOutputType;
+let toasterInstance: string;
+let turnTokensUsage: TokensUsage;
 
 const SearchAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -84,112 +96,6 @@ const SearchAgentState = Annotation.Root({
   retryInstruction: Annotation<string>,
 });
 
-const searchListSchema = z.object({
-  directList: z
-    .string()
-    .describe("Search list of key terms directly extracted from user query"),
-  alternativeList: z
-    .string()
-    .optional()
-    .nullable()
-    .describe(
-      "Alternative search list if key terms in user query are likely to be too limited"
-    ),
-  isPostProcessingNeeded: z
-    .boolean()
-    .optional()
-    .nullable()
-    .describe(
-      "True if the user query ask not only for a search but also for post-processing search results"
-    ),
-  pagesLimitation: z
-    .string()
-    .optional()
-    .nullable()
-    .describe(
-      "Limitation to a set of pages: 'dnp' or expression to be matched by the page titles"
-    ),
-  nbOfResults: z
-    .number()
-    .optional()
-    .nullable()
-    .describe("Number of requested results, otherwise null"),
-  isRandom: z.boolean().optional().describe("Is a random result requested"),
-  isDirectedFilter: z
-    .boolean()
-    .optional()
-    .describe(
-      "Is filter directed from parent meeting a conditon to children meeting other conditions"
-    ),
-  period: z
-    .object({
-      begin: z
-        .string()
-        .optional()
-        .nullable()
-        .describe(
-          "Date of the beginning of the period (older than the end), in the format yyyy/mm/dd"
-        ),
-      end: z
-        .string()
-        .optional()
-        .nullable()
-        .describe("Date of the end of the period, in the format yyyy/mm/dd"),
-    })
-    .optional()
-    .nullable()
-    .describe(
-      "Restricted period of the request, only if mentioned by the user"
-    ),
-});
-
-const filtersArray = z
-  .array(
-    z
-      .object({
-        regexString: z
-          .string()
-          .describe(
-            "Regex string (eventually with disjonctive logic) to search"
-          ),
-        isToExclude: z
-          .boolean()
-          .optional()
-          .nullable()
-          .describe("True if this regexString is to exclude"),
-        isParentFilter: z
-          .boolean()
-          .optional()
-          .nullable()
-          .describe(
-            "True if this filter is to apply to parent blocks in the case of a hierarchically directed search"
-          ),
-      })
-      .describe("Filter object")
-  )
-  .nullable()
-  .describe(
-    "Array of filter objects defining conjunctively combined search conditions"
-  );
-
-const searchFiltersSchema = z
-  .object({
-    firstListFilters: filtersArray,
-    alternativeListFilters: filtersArray,
-  })
-  .describe(
-    "Each search list converted in an array of filters. If no alternative list, set corresponding property to null"
-  );
-
-const preselectionSchema = z.object({
-  relevantUids: z
-    .array(z.string().describe("uid without parentheses, exactly 9 characters"))
-    .describe("Array of relevant uids only"),
-});
-
-let llm: StructuredOutputType;
-let toasterInstance: string;
-
 /*********/
 // NODES //
 /*********/
@@ -197,7 +103,7 @@ let toasterInstance: string;
 const loadModel = async (state: typeof SearchAgentState.State) => {
   let modelShortcut: string = state.model || defaultModel;
   let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
-  llm = modelViaLanggraph(llmInfos);
+  llm = modelViaLanggraph(llmInfos, turnTokensUsage);
   return {
     model: llmInfos.id,
   };
@@ -686,10 +592,10 @@ ${flattenedDetailedResults}`),
 };
 
 const displayResults = async (state: typeof SearchAgentState.State) => {
-  console.log(
-    "state.stringifiedResultToDisplay :>> ",
-    state.stringifiedResultToDisplay
-  );
+  // console.log(
+  //   "state.stringifiedResultToDisplay :>> ",
+  //   state.stringifiedResultToDisplay
+  // );
 
   state.nbOfResultsDisplayed = 0;
   let previousShiftDisplay = state.shiftDisplay || 0;
@@ -743,13 +649,13 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     target: state.target,
     targetUid: targetUid || state.rootUid,
     content: state.stringifiedResultToDisplay.trim(),
-    forceInChildren: true,
+    forceInChildren: state.shiftDisplay && true,
   });
   return {
     targetUid: targetUid || state.rootUid,
     stringifiedResultToDisplay: state.stringifiedResultToDisplay.trim(),
     nbOfResultsDisplayed: state.nbOfResultsDisplayed,
-    shiftDisplay: state.shiftDisplay,
+    shiftDisplay: !state.isRandom && state.shiftDisplay,
   };
 };
 
@@ -801,7 +707,10 @@ const processOrDisplay = (state: typeof SearchAgentState.State) => {
 //   return "queryRunner";
 // };
 
-// Build graph
+/***************/
+// BUILD GRAPH //
+/***************/
+
 const builder = new StateGraph(SearchAgentState);
 builder
   .addNode("loadModel", loadModel)
@@ -827,7 +736,10 @@ builder
   .addEdge("post-processing", "output")
   .addEdge("output", END);
 
-// Compile graph
+/**************************/
+// Compile & Invoke graph //
+/**************************/
+
 export const SearchAgent = builder.compile();
 
 interface AgentInvoker {
@@ -840,7 +752,7 @@ interface AgentInvoker {
   onlySearch?: boolean;
   options?: any;
 }
-// Invoke graph
+
 export const invokeSearchAgent = async ({
   model = defaultModel,
   rootUid,
@@ -873,13 +785,14 @@ export const invokeAskAgent = async ({
   options = {},
 }: AgentInvoker) => {
   let begin = performance.now();
+  turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
 
   toasterInstance = AgentToaster.show({
     message: "",
   });
 
-  console.log("options :>> ", options);
-  console.log("previousAgentState :>> ", previousAgentState);
+  // console.log("options :>> ", options);
+  // console.log("previousAgentState :>> ", previousAgentState);
 
   if (options?.isPostProcessingNeeded) {
     let { currentUid, currentBlockContent } = getFocusAndSelection();
@@ -902,8 +815,6 @@ export const invokeAskAgent = async ({
     targetUid,
     isPostProcessingNeeded: !onlySearch,
     ...previousAgentState,
-    // filteredBlocks: previousAgentState?.filteredBlocks,
-    // shiftDisplay: previousAgentState?.shiftDisplay,
     ...options,
   });
 
@@ -912,6 +823,8 @@ export const invokeAskAgent = async ({
     "Search Agent delay :>> ",
     ((end - begin) / 1000).toFixed(2) + "s"
   );
+  console.log("Global turnTokensUsage :>> ", turnTokensUsage);
+  updateTokenCounter(model, turnTokensUsage);
 
   console.log("Agent response :>> ", response);
 
@@ -923,8 +836,8 @@ export const invokeAskAgent = async ({
         currentUid: rootUid,
         targetUid: response.shiftDisplay ? rootUid : response.targetUid,
         responseFormat: "text",
+        response: response.stringifiedResultToDisplay,
         agentData: {
-          response: response.stringifiedResultToDisplay,
           userNLQuery: response.userNLQuery,
           searchLists: response.searchLists,
           filteredBlocks: response.filteredBlocks,
@@ -944,39 +857,9 @@ export const invokeAskAgent = async ({
   }
 };
 
-const parseQueryResults = (queryResults: any[]) => {
-  const parsed = queryResults.map((block: any) => {
-    return {
-      uid: block[0],
-      content: block[1],
-      editTime: block[2],
-      pageTitle: block[3],
-      childMatchingContent:
-        block.length > 4
-          ? block
-              .slice(4)
-              .reduce(
-                (
-                  result: any[],
-                  _: string,
-                  index: number,
-                  original: string[]
-                ) => {
-                  if (index % 2 === 0) {
-                    result.push({
-                      uid: original[index],
-                      content: original[index + 1],
-                    });
-                  }
-                  return result;
-                },
-                []
-              )
-          : null,
-    };
-  });
-  return parsed;
-};
+/********************/
+/*  Status Toaster  */
+/********************/
 
 const displayAgentStatus = (
   state: typeof SearchAgentState.State,
@@ -1090,4 +973,42 @@ const progressBarDisplay = (value: number) => {
       stripes={value < 1 ? true : false}
     />
   );
+};
+
+/*******************/
+/* Utils functions */
+/*******************/
+
+const parseQueryResults = (queryResults: any[]) => {
+  const parsed = queryResults.map((block: any) => {
+    return {
+      uid: block[0],
+      content: block[1],
+      editTime: block[2],
+      pageTitle: block[3],
+      childMatchingContent:
+        block.length > 4
+          ? block
+              .slice(4)
+              .reduce(
+                (
+                  result: any[],
+                  _: string,
+                  index: number,
+                  original: string[]
+                ) => {
+                  if (index % 2 === 0) {
+                    result.push({
+                      uid: original[index],
+                      content: original[index + 1],
+                    });
+                  }
+                  return result;
+                },
+                []
+              )
+          : null,
+    };
+  });
+  return parsed;
 };
