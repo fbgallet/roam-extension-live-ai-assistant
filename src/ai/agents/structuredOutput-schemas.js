@@ -87,6 +87,7 @@ const filtersArray = z
       .describe("Filter object")
   )
   .nullable()
+  .optional()
   .describe(
     "Array of filter objects defining conjunctively combined search conditions"
   );

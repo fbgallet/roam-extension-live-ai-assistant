@@ -1,6 +1,8 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOllama } from "@langchain/ollama";
+import { ChatDeepSeek } from "@langchain/deepseek";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { ANTHROPIC_API_KEY } from "../..";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -82,6 +84,20 @@ export function modelViaLanggraph(
         baseURL: llmInfos.library.baseURL,
         dangerouslyAllowBrowser: true,
       },
+    });
+  } else if (llmInfos.provider === "DeepSeek") {
+    llm = new ChatDeepSeek({
+      model: llmInfos.id,
+      ...options,
+      configuration: {
+        baseURL: llmInfos.library.baseURL,
+      },
+    });
+  } else if (llmInfos.provider === "Google") {
+    llm = new ChatGoogleGenerativeAI({
+      model: llmInfos.id,
+      ...options,
+      baseUrl: llmInfos.library.baseURL,
     });
   }
   return llm;

@@ -10,6 +10,7 @@ import {
   deepseekLibrary,
   defaultModel,
   extensionStorage,
+  googleLibrary,
   groqModels,
   ollamaModels,
   openAiCustomModels,
@@ -103,7 +104,7 @@ const ModelsMenu = ({
               text="GPT 4o"
               labelElement="128k"
             />
-            <MenuItem text="o1 'reasoning' models">
+            <MenuItem text="o1/o3 'reasoning' models">
               <MenuItem
                 icon={defaultModel === "o3-mini" && "pin"}
                 onClick={(e) => {
@@ -296,6 +297,54 @@ const ModelsMenu = ({
       ) : (
         <MenuDivider className="menu-hint" title="No DeepSeek API key" />
       )}
+      {/* {openRouterOnly ? null : googleLibrary ? (
+        <>
+          {(openaiLibrary || anthropicLibrary || deepseekLibrary) && (
+            <MenuDivider />
+          )}
+          <MenuItem
+            icon={defaultModel === "gemini-1.5-flash" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-1.5-flash"
+            labelElement="1000k"
+          />
+          <MenuItem
+            icon={defaultModel === "gemini-1.5-pro" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-1.5-pro"
+            labelElement="2000k"
+          />
+          <MenuItem
+            icon={defaultModel === "gemini-2.0-flash-exp" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-2.0-flash-exp"
+            labelElement="2000k"
+          />
+        </>
+      ) : (
+        <MenuDivider className="menu-hint" title="No Google API key" />
+      )} */}
       {openRouterModels.length ? (
         <>
           {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}
