@@ -335,9 +335,9 @@ YOUR JOB: interprete, enhance and complete the input query into a set of filter 
 - if and only if a word is between quotation marks, use the following syntax to search for it only as a word: "word" become '\\bword\\b'
 - insert '(?i)' at the beginning of a search filter regex for case insensitive search, unless for single word or expression between quotation marks
 - if an search list include ' > ' symbol, count the number of search items on the left of this symbol
-- in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant:
+- in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant, you can:
   a) use the correct regex syntax to add variations of terms that might vary in plural or feminine form or conjugated verbs,
-  b) IF AND ONLY IF EXPLICITLY REQUESTED with '~' symbol at the end of a given word, add most relevant semantic variations (synonym, acronym, common alias or abbreviation), strictly limited to the same language used in the initial user's request (unless otherwise specified) ! E.g. if the searched item is 'practice~', semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
+  b) IF AND ONLY IF EXPLICITLY REQUESTED with '~' symbol at the end of a given word, add most relevant semantic variations (synonym, acronym, common alias or abbreviation), strictly limited to the same language used in the initial user's request (unless otherwise specified) ! E.g. if the searched item is 'practice~' (but not 'practice' !), semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
 IMPORTANT: alternatives for a given search item should always be combined with the disjunctive logic '|' to the initial form, and thus, they form only a single filter.
 WARNING: Adding variations should be done with great care to avoid any alternative that might introduce ambiguity and lead search down the wrong path or expand it too much !
 

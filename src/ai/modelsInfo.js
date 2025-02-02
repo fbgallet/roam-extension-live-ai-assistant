@@ -14,6 +14,9 @@ export const tokensLimit = {
   "Claude Opus": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
+  "gemini-2.0-flash-exp": 1048576,
+  "gemini-1.5-flash": 1048576,
+  "gemini-1.5-pro": 2097152,
   custom: undefined,
 };
 

@@ -23,6 +23,7 @@ import {
   maxImagesNb,
   openRouterModelsInfo,
   deepseekLibrary,
+  googleLibrary,
 } from "..";
 import {
   insertInstantButtons,
@@ -176,6 +177,10 @@ export function modelAccordingToProvider(model) {
     llm.provider = "DeepSeek";
     llm.id = model;
     llm.library = deepseekLibrary;
+  } else if (model.includes("gemini")) {
+    llm.provider = "Google";
+    llm.id = model;
+    llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
     llm.id = model;

@@ -120,6 +120,28 @@ const TokensDialog = ({ isOpen, onClose }) => {
       className="tokens-dialog"
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
+        <p>
+          See current reference pricing used in these calculations{" "}
+          <a
+            href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/pricing.md"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            here in Live AI Assistant docs
+          </a>
+        </p>
+        <p>
+          For a complete and up-to-date comparison of pricing and performance,
+          see{" "}
+          <a
+            href="https://artificialanalysis.ai/models#pricing"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            https://artificialanalysis.ai
+          </a>
+        </p>
+        <p></p>
         {tokensCounter.lastRequest && (
           <div className="last-request">
             <h4>Last request</h4>
