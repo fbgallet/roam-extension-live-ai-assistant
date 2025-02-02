@@ -52,6 +52,12 @@
 .search-agent-toaster .bp3-toast ol {
   padding-left: 20px;
 }
+.search-agent-toaster .bp3-toast .bp3-toast-message > ul {
+  padding-left: 0;
+}
+.search-agent-toaster .bp3-toast .bp3-toast-message {
+  margin-right: -20px;
+}
 .laia-progressbar {
   margin-bottom: 20px;
 }
