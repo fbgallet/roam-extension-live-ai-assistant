@@ -19,7 +19,10 @@ export interface TokensUsage {
   output_tokens: number;
 }
 
-export function modelViaLanggraph(llmInfos: LlmInfos) {
+export function modelViaLanggraph(
+  llmInfos: LlmInfos,
+  turnTokensUsage?: TokensUsage
+) {
   let llm;
 
   const tokensUsageCallback = CallbackManager.fromHandlers({
@@ -36,8 +39,12 @@ export function modelViaLanggraph(llmInfos: LlmInfos) {
           output.llmOutput?.tokenUsage?.completionTokens ||
           output.llmOutput?.usage?.output_tokens,
       };
-      if (usage.input_tokens && usage.output_tokens)
-        updateTokenCounter(llmInfos.id, usage);
+      if (usage.input_tokens && usage.output_tokens) {
+        if (turnTokensUsage) {
+          turnTokensUsage.input_tokens += usage.input_tokens;
+          turnTokensUsage.output_tokens += usage.output_tokens;
+        } else updateTokenCounter(llmInfos.id, usage);
+      }
     },
   });
 
