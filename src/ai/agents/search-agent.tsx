@@ -78,7 +78,10 @@ const SearchAgentState = Annotation.Root({
   period: Annotation<PeriodType>,
   pagesLimitation: Annotation<string>,
   isRandom: Annotation<boolean>,
-  strigifiedResultToDisplay: Annotation<string>,
+  stringifiedResultToDisplay: Annotation<string>,
+  shiftDisplay: Annotation<number>,
+  nbOfResultsDisplayed: Annotation<number>,
+  retryInstruction: Annotation<string>,
 });
 
 const searchListSchema = z.object({
@@ -230,14 +233,11 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
     new HumanMessage(
-      // !state.roamQuery
-      // ?
-      state.userNLQuery
-      //     : `Here is the user request in natural language: ${state.userNLQuery}
+      !state.retryInstruction || state.retryInstruction === state.userNLQuery
+        ? state.userNLQuery
+        : `Here is the initial user request in natural language: ${state.userNLQuery}
 
-      // Here is the way this request has alreedy been transcribed by an AI assistant in a Roam Research query: ${state.roamQuery}
-
-      // The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
+       Notice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
     ),
   ]);
   let response = await structuredLlm.invoke(messages);
@@ -293,11 +293,10 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
         (state.searchLists.length > 1
           ? "\nAlternative search list: " + state.searchLists[1]
           : "") +
-        `\n\nInitial user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${state.userNLQuery}`
-
-      // Here is the way this request has alreedy been transcribed by an AI assistant in a Roam Research query: ${state.roamQuery}
-
-      // The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
+        `\n\nInitial user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${state.userNLQuery}` +
+        (state.retryInstruction && state.retryInstruction !== state.userNLQuery
+          ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
+          : "")
     ),
   ]);
   let response = await structuredLlm.invoke(messages);
@@ -522,12 +521,13 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
 const limitAndOrder = async (state: typeof SearchAgentState.State) => {
   const rootPath = getPathOfBlock(state.rootUid);
   const rootPathUids = rootPath ? rootPath.map((elt: any) => elt.uid) : [];
-  let filteredBlocks = excludeItemsInArray(
+  state.matchingBlocks = excludeItemsInArray(
     state.matchingBlocks,
     [state.rootUid].concat(rootPathUids),
     "uid",
     false
   );
+  let filteredBlocks = state.matchingBlocks;
 
   displayAgentStatus(state, "limitAndOrder");
 
@@ -550,12 +550,14 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
   // Arbitrary limit to 100 blocks before preselection (approx. 100 * 200 words maximum => approx. 30 000 tokens)
   let maxNumber = requestedNb && requestedNb < 100 ? requestedNb : 100;
 
-  if (state.isRandom)
+  if (state.isRandom) {
+    state.matchingBlocks = filteredBlocks;
     filteredBlocks = getRandomElements(filteredBlocks, maxNumber);
-  else if (maxNumber < filteredBlocks.length)
+  } else if (maxNumber < filteredBlocks.length)
     filteredBlocks = filteredBlocks.slice(0, maxNumber);
   console.log("filteredBlocks & sorted :>> ", filteredBlocks);
   return {
+    matchingBlocks: state.matchingBlocks,
     filteredBlocks,
   };
 };
@@ -607,6 +609,11 @@ const preselection = async (state: typeof SearchAgentState.State) => {
   let messages = [sys_msg].concat([
     new HumanMessage(`Here is the user's initial request: ${state.userNLQuery}
 
+${
+  state.retryInstruction && state.retryInstruction !== state.userNLQuery
+    ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}\n`
+    : ""
+}
 Here are the blocks in Roam graph database that match with this request:
 ${flattenedQueryResults}`),
   ]);
@@ -663,38 +670,57 @@ const postProcessing = async (state: typeof SearchAgentState.State) => {
   let messages = [sys_msg].concat([
     new HumanMessage(`Here is the user's initial request: ${state.userNLQuery}
 
+${
+  state.retryInstruction && state.retryInstruction !== state.userNLQuery
+    ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}\n`
+    : ""
+}
 Here are the main blocks in Roam graph database that match with this request:
 ${flattenedDetailedResults}`),
   ]);
   let response = await llm.invoke(messages);
   console.log("AI results processed response :>> ", response);
   return {
-    strigifiedResultToDisplay: response.content,
+    stringifiedResultToDisplay: response.content,
   };
 };
 
 const displayResults = async (state: typeof SearchAgentState.State) => {
-  displayAgentStatus(state, "output");
   console.log(
-    "state.strigifiedResultToDisplay :>> ",
-    state.strigifiedResultToDisplay
+    "state.stringifiedResultToDisplay :>> ",
+    state.stringifiedResultToDisplay
   );
 
-  if (!state.strigifiedResultToDisplay) {
-    state.strigifiedResultToDisplay = "";
+  state.nbOfResultsDisplayed = 0;
+  let previousShiftDisplay = state.shiftDisplay || 0;
+
+  if (!state.stringifiedResultToDisplay) {
+    state.stringifiedResultToDisplay = "";
     if (!state.filteredBlocks.length) {
-      state.strigifiedResultToDisplay = "No matching blocks";
+      state.stringifiedResultToDisplay = "No matching blocks";
     } else {
       // Limit to 10 the number of displayed blocks
+      const nbToDisplay = state.nbOfResults || 10;
       const filteredBlocks = state.filteredBlocks.slice(
-        0,
-        state.nbOfResults || 10
+        state.shiftDisplay || 0,
+        state.shiftDisplay ? nbToDisplay + state.shiftDisplay : nbToDisplay
       );
       filteredBlocks.forEach((block: any) => {
-        state.strigifiedResultToDisplay += `- {{embed-path: ((${block.uid}))}}\n`;
+        state.stringifiedResultToDisplay += `- {{embed-path: ((${block.uid}))}}\n`;
       });
+      state.shiftDisplay = (state.shiftDisplay || 0) + nbToDisplay;
+      state.nbOfResultsDisplayed += Math.min(
+        nbToDisplay,
+        state.filteredBlocks.length - previousShiftDisplay
+      );
+      if (
+        !previousShiftDisplay &&
+        state.shiftDisplay >= state.filteredBlocks.length
+      )
+        state.shiftDisplay = null;
     }
   }
+  displayAgentStatus(state, "output");
 
   const assistantRole = state.model
     ? getInstantAssistantRole(state.model)
@@ -703,7 +729,12 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
   if (state.target?.includes("new") || !state.target)
     targetUid = await createChildBlock(
       state.rootUid,
-      state.target === "new" || !state.target ? assistantRole : ""
+      (state.target === "new" || !state.target ? assistantRole : "") +
+        (state.shiftDisplay
+          ? `Results ${previousShiftDisplay + 1} to ${
+              previousShiftDisplay + (state.nbOfResultsDisplayed || 10)
+            }`
+          : "")
     );
 
   console.log("state :>> ", state);
@@ -711,9 +742,15 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
   await insertStructuredAIResponse({
     target: state.target,
     targetUid: targetUid || state.rootUid,
-    content: state.strigifiedResultToDisplay.trim(),
+    content: state.stringifiedResultToDisplay.trim(),
     forceInChildren: true,
   });
+  return {
+    targetUid: targetUid || state.rootUid,
+    stringifiedResultToDisplay: state.stringifiedResultToDisplay.trim(),
+    nbOfResultsDisplayed: state.nbOfResultsDisplayed,
+    shiftDisplay: state.shiftDisplay,
+  };
 };
 
 /*********/
@@ -721,14 +758,18 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
 /*********/
 
 const turnRouter = (state: typeof SearchAgentState.State) => {
-  if (state.filteredBlocks && state.isPostProcessingNeeded) {
-    if (
-      state.filteredBlocks.length <= 20 ||
-      (state.nbOfResults &&
-        state.filteredBlocks.length < Math.min(20, state.nbOfResults * 3))
-    )
-      return "post-processing";
-    return "preselection-filter";
+  if (state.filteredBlocks) {
+    if (state.isPostProcessingNeeded) {
+      if (
+        state.filteredBlocks.length <= 20 ||
+        (state.nbOfResults &&
+          state.filteredBlocks.length < Math.min(20, state.nbOfResults * 3))
+      )
+        return "post-processing";
+      return "preselection-filter";
+    }
+    if (state.isRandom) return "limitAndOrder";
+    if (state.shiftDisplay) return "output";
   }
   return "nl-query-interpreter";
 };
@@ -776,7 +817,6 @@ builder
 
   .addEdge(START, "loadModel")
   .addConditionalEdges("loadModel", turnRouter)
-  // .addEdge("loadModel", "nl-query-interpreter")
   .addEdge("nl-query-interpreter", "checker")
   .addEdge("searchlist-converter", "checker")
   .addConditionalEdges("checker", afterCheckRouter)
@@ -796,7 +836,7 @@ interface AgentInvoker {
   target: string;
   targetUid?: string;
   prompt: string;
-  previousResponse?: string;
+  previousAgentState?: any;
   onlySearch?: boolean;
   options?: any;
 }
@@ -807,7 +847,8 @@ export const invokeSearchAgent = async ({
   targetUid,
   target,
   prompt,
-  previousResponse,
+  previousAgentState,
+  options,
 }: AgentInvoker) => {
   invokeAskAgent({
     model,
@@ -815,8 +856,9 @@ export const invokeSearchAgent = async ({
     target,
     targetUid,
     prompt,
-    previousResponse,
+    previousAgentState,
     onlySearch: true,
+    options,
   });
 };
 
@@ -826,7 +868,7 @@ export const invokeAskAgent = async ({
   target,
   targetUid,
   prompt,
-  previousResponse,
+  previousAgentState,
   onlySearch,
   options = {},
 }: AgentInvoker) => {
@@ -837,6 +879,7 @@ export const invokeAskAgent = async ({
   });
 
   console.log("options :>> ", options);
+  console.log("previousAgentState :>> ", previousAgentState);
 
   if (options?.isPostProcessingNeeded) {
     let { currentUid, currentBlockContent } = getFocusAndSelection();
@@ -851,15 +894,16 @@ export const invokeAskAgent = async ({
     prompt = currentBlockContent;
   }
 
-  const spinnerId = displaySpinner(rootUid);
   const response = await SearchAgent.invoke({
     model,
     rootUid,
     userNLQuery: prompt,
     target,
     targetUid,
-    isPostProcessingNeeded: onlySearch,
-    filteredBlocks: previousResponse,
+    isPostProcessingNeeded: !onlySearch,
+    ...previousAgentState,
+    // filteredBlocks: previousAgentState?.filteredBlocks,
+    // shiftDisplay: previousAgentState?.shiftDisplay,
     ...options,
   });
 
@@ -870,22 +914,33 @@ export const invokeAskAgent = async ({
   );
 
   console.log("Agent response :>> ", response);
-  console.log("options :>> ", options);
 
-  removeSpinner(spinnerId);
   if (response) {
     setTimeout(() => {
       insertInstantButtons({
         model: response.model,
         prompt: response.userNLQuery,
-        content: response.searchLists,
         currentUid: rootUid,
-        targetUid: response.targetUid,
+        targetUid: response.shiftDisplay ? rootUid : response.targetUid,
         responseFormat: "text",
-        response: response.filteredBlocks,
+        agentData: {
+          response: response.stringifiedResultToDisplay,
+          userNLQuery: response.userNLQuery,
+          searchLists: response.searchLists,
+          filteredBlocks: response.filteredBlocks,
+          matchingBlocks: response.isRandom && response.matchingBlocks,
+          filters: response.filters,
+          nbOfResults: response.nbOfResults,
+          isRandom: response.isRandom,
+          perdiod: response.period,
+          pageLimitation: response.pageLimitation,
+          shiftDisplay:
+            response.shiftDisplay < response.filteredBlocks?.length &&
+            response.shiftDisplay,
+        },
         aiCallback: onlySearch ? invokeSearchAgent : invokeAskAgent,
       });
-    }, 100);
+    }, 200);
   }
 };
 
@@ -956,7 +1011,7 @@ const displayAgentStatus = (
           {progressBarDisplay(
             state.isPostProcessingNeeded || completion <= 0.1
               ? completion
-              : completion + 0.4
+              : completion + 0.3
           )}
           <ul>
             {completion === 0.1 && (
@@ -1008,7 +1063,10 @@ const displayAgentStatus = (
             )}
             {completion === 1 && (
               <li>
-                ✔️ Insert {state.nbOfResults || state.filteredBlocks?.length}{" "}
+                ✔️ Insert{" "}
+                {state.isPostProcessingNeeded
+                  ? "processed"
+                  : state.nbOfResults || state.nbOfResultsDisplayed}{" "}
                 results in your graph.
               </li>
             )}

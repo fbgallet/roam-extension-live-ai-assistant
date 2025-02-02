@@ -34,7 +34,10 @@ import {
 } from "../utils/domElts.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent.ts";
 import { completionCommands } from "../ai/prompts.js";
-import { getFlattenedContentFromTree } from "../ai/dataExtraction.js";
+import {
+  getFlattenedContentFromTree,
+  getFocusAndSelection,
+} from "../ai/dataExtraction.js";
 import {
   invokeAskAgent,
   invokeSearchAgent,
@@ -59,11 +62,13 @@ const InstantButtons = ({
   target,
   selectedUids,
   historyCommand,
+  agentData,
 }) => {
   const [isCanceledStream, setIsCanceledStream] = useState(false);
   const [isToUnmount, setIsToUnmount] = useState(false);
 
   console.log("historyCommand in InstantButtons :>> ", historyCommand);
+  console.log("agentData :>> ", agentData);
 
   useEffect(() => {
     isCanceledStreamGlobal = false;
@@ -89,6 +94,9 @@ const InstantButtons = ({
 
   const handleRedo = ({ e, model = model, options = {} }) => {
     isCanceledStreamGlobal = true;
+    const { currentBlockContent } = getFocusAndSelection();
+    let retryInstruction = currentBlockContent || "";
+    console.log("retryInstruction :>> ", retryInstruction);
     !aiCallback
       ? isOutlinerAgent
         ? invokeOutlinerAgent({
@@ -97,6 +105,7 @@ const InstantButtons = ({
             rootUid: targetUid,
             treeSnapshot,
             retry: true,
+            retryInstruction,
           })
         : insertCompletion({
             prompt,
@@ -113,10 +122,19 @@ const InstantButtons = ({
       : aiCallback({
           model: model,
           prompt,
+          rootUid: currentUid,
           currentUid,
           targetUid,
           previousResponse: response,
-          options,
+          options: {
+            retryInstruction,
+            // isRandom: agentData?.isRandom,
+            // matchingBlocks: agentData?.isRandom && agentData?.matchingBlocks,
+            // filters: agentData?.isRandom && agentData?.filters,
+            // nbOfResults: agentData?.nbOfResults,
+            // period: agentData?.period,
+            // pageLimitation: agentData?.pageLimitation,
+          },
         });
     setIsToUnmount(true);
   };
@@ -128,6 +146,7 @@ const InstantButtons = ({
       getInstantAssistantRole(model)
     );
     const userPrompt = getFlattenedContentFromTree(targetUid, 99, null);
+    if (!Array.isArray(prompt)) prompt = [prompt];
     insertCompletion({
       prompt: prompt.concat({ role: "user", content: userPrompt }),
       targetUid: nextBlock,
@@ -139,6 +158,54 @@ const InstantButtons = ({
     setIsToUnmount(true);
   };
 
+  const handleInsertConversationButtons = async (props) => {
+    const parentUid = getParentBlock(targetUid);
+    const nextBlock = await createChildBlock(parentUid, chatRoles.user);
+    setTimeout(() => {
+      setIsToUnmount(true);
+      insertInstantButtons({ ...props, targetUid: nextBlock });
+    }, 100);
+    setTimeout(() => {
+      focusOnBlockInMainWindow(nextBlock);
+    }, 250);
+  };
+
+  const handleQuestionAgentResults = ({ model = model }) => {
+    let currentUidBackup = currentUid;
+    currentUid = null;
+    let { currentUid, currentBlockContent } = getFocusAndSelection();
+    let question = "";
+    if (currentUid) question = currentBlockContent;
+    else {
+      const props = {
+        model,
+        isUserResponse: true,
+        content,
+        agentData,
+        aiCallback: invokeAskAgent,
+      };
+      handleInsertConversationButtons(props);
+      return;
+    }
+    invokeAskAgent({
+      model,
+      rootUid: currentUidBackup,
+      target,
+      prompt: question,
+      previousAgentState: agentData,
+      options: { isPostProcessingNeeded: true },
+    });
+  };
+
+  const handleNextResults = () => {
+    invokeSearchAgent({
+      model,
+      rootUid: currentUid,
+      target,
+      previousAgentState: agentData,
+    });
+  };
+
   const handleClose = () => {
     setIsToUnmount(true);
     if (isOutlinerAgent) {
@@ -147,20 +214,55 @@ const InstantButtons = ({
     }
   };
 
+  const questionAgentResultsButton = () => {
+    return (
+      <Button
+        onClick={handleQuestionAgentResults}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          ContextMenu.show(
+            ModelsMenu({ callback: handleQuestionAgentResults }),
+            { left: e.clientX, top: e.clientY },
+            null
+          );
+        }}
+      >
+        <Tooltip
+          content={
+            <p>
+              Instructions or question on results
+              <br />
+              for post-processing by AI
+              <br />
+              <code>Right Click</code> to choose another AI model
+            </p>
+          }
+          hoverOpenDelay="500"
+        >
+          <Icon icon="search-template" />
+        </Tooltip>
+      </Button>
+    );
+  };
+
   if (isToUnmount) return null;
 
   return isUserResponse ? (
-    <>
-      <Button
-        onClick={async () => {
-          await handleConversation();
-        }}
-      >
-        <Tooltip content="Continue the conversation" hoverOpenDelay="500">
-          <FontAwesomeIcon icon={faComments} size="sm" />
-        </Tooltip>
-      </Button>
-    </>
+    aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent ? (
+      questionAgentResultsButton()
+    ) : (
+      <>
+        <Button
+          onClick={async () => {
+            await handleConversation();
+          }}
+        >
+          <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+            <FontAwesomeIcon icon={faComments} size="sm" />
+          </Tooltip>
+        </Button>
+      </>
+    )
   ) : (
     <>
       {!isCanceledStream && isStreamStopped === false && (
@@ -203,27 +305,23 @@ const InstantButtons = ({
           </Tooltip>
         </Button>
       )}
-      {!isOutlinerAgent && (
+      {!isOutlinerAgent && aiCallback !== invokeSearchAgent && (
         <Button
-          onClick={async () => {
-            const parentUid = getParentBlock(targetUid);
-            const nextBlock = await createChildBlock(parentUid, chatRoles.user);
-            setTimeout(() => {
-              setIsToUnmount(true);
-              insertInstantButtons({
-                prompt: prompt.concat({
-                  role: "assistant",
-                  content: response,
-                }),
-                model,
-                targetUid: nextBlock,
-                isUserResponse: true,
-                content,
-              });
-            }, 100);
-            setTimeout(() => {
-              focusOnBlockInMainWindow(nextBlock);
-            }, 250);
+          onClick={() => {
+            const props = {
+              prompt: prompt.concat({
+                role: "assistant",
+                content:
+                  aiCallback === invokeAskAgent
+                    ? agentData?.response
+                    : response,
+              }),
+              model,
+              isUserResponse: true,
+              content,
+            };
+
+            handleInsertConversationButtons(props);
           }}
         >
           <Tooltip content="Continue the conversation" hoverOpenDelay="500">
@@ -249,40 +347,39 @@ const InstantButtons = ({
           </Tooltip>
         </Button>
       ) : null}
-      {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) && (
-        <Button
-          onClick={(e) => {
-            aiCallback = invokeAskAgent;
-            handleRedo({
-              e,
-              options: { isPostProcessingNeeded: true, searchLists: content },
-            });
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            ContextMenu.show(
-              ModelsMenu({ callback: handleRedo, prompt }),
-              { left: e.clientX, top: e.clientY },
-              null
-            );
-          }}
-        >
-          <Tooltip
-            content={
-              <p>
-                Instructions or question on results
-                <br />
-                for post-processing by AI
-                <br />
-                <code>Right Click</code> to choose another AI model
-              </p>
-            }
-            hoverOpenDelay="500"
+      {aiCallback === invokeSearchAgent &&
+        (agentData?.shiftDisplay || agentData?.isRandom) && (
+          <Button
+            onClick={handleNextResults}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              ContextMenu.show(
+                ModelsMenu({ callback: handleNextResults, prompt }),
+                { left: e.clientX, top: e.clientY },
+                null
+              );
+            }}
           >
-            <Icon icon="search-template" />
-          </Tooltip>
-        </Button>
-      )}
+            <Tooltip
+              content={
+                agentData.isRandom
+                  ? `Display ${
+                      agentData.nbOfResults > 1
+                        ? agentData.nbOfResults + " other"
+                        : "another"
+                    } random result(s)`
+                  : `Display next results (${agentData.shiftDisplay + 1} to ${
+                      agentData.shiftDisplay + (agentData.nbOfResults || 10)
+                    })`
+              }
+              hoverOpenDelay="500"
+            >
+              <Icon icon="zoom-in" />
+            </Tooltip>
+          </Button>
+        )}
+      {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) &&
+        questionAgentResultsButton()}
       {!(isOutlinerAgent && !treeSnapshot) && (
         <Button
           onClick={handleRedo}

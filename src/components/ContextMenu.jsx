@@ -174,6 +174,7 @@ const StandaloneContextMenu = () => {
           rootUid: focusedBlockUid.current,
           targetUid: focusedBlockUid.current,
           prompt: getBlockContentByUid(focusedBlockUid.current),
+          retryInstruction: additionalPrompt,
         });
         return;
       }
