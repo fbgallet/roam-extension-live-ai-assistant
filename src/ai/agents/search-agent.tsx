@@ -931,32 +931,51 @@ const displayAgentStatus = (
               <li>Interpreting natural language query...</li>
             )}
             {completion >= 0.3 && (
-              <li>
-                ✔️ Search list(s) interpreted:
-                <ol>
-                  {state.searchLists?.length &&
-                    state.searchLists.map((list: string, index: number) => (
-                      <li>
-                        <code>{list}</code>
-                        {completion >= 0.5 && (
-                          <ul>
-                            <li>
-                              ✔️ Regex filters:
-                              <ol>
-                                {state.filters?.length > index &&
-                                  state.filters[index].map((elt: any) => (
-                                    <li>
-                                      <code>{elt.regexString}</code>
-                                    </li>
-                                  ))}
-                              </ol>
-                            </li>
-                          </ul>
-                        )}
-                      </li>
-                    ))}
-                </ol>
-              </li>
+              <>
+                {(state.isRandom ||
+                  state.nbOfResults ||
+                  state.pagesLimitation) && (
+                  <li>
+                    ✔️ {state.nbOfResults || ""}
+                    {state.isRandom ? " random" : "results requested"}{" "}
+                    {state.pagesLimitation
+                      ? "in '" +
+                        state.pagesLimitation.replace("dnp", "Daily Notes") +
+                        "' pages."
+                      : ""}
+                  </li>
+                )}
+                {state.period &&
+                  `✔️ In period range from ${
+                    state.period.begin ? state.period.begin : "∞"
+                  } to ${state.period.end ? state.period.end : "today"}.`}
+                <li>
+                  ✔️ Search list(s) interpreted:
+                  <ol>
+                    {state.searchLists?.length &&
+                      state.searchLists.map((list: string, index: number) => (
+                        <li>
+                          <code>{list}</code>
+                          {completion >= 0.5 && (
+                            <ul>
+                              <li>
+                                ✔️ Regex filters:
+                                <ol>
+                                  {state.filters?.length > index &&
+                                    state.filters[index].map((elt: any) => (
+                                      <li>
+                                        <code>{elt.regexString}</code>
+                                      </li>
+                                    ))}
+                                </ol>
+                              </li>
+                            </ul>
+                          )}
+                        </li>
+                      ))}
+                  </ol>
+                </li>
+              </>
             )}
             {completion === 0.3 && (
               <li>Converting search list to Regex filters...</li>
@@ -986,7 +1005,7 @@ const displayAgentStatus = (
           </ul>
         </>
       ),
-      timeout: 15000,
+      timeout: status === "output" ? 15000 : 0,
     },
     toasterInstance
   );
