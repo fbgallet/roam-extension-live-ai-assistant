@@ -95,6 +95,7 @@ const SearchAgentState = Annotation.Root({
   shiftDisplay: Annotation<number>,
   nbOfResultsDisplayed: Annotation<number>,
   retryInstruction: Annotation<string>,
+  errorInNode: Annotation<String>,
 });
 
 /*********/
@@ -147,35 +148,26 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
        Notice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
     ),
   ]);
-  let response = await structuredLlm.invoke(messages);
+  let llmResponse;
+  try {
+    llmResponse = await structuredLlm.invoke(messages);
+    state.errorInNode = null;
+  } catch (error) {
+    console.log("error at nl-query-interpreter :>> ", error);
+    state.errorInNode = "nl-query-interpreter";
+  }
 
-  state.searchLists = [response?.directList];
-  if (response?.alternativeList)
-    state.searchLists.push(response?.alternativeList);
+  console.log("llmResponse after step1 :>> ", llmResponse);
 
   return {
-    llmResponse: response,
-    searchLists: state.searchLists,
-    isPostProcessingNeeded:
-      state.isPostProcessingNeeded === false
-        ? false
-        : response.isPostProcessingNeeded,
-    nbOfResults: response.nbOfResults
-      ? response.nbOfResults
-      : response.isRandom
-      ? 1
-      : undefined,
-    period: response.period,
-    pagesLimitation: response.pagesLimitation,
-    isRandom: response.isRandom,
+    llmResponse,
+    errorInNode: state.errorInNode,
   };
 };
 
 const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   console.log("state.searchLists :>> ", state.searchLists);
   displayAgentStatus(state, "searchlist-converter");
-
-  console.log("llmResponse after step1 :>> ", state.llmResponse);
 
   const isClaudeModel = state.model.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
@@ -209,23 +201,22 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   let llmResponse;
   try {
     llmResponse = await structuredLlm.invoke(messages);
+    state.errorInNode = null;
   } catch (error) {
     console.log("error at searchListConverter :>> ", error);
+    state.errorInNode = "searchlist-converter";
   }
   console.log("response after step 2 :>> ", llmResponse);
-  let filters = [llmResponse.firstListFilters];
-  if (llmResponse.alternativeListFilters)
-    filters.push(llmResponse.alternativeListFilters);
 
   return {
     llmResponse,
-    filters,
-    remainingQueryFilters: [...filters],
+    errorInNode: state.errorInNode,
   };
 };
 
 const formatChecker = async (state: typeof SearchAgentState.State) => {
-  let query = state.llmResponse.roamQuery;
+  if (state.errorInNode) return state;
+
   const isClaudeModel = state.model.toLowerCase().includes("claude");
   if (isClaudeModel) {
     const raw = state.llmResponse.raw.content[0];
@@ -236,18 +227,45 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
         state.llmResponse.period = JSON.parse(
           balanceBraces(sanitizeClaudeJSON(raw.input.period))
         );
-        query = raw?.input?.roamQuery;
       }
     } else {
       state.llmResponse = state.llmResponse.parsed;
     }
   }
-  const correctedQuery = balanceBraces(query);
-  // console.log("Query after correction :>> ", correctedQuery);
-  return {
-    roamQuery: correctedQuery,
-    period: state.period || state.llmResponse.period || null,
-  };
+  console.log("llmResponse after check :>> ", state.llmResponse);
+
+  // after "nlQueryInterpreter" node
+  if ("directList" in state.llmResponse) {
+    let searchLists = [state.llmResponse?.directList];
+    if (state.llmResponse?.alternativeList)
+      searchLists.push(state.llmResponse?.alternativeList);
+    state.searchLists = searchLists;
+    state.isPostProcessingNeeded =
+      state.isPostProcessingNeeded === false
+        ? false
+        : state.llmResponse.isPostProcessingNeeded;
+    state.nbOfResults = state.llmResponse.nbOfResults
+      ? state.llmResponse.nbOfResults
+      : state.llmResponse.isRandom
+      ? 1
+      : undefined;
+    state.period = state.llmResponse.period;
+    state.pagesLimitation = state.llmResponse.pagesLimitation;
+    state.isRandom = state.llmResponse.isRandom;
+  }
+  // after "searchlistConverter" node
+  else if ("firstListFilters" in state.llmResponse) {
+    let filters = [state.llmResponse.firstListFilters];
+    if (state.llmResponse.alternativeListFilters)
+      filters.push(state.llmResponse.alternativeListFilters);
+    state.filters = filters;
+    state.remainingQueryFilters = [...filters];
+  }
+
+  return state;
+  //   llmResponse: state.llmResponse,
+  //   period: state.period || state.llmResponse.period || null,
+  // };
 };
 
 const periodFormater = async (state: typeof SearchAgentState.State) => {
@@ -264,6 +282,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "queryRunner");
   beginPerf = performance.now();
 
+  console.log("state in queryRunner :>> ", state);
   const currentFilter = state.remainingQueryFilters.shift();
   console.log("currentFilter :>> ", currentFilter);
   const parentFilterNb = currentFilter.reduce((count: number, item: any) => {
@@ -463,6 +482,7 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
     false
   );
   let filteredBlocks = state.matchingBlocks;
+  console.log("matchingBlocks in limitAndOrder :>> ", filteredBlocks);
 
   displayAgentStatus(state, "limitAndOrder");
 
@@ -711,6 +731,14 @@ const turnRouter = (state: typeof SearchAgentState.State) => {
 };
 
 const afterCheckRouter = (state: typeof SearchAgentState.State) => {
+  if (state.errorInNode) {
+    switch (state.errorInNode) {
+      case "nl-query-interpreter":
+        return "nl-query-interpreter";
+      case "searchlist-converter":
+        return "searchlist-converter";
+    }
+  }
   if ("directList" in state.llmResponse) return "searchlist-converter";
   return "queryRunner";
 };
@@ -937,7 +965,7 @@ const displayAgentStatus = (
                   state.pagesLimitation) && (
                   <li>
                     ✔️ {state.nbOfResults || ""}
-                    {state.isRandom ? " random" : "results requested"}{" "}
+                    {state.isRandom ? " random results " : "results requested "}
                     {state.pagesLimitation
                       ? "in '" +
                         state.pagesLimitation.replace("dnp", "Daily Notes") +
