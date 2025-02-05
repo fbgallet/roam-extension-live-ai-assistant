@@ -252,7 +252,7 @@ INPUT ANALYSIS (user query):
   - All terms separated by a space (except for expressions in quotes) should be considered as an item defining a search condition
   - Remove non-essential syntactic elements (articles, pronouns)
   - Interpret properly logical operators or symbols if present ('+', '&' as 'AND', '|' as 'OR', '-' as 'NOT')
-  - '>' and '<' symbols are hierarchical condition for a directed query (from parent to children or vice versa), these symbols and the corresponding structure and all key terms have to be strictly preserved in the final query
+  - '>' and '<' symbols are hierarchical condition for a directed query. When present, the user query, including all key terms, have to be strictly preserved in the final query
 - For natural language queries (sentences/questions):
   - Extract only essential and key search terms! To do this, it's necessary to correctly interpret the request or question to distinguish what defines the conditions of the search and what is about the post-processing or the question asked about the content that will be extracted.
   - IMPORTANT: Disregard and do not use as search terms:
@@ -286,8 +286,8 @@ OUTPUT FORMAT: Following the JSON schema provided,
   - Each item can contain multiple alternatives term or expression separated by '|' (interpreted as OR)
   - A single negation (eventually with variants) per list is allowed, marked with leading '-'
   - To express a hierarchically directed order of the conditions,
-    - use ' > ' symbol to express 'blocks with some conditions in children', parent conditions being on the left (higher in the hierarchy), children conditons on the right. E.g. 'A + B > C' means blocks matching A and B conditions, with some child matching C condition. If only the children are requested, use the following symbol.
-    - use ' < ' symbol to express 'blocks with some conditions in parent', children conditions being on the left (lower in the hierarchy), parent conditons on the right. This symbol will be used if and only if requested blocks are children blocks with some conditions in parents (e.g.: 'children of X blocks'). If requested blocks are 'all children', without other condition, that have a parent with some condition, express it with '.* < conditions in parent' (IMPORTANT: never use '.*' if a condition is expressed on the same side. If '.*' is used on the left side of '<', no other conditon can appear on this side. Neither use '.*' on the parent side)
+    - use ' > ' (greater than) symbol to express 'blocks with some conditions in children', parent conditions being on the left (higher in the hierarchy), children conditons on the right. E.g. 'A + B > C' means blocks matching A and B conditions, with some child matching C condition. If only the children are requested, use the following symbol.
+    - use ' < ' (less than) symbol to express 'blocks with some conditions in parent', children conditions being on the left (lower in the hierarchy), parent conditons on the right. This symbol will be used if and only already used in user request or if requested blocks are children blocks with some conditions in parents (e.g.: 'children of X blocks'). If requested blocks are 'all children', without other condition, that have a parent with some condition, express it with '.* < conditions in parent' (IMPORTANT: never use '.*' if a condition is expressed on the same side. If '.*' is used on the left side of '<', no other conditon can appear on this side. Neither use '.*' on the parent side)
   - IMPORTANT: each item, term, expression or variant has to be in the same language as the user query (unless expressly stated otherwise)
   - Format examples: 
     - 'term1|alternative1 + term2 -exclu' is a good interpretation of 'all blocks with term1 or alternative1, and term2, but not exclu'
@@ -328,8 +328,8 @@ INPUT ANALYSIS:
 - each item can itself combine a set of terms or expression and alternatives, separated by '|' (meaning OR, disjunctive logic)
 - an item begining with '-' symbol (meaning NOT) is the exclusion item
 - a search list including ' > ' or ' < ' symbol means that the search is hierarchically directed. BE VERY CAREFUL about the difference between these two symbols, as it profoundly changes the logic of the search:
-  - with ' > ' symbol, the condition on blocks higher up in the hierarchy are before the symbol, condition on children (descendants) are written after it.
-  - with ' < ' symbol, the conditions before it applies to children or the lowest blocks in the hierarchy, while condition after this symbol applies to some parent or top block in the hierarchy
+  - with ' > ' (greater than) symbol, the condition on blocks higher up in the hierarchy are before the symbol, condition on children (descendants) are written after it.
+  - with ' < ' (less than) symbol, the conditions before it applies to children or the lowest blocks in the hierarchy, while condition after this symbol applies to some parent or top block in the hierarchy
 - '~' symbol at the end of a term in a search item means that a broader semantic search is requested for this term
 - when an expression is placed in quotation marks "like this for example", the entire expression must conserved exactly as it is with quotes.
 - double square brackets, the hashtag, and double colons :: must be strictly preserved in the captured search item. E.g: '[[some expression]]', '#tag', 'attribute::' (they have a specific meaning in Roam)
@@ -353,7 +353,11 @@ OUTPUT FORMAT: For each provided search list, create a set of filters following 
 - "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
   - 'regexString': the searched content, expressed as a regex to express disjunctive relationships (OR).
   - 'isToExclude': true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.
-  - 'isTopBlockFilter': if the search list includes ' < ' or ' > ' symbols, true ONLY for blocks higher in the hierarchy (greater level), more precisely if this filter expresses a search items placed BEFORE '>' (greater than) symbol, or for search items placed AFTER '<' (smaller than) symbol. VERY IMPORTANT: BE VERY CAREFUL about the difference between these two symbols. E.g: in 'A > B', 'isTopBlockFilter' is true only for A. In 'child < parent', 'isTopBlockFilter' is true only for 'parent'.`;
+  - 'isTopBlockFilter': in case of hierarchy indication, true for the item higher in the hierarchy. There is 3 possible cases:
+    a) if the search list includes ' > ' (greater than) symbol, set to true ONLY for item placed BEFORE this symbol (on the left) in search list. E.g: in 'A > B', 'isTopBlockFilter' is true only for A, false for 'B'
+    b) if search list includes ' < ' (less than) symbol, set to true ONLY for item placed AFTER this symbol (on the right) in search list. E.g.: in 'child < parent', 'isTopBlockFilter' is true only for 'parent', false for 'child'
+    VERY IMPORTANT: BE VERY CAREFUL about the difference between these two symbols.  .
+    c) ignore this property if none if these symbols.`;
 
 export const searchtAgentPreselectionPrompt = `You are an expert assistant in data analysis who helps the user make the most of their data. Your job is to extract the most relevant records from the data provided below, according to the user's request provided below. The goal is to reduce the data that will be subject to further post-processing.
 

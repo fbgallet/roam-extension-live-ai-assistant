@@ -81,7 +81,7 @@ const filtersArray = z
           .optional()
           .nullable()
           .describe(
-            "true for each item BEFORE '>' (greater) symbol, true for each item AFTER '<' (smaller) symbol, false in any other case"
+            "true only for item greater (higher) in the hierarchy expressed by '<' or '>' symbol"
           ),
       })
       .describe("Filter object")
