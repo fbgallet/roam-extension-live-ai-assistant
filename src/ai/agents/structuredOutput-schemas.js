@@ -76,12 +76,12 @@ const filtersArray = z
           .optional()
           .nullable()
           .describe("True if this regexString is to exclude"),
-        isParentFilter: z
+        isTopBlockFilter: z
           .boolean()
           .optional()
           .nullable()
           .describe(
-            "True if this filter is to apply to parent blocks in the case of a hierarchically directed search"
+            "true for each item BEFORE '>' (greater) symbol, true for each item AFTER '<' (smaller) symbol, false in any other case"
           ),
       })
       .describe("Filter object")

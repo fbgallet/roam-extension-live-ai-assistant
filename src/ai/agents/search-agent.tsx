@@ -84,6 +84,7 @@ const SearchAgentState = Annotation.Root({
   searchLists: Annotation<any>,
   isPostProcessingNeeded: Annotation<boolean>,
   nbOfResults: Annotation<number>,
+  getChildrenOnly: Annotation<boolean>,
   matchingBlocks: Annotation<any>,
   filteredBlocks: Annotation<any>,
   filters: Annotation<any>,
@@ -211,6 +212,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   return {
     llmResponse,
     errorInNode: state.errorInNode,
+    getChildrenOnly: state.searchLists[0].includes(" < ") ? true : false,
   };
 };
 
@@ -280,13 +282,25 @@ const periodFormater = async (state: typeof SearchAgentState.State) => {
 
 const queryRunner = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "queryRunner");
+  // small delay so the status toaster can be updated before running queries
+  await new Promise((resolve) => setTimeout(resolve, 100));
   beginPerf = performance.now();
 
   console.log("state in queryRunner :>> ", state);
-  const currentFilter = state.remainingQueryFilters.shift();
+  let currentFilter = state.remainingQueryFilters.shift();
+  if (state.getChildrenOnly)
+    currentFilter = currentFilter.sort((a: any, b: any) => {
+      if (a.isTopBlockFilter && !b.isTopBlockFilter) {
+        return -1;
+      }
+      if (!a.isTopBlockFilter && b.isTopBlockFilter) {
+        return 1;
+      }
+      return 0;
+    });
   console.log("currentFilter :>> ", currentFilter);
   const parentFilterNb = currentFilter.reduce((count: number, item: any) => {
-    return item.isParentFilter ? count + 1 : count;
+    return item.isTopBlockFilter ? count + 1 : count;
   }, 0);
   console.log("parentFilterNb :>> ", parentFilterNb);
   const isDirectedFilter = parentFilterNb ? true : false;
@@ -300,7 +314,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   console.log("allIncludeRegex :>> ", allIncludeRegex);
 
   let blocksMatchingAllFilters: any[] = [];
-  if (allIncludeRegex.length > 1 && !isDirectedFilter) {
+  if (
+    allIncludeRegex.length > 1 &&
+    !isDirectedFilter &&
+    !state.getChildrenOnly
+  ) {
     let totalRegexControl = getConjunctiveRegex(allIncludeRegex);
     let params = [totalRegexControl];
     if (toExcludeFilter) params.push(regexToExclude);
@@ -376,18 +394,29 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
           : otherRegexString;
 
         // if multiple filters, test if children (any level) includes remaining filters
+        console.log("uidsMatchingOneFilter :>> ", uidsMatchingOneFilter);
         if (additionalRegex.length) {
-          blocksAndChildrenMatchingAllFilters =
-            (window as any).roamAlphaAPI.q(
-              getMultipleMatchingRegexInTreeQuery(
-                otherRegexString.length,
-                toExcludeFilter,
-                state.pagesLimitation
-              ),
-              descendantRule,
-              uidsMatchingOneFilter,
-              ...additionalRegex
-            ) || [];
+          blocksAndChildrenMatchingAllFilters = state.getChildrenOnly
+            ? (window as any).roamAlphaAPI.q(
+                getBlocksMatchingRegexQuery(
+                  toExcludeFilter,
+                  state.pagesLimitation,
+                  true
+                ),
+                descendantRule,
+                uidsMatchingOneFilter,
+                ...additionalRegex
+              )
+            : (window as any).roamAlphaAPI.q(
+                getMultipleMatchingRegexInTreeQuery(
+                  otherRegexString.length,
+                  toExcludeFilter,
+                  state.pagesLimitation
+                ),
+                descendantRule,
+                uidsMatchingOneFilter,
+                ...additionalRegex
+              ) || [];
           blocksAndChildrenMatchingAllFilters = parseQueryResults(
             blocksAndChildrenMatchingAllFilters
           );
@@ -404,7 +433,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
           "uid"
         );
 
-        if (!isDirectedFilter && otherRegexString.length) {
+        if (
+          !state.getChildrenOnly &&
+          !isDirectedFilter &&
+          otherRegexString.length
+        ) {
           const potentialSiblingMatches = excludeItemsInArray(
             blocksMatchingOneFilter,
             blocksAndChildrenMatchingAllFilters,
@@ -740,6 +773,7 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
     }
   }
   if ("directList" in state.llmResponse) return "searchlist-converter";
+  // return END;
   return "queryRunner";
 };
 
@@ -902,6 +936,7 @@ export const invokeAskAgent = async ({
           matchingBlocks: response.isRandom && response.matchingBlocks,
           filters: response.filters,
           nbOfResults: response.nbOfResults,
+          getChildrenOnly: response.getChildrenOnly,
           isRandom: response.isRandom,
           perdiod: response.period,
           pageLimitation: response.pageLimitation,
@@ -924,6 +959,7 @@ const displayAgentStatus = (
   status: string
 ) => {
   let completion = 0.1;
+  console.log("status in displayAgentStatus :>> ", status);
   switch (status) {
     case "searchlist-converter":
       completion = 0.3;
@@ -956,7 +992,9 @@ const displayAgentStatus = (
           )}
           <ul>
             {completion === 0.1 && (
-              <li>Interpreting natural language query...</li>
+              <li>
+                <strong>Interpreting natural language query...</strong>
+              </li>
             )}
             {completion >= 0.3 && (
               <>
@@ -1006,9 +1044,15 @@ const displayAgentStatus = (
               </>
             )}
             {completion === 0.3 && (
-              <li>Converting search list to Regex filters...</li>
+              <li>
+                <strong>Converting search list to Regex filters...</strong>
+              </li>
             )}
-            {completion === 0.5 && <li>Running Roam database queries...</li>}
+            {completion === 0.5 && (
+              <li>
+                <strong>Running Roam database queries...</strong>
+              </li>
+            )}
             {completion >= 0.6 && (
               <li>
                 ✔️ Roam database queries: {state.matchingBlocks?.length}{" "}

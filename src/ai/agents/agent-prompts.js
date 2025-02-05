@@ -252,7 +252,7 @@ INPUT ANALYSIS (user query):
   - All terms separated by a space (except for expressions in quotes) should be considered as an item defining a search condition
   - Remove non-essential syntactic elements (articles, pronouns)
   - Interpret properly logical operators or symbols if present ('+', '&' as 'AND', '|' as 'OR', '-' as 'NOT')
-  - Interpret '>' symbol as a hierarchical condition: filters will be directed (e.g. in 'A > B', matching blocks are all blocks including 'A' and including 'B' in one of their children)
+  - '>' and '<' symbols are hierarchical condition for a directed query (from parent to children or vice versa), these symbols and the corresponding structure and all key terms have to be strictly preserved in the final query
 - For natural language queries (sentences/questions):
   - Extract only essential and key search terms! To do this, it's necessary to correctly interpret the request or question to distinguish what defines the conditions of the search and what is about the post-processing or the question asked about the content that will be extracted.
   - IMPORTANT: Disregard and do not use as search terms:
@@ -260,7 +260,7 @@ INPUT ANALYSIS (user query):
     - indications that do not restrict the search and do not change anything (e.g. "in the db", "in my graph", "in my Roam graph" since the database is a graph in Roam Research)
     - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit in Roam database are blocks, or "in all pages" because pages are set of blocks) or hierarchical direction of the conditions ("parent", "child", "children", etc.)
     - any obvious type of content typically sought but which doesn't constitute a keyword (e.g. "all ideas", "all mentions of", "all content including")
-    - anything that indicates the post-processing required on the search results but not the type of content being sought
+    - VERY IMPORTANT: disregard anything that indicates the post-processing required or question on the search results but not the type of content being sought (e.g.: if query is "Among my recipes, which one is the easiest to prepare ?", seach string will be only 'recipe', since the evaluation of ease of preparation will be done at another stage, among the recipes extracted from the database)
     - words preceded by '\\' have to be ignored
   - Double square brackets, the hashtag, and double colons :: must be strictly preserved in the captured search term or expression. E.g: '[[some expression]]', '#tag', 'attribute::' (they have a specific meaning in Roam)
   - If the user's request clearly includes symbols specific to regular expressions, concerned expressions must be kept exactly as they are. E.g.: 'word\d{3}', '^Only this$'
@@ -268,7 +268,7 @@ INPUT ANALYSIS (user query):
 - The analysis of any query type must determine if it contains the following information:
   - the number of results requested if expressed (explicitly with a number or implicitly, for example, "the most recent block" is only 1 block requested)
   - instruction to randomly select items from the results
-  - directed conditions (with '>' symbol but also with natural language expression like "in parent", "in children", etc. e.g. 'A > B' can be expressed as 'all blocks with A, and B in one of their children)
+  - hierarchical conditions expressed with '>' or '<' symbol or natural language expression with indication about 'parent' or 'ancestor' or 'children' or 'descendant' blocks, or blocks 'under' some other, etc... E.g. 'A > B' can be expressed as 'all blocks with A, and B in one of their children)', while 'X < Y' means 'all blocks X that are ALSO (and) children of a block Y'
   - period indications: if dates or period are mentioned in the user's request, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.
   - any restriction on the field of research that will not be interpreted as keywords: the user can restrict its search to a limited set of pages either defined by an expression that the page titles should contain or by targeting a special type of page called "Daily notes" or DNP.
 IMPORTANT: expressions in quotes have to be reproduced verbatim with the quotation marks (for exact match, not by keyword; e.g. "Allegory of the cave"). Otherwise, NEVER add quotation marks arout words or expression that don't have them in the initial request
@@ -285,9 +285,13 @@ OUTPUT FORMAT: Following the JSON schema provided,
   - Quotation marks around words or expressions are allowed ONLY AND ONLY IF they were present in the user request (so preserve the exact quoted expression)
   - Each item can contain multiple alternatives term or expression separated by '|' (interpreted as OR)
   - A single negation (eventually with variants) per list is allowed, marked with leading '-'
-  - To express a directed order of the filters, use ' > ' symbol. Example: 'conditionInParent > conditionInChildren'
+  - To express a hierarchically directed order of the conditions,
+    - use ' > ' symbol to express 'blocks with some conditions in children', parent conditions being on the left (higher in the hierarchy), children conditons on the right. E.g. 'A + B > C' means blocks matching A and B conditions, with some child matching C condition. If only the children are requested, use the following symbol.
+    - use ' < ' symbol to express 'blocks with some conditions in parent', children conditions being on the left (lower in the hierarchy), parent conditons on the right. This symbol will be used if and only if requested blocks are children blocks with some conditions in parents (e.g.: 'children of X blocks'). If requested blocks are 'all children', without other condition, that have a parent with some condition, express it with '.* < conditions in parent' (IMPORTANT: never use '.*' if a condition is expressed on the same side. If '.*' is used on the left side of '<', no other conditon can appear on this side. Neither use '.*' on the parent side)
   - IMPORTANT: each item, term, expression or variant has to be in the same language as the user query (unless expressly stated otherwise)
-  - Format example: 'term1|variant1 + term2 -exclusion|variantExclusion'
+  - Format examples: 
+    - 'term1|alternative1 + term2 -exclu' is a good interpretation of 'all blocks with term1 or alternative1, and term2, but not exclu'
+    - with directed order: 'inChild < inParentA|inParentB' is a good interpretation of 'all block containing inChild, whose parent contains inParentA or inParentB'
 <POST_PROCESSING_PROPERTY>- set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise ignore this property
 - set 'nbOfResults' limitation if specified, otherwise ignore this property
 - set 'period' range if specified, otherwise ignore this property
@@ -323,7 +327,9 @@ INPUT ANALYSIS:
 - each search item separated by ' + ' (meaning AND) has to be interpreted as a distinct filter that will be combined with other following a conjunctive logic
 - each item can itself combine a set of terms or expression and alternatives, separated by '|' (meaning OR, disjunctive logic)
 - an item begining with '-' symbol (meaning NOT) is the exclusion item
-- a search list including ' > ' symbol means that the search is hierarchicaly directed. The conditions are met only for each block that satisfies the conditions on the left of the ' > ' symbol, AND has some children that meet the conditions on the right.
+- a search list including ' > ' or ' < ' symbol means that the search is hierarchically directed. BE VERY CAREFUL about the difference between these two symbols, as it profoundly changes the logic of the search:
+  - with ' > ' symbol, the condition on blocks higher up in the hierarchy are before the symbol, condition on children (descendants) are written after it.
+  - with ' < ' symbol, the conditions before it applies to children or the lowest blocks in the hierarchy, while condition after this symbol applies to some parent or top block in the hierarchy
 - '~' symbol at the end of a term in a search item means that a broader semantic search is requested for this term
 - when an expression is placed in quotation marks "like this for example", the entire expression must conserved exactly as it is with quotes.
 - double square brackets, the hashtag, and double colons :: must be strictly preserved in the captured search item. E.g: '[[some expression]]', '#tag', 'attribute::' (they have a specific meaning in Roam)
@@ -333,8 +339,7 @@ YOUR JOB: interprete, enhance and complete the input query into a set of filter 
 - extract each search item in a distinct filter, do not add any other search item
 - transform each search item into a correct regex, properly expressing disjunctive logic using '|' symbol
 - if and only if a word is between quotation marks, use the following syntax to search for it only as a word: "word" become '\\bword\\b'
-- insert '(?i)' at the beginning of a search filter regex for case insensitive search, unless for single word or expression between quotation marks
-- if an search list include ' > ' symbol, count the number of search items on the left of this symbol
+- insert by default '(?i)' at the beginning of a search filter, unless case sensitive is explicitly required or for expression between quotation marks
 - in order to find the maximum number of relevant contents, and find content that would not exactly match each search item (if not between quotation marks) but would still be relevant, you can:
   a) use the correct regex syntax to add variations of terms that might vary in plural or feminine form or conjugated verbs,
   b) IF AND ONLY IF EXPLICITLY REQUESTED with '~' symbol at the end of a given word, add most relevant semantic variations (synonym, acronym, common alias or abbreviation), strictly limited to the same language used in the initial user's request (unless otherwise specified) ! E.g. if the searched item is 'practice~' (but not 'practice' !), semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
@@ -348,7 +353,7 @@ OUTPUT FORMAT: For each provided search list, create a set of filters following 
 - "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
   - 'regexString': the searched content, expressed as a regex to express disjunctive relationships (OR).
   - 'isToExclude': true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.
-  - 'isParentFilter': true only if this filter is to apply to parent blocks only, in the case of hierarchically directed search.`;
+  - 'isTopBlockFilter': if the search list includes ' < ' or ' > ' symbols, true ONLY for blocks higher in the hierarchy (greater level), more precisely if this filter expresses a search items placed BEFORE '>' (greater than) symbol, or for search items placed AFTER '<' (smaller than) symbol. VERY IMPORTANT: BE VERY CAREFUL about the difference between these two symbols. E.g: in 'A > B', 'isTopBlockFilter' is true only for A. In 'child < parent', 'isTopBlockFilter' is true only for 'parent'.`;
 
 export const searchtAgentPreselectionPrompt = `You are an expert assistant in data analysis who helps the user make the most of their data. Your job is to extract the most relevant records from the data provided below, according to the user's request provided below. The goal is to reduce the data that will be subject to further post-processing.
 
