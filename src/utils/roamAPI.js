@@ -506,7 +506,8 @@ const getAdaptativeQueryStrings = (
   withExcludeRegex,
   pageRegex,
   nbOfRegex,
-  onlySiblings
+  onlySiblings,
+  matchingParents
 ) => {
   let regexVarStr = "";
   let findStr = "";
@@ -514,6 +515,7 @@ const getAdaptativeQueryStrings = (
   let excludeRegexVar = "";
   let excludeStr = "";
   let findSiblingsStr = "";
+  let parentStr = "";
   if (nbOfRegex) {
     for (let i = 0; i < nbOfRegex; i++) {
       resultStr += `?child-uid${i} ?child-content${i} `;
@@ -551,6 +553,11 @@ const getAdaptativeQueryStrings = (
     excludeStr = "[(re-pattern ?regex-not) ?pattern-not]";
   }
 
+  if (matchingParents) {
+    parentStr = `\n[?matching-parents :block/uid ?matching-parents-uid]
+    (descendants ?matching-parents ?b)`;
+  }
+
   return {
     resultStr,
     regexVarStr,
@@ -559,18 +566,29 @@ const getAdaptativeQueryStrings = (
     excludeRegexVar,
     excludeStr,
     findSiblingsStr,
+    parentStr,
   };
 };
 
-export const getBlocksMatchingRegexQuery = (withExcludeRegex, pageRegex) => {
-  const { pageStr, excludeRegexVar, excludeStr } = getAdaptativeQueryStrings(
-    withExcludeRegex,
-    pageRegex
-  );
+export const getBlocksMatchingRegexQuery = (
+  withExcludeRegex,
+  pageRegex,
+  matchingParents
+) => {
+  const { parentStr, pageStr, excludeRegexVar, excludeStr } =
+    getAdaptativeQueryStrings(
+      withExcludeRegex,
+      pageRegex,
+      null,
+      null,
+      matchingParents
+    );
 
   const q = `[:find ?uid ?content ?time ?page-title
-    :in $ ?regex ${excludeRegexVar}
-    :where
+    :in $ ${
+      matchingParents ? "% [?matching-parents-uid ...] " : ""
+    }?regex ${excludeRegexVar}
+    :where ${parentStr}
     [?b :block/uid ?uid]
    [?b :block/string ?content]
    [?b :block/page ?page]
