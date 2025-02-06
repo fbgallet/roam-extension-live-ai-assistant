@@ -852,9 +852,10 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
   if ("searchList" in state.llmResponse) {
     if (state.llmResponse.isInferenceNeeded && state.searchLists.length < 2)
       return "nl-question-interpreter";
-    else return END; // "searchlist-converter";
+    else return "searchlist-converter";
   }
-  if ("alternativeSearchList" in state.llmResponse) return END;
+  if ("alternativeSearchList" in state.llmResponse)
+    return "searchlist-converter";
   return END;
   return "queryRunner";
 };
