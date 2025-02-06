@@ -1,6 +1,9 @@
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
-import { invokeAskAgent, invokeSearchAgent } from "./agents/search-agent";
+import {
+  invokeAskAgent,
+  invokeSearchAgent,
+} from "./agents/search-agent/search-agent";
 import { languages } from "./languagesSupport";
 
 export const BUILTIN_COMMANDS = [

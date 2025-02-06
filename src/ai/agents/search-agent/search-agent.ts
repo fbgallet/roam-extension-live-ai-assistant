@@ -6,62 +6,71 @@ import {
   END,
 } from "@langchain/langgraph/web";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { chatRoles, defaultModel, getInstantAssistantRole } from "../..";
+import { chatRoles, defaultModel, getInstantAssistantRole } from "../../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
-  descendantRule,
-  getBlocksMatchingRegexQuery,
   getDNPTitleFromDate,
   getDateStringFromDnpUid,
   getFirstChildContent,
   getFormattedPath,
-  getMultipleMatchingRegexInTreeQuery,
   getPageUidByBlockUid,
   getParentBlock,
   getPathOfBlock,
-  getSiblingsParentMatchingRegexQuery,
-} from "../../utils/roamAPI";
+} from "../../../utils/roamAPI";
 import {
   searchAgentListToFiltersSystemPrompt,
   searchtAgentPreselectionPrompt,
   searchtAgentPostProcessingPrompt,
-  searchAgentNLtoKeywordsSearchOnlyPrompt,
-  searchAgentNLtoKeywordsPostProPrompt,
-} from "./agent-prompts";
+  semanticInstructions,
+  hierarchyInstructions1,
+  hierarchyInstructions2,
+  searchAgentNLQueryEvaluationPrompt,
+  postProcessingToNull,
+  postProcessingProperty,
+  periodProperty,
+  inferenceNeededProperty,
+  hierarchyNLInstructions,
+  searchAgentNLInferenceFromQuestionPrompt,
+} from "./search-agent-prompts";
 import {
   LlmInfos,
   TokensUsage,
   modelViaLanggraph,
-} from "./langraphModelsLoader";
-import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
-import {
-  displaySpinner,
-  insertInstantButtons,
-  removeSpinner,
-} from "../../utils/domElts";
-import { modelAccordingToProvider } from "../aiAPIsHub";
-import { dnpUidRegex, getConjunctiveRegex } from "../../utils/regex";
+} from "../langraphModelsLoader";
+import { balanceBraces, sanitizeClaudeJSON } from "../../../utils/format";
+import { insertInstantButtons } from "../../../utils/domElts";
+import { modelAccordingToProvider } from "../../aiAPIsHub";
+import { dnpUidRegex, getConjunctiveRegex } from "../../../utils/regex";
 import {
   concatWithoutDuplicates,
   excludeItemsInArray,
   getRandomElements,
   removeDuplicatesByProperty,
   sliceByWordLimit,
-} from "../../utils/dataProcessing";
-import { insertStructuredAIResponse } from "../responseInsertion";
+} from "../../../utils/dataProcessing";
+import { insertStructuredAIResponse } from "../../responseInsertion";
 import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
-} from "../dataExtraction";
-import { AgentToaster, AppToaster } from "../../components/Toaster";
+} from "../../dataExtraction";
+import { AgentToaster, AppToaster } from "../../../components/Toaster";
 import { Intent, ProgressBar } from "@blueprintjs/core";
 import {
+  alternativeSearchListSchema,
   preselectionSchema,
   searchFiltersSchema,
   searchListSchema,
-} from "./structuredOutput-schemas";
-import { updateTokenCounter } from "../modelsInfo";
+} from "../structuredOutput-schemas";
+import { updateTokenCounter } from "../../modelsInfo";
+import { displayAgentStatus } from "./status-toast";
+import {
+  descendantRule,
+  getBlocksMatchingRegexQuery,
+  getMultipleMatchingRegexInTreeQuery,
+  getSiblingsParentMatchingRegexQuery,
+  parseQueryResults,
+} from "./datomicQueries";
 
 interface PeriodType {
   begin: string;
@@ -70,10 +79,10 @@ interface PeriodType {
 
 let beginPerf: number, endPerf: number;
 let llm: StructuredOutputType;
-let toasterInstance: string;
+export let toasterInstance: string;
 let turnTokensUsage: TokensUsage;
 
-const SearchAgentState = Annotation.Root({
+export const SearchAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
   model: Annotation<string>,
   rootUid: Annotation<string>,
@@ -127,17 +136,30 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
       }
     : {};
   const structuredLlm = llm.withStructuredOutput(searchListSchema, rawOption);
+
+  let isDirected =
+    state.userNLQuery.includes("<") || state.userNLQuery.includes(">");
+
+  let systemPrompt =
+    state.isPostProcessingNeeded === false
+      ? searchAgentNLQueryEvaluationPrompt
+          .replace("<POST_PROCESSING_PROPERTY>", postProcessingToNull)
+          .replace("<PERIOD_PROPERTY>", "")
+      : searchAgentNLQueryEvaluationPrompt
+          .replace("<POST_PROCESSING_PROPERTY>", postProcessingProperty)
+          .replace("<PERIOD_PROPERTY>", periodProperty)
+          .replace("<CURRENT_DATE>", currentDate);
+
+  systemPrompt = isDirected
+    ? systemPrompt
+        .replace("<INFERENCE_PROPERTY>", "")
+        .replace("<HIERARCHY_NL>", "")
+    : systemPrompt
+        .replace("<INFERENCE_PROPERTY>", inferenceNeededProperty)
+        .replace("<HIERARCHY_NL>", hierarchyNLInstructions);
+
   const sys_msg = new SystemMessage({
-    content:
-      state.isPostProcessingNeeded === false
-        ? searchAgentNLtoKeywordsSearchOnlyPrompt.replace(
-            "<CURRENT_DATE>",
-            currentDate
-          )
-        : searchAgentNLtoKeywordsPostProPrompt.replace(
-            "<CURRENT_DATE>",
-            currentDate
-          ),
+    content: systemPrompt,
   });
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
@@ -158,7 +180,57 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     state.errorInNode = "nl-query-interpreter";
   }
 
-  console.log("llmResponse after step1 :>> ", llmResponse);
+  console.log("llmResponse after basic interpreter :>> ", llmResponse);
+
+  return {
+    llmResponse,
+    errorInNode: state.errorInNode,
+  };
+};
+
+const nlQuestionInterpreter = async (state: typeof SearchAgentState.State) => {
+  displayAgentStatus(state, "nl-question-interpreter");
+
+  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const rawOption = isClaudeModel
+    ? {
+        includeRaw: true,
+      }
+    : {};
+
+  const structuredLlm = llm.withStructuredOutput(
+    alternativeSearchListSchema,
+    rawOption
+  );
+  const sys_msg = new SystemMessage({
+    content: searchAgentNLInferenceFromQuestionPrompt,
+  });
+  // console.log("sys_msg :>> ", sys_msg);
+  let messages = [sys_msg].concat([
+    new HumanMessage(
+      `Here is the initial user request in natural language: ${
+        state.userNLQuery
+      }
+Here is the formatted search query generated with keywords from the previous user request: ${
+        state.llmResponse.searchList
+      }
+${
+  !state.retryInstruction || state.retryInstruction === state.userNLQuery
+    ? ""
+    : `Notice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
+}`
+    ),
+  ]);
+  let llmResponse;
+  try {
+    llmResponse = await structuredLlm.invoke(messages);
+    state.errorInNode = null;
+  } catch (error) {
+    console.log("error at nl-question-interpreter :>> ", error);
+    state.errorInNode = "nl-question-interpreter";
+  }
+
+  console.log("llmResponse after question interpreter :>> ", llmResponse);
 
   return {
     llmResponse,
@@ -180,8 +252,16 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
     searchFiltersSchema,
     rawOption
   );
+  let systemPrompt = searchAgentListToFiltersSystemPrompt.replace(
+    "<SEMANTINC-INSTRUCTIONS>",
+    state.searchLists[0].includes("~") ? semanticInstructions : ""
+  );
+  if (state.searchLists[0].includes(">") || state.searchLists[0].includes("<"))
+    systemPrompt = systemPrompt
+      .replace("<HIERARCHY-INSTRUCTIONS-1>", hierarchyInstructions1)
+      .replace("<HIERARCHY-INSTRUCTIONS-2>", hierarchyInstructions2);
   const sys_msg = new SystemMessage({
-    content: searchAgentListToFiltersSystemPrompt,
+    content: systemPrompt,
   });
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
@@ -207,12 +287,11 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
     console.log("error at searchListConverter :>> ", error);
     state.errorInNode = "searchlist-converter";
   }
-  console.log("response after step 2 :>> ", llmResponse);
+  console.log("response after step 2 (list converter) :>> ", llmResponse);
 
   return {
     llmResponse,
     errorInNode: state.errorInNode,
-    getChildrenOnly: state.searchLists[0].includes(" < ") ? true : false,
   };
 };
 
@@ -234,11 +313,12 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       state.llmResponse = state.llmResponse.parsed;
     }
   }
-  console.log("llmResponse after check :>> ", state.llmResponse);
+  // console.log("llmResponse after check :>> ", state.llmResponse);
 
   // after "nlQueryInterpreter" node
-  if ("directList" in state.llmResponse) {
-    let searchLists = [state.llmResponse?.directList];
+  if ("searchList" in state.llmResponse) {
+    let searchLists = [state.llmResponse?.searchList];
+    state.getChildrenOnly = searchLists[0].includes(" < ") ? true : false;
     if (state.llmResponse?.alternativeList)
       searchLists.push(state.llmResponse?.alternativeList);
     state.searchLists = searchLists;
@@ -255,6 +335,11 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
     state.pagesLimitation = state.llmResponse.pagesLimitation;
     state.isRandom = state.llmResponse.isRandom;
   }
+  // after "nlQuestionInterpreter" node
+  else if ("searchList" in state.llmResponse) {
+    let alternativeSearchList = state.llmResponse.alternativeSearchList;
+    alternativeSearchList && state.searchLists.push(alternativeSearchList);
+  }
   // after "searchlistConverter" node
   else if ("firstListFilters" in state.llmResponse) {
     let filters = [state.llmResponse.firstListFilters];
@@ -263,6 +348,9 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
     state.filters = filters;
     state.remainingQueryFilters = [...filters];
   }
+
+  console.log("searchLists :>> ", state.searchLists);
+  console.log("state :>> ", state);
 
   return state;
   //   llmResponse: state.llmResponse,
@@ -768,12 +856,19 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
     switch (state.errorInNode) {
       case "nl-query-interpreter":
         return "nl-query-interpreter";
+      case "nl-question-interpreter":
+        return "nl-question-interpreter";
       case "searchlist-converter":
         return "searchlist-converter";
     }
   }
-  if ("directList" in state.llmResponse) return "searchlist-converter";
-  // return END;
+  if ("searchList" in state.llmResponse) {
+    if (state.llmResponse.isInferenceNeeded && state.searchLists.length < 2)
+      return "nl-question-interpreter";
+    else return END; // "searchlist-converter";
+  }
+  if ("alternativeSearchList" in state.llmResponse) return END;
+  return END;
   return "queryRunner";
 };
 
@@ -807,6 +902,7 @@ const builder = new StateGraph(SearchAgentState);
 builder
   .addNode("loadModel", loadModel)
   .addNode("nl-query-interpreter", nlQueryInterpreter)
+  .addNode("nl-question-interpreter", nlQuestionInterpreter)
   .addNode("searchlist-converter", searchlistConverter)
   .addNode("checker", formatChecker)
   .addNode("periodFormater", periodFormater)
@@ -819,6 +915,7 @@ builder
   .addEdge(START, "loadModel")
   .addConditionalEdges("loadModel", turnRouter)
   .addEdge("nl-query-interpreter", "checker")
+  .addEdge("nl-question-interpreter", "checker")
   .addEdge("searchlist-converter", "checker")
   .addConditionalEdges("checker", afterCheckRouter)
   .addEdge("periodFormater", "queryRunner")
@@ -948,188 +1045,4 @@ export const invokeAskAgent = async ({
       });
     }, 200);
   }
-};
-
-/********************/
-/*  Status Toaster  */
-/********************/
-
-const displayAgentStatus = (
-  state: typeof SearchAgentState.State,
-  status: string
-) => {
-  let completion = 0.1;
-  console.log("status in displayAgentStatus :>> ", status);
-  switch (status) {
-    case "searchlist-converter":
-      completion = 0.3;
-      break;
-    case "queryRunner":
-      completion = 0.5;
-      break;
-    case "limitAndOrder":
-      completion = 0.6;
-      break;
-    case "preselection-filter":
-      completion = 0.7;
-      break;
-    case "post-processing":
-      completion = 0.9;
-      break;
-    case "output":
-      completion = 1;
-      break;
-  }
-  AgentToaster.show(
-    {
-      icon: "form",
-      message: (
-        <>
-          {progressBarDisplay(
-            state.isPostProcessingNeeded || completion <= 0.1
-              ? completion
-              : completion + 0.3
-          )}
-          <ul>
-            {completion === 0.1 && (
-              <li>
-                <strong>Interpreting natural language query...</strong>
-              </li>
-            )}
-            {completion >= 0.3 && (
-              <>
-                {(state.isRandom ||
-                  state.nbOfResults ||
-                  state.pagesLimitation) && (
-                  <li>
-                    ✔️ {state.nbOfResults || ""}
-                    {state.isRandom ? " random results " : "results requested "}
-                    {state.pagesLimitation
-                      ? "in '" +
-                        state.pagesLimitation.replace("dnp", "Daily Notes") +
-                        "' pages."
-                      : ""}
-                  </li>
-                )}
-                {state.period &&
-                  `✔️ In period range from ${
-                    state.period.begin ? state.period.begin : "∞"
-                  } to ${state.period.end ? state.period.end : "today"}.`}
-                <li>
-                  ✔️ Search list(s) interpreted:
-                  <ol>
-                    {state.searchLists?.length &&
-                      state.searchLists.map((list: string, index: number) => (
-                        <li>
-                          <code>{list}</code>
-                          {completion >= 0.5 && (
-                            <ul>
-                              <li>
-                                ✔️ Regex filters:
-                                <ol>
-                                  {state.filters?.length > index &&
-                                    state.filters[index].map((elt: any) => (
-                                      <li>
-                                        <code>{elt.regexString}</code>
-                                      </li>
-                                    ))}
-                                </ol>
-                              </li>
-                            </ul>
-                          )}
-                        </li>
-                      ))}
-                  </ol>
-                </li>
-              </>
-            )}
-            {completion === 0.3 && (
-              <li>
-                <strong>Converting search list to Regex filters...</strong>
-              </li>
-            )}
-            {completion === 0.5 && (
-              <li>
-                <strong>Running Roam database queries...</strong>
-              </li>
-            )}
-            {completion >= 0.6 && (
-              <li>
-                ✔️ Roam database queries: {state.matchingBlocks?.length}{" "}
-                matching blocks
-              </li>
-            )}
-            {completion === 0.7 && (
-              <li>Preselection of most relevant blocks...</li>
-            )}
-            {completion === 0.9 && (
-              <li>Post-processing {state.filteredBlocks?.length} blocks...</li>
-            )}
-            {completion === 1 && (
-              <li>
-                ✔️ Insert{" "}
-                {state.isPostProcessingNeeded
-                  ? "processed"
-                  : state.nbOfResults || state.nbOfResultsDisplayed}{" "}
-                results in your graph.
-              </li>
-            )}
-          </ul>
-        </>
-      ),
-      timeout: status === "output" ? 15000 : 0,
-    },
-    toasterInstance
-  );
-};
-
-const progressBarDisplay = (value: number) => {
-  if (value > 1) value = 1;
-  return (
-    <ProgressBar
-      value={value}
-      className="laia-progressbar"
-      intent={value < 1 ? Intent.PRIMARY : Intent.SUCCESS}
-      animate={value < 1 ? true : false}
-      stripes={value < 1 ? true : false}
-    />
-  );
-};
-
-/*******************/
-/* Utils functions */
-/*******************/
-
-const parseQueryResults = (queryResults: any[]) => {
-  const parsed = queryResults.map((block: any) => {
-    return {
-      uid: block[0],
-      content: block[1],
-      editTime: block[2],
-      pageTitle: block[3],
-      childMatchingContent:
-        block.length > 4
-          ? block
-              .slice(4)
-              .reduce(
-                (
-                  result: any[],
-                  _: string,
-                  index: number,
-                  original: string[]
-                ) => {
-                  if (index % 2 === 0) {
-                    result.push({
-                      uid: original[index],
-                      content: original[index + 1],
-                    });
-                  }
-                  return result;
-                },
-                []
-              )
-          : null,
-    };
-  });
-  return parsed;
 };

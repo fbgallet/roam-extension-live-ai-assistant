@@ -41,7 +41,7 @@ import {
 import {
   invokeAskAgent,
   invokeSearchAgent,
-} from "../ai/agents/search-agent.tsx";
+} from "../ai/agents/search-agent/search-agent.ts";
 
 export let isCanceledStreamGlobal = false;
 
