@@ -33,13 +33,8 @@ import {
   hierarchyNLInstructions,
   searchAgentNLInferenceFromQuestionPrompt,
 } from "./search-agent-prompts";
-import {
-  LlmInfos,
-  TokensUsage,
-  modelViaLanggraph,
-} from "../langraphModelsLoader";
+import { LlmInfos, modelViaLanggraph } from "../langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../../utils/format";
-import { insertInstantButtons } from "../../../utils/domElts";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
 import { dnpUidRegex, getConjunctiveRegex } from "../../../utils/regex";
 import {
@@ -50,19 +45,13 @@ import {
   sliceByWordLimit,
 } from "../../../utils/dataProcessing";
 import { insertStructuredAIResponse } from "../../responseInsertion";
-import {
-  getFlattenedContentFromTree,
-  getFocusAndSelection,
-} from "../../dataExtraction";
-import { AgentToaster, AppToaster } from "../../../components/Toaster";
-import { Intent, ProgressBar } from "@blueprintjs/core";
+import { getFlattenedContentFromTree } from "../../dataExtraction";
 import {
   alternativeSearchListSchema,
   preselectionSchema,
   searchFiltersSchema,
   searchListSchema,
 } from "../structuredOutput-schemas";
-import { updateTokenCounter } from "../../modelsInfo";
 import { displayAgentStatus } from "./status-toast";
 import {
   descendantRule,
@@ -71,16 +60,14 @@ import {
   getSiblingsParentMatchingRegexQuery,
   parseQueryResults,
 } from "./datomicQueries";
+import { turnTokensUsage } from "./invoke-search-agent";
 
 interface PeriodType {
   begin: string;
   end: string;
 }
-
 let beginPerf: number, endPerf: number;
 let llm: StructuredOutputType;
-export let toasterInstance: string;
-let turnTokensUsage: TokensUsage;
 
 export const SearchAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -925,124 +912,8 @@ builder
   .addEdge("post-processing", "output")
   .addEdge("output", END);
 
-/**************************/
-// Compile & Invoke graph //
-/**************************/
+/************/
+// Compile  //
+/************/
 
 export const SearchAgent = builder.compile();
-
-interface AgentInvoker {
-  model: string;
-  rootUid: string;
-  target: string;
-  targetUid?: string;
-  prompt: string;
-  previousAgentState?: any;
-  onlySearch?: boolean;
-  options?: any;
-}
-
-export const invokeSearchAgent = async ({
-  model = defaultModel,
-  rootUid,
-  targetUid,
-  target,
-  prompt,
-  previousAgentState,
-  options,
-}: AgentInvoker) => {
-  invokeAskAgent({
-    model,
-    rootUid,
-    target,
-    targetUid,
-    prompt,
-    previousAgentState,
-    onlySearch: true,
-    options,
-  });
-};
-
-export const invokeAskAgent = async ({
-  model = defaultModel,
-  rootUid,
-  target,
-  targetUid,
-  prompt,
-  previousAgentState,
-  onlySearch,
-  options = {},
-}: AgentInvoker) => {
-  let begin = performance.now();
-  turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
-
-  toasterInstance = AgentToaster.show({
-    message: "",
-  });
-
-  // console.log("options :>> ", options);
-  // console.log("previousAgentState :>> ", previousAgentState);
-
-  if (options?.isPostProcessingNeeded) {
-    let { currentUid, currentBlockContent } = getFocusAndSelection();
-    if (!currentBlockContent) {
-      AppToaster.show({
-        message:
-          "You have to focus a block to provide instructions or question for post-processing",
-      });
-      return;
-    }
-    rootUid = currentUid;
-    prompt = currentBlockContent;
-  }
-
-  const response = await SearchAgent.invoke({
-    model,
-    rootUid,
-    userNLQuery: prompt,
-    target,
-    targetUid,
-    isPostProcessingNeeded: !onlySearch,
-    ...previousAgentState,
-    ...options,
-  });
-
-  let end = performance.now();
-  console.log(
-    "Search Agent delay :>> ",
-    ((end - begin) / 1000).toFixed(2) + "s"
-  );
-  console.log("Global turnTokensUsage :>> ", turnTokensUsage);
-  updateTokenCounter(model, turnTokensUsage);
-
-  console.log("Agent response :>> ", response);
-
-  if (response) {
-    setTimeout(() => {
-      insertInstantButtons({
-        model: response.model,
-        prompt: response.userNLQuery,
-        currentUid: rootUid,
-        targetUid: response.shiftDisplay ? rootUid : response.targetUid,
-        responseFormat: "text",
-        response: response.stringifiedResultToDisplay,
-        agentData: {
-          userNLQuery: response.userNLQuery,
-          searchLists: response.searchLists,
-          filteredBlocks: response.filteredBlocks,
-          matchingBlocks: response.isRandom && response.matchingBlocks,
-          filters: response.filters,
-          nbOfResults: response.nbOfResults,
-          getChildrenOnly: response.getChildrenOnly,
-          isRandom: response.isRandom,
-          perdiod: response.period,
-          pageLimitation: response.pageLimitation,
-          shiftDisplay:
-            response.shiftDisplay < response.filteredBlocks?.length &&
-            response.shiftDisplay,
-        },
-        aiCallback: onlySearch ? invokeSearchAgent : invokeAskAgent,
-      });
-    }, 200);
-  }
-};
