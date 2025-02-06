@@ -4,7 +4,8 @@
 
 import { Intent, ProgressBar } from "@blueprintjs/core";
 import { AgentToaster } from "../../../components/Toaster";
-import { SearchAgentState, toasterInstance } from "./search-agent";
+import { SearchAgentState } from "./search-agent";
+import { toasterInstance } from "./invoke-search-agent";
 
 export const displayAgentStatus = (
   state: typeof SearchAgentState.State,

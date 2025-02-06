@@ -3,7 +3,7 @@ import { invokeNLQueryInterpreter } from "./agents/nl-query";
 import {
   invokeAskAgent,
   invokeSearchAgent,
-} from "./agents/search-agent/search-agent";
+} from "./agents/search-agent/invoke-search-agent";
 import { languages } from "./languagesSupport";
 
 export const BUILTIN_COMMANDS = [
