@@ -4,29 +4,15 @@ import { z } from "zod";
 /************************/
 
 export const searchListSchema = z.object({
-  directList: z
+  searchList: z
     .string()
-    .describe("Search list of key terms directly extracted from user query"),
+    .describe("Search list of key terms directly extracted from user request"),
   alternativeList: z
     .string()
     .optional()
     .nullable()
     .describe(
-      "Alternative search list if key terms in user query are likely to be too limited"
-    ),
-  isPostProcessingNeeded: z
-    .boolean()
-    .optional()
-    .nullable()
-    .describe(
-      "True if the user query ask not only for a search but also for post-processing search results"
-    ),
-  pagesLimitation: z
-    .string()
-    .optional()
-    .nullable()
-    .describe(
-      "Limitation to a set of pages: 'dnp' or expression to be matched by the page titles"
+      "Optional alternative search list if strong disjunctive logic in user request"
     ),
   nbOfResults: z
     .number()
@@ -34,11 +20,26 @@ export const searchListSchema = z.object({
     .nullable()
     .describe("Number of requested results, otherwise null"),
   isRandom: z.boolean().optional().describe("Is a random result requested"),
-  isDirectedFilter: z
+  isPostProcessingNeeded: z
     .boolean()
     .optional()
+    .nullable()
     .describe(
-      "Is filter directed from parent meeting a conditon to children meeting other conditions"
+      "True if the user query ask not only for a search but also for post-processing search results"
+    ),
+  isInferenceNeeded: z
+    .boolean()
+    .optional()
+    .nullable()
+    .describe(
+      "True if the user question keywords aren't enough to catch relevant data "
+    ),
+  pagesLimitation: z
+    .string()
+    .optional()
+    .nullable()
+    .describe(
+      "Limitation to a set of pages: 'dnp' or expression to be matched by the page titles"
     ),
   period: z
     .object({
@@ -60,6 +61,14 @@ export const searchListSchema = z.object({
     .describe(
       "Restricted period of the request, only if mentioned by the user"
     ),
+});
+
+export const alternativeSearchListSchema = z.object({
+  alternativeSearchList: z
+    .string()
+    .optional()
+    .nullable()
+    .describe("The formatted alternative query"),
 });
 
 const filtersArray = z
