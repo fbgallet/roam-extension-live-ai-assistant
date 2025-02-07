@@ -362,7 +362,7 @@ const InstantButtons = ({
                     } random result(s)`
                   : `Display next results (${agentData.shiftDisplay + 1} to ${
                       agentData.shiftDisplay + (agentData.nbOfResults || 10)
-                    })`
+                    } / ${agentData.filteredBlocks.length})`
               }
               hoverOpenDelay="500"
             >
