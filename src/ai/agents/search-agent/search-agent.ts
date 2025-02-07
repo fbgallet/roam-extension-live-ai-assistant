@@ -247,6 +247,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
     systemPrompt = systemPrompt
       .replace("<HIERARCHY-INSTRUCTIONS-1>", hierarchyInstructions1)
       .replace("<HIERARCHY-INSTRUCTIONS-2>", hierarchyInstructions2);
+
   const sys_msg = new SystemMessage({
     content: systemPrompt,
   });
@@ -332,17 +333,27 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
     let filters = [state.llmResponse.firstListFilters];
     if (state.llmResponse.alternativeListFilters)
       filters.push(state.llmResponse.alternativeListFilters);
-    state.filters = filters;
+
+    // LLM are not entirely reliable to properly identify hierarchy relation
+    // with the current prompt...
+    state.filters = filters.map((f: any, i: number) => {
+      if (state.searchLists[i].includes(">")) {
+        f[0].isTopBlockFilter = true;
+      } else if (state.searchLists[i].includes("<")) {
+        f.at(-1).isTopBlockFilter = true;
+      }
+      return f;
+    });
+
     state.remainingQueryFilters = [...filters];
   }
 
   console.log("searchLists :>> ", state.searchLists);
-  console.log("state :>> ", state);
+  state.filters && console.log("state.filters[0] :>> ", state.filters[0]);
+  state.filters?.length > 1 &&
+    console.log("state.filters[1] :>> ", state.filters[1]);
 
   return state;
-  //   llmResponse: state.llmResponse,
-  //   period: state.period || state.llmResponse.period || null,
-  // };
 };
 
 const periodFormater = async (state: typeof SearchAgentState.State) => {
@@ -377,7 +388,6 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   const parentFilterNb = currentFilter.reduce((count: number, item: any) => {
     return item.isTopBlockFilter ? count + 1 : count;
   }, 0);
-  console.log("parentFilterNb :>> ", parentFilterNb);
   const isDirectedFilter = parentFilterNb ? true : false;
 
   const toExcludeFilter = currentFilter.find((f: any) => f.isToExclude);
@@ -856,7 +866,7 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
   }
   if ("alternativeSearchList" in state.llmResponse)
     return "searchlist-converter";
-  return END;
+  // return END;
   return "queryRunner";
 };
 
@@ -877,10 +887,6 @@ const processOrDisplay = (state: typeof SearchAgentState.State) => {
   }
   return "output";
 };
-// const isToCheck = (state: typeof SearchAgentState.State) => {
-//   if (state.period) return "formatChecker";
-//   return "queryRunner";
-// };
 
 /***************/
 // BUILD GRAPH //
