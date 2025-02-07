@@ -111,7 +111,7 @@ export function getParentBlock(uid) {
     "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",
     [":block/uid", uid]
   );
-  if (result) {
+  if (result && result.length) {
     const directParent = result[":block/parents"]?.find((parent) =>
       parent[":block/children"]?.some((child) => child[":block/uid"] === uid)
     );

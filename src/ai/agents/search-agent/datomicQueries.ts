@@ -42,6 +42,16 @@ export const descendantRule = `[[(descendants ?parent ?child)
     [?parent :block/children ?child]
     (descendants ?descendant ?parent)]]]`;
 
+export const twoLevelsChildrenRule = `[[(descendants ?parent ?child)
+  [?parent :block/children ?child]]
+  [(descendants ?parent ?child)
+  [?parent :block/children ?child-bis]
+  [?child-bis :block/children ?child]
+  ]]`;
+
+export const directChildrenRule = `[[(descendants ?parent ?child)
+    [?parent :block/children ?child]]]`;
+
 export const getMultipleMatchingRegexInTreeQuery = (
   nbOfRegex: number,
   withExcludeRegex: boolean,

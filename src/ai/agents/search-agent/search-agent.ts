@@ -55,10 +55,12 @@ import {
 import { displayAgentStatus } from "./status-toast";
 import {
   descendantRule,
+  directChildrenRule,
   getBlocksMatchingRegexQuery,
   getMultipleMatchingRegexInTreeQuery,
   getSiblingsParentMatchingRegexQuery,
   parseQueryResults,
+  twoLevelsChildrenRule,
 } from "./datomicQueries";
 import { turnTokensUsage } from "./invoke-search-agent";
 
@@ -86,6 +88,7 @@ export const SearchAgentState = Annotation.Root({
   filters: Annotation<any>,
   remainingQueryFilters: Annotation<any>,
   period: Annotation<PeriodType>,
+  depthLimitation: Annotation<number>,
   pagesLimitation: Annotation<string>,
   isRandom: Annotation<boolean>,
   stringifiedResultToDisplay: Annotation<string>,
@@ -320,6 +323,8 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       ? 1
       : undefined;
     state.period = state.llmResponse.period;
+    state.depthLimitation = state.llmResponse.depthLimitation;
+    console.log("state.depthLimitation :>> ", state.depthLimitation);
     state.pagesLimitation = state.llmResponse.pagesLimitation;
     state.isRandom = state.llmResponse.isRandom;
   }
@@ -336,14 +341,17 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
 
     // LLM are not entirely reliable to properly identify hierarchy relation
     // with the current prompt...
-    state.filters = filters.map((f: any, i: number) => {
-      if (state.searchLists[i].includes(">")) {
-        f[0].isTopBlockFilter = true;
-      } else if (state.searchLists[i].includes("<")) {
-        f.at(-1).isTopBlockFilter = true;
-      }
-      return f;
-    });
+    state.filters = filters
+      .map((f: any, i: number) => {
+        if (state.searchLists[i].includes(">")) {
+          f[0].isTopBlockFilter = true;
+        } else if (state.searchLists[i].includes("<")) {
+          f.at(-1).isTopBlockFilter = true;
+        }
+        return f;
+      })
+      // if a filter is void, remove it !
+      .filter((f: any) => !f.some((filter: any) => !filter.regexString));
 
     state.remainingQueryFilters = [...filters];
   }
@@ -427,7 +435,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
 
   //console.log("allIncludeRegex :>> ", allIncludeRegex);
   allIncludeRegex.forEach((filter: any, index: number) => {
-    if (!isDirectedFilter || index === 0) {
+    if (state.depthLimitation !== 0 && (!isDirectedFilter || index === 0)) {
       let params =
         isDirectedFilter && parentFilterNb > 1
           ? [getConjunctiveRegex(allIncludeRegex.slice(0, parentFilterNb))]
@@ -458,6 +466,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
             blocksMatchingOneFilter[i].uid
           );
           if (
+            directParentUid &&
             uidsMatchingOneFilter.includes(directParentUid) &&
             !parentsToIgnore.includes(directParentUid)
           )
@@ -488,7 +497,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
                   state.pagesLimitation,
                   true
                 ),
-                descendantRule,
+                state.depthLimitation === 1
+                  ? directChildrenRule
+                  : state.depthLimitation === 2
+                  ? twoLevelsChildrenRule
+                  : descendantRule,
                 uidsMatchingOneFilter,
                 ...additionalRegex
               )
@@ -498,7 +511,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
                   toExcludeFilter,
                   state.pagesLimitation
                 ),
-                descendantRule,
+                state.depthLimitation === 1
+                  ? directChildrenRule
+                  : state.depthLimitation === 2
+                  ? twoLevelsChildrenRule
+                  : descendantRule,
                 uidsMatchingOneFilter,
                 ...additionalRegex
               ) || [];
@@ -521,7 +538,8 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
         if (
           !state.getChildrenOnly &&
           !isDirectedFilter &&
-          otherRegexString.length
+          otherRegexString.length &&
+          allIncludeRegex.length < 3 // search for maximum 2 sibblings
         ) {
           const potentialSiblingMatches = excludeItemsInArray(
             blocksMatchingOneFilter,
@@ -530,8 +548,9 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
           );
           console.log("potentialSiblingMatches :>> ", potentialSiblingMatches);
           if (potentialSiblingMatches.length) {
-            let params = allIncludeRegex;
+            let params = [...allIncludeRegex];
             if (toExcludeFilter) params.push(regexToExclude);
+            console.log("params :>> ", params);
             let parentsWithMatchingSiblings =
               (window as any).roamAlphaAPI.q(
                 getSiblingsParentMatchingRegexQuery(
@@ -864,9 +883,9 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
       return "nl-question-interpreter";
     else return "searchlist-converter";
   }
+  // return END;
   if ("alternativeSearchList" in state.llmResponse)
     return "searchlist-converter";
-  // return END;
   return "queryRunner";
 };
 

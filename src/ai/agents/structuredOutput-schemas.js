@@ -34,6 +34,13 @@ export const searchListSchema = z.object({
     .describe(
       "True if the user question keywords aren't enough to catch relevant data "
     ),
+  depthLimitation: z
+    .number()
+    .optional()
+    .nullable()
+    .describe(
+      "Depth limitation of the search: 0, 1 or to levels of children, or ignore this property if no indication"
+    ),
   pagesLimitation: z
     .string()
     .optional()
@@ -78,7 +85,7 @@ const filtersArray = z
         regexString: z
           .string()
           .describe(
-            "Regex string (eventually with disjonctive logic) to search"
+            "Regex string (eventually with disjonctive logic) to search, should never be a void string"
           ),
         isToExclude: z
           .boolean()

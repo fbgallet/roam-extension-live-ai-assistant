@@ -4,7 +4,7 @@ const wordsToIgnore = `- IMPORTANT: Disregard and do not use as search terms:
   - particles, pronouns, etc.
   - obvious search instructions (e.g., "find," "search for," "look up")
   - indications that do not restrict the search and do not change anything (e.g. "in the db", "in my graph", "in my Roam graph" since the database is a graph in Roam Research)
-  - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit in Roam database are blocks, or "in all pages" because pages are set of blocks) or hierarchical direction of the conditions ("parent", "child", "children", "descendants", etc.)
+  - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit in Roam database are blocks, or "in all pages" because pages are set of blocks) or hierarchical conditions ("parent", "child", "children", "descendants", "direct children", "two leves", "same block", etc.)
   - any obvious type of content typically sought but which doesn't constitute a keyword (e.g. "all ideas", "all mentions of", "all content including")
   - '\\' preceding a term means that it must NEVER be considered as a key term in the query (nor excluded, just ignore it!). E.g. 'my \\beautiful poems', query will be 'poems'
   - anything that indicates the post-processing required or question on the search results, or any instruction that calls for a judgment, an evaluation on extracted data, or an inference based on the data, since these action are intended to be carried out by a LLM at a later stage (e.g.: if query is "Among my recipes, which one is the easiest to prepare ?", seach string will be only 'recipe', if asked "what is the best...", 'best' should be ignored; if asked "what is wrong with..." 'wrong' should be ignored, etc.)`;
@@ -34,7 +34,7 @@ ${wordsToIgnore}
 - '+', '&' mean 'and'
 - '|' mean 'or'
 - '-' (right before a word) mean 'not'
-- '>' and '<' symbols expressing a hierarchical condition between parent block (greater than, higher in hierarchy) and children (less). When present, the user request is generally to reproduce exactly and the symbol itself is always to reproduce.
+- '>' and '<' symbols expressing a hierarchical condition between parent block (greater than, higher in hierarchy) and children (less). When present, the user request is generally to reproduce exactly and the symbol itself is always to reproduce. This symbol can be followed by '(1)' or '(2)' to indicate the hierarchy depth for the search. Do not reproduce these number.
 
 In addition, you will extract the following information from the user request, if available:
 - the number of results requested (explicitly with a number or implicitly, for example, "the most recent block" is only 1 block requested)
@@ -42,6 +42,7 @@ In addition, you will extract the following information from the user request, i
 - if there are additional indications that narrow the scope of the search:
   - in time, some period indications (dates, range or relative description)
   - to a limited set of pages or only dnp (daily notes pages)
+  - to be limited to a given depth in hierarchy (all conditions in the same block, or in direct children or parent only, or to maximum 2 levels)
 
 OUTPUT FORMAT following the JSON schema provided:
 - 'searchList': the formatted query, optimized for database search, expressing rigorously the logic of the user request, and made up of a set of search items that will serve as conjunctive conditions to be met according to the logic expressed by specific symbols:
@@ -52,6 +53,10 @@ OUTPUT FORMAT following the JSON schema provided:
 - 'alternativeList': the main logic of a query has to be a disjunction, but if the main logic of the usere request is a disjunction with a clear distinction between two distinct sets of conditions (they separated by a strong disjunctive term, e.g. 'OR' or double '||' symbol), then these two sets should be processed separately, the first one in 'searchList' and the second one here in 'alternativeList', following the same rules as defined above. Generate an alternartive search list only if strongly required by the user request logic, otherwise set this property to null.
 - set 'nbOfResults' if a number of results is specified, otherwise ignore this property
 - set 'isRandom' to true if a random result is requested
+- set 'depthLimitation' to a number from 0 to 2, or ignore the property if no limitation. Set it to
+    - 0 if all conditions have to match the same block,
+    - 1 if they can be also matched by direct chidren blocks, 
+    - 2 if they can be matched by two levels of children.
 - set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise ignore this property
 <PERIOD_PROPERTY>
 <POST_PROCESSING_PROPERTY>
@@ -107,16 +112,18 @@ INPUT ANALYSIS:
 - each item can itself combine a set of terms or expression and alternatives, separated by '|' (meaning OR, disjunctive logic)
 - an item begining with '-' symbol (meaning NOT) is the exclusion item
 <HIERARCHY-INSTRUCTIONS-1>- '~' symbol at the end of a term in a search item means that a broader semantic search is requested for this term (and ONLY for this term)
-- when an expression is placed in quotation marks "like this for example", the entire expression must be conserved exactly as it is (without the quotation marks).
+- when an expression is placed in quotation marks "like this for example", the entire expression must be conserved exactly as it is as a key word (but WITHOUT the quotation marks).
 - double square brackets, the hashtag, and double colons :: must be strictly preserved in the captured search item. E.g: '[[some expression]]', '#tag', 'attribute::' (they have a specific meaning in Roam)
 - regex formula must be strictly preserved. E.g.: 'word\d{3}', '^Only this$'
 
 YOUR JOB: interprete, enhance and complete the input query into a set of filter items using regex, following these rules:
 - extract each search item in a distinct filter, do not add any other search item
 - transform each search item into a correct regex, properly expressing disjunctive logic using '|' symbol
-- if and ONLY IF a word or expression is between quotation marks, use the following syntax to search for it only as a word: "word" become '\\bword\\b'. IMPORTANT: always remove the quotation marks!
-- insert always by default '(?i)' at the beginning of a search filter, unless case sensitive is explicitly required or for expression between quotation marks
-- in order to find content that would not exactly match each search item (if not between quotation marks), use the correct regex syntax to add grammatical variations of terms that might vary in plural or singular or feminine form or conjugated verbs,
+- if and ONLY IF a word is between quotes, use the following syntax to search for an exact match: "expression" become '\\bexpression\\b'. IMPORTANT:
+    a) in the regex, copy only the exact word or expression without the quotation marks!
+    b) NEVER use this restrictive syntax ''\\b...\\b'' for words that are not in quotes.
+- insert always by default '(?i)' at the beginning of a search filter (and only ONCE by filter!), unless case sensitive is explicitly required or for expression between quotation marks
+- in order to find content that would not exactly match each search item (if not between quotation marks), use the correct regex syntax to add major grammatical variations (and only grammatical!) of terms that might vary in plural or singular or feminine form,
 <SEMANTINC-INSTRUCTIONS>
 IMPORTANT: alternatives for a given search item should always be combined with the disjunctive logic '|' to the initial form, and thus, they form only a single filter.
 
