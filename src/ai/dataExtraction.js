@@ -967,5 +967,5 @@ export const getOrderedCustomPromptBlocks = (tag) => {
           ignorePunctuation: true,
         })
       );
-  return ordered;
+  return ordered || [];
 };

@@ -349,12 +349,14 @@ export const BUILTIN_COMMANDS = [
     id: 80,
     name: "Natural language query",
     callback: invokeNLQueryInterpreter,
+    target: "new",
     category: "QUERY AGENTS",
   },
   {
     id: 81,
     name: "Natural language :q Datomic query",
     callback: invokeNLDatomicQueryInterpreter,
+    target: "new",
     category: "QUERY AGENTS",
   },
   {
