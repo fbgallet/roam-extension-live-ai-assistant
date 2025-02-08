@@ -360,7 +360,8 @@ export async function insertStructuredAIResponse({
   const splittedResponse = splitParagraphs(content);
   if (
     (!isResponseToSplit || splittedResponse.length === 1) &&
-    !hierarchyFlagRegex.test(splittedResponse[0])
+    !hierarchyFlagRegex.test(splittedResponse[0]) &&
+    !content.includes("\n")
   )
     if (forceInChildren)
       await createChildBlock(targetUid, content, format?.open, format?.heading);
