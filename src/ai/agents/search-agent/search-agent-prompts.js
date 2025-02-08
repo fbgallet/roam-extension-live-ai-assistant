@@ -4,7 +4,7 @@ const wordsToIgnore = `- IMPORTANT: Disregard and do not use as search terms:
   - particles, pronouns, etc.
   - obvious search instructions (e.g., "find," "search for," "look up")
   - indications that do not restrict the search and do not change anything (e.g. "in the db", "in my graph", "in my Roam graph" since the database is a graph in Roam Research)
-  - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit in Roam database are blocks, or "in all pages" because pages are set of blocks) or hierarchical conditions ("parent", "child", "children", "descendants", "direct children", "two leves", "same block", etc.)
+  - instructions naming the type of record targeted in the database (e.g. "all entries", "all records", "all blocks" because the minimal unit in Roam database are blocks, or "in all pages" because pages are set of blocks) or hierarchical conditions or limitationd ("parent", "child", "children", "descendants", "direct children", "two levels", "same block", etc.)
   - any obvious type of content typically sought but which doesn't constitute a keyword (e.g. "all ideas", "all mentions of", "all content including")
   - '\\' preceding a term means that it must NEVER be considered as a key term in the query (nor excluded, just ignore it!). E.g. 'my \\beautiful poems', query will be 'poems'
   - anything that indicates the post-processing required or question on the search results, or any instruction that calls for a judgment, an evaluation on extracted data, or an inference based on the data, since these action are intended to be carried out by a LLM at a later stage (e.g.: if query is "Among my recipes, which one is the easiest to prepare ?", seach string will be only 'recipe', if asked "what is the best...", 'best' should be ignored; if asked "what is wrong with..." 'wrong' should be ignored, etc.)`;
@@ -90,7 +90,7 @@ EXAMPLES:
 - User question: 'Among the major philosophical movements, apart from rationalism, which ones give particular importance to reason?', possible alternative query: 'Stoicism|Epicureanism|Skepticism|Neoplatonism|Scholasticism|Humanism|Cartesianism|Empiricism|Idealism|Utilitarianism|Marxism|Existentialism|Pragmatism|Positivism|Structuralism + reason -Rationalism'`;
 
 export const postProcessingToNull =
-  "- set 'isPostProcessingNeeded' to null (search only mode)\n";
+  "- set 'isPostProcessingNeeded' to false (search only mode)\n";
 
 export const postProcessingProperty =
   "- set 'isPostProcessingNeeded' property to true if the user request require some processing of the possible results of the query and not only their extraction of the database according to the search items. Set it to false if the required processing only involves filtering the number of elements or their period (as this will be done directly in the database query)";

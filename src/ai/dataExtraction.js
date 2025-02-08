@@ -8,7 +8,7 @@ import {
   maxCapturingDepth,
   maxUidDepth,
 } from "..";
-import { highlightHtmlElt } from "../utils/domElts";
+import { highlightHtmlElt, insertInstantButtons } from "../utils/domElts";
 import {
   builtInPromptRegex,
   contextRegex,
@@ -240,7 +240,7 @@ export const handleModifierKeys = async (e) => {
 export const isPromptInConversation = (promptUid) => {
   const directParentUid = getParentBlock(promptUid);
   // If current is at top level, it's not in a conversation
-  if (directParentUid === getPageUidByBlockUid(promptUid)) return false;
+  // if (directParentUid === getPageUidByBlockUid(promptUid)) return false;
   const previousSiblingUid = getPreviousSiblingBlock(promptUid);
   const isInConversation =
     previousSiblingUid &&
@@ -249,10 +249,11 @@ export const isPromptInConversation = (promptUid) => {
       ? true
       : false;
   if (isInConversation) {
-    const conversationButton = document.querySelector(
-      ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
-    );
-    conversationButton && conversationButton.remove();
+    // const conversationButton = document.querySelector(
+    //   ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
+    // );
+    // conversationButton && conversationButton.remove();
+    insertInstantButtons({ targetUid: promptUid, isToRemove: true });
   }
   return isInConversation;
 };
@@ -817,7 +818,9 @@ export const getArrayFromList = (list, separator = ",") => {
 export const getConversationArray = (parentUid) => {
   let tree = getTreeByUid(parentUid);
   if (!tree) return null;
-  const conversation = [{ role: "user", content: tree[0].string }];
+  const conversation = tree[0].string
+    ? [{ role: "user", content: tree[0].string }]
+    : [];
   if (tree[0].children.length) {
     const orderedChildrenTree = tree[0].children.sort(
       (a, b) => a.order - b.order
