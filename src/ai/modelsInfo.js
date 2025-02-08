@@ -106,32 +106,32 @@ export async function getModelsInfo() {
   }
 }
 
-export function normalizeClaudeModel(model) {
+export function normalizeClaudeModel(model, getShortName) {
   switch (model.toLowerCase()) {
     case "claude-3-opus":
     case "claude-3-opus-20240229":
     case "claude opus":
-      model = "claude-3-opus-20240229";
+      model = getShortName ? "Claude Opus" : "claude-3-opus-20240229";
       break;
     case "claude-sonnet-3.5":
     case "claude-3-5-sonnet-20241022":
     case "claude sonnet 3.5":
-      model = "claude-3-5-sonnet-20241022";
+      model = getShortName ? "Claude Sonnet 3.5" : "claude-3-5-sonnet-20241022";
       // model = "claude-3-5-sonnet-20240620"; previous version
       // model = "claude-3-sonnet-20240229"; previous version
       break;
     case "claude-haiku-3.5":
     case "claude-3-5-haiku-20241022":
     case "claude haiku 3.5":
-      model = "claude-3-5-haiku-20241022";
+      model = getShortName ? "Claude Haiku 3.5" : "claude-3-5-haiku-20241022";
       break;
     case "claude-haiku":
     case "claude-3-haiku-20240307":
     case "claude haiku":
-      model = "claude-3-haiku-20240307";
+      model = getShortName ? "Claude Haiku" : "claude-3-haiku-20240307";
       break;
     default:
-      model = "claude-3-5-haiku-20241022";
+      model = getShortName ? "Claude Haiku 3.5" : "claude-3-5-haiku-20241022";
   }
   return model;
 }

@@ -9,7 +9,8 @@ import { toasterInstance } from "./invoke-search-agent";
 
 export const displayAgentStatus = (
   state: typeof SearchAgentState.State,
-  status: string
+  status: string,
+  error?: string
 ) => {
   let completion = 0.1;
   // console.log("status in displayAgentStatus :>> ", status);
@@ -33,6 +34,7 @@ export const displayAgentStatus = (
       completion = 0.9;
       break;
     case "output":
+    case "error":
       completion = 1;
       break;
   }
@@ -44,7 +46,8 @@ export const displayAgentStatus = (
           {progressBarDisplay(
             state.isPostProcessingNeeded || completion <= 0.1
               ? completion
-              : completion + 0.3
+              : completion + 0.3,
+            status
           )}
           <ul>
             {completion === 0.1 && (
@@ -121,15 +124,20 @@ export const displayAgentStatus = (
             {completion === 0.9 && (
               <li>Post-processing {state.filteredBlocks?.length} blocks...</li>
             )}
-            {completion === 1 && (
-              <li>
-                ✔️ Insert{" "}
-                {state.isPostProcessingNeeded
-                  ? "processed"
-                  : state.nbOfResults || state.nbOfResultsDisplayed}{" "}
-                results in your graph.
-              </li>
-            )}
+            {completion === 1 &&
+              (status !== "error" ? (
+                <li>
+                  ✔️ Insert{" "}
+                  {state.isPostProcessingNeeded
+                    ? "processed"
+                    : state.nbOfResults || state.nbOfResultsDisplayed}{" "}
+                  results in your graph.
+                </li>
+              ) : (
+                <li style={{ color: "red" }}>
+                  <strong>Error: ${error}</strong>
+                </li>
+              ))}
           </ul>
         </>
       ),
@@ -139,13 +147,19 @@ export const displayAgentStatus = (
   );
 };
 
-const progressBarDisplay = (value: number) => {
+const progressBarDisplay = (value: number, status: string) => {
   if (value > 1) value = 1;
   return (
     <ProgressBar
       value={value}
       className="laia-progressbar"
-      intent={value < 1 ? Intent.PRIMARY : Intent.SUCCESS}
+      intent={
+        value < 1
+          ? Intent.PRIMARY
+          : status !== "error"
+          ? Intent.SUCCESS
+          : Intent.DANGER
+      }
       animate={value < 1 ? true : false}
       stripes={value < 1 ? true : false}
     />

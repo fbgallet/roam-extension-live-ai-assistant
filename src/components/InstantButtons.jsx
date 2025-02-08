@@ -159,7 +159,6 @@ const InstantButtons = ({
   const handleInsertConversationButtons = async (props) => {
     const parentUid = getParentBlock(targetUid);
     const nextBlock = await createChildBlock(parentUid, chatRoles.user);
-    console.log("props :>> ", props);
     setTimeout(() => {
       setIsToUnmount(true);
       insertInstantButtons({ ...props, targetUid: nextBlock });

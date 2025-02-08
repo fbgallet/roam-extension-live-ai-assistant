@@ -118,7 +118,8 @@ export function getParentBlock(uid) {
       parent[":block/children"]?.some((child) => child[":block/uid"] === uid)
     );
     // console.log("directParent :>> ", directParent);
-    if (":block/uid" in directParent) return directParent[":block/uid"];
+    if (directParent && ":block/uid" in directParent)
+      return directParent[":block/uid"];
   }
   return "";
 }

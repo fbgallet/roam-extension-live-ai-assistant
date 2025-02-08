@@ -1,4 +1,8 @@
-import { initializeAnthropicAPI, initializeOpenAIAPI } from "./ai/aiAPIsHub";
+import {
+  initializeAnthropicAPI,
+  initializeOpenAIAPI,
+  modelAccordingToProvider,
+} from "./ai/aiAPIsHub";
 import { webLangCodes } from "./audio/audio";
 import {
   getBlockContentByUid,
@@ -81,7 +85,7 @@ export let openaiLibrary,
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
-console.log("isSafari :>> ", isSafari);
+
 export let extensionStorage;
 
 export function setDefaultModel(str) {
@@ -114,20 +118,21 @@ function getRolesFromString(str, model) {
     } else if (defaultModel === "first Groq model" && groqModels.length) {
       model = groqModels[0];
     } else {
-      model = "gpt-4o-mini";
+      model = defaultModel;
     }
   }
-  let assistantModel = model || defaultModel;
-  assistantModel = assistantModel
-    .replace("openRouter/", "")
-    .replace("ollama/", "")
-    .replace("groq/", "");
+  // let assistantModel = model || defaultModel;
+  model = modelAccordingToProvider(model);
+  // assistantModel = assistantModel
+  //   .replace("openRouter/", "")
+  //   .replace("ollama/", "")
+  //   .replace("groq/", "");
   return {
     defaultStr: str,
     user: splittedStr[0],
     assistant:
       splittedStr.length > 1
-        ? splittedStr[1].trimStart().replace("<model>", assistantModel)
+        ? splittedStr[1].trimStart().replace("<model>", model.name)
         : str && str.trim()
         ? "AI assistant: "
         : "",
@@ -951,7 +956,6 @@ export default {
         "Me: ,AI assistant (<model>): "
       );
     const chatRolesStr = extensionAPI.settings.get("chatRoles");
-    chatRoles = getRolesFromString(chatRolesStr, defaultModel);
     //if (extensionAPI.settings.get("assistantCharacter") === null)
     //   await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
     // assistantCharacter = extensionAPI.settings.get("assistantCharacter");
@@ -1048,6 +1052,7 @@ export default {
         "https://api.groq.com/openai/v1"
       );
     }
+    chatRoles = getRolesFromString(chatRolesStr, defaultModel);
 
     console.log("defaultModel :>> ", defaultModel);
 

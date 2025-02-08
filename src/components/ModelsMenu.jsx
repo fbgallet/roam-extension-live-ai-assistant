@@ -42,6 +42,7 @@ const ModelsMenu = ({
   };
 
   const handleContextMenu = (e, prefix, modelId) => {
+    e.preventDefault();
     let model = getModelFromMenu(e, prefix, modelId);
     setDefaultModel(model);
     AppToaster.show({

@@ -1,10 +1,11 @@
 import { defaultModel } from "../../..";
-import { TokensUsage } from "../langraphModelsLoader";
+import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
 import { insertInstantButtons } from "../../../utils/domElts";
 import { getFocusAndSelection } from "../../dataExtraction";
 import { AgentToaster, AppToaster } from "../../../components/Toaster";
 import { updateTokenCounter } from "../../modelsInfo";
 import { SearchAgent } from "./search-agent";
+import { modelAccordingToProvider } from "../../aiAPIsHub";
 
 export let toasterInstance: string;
 export let turnTokensUsage: TokensUsage;
@@ -53,6 +54,8 @@ export const invokeAskAgent = async ({
 }: AgentInvoker) => {
   let begin = performance.now();
   turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
+  console.log("defaultModel in invokeAskAgent:>> ", defaultModel);
+  let llmInfos: LlmInfos = modelAccordingToProvider(model || defaultModel);
 
   toasterInstance = AgentToaster.show({
     message: "",
@@ -75,7 +78,7 @@ export const invokeAskAgent = async ({
   }
 
   const response = await SearchAgent.invoke({
-    model,
+    model: llmInfos,
     rootUid,
     userNLQuery: prompt,
     target,
@@ -91,14 +94,14 @@ export const invokeAskAgent = async ({
     ((end - begin) / 1000).toFixed(2) + "s"
   );
   console.log("Global turnTokensUsage :>> ", turnTokensUsage);
-  updateTokenCounter(model, turnTokensUsage);
+  updateTokenCounter(llmInfos.id, turnTokensUsage);
 
   console.log("Agent response :>> ", response);
 
   if (response) {
     setTimeout(() => {
       insertInstantButtons({
-        model: response.model,
+        model: llmInfos.id,
         prompt: response.userNLQuery,
         currentUid: rootUid,
         targetUid: response.shiftDisplay ? rootUid : response.targetUid,
