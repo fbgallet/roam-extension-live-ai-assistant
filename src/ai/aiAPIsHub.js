@@ -135,10 +135,12 @@ export function modelAccordingToProvider(model) {
     provider: "",
     prefix: "",
     id: "",
+    name: "",
     library: undefined,
   };
   model = model && model.toLowerCase();
-  console.log("model :>> ", model);
+  console.log("model in 'modelAccordingToProvider' :>> ", model);
+  console.log("groqModels :>> ", groqModels);
   let prefix = model.split("/")[0];
   if (model.includes("openrouter")) {
     llm.provider = "openRouter";
@@ -172,6 +174,7 @@ export function modelAccordingToProvider(model) {
   } else if (model.slice(0, 6) === "claude") {
     llm.provider = "Anthropic";
     llm.id = normalizeClaudeModel(model);
+    llm.name = normalizeClaudeModel(model, true);
     llm.library = anthropicLibrary;
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
@@ -186,6 +189,7 @@ export function modelAccordingToProvider(model) {
     llm.id = model;
     llm.library = openaiLibrary;
   }
+  if (!llm.name) llm.name = llm.id;
   if (!llm.id) {
     AppToaster.show({
       message: `No model available in the settings for the current provider: ${llm.provider}.`,
@@ -203,21 +207,22 @@ export function modelAccordingToProvider(model) {
   return llm;
 }
 
-export async function claudeCompletion(
+export async function claudeCompletion({
   model,
   prompt,
-  content,
+  systemPrompt,
+  content = "",
   responseFormat,
   targetUid,
-  isButtonToInsert = true
-) {
+  isButtonToInsert = true,
+}) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
     try {
       let messages = [
         {
           role: "user",
-          content: content,
+          content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
         },
       ].concat(prompt);
       const options = {
@@ -445,6 +450,7 @@ export async function openaiCompletion({
           respStr += chunk.choices[0]?.delta?.content || "";
           streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
           if (chunk.usage) usage = chunk.usage;
+          if (chunk.x_groq?.usage) usage = chunk.x_groq.usage;
         }
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
@@ -473,13 +479,14 @@ export async function openaiCompletion({
   }
 }
 
-export async function ollamaCompletion(
+export async function ollamaCompletion({
   model,
   prompt,
-  content,
+  systemPrompt = "",
+  content = "",
   responseFormat = "text",
-  targetUid
-) {
+  targetUid,
+}) {
   let respStr = "";
   try {
     const options = {
@@ -496,7 +503,7 @@ export async function ollamaCompletion(
         messages: [
           {
             role: "system",
-            content: content,
+            content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
           },
         ].concat(prompt),
         options: options,

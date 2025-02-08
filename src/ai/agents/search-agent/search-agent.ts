@@ -74,7 +74,7 @@ let llm: StructuredOutputType;
 
 export const SearchAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
-  model: Annotation<string>,
+  model: Annotation<LlmInfos>,
   rootUid: Annotation<string>,
   targetUid: Annotation<string>,
   target: Annotation<string>,
@@ -104,12 +104,10 @@ export const SearchAgentState = Annotation.Root({
 /*********/
 
 const loadModel = async (state: typeof SearchAgentState.State) => {
-  let modelShortcut: string = state.model || defaultModel;
-  let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
-  llm = modelViaLanggraph(llmInfos, turnTokensUsage);
-  return {
-    model: llmInfos.id,
-  };
+  llm = modelViaLanggraph(state.model, turnTokensUsage);
+  // return {
+  //   model,
+  // };
 };
 
 const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
@@ -117,7 +115,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 
   const currentDate = getCurrentOrRelativeDateString(state.rootUid);
 
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
     ? {
         includeRaw: true,
@@ -167,7 +165,11 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     state.errorInNode = null;
   } catch (error) {
     console.log("error at nl-query-interpreter :>> ", error);
-    state.errorInNode = "nl-query-interpreter";
+    if (!state.errorInNode) state.errorInNode = "nl-query-interpreter";
+    else {
+      state.errorInNode = "__end__";
+      displayAgentStatus(state, "error", error);
+    }
   }
 
   console.log("llmResponse after basic interpreter :>> ", llmResponse);
@@ -181,7 +183,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 const nlQuestionInterpreter = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "nl-question-interpreter");
 
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
     ? {
         includeRaw: true,
@@ -232,7 +234,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   console.log("state.searchLists :>> ", state.searchLists);
   displayAgentStatus(state, "searchlist-converter");
 
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
     ? {
         includeRaw: true,
@@ -289,7 +291,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
 const formatChecker = async (state: typeof SearchAgentState.State) => {
   if (state.errorInNode) return state;
 
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   if (isClaudeModel) {
     const raw = state.llmResponse.raw.content[0];
     if (!state.llmResponse.parsed) {
@@ -821,8 +823,8 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
   }
   displayAgentStatus(state, "output");
 
-  const assistantRole = state.model
-    ? getInstantAssistantRole(state.model)
+  const assistantRole = state.model.id
+    ? getInstantAssistantRole(state.model.id)
     : chatRoles.assistant;
   let targetUid;
   if (state.target?.includes("new") || !state.target)

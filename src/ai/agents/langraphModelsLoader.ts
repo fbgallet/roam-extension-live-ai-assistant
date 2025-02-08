@@ -4,15 +4,13 @@ import { ChatOllama } from "@langchain/ollama";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
-import { ANTHROPIC_API_KEY } from "../..";
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { BaseMessage, AIMessage } from "@langchain/core/messages";
 import { updateTokenCounter } from "../modelsInfo";
 
 export interface LlmInfos {
   provider: string;
   prefix: string;
   id: string;
+  name: string;
   library: any;
 }
 
@@ -54,6 +52,8 @@ export function modelViaLanggraph(
     apiKey: llmInfos.library.apiKey,
     callbackManager: tokensUsageCallback,
   };
+
+  console.log('llmInfos in "modelViaLangraph" :>> ', llmInfos);
 
   if (llmInfos.provider === "OpenAI" || llmInfos.provider === "groq") {
     llm = new ChatOpenAI({
