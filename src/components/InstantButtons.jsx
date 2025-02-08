@@ -48,6 +48,7 @@ export let isCanceledStreamGlobal = false;
 const InstantButtons = ({
   model,
   prompt,
+  systemPrompt,
   content,
   responseFormat,
   currentUid,
@@ -107,8 +108,8 @@ const InstantButtons = ({
           })
         : insertCompletion({
             prompt,
+            systemPrompt,
             targetUid,
-            context: content,
             typeOfCompletion:
               responseFormat === "text" ? "gptCompletion" : "SelectionOutline",
             instantModel: model,
@@ -137,12 +138,17 @@ const InstantButtons = ({
       parentUid,
       getInstantAssistantRole(model)
     );
-    const userPrompt = getFlattenedContentFromTree(targetUid, 99, null);
+    const userPrompt = getFlattenedContentFromTree({
+      parentUid: targetUid,
+      maxCapturing: 99,
+      maxUid: null,
+      withDash: true,
+    });
     if (!Array.isArray(prompt)) prompt = [prompt];
     insertCompletion({
       prompt: prompt.concat({ role: "user", content: userPrompt }),
+      systemPrompt,
       targetUid: nextBlock,
-      context: content,
       typeOfCompletion: "gptCompletion",
       instantModel: model,
       isInConversation: true,
@@ -153,6 +159,7 @@ const InstantButtons = ({
   const handleInsertConversationButtons = async (props) => {
     const parentUid = getParentBlock(targetUid);
     const nextBlock = await createChildBlock(parentUid, chatRoles.user);
+    console.log("props :>> ", props);
     setTimeout(() => {
       setIsToUnmount(true);
       insertInstantButtons({ ...props, targetUid: nextBlock });
@@ -301,6 +308,7 @@ const InstantButtons = ({
         <Button
           onClick={() => {
             const props = {
+              systemPrompt,
               prompt: prompt.concat({
                 role: "assistant",
                 content:

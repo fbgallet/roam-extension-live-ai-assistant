@@ -80,7 +80,7 @@ export const invokeAskAgent = async ({
     userNLQuery: prompt,
     target,
     targetUid,
-    isPostProcessingNeeded: !onlySearch,
+    isPostProcessingNeeded: onlySearch ? false : undefined,
     ...previousAgentState,
     ...options,
   });

@@ -537,7 +537,8 @@ function VoiceRecorder({
         prompt,
         selectedUids: blocksSelectionUids.current,
         model: instantModel.current,
-        sourceUid: targetUid,
+        sourceUid:
+          targetUid || window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
         target: "new",
       });
     }

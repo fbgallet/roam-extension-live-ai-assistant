@@ -10,6 +10,7 @@ import { chatRoles, defaultModel, getInstantAssistantRole } from "../../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
+  getCurrentOrRelativeDateString,
   getDNPTitleFromDate,
   getDateStringFromDnpUid,
   getFirstChildContent,
@@ -36,7 +37,7 @@ import {
 import { LlmInfos, modelViaLanggraph } from "../langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../../utils/format";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
-import { dnpUidRegex, getConjunctiveRegex } from "../../../utils/regex";
+import { getConjunctiveRegex } from "../../../utils/regex";
 import {
   concatWithoutDuplicates,
   excludeItemsInArray,
@@ -114,10 +115,7 @@ const loadModel = async (state: typeof SearchAgentState.State) => {
 const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "nl-query-interpreter");
 
-  const currentPageUid = getPageUidByBlockUid(state.rootUid);
-  const currentDate = dnpUidRegex.test(currentPageUid)
-    ? getDateStringFromDnpUid(currentPageUid)
-    : getDateStringFromDnpUid(new Date());
+  const currentDate = getCurrentOrRelativeDateString(state.rootUid);
 
   const isClaudeModel = state.model.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
@@ -135,8 +133,10 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
       ? searchAgentNLQueryEvaluationPrompt
           .replace("<POST_PROCESSING_PROPERTY>", postProcessingToNull)
           .replace("<PERIOD_PROPERTY>", "")
+          .replace("<INFERENCE_PROPERTY>", "")
       : searchAgentNLQueryEvaluationPrompt
           .replace("<POST_PROCESSING_PROPERTY>", postProcessingProperty)
+          .replace("<INFERENCE_PROPERTY>", inferenceNeededProperty)
           .replace("<PERIOD_PROPERTY>", periodProperty)
           .replace("<CURRENT_DATE>", currentDate);
 
@@ -345,8 +345,10 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       .map((f: any, i: number) => {
         if (state.searchLists[i].includes(">")) {
           f[0].isTopBlockFilter = true;
+          f.at(-1).isTopBlockFilter = false;
         } else if (state.searchLists[i].includes("<")) {
           f.at(-1).isTopBlockFilter = true;
+          f[0].isTopBlockFilter = false;
         }
         return f;
       })
@@ -460,6 +462,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
         );
 
         // if a parent and a direct child match the same filter, ignore the parent
+        // PERFORMANCE : time consuming ?
         let parentsToIgnore: any[] = [];
         for (let i = 0; i < blocksMatchingOneFilter.length; i++) {
           const directParentUid = getParentBlock(
@@ -542,7 +545,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
           allIncludeRegex.length < 3 // search for maximum 2 sibblings
         ) {
           const potentialSiblingMatches = excludeItemsInArray(
-            blocksMatchingOneFilter,
+            blocksMatchingOneFilter.slice(0, 50), // limit to 50 blocks, large sibblings search can crash browser
             blocksAndChildrenMatchingAllFilters,
             "uid"
           );
@@ -550,7 +553,6 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
           if (potentialSiblingMatches.length) {
             let params = [...allIncludeRegex];
             if (toExcludeFilter) params.push(regexToExclude);
-            console.log("params :>> ", params);
             let parentsWithMatchingSiblings =
               (window as any).roamAlphaAPI.q(
                 getSiblingsParentMatchingRegexQuery(
@@ -561,6 +563,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
                 potentialSiblingMatches.map((elt: any) => elt.uid),
                 ...params
               ) || [];
+            console.log(
+              "parentsWithMatchingSiblings :>> ",
+              parentsWithMatchingSiblings
+            );
             parentsWithMatchingSiblings = parseQueryResults(
               parentsWithMatchingSiblings
             );
@@ -826,7 +832,7 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
         (state.shiftDisplay
           ? `Results ${previousShiftDisplay + 1} to ${
               previousShiftDisplay + (state.nbOfResultsDisplayed || 10)
-            }`
+            } / ${state.filteredBlocks.length}`
           : "")
     );
 

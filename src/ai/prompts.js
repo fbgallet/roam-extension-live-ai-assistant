@@ -477,7 +477,7 @@ ${outputConditions.replace("<ACTION>", "extract higlights from")}`,
 /**********************/
 
 export const introduceStylePrompt =
-  "\n\nIMPORTANT response format constraint that overrides the previous instructions (which continue to apply unless they are contrary to this one):\n";
+  "All your responses will follow this style format constraints. Any further instructions are of course to apply, unless they are contrary to this one:\n";
 
 export const stylePrompts = {
   Concise:

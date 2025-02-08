@@ -2,6 +2,7 @@ import { copyTreeBranches } from "../ai/responseInsertion";
 import { sliceByWordLimit } from "./dataProcessing";
 import {
   dateStringRegex,
+  dnpUidRegex,
   flexibleUidRegex,
   strictPageRegex,
   uidRegex,
@@ -111,12 +112,15 @@ export function getParentBlock(uid) {
     "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",
     [":block/uid", uid]
   );
-  if (result && result.length) {
+  // console.log("result :>> ", result);
+  if (result) {
     const directParent = result[":block/parents"]?.find((parent) =>
       parent[":block/children"]?.some((child) => child[":block/uid"] === uid)
     );
-    return directParent[":block/uid"];
-  } else return "";
+    // console.log("directParent :>> ", directParent);
+    if (":block/uid" in directParent) return directParent[":block/uid"];
+  }
+  return "";
 }
 
 // export function getTopParentAmongBlocks(blockUids) {
@@ -143,7 +147,9 @@ export function getParentBlock(uid) {
 
 export function getPreviousSiblingBlock(currentUid) {
   const parentUid = getParentBlock(currentUid);
+  console.log("parentUid :>> ", parentUid);
   const tree = getOrderedDirectChildren(parentUid);
+  console.log("tree :>> ", tree);
   const currentBlockOrder = tree.find(
     (block) => block.uid === currentUid
   ).order;
@@ -455,12 +461,33 @@ export const getDNPTitleFromDate = (date) => {
   return window.roamAlphaAPI.util.dateToPageTitle(date);
 };
 
+export const getCurrentOrRelativeDateString = (uid) => {
+  console.log("uid :>> ", uid);
+  const currentPageUid = uid && getPageUidByBlockUid(uid);
+  const currentDate =
+    currentPageUid && dnpUidRegex.test(currentPageUid)
+      ? getDateStringFromDnpUid(currentPageUid)
+      : getDateStringFromDnpUid(new Date());
+  return currentDate;
+};
+
+export const getRelativeDateAndTimeString = (uid) => {
+  const currentDate = getCurrentOrRelativeDateString(uid);
+  const now = new Date();
+  let hours = now.getHours();
+  let minutes = now.getMinutes();
+  hours = hours < 10 ? "0" + hours : hours;
+  minutes = minutes < 10 ? "0" + minutes : minutes;
+  return `${currentDate} ${hours}:${minutes}`;
+};
+
 const getYesterdayDate = (date = null) => {
   if (!date) date = new Date();
   return new Date(date.getTime() - 24 * 60 * 60 * 1000);
 };
 
 export const getDateStringFromDnpUid = (dnpUid) => {
+  console.log("dnpUid :>> ", dnpUid);
   const parts = dnpUid.split("-");
   const date = new Date(parts[2], parts[0] - 1, parts[1]);
   const formatter = new Intl.DateTimeFormat("en-US", {

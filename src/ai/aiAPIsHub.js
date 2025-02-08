@@ -357,21 +357,23 @@ export async function claudeCompletion(
   }
 }
 
-export async function openaiCompletion(
+export async function openaiCompletion({
   aiClient,
   model,
+  systemPrompt,
   prompt,
   content,
   responseFormat = "text",
   targetUid,
-  isButtonToInsert
-) {
+  isButtonToInsert,
+}) {
   let respStr = "";
   let usage = {};
   let messages = [
     {
-      role: model.startsWith("o1") ? "user" : "system",
-      content: content,
+      role:
+        model.startsWith("o1") || model.startsWith("o3") ? "user" : "system",
+      content: systemPrompt + (content ? "\n\n" + content : ""),
     },
   ].concat(prompt);
 
@@ -396,7 +398,7 @@ export async function openaiCompletion(
     // maximum temperature with OpenAI models regularly produces aberrations.
     if (
       options.temperature > 1.2 &&
-      (model.includes("gpt") || model.includes("o1"))
+      (model.includes("gpt") || model.includes("o1") || model.includes("o3"))
     )
       options.temperature = 1.3;
 

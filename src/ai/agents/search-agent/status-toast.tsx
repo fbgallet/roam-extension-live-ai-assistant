@@ -55,7 +55,9 @@ export const displayAgentStatus = (
             {completion >= 0.2 && (state.isRandom || state.nbOfResults) && (
               <li>
                 ✔️ {state.nbOfResults || ""}
-                {state.isRandom ? " random results " : "results requested "}
+                {state.isRandom
+                  ? " random result(s) "
+                  : " result(s) requested "}
                 {state.pagesLimitation
                   ? "in '" +
                     state.pagesLimitation.replace("dnp", "Daily Notes") +

@@ -16,6 +16,7 @@ import {
   createChildBlock,
   createSiblingBlock,
   getParentBlock,
+  getRelativeDateAndTimeString,
   getTreeByUid,
   insertBlockInCurrentView,
   isExistingBlock,
@@ -23,6 +24,7 @@ import {
   updateBlock,
 } from "../utils/roamAPI";
 import {
+  defaultAssistantCharacter,
   hierarchicalResponseFormat,
   instructionsOnJSONResponse,
   instructionsOnOutline,
@@ -58,6 +60,7 @@ import { BUILTIN_STYLES, customStyles } from "../components/ContextMenu";
 
 export const lastCompletion = {
   prompt: null,
+  systemPrompt: null,
   targetUid: null,
   context: null,
   typeOfCompletion: null,
@@ -66,10 +69,10 @@ export const lastCompletion = {
 async function aiCompletion({
   instantModel,
   prompt,
+  systemPrompt,
   content = "",
   responseFormat,
   targetUid,
-  isInConversation,
   withSuggestions,
   selectedUids,
   target,
@@ -81,6 +84,17 @@ async function aiCompletion({
   const llm = modelAccordingToProvider(model);
   if (!llm) return "";
 
+  let completionOptions = {
+    aiClient: llm.library,
+    model: llm.id,
+    systemPrompt,
+    prompt,
+    content,
+    responseFormat,
+    targetUid,
+    isButtonToInsert,
+  };
+
   if (
     llm.provider === "OpenAI" ||
     llm.provider === "openRouter" ||
@@ -88,33 +102,11 @@ async function aiCompletion({
     llm.provider === "DeepSeek" ||
     llm.provider === "Google"
   ) {
-    aiResponse = await openaiCompletion(
-      llm.library,
-      llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid,
-      isButtonToInsert
-    );
+    aiResponse = await openaiCompletion(completionOptions);
   } else if (llm.provider === "ollama") {
-    aiResponse = await ollamaCompletion(
-      llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid,
-      isButtonToInsert
-    );
+    aiResponse = await ollamaCompletion(completionOptions);
   } else {
-    aiResponse = await claudeCompletion(
-      llm.id,
-      prompt,
-      content,
-      responseFormat,
-      targetUid,
-      isButtonToInsert
-    );
+    aiResponse = await claudeCompletion(completionOptions);
   }
 
   if (responseFormat === "json_object") {
@@ -128,6 +120,7 @@ async function aiCompletion({
     insertInstantButtons({
       model: llm.prefix + llm.id,
       prompt,
+      systemPrompt,
       content,
       responseFormat,
       targetUid,
@@ -147,6 +140,7 @@ export const aiCompletionRunner = async ({
   e,
   sourceUid,
   prompt = "",
+  systemPrompt = "",
   instantModel = undefined,
   includeUids = false,
   target = "new",
@@ -159,6 +153,20 @@ export const aiCompletionRunner = async ({
   const withAssistantRole = target === "new" ? true : false;
 
   console.log("prompt in aiCompletionRunner :>> ", prompt);
+
+  if (style !== "Normal") {
+    let stylePromptText;
+    if (BUILTIN_STYLES.includes(style)) stylePromptText = stylePrompts[style];
+    else {
+      const customStl = customStyles.find((custom) => custom.name === style);
+      if (customStl) stylePromptText = customStl.prompt;
+    }
+    if (stylePromptText) systemPrompt = introduceStylePrompt + stylePromptText;
+  }
+  if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
+  systemPrompt +=
+    `\nCurrent date and time are: ${getRelativeDateAndTimeString(sourceUid)}` +
+    hierarchicalResponseFormat;
 
   let {
     targetUid,
@@ -181,20 +189,9 @@ export const aiCompletionRunner = async ({
   );
   if (noData) return;
 
-  if (style !== "Normal") {
-    let stylePromptText;
-    if (BUILTIN_STYLES.includes(style)) stylePromptText = stylePrompts[style];
-    else {
-      const customStl = customStyles.find((custom) => custom.name === style);
-      if (customStl) stylePromptText = customStl.prompt;
-    }
-    if (stylePromptText)
-      completedPrompt += introduceStylePrompt + stylePromptText;
-  }
-  console.log("completedPrompt:", completedPrompt);
-
   insertCompletion({
     prompt: completedPrompt,
+    systemPrompt,
     targetUid,
     context,
     instantModel,
@@ -213,6 +210,7 @@ export const aiCompletionRunner = async ({
 
 export const insertCompletion = async ({
   prompt,
+  systemPrompt = "",
   targetUid,
   context,
   typeOfCompletion = "gptCompletion",
@@ -226,6 +224,7 @@ export const insertCompletion = async ({
   isButtonToInsert,
 }) => {
   lastCompletion.prompt = prompt;
+  lastCompletion.systemPrompt = systemPrompt;
   lastCompletion.targetUid = targetUid;
   lastCompletion.context = context;
   lastCompletion.typeOfCompletion = typeOfCompletion;
@@ -258,18 +257,25 @@ export const insertCompletion = async ({
   uidRegex.lastIndex = 0;
   if (uidRegex.test(context)) isContextInstructionToInsert = true;
 
-  if (isRedone || isInConversation) content = context;
-  else {
+  if (!systemPrompt)
+    systemPrompt =
+      defaultAssistantCharacter +
+      `\nCurrent date and time are: ${getRelativeDateAndTimeString(targetUid)}`;
+  if (
+    !systemPrompt.includes(hierarchicalResponseFormat) &&
+    responseFormat === "text"
+  )
+    systemPrompt += hierarchicalResponseFormat;
+  if (!isRedone && !isInConversation) {
+    //content = context;
     content =
-      assistantCharacter +
-      (responseFormat === "text" ? hierarchicalResponseFormat : "") +
-      (context && !context.includes(contextInstruction)
+      context && !context.includes(contextInstruction)
         ? (isContextInstructionToInsert ? contextInstruction : "") +
           userContextInstructions +
           "\n\nUSER INPUT (content to rely to or apply the next user prompt to, and refered as 'context', between double angle brackets):\n<< " +
           context +
           " >>"
-        : "");
+        : "";
     content = await verifyTokenLimitAndTruncate(model, prompt, content);
   }
 
@@ -316,6 +322,7 @@ export const insertCompletion = async ({
   let aiResponse = await aiCompletion({
     instantModel: model,
     prompt,
+    systemPrompt,
     content,
     responseFormat,
     targetUid,
