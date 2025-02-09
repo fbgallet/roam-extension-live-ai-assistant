@@ -10,9 +10,8 @@ import { defaultModel } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
+  getCurrentOrRelativeDateString,
   getDNPTitleFromDate,
-  getDateStringFromDnpUid,
-  getPageUidByBlockUid,
   isExistingBlock,
   updateBlock,
 } from "../../utils/roamAPI";
@@ -25,7 +24,6 @@ import {
   removeSpinner,
 } from "../../utils/domElts";
 import { modelAccordingToProvider } from "../aiAPIsHub";
-import { dnpUidRegex } from "../../utils/regex";
 
 interface PeriodType {
   begin: string;
@@ -107,10 +105,7 @@ const loadModel = async (state: typeof QueryAgentState.State) => {
 
 const interpreter = async (state: typeof QueryAgentState.State) => {
   const isClaudeModel = state.model.toLowerCase().includes("claude");
-  const currentPageUid = getPageUidByBlockUid(state.rootUid);
-  const currentDate = dnpUidRegex.test(currentPageUid)
-    ? getDateStringFromDnpUid(currentPageUid)
-    : getDateStringFromDnpUid(new Date());
+  const currentDate = getCurrentOrRelativeDateString(state.rootUid);
 
   const rawOption = isClaudeModel
     ? {

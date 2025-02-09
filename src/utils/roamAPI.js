@@ -183,7 +183,7 @@ export async function getMainPageUid() {
   return pageUid[":block/page"][":block/uid"];
 }
 
-function getPageNameByPageUid(uid) {
+export function getPageNameByPageUid(uid) {
   let r = window.roamAlphaAPI.data.pull("[:node/title]", [":block/uid", uid]);
   if (r != null) return r[":node/title"];
   else return "undefined";
@@ -467,8 +467,8 @@ export const getCurrentOrRelativeDateString = (uid) => {
   const currentPageUid = uid && getPageUidByBlockUid(uid);
   const currentDate =
     currentPageUid && dnpUidRegex.test(currentPageUid)
-      ? getDateStringFromDnpUid(currentPageUid)
-      : getDateStringFromDnpUid(new Date());
+      ? getFormattedDate(getDateStringFromDnpUid(currentPageUid))
+      : getFormattedDate(new Date());
   return currentDate;
 };
 
@@ -487,10 +487,7 @@ const getYesterdayDate = (date = null) => {
   return new Date(date.getTime() - 24 * 60 * 60 * 1000);
 };
 
-export const getDateStringFromDnpUid = (dnpUid) => {
-  console.log("dnpUid :>> ", dnpUid);
-  const parts = dnpUid.split("-");
-  const date = new Date(parts[2], parts[0] - 1, parts[1]);
+const getFormattedDate = (date) => {
   const formatter = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     day: "2-digit",
@@ -499,6 +496,12 @@ export const getDateStringFromDnpUid = (dnpUid) => {
   });
   const formattedDate = formatter.format(date);
   return formattedDate;
+};
+
+export const getDateStringFromDnpUid = (dnpUid) => {
+  const parts = dnpUid.split("-");
+  const date = new Date(parts[2], parts[0] - 1, parts[1]);
+  return date;
 };
 
 export const extractNormalizedUidFromRef = (str, testIfExist = true) => {

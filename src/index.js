@@ -121,12 +121,7 @@ function getRolesFromString(str, model) {
       model = defaultModel;
     }
   }
-  // let assistantModel = model || defaultModel;
   model = modelAccordingToProvider(model);
-  // assistantModel = assistantModel
-  //   .replace("openRouter/", "")
-  //   .replace("ollama/", "")
-  //   .replace("groq/", "");
   return {
     defaultStr: str,
     user: splittedStr[0],

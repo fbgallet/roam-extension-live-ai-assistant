@@ -4,25 +4,15 @@ import {
   StateGraph,
   START,
 } from "@langchain/langgraph/web";
-import {
-  SystemMessage,
-  HumanMessage,
-  AIMessage,
-} from "@langchain/core/messages";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
-import { tool } from "@langchain/core/tools";
-import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
 import { arrayOutputType, z } from "zod";
 import { OPENAI_API_KEY, groqLibrary, openaiLibrary } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
-import {
-  getDateStringFromDnpUid,
-  getPageUidByBlockUid,
-} from "../../utils/roamAPI";
+import { getCurrentOrRelativeDateString } from "../../utils/roamAPI";
 import { sanitizeJSONstring } from "../../utils/format";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { updateTokenCounter } from "../modelsInfo";
-import { dnpUidRegex } from "../../utils/regex";
 
 const QueryAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -121,11 +111,7 @@ const interpreterSystemPrompt = `You are a powerful agent that breaks down a nat
 const interpreter = async (state: typeof QueryAgentState.State) => {
   let llm: StructuredOutputType;
 
-  const currentPageUid = getPageUidByBlockUid(state.rootUid);
-  const currentDate = dnpUidRegex.test(currentPageUid)
-    ? getDateStringFromDnpUid(currentPageUid)
-    : getDateStringFromDnpUid(new Date());
-  console.log("currentDate :>> ", currentDate);
+  const currentDate = getCurrentOrRelativeDateString(state.rootUid);
 
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {

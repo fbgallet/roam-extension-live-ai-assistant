@@ -234,6 +234,70 @@ ${outputConditions.replace("<ACTION>", "transform")}`,
 
   // CONTENT CREATION
 
+  socialNetworkPost: `Generate a Twitter/X or equivalent social network post (280 chars max) based on provided input. 
+  
+INPUT ANALYSIS:
+1. Check if user provided:
+  - Topic/content [REQUIRED]
+  - Target audience [OPTIONAL]
+  - Desired emotional response [OPTIONAL]
+  - Key message [OPTIONAL]
+2. If optional elements missing:
+  - Analyze topic to suggest most relevant:
+      - Target audience based on content type
+      - Appropriate emotional response for context
+      - Key message aligned with topic
+  - Flag missing elements for user validation
+
+OUTPUT REQUIREMENTS:
+- Format: Twitter/X post including:
+    - Attention-grabbing opening
+    - High-impact information focus
+    - Clear call-to-action
+    - Professional yet conversational tone
+    - Strategic emoji placement if contextually appropriate
+    - 1-2 relevant hashtags (optional)
+
+RESPONSE FORMAT:
+1. Generated post
+2. List of suggested missing elements (if some are missing) requiring user validation in the form of a template that the user can simply fill out or copy.
+${outputConditions.replace("<ACTION>", "to follow to create the post")}`,
+
+  socialNetworkThread: `Create a compelling thread of tweets/posts based on provided input. Each post must be ≤280 chars and formatted as follows:
+
+OUTPUT FORMAT:
+- First post:
+  - Must start with "🧵" 
+  - Include hook/teaser that creates curiosity
+  - End with "↓"
+  - Include "1/[total]"
+- Middle posts:
+  - Continue story/explanation
+  - End with "↓" 
+  - Include "[current]/[total]"  
+- Final post:
+  - Conclude with clear takeaway
+  - Include "[total]/[total]"
+
+INPUT ANALYSIS:
+- Content topic/focus [REQUIRED]
+- Target audience [OPTIONAL]
+- Key message [OPTIONAL]
+- Desired impact [OPTIONAL]
+    
+REQUIREMENTS:
+- Each post must flow naturally to next
+- Progressive reveal of information
+- Conversational yet professional tone
+- Strategic emoji use if appropriate 
+- 1-2 relevant hashtags in first/last posts
+- First post must maximize engagement
+
+RESPONSE FORMAT:
+1. Complete thread
+2. List of suggested missing elements (if any) for user validation
+${outputConditions.replace("<ACTION>", "to follow to create the thread")}`,
+
   sentenceCompletion: `Complete the sentence provided as input in a meaningful, insightful and creative way. The completion should:
 - Flow naturally from the beginning of the sentence
 - Be grammatically correct
@@ -293,6 +357,145 @@ Examples:
 
   The generated content should feel like a natural and meaningful addition to the original (or set of original contents), as if both were written by the same author with the same intent and approach.
   ${outputConditions.replace("<ACTION>", "reproduce for a new subject")}`,
+
+  quiz: `You are a quiz creator AI. Based on the content provided below, create an engaging quiz following these guidelines:
+
+1. Question Selection
+  - Analyze the content and identify 1-3 key points worth testing
+  - Focus on:
+    - Core concepts and definitions
+    - Strong, well-supported arguments
+    - Commonly misunderstood elements
+    - Critical insights
+
+2. Question Format
+  - Each question is numeroted, 1., 2., etc.
+  - Create multiple-choice questions
+  - Provide 3-4 answer options per question, a) b), c)...
+  - VERY IMPORTANT: Ensure all options are really plausible
+  - Allow for single or multiple correct answers when appropriate
+  - Make questions clear and unambiguous
+
+3. Response Process
+  - In its answer, the user will provide its response in a format like 1a, 2b etc.
+  - After user responds:
+    - Provide detailed feedback for each answer
+    - Explain why correct answers are right
+    - Clarify why incorrect options are wrong
+    - Ask if user wants additional questions on the same provided content
+${outputConditions.replace(
+  "<ACTION>",
+  "analyze and create a quiz according to its specifications"
+)}`,
+
+  // ACTION
+
+  actionPlan: `Please create a detailed action plan for the task described below. Structure your response as follows:
+1. Break down the main goal into clear sequential phases
+  - List phases in logical order, starting with the simplest prerequisite tasks
+  - Ensure the first action is basic enough to start immediately without preparation
+2. For each phase:
+  - Split it into specific, concrete subtasks
+  - Write each subtask as a clear action statement beginning with a verb
+  - Indicate estimated time/effort required
+  - List any resources or tools needed
+3. Format requirements:
+  - Number all main phases
+  - Use bullet points for subtasks
+  - Highlight dependencies between tasks
+  - Add checkboxes before each task for progress tracking in the following format: {{[[TODO]]}}
+Remember to:
+- Make every task directly actionable by a human
+- Keep subtasks simple (max 45 min each)
+- Include success criteria for each phase
+- Note any potential obstacles and their solutions
+${outputConditions.replace("<ACTION>", "make actionable")}`,
+
+  guidanceToGoal: `You are an expert coach to guide and lead to success. You have to create a comprehensive action plan to achieve a specific goal. To provide the most relevant guidance, please first consider if I provided the following information in my initial message.
+1. What is your specific goal?
+2. What is your current skill/knowledge level related to this goal?
+3. What is your target timeframe to achieve this goal?
+4. How much time can you dedicate to this goal:
+  - Hours per day?
+  - Days per week?
+
+If all these parameters are not available in my first input, please provide a template that I can fill out so you can gather all this information in my next response, but do not create the roadmap and guidance as long as all the required information is not provided !
+
+If all the paramters are available and defined, please provide:
+1. A structured roadmap with:
+  - Main milestones to reach
+  - Required skills/knowledge for each stage
+  - Estimated time allocation per milestone
+2. Practical implementation guidelines including:
+  - Daily practice recommendations
+  - Weekly planning structure
+  - Progress tracking methods
+3. Strategic advice for:
+  - Optimizing learning efficiency
+  - Maintaining motivation
+  - Overcoming common obstacles
+  - Adapting the plan if needed
+4. Specific success metrics:
+  - Key performance indicators
+  - Checkpoint criteria
+  - Ways to validate progress
+Please be as specific and actionable as possible in your recommendations, while keeping the plan flexible enough to accommodate real-life constraints.
+${outputConditions.replace("<ACTION>", "consider for the roadmap to create")}`,
+
+  practicalTip: `Given a principle or value, provide ONE single, concise, and original practical tip for implementing it today. Focus on actionable advice that goes beyond theory - it could be a small routine, a clever habit-forming trick, or a micro-experiment that helps experience this principle tangibly. Your response should be brief (max 3 sentences) yet insightful, avoiding generic suggestions. Prioritize advice that can be started immediately and creates a memorable impact. If no content is provided as input, choose a random value to still give advice
+${outputConditions.replace(
+  "<ACTION>",
+  "consider or extract a value or principle from about which to provide the advice"
+)}`,
+
+  howTo: `I want you to guide me through the process of a given task or problem provided as input, focusing on methodology and key considerations rather than providing a direct solution.
+
+Throughout the dialogue, you will gradually notice the following points.
+1. Break down the overall approach into clear sequential stages
+2. For each stage:
+  - Highlight critical decision points
+  - Identify potential challenges
+  - Suggest effective strategies and best practices
+  - Provide validation checkpoints
+3. Include specific guiding questions I should ask myself during the process
+4. Emphasize learning opportunities throughout the journey
+5. Share relevant principles and concepts without solving the problem for me
+
+Remember to:
+- Maintain a coaching stance rather than giving direct solutions
+- Encourage active learning, self-discovery to develop problem-solving skills
+- Provide enough context for informed decisions
+- Help me recognize when I'm on the right track
+
+IMPORTANT: provide your assistance gradually, only step by step, in a dialogued manner. Ensure that I have finished the recommended tasks at every stage. Each of your replies should focus on a single step, where you offer only one or two pieces of advice at a time, so as not to overwhelm the person you are helping with a long, unwieldy message in your first reply !
+
+${outputConditions.replace("<ACTION>", "consider")}`,
+
+  choice: `As a very smart and wise decision-making assistant, help me evaluate options and make an informed choice about the topic or options provided below.
+
+If no options are provided, generate 3-4 realistic alternatives, explaining:
+- Key benefits and drawbacks of each option
+- Conditions under which each option would be optimal
+- Core values and priorities each option aligns with
+- Potential risks and mitigation strategies
+
+If specific options are provided, analyze them using the above criteria. Consider also suggesting an additional creative option if you identify a potential better solution.
+
+If any crucial information is missing to properly evaluate the options, please ask targeted questions about:
+- Context and constraints
+- Timeline and urgency
+- Available resources
+- Key stakeholders
+- Success criteria
+- Non-negotiable requirements
+
+Please present your analysis in a structured format, rating each relevant option (1-5) on:
+- Feasibility
+- Impact
+- Risk level
+- Resource efficiency
+- Alignment with stated goals if provided"
+${outputConditions.replace("<ACTION>", "consider as context for my choice")}`,
 
   // CRITICAL THINKING TOOLKIT
 

@@ -271,6 +271,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI Assistant: Open commands context Menu",
+    "default-hotkey": "ctrl-super-a",
     callback: (e) => openContextMenu(),
   });
 
@@ -359,6 +360,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         contextDepth,
         includeRefs = "false"
       ) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
         let {
           stringifiedPrompt,
           targetUid,
@@ -482,6 +484,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       (sbContext) =>
       async (agent, prompt = "{current}", context, target, model) => {
         const currentUid = sbContext.currentUid;
+        await new Promise((resolve) => setTimeout(resolve, 100));
         let { stringifiedPrompt, targetUid, stringifiedContext, instantModel } =
           await getInfosFromSmartBlockParams({
             sbContext,
@@ -622,6 +625,7 @@ const getInfosFromSmartBlockParams = async ({
         string: target === "{replace-}" ? "" : assistantRole,
       },
     });
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return {
     stringifiedPrompt: prompt,
