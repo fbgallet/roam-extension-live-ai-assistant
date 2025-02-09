@@ -10,14 +10,12 @@ import { chatRoles, defaultModel, getInstantAssistantRole } from "../../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
-  getCurrentOrRelativeDateString,
   getDNPTitleFromDate,
-  getDateStringFromDnpUid,
   getFirstChildContent,
   getFormattedPath,
-  getPageUidByBlockUid,
   getParentBlock,
   getPathOfBlock,
+  getRelativeDateAndTimeString,
 } from "../../../utils/roamAPI";
 import {
   searchAgentListToFiltersSystemPrompt,
@@ -36,7 +34,6 @@ import {
 } from "./search-agent-prompts";
 import { LlmInfos, modelViaLanggraph } from "../langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../../utils/format";
-import { modelAccordingToProvider } from "../../aiAPIsHub";
 import { getConjunctiveRegex } from "../../../utils/regex";
 import {
   concatWithoutDuplicates,
@@ -113,7 +110,7 @@ const loadModel = async (state: typeof SearchAgentState.State) => {
 const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "nl-query-interpreter");
 
-  const currentDate = getCurrentOrRelativeDateString(state.rootUid);
+  const currentDate: string = getRelativeDateAndTimeString(state.rootUid);
 
   const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
@@ -168,7 +165,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     if (!state.errorInNode) state.errorInNode = "nl-query-interpreter";
     else {
       state.errorInNode = "__end__";
-      displayAgentStatus(state, "error", error);
+      displayAgentStatus(state, "error", error.message);
     }
   }
 
@@ -219,7 +216,12 @@ ${
     state.errorInNode = null;
   } catch (error) {
     console.log("error at nl-question-interpreter :>> ", error);
-    state.errorInNode = "nl-question-interpreter";
+    if (state.errorInNode !== "nl-question-interpreter")
+      state.errorInNode = "nl-question-interpreter";
+    else {
+      state.errorInNode = "__end__";
+      displayAgentStatus(state, "error", error.message);
+    }
   }
 
   console.log("llmResponse after question interpreter :>> ", llmResponse);
@@ -278,7 +280,12 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
     state.errorInNode = null;
   } catch (error) {
     console.log("error at searchListConverter :>> ", error);
-    state.errorInNode = "searchlist-converter";
+    if (state.errorInNode !== "searchlist-converter")
+      state.errorInNode = "searchlist-converter";
+    else {
+      state.errorInNode = "__end__";
+      displayAgentStatus(state, "error", error.message);
+    }
   }
   console.log("response after step 2 (list converter) :>> ", llmResponse);
 
@@ -383,221 +390,233 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   // small delay so the status toaster can be updated before running queries
   await new Promise((resolve) => setTimeout(resolve, 100));
   beginPerf = performance.now();
+  let matchingBlocks: any[];
 
-  console.log("state in queryRunner :>> ", state);
-  let currentFilter = state.remainingQueryFilters.shift();
-  if (state.getChildrenOnly)
-    currentFilter = currentFilter.sort((a: any, b: any) => {
-      if (a.isTopBlockFilter && !b.isTopBlockFilter) {
-        return -1;
-      }
-      if (!a.isTopBlockFilter && b.isTopBlockFilter) {
-        return 1;
-      }
-      return 0;
-    });
-  console.log("currentFilter :>> ", currentFilter);
-  const parentFilterNb = currentFilter.reduce((count: number, item: any) => {
-    return item.isTopBlockFilter ? count + 1 : count;
-  }, 0);
-  const isDirectedFilter = parentFilterNb ? true : false;
+  try {
+    console.log("state in queryRunner :>> ", state);
+    let currentFilter = state.remainingQueryFilters.shift();
+    if (state.getChildrenOnly)
+      currentFilter = currentFilter.sort((a: any, b: any) => {
+        if (a.isTopBlockFilter && !b.isTopBlockFilter) {
+          return -1;
+        }
+        if (!a.isTopBlockFilter && b.isTopBlockFilter) {
+          return 1;
+        }
+        return 0;
+      });
+    console.log("currentFilter :>> ", currentFilter);
+    const parentFilterNb = currentFilter.reduce((count: number, item: any) => {
+      return item.isTopBlockFilter ? count + 1 : count;
+    }, 0);
+    const isDirectedFilter = parentFilterNb ? true : false;
 
-  const toExcludeFilter = currentFilter.find((f: any) => f.isToExclude);
-  const regexToExclude = toExcludeFilter && toExcludeFilter.regexString;
+    const toExcludeFilter = currentFilter.find((f: any) => f.isToExclude);
+    const regexToExclude = toExcludeFilter && toExcludeFilter.regexString;
 
-  const allIncludeRegex: string[] = currentFilter
-    .filter((f: any) => !f.isToExclude)
-    .map((f: any) => f.regexString);
-  console.log("allIncludeRegex :>> ", allIncludeRegex);
+    const allIncludeRegex: string[] = currentFilter
+      .filter((f: any) => !f.isToExclude)
+      .map((f: any) => f.regexString);
+    console.log("allIncludeRegex :>> ", allIncludeRegex);
 
-  let blocksMatchingAllFilters: any[] = [];
-  if (
-    allIncludeRegex.length > 1 &&
-    !isDirectedFilter &&
-    !state.getChildrenOnly
-  ) {
-    let totalRegexControl = getConjunctiveRegex(allIncludeRegex);
-    let params = [totalRegexControl];
-    if (toExcludeFilter) params.push(regexToExclude);
-    blocksMatchingAllFilters =
-      (window as any).roamAlphaAPI.q(
-        getBlocksMatchingRegexQuery(toExcludeFilter, state.pagesLimitation),
-        ...params
-      ) || [];
-    blocksMatchingAllFilters = parseQueryResults(blocksMatchingAllFilters);
-    //    console.log("blocksMatchingAllFilters :>> ", blocksMatchingAllFilters);
-    blocksMatchingAllFilters = excludeItemsInArray(
-      blocksMatchingAllFilters,
-      [{ uid: state.rootUid }],
-      "uid"
-    );
-  }
-  // console.log("blocks matching all filters :>>", blocksMatchingAllFilters);
-
-  let allMatchingUids = blocksMatchingAllFilters.map((elt: any) => elt.uid);
-  let matchingBlocks = blocksMatchingAllFilters;
-
-  //console.log("allIncludeRegex :>> ", allIncludeRegex);
-  allIncludeRegex.forEach((filter: any, index: number) => {
-    if (state.depthLimitation !== 0 && (!isDirectedFilter || index === 0)) {
-      let params =
-        isDirectedFilter && parentFilterNb > 1
-          ? [getConjunctiveRegex(allIncludeRegex.slice(0, parentFilterNb))]
-          : [filter];
+    let blocksMatchingAllFilters: any[] = [];
+    if (
+      allIncludeRegex.length > 1 &&
+      !isDirectedFilter &&
+      !state.getChildrenOnly
+    ) {
+      let totalRegexControl = getConjunctiveRegex(allIncludeRegex);
+      let params = [totalRegexControl];
       if (toExcludeFilter) params.push(regexToExclude);
-      let blocksMatchingOneFilter: any[] =
+      blocksMatchingAllFilters =
         (window as any).roamAlphaAPI.q(
           getBlocksMatchingRegexQuery(toExcludeFilter, state.pagesLimitation),
           ...params
         ) || [];
-      blocksMatchingOneFilter = parseQueryResults(blocksMatchingOneFilter);
-      console.log("blocksMatchingOneFilter :>> ", blocksMatchingOneFilter);
+      blocksMatchingAllFilters = parseQueryResults(blocksMatchingAllFilters);
+      //    console.log("blocksMatchingAllFilters :>> ", blocksMatchingAllFilters);
+      blocksMatchingAllFilters = excludeItemsInArray(
+        blocksMatchingAllFilters,
+        [{ uid: state.rootUid }],
+        "uid"
+      );
+    }
+    // console.log("blocks matching all filters :>>", blocksMatchingAllFilters);
 
-      if (blocksMatchingOneFilter.length) {
-        // to ignore if already matching all filters
-        let uidsMatchingOneFilter = blocksMatchingOneFilter.map(
-          (elt: any) => elt.uid
-        );
-        uidsMatchingOneFilter = excludeItemsInArray(
-          uidsMatchingOneFilter,
-          allMatchingUids.concat(state.rootUid)
-        );
+    let allMatchingUids = blocksMatchingAllFilters.map((elt: any) => elt.uid);
+    matchingBlocks = blocksMatchingAllFilters;
 
-        // if a parent and a direct child match the same filter, ignore the parent
-        // PERFORMANCE : time consuming ?
-        let parentsToIgnore: any[] = [];
-        for (let i = 0; i < blocksMatchingOneFilter.length; i++) {
-          const directParentUid = getParentBlock(
-            blocksMatchingOneFilter[i].uid
+    //console.log("allIncludeRegex :>> ", allIncludeRegex);
+    allIncludeRegex.forEach((filter: any, index: number) => {
+      if (state.depthLimitation !== 0 && (!isDirectedFilter || index === 0)) {
+        let params =
+          isDirectedFilter && parentFilterNb > 1
+            ? [getConjunctiveRegex(allIncludeRegex.slice(0, parentFilterNb))]
+            : [filter];
+        if (toExcludeFilter) params.push(regexToExclude);
+        let blocksMatchingOneFilter: any[] =
+          (window as any).roamAlphaAPI.q(
+            getBlocksMatchingRegexQuery(toExcludeFilter, state.pagesLimitation),
+            ...params
+          ) || [];
+        blocksMatchingOneFilter = parseQueryResults(blocksMatchingOneFilter);
+        console.log("blocksMatchingOneFilter :>> ", blocksMatchingOneFilter);
+
+        if (blocksMatchingOneFilter.length) {
+          // to ignore if already matching all filters
+          let uidsMatchingOneFilter = blocksMatchingOneFilter.map(
+            (elt: any) => elt.uid
           );
-          if (
-            directParentUid &&
-            uidsMatchingOneFilter.includes(directParentUid) &&
-            !parentsToIgnore.includes(directParentUid)
-          )
-            parentsToIgnore.push(directParentUid);
-        }
-        if (parentsToIgnore.length)
           uidsMatchingOneFilter = excludeItemsInArray(
             uidsMatchingOneFilter,
-            parentsToIgnore
+            allMatchingUids.concat(state.rootUid)
           );
 
-        let blocksAndChildrenMatchingAllFilters: any[] = [];
-        const otherRegexString =
-          !isDirectedFilter || parentFilterNb <= 1
-            ? allIncludeRegex.filter((f) => f !== filter)
-            : allIncludeRegex.slice(parentFilterNb);
-        const additionalRegex = toExcludeFilter
-          ? otherRegexString.concat(regexToExclude)
-          : otherRegexString;
+          // if a parent and a direct child match the same filter, ignore the parent
+          // PERFORMANCE : time consuming ?
+          let parentsToIgnore: any[] = [];
+          for (let i = 0; i < blocksMatchingOneFilter.length; i++) {
+            const directParentUid = getParentBlock(
+              blocksMatchingOneFilter[i].uid
+            );
+            if (
+              directParentUid &&
+              uidsMatchingOneFilter.includes(directParentUid) &&
+              !parentsToIgnore.includes(directParentUid)
+            )
+              parentsToIgnore.push(directParentUid);
+          }
+          if (parentsToIgnore.length)
+            uidsMatchingOneFilter = excludeItemsInArray(
+              uidsMatchingOneFilter,
+              parentsToIgnore
+            );
 
-        // if multiple filters, test if children (any level) includes remaining filters
-        console.log("uidsMatchingOneFilter :>> ", uidsMatchingOneFilter);
-        if (additionalRegex.length) {
-          blocksAndChildrenMatchingAllFilters = state.getChildrenOnly
-            ? (window as any).roamAlphaAPI.q(
-                getBlocksMatchingRegexQuery(
-                  toExcludeFilter,
-                  state.pagesLimitation,
-                  true
-                ),
-                state.depthLimitation === 1
-                  ? directChildrenRule
-                  : state.depthLimitation === 2
-                  ? twoLevelsChildrenRule
-                  : descendantRule,
-                uidsMatchingOneFilter,
-                ...additionalRegex
-              )
-            : (window as any).roamAlphaAPI.q(
-                getMultipleMatchingRegexInTreeQuery(
-                  otherRegexString.length,
-                  toExcludeFilter,
-                  state.pagesLimitation
-                ),
-                state.depthLimitation === 1
-                  ? directChildrenRule
-                  : state.depthLimitation === 2
-                  ? twoLevelsChildrenRule
-                  : descendantRule,
-                uidsMatchingOneFilter,
-                ...additionalRegex
-              ) || [];
-          blocksAndChildrenMatchingAllFilters = parseQueryResults(
+          let blocksAndChildrenMatchingAllFilters: any[] = [];
+          const otherRegexString =
+            !isDirectedFilter || parentFilterNb <= 1
+              ? allIncludeRegex.filter((f) => f !== filter)
+              : allIncludeRegex.slice(parentFilterNb);
+          const additionalRegex = toExcludeFilter
+            ? otherRegexString.concat(regexToExclude)
+            : otherRegexString;
+
+          // if multiple filters, test if children (any level) includes remaining filters
+          console.log("uidsMatchingOneFilter :>> ", uidsMatchingOneFilter);
+          if (additionalRegex.length) {
+            blocksAndChildrenMatchingAllFilters = state.getChildrenOnly
+              ? (window as any).roamAlphaAPI.q(
+                  getBlocksMatchingRegexQuery(
+                    toExcludeFilter,
+                    state.pagesLimitation,
+                    true
+                  ),
+                  state.depthLimitation === 1
+                    ? directChildrenRule
+                    : state.depthLimitation === 2
+                    ? twoLevelsChildrenRule
+                    : descendantRule,
+                  uidsMatchingOneFilter,
+                  ...additionalRegex
+                )
+              : (window as any).roamAlphaAPI.q(
+                  getMultipleMatchingRegexInTreeQuery(
+                    otherRegexString.length,
+                    toExcludeFilter,
+                    state.pagesLimitation
+                  ),
+                  state.depthLimitation === 1
+                    ? directChildrenRule
+                    : state.depthLimitation === 2
+                    ? twoLevelsChildrenRule
+                    : descendantRule,
+                  uidsMatchingOneFilter,
+                  ...additionalRegex
+                ) || [];
+            blocksAndChildrenMatchingAllFilters = parseQueryResults(
+              blocksAndChildrenMatchingAllFilters
+            );
+          } else
+            blocksAndChildrenMatchingAllFilters = blocksMatchingOneFilter || [];
+          console.log(
+            "resultInChildren :>> ",
             blocksAndChildrenMatchingAllFilters
           );
-        } else
-          blocksAndChildrenMatchingAllFilters = blocksMatchingOneFilter || [];
-        console.log(
-          "resultInChildren :>> ",
-          blocksAndChildrenMatchingAllFilters
-        );
 
-        matchingBlocks = concatWithoutDuplicates(
-          matchingBlocks,
-          blocksAndChildrenMatchingAllFilters,
-          "uid"
-        );
-
-        if (
-          !state.getChildrenOnly &&
-          !isDirectedFilter &&
-          otherRegexString.length &&
-          allIncludeRegex.length < 3 // search for maximum 2 sibblings
-        ) {
-          const potentialSiblingMatches = excludeItemsInArray(
-            blocksMatchingOneFilter.slice(0, 50), // limit to 50 blocks, large sibblings search can crash browser
+          matchingBlocks = concatWithoutDuplicates(
+            matchingBlocks,
             blocksAndChildrenMatchingAllFilters,
             "uid"
           );
-          console.log("potentialSiblingMatches :>> ", potentialSiblingMatches);
-          if (potentialSiblingMatches.length) {
-            let params = [...allIncludeRegex];
-            if (toExcludeFilter) params.push(regexToExclude);
-            let parentsWithMatchingSiblings =
-              (window as any).roamAlphaAPI.q(
-                getSiblingsParentMatchingRegexQuery(
-                  allIncludeRegex.length,
-                  toExcludeFilter,
-                  state.pagesLimitation
-                ),
-                potentialSiblingMatches.map((elt: any) => elt.uid),
-                ...params
-              ) || [];
-            console.log(
-              "parentsWithMatchingSiblings :>> ",
-              parentsWithMatchingSiblings
-            );
-            parentsWithMatchingSiblings = parseQueryResults(
-              parentsWithMatchingSiblings
-            );
-            parentsWithMatchingSiblings = removeDuplicatesByProperty(
-              parentsWithMatchingSiblings,
-              "uid"
-            );
-            console.log(
-              "parentsWithMatchingSiblings :>> ",
-              parentsWithMatchingSiblings
-            );
-            matchingBlocks = concatWithoutDuplicates(
-              matchingBlocks,
-              parentsWithMatchingSiblings,
-              "uid"
-            );
-            blocksAndChildrenMatchingAllFilters.push(
-              ...parentsWithMatchingSiblings
-            );
-          }
-        }
 
-        allMatchingUids = concatWithoutDuplicates(
-          allMatchingUids,
-          blocksAndChildrenMatchingAllFilters.map((elt: any) => elt.uid) || []
-        );
+          if (
+            !state.getChildrenOnly &&
+            !isDirectedFilter &&
+            otherRegexString.length &&
+            allIncludeRegex.length < 3 // search for maximum 2 sibblings
+          ) {
+            const potentialSiblingMatches = excludeItemsInArray(
+              blocksMatchingOneFilter.slice(0, 50), // limit to 50 blocks, large sibblings search can crash browser
+              blocksAndChildrenMatchingAllFilters,
+              "uid"
+            );
+            console.log(
+              "potentialSiblingMatches :>> ",
+              potentialSiblingMatches
+            );
+            if (potentialSiblingMatches.length) {
+              let params = [...allIncludeRegex];
+              if (toExcludeFilter) params.push(regexToExclude);
+              let parentsWithMatchingSiblings =
+                (window as any).roamAlphaAPI.q(
+                  getSiblingsParentMatchingRegexQuery(
+                    allIncludeRegex.length,
+                    toExcludeFilter,
+                    state.pagesLimitation
+                  ),
+                  potentialSiblingMatches.map((elt: any) => elt.uid),
+                  ...params
+                ) || [];
+              console.log(
+                "parentsWithMatchingSiblings :>> ",
+                parentsWithMatchingSiblings
+              );
+              parentsWithMatchingSiblings = parseQueryResults(
+                parentsWithMatchingSiblings
+              );
+              parentsWithMatchingSiblings = removeDuplicatesByProperty(
+                parentsWithMatchingSiblings,
+                "uid"
+              );
+              console.log(
+                "parentsWithMatchingSiblings :>> ",
+                parentsWithMatchingSiblings
+              );
+              matchingBlocks = concatWithoutDuplicates(
+                matchingBlocks,
+                parentsWithMatchingSiblings,
+                "uid"
+              );
+              blocksAndChildrenMatchingAllFilters.push(
+                ...parentsWithMatchingSiblings
+              );
+            }
+          }
+
+          allMatchingUids = concatWithoutDuplicates(
+            allMatchingUids,
+            blocksAndChildrenMatchingAllFilters.map((elt: any) => elt.uid) || []
+          );
+        }
       }
-    }
-  });
+    });
+    state.errorInNode = null;
+  } catch (error) {
+    console.log("error at queryRunner :>> ", error);
+    state.errorInNode = "__end__";
+    displayAgentStatus(state, "error", error.message);
+  }
+
   console.log("matchingBlocks :>> ", matchingBlocks);
 
   const allMatchingBlocks =
@@ -719,11 +738,24 @@ Here are the blocks in Roam graph database that match with this request:
 ${flattenedQueryResults}`),
   ]);
   const structuredLlm = llm.withStructuredOutput(preselectionSchema);
-  let response = await structuredLlm.invoke(messages);
-  console.log("AI preselection :>> ", response);
+  let llmResponse: any;
+  try {
+    llmResponse = await structuredLlm.invoke(messages);
+    state.errorInNode = null;
+  } catch (error) {
+    console.log("error at preselection :>> ", error);
+    if (state.errorInNode !== "preselection-filter")
+      state.errorInNode = "preselection-filter";
+    else {
+      state.errorInNode = "__end__";
+      displayAgentStatus(state, "error", error.message);
+    }
+  }
+
+  console.log("AI preselection :>> ", llmResponse);
 
   const preselectedBlocks = state.filteredBlocks.filter((block: any) =>
-    response.relevantUids?.includes(block.uid)
+    llmResponse.relevantUids?.includes(block.uid)
   );
 
   return {
@@ -779,10 +811,23 @@ ${
 Here are the main blocks in Roam graph database that match with this request:
 ${flattenedDetailedResults}`),
   ]);
-  let response = await llm.invoke(messages);
-  console.log("AI results processed response :>> ", response);
+  let llmResponse;
+  try {
+    llmResponse = await llm.invoke(messages);
+    state.errorInNode = null;
+  } catch (error) {
+    console.log("error at post-processing :>> ", error);
+    if (state.errorInNode !== "post-processing")
+      state.errorInNode = "post-processing";
+    else {
+      state.errorInNode = "__end__";
+      displayAgentStatus(state, "error", error.message);
+    }
+  }
+
+  console.log("AI results processed response :>> ", llmResponse);
   return {
-    stringifiedResultToDisplay: response.content,
+    stringifiedResultToDisplay: llmResponse.content,
   };
 };
 
@@ -884,6 +929,12 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
         return "nl-question-interpreter";
       case "searchlist-converter":
         return "searchlist-converter";
+      case "preselection-filter":
+        return "preselection-filter";
+      case "post-processing":
+        return "post-processing";
+      case "__end__":
+        return END;
     }
   }
   if ("searchList" in state.llmResponse) {
@@ -898,6 +949,7 @@ const afterCheckRouter = (state: typeof SearchAgentState.State) => {
 };
 
 const alternativeQuery = (state: typeof SearchAgentState.State) => {
+  if (state.errorInNode === "__end__") return END;
   if (state.remainingQueryFilters.length) return "queryRunner";
   return "limitAndOrder";
 };
