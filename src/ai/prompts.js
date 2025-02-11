@@ -232,6 +232,55 @@ ${outputConditions.replace("<ACTION>", "convert")}`,
   linearParagraph: `Transform the following hierarchically organized outline into a continuous text while strictly preserving the original wording of each element. Follow the hierarchical order, add minimal connecting words or phrases where necessary for fluidity, but never modify the original formulations. As much as possible, if the content naturally flows as a single development, present it as one paragraph. However, if distinct thematic developments are clearly identifiable, develop multiple parargaphs but as little as necessary for the clarity of the point and without any hierarchy or indentation.
 ${outputConditions.replace("<ACTION>", "transform")}`,
 
+  // CONTENT ANALYSIS
+  imageOCR: `Analyze this image (or multiple images) and provide a precise text extraction with the following requirements:
+1. Extract all visible text from the image
+  - Maintain the exact wording and spelling
+  - Preserve any special characters or symbols
+  - Text formatting (bold, italic, underlined)
+  - Indicate if any text is partially visible or unclear
+2. Structure the extracted text by:
+  - Identifying distinct text sections or paragraphs
+  - Maintaining the original spatial organization and hierarchy
+  - Specifying text location (top, bottom, center, etc.)
+3. If multiple languages are present:
+  - Identify each language
+  - Keep text in its original language
+  - Specify which sections are in which language
+Please separate different text sections clearly in your response and indicate if any text is ambiguous or requires human verification.
+${outputConditions.replace("<ACTION>", "analyze")}`,
+
+  imageAnalysis: `Analyze this image or photography thoroughly and identify the objects, people, or situations present in it. Explain what it's about. Depending on the level of certainty, make several guesses to identify and name the visible objects, people or situation. If they don't have a known name, describe them
+
+If and only it's clearly a piece of visual art, additionally suggest the following analyses.following these steps (ignoring them if they are not relevant or if they are redundant with points already mentioned in previous analyses):
+1. Identification (if applicable)
+  - Title of the work
+  - Artist/creator
+  - Year/period of creation
+  - Cultural or artistic movement
+2. Detailed Visual Description
+  - Main elements and subject matter
+  - Colors, lighting, and overall atmosphere
+  - Composition and spatial organization
+  - Subtle details that might be easily overlooked
+  - Technical aspects (medium, style, technique)
+3. Compositional Analysis
+  - Visual flow and focal points
+  - Use of perspective and depth
+  - Balance and proportion
+  - Key artistic techniques employed
+4. Interpretative Elements
+  - Symbolic elements and their potential meanings
+  - Cultural or historical context
+  - Emotional impact and mood
+  - Possible artistic intentions
+5. Notable Observation Points
+  - Specific details worth attention
+  - Unique aspects that enhance appreciation
+  - Visual elements that contribute to its significance
+Please be specific and detailed in your analysis, but don't be exhaustive about all these points, only mention what is most relevant, and remain accessible to a general audience.
+${outputConditions.replace("<ACTION>", "analyze")}`,
+
   // CONTENT CREATION
 
   socialNetworkPost: `Generate a Twitter/X or equivalent social network post (280 chars max) based on provided input. 
@@ -533,6 +582,23 @@ ${outputConditions.replace("<ACTION>", "consolidate and base on evidence")}
 ${argumentRules}
 ${outputConditions.replace("<ACTION>", "justify")}`,
 
+  fallacy: `As an AI assistant skilled in Critical thinking, you will provide 3 arguments supporting a given statement or thesis (if a simple topic or any other type of content is provided as input, suggest an interesting thesis related to this topic or content. If no topic at all is provided, improvise and propose an interesting thesis on a subject of your choice). These arguments should be well-structured and apparently convincing, but one or two of them will deliberately contain logical fallacies or cognitive biases. The fallacies should be subtle enough to require careful analysis of the logical structure.
+
+Please follow this format:
+1. Start by announcing that among the following arguments, at least one contains a logical fallacy
+2. Present each argument in a separate numbered paragraph
+3. Wait for my analysis of which argument(s) I think contain(s) fallacies
+4. If I don't identify them correctly, prompt me to try again
+5. When I identify a fallacy, ask me to explain the flawed reasoning
+6. If I can't explain or if I ask for help, provide:
+  - The identification of which arguments contain fallacies
+  - The specific type of fallacy or bias involved
+  - A clear explanation of why the reasoning is flawed
+  - The correct logical structure that would make the argument valid
+
+The goal is to train critical thinking skills through the identification and understanding of logical fallacies. Please maintain a balance between subtlety and detectability in the fallacious arguments.
+${outputConditions.replace("<ACTION>", "support with arguments & fallacies")}`,
+
   explanation: `Provide a clear and precise explanation of the element provided below. Answer the question: 'What exactly does this mean and how should it be understood?'
 
 1. Adapt the explanation based on the element's type:
@@ -612,6 +678,34 @@ ${outputConditions.replace("<ACTION>", "raise questions about")}`,
 Keep your response focused on only 2-3 most significant challenges. Be direct and specific in your questions. Aim to deepen the analysis rather than dismiss the ideas. Challenge me or request clarifications on the most debatable points, raise your concerns, as a discerning critical thinker would do, with subtlety, prudence, and sobriety.
 ${outputConditions.replace("<ACTION>", "be challenged")}`,
 
+  perspectiveShift: `As an AI assistant skilled in reframing perspectives, help me see the content/statement provided below in a radically different light. To challenge my current viewpoint, you can either:
+1. Identify 3 unconventional angles I haven't considered
+2. Propose thought-provoking 'what if' questions that flip my assumptions
+3. Describe how 3 different types of people (e.g., a child, a historian from 2200, a being from another planet) would interpret this situation
+4. Highlight any hidden opportunities or unexamined benefits in what I perceive as limitations
+
+Choose one and only one of these strategies, the one that might be the most relevant given the proposed content. Please be bold and creative in your reframing, while maintaining logical coherence. End with a key question that makes me reconsider my entire perspective on this matter.
+${outputConditions.replace("<ACTION>", "be seen differently")}`,
+
+  brainstorming: `You are a creative thought partner for an intensive brainstorming session. Help me explore ideas about the subject or topic provided below as input, following these guidelines:
+1. First, list the most obvious and conventional solutions (clearly marked as such)
+2. Then generate three successive waves of increasingly original ideas:
+  - Wave 1: Innovative variations of conventional approaches
+  - Wave 2: Novel combinations and cross-pollination of concepts
+  - Wave 3: Radical, paradigm-shifting proposals
+3. For each idea:
+  - Highlight its unique value proposition
+  - Note potential challenges
+  - Suggest one way to enhance or build upon it
+4. Apply two of these creativity triggers:
+  - What if we reversed the usual approach?
+  - How would [insert 3 different industries] solve this?
+  - What if resources were unlimited?
+  - What if we had to solve this without [key conventional element]?
+5. After each round, ask me targeted questions to push the reflection further and challenge assumptions.
+Please keep your responses concise and clearly structured. Challenge me if I dismiss unconventional ideas too quickly.
+${outputConditions.replace("<ACTION>", "explore")}`,
+
   keyInsights: `Analyze the provided content and identify the most significant, novel, or actionable insights. For each insight:
   1. State the core idea clearly and concisely
   2. Explain why it's particularly noteworthy or valuable
@@ -627,7 +721,88 @@ Focus on ideas that:
   - Provide actionable frameworks for thinking or decision-making
 
 Please organize these insights by their potential impact rather than their order of appearance in the original content.
-${outputConditions.replace("<ACTION>", "analyse")}`,
+${outputConditions.replace("<ACTION>", "analyze")}`,
+
+  reasoningAnalysis: `As an AI assistant skilled in Critical thinking, reasoning and argumentation, analyze the argumentative structure of the provided content with the following specifications:
+1. Core Identification
+  - Identify the central claim or main point being discussed
+  - Determine whether the text defends, criticizes, or discusses this point
+2. Structural Analysis
+  - Map the chain of reasoning showing how arguments build upon each other
+  - Distinguish between:
+      - Justificatory elements (reasons supporting claims, evidences)
+      - Explanatory elements (clarifications, illustrations, concept analyses)
+      - Supporting material (examples, analogies, contextual information)
+  - Identify the logical connections between arguments
+  - Note: Focus on identifying logical relationships rather than merely thematic groupings. Prioritize showing how justifications build toward or challenge the central claim.
+3. Hierarchical Organization
+  - Present the analysis in a clear hierarchical structure showing:
+      - Main arguments and their sub-arguments
+      - Dependencies between different argumentative components
+      - The role of each component in the overall reasoning
+4. Adaptive Detail Level
+  - For short texts (1-2 arguments):
+      - Provide detailed logical analysis of each argument
+      - Break down premises and conclusions
+      - Highlight logical connections and inference patterns
+  - For longer texts:
+      - First provide a high-level map of major reasoning steps
+      - Mark points available for detailed analysis upon request
+5. Present your analysis in both:
+    - a) A verbal breakdown explaining the argumentative structure in a clear, hierarchical format
+    - b) A visual argument map using the lettering/numbering system
+        - Assign letters to distinct arguments (A, B, C, etc.)
+        - Number premises within each argument (A1, A2, etc.) (only for short texts)
+        - Create an argument map showing:
+          - Hierarchical relationships between claims, using pare
+          - Support/opposition relationships
+          - Logical dependencies
+        - Use parentheses to group the premises or arguments that form a new compound argument and arrows to indicate the direction of the reasoning flow. E.g.: (A + B) -> C
+        - The richer the text, the more you should focus on the essentials; the argument map should remain straightforward.
+${outputConditions.replace("<ACTION>", "analyze")}`,
+
+  sentimentAnalysis: `Perform a comprehensive sentiment analysis of the following content. Your analysis should:
+1. Identify and analyze emotions/sentiments on multiple levels:
+  - Explicit emotions directly expressed in the content
+  - Implicit emotions suggested by context and subtext
+  - Emotions conveyed through writing style and tone
+  - Emotional connotations of specific word choices
+2. For each identified sentiment:
+  - Rate its intensity on a scale of 0-10 (0 = absent, 10 = extremely strong)
+  - Provide specific textual evidence supporting your rating
+  - Note any patterns or evolution in its expression throughout the content
+3. Examine stylistic elements that influence emotional impact:
+  - Sentence structure and rhythm
+  - Literary devices used
+  - Tone variations
+  - Word choice patterns
+4. Present your findings in a structured format:
+  - Primary emotions with ratings
+  - Secondary/underlying emotions with ratings
+  - Style-based emotional markers
+  - Overall emotional landscape summary
+${outputConditions.replace("<ACTION>", "analyze")}`,
+
+  valueAnalysis: `- "Please conduct a comprehensive value analysis of the provided content. Your analysis should:
+1. Identify and examine both:
+  - Explicitly stated values (directly mentioned or advocated)
+  - Implicit values (suggested through tone, rhetoric, and underlying assumptions)
+2. For each identified value:
+  - Define it clearly
+  - Explain how it manifests (explicitly or implicitly)
+  - Note any potential tensions with other values present
+3. Consider these dimensions:
+  - Ethical principles
+  - Social ideals
+  - Cultural norms
+  - Political beliefs
+  - Personal virtues
+4. Format your analysis in a structured way:
+  - List each major value separately
+  - Indicate confidence level in interpretations of implicit values
+  - Highlight any notable patterns or hierarchies of values
+Please aim for precision and analytical rigor while acknowledging any ambiguity in the interpretation of implicit values. If possible, also note how these values relate to broader value systems or philosophical frameworks.
+${outputConditions.replace("<ACTION>", "analyze")}`,
 
   extractActionable: `Here's a highly effective prompt for extracting actionable items:
 
