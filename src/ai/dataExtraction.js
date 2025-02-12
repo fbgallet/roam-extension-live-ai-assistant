@@ -3,6 +3,7 @@ import {
   chatRoles,
   defaultModel,
   exclusionStrings,
+  getConversationParamsFromHistory,
   getInstantAssistantRole,
   isMobileViewContext,
   maxCapturingDepth,
@@ -57,7 +58,8 @@ export const getInputDataFromRoamContext = async (
   withAssistantRole,
   target,
   selectedUids,
-  roamContext
+  roamContext,
+  forceNotInConversation
 ) => {
   const isCommandPrompt = prompt ? true : false;
   if (selectedUids?.length) sourceUid = undefined;
@@ -77,7 +79,7 @@ export const getInputDataFromRoamContext = async (
     else prompt += "\n" + currentBlockContent;
   }
 
-  let { completedPrompt, targetUid, remaininSelectionUids, isInConversation } =
+  let { completedPrompt, targetUid, remainingSelectionUids, isInConversation } =
     await getFinalPromptAndTarget(
       sourceUid,
       selectedUids,
@@ -87,7 +89,8 @@ export const getInputDataFromRoamContext = async (
       withHierarchy,
       withAssistantRole,
       isCommandPrompt,
-      target
+      target,
+      forceNotInConversation
     );
 
   const roamContextFromKeys = e && (await handleModifierKeys(e));
@@ -122,7 +125,7 @@ export const getInputDataFromRoamContext = async (
   };
 
   let context = await getAndNormalizeContext({
-    blocksSelectionUids: remaininSelectionUids,
+    blocksSelectionUids: remainingSelectionUids,
     roamContext: globalContext,
     focusedBlock: sourceUid,
     withHierarchy: true,
@@ -153,10 +156,13 @@ const getFinalPromptAndTarget = async (
   withHierarchy,
   withAssistantRole,
   isCommandPrompt,
-  target
+  target,
+  forceNotInConversation
 ) => {
   const isInConversation =
-    sourceUid && !isCommandPrompt ? isPromptInConversation(sourceUid) : false;
+    sourceUid && !isCommandPrompt && !forceNotInConversation
+      ? isPromptInConversation(sourceUid)
+      : false;
   const assistantRole =
     withAssistantRole || isInConversation
       ? instantModel
@@ -213,7 +219,7 @@ const getFinalPromptAndTarget = async (
     completedPrompt: prompt,
     targetUid,
     isInConversation,
-    remaininSelectionUids: selectionUids,
+    remainingSelectionUids: selectionUids,
   };
 };
 
@@ -240,16 +246,22 @@ export const handleModifierKeys = async (e) => {
 };
 
 export const isPromptInConversation = (promptUid) => {
+  if (!promptUid) return false;
   const directParentUid = getParentBlock(promptUid);
-  // If current is at top level, it's not in a conversation
   // if (directParentUid === getPageUidByBlockUid(promptUid)) return false;
   const previousSiblingUid = getPreviousSiblingBlock(promptUid);
-  const isInConversation =
-    previousSiblingUid &&
-    chatRoles.genericAssistantRegex &&
-    chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
-      ? true
-      : false;
+
+  let isInConversation = false;
+  const conversationInHistory =
+    getConversationParamsFromHistory(directParentUid);
+  if (conversationInHistory) isInConversation = true;
+  else
+    isInConversation =
+      previousSiblingUid &&
+      chatRoles.genericAssistantRegex &&
+      chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
+        ? true
+        : false;
   if (isInConversation) {
     // const conversationButton = document.querySelector(
     //   ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
@@ -817,11 +829,39 @@ export const getArrayFromList = (list, separator = ",") => {
   return splittedList;
 };
 
-export const getConversationArray = (parentUid) => {
+export const getConversationArray = async (parentUid) => {
   let tree = getTreeByUid(parentUid);
   if (!tree) return null;
-  const conversation = tree[0].string
-    ? [{ role: "user", content: tree[0].string }]
+  let convParams = getConversationParamsFromHistory(parentUid);
+  console.log("convParams :>> ", convParams);
+  let initialPrompt = tree[0].string || null;
+  if (convParams) {
+    if (convParams.context) {
+      initialPrompt = await getAndNormalizeContext({
+        blocksSelectionUids: convParams.selectedUids,
+        roamContext: convParams.context,
+        withHierarchy: true,
+      });
+    } else if (convParams.selectedUids && convParams.selectedUids.length) {
+      initialPrompt = getResolvedContentFromBlocks(
+        convParams.selectedUids,
+        false,
+        true
+      );
+    }
+    console.log("initialPrompt :>> ", initialPrompt);
+    if (convParams.command && initialPrompt) {
+      let commandPrompt = completionCommands[convParams.command];
+      if (commandPrompt.toLowerCase().includes("<target content>"))
+        initialPrompt = commandPrompt.replace(
+          /<target content>/i,
+          initialPrompt
+        );
+    }
+  }
+
+  const conversation = initialPrompt
+    ? [{ role: "user", content: initialPrompt }]
     : [];
   if (tree[0].children.length) {
     const orderedChildrenTree = tree[0].children.sort(
@@ -835,6 +875,13 @@ export const getConversationArray = (parentUid) => {
         maxUid: null,
         withDash: true,
       });
+      // case if conv is in root level and there is a command to apply to first block
+      if (convParams.command && !initialPrompt && i === 0) {
+        turnFlattenedContent = completionCommands[convParams.command].replace(
+          /<target content>/i,
+          turnFlattenedContent
+        );
+      }
       if (chatRoles.genericAssistantRegex.test(getBlockContentByUid(child.uid)))
         conversation.push({ role: "assistant", content: turnFlattenedContent });
       else conversation.push({ role: "user", content: turnFlattenedContent });

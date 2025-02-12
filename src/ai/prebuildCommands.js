@@ -15,6 +15,12 @@ export const BUILTIN_COMMANDS = [
     onlyOutliner: true,
   },
   {
+    id: 1,
+    name: "Continue the conversation",
+    category: "",
+    onlyGen: true,
+  },
+  {
     id: 10,
     name: "Selected blocks as prompt",
     category: "",
@@ -295,17 +301,6 @@ export const BUILTIN_COMMANDS = [
     isSub: true,
   },
   {
-    id: 141,
-    name: "Another similar content",
-    prompt: "similarContent",
-    category: "CREATION",
-    keyWords: "extend, variant, clone",
-    isIncompatibleWith: {
-      style: true,
-    },
-    target: "new w/o",
-  },
-  {
     id: 142,
     name: "Short message for social network",
     prompt: "socialNetworkPost",
@@ -324,7 +319,7 @@ export const BUILTIN_COMMANDS = [
     isSub: true,
   },
   {
-    id: 141,
+    id: 143,
     name: "Quiz on provided content",
     prompt: "quiz",
     category: "CREATION",
@@ -333,6 +328,17 @@ export const BUILTIN_COMMANDS = [
       style: true,
     },
     target: "new",
+  },
+  {
+    id: 144,
+    name: "Another similar content",
+    prompt: "similarContent",
+    category: "CREATION",
+    keyWords: "extend, variant, clone",
+    isIncompatibleWith: {
+      style: true,
+    },
+    target: "new w/o",
   },
 
   // ACTION

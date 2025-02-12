@@ -69,12 +69,15 @@ export const lastCompletion = {
 async function aiCompletion({
   instantModel,
   prompt,
+  command,
+  style,
   systemPrompt,
   content = "",
   responseFormat,
   targetUid,
   withSuggestions,
   selectedUids,
+  roamContext,
   target,
   isButtonToInsert,
 }) {
@@ -120,6 +123,8 @@ async function aiCompletion({
     insertInstantButtons({
       model: llm.prefix + llm.id,
       prompt,
+      command,
+      style,
       systemPrompt,
       content,
       responseFormat,
@@ -131,6 +136,7 @@ async function aiCompletion({
           : getFlattenedContentFromArrayOfBlocks(aiResponse),
       withSuggestions,
       selectedUids,
+      roamContext,
       target,
     });
   return aiResponse;
@@ -140,6 +146,7 @@ export const aiCompletionRunner = async ({
   e,
   sourceUid,
   prompt = "",
+  command = undefined,
   systemPrompt = "",
   instantModel = undefined,
   includeUids = false,
@@ -149,6 +156,7 @@ export const aiCompletionRunner = async ({
   style = defaultStyle,
   roamContext = undefined,
   isButtonToInsert = true,
+  forceNotInConversation = false,
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
@@ -185,9 +193,13 @@ export const aiCompletionRunner = async ({
     withAssistantRole,
     target,
     selectedUids,
-    roamContext
+    roamContext,
+    forceNotInConversation
   );
   if (noData) return;
+
+  console.log("prompt :>> ", prompt);
+  console.log("isInConversation :>> ", isInConversation);
 
   insertCompletion({
     prompt: completedPrompt,
@@ -195,15 +207,18 @@ export const aiCompletionRunner = async ({
     targetUid,
     context,
     instantModel,
+    command,
+    style,
     typeOfCompletion:
       (target === "replace" || target === "append") && selectionUids.length
         ? "SelectionOutline"
         : "gptCompletion",
-    isInConversation,
+    isInConversation: forceNotInConversation ? false : isInConversation,
     withSuggestions,
     withAssistantRole,
     target,
     selectedUids: selectionUids,
+    roamContext,
     isButtonToInsert,
   });
 };
@@ -215,13 +230,16 @@ export const insertCompletion = async ({
   context,
   typeOfCompletion = "gptCompletion",
   instantModel,
+  command,
+  style,
   isRedone,
   isInConversation,
   withAssistantRole = true,
   withSuggestions,
   target,
   selectedUids,
-  isButtonToInsert,
+  roamContext,
+  isButtonToInsert = true,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.systemPrompt = systemPrompt;
@@ -305,7 +323,7 @@ export const insertCompletion = async ({
     if (typeof prompt === "string") {
       // else prompt is already conversation object
       if (isInConversation) {
-        prompt = getConversationArray(getParentBlock(targetUid));
+        prompt = await getConversationArray(getParentBlock(targetUid));
       } else {
         prompt = [
           {
@@ -326,9 +344,12 @@ export const insertCompletion = async ({
     content,
     responseFormat,
     targetUid,
+    command,
+    style,
     isInConversation,
     withSuggestions,
     selectedUids,
+    roamContext,
     target,
     isButtonToInsert,
   });
