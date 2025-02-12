@@ -14,7 +14,12 @@ import {
 import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { defaultModel, defaultStyle, extensionStorage } from "..";
+import {
+  defaultModel,
+  defaultStyle,
+  extensionStorage,
+  incrementCommandCounter,
+} from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands, stylePrompts } from "../ai/prompts";
 import {
@@ -66,10 +71,10 @@ const StandaloneContextMenu = () => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
-  const [activeCommand, setActiveCommand] = useState();
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
+  const [activeCommand, setActiveCommand] = useState();
   const [displayModelsMenu, setDisplayModelsMenu] = useState(false);
   const [displayAddPrompt, setDisplayAddPrompt] = useState(false);
   const [rootUid, setRootUid] = useState(null);
@@ -168,6 +173,7 @@ const StandaloneContextMenu = () => {
   }, [defaultLgg]);
 
   const handleClickOnCommand = ({ e, command, prompt, model }) => {
+    incrementCommandCounter(command.id);
     const target =
       targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
     if (command.category === "QUERY AGENTS") {
@@ -245,7 +251,7 @@ const StandaloneContextMenu = () => {
             ? "Normal"
             : style,
         roamContext,
-        forceNotInConversation: isInConversation && command.id === 10,
+        forceNotInConversation: isInConversation && command.id === 1,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
@@ -329,15 +335,15 @@ const StandaloneContextMenu = () => {
 
   const filterCommands = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
-    if (item.id === 1 && !isInConversation) return false;
+    if (item.id === 10 && !isInConversation) return false;
     if (!query) {
       if (
         item.category === "MY LIVE OUTLINES" ||
         item.category === "MY OUTLINE TEMPLATES"
       )
         return;
-      if (item.id === 10 && rootUid) return false;
       if (item.id === 1 && rootUid) return false;
+      if (item.id === 10 && rootUid) return false;
       // TODO : display if the current outline is not visible...
       if (item.id === 20 && rootUid && rootUid !== focusedBlockUid.current)
         return false;
@@ -363,7 +369,7 @@ const StandaloneContextMenu = () => {
   };
 
   const insertModelsMenu = (callback, command) => {
-    return displayModelsMenu || command.id === 10 ? (
+    return displayModelsMenu || command.id === 1 ? (
       <ModelsMenu callback={callback} command={command} />
     ) : null;
   };
@@ -447,18 +453,34 @@ const StandaloneContextMenu = () => {
     const grouped = {};
 
     const filteredItems = items.filter((item) => filterCommands(query, item));
+
+    // console.log("filteredItems :>> ", filteredItems);
+
     if (!filteredItems.length) {
       const customCommand = rootUid ? items[1] : items[0];
       customCommand.prompt = query + ":\n";
       filteredItems.push(customCommand);
-    }
+    } //else if (query) setActiveCommand(filteredItems[0].id);
 
+    let noCategoryItems = [];
     filteredItems.forEach((item) => {
-      if (!grouped[item.category]) {
-        grouped[item.category] = [];
+      if (!item.category) noCategoryItems.push(item);
+      else {
+        if (!grouped[item.category]) {
+          grouped[item.category] = [];
+        }
+        grouped[item.category].push(item);
       }
-      grouped[item.category].push(item);
     });
+
+    const usedCommands = extensionStorage.get("commandCounter");
+    const mostUsed = usedCommands.counter
+      .filter((item) => item.id > 10 && item.id !== usedCommands.last)
+      .slice(0, 5)
+      .map((item) => {
+        let command = commands.find((cmd) => cmd.id === item.id);
+        return command;
+      });
 
     return (
       <Menu className="str-aicommands-menu" ulRef={itemsParentRef} small={true}>
@@ -468,6 +490,51 @@ const StandaloneContextMenu = () => {
             title={"ℹ︎ Right click to switch model"}
           />
         ) : null}
+        {noCategoryItems.map((item) => renderItem(item))}
+        {!query && (
+          <>
+            <MenuItem
+              text="Most used prompts"
+              style={{ opacity: 0.6, cursor: "default" }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <>
+                {mostUsed.length && mostUsed.map((cmd) => renderItem(cmd))}
+                <MenuDivider className="menu-hint" title={"Last used:"} />
+                {usedCommands.last &&
+                  renderItem(
+                    commands.find((cmd) => cmd.id === usedCommands.last)
+                  )}
+              </>
+            </MenuItem>
+            <MenuItem
+              text="Custom prompts"
+              style={{ opacity: 0.6, cursor: "default" }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <>
+                {userCommands.length ? (
+                  userCommands.map((cmd) => renderItem(cmd))
+                ) : (
+                  <MenuItem
+                    className="menu-hint"
+                    text={
+                      <div>
+                        Empty...
+                        <br />
+                        No block mentioning <b>#liveai/prompt</b>
+                      </div>
+                    }
+                  />
+                )}
+              </>
+            </MenuItem>
+          </>
+        )}
         {Object.entries(grouped)
           .filter(([_, categoryItems]) => categoryItems.length > 0)
           .map(([category, categoryItems]) => (
@@ -476,54 +543,53 @@ const StandaloneContextMenu = () => {
                 <MenuDivider className="menu-hint" title={category} />
               )}
               {categoryItems.map((item) => renderItem(item))}
+              {!query && category === "OUTLINER AGENT" && (
+                <>
+                  <MenuItem
+                    text="Favorite Live Outlines"
+                    style={{ opacity: 0.6, cursor: "default" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    {liveOutlines.length ? (
+                      liveOutlines.map((outline) => renderItem(outline))
+                    ) : (
+                      <MenuItem
+                        className="menu-hint"
+                        text={
+                          <div>
+                            Empty...
+                            <br />
+                            No block mentioning <b>#liveai/outline</b>
+                          </div>
+                        }
+                      />
+                    )}
+                  </MenuItem>
+                  <MenuItem
+                    text="New Outline from Template..."
+                    style={{ opacity: 0.6, cursor: "default" }}
+                  >
+                    {templates.length ? (
+                      templates.map((template) => renderItem(template))
+                    ) : (
+                      <MenuItem
+                        className="menu-hint"
+                        text={
+                          <div>
+                            Empty...
+                            <br />
+                            No block mentioning #liveai/template
+                          </div>
+                        }
+                      />
+                    )}
+                  </MenuItem>
+                </>
+              )}
             </React.Fragment>
           ))}
-        {!query && (
-          <>
-            <MenuDivider className="menu-hint" title="OUTLINER AGENT" />
-            <MenuItem
-              text="Favorite Live Outlines"
-              style={{ opacity: 0.6, cursor: "default" }}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              {liveOutlines.length ? (
-                liveOutlines.map((outline) => renderItem(outline))
-              ) : (
-                <MenuItem
-                  className="menu-hint"
-                  text={
-                    <div>
-                      Empty...
-                      <br />
-                      No block mentioning <b>#liveai/outline</b>
-                    </div>
-                  }
-                />
-              )}
-            </MenuItem>
-            <MenuItem
-              text="New Outline from Template..."
-              style={{ opacity: 0.6, cursor: "default" }}
-            >
-              {templates.length ? (
-                templates.map((template) => renderItem(template))
-              ) : (
-                <MenuItem
-                  className="menu-hint"
-                  text={
-                    <div>
-                      Empty...
-                      <br />
-                      No block mentioning #liveai/template
-                    </div>
-                  }
-                />
-              )}
-            </MenuItem>
-          </>
-        )}
         {query && filteredItems[0].category ? (
           <MenuDivider
             className="menu-hint"

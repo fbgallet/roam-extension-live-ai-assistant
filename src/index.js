@@ -179,6 +179,21 @@ export function getConversationParamsFromHistory(uid) {
   return conversationParams;
 }
 
+export async function incrementCommandCounter(commandId) {
+  const commandUsage = extensionStorage.get("commandCounter");
+  const existingCommand = commandUsage.counter.find(
+    (cmd) => cmd.id === commandId
+  );
+  if (existingCommand) {
+    existingCommand.count += 1;
+  } else {
+    commandUsage.counter.push({ id: commandId, count: 1 });
+  }
+  commandUsage.counter = commandUsage.counter.sort((a, b) => a.count < b.count);
+  if (commandId > 10) commandUsage.last = commandId;
+  await extensionStorage.set("commandCounter", commandUsage);
+}
+
 export default {
   onload: async ({ extensionAPI }) => {
     extensionStorage = extensionAPI.settings;
@@ -1051,9 +1066,16 @@ export default {
     // extensionAPI.settings.set("conversationHistory", null);
     if (extensionAPI.settings.get("conversationHistory") === null)
       await extensionAPI.settings.set("conversationHistory", []);
+
+    // extensionAPI.settings.set("commandCounter", null);
+    if (extensionAPI.settings.get("commandCounter") === null)
+      await extensionAPI.settings.set("commandCounter", {
+        counter: [],
+        last: null,
+      });
     console.log(
-      "Conversation History :>> ",
-      extensionAPI.settings.get("conversationHistory")
+      'extensionAPI.settings.get("commandCounter")',
+      extensionAPI.settings.get("commandCounter")
     );
 
     createContainer();
