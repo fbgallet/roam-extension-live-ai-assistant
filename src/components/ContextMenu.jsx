@@ -37,6 +37,7 @@ import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
   getOrderedCustomPromptBlocks,
+  isPromptInConversation,
 } from "../ai/dataExtraction";
 import {
   getBlockContentByUid,
@@ -85,6 +86,7 @@ const StandaloneContextMenu = () => {
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [liveOutlines, setLiveOutlines] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [isInConversation, setIsInConversation] = useState(false);
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlockUid = useRef(null);
@@ -124,6 +126,7 @@ const StandaloneContextMenu = () => {
       focusedBlockUid.current = null;
       setDisplayModelsMenu(false);
       setTargetBlock("auto");
+      setIsInConversation(false);
       if (!isPinnedStyle) setStyle(defaultStyle);
       setRoamContext({
         linkedRefs: false,
@@ -136,6 +139,7 @@ const StandaloneContextMenu = () => {
       focusedBlockUid.current = !focusedBlockUid.current && currentUid;
       selectedBlocks.current = selectionUids;
       positionInRoamWindow.current = position;
+      setIsInConversation(isPromptInConversation(currentUid));
       // if (!isPinnedStyle) setStyle(defaultStyle);
       updateMenu();
     }
@@ -219,6 +223,7 @@ const StandaloneContextMenu = () => {
 
     if (
       command.name === "Selected blocks as prompt" ||
+      command.name === "Continue the conversation" ||
       (command.id !== 20 &&
         (focusedBlockUid.current || selectedBlocks.current?.length)) ||
       (!command.onlyOutliner &&
@@ -228,6 +233,7 @@ const StandaloneContextMenu = () => {
         e,
         sourceUid: focusedBlockUid.current,
         prompt,
+        command: command.prompt,
         instantModel: model,
         includeUids: command.includeUids,
         withSuggestions: command.withSuggestions,
@@ -239,6 +245,7 @@ const StandaloneContextMenu = () => {
             ? "Normal"
             : style,
         roamContext,
+        forceNotInConversation: isInConversation && command.id === 10,
       });
     else {
       if (command.id === 20) handleOutlineSelection();
@@ -322,6 +329,7 @@ const StandaloneContextMenu = () => {
 
   const filterCommands = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
+    if (item.id === 1 && !isInConversation) return false;
     if (!query) {
       if (
         item.category === "MY LIVE OUTLINES" ||
@@ -329,6 +337,7 @@ const StandaloneContextMenu = () => {
       )
         return;
       if (item.id === 10 && rootUid) return false;
+      if (item.id === 1 && rootUid) return false;
       // TODO : display if the current outline is not visible...
       if (item.id === 20 && rootUid && rootUid !== focusedBlockUid.current)
         return false;

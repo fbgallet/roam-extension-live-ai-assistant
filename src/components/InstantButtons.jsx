@@ -23,6 +23,7 @@ import {
   getParentBlock,
 } from "../utils/roamAPI.js";
 import {
+  addToConversationHistory,
   chatRoles,
   extensionStorage,
   getInstantAssistantRole,
@@ -48,6 +49,8 @@ export let isCanceledStreamGlobal = false;
 const InstantButtons = ({
   model,
   prompt,
+  command,
+  style,
   systemPrompt,
   content,
   responseFormat,
@@ -62,6 +65,7 @@ const InstantButtons = ({
   withSuggestions,
   target,
   selectedUids,
+  roamContext,
   historyCommand,
   agentData,
 }) => {
@@ -159,6 +163,13 @@ const InstantButtons = ({
   const handleInsertConversationButtons = async (props) => {
     const parentUid = getParentBlock(targetUid);
     const nextBlock = await createChildBlock(parentUid, chatRoles.user);
+    const conversationParams = { uid: parentUid };
+    console.log("selectedUids :>> ", selectedUids);
+    if (selectedUids) conversationParams.selectedUids = selectedUids;
+    if (command) conversationParams.command = command;
+    if (roamContext) conversationParams.context = roamContext;
+    await addToConversationHistory(conversationParams);
+    console.log(extensionStorage.get("conversationHistory"));
     setTimeout(() => {
       setIsToUnmount(true);
       insertInstantButtons({ ...props, targetUid: nextBlock });
@@ -308,6 +319,8 @@ const InstantButtons = ({
           onClick={() => {
             const props = {
               systemPrompt,
+              command,
+              style,
               prompt: prompt.concat({
                 role: "assistant",
                 content:
@@ -318,6 +331,7 @@ const InstantButtons = ({
               model,
               isUserResponse: true,
               content,
+              roamContext,
             };
 
             handleInsertConversationButtons(props);

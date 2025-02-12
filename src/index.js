@@ -149,6 +149,36 @@ function getAssistantRoleRegex(assistantRoleStr) {
   return null;
 }
 
+export async function addToConversationHistory({
+  uid,
+  command,
+  selectedUids,
+  context,
+}) {
+  if (!uid && !command && !selectedUids) return;
+  let conversationHistory = extensionStorage.get("conversationHistory");
+  if (conversationHistory.find((conv) => conv.uid === uid)) return;
+  // conversation storage is limited to 30
+  if (conversationHistory.length > 30) {
+    conversationHistory = conversationHistory.shift();
+  }
+  const params = { uid: uid };
+  if (command) params.command = command;
+  if (selectedUids) params.selectedUids = selectedUids;
+  if (context) params.context = context;
+  conversationHistory.push(params);
+  await extensionStorage.get("conversationHistory", conversationHistory);
+}
+
+export function getConversationParamsFromHistory(uid) {
+  if (!uid) return null;
+  let conversationHistory = extensionStorage.get("conversationHistory");
+  console.log("conversationHistory :>> ", conversationHistory);
+  if (!conversationHistory || !conversationHistory.length) return null;
+  let conversationParams = conversationHistory.find((conv) => conv.uid === uid);
+  return conversationParams;
+}
+
 export default {
   onload: async ({ extensionAPI }) => {
     extensionStorage = extensionAPI.settings;
@@ -1017,6 +1047,14 @@ export default {
       extensionAPI.settings.get("tokensCounter")
     );
     extensionStorage.set("outlinerRootUid", null);
+
+    // extensionAPI.settings.set("conversationHistory", null);
+    if (extensionAPI.settings.get("conversationHistory") === null)
+      await extensionAPI.settings.set("conversationHistory", []);
+    console.log(
+      "Conversation History :>> ",
+      extensionAPI.settings.get("conversationHistory")
+    );
 
     createContainer();
 
