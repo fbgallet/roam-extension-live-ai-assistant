@@ -737,15 +737,18 @@ export const insertNewOutline = async (
 ) => {
   // TODO if no template, insert default template ?
   // or blank outline ?
-  if (!templateUid) return;
+  // if (!templateUid) return;
   if (!currentUid)
     currentUid = await insertBlockInCurrentView("Live AI Outliner Agent");
   const commandsUid = await createChildBlock(currentUid, "");
-  let templateTitle = getBlockContentByUid(templateUid);
+  let templateTitle = templateUid
+    ? getBlockContentByUid(templateUid)
+    : "New Outline";
   const rootUid = await createChildBlock(
     currentUid,
     templateTitle.replace(customTagRegex["liveai/template"], "").trim()
   );
+  extensionStorage.set("outlinerRootUid", rootUid);
   updateBlock({
     blockUid: commandsUid,
     newContent: `Prompts to update Live Outline ((${rootUid}))`,
@@ -763,9 +766,14 @@ export const insertNewOutline = async (
           "block-uid": rootUid,
         },
       });
-    await copyTemplate(rootUid, templateUid);
+    templateUid
+      ? await copyTemplate(rootUid, templateUid)
+      : await createChildBlock(rootUid, "Insert content here...");
     checkOutlineAvailabilityOrOpen(rootUid, position);
-    const firstCommandBlockUid = await createChildBlock(commandsUid, "");
+    const firstCommandBlockUid = await createChildBlock(
+      commandsUid,
+      "Enter your prompts here..."
+    );
     // (window as any).roamAlphaAPI.ui.mainWindow.focusFirstBlock();
   }, 200);
 };

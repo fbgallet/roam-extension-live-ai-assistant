@@ -403,6 +403,10 @@
   padding: 0; */
 }
 
+.str-aicommands-menu .bp3-icon {
+  padding-right: 5px;
+}
+
 .bp3-popover.suggested-aicommands {
   transform: translateX(10px) translateY(-33px) !important;
   z-index: 9999;
