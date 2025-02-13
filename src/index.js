@@ -152,10 +152,11 @@ function getAssistantRoleRegex(assistantRoleStr) {
 export async function addToConversationHistory({
   uid,
   command,
+  style,
   selectedUids,
   context,
 }) {
-  if (!uid && !command && !selectedUids) return;
+  if (!uid && !selectedUids) return;
   let conversationHistory = extensionStorage.get("conversationHistory");
   if (conversationHistory.find((conv) => conv.uid === uid)) return;
   // conversation storage is limited to 30
@@ -164,10 +165,11 @@ export async function addToConversationHistory({
   }
   const params = { uid: uid };
   if (command) params.command = command;
+  if (style && style !== "Normal") params.style = style;
   if (selectedUids) params.selectedUids = selectedUids;
   if (context) params.context = context;
   conversationHistory.push(params);
-  await extensionStorage.get("conversationHistory", conversationHistory);
+  await extensionStorage.set("conversationHistory", conversationHistory);
 }
 
 export function getConversationParamsFromHistory(uid) {
