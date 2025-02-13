@@ -335,19 +335,21 @@ export const setAsOutline = async (rootUid) => {
 };
 
 export const toggleOutlinerSelection = (targetUid, isSelected) => {
-  setTimeout(() => {
-    highlightHtmlElt({
-      eltUid: targetUid,
-      isFixed: true,
-      color: "blue",
-      isToRemove: !isSelected,
-    });
-    insertInstantButtons({
-      targetUid,
-      isOutlinerAgent: true,
-      isToRemove: !isSelected,
-    });
-  }, 100);
+  console.log("targetUid :>> ", targetUid);
+  if (targetUid)
+    setTimeout(() => {
+      highlightHtmlElt({
+        eltUid: targetUid,
+        isFixed: true,
+        color: "blue",
+        isToRemove: !isSelected,
+      });
+      insertInstantButtons({
+        targetUid,
+        isOutlinerAgent: true,
+        isToRemove: !isSelected,
+      });
+    }, 100);
   if (isComponentVisible) {
     // remount Speech component to update Outliner Agent icon
     unmountComponent(position);

@@ -36,7 +36,7 @@ import {
   insertNewOutline,
   invokeOutlinerAgent,
 } from "../ai/agents/outliner-agent";
-import { BUILTIN_COMMANDS } from "../ai/prebuildCommands";
+import { BUILTIN_COMMANDS, CATEGORY_ICON } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
 import {
@@ -51,11 +51,12 @@ import {
   getBlockOrderByUid,
   getBlocksMentioningTitle,
   getParentBlock,
+  isExistingBlock,
   isLogView,
 } from "../utils/roamAPI";
 
-const SELECT_CMD = "Outliner Agent: Set as active outline";
-const UNSELECT_CMD = "Outliner Agent: Disable current outline";
+const SELECT_CMD = "Set as active Live Outline";
+const UNSELECT_CMD = "Disable current Live Outline";
 export const BUILTIN_STYLES = [
   "Normal",
   "Concise",
@@ -72,6 +73,7 @@ export let customStyles;
 
 const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMenuToDisplay, setIsMenuToDisplay] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
@@ -135,6 +137,7 @@ const StandaloneContextMenu = () => {
   useEffect(() => {
     if (!isOpen) {
       focusedBlockUid.current = null;
+      setIsMenuToDisplay(false);
       setDisplayModelsMenu(false);
       setTargetBlock("auto");
       setIsInConversation(false);
@@ -148,6 +151,10 @@ const StandaloneContextMenu = () => {
       selectedBlocks.current = null;
       isFirstBlock.current = null;
     } else {
+      if (rootUid && !isExistingBlock(rootUid)) {
+        setRootUid(null);
+        toggleOutlinerSelection(null, false);
+      }
       const { currentUid, selectionUids, position } = getFocusAndSelection();
       isFirstBlock.current =
         getBlockOrderByUid(currentUid) === 0 ? true : false;
@@ -156,6 +163,8 @@ const StandaloneContextMenu = () => {
       positionInRoamWindow.current = position;
       setIsInConversation(isPromptInConversation(currentUid, false));
       // if (!isPinnedStyle) setStyle(defaultStyle);
+      console.log("focusedBlockUid.current :>> ", focusedBlockUid.current);
+      console.log("selectedBlocks.current :>> ", selectedBlocks.current);
       updateMenu();
     }
   }, [isOpen]);
@@ -184,7 +193,7 @@ const StandaloneContextMenu = () => {
 
   const handleClickOnCommand = async ({ e, command, prompt, model }) => {
     incrementCommandCounter(command.id);
-    if (command.prompt)
+    if (command.prompt && command.category !== "OUTLINER AGENT")
       lastBuiltinCommand.current = {
         command: command.prompt,
         style,
@@ -210,14 +219,19 @@ const StandaloneContextMenu = () => {
         command.prompt,
         positionInRoamWindow.current
       );
+      await extensionStorage.set("outlinerRootUid", command.prompt);
+      setRootUid(command.prompt);
+      updateOutlineSelectionCommand({ isToSelect: false });
       return;
     }
     if (command.category === "MY OUTLINE TEMPLATES") {
-      insertNewOutline(
+      await insertNewOutline(
         focusedBlockUid.current,
         command.prompt,
         positionInRoamWindow.current
       );
+      setRootUid(extensionStorage.get("outlinerRootUid"));
+      updateOutlineSelectionCommand({ isToSelect: false });
       return;
     }
     if (!prompt && command.category !== "CUSTOM PROMPTS") {
@@ -266,8 +280,8 @@ const StandaloneContextMenu = () => {
     if (
       command.name === "Selected blocks as prompt" ||
       command.name === "Continue the conversation" ||
-      (command.id !== 20 &&
-        (focusedBlockUid.current || selectedBlocks.current?.length)) ||
+      // (command.id !== 20 &&
+      //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
       (!command.onlyOutliner &&
         (!isOutlinerAgent || (!rootUid && command.id !== 20)))
     )
@@ -291,7 +305,15 @@ const StandaloneContextMenu = () => {
       });
     else {
       if (command.id === 20) handleOutlineSelection();
-      else {
+      else if (command.id === 22) {
+        await insertNewOutline(
+          focusedBlockUid.current,
+          null,
+          positionInRoamWindow.current
+        );
+        setRootUid(extensionStorage.get("outlinerRootUid"));
+        updateOutlineSelectionCommand({ isToSelect: false });
+      } else {
         handleOutlinePrompt(e, prompt, model);
       }
     }
@@ -343,7 +365,8 @@ const StandaloneContextMenu = () => {
   }, [handleGlobalContextMenu, handleClickOutside, isOpen]);
 
   const handleOutlineSelection = useCallback(async () => {
-    const isSelectCmd = !commands[1].name.toLowerCase().includes("unselect");
+    const outlinerCommand = commands.find((cmd) => cmd.id === 20);
+    const isSelectCmd = !outlinerCommand.name.includes("Disable");
     if (isSelectCmd) {
       await setAsOutline();
       setRootUid(extensionStorage.get("outlinerRootUid"));
@@ -370,9 +393,14 @@ const StandaloneContextMenu = () => {
   };
 
   const filterCommands = (query, item) => {
+    // console.log("item :>> ", item);
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
-    if (isFirstBlock.current && item.id === 1) return true;
-    if (isFirstBlock.current && item.id === 10) return false;
+    if (
+      !focusedBlockUid?.current &&
+      !selectedBlocks?.current?.length &&
+      /selected|continue/i.test(item.name)
+    )
+      return false;
     if (!query) {
       if (
         item.category === "MY LIVE OUTLINES" ||
@@ -381,9 +409,15 @@ const StandaloneContextMenu = () => {
         return;
       if (item.id === 1 && rootUid) return false;
       if (item.id === 10 && rootUid) return false;
-      if (item.id === 1 && isInConversation) return false;
+      if (item.id === 1 && (isInConversation || isOutlinerAgent)) return false;
+      if (item.id === 100 && (!isInConversation || isOutlinerAgent))
+        return false;
       // TODO : display if the current outline is not visible...
-      if (item.id === 20 && rootUid && rootUid !== focusedBlockUid.current)
+      if (
+        item.id === 20 &&
+        (rootUid || !focusedBlockUid.current) &&
+        item.name === "Set as active Live Outline"
+      )
         return false;
       if (
         item.id === 21 &&
@@ -391,6 +425,11 @@ const StandaloneContextMenu = () => {
       )
         return false;
       return item.isSub ? false : true;
+    } else {
+      if (isFirstBlock.current && item.id === 1) return true;
+      if (isFirstBlock.current && item.id === 10) return false;
+      if (item.id === 100) return false;
+      if (item.id === 22 && rootUid) return false;
     }
     if (additionalPrompt) {
       if (item.id === 0 && !isOutlinerAgent) return true;
@@ -413,16 +452,16 @@ const StandaloneContextMenu = () => {
   };
 
   const renderCommand = (command, { handleClick, modifiers, query }) => {
+    if (!command) return;
     return (
       <MenuItem
-        // active={index === 0 ? true : false}
         key={command.id}
         icon={command.icon}
         text={command.name}
         label={command.label}
         active={
-          activeCommand === command.id ||
-          (activeCommand === undefined && modifiers.active)
+          // activeCommand === command.id ||
+          activeCommand === undefined && modifiers.active
         }
         aria-haspopup={true}
         tabindex="0"
@@ -439,7 +478,9 @@ const StandaloneContextMenu = () => {
         onSelect={(e) => console.log("Select")}
         onContextMenu={(e) => {
           e.preventDefault();
-          command.id !== 20 ? setDisplayModelsMenu(true) : null;
+          command.id !== 20 && command.id !== 22
+            ? setDisplayModelsMenu(true)
+            : null;
           setActiveCommand(command.id);
         }}
       >
@@ -452,7 +493,7 @@ const StandaloneContextMenu = () => {
             )}
             {command.submenu.map((sub) => {
               const subCommand = commands.find((item) => item.id === sub);
-              return subCommand.id === 1199 ? (
+              return subCommand?.id === 1199 ? (
                 customLggMenuItem(subCommand)
               ) : (
                 <MenuItem
@@ -488,6 +529,7 @@ const StandaloneContextMenu = () => {
     renderItem,
     query,
   }) => {
+    if (!isMenuToDisplay) return;
     const grouped = {};
 
     const filteredItems = items.filter((item) => filterCommands(query, item));
@@ -495,10 +537,14 @@ const StandaloneContextMenu = () => {
     // console.log("filteredItems :>> ", filteredItems);
 
     if (!filteredItems.length) {
-      const customCommand = rootUid ? items[1] : items[0];
+      const customCommand = rootUid
+        ? items.find((cmd) => cmd.id === 2)
+        : items.find((cmd) => cmd.id === 0);
       customCommand.prompt = query + ":\n";
       filteredItems.push(customCommand);
     } //else if (query) setActiveCommand(filteredItems[0].id);
+
+    // console.log("filteredItems :>> ", filteredItems);
 
     let noCategoryItems = [];
     filteredItems.forEach((item) => {
@@ -510,6 +556,8 @@ const StandaloneContextMenu = () => {
         grouped[item.category].push(item);
       }
     });
+
+    console.log("grouped :>> ", grouped);
 
     const usedCommands = extensionStorage.get("commandCounter");
     const mostUsed = usedCommands.counter
@@ -532,6 +580,7 @@ const StandaloneContextMenu = () => {
         {!query && (
           <>
             <MenuItem
+              tabindex="0"
               text="Most used prompts"
               style={{ opacity: 0.6, cursor: "default" }}
               onClick={(e) => {
@@ -548,6 +597,7 @@ const StandaloneContextMenu = () => {
               </>
             </MenuItem>
             <MenuItem
+              tabindex="0"
               text="Custom prompts"
               style={{ opacity: 0.6, cursor: "default" }}
               onClick={(e) => {
@@ -578,7 +628,14 @@ const StandaloneContextMenu = () => {
           .map(([category, categoryItems]) => (
             <React.Fragment key={category}>
               {category && (
-                <MenuDivider className="menu-hint" title={category} />
+                <MenuDivider
+                  className="menu-hint"
+                  title={
+                    <>
+                      <Icon icon={CATEGORY_ICON[category]} /> {category}
+                    </>
+                  }
+                />
               )}
               {categoryItems.map((item) => renderItem(item))}
               {!query && category === "OUTLINER AGENT" && (
@@ -703,7 +760,8 @@ const StandaloneContextMenu = () => {
 
   const updateMenu = () => {
     const currentRootUid = extensionStorage.get("outlinerRootUid");
-    const isSelectCmd = !commands[1].name.toLowerCase().includes("unselect");
+    const outlinerCommand = commands.find((cmd) => cmd.id === 20);
+    const isSelectCmd = !outlinerCommand.name.includes("Disable");
     if (rootUid != currentRootUid) {
       setRootUid(currentRootUid);
       if (currentRootUid && isSelectCmd)
@@ -716,6 +774,7 @@ const StandaloneContextMenu = () => {
       else if (!isSelectCmd && !rootUid)
         updateOutlineSelectionCommand({ isToSelect: true });
     }
+    setIsMenuToDisplay(true);
   };
 
   const updateUserCommands = () => {
@@ -759,6 +818,7 @@ const StandaloneContextMenu = () => {
 
   const updateLiveOutlines = () => {
     const orderedOutlines = getOrderedCustomPromptBlocks("liveai/outline");
+    console.log("orderedOutlines :>> ", orderedOutlines);
     if (orderedOutlines) {
       const outlines = orderedOutlines.map((cmd, index) => {
         return {

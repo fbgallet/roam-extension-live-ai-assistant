@@ -6,6 +6,18 @@ import {
 } from "./agents/search-agent/invoke-search-agent";
 import { languages } from "./languagesSupport";
 
+export const CATEGORY_ICON = {
+  "OUTLINER AGENT": "properties",
+  "QUERY AGENTS": "filter",
+  "CONTENT ANALYSIS": "path-search", // "intelligence", //
+  ACTION: "tick-circle",
+  CREATION: "new-drawing",
+  REPHRASING: "automatic-updates",
+  TRANSLATION: "translate",
+  "CRITICAL REASONING TOOLKIT": "predictive-analysis",
+  "CUSTOM PROMPTS": "user",
+};
+
 export const BUILTIN_COMMANDS = [
   { id: 0, name: "Use this custom prompt", category: "", onlyGen: true },
   {
@@ -21,31 +33,49 @@ export const BUILTIN_COMMANDS = [
     category: "",
     onlyGen: true,
   },
+  {
+    id: 100,
+    name: "Selected blocks as prompt",
+    category: "",
+    includeUids: true,
+    onlyGen: true,
+  },
   // OUTLINER AGENT COMMANDS
   {
     id: 2,
-    name: "Outliner Agent: Apply this custom prompt",
-    category: "OUTLINER AGENT",
-    onlyOutliner: true,
-  },
-  {
-    id: 20,
-    icon: "properties",
-    name: "Set as active outline",
-    prompt: "",
+    name: "Apply custom prompt to Live Outline",
     category: "OUTLINER AGENT",
     onlyOutliner: true,
   },
   {
     id: 21,
-    icon: "properties",
-    name: "Outliner Agent: Apply selected blocks as prompt",
+    name: "Apply selected blocks as prompt",
     prompt: "",
     category: "OUTLINER AGENT",
     onlyOutliner: true,
   },
+  {
+    id: 20,
+    name: "Set as active Live Outline",
+    prompt: "",
+    category: "OUTLINER AGENT",
+    onlyOutliner: true,
+  },
+  // {
+  //   id: 22,
+  //   name: "Set as active outline",
+  //   prompt: "",
+  //   category: "OUTLINER AGENT",
+  //   onlyOutliner: true,
+  // },
   // AGENTS,
-
+  {
+    id: 22,
+    name: "Create new Live Outline",
+    prompt: "",
+    category: "OUTLINER AGENT",
+    onlyOutliner: true,
+  },
   {
     id: 80,
     name: "Natural language query",
