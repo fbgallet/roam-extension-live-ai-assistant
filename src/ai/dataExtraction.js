@@ -245,7 +245,7 @@ export const handleModifierKeys = async (e) => {
   return roamContext;
 };
 
-export const isPromptInConversation = (promptUid) => {
+export const isPromptInConversation = (promptUid, removeButton = true) => {
   if (!promptUid) return false;
   const directParentUid = getParentBlock(promptUid);
   // if (directParentUid === getPageUidByBlockUid(promptUid)) return false;
@@ -262,7 +262,7 @@ export const isPromptInConversation = (promptUid) => {
       chatRoles.genericAssistantRegex.test(previousSiblingUid.string)
         ? true
         : false;
-  if (isInConversation) {
+  if (isInConversation && removeButton) {
     // const conversationButton = document.querySelector(
     //   ".speech-instant-container:not(:has(.fa-rotage-right)):has(.fa-comments)"
     // );
@@ -832,32 +832,32 @@ export const getArrayFromList = (list, separator = ",") => {
 export const getConversationArray = async (parentUid) => {
   let tree = getTreeByUid(parentUid);
   if (!tree) return null;
+  const isWholePage = tree[0].string ? false : true;
+  highlightHtmlElt({
+    selector: isWholePage ? ".roam-article > div:first-child" : undefined,
+    eltUid: isWholePage ? parentUid : undefined,
+  });
   let convParams = getConversationParamsFromHistory(parentUid);
-  console.log("convParams :>> ", convParams);
+
   let initialPrompt = tree[0].string || null;
-  if (convParams) {
-    if (convParams.context) {
-      initialPrompt = await getAndNormalizeContext({
-        blocksSelectionUids: convParams.selectedUids,
-        roamContext: convParams.context,
-        withHierarchy: true,
-      });
-    } else if (convParams.selectedUids && convParams.selectedUids.length) {
-      initialPrompt = getResolvedContentFromBlocks(
-        convParams.selectedUids,
-        false,
-        true
-      );
-    }
-    console.log("initialPrompt :>> ", initialPrompt);
-    if (convParams.command && initialPrompt) {
-      let commandPrompt = completionCommands[convParams.command];
-      if (commandPrompt.toLowerCase().includes("<target content>"))
-        initialPrompt = commandPrompt.replace(
-          /<target content>/i,
-          initialPrompt
-        );
-    }
+  if (convParams?.context) {
+    initialPrompt = await getAndNormalizeContext({
+      blocksSelectionUids: convParams.selectedUids,
+      roamContext: convParams.context,
+      withHierarchy: true,
+    });
+  } else if (convParams?.selectedUids && convParams?.selectedUids.length) {
+    initialPrompt = getResolvedContentFromBlocks(
+      convParams.selectedUids,
+      false,
+      true
+    );
+  }
+  console.log("initialPrompt :>> ", initialPrompt);
+  if (convParams?.command && initialPrompt) {
+    let commandPrompt = completionCommands[convParams.command];
+    if (commandPrompt.toLowerCase().includes("<target content>"))
+      initialPrompt = commandPrompt.replace(/<target content>/i, initialPrompt);
   }
 
   const conversation = initialPrompt
@@ -876,7 +876,7 @@ export const getConversationArray = async (parentUid) => {
         withDash: true,
       });
       // case if conv is in root level and there is a command to apply to first block
-      if (convParams.command && !initialPrompt && i === 0) {
+      if (convParams?.command && !initialPrompt && i === 0) {
         turnFlattenedContent = completionCommands[convParams.command].replace(
           /<target content>/i,
           turnFlattenedContent

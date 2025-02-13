@@ -137,26 +137,32 @@ const InstantButtons = ({
   };
 
   const handleConversation = async () => {
-    const parentUid = getParentBlock(targetUid);
-    const nextBlock = await createChildBlock(
-      parentUid,
-      getInstantAssistantRole(model)
-    );
-    const userPrompt = getFlattenedContentFromTree({
-      parentUid: targetUid,
-      maxCapturing: 99,
-      maxUid: null,
-      withDash: true,
-    });
-    if (!Array.isArray(prompt)) prompt = [prompt];
-    insertCompletion({
-      prompt: prompt.concat({ role: "user", content: userPrompt }),
-      systemPrompt,
-      targetUid: nextBlock,
-      typeOfCompletion: "gptCompletion",
+    // const parentUid = getParentBlock(targetUid);
+    // const nextBlock = await createChildBlock(
+    //   parentUid,
+    //   getInstantAssistantRole(model)
+    // );
+    // const userPrompt = getFlattenedContentFromTree({
+    //   parentUid: targetUid,
+    //   maxCapturing: 99,
+    //   maxUid: null,
+    //   withDash: true,
+    // });
+    aiCompletionRunner({
+      sourceUid: targetUid,
       instantModel: model,
-      isInConversation: true,
+      style,
+      roamContext,
     });
+    // // if (!Array.isArray(prompt)) prompt = [prompt];
+    // insertCompletion({
+    //   prompt: prompt.concat({ role: "user", content: userPrompt }),
+    //   systemPrompt,
+    //   targetUid: nextBlock,
+    //   typeOfCompletion: "gptCompletion",
+    //   instantModel: model,
+    //   isInConversation: true,
+    // });
     setIsToUnmount(true);
   };
 
@@ -169,7 +175,7 @@ const InstantButtons = ({
     if (command) conversationParams.command = command;
     if (roamContext) conversationParams.context = roamContext;
     await addToConversationHistory(conversationParams);
-    console.log(extensionStorage.get("conversationHistory"));
+    // console.log(extensionStorage.get("conversationHistory"));
     setTimeout(() => {
       setIsToUnmount(true);
       insertInstantButtons({ ...props, targetUid: nextBlock });
@@ -321,13 +327,13 @@ const InstantButtons = ({
               systemPrompt,
               command,
               style,
-              prompt: prompt.concat({
-                role: "assistant",
-                content:
-                  aiCallback === invokeAskAgent
-                    ? agentData?.response
-                    : response,
-              }),
+              // prompt: prompt.concat({
+              //   role: "assistant",
+              //   content:
+              //     aiCallback === invokeAskAgent
+              //       ? agentData?.response
+              //       : response,
+              // }),
               model,
               isUserResponse: true,
               content,

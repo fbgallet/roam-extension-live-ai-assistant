@@ -9,16 +9,16 @@ import { languages } from "./languagesSupport";
 export const BUILTIN_COMMANDS = [
   { id: 0, name: "Use this custom prompt", category: "", onlyGen: true },
   {
-    id: 10,
-    name: "Continue the conversation",
-    category: "",
-    onlyGen: true,
-  },
-  {
     id: 1,
     name: "Selected blocks as prompt",
     category: "",
     includeUids: true,
+    onlyGen: true,
+  },
+  {
+    id: 10,
+    name: "Continue the conversation",
+    category: "",
     onlyGen: true,
   },
   // OUTLINER AGENT COMMANDS

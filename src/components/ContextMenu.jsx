@@ -15,9 +15,11 @@ import { Suggest } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
+  addToConversationHistory,
   defaultModel,
   defaultStyle,
   extensionStorage,
+  getConversationParamsFromHistory,
   incrementCommandCounter,
 } from "..";
 import ModelsMenu from "./ModelsMenu";
@@ -46,7 +48,9 @@ import {
 } from "../ai/dataExtraction";
 import {
   getBlockContentByUid,
+  getBlockOrderByUid,
   getBlocksMentioningTitle,
+  getParentBlock,
   isLogView,
 } from "../utils/roamAPI";
 
@@ -97,6 +101,8 @@ const StandaloneContextMenu = () => {
   const focusedBlockUid = useRef(null);
   const positionInRoamWindow = useRef(null);
   const selectedBlocks = useRef(null);
+  const lastBuiltinCommand = useRef(null);
+  const isFirstBlock = useRef(null);
   const [roamContext, setRoamContext] = useState({
     linkedRefs: false,
     sidebar: false,
@@ -139,12 +145,16 @@ const StandaloneContextMenu = () => {
         mainPage: false,
         logPages: false,
       });
+      selectedBlocks.current = null;
+      isFirstBlock.current = null;
     } else {
       const { currentUid, selectionUids, position } = getFocusAndSelection();
+      isFirstBlock.current =
+        getBlockOrderByUid(currentUid) === 0 ? true : false;
       focusedBlockUid.current = !focusedBlockUid.current && currentUid;
       selectedBlocks.current = selectionUids;
       positionInRoamWindow.current = position;
-      setIsInConversation(isPromptInConversation(currentUid));
+      setIsInConversation(isPromptInConversation(currentUid, false));
       // if (!isPinnedStyle) setStyle(defaultStyle);
       updateMenu();
     }
@@ -172,8 +182,14 @@ const StandaloneContextMenu = () => {
     });
   }, [defaultLgg]);
 
-  const handleClickOnCommand = ({ e, command, prompt, model }) => {
+  const handleClickOnCommand = async ({ e, command, prompt, model }) => {
     incrementCommandCounter(command.id);
+    if (command.prompt)
+      lastBuiltinCommand.current = {
+        command: command.prompt,
+        style,
+        context: roamContext,
+      };
     const target =
       targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
     if (command.category === "QUERY AGENTS") {
@@ -227,6 +243,26 @@ const StandaloneContextMenu = () => {
     if (additionalPrompt)
       prompt += "\n\nIMPORTANT additional instructions:\n" + additionalPrompt;
 
+    let conversationStyle;
+    if (command.name === "Continue the conversation") {
+      const parentUid = getParentBlock(focusedBlockUid.current);
+      let convParams = getConversationParamsFromHistory(parentUid);
+      if (!convParams) {
+        convParams = { uid: parentUid };
+        if (selectedBlocks.current)
+          convParams.selectedUids = selectedBlocks.current;
+        if (lastBuiltinCommand.current) {
+          convParams.command = lastBuiltinCommand.current.command;
+          convParams.context = lastBuiltinCommand.current.context;
+          convParams.style = lastBuiltinCommand.current.style;
+        }
+        await addToConversationHistory(convParams);
+      } else {
+        conversationStyle = convParams?.style;
+        roamContext.current = convParams?.context || roamContext.current;
+      }
+    }
+
     if (
       command.name === "Selected blocks as prompt" ||
       command.name === "Continue the conversation" ||
@@ -249,7 +285,7 @@ const StandaloneContextMenu = () => {
           command.isIncompatibleWith?.style ||
           command.isIncompatibleWith?.specificStyle.includes(style)
             ? "Normal"
-            : style,
+            : conversationStyle || style,
         roamContext,
         forceNotInConversation: isInConversation && command.id === 1,
       });
@@ -335,7 +371,8 @@ const StandaloneContextMenu = () => {
 
   const filterCommands = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
-    if (item.id === 10 && !isInConversation) return false;
+    if (isFirstBlock.current && item.id === 1) return true;
+    if (isFirstBlock.current && item.id === 10) return false;
     if (!query) {
       if (
         item.category === "MY LIVE OUTLINES" ||
@@ -344,6 +381,7 @@ const StandaloneContextMenu = () => {
         return;
       if (item.id === 1 && rootUid) return false;
       if (item.id === 10 && rootUid) return false;
+      if (item.id === 1 && isInConversation) return false;
       // TODO : display if the current outline is not visible...
       if (item.id === 20 && rootUid && rootUid !== focusedBlockUid.current)
         return false;
