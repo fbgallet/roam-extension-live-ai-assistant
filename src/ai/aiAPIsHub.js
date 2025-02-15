@@ -139,8 +139,7 @@ export function modelAccordingToProvider(model) {
     library: undefined,
   };
   model = model && model.toLowerCase();
-  console.log("model in 'modelAccordingToProvider' :>> ", model);
-  console.log("groqModels :>> ", groqModels);
+
   let prefix = model.split("/")[0];
   if (model.includes("openrouter")) {
     llm.provider = "openRouter";

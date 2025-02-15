@@ -73,10 +73,10 @@ export const getInputDataFromRoamContext = async (
 
   if (!sourceUid && !selectedUids?.length && !e) return { noData: true };
 
-  if (currentBlockContent) {
+  if (currentBlockContent && currentBlockContent.trim()) {
     if (prompt.toLowerCase().includes("<target content>"))
       prompt = prompt.replace(/<target content>/i, currentBlockContent);
-    else prompt += "\n" + currentBlockContent;
+    else prompt += (prompt ? "\n" : "") + currentBlockContent.trim();
   }
 
   let { completedPrompt, targetUid, remainingSelectionUids, isInConversation } =
@@ -84,6 +84,7 @@ export const getInputDataFromRoamContext = async (
       sourceUid,
       selectedUids,
       prompt,
+      currentBlockContent,
       instantModel,
       includeUids,
       withHierarchy,
@@ -151,6 +152,7 @@ const getFinalPromptAndTarget = async (
   sourceUid,
   selectionUids,
   prompt,
+  sourceBlockContent,
   instantModel,
   includeUids,
   withHierarchy,
@@ -202,7 +204,11 @@ const getFinalPromptAndTarget = async (
     else prompt += "\n" + content;
     selectionUids = [];
   } else {
-    if (target === "replace" || target === "append") {
+    if (
+      target === "replace" ||
+      target === "append" ||
+      sourceBlockContent === ""
+    ) {
       targetUid = sourceUid;
     } else {
       targetUid = sourceUid

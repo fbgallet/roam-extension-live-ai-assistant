@@ -113,6 +113,9 @@ export const BUILTIN_COMMANDS = [
     name: "Summarize",
     prompt: "summarize",
     category: "CONTENT ANALYSIS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     target: "new w/o",
   },
   {
@@ -120,6 +123,9 @@ export const BUILTIN_COMMANDS = [
     name: "Extract key insights",
     prompt: "keyInsights",
     category: "CONTENT ANALYSIS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     includeUids: true,
     submenu: [1310, 1311],
   },
@@ -129,6 +135,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "keyInsights",
     category: "CONTENT ANALYSIS",
     isIncompatibleWith: {
+      outliner: true,
       specificStyles: ["Quiz"],
     },
     includeUids: true,
@@ -140,6 +147,9 @@ export const BUILTIN_COMMANDS = [
     prompt: "extractHighlights",
     category: "CONTENT ANALYSIS",
     target: "new w/o",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     includeUids: true,
     isSub: true,
   },
@@ -148,6 +158,9 @@ export const BUILTIN_COMMANDS = [
     name: "Extract reasoning structure",
     prompt: "reasoningAnalysis",
     category: "CONTENT ANALYSIS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     target: "new",
     submenu: [1320, 1321],
   },
@@ -156,6 +169,9 @@ export const BUILTIN_COMMANDS = [
     name: "Sentiment Analysis",
     prompt: "sentimentAnalysis",
     category: "CONTENT ANALYSIS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     target: "new",
     isSub: true,
   },
@@ -164,6 +180,9 @@ export const BUILTIN_COMMANDS = [
     name: "Value Analysis",
     prompt: "valueAnalysis",
     category: "CONTENT ANALYSIS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     target: "new",
     isSub: true,
   },
@@ -181,7 +200,10 @@ export const BUILTIN_COMMANDS = [
     name: "Image Analysis",
     prompt: "imageAnalysis",
     category: "CONTENT ANALYSIS",
-    target: "visual art, painting",
+    isIncompatibleWith: {
+      outliner: true,
+    },
+    keyWords: "visual art, painting",
     isSub: true,
   },
 
@@ -233,6 +255,7 @@ export const BUILTIN_COMMANDS = [
     category: "CREATION",
     keyWords: "active learning, question, test",
     isIncompatibleWith: {
+      outliner: true,
       style: true,
     },
     target: "new",
@@ -505,6 +528,9 @@ export const BUILTIN_COMMANDS = [
     name: "Logical fallacy challenge",
     prompt: "fallacy",
     category: "CRITICAL REASONING TOOLKIT",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     keyWords: "cognitive biases",
     isSub: true,
   },
