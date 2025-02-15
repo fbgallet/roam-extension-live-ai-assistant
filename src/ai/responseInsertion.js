@@ -176,6 +176,8 @@ export const aiCompletionRunner = async ({
     `\nCurrent date and time are: ${getRelativeDateAndTimeString(sourceUid)}` +
     hierarchicalResponseFormat;
 
+  console.log("prompt before :>> ", prompt);
+
   let {
     targetUid,
     completedPrompt,
@@ -198,8 +200,8 @@ export const aiCompletionRunner = async ({
   );
   if (noData) return;
 
-  console.log("prompt :>> ", prompt);
-  console.log("isInConversation :>> ", isInConversation);
+  console.log("systemPrompt :>> ", systemPrompt);
+  console.log("completed prompt :>> ", completedPrompt);
 
   insertCompletion({
     prompt: completedPrompt,
@@ -290,9 +292,9 @@ export const insertCompletion = async ({
       context && !context.includes(contextInstruction)
         ? (isContextInstructionToInsert ? contextInstruction : "") +
           userContextInstructions +
-          "\n\nUSER INPUT (content to rely to or apply the next user prompt to, and refered as 'context', between double angle brackets):\n<< " +
+          "\n\nThe input content to rely to or apply the next user prompt to, and eventually refered as 'context', is inserted below between '<begin>' and '<end>' tags (these tags are not a part of the context):\n<begin>" +
           context +
-          " >>"
+          "\n<end>"
         : "";
     content = await verifyTokenLimitAndTruncate(model, prompt, content);
   }

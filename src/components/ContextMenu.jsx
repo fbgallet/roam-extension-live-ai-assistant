@@ -77,7 +77,6 @@ const StandaloneContextMenu = () => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
-  const [selectedCommand, setSelectedCommand] = useState(null);
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [activeCommand, setActiveCommand] = useState();
