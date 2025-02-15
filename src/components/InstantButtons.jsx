@@ -33,7 +33,6 @@ import {
   insertInstantButtons,
   toggleOutlinerSelection,
 } from "../utils/domElts.js";
-import { invokeOutlinerAgent } from "../ai/agents/outliner-agent.ts";
 import { completionCommands } from "../ai/prompts.js";
 import {
   getFlattenedContentFromTree,
@@ -43,6 +42,7 @@ import {
   invokeAskAgent,
   invokeSearchAgent,
 } from "../ai/agents/search-agent/invoke-search-agent.ts";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 
 export let isCanceledStreamGlobal = false;
 

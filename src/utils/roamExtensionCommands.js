@@ -28,7 +28,7 @@ import {
   invokeNLQueryInterpreter,
 } from "../ai/agents/nl-query";
 import { invokeNLDatomicQueryInterpreter } from "../ai/agents/nl-datomic-query";
-import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/outliner-agent";
 import {
   getAndNormalizeContext,
   getContextFromSbCommand,
