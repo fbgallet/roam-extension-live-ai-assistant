@@ -123,6 +123,10 @@ export const getInputDataFromRoamContext = async (
       roamContext?.logPages ||
       roamContextFromKeys?.logPages ||
       inlineContext?.roamContext?.logPages,
+    block: roamContext?.block || inlineContext?.roamContext?.block,
+    blockArgument: roamContext?.blockArgument?.length
+      ? roamContext?.blockArgument
+      : inlineContext?.roamContext?.blockArgument,
   };
 
   let context = await getAndNormalizeContext({

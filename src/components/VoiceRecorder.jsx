@@ -25,7 +25,6 @@ import {
   getBlockContentByUid,
   getBlocksSelectionUids,
   getLastTopLevelOfSeletion,
-  getParentBlock,
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
@@ -33,8 +32,6 @@ import {
 import Timer from "./Timer.jsx";
 import {
   chatRoles,
-  getInstantAssistantRole,
-  defaultModel,
   isSafari,
   isTranslateIconDisplayed,
   isUsingWhisper,
@@ -42,7 +39,6 @@ import {
   extensionStorage,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
-import OpenAILogo from "./OpenAILogo.jsx";
 import {
   displaySpinner,
   highlightHtmlElt,
@@ -50,15 +46,10 @@ import {
   setAsOutline,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
-import { invokeOutlinerAgent } from "../ai/agents/outliner-agent";
 import { transcribeAudio, translateAudio } from "../ai/aiAPIsHub.js";
-import {
-  getAndNormalizeContext,
-  getResolvedContentFromBlocks,
-  handleModifierKeys,
-  isPromptInConversation,
-} from "../ai/dataExtraction.js";
+import { handleModifierKeys } from "../ai/dataExtraction.js";
 import { AppToaster } from "./Toaster.js";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 
 function VoiceRecorder({
   blockUid,

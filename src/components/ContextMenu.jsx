@@ -31,11 +31,7 @@ import {
   simulateClick,
   toggleOutlinerSelection,
 } from "../utils/domElts";
-import {
-  checkOutlineAvailabilityOrOpen,
-  insertNewOutline,
-  invokeOutlinerAgent,
-} from "../ai/agents/outliner-agent";
+import {} from "../ai/agents/outliner-agent/outliner-agent";
 import { BUILTIN_COMMANDS, CATEGORY_ICON } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
@@ -49,11 +45,15 @@ import {
 import {
   getBlockContentByUid,
   getBlockOrderByUid,
-  getBlocksMentioningTitle,
   getParentBlock,
   isExistingBlock,
   isLogView,
 } from "../utils/roamAPI";
+import {
+  invokeOutlinerAgent,
+  checkOutlineAvailabilityOrOpen,
+  insertNewOutline,
+} from "../ai/agents/outliner-agent/invoke-outliner-agent";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -70,6 +70,15 @@ export let customStyleTitles = getOrderedCustomPromptBlocks("liveai/style").map(
   (custom) => custom.content
 );
 export let customStyles;
+
+const voidRoamContext = {
+  linkedRefs: false,
+  sidebar: false,
+  mainPage: false,
+  logPages: false,
+  block: false,
+  blockArgument: [],
+};
 
 const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -100,16 +109,12 @@ const StandaloneContextMenu = () => {
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlockUid = useRef(null);
+  const focusedBlockContent = useRef(null);
   const positionInRoamWindow = useRef(null);
   const selectedBlocks = useRef(null);
   const lastBuiltinCommand = useRef(null);
   const isFirstBlock = useRef(null);
-  const [roamContext, setRoamContext] = useState({
-    linkedRefs: false,
-    sidebar: false,
-    mainPage: false,
-    logPages: false,
-  });
+  const [roamContext, setRoamContext] = useState({ ...voidRoamContext });
 
   useEffect(() => {
     window.LiveAI.toggleContextMenu = ({
@@ -141,12 +146,7 @@ const StandaloneContextMenu = () => {
       setTargetBlock("auto");
       setIsInConversation(false);
       if (!isPinnedStyle) setStyle(defaultStyle);
-      setRoamContext({
-        linkedRefs: false,
-        sidebar: false,
-        mainPage: false,
-        logPages: false,
-      });
+      setRoamContext({ ...voidRoamContext });
       selectedBlocks.current = null;
       isFirstBlock.current = null;
     } else {
@@ -154,10 +154,13 @@ const StandaloneContextMenu = () => {
         setRootUid(null);
         toggleOutlinerSelection(null, false);
       }
-      const { currentUid, selectionUids, position } = getFocusAndSelection();
+      const { currentUid, currentBlockContent, selectionUids, position } =
+        getFocusAndSelection();
       isFirstBlock.current =
         getBlockOrderByUid(currentUid) === 0 ? true : false;
       focusedBlockUid.current = !focusedBlockUid.current && currentUid;
+      focusedBlockContent.current =
+        focusedBlockUid.current && currentBlockContent.trim();
       selectedBlocks.current = selectionUids;
       positionInRoamWindow.current = position;
       setIsInConversation(isPromptInConversation(currentUid, false));
@@ -192,7 +195,7 @@ const StandaloneContextMenu = () => {
 
   const handleClickOnCommand = async ({ e, command, prompt, model }) => {
     incrementCommandCounter(command.id);
-    if (command.prompt && command.category !== "OUTLINER AGENT")
+    if (command.prompt && command.id > 22 && command.id !== 100)
       lastBuiltinCommand.current = {
         command: command.prompt,
         style,
@@ -282,8 +285,21 @@ const StandaloneContextMenu = () => {
       // (command.id !== 20 &&
       //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
       (!command.onlyOutliner &&
-        (!isOutlinerAgent || (!rootUid && command.id !== 20)))
-    )
+        (!isOutlinerAgent || (!rootUid && command.id !== 20))) ||
+      // case with Live Outliner active AND blank focused block
+      (rootUid &&
+        (focusedBlockContent.current === "" ||
+          command.isIncompatibleWith?.outline))
+    ) {
+      // in this case, use the Live Outline as context for the prompt
+      if (
+        rootUid &&
+        (focusedBlockContent.current === "" ||
+          command.isIncompatibleWith?.outline)
+      ) {
+        roamContext.block = true;
+        roamContext.blockArgument.push(rootUid);
+      }
       aiCompletionRunner({
         e,
         sourceUid: focusedBlockUid.current,
@@ -302,7 +318,7 @@ const StandaloneContextMenu = () => {
         roamContext,
         forceNotInConversation: isInConversation && command.id === 1,
       });
-    else {
+    } else {
       if (command.id === 20) handleOutlineSelection();
       else if (command.id === 22) {
         await insertNewOutline(
@@ -556,8 +572,6 @@ const StandaloneContextMenu = () => {
       }
     });
 
-    console.log("grouped :>> ", grouped);
-
     const usedCommands = extensionStorage.get("commandCounter");
     const mostUsed = usedCommands.counter
       .filter((item) => item.id > 10 && item.id !== usedCommands.last)
@@ -737,13 +751,19 @@ const StandaloneContextMenu = () => {
   };
 
   const updateContext = (context) => {
-    if (!roamContext[context])
-      highlightHtmlElt({
-        roamElt: context === "logPages" && !isLogView() ? "pageTitle" : context,
-      });
+    if (context === "liveOutline") {
+      context = "block";
+    } else {
+      if (!roamContext[context])
+        highlightHtmlElt({
+          roamElt:
+            context === "logPages" && !isLogView() ? "pageTitle" : context,
+        });
+    }
     setRoamContext((prev) => {
       const clone = { ...prev };
       clone[context] = !clone[context];
+      if (context === "block") clone.blockArgument = [rootUid];
       return clone;
     });
     inputRef.current.focus();
@@ -985,6 +1005,14 @@ const StandaloneContextMenu = () => {
                 inline={true}
                 onChange={() => updateContext("sidebar")}
               />
+              {rootUid && (
+                <Checkbox
+                  checked={roamContext.block}
+                  label="Outline"
+                  inline={true}
+                  onChange={() => updateContext("liveOutline")}
+                />
+              )}
             </div>
             <div
               className="aicommands-style"
