@@ -44,6 +44,7 @@ const outlinerAgentState = Annotation.Root({
   model: Annotation<LlmInfos>,
   rootUid: Annotation<String>,
   humanPrompt: Annotation<String>,
+  // context: Annotation<String>,
   llmResponse: Annotation<any>,
   remainingOperations: Annotation<string>,
   notCompletedOperations: Annotation<string>,
@@ -112,11 +113,6 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
   );
 
   return {
-    // messages: [new AIMessage(response.message)],
-    // remainingOperations:
-    //   response.operations && response.operations.length
-    //     ? JSON.stringify(response.operations)
-    //     : "",
     llmResponse: response,
     notCompletedOperations,
     lastTurn,
