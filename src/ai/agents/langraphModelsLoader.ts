@@ -49,11 +49,9 @@ export function modelViaLanggraph(
   });
 
   const options = {
-    apiKey: llmInfos.library.apiKey,
+    apiKey: llmInfos.library?.apiKey,
     callbackManager: tokensUsageCallback,
   };
-
-  console.log('llmInfos in "modelViaLangraph" :>> ', llmInfos);
 
   if (llmInfos.provider === "OpenAI" || llmInfos.provider === "groq") {
     llm = new ChatOpenAI({

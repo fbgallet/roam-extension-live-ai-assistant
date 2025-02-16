@@ -196,7 +196,7 @@ export function modelAccordingToProvider(model) {
     });
     return null;
   }
-  if (!llm.library.apiKey) {
+  if (!model.includes("ollama") && !llm.library?.apiKey) {
     AppToaster.show({
       message: `Provide an API key to use ${llm.model} model. See doc and settings.`,
       timeout: 15000,
