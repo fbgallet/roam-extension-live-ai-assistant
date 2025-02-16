@@ -23,21 +23,28 @@ import {
   replaceChildrenByNewTree,
   updateBlock,
 } from "../../../utils/roamAPI";
-import { sanitizeJSONstring } from "../../../utils/format";
+import {
+  balanceBraces,
+  sanitizeClaudeJSON,
+  sanitizeJSONstring,
+  splitParagraphs,
+} from "../../../utils/format";
 
-import { outlinerAgentSystemPrompt } from "../agent-prompts";
+import { outlinerAgentSystemPrompt } from "./outliner-prompts";
 import { LlmInfos, modelViaLanggraph } from "../langraphModelsLoader";
 import { highlightHtmlElt, insertInstantButtons } from "../../../utils/domElts";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
 import { getTemplateForPostProcessing } from "../../dataExtraction";
 import { insertStructuredAIResponse } from "../../responseInsertion";
 import { planerSchema } from "./outliner-schema";
+import { turnTokensUsage } from "../search-agent/invoke-search-agent";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
-  model: Annotation<string>,
+  model: Annotation<LlmInfos>,
   rootUid: Annotation<String>,
   humanPrompt: Annotation<String>,
+  llmResponse: Annotation<any>,
   remainingOperations: Annotation<string>,
   notCompletedOperations: Annotation<string>,
   lastTurn: Annotation<boolean>,
@@ -60,27 +67,22 @@ let llm: StructuredOutputType;
 /*********/
 
 const loadModel = async (state: typeof outlinerAgentState.State) => {
-  let modelShortcut: string = state.model || defaultModel;
-  let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
-  llm = modelViaLanggraph(llmInfos);
-  return {
-    model: llmInfos.id,
-  };
+  llm = modelViaLanggraph(state.model, turnTokensUsage);
 };
 
 const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
-  state.treeSnapshot = getTreeByUid(state.rootUid);
-
   let notCompletedOperations = state.notCompletedOperations || "";
   let lastTurn = state.lastTurn || false;
 
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  if (!notCompletedOperations) state.treeSnapshot = getTreeByUid(state.rootUid);
+
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   const rawOption = isClaudeModel
     ? {
         includeRaw: true,
       }
     : {};
-  llm = llm.withStructuredOutput(planerSchema);
+  const structuredLlm = llm.withStructuredOutput(planerSchema, rawOption);
   let messages = [sys_msg].concat(state["messages"]);
   if (notCompletedOperations) {
     const outlineCurrentState = await getTemplateForPostProcessing(
@@ -95,13 +97,13 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     Here is the current state of the outliner:
     ${outlineCurrentState.stringified}`)
     );
-    console.log("messages :>> ", messages);
     lastTurn = true;
     notCompletedOperations = "";
     state.uidsInOutline = outlineCurrentState.allBlocks;
   }
   const begin = performance.now();
-  const response = await llm.invoke(messages);
+  console.log("messages :>> ", messages);
+  const response = await structuredLlm.invoke(messages);
   const end = performance.now();
   console.log("LLM response :>> ", response);
   console.log(
@@ -110,11 +112,12 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
   );
 
   return {
-    messages: [new AIMessage(response.message)],
-    remainingOperations:
-      response.operations && response.operations.length
-        ? JSON.stringify(response.operations)
-        : "",
+    // messages: [new AIMessage(response.message)],
+    // remainingOperations:
+    //   response.operations && response.operations.length
+    //     ? JSON.stringify(response.operations)
+    //     : "",
+    llmResponse: response,
     notCompletedOperations,
     lastTurn,
     treeSnapshot: state.treeSnapshot,
@@ -122,30 +125,30 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
   };
 };
 
-// const formatChecker = async (state: typeof outlinerAgentState.State) => {
-//   const isClaudeModel = state.model.toLowerCase().includes("claude");
-//   if (isClaudeModel) {
-//     const raw = state.remainingOperations.raw.content[0];
-//     if (!state.llmResponse.parsed) {
-//       console.log("raw: ", raw);
-//       if (raw?.input?.period && raw?.input?.roamQuery) {
-//         // console.log("raw period: ", raw?.input?.period);
-//         state.llmResponse.period = JSON.parse(
-//           balanceBraces(sanitizeClaudeJSON(raw.input.period))
-//         );
-//         query = raw?.input?.roamQuery;
-//       }
-//     } else {
-//       state.llmResponse = state.llmResponse.parsed;
-//     }
-//   }
-//   const correctedQuery = balanceBraces(query);
-//   // console.log("Query after correction :>> ", correctedQuery);
-//   return {
-//     roamQuery: correctedQuery,
-//     period: state.llmResponse.period || null,
-//   };
-// };
+const formatChecker = async (state: typeof outlinerAgentState.State) => {
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
+  if (isClaudeModel) {
+    const raw = state.llmResponse.raw.content[0];
+    if (!state.llmResponse.parsed) {
+      console.log("raw: ", raw);
+      if (raw?.input?.operations) {
+        state.llmResponse.operations = JSON.parse(
+          balanceBraces(sanitizeClaudeJSON(raw.input.operations))
+        );
+        state.llmResponse.message = balanceBraces(raw?.input?.message);
+      }
+    } else {
+      state.llmResponse = state.llmResponse.parsed;
+    }
+  }
+  return {
+    messages: [new AIMessage(state.llmResponse.message)],
+    remainingOperations:
+      state.llmResponse.operations && state.llmResponse.operations.length
+        ? JSON.stringify(state.llmResponse.operations)
+        : "",
+  };
+};
 
 const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
   let notCompletedOperations = state.notCompletedOperations;
@@ -177,7 +180,7 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
         isBlockInOutline = state.uidsInOutline.includes(targetParentUid);
       }
     }
-    newChildren && (newChildren = sanitizeJSONstring(newChildren));
+    // newChildren && (newChildren = sanitizeJSONstring(newChildren));
     newOrder &&
       newOrder.length &&
       (newOrder = newOrder.map((item: string) => sanitizeJSONstring(item)));
@@ -199,7 +202,7 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
             format,
           });
           if (newChildren)
-            await insertStructuredAIResponse({
+            insertStructuredAIResponse({
               targetUid: blockUid,
               content: newChildren,
             });
@@ -208,11 +211,11 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
           console.log("append! :>> ");
           await insertStructuredAIResponse({
             targetUid: blockUid,
-            content: sanitizeJSONstring(newContent),
+            content: newContent,
             format,
           });
           if (newChildren)
-            await insertStructuredAIResponse({
+            insertStructuredAIResponse({
               targetUid: blockUid,
               content: newChildren,
             });
@@ -240,12 +243,16 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
               format?.open,
               format?.heading
             );
+            console.log("newChildren :>> ", newChildren);
+            console.log("newBlockUid :>> ", newBlockUid);
             if (newChildren)
-              await insertStructuredAIResponse({
-                targetUid: newBlockUid,
-                content: newChildren,
-                forceInChildren: true,
-              });
+              setTimeout(async () => {
+                await insertStructuredAIResponse({
+                  targetUid: newBlockUid,
+                  content: newChildren,
+                  forceInChildren: true,
+                });
+              }, 200);
           }
           break;
         case "reorder":
@@ -374,12 +381,14 @@ const builder = new StateGraph(outlinerAgentState);
 builder
   .addNode("loadModel", loadModel)
   .addNode("operationsPlanner", operationsPlanner)
+  .addNode("formatChecker", formatChecker)
   .addNode("sequentialAPIrunner", sequentialAPIrunner)
   .addNode("timeTraveler", timeTraveler)
 
   .addConditionalEdges(START, updateOrTravel)
   .addEdge("loadModel", "operationsPlanner")
-  .addEdge("operationsPlanner", "sequentialAPIrunner")
+  .addEdge("operationsPlanner", "formatChecker")
+  .addEdge("formatChecker", "sequentialAPIrunner")
   .addConditionalEdges("sequentialAPIrunner", continueOperations)
   .addConditionalEdges("timeTraveler", retryOrEnd);
 
