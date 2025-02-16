@@ -38,6 +38,7 @@ import { getTemplateForPostProcessing } from "../../dataExtraction";
 import { insertStructuredAIResponse } from "../../responseInsertion";
 import { planerSchema } from "./outliner-schema";
 import { turnTokensUsage } from "../search-agent/invoke-search-agent";
+import { AppToaster } from "../../../components/Toaster";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -83,37 +84,51 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
         includeRaw: true,
       }
     : {};
-  const structuredLlm = llm.withStructuredOutput(planerSchema, rawOption);
-  let messages = [sys_msg].concat(state["messages"]);
-  if (notCompletedOperations) {
-    const outlineCurrentState = await getTemplateForPostProcessing(
-      state.rootUid,
-      99,
-      [],
-      false
-    );
-    messages = messages.concat(
-      new HumanMessage(`Based on initial user request and the current state of the outliner provided below (potentially new blocks created), propose again, with complete information (e.g. replacing "new" in 'targetParentUid' key by an existing 9-character identifier), the following remaining operations:
+
+  const begin = performance.now();
+  let llmResponse;
+  try {
+    const structuredLlm = llm.withStructuredOutput(planerSchema, rawOption);
+    let messages = [sys_msg].concat(state["messages"]);
+    if (notCompletedOperations) {
+      const outlineCurrentState = await getTemplateForPostProcessing(
+        state.rootUid,
+        99,
+        [],
+        false
+      );
+      messages = messages.concat(
+        new HumanMessage(`Based on initial user request and the current state of the outliner provided below (potentially new blocks created), propose again, with complete information (e.g. replacing "new" in 'targetParentUid' key by an existing 9-character identifier), the following remaining operations:
     ${notCompletedOperations}
     Here is the current state of the outliner:
     ${outlineCurrentState.stringified}`)
-    );
-    lastTurn = true;
-    notCompletedOperations = "";
-    state.uidsInOutline = outlineCurrentState.allBlocks;
+      );
+      lastTurn = true;
+      notCompletedOperations = "";
+      state.uidsInOutline = outlineCurrentState.allBlocks;
+    }
+    console.log("messages :>> ", messages);
+    llmResponse = await structuredLlm.invoke(messages);
+  } catch (error) {
+    AppToaster.show({
+      message: `Outliner Agent Error during LLM (${state.model.id}) request: ${error.message}`,
+    });
   }
-  const begin = performance.now();
-  console.log("messages :>> ", messages);
-  const response = await structuredLlm.invoke(messages);
+  if (!llmResponse) {
+    AppToaster.show({
+      message: `Outliner Agent Error during LLM (${state.model.id}) request: no response from the LLM`,
+    });
+    return;
+  }
   const end = performance.now();
-  console.log("LLM response :>> ", response);
+  console.log("LLM response :>> ", llmResponse);
   console.log(
     "operationsPlanner request duration: ",
     `${((end - begin) / 1000).toFixed(2)}s`
   );
 
   return {
-    llmResponse: response,
+    llmResponse,
     notCompletedOperations,
     lastTurn,
     treeSnapshot: state.treeSnapshot,

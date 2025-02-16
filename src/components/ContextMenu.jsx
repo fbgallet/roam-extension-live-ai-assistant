@@ -316,7 +316,7 @@ const StandaloneContextMenu = () => {
         selectedUids: selectedBlocks.current,
         style:
           command.isIncompatibleWith?.style ||
-          command.isIncompatibleWith?.specificStyle.includes(style)
+          command.isIncompatibleWith?.specificStyle?.includes(style)
             ? "Normal"
             : conversationStyle || style,
         roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
@@ -385,7 +385,7 @@ const StandaloneContextMenu = () => {
 
   const handleOutlineSelection = useCallback(async () => {
     const outlinerCommand = commands.find((cmd) => cmd.id === 20);
-    const isSelectCmd = !outlinerCommand.name.includes("Disable");
+    const isSelectCmd = !outlinerCommand.name?.includes("Disable");
     if (isSelectCmd) {
       await setAsOutline();
       setRootUid(extensionStorage.get("outlinerRootUid"));
@@ -795,7 +795,7 @@ const StandaloneContextMenu = () => {
   const updateMenu = () => {
     const currentRootUid = extensionStorage.get("outlinerRootUid");
     const outlinerCommand = commands.find((cmd) => cmd.id === 20);
-    const isSelectCmd = !outlinerCommand.name.includes("Disable");
+    const isSelectCmd = !outlinerCommand.name?.includes("Disable");
     if (rootUid != currentRootUid) {
       setRootUid(currentRootUid);
       if (currentRootUid && isSelectCmd)
