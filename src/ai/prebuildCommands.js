@@ -25,41 +25,44 @@ export const BUILTIN_COMMANDS = [
     name: "Selected blocks as prompt",
     category: "",
     includeUids: true,
-    onlyGen: true,
   },
   {
     id: 10,
     name: "Continue the conversation",
     category: "",
-    onlyGen: true,
   },
   {
     id: 100,
     name: "Selected blocks as prompt",
     category: "",
     includeUids: true,
-    onlyGen: true,
   },
   // OUTLINER AGENT COMMANDS
   {
     id: 2,
     name: "Apply custom prompt to Live Outline",
     category: "OUTLINER AGENT",
-    onlyOutliner: true,
+    isIncompatibleWith: {
+      completion: true,
+    },
   },
   {
     id: 21,
     name: "Apply selected blocks as prompt",
     prompt: "",
     category: "OUTLINER AGENT",
-    onlyOutliner: true,
+    isIncompatibleWith: {
+      completion: true,
+    },
   },
   {
     id: 20,
     name: "Set as active Live Outline",
     prompt: "",
     category: "OUTLINER AGENT",
-    onlyOutliner: true,
+    isIncompatibleWith: {
+      completion: true,
+    },
   },
   // {
   //   id: 22,
@@ -74,7 +77,9 @@ export const BUILTIN_COMMANDS = [
     name: "Create new Live Outline",
     prompt: "",
     category: "OUTLINER AGENT",
-    onlyOutliner: true,
+    isIncompatibleWith: {
+      completion: true,
+    },
   },
   {
     id: 80,
@@ -82,6 +87,10 @@ export const BUILTIN_COMMANDS = [
     callback: invokeNLQueryInterpreter,
     target: "new",
     category: "QUERY AGENTS",
+    isIncompatibleWith: {
+      outliner: true,
+      style: true,
+    },
   },
   {
     id: 81,
@@ -89,6 +98,10 @@ export const BUILTIN_COMMANDS = [
     callback: invokeNLDatomicQueryInterpreter,
     target: "new",
     category: "QUERY AGENTS",
+    isIncompatibleWith: {
+      outliner: true,
+      style: true,
+    },
   },
   {
     id: 82,
@@ -97,12 +110,19 @@ export const BUILTIN_COMMANDS = [
     category: "QUERY AGENTS",
     target: "new",
     keyWords: "Natural language Agent",
+    isIncompatibleWith: {
+      outliner: true,
+      style: true,
+    },
   },
   {
     id: 83,
     name: "Ask to your graph...",
     callback: invokeAskAgent,
     category: "QUERY AGENTS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     target: "new",
     keyWords: "Natural language Agent, post-processing",
   },
@@ -113,9 +133,6 @@ export const BUILTIN_COMMANDS = [
     name: "Summarize",
     prompt: "summarize",
     category: "CONTENT ANALYSIS",
-    isIncompatibleWith: {
-      outliner: true,
-    },
     target: "new w/o",
   },
   {
@@ -123,9 +140,6 @@ export const BUILTIN_COMMANDS = [
     name: "Extract key insights",
     prompt: "keyInsights",
     category: "CONTENT ANALYSIS",
-    isIncompatibleWith: {
-      outliner: true,
-    },
     includeUids: true,
     submenu: [1310, 1311],
   },
@@ -135,7 +149,6 @@ export const BUILTIN_COMMANDS = [
     prompt: "keyInsights",
     category: "CONTENT ANALYSIS",
     isIncompatibleWith: {
-      outliner: true,
       specificStyles: ["Quiz"],
     },
     includeUids: true,
@@ -147,9 +160,6 @@ export const BUILTIN_COMMANDS = [
     prompt: "extractHighlights",
     category: "CONTENT ANALYSIS",
     target: "new w/o",
-    isIncompatibleWith: {
-      outliner: true,
-    },
     includeUids: true,
     isSub: true,
   },
@@ -158,9 +168,6 @@ export const BUILTIN_COMMANDS = [
     name: "Extract reasoning structure",
     prompt: "reasoningAnalysis",
     category: "CONTENT ANALYSIS",
-    isIncompatibleWith: {
-      outliner: true,
-    },
     target: "new",
     submenu: [1320, 1321],
   },
@@ -169,9 +176,6 @@ export const BUILTIN_COMMANDS = [
     name: "Sentiment Analysis",
     prompt: "sentimentAnalysis",
     category: "CONTENT ANALYSIS",
-    isIncompatibleWith: {
-      outliner: true,
-    },
     target: "new",
     isSub: true,
   },
@@ -180,9 +184,6 @@ export const BUILTIN_COMMANDS = [
     name: "Value Analysis",
     prompt: "valueAnalysis",
     category: "CONTENT ANALYSIS",
-    isIncompatibleWith: {
-      outliner: true,
-    },
     target: "new",
     isSub: true,
   },

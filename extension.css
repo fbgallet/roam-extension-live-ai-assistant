@@ -502,8 +502,12 @@
 
 .tokens-dialog {
   width: 95%;
-  max-width: 750px;
-  max-height: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+}
+.tokens-dialog .bp3-dialog-body {
+  max-height: 80vh;
+  overflow-y: auto;
 }
 .tokens-dialog h3 {
   cursor: pointer;
@@ -517,13 +521,14 @@
   width: 100%;
   margin: 10px 0;
 }
-.tokens-dialog th {
+.tokens-dialog .bp3-dialog-body .bp3-html-table th {
   background-color: #f5f8fa;
   padding: 8px;
   text-align: left;
 }
-.tokens-dialog td {
+.tokens-dialog .bp3-dialog-body .bp3-html-table td {
   padding: 8px;
+  max-width: 220px;
 }
 .tokens-dialog .even-row {
   background-color: transparent;
@@ -592,10 +597,17 @@
   }
 
   .tokens-dialog .bp3-dialog-body {
-    font-size: 8px;
-    overflow: hidden;
+    font-size: 7.5px;
     overflow-x: scroll;
     margin: 10px;
+  }
+  .tokens-dialog .bp3-dialog-body p {
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+  .tokens-dialog .bp3-dialog-body td,
+  .tokens-dialog .bp3-dialog-body th {
+    padding: 6px;
   }
 }
 

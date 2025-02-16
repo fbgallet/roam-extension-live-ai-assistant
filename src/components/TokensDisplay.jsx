@@ -5,6 +5,7 @@ import {
   Collapse,
   Divider,
   Icon,
+  Button,
 } from "@blueprintjs/core";
 import { extensionStorage, openRouterModelsInfo } from "..";
 import { modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
@@ -14,8 +15,10 @@ const TokensDialog = ({ isOpen, onClose }) => {
   const [isCurrentOpen, setIsCurrentOpen] = useState(true);
   const [isLastOpen, setIsLastOpen] = useState(false);
   const [isTotalOpen, setIsTotalOpen] = useState(false);
-
-  const tokensCounter = extensionStorage.get("tokensCounter");
+  const [isResetToConfirm, setIsResetToConfirm] = useState(false);
+  const [tokensCounter, setTokensCounter] = useState(
+    extensionStorage.get("tokensCounter")
+  );
 
   const calculateCost = (tokens, pricePerK) => {
     if (!tokens || !pricePerK) return NaN;
@@ -112,6 +115,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
       </table>
     );
   };
+
   return (
     <Dialog
       isOpen={isOpen}
@@ -245,6 +249,27 @@ const TokensDialog = ({ isOpen, onClose }) => {
         <Collapse isOpen={isTotalOpen}>
           {generateTable(tokensCounter.total)}
         </Collapse>
+      </div>
+      <div className={Classes.DIALOG_FOOTER}>
+        {!isResetToConfirm ? (
+          <Button
+            text="Reset all"
+            intent="danger"
+            onClick={() => {
+              setIsResetToConfirm(true);
+            }}
+          />
+        ) : (
+          <Button
+            text="Click to confirm RESET ALL"
+            intent="danger"
+            onClick={() => {
+              extensionStorage.set("tokensCounter", { total: {} });
+              setTokensCounter({ total: {} });
+              setIsResetToConfirm(false);
+            }}
+          />
+        )}
       </div>
     </Dialog>
   );

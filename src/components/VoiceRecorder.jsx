@@ -756,7 +756,7 @@ function VoiceRecorder({
             onClick={(e) => {
               if (window.roamAlphaAPI.platform.isMobile) {
                 if (command === handleCompletion) {
-                  window.LiveAI.toggleContextMenu({ e });
+                  window.LiveAI.toggleContextMenu({ e, onlyCompletion: true });
                 } else if (command === handleOutlinerAgent) {
                   window.LiveAI.toggleContextMenu({ e, onlyOutliner: true });
                 } else command(e);
