@@ -63,6 +63,7 @@ export const balanceBraces = (str) => {
 
 export const splitParagraphs = (str) => {
   codeBlockRegex.lastIndex = 0;
+  // str = str.replace(/\\\\/g, "");
   // clean double line break
   str = str.replace(/\n\s*\n/g, "\n\n");
   // change double line break of codeblocks to exclude them on the split process
@@ -76,6 +77,7 @@ export const parseAndCreateBlocks = async (
   isParentToReplace = false
 ) => {
   const lines = text.split("\n");
+  console.log("lines :>> ", lines);
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
   let minTitleLevel;

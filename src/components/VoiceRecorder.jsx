@@ -462,7 +462,13 @@ function VoiceRecorder({
 
   const completionProcessing = async (e, prompt, targetUid) => {
     if (lastCommand.current === "outlinerAgent") {
-      invokeOutlinerAgent({ e, prompt, model: instantModel.current });
+      invokeOutlinerAgent({
+        e,
+        prompt,
+        sourceUid:
+          targetUid || window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+        model: instantModel.current,
+      });
       // let inlineTemplate = getTemplateFromPrompt(
       //   getBlockContentByUid(promptUid)
       // );

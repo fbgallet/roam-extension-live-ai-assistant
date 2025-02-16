@@ -3,8 +3,9 @@ import { z } from "zod";
 export const planerSchema = z.object({
   message: z
     .string()
+    .nullable()
     .describe(
-      "Answer to a question about the content in the outline, or notes about difficulties encountered regarding the user's request. A message should only be provided if information is requested or something go wrong and some instruction has to be sent to the user. Otherwise, simply say 'N/A'"
+      "Message about error or difficulties encountered regarding the user's request (only if relevant) or, eventually, your answer to a very explicit request the extract some content from the outline. Otherwise, write only 'N/A'"
     ),
   operations: z
     .array(

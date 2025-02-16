@@ -20,13 +20,23 @@ import {
   getTemplateForPostProcessing,
   handleModifierKeys,
 } from "../../dataExtraction";
-import { aiCompletionRunner, copyTemplate } from "../../responseInsertion";
+import {
+  aiCompletionRunner,
+  copyTemplate,
+  insertStructuredAIResponse,
+} from "../../responseInsertion";
 import { customTagRegex } from "../../../utils/regex";
 import { AppToaster } from "../../../components/Toaster";
 import { outlinerAgent } from "./outliner-agent";
+import { genericRetryPrompt } from "./outliner-prompts";
+import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
+import { modelAccordingToProvider } from "../../aiAPIsHub";
+
+export let turnTokensUsage: TokensUsage;
 
 interface AgentInvoker {
   e?: MouseEvent;
+  sourceUid?: string;
   rootUid?: string;
   model?: string;
   prompt?: string;
@@ -39,6 +49,7 @@ interface AgentInvoker {
 
 export const invokeOutlinerAgent = async ({
   e,
+  sourceUid,
   rootUid,
   prompt,
   context,
@@ -49,10 +60,12 @@ export const invokeOutlinerAgent = async ({
   retry,
 }: AgentInvoker) => {
   let outline, roamContextFromKeys, retryPrompt, retryReasons;
+  let llmInfos: LlmInfos = modelAccordingToProvider(model || defaultModel);
+  turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
   if (!rootUid) return;
-  console.log("rootUid :>> ", rootUid);
-  console.log("treeSnapshot :>> ", treeSnapshot);
+  //   console.log("rootUid :>> ", rootUid);
+  //   console.log("treeSnapshot :>> ", treeSnapshot);
 
   if (!treeSnapshot || retry) {
     let { currentUid, currentBlockContent, selectionUids, position } =
@@ -109,7 +122,6 @@ export const invokeOutlinerAgent = async ({
       isToRemove: true,
     });
   }
-  console.log("defaultModel :>> ", defaultModel);
 
   if (retry && treeSnapshot) {
     historyCommand = null;
@@ -122,26 +134,17 @@ export const invokeOutlinerAgent = async ({
       tree: treeSnapshot,
     });
 
-    retryPrompt = `CONTEXT:
-  The user has already asked an LLM to modify a structured content (in the form of an outline) according to their instructions, but the result is not satisfactory ${
-    retryReasons ? "for the following reason:\n'" + retryReasons + "'" : ""
-  }.
-      
-  YOUR JOB:
-  The user request needs to be carefully reexamined and the requested operations must be carried out while taking into account previous errors, in order to produce the most satisfactory result possible. Make sure to evaluate the relevant and necessary operations to meet the user's request.
-  IMPORTANT: you must perform your modifications starting from the initial state provided below, and understand the errors in the modified state provided later. BUT only the content, blocks, and identifiers of the initial state are to be considered for your modification operations!
-  
-  Here is their INITIAL USER REQUEST:
-  ${prompt}
-  
-  Here is the outline in its INITIAL STATE, before any modification:
-  ${initialOutlineState}
-  
-  Here is the outline after the first modification by an LLM, a state which does not satisfy the user:
-  ${outline.stringified}`;
+    retryPrompt = genericRetryPrompt
+      .replace(
+        "<retry-reasons>",
+        retryReasons ? " for the following reason:\n'" + retryReasons + "'" : ""
+      )
+      .replace("<user-request>", prompt)
+      .replace("<initialt-state>", initialOutlineState)
+      .replace("<modified-state>", outline.stringified);
   }
 
-  console.log("retryPrompt :>> ", retryPrompt);
+  //   console.log("retryPrompt :>> ", retryPrompt);
 
   highlightHtmlElt({ eltUid: rootUid, color: "blue" });
 
@@ -166,7 +169,7 @@ export const invokeOutlinerAgent = async ({
     uidsInOutline: outline?.allBlocks,
     historyCommand,
     treeTarget: treeSnapshot,
-    model,
+    model: llmInfos,
     retry,
   });
 
@@ -178,12 +181,25 @@ export const invokeOutlinerAgent = async ({
 
   const end = performance.now();
   console.log("response from command:>> ", response);
-  const message = response.messages.length > 1 && response.messages[1].content;
-  message && console.log("operations :>> ", message);
+  const message =
+    response.messages.length > 1 && response.messages.at(-1).content;
+  message && console.log("Agent response:>> ", message);
   if (message && message !== "N/A") {
-    AppToaster.show({
-      message: "Outliner Agent: " + message,
-    });
+    if (message.toLowerCase().includes("warning:")) {
+      AppToaster.show({
+        message: "Outliner Agent - " + message,
+      });
+    } else {
+      console.log("sourceUid :>> ", sourceUid);
+      let targetUid = sourceUid;
+      if (getBlockContentByUid(sourceUid))
+        targetUid = await createChildBlock(sourceUid);
+      insertStructuredAIResponse({
+        targetUid,
+        content: message,
+        target: "new w/o",
+      });
+    }
   }
   console.log(
     "Total Agent request duration: ",

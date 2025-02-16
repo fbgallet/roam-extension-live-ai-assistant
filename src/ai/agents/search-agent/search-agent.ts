@@ -103,7 +103,7 @@ export const SearchAgentState = Annotation.Root({
 const loadModel = async (state: typeof SearchAgentState.State) => {
   llm = modelViaLanggraph(state.model, turnTokensUsage);
   // return {
-  //   model,
+  //   model: llm,
   // };
 };
 

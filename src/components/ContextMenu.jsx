@@ -404,7 +404,15 @@ const StandaloneContextMenu = () => {
   };
 
   const handleOutlinePrompt = async (e, prompt, model) => {
-    if (rootUid) invokeOutlinerAgent({ e, rootUid, prompt, model });
+    if (rootUid)
+      invokeOutlinerAgent({
+        e,
+        sourceUid: focusedBlockUid.current,
+        rootUid,
+        prompt,
+        model,
+        style,
+      });
   };
 
   const filterCommands = (query, item) => {
