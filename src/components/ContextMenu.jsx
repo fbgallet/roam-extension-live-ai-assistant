@@ -89,6 +89,7 @@ const StandaloneContextMenu = () => {
   const [userCommands, setUserCommands] = useState([]);
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
+  const [isCompletionOnly, setIsCompletionOnly] = useState(false);
   const [activeCommand, setActiveCommand] = useState();
   const [displayModelsMenu, setDisplayModelsMenu] = useState(false);
   const [displayAddPrompt, setDisplayAddPrompt] = useState(false);
@@ -121,10 +122,12 @@ const StandaloneContextMenu = () => {
     window.LiveAI.toggleContextMenu = ({
       e,
       onlyOutliner = false,
+      onlyCompletion = false,
       instantModel,
       focusUid,
     }) => {
       setIsOutlinerAgent(onlyOutliner);
+      setIsCompletionOnly(onlyCompletion);
       instantModel && setModel(instantModel);
       setPosition({
         x: Math.min(e.clientX, window.innerWidth - 300),
@@ -426,6 +429,8 @@ const StandaloneContextMenu = () => {
       /selected|continue/i.test(item.name)
     )
       return false;
+    if (isOutlinerAgent && item.isIncompatibleWith?.outliner) return false;
+    if (isCompletionOnly && item.isIncompatibleWith?.completion) return false;
     if (!query) {
       if (
         item.category === "MY LIVE OUTLINES" ||
@@ -661,7 +666,7 @@ const StandaloneContextMenu = () => {
                 />
               )}
               {categoryItems.map((item) => renderItem(item))}
-              {!query && category === "OUTLINER AGENT" && (
+              {!query && !isCompletionOnly && category === "OUTLINER AGENT" && (
                 <>
                   <MenuItem
                     text="Favorite Live Outlines"
