@@ -31,6 +31,7 @@ import { outlinerAgent } from "./outliner-agent";
 import { genericRetryPrompt } from "./outliner-prompts";
 import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
+import { RoamContext } from "../types";
 
 export let turnTokensUsage: TokensUsage;
 
@@ -40,7 +41,7 @@ interface AgentInvoker {
   rootUid?: string;
   model?: string;
   prompt?: string;
-  context?: string;
+  context?: RoamContext;
   treeSnapshot?: any[];
   style?: string;
   historyCommand?: string;
@@ -59,7 +60,11 @@ export const invokeOutlinerAgent = async ({
   historyCommand,
   retry,
 }: AgentInvoker) => {
-  let outline, roamContextFromKeys, retryPrompt, retryReasons;
+  let outline,
+    roamContextFromKeys,
+    retryPrompt,
+    retryReasons,
+    stringifiedContext;
   let llmInfos: LlmInfos = modelAccordingToProvider(model || defaultModel);
   turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
@@ -95,8 +100,8 @@ export const invokeOutlinerAgent = async ({
     }
     outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
     roamContextFromKeys = await handleModifierKeys(e);
-    context = await getAndNormalizeContext({
-      roamContext: roamContextFromKeys,
+    stringifiedContext = await getAndNormalizeContext({
+      roamContext: context || roamContextFromKeys,
       model,
       uidToExclude: rootUid,
     });
@@ -109,7 +114,7 @@ export const invokeOutlinerAgent = async ({
         prompt,
         instantModel: model,
         target: "new w/o",
-        roamContext: roamContextFromKeys,
+        roamContext: context || roamContextFromKeys,
         style,
         isButtonToInsert: false,
       });
@@ -155,17 +160,25 @@ export const invokeOutlinerAgent = async ({
       {
         role: "user",
         content: !treeSnapshot
-          ? `${prompt}
+          ? `User request:
+${prompt}
   
-              Input outline:
-              ${outline?.stringified}
-              `
+Current state of the Live Outline (to be updated or completed according to the user request):
+${outline?.stringified}
+${
+  stringifiedContext
+    ? "\n" +
+      "Below is the context of the user request: it can consist of data to rely on or to process, depending on the user's request. It should not be confused with the Live Outline. Context is about input data whereas the outline is the structure where the outputs will be inserted. Here is the context:\n" +
+      stringifiedContext
+    : ""
+}`
           : retry
           ? retryPrompt
           : "",
       },
     ],
     humanPrompt: prompt,
+    context: stringifiedContext,
     uidsInOutline: outline?.allBlocks,
     historyCommand,
     treeTarget: treeSnapshot,

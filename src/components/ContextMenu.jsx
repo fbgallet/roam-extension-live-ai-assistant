@@ -54,6 +54,7 @@ import {
   checkOutlineAvailabilityOrOpen,
   insertNewOutline,
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
+import { hasTrueBooleanKey } from "../utils/dataProcessing";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -199,7 +200,7 @@ const StandaloneContextMenu = () => {
       lastBuiltinCommand.current = {
         command: command.prompt,
         style,
-        context: roamContext,
+        context: hasTrueBooleanKey(roamContext) ? roamContext : null,
       };
     const target =
       targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
@@ -275,7 +276,7 @@ const StandaloneContextMenu = () => {
         await addToConversationHistory(convParams);
       } else {
         conversationStyle = convParams?.style;
-        roamContext.current = convParams?.context || roamContext.current;
+        convParams?.context && setRoamContext(convParams?.context);
       }
     }
 
@@ -315,7 +316,7 @@ const StandaloneContextMenu = () => {
           command.isIncompatibleWith?.specificStyle.includes(style)
             ? "Normal"
             : conversationStyle || style,
-        roamContext,
+        roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
         forceNotInConversation: isInConversation && command.id === 1,
       });
     } else {
@@ -410,6 +411,7 @@ const StandaloneContextMenu = () => {
         sourceUid: focusedBlockUid.current,
         rootUid,
         prompt,
+        context: hasTrueBooleanKey(roamContext) ? roamContext : null,
         model,
         style,
       });
