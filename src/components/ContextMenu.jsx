@@ -123,12 +123,13 @@ const StandaloneContextMenu = () => {
       e,
       onlyOutliner = false,
       onlyCompletion = false,
-      instantModel,
       focusUid,
     }) => {
       setIsOutlinerAgent(onlyOutliner);
       setIsCompletionOnly(onlyCompletion);
-      instantModel && setModel(instantModel);
+      setIsMenuToDisplay(false);
+      // if (e.target.classList.includes("outliner")) setIsOutlinerAgent(onlyOutliner);
+      // if (e.target.classList.includes("fa-bolt")) setIsCompletionOnly(onlyCompletion);
       setPosition({
         x: Math.min(e.clientX, window.innerWidth - 300),
         y: Math.min(e.clientY, window.innerHeight - 300),
@@ -149,6 +150,8 @@ const StandaloneContextMenu = () => {
       setDisplayModelsMenu(false);
       setTargetBlock("auto");
       setIsInConversation(false);
+      setIsCompletionOnly(false);
+      setIsOutlinerAgent(false);
       if (!isPinnedStyle) setStyle(defaultStyle);
       setRoamContext({ ...voidRoamContext });
       selectedBlocks.current = null;
@@ -169,8 +172,6 @@ const StandaloneContextMenu = () => {
       positionInRoamWindow.current = position;
       setIsInConversation(isPromptInConversation(currentUid, false));
       // if (!isPinnedStyle) setStyle(defaultStyle);
-      console.log("focusedBlockUid.current :>> ", focusedBlockUid.current);
-      console.log("selectedBlocks.current :>> ", selectedBlocks.current);
       updateMenu();
     }
   }, [isOpen]);
@@ -288,10 +289,11 @@ const StandaloneContextMenu = () => {
       command.name === "Continue the conversation" ||
       // (command.id !== 20 &&
       //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
-      (!command.onlyOutliner &&
-        (!isOutlinerAgent || (!rootUid && command.id !== 20))) ||
+      isCompletionOnly ||
+      (!rootUid && command.id !== 20 && command.id !== 21) ||
       // case with Live Outliner active AND blank focused block
       (rootUid &&
+        !command.isIncompatibleWith?.completion &&
         (focusedBlockContent.current === "" ||
           command.isIncompatibleWith?.outline))
     ) {
@@ -541,7 +543,7 @@ const StandaloneContextMenu = () => {
                     setActiveCommand(subCommand.id);
                   }}
                 >
-                  {insertModelsMenu(handleClickOnCommand, command)}
+                  {insertModelsMenu(handleClickOnCommand, subCommand)}
                 </MenuItem>
               );
             })}
@@ -589,7 +591,15 @@ const StandaloneContextMenu = () => {
 
     const usedCommands = extensionStorage.get("commandCounter");
     const mostUsed = usedCommands.counter
-      .filter((item) => item.id > 10 && item.id !== usedCommands.last)
+      .filter(
+        (item) =>
+          item &&
+          item.id > 10 &&
+          item.id !== usedCommands.last &&
+          item.id !== 20 &&
+          item.id !== 21 &&
+          item.id !== 22
+      )
       .slice(0, 5)
       .map((item) => {
         let command = commands.find((cmd) => cmd.id === item.id);
@@ -824,7 +834,6 @@ const StandaloneContextMenu = () => {
           prompt: cmd.uid,
         };
       });
-      console.log("Live AI user custom prompts :>> ", userCmds);
       setUserCommands(userCmds);
     } else if (userCommands.length) setUserCommands([]);
   };
@@ -852,7 +861,6 @@ const StandaloneContextMenu = () => {
 
   const updateLiveOutlines = () => {
     const orderedOutlines = getOrderedCustomPromptBlocks("liveai/outline");
-    console.log("orderedOutlines :>> ", orderedOutlines);
     if (orderedOutlines) {
       const outlines = orderedOutlines.map((cmd, index) => {
         return {
@@ -863,7 +871,6 @@ const StandaloneContextMenu = () => {
           prompt: cmd.uid,
         };
       });
-      console.log("Live AI user favorite Live Outlines :>> ", outlines);
       setLiveOutlines(outlines);
     } else if (liveOutlines.length) setLiveOutlines([]);
   };
@@ -880,7 +887,6 @@ const StandaloneContextMenu = () => {
           prompt: cmd.uid,
         };
       });
-      console.log("Live AI user Outline Templates :>> ", templatesCmds);
       setTemplates(templatesCmds);
     } else if (templates.length) setTemplates([]);
   };

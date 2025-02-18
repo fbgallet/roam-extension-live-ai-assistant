@@ -9,71 +9,71 @@ export const searchListSchema = z.object({
     .describe("Search list of key terms directly extracted from user request"),
   alternativeList: z
     .string()
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "Optional alternative search list if strong disjunctive logic in user request"
+      "Optional alternative search list if strong disjunctive logic in user request, otherwise null"
     ),
   nbOfResults: z
     .number()
-    .optional()
+    // .optional()
     .nullable()
     .describe("Number of requested results, otherwise null"),
-  isRandom: z.boolean().optional().describe("Is a random result requested"),
+  isRandom: z.boolean().nullable().describe("Is a random result requested"),
   isPostProcessingNeeded: z
     .boolean()
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "True if the user query ask not only for a search but also for post-processing search results"
+      "True if the user query ask not only for a search but also for post-processing search results, otherwise null"
     ),
   isInferenceNeeded: z
     .boolean()
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "True if the user question keywords aren't enough to catch relevant data "
+      "True if the user question keywords aren't enough to catch relevant data, otherwise null"
     ),
   depthLimitation: z
     .number()
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "Depth limitation of the search: 0, 1 or to levels of children, or ignore this property if no indication"
+      "Depth limitation of the search: 0, 1 or to levels of children, set to null if no indication"
     ),
   pagesLimitation: z
     .string()
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "Limitation to a set of pages: 'dnp' or expression to be matched by the page titles"
+      "Limitation to a set of pages: 'dnp' or expression to be matched by the page titles, set to null if no indication"
     ),
   period: z
     .object({
       begin: z
         .string()
-        .optional()
+        // .optional()
         .nullable()
         .describe(
           "Date of the beginning of the period (older than the end), in the format yyyy/mm/dd"
         ),
       end: z
         .string()
-        .optional()
+        // .optional()
         .nullable()
         .describe("Date of the end of the period, in the format yyyy/mm/dd"),
     })
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "Restricted period of the request, only if mentioned by the user"
+      "Restricted period of the request, only if mentioned by the user, otherwise set to null"
     ),
 });
 
 export const alternativeSearchListSchema = z.object({
   alternativeSearchList: z
     .string()
-    .optional()
+    // .optional()
     .nullable()
     .describe("The formatted alternative query"),
 });
@@ -89,21 +89,21 @@ const filtersArray = z
           ),
         isToExclude: z
           .boolean()
-          .optional()
+          // .optional()
           .nullable()
           .describe("True if this regexString is to exclude"),
         isTopBlockFilter: z
           .boolean()
-          .optional()
+          // .optional()
           .nullable()
           .describe(
-            "true only for item greater (higher) in the hierarchy expressed by '<' or '>' symbol"
+            "true only for item greater (higher) in the hierarchy expressed by '<' or '>' symbol, otherwise set to null"
           ),
       })
       .describe("Filter object")
   )
   .nullable()
-  .optional()
+  // .optional()
   .describe(
     "Array of filter objects defining conjunctively combined search conditions"
   );

@@ -1075,10 +1075,6 @@ export default {
         counter: [],
         last: null,
       });
-    console.log(
-      'extensionAPI.settings.get("commandCounter")',
-      extensionAPI.settings.get("commandCounter")
-    );
 
     createContainer();
 

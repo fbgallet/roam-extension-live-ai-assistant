@@ -6,6 +6,7 @@ import { Intent, ProgressBar } from "@blueprintjs/core";
 import { AgentToaster } from "../../../components/Toaster";
 import { SearchAgentState } from "./search-agent";
 import { toasterInstance } from "./invoke-search-agent";
+import { ReactNode } from "react";
 
 export const displayAgentStatus = (
   state: typeof SearchAgentState.State,
@@ -140,7 +141,7 @@ export const displayAgentStatus = (
               ))}
           </ul>
         </>
-      ),
+      ) as ReactNode,
       timeout: status === "output" ? 15000 : 0,
     },
     toasterInstance

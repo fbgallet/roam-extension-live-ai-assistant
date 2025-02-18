@@ -178,7 +178,6 @@ ${
       },
     ],
     humanPrompt: prompt,
-    context: stringifiedContext,
     uidsInOutline: outline?.allBlocks,
     historyCommand,
     treeTarget: treeSnapshot,
@@ -198,7 +197,7 @@ ${
     response.messages.length > 1 && response.messages.at(-1).content;
   message && console.log("Agent response:>> ", message);
   if (message && message !== "N/A") {
-    if (message.toLowerCase().includes("warning:")) {
+    if (message.toString().toLowerCase().includes("warning:")) {
       AppToaster.show({
         message: "Outliner Agent - " + message,
       });

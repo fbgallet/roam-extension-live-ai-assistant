@@ -51,13 +51,13 @@ OUTPUT FORMAT following the JSON schema provided:
   3) excluded item (NOT) marked with leading '-' (only a single negation is allowed, eventually with alternatives)
   4) hierarchical condition with ' > ' or ' < ' symbols. <HIERARCHY_NL>If 'all children' of a given type of parent are requested, without other condition, use '.*' regex. (e.g.: for 'all children < #tag' or for 'all children of blocks mentionning #tag' the exact query is '.* < #tag') (IMPORTANT: never use '.*' expression if another condition is expressed about children blocks. And never use it on the parent side)
 - 'alternativeList': the main logic of a query has to be a disjunction, but if the main logic of the usere request is a disjunction with a clear distinction between two distinct sets of conditions (they separated by a strong disjunctive term, e.g. 'OR' or double '||' symbol), then these two sets should be processed separately, the first one in 'searchList' and the second one here in 'alternativeList', following the same rules as defined above. Generate an alternartive search list only if strongly required by the user request logic, otherwise set this property to null.
-- set 'nbOfResults' if a number of results is specified, otherwise ignore this property
+- set 'nbOfResults' if a number of results is specified, otherwise set to null
 - set 'isRandom' to true if a random result is requested
-- set 'depthLimitation' to a number from 0 to 2, or ignore the property if no limitation. Set it to
+- set 'depthLimitation' to a number from 0 to 2, if not relevant set to null. Set depthLimitation to
     - 0 if all conditions have to match the same block,
     - 1 if they can be also matched by direct chidren blocks, 
     - 2 if they can be matched by two levels of children.
-- set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise ignore this property
+- set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise set to null.
 <PERIOD_PROPERTY>
 <POST_PROCESSING_PROPERTY>
 <INFERENCE_PROPERTY>
@@ -102,7 +102,7 @@ export const hierarchyNLInstructions = `More precisely, if a hierarchical condit
 export const inferenceNeededProperty =
   "- set 'isInferenceNeeded' property to true if the question asked is such that searching its keywords will probably not yield the most relevant results, but it is necessary to infer from this question keywords that could capture the most likely answers (which will be done at a later stage).";
 
-export const periodProperty = `- set 'period' range if specified, otherwise ignore this property. If dates or period are mentioned, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.`;
+export const periodProperty = `- set 'period' range if specified, otherwise set to null. If dates or period are mentioned, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.`;
 
 export const searchAgentListToFiltersSystemPrompt = `You are a smart and rigorous AI Agent that breaks down search list items into a set of regex elements that will serve as conjunctively joined filters to prepare a text search in a database.
 
@@ -133,7 +133,7 @@ Since each filters will be combined following the conjunctive logic with the oth
 OUTPUT FORMAT: For each provided search list, create a set of filters following the provided JSON schema, where:
 - "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
   - 'regexString': the searched content, expressed as a regex to express disjunctive relationships (OR).
-  - 'isToExclude': true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to ignore.
+  - 'isToExclude': true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to set to null.
   - 'isTopBlockFilter': <HIERARCHY-INSTRUCTIONS-2>`;
 
 export const semanticInstructions = `- IF AND ONLY IF EXPLICITLY REQUESTED with '~' (tilde) symbol at the end of a given word, add most relevant semantic variations (synonym, acronym, common alias or abbreviation), strictly limited to the same language used in the initial user's request (unless otherwise specified) ! E.g. if the searched item is 'practice~' (but not 'practice' !), semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
@@ -147,7 +147,7 @@ export const hierarchyInstructions2 = `in case of hierarchy indication, true for
 a) if the search list includes ' > ' (greater than) symbol, set to true ONLY for item placed BEFORE this symbol (on the left) in search list. E.g: in 'A > B', 'isTopBlockFilter' is true only for A, false for 'B'
 b) if search list includes ' < ' (less than) symbol, set to true ONLY for item placed AFTER this symbol (on the right) in search list. E.g.: in 'child < parent', 'isTopBlockFilter' is true only for 'parent', false for 'child'
 VERY IMPORTANT: BE VERY CAREFUL about the difference between these two symbols.  .
-c) ignore this property if none if these symbols.`;
+c) set this property to null if none if these symbols.`;
 
 export const searchtAgentPreselectionPrompt = `You are an expert assistant in data analysis who helps the user make the most of their data. Your job is to extract the most relevant records from the data provided below, according to the user's request provided below. The goal is to reduce the data that will be subject to further post-processing.
 

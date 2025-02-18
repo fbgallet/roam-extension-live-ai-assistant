@@ -32,7 +32,11 @@ import {
   hierarchyNLInstructions,
   searchAgentNLInferenceFromQuestionPrompt,
 } from "./search-agent-prompts";
-import { LlmInfos, modelViaLanggraph } from "../langraphModelsLoader";
+import {
+  LlmInfos,
+  getLlmSuitableOptions,
+  modelViaLanggraph,
+} from "../langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../../utils/format";
 import { getConjunctiveRegex } from "../../../utils/regex";
 import {
@@ -42,14 +46,17 @@ import {
   removeDuplicatesByProperty,
   sliceByWordLimit,
 } from "../../../utils/dataProcessing";
-import { insertStructuredAIResponse } from "../../responseInsertion";
+import {
+  aiCompletion,
+  insertStructuredAIResponse,
+} from "../../responseInsertion";
 import { getFlattenedContentFromTree } from "../../dataExtraction";
 import {
   alternativeSearchListSchema,
   preselectionSchema,
   searchFiltersSchema,
   searchListSchema,
-} from "../structuredOutput-schemas";
+} from "./search-schemas";
 import { displayAgentStatus } from "./status-toast";
 import {
   descendantRule,
@@ -112,13 +119,10 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 
   const currentDate: string = getRelativeDateAndTimeString(state.rootUid);
 
-  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
-  const rawOption = isClaudeModel
-    ? {
-        includeRaw: true,
-      }
-    : {};
-  const structuredLlm = llm.withStructuredOutput(searchListSchema, rawOption);
+  const structuredLlm = llm.withStructuredOutput(
+    searchListSchema,
+    getLlmSuitableOptions(state.model, "search_lists")
+  );
 
   let isDirected =
     state.userNLQuery.includes("<") || state.userNLQuery.includes(">");
@@ -180,16 +184,9 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 const nlQuestionInterpreter = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "nl-question-interpreter");
 
-  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
-  const rawOption = isClaudeModel
-    ? {
-        includeRaw: true,
-      }
-    : {};
-
   const structuredLlm = llm.withStructuredOutput(
     alternativeSearchListSchema,
-    rawOption
+    getLlmSuitableOptions(state.model, "alternative_list")
   );
   const sys_msg = new SystemMessage({
     content: searchAgentNLInferenceFromQuestionPrompt,
@@ -236,15 +233,9 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   console.log("state.searchLists :>> ", state.searchLists);
   displayAgentStatus(state, "searchlist-converter");
 
-  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
-  const rawOption = isClaudeModel
-    ? {
-        includeRaw: true,
-      }
-    : {};
   const structuredLlm = llm.withStructuredOutput(
     searchFiltersSchema,
-    rawOption
+    getLlmSuitableOptions(state.model, "filters")
   );
   let systemPrompt = searchAgentListToFiltersSystemPrompt.replace(
     "<SEMANTINC-INSTRUCTIONS>",
@@ -284,8 +275,8 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
       state.errorInNode = "searchlist-converter";
     else {
       state.errorInNode = "__end__";
-      displayAgentStatus(state, "error", error.message);
     }
+    displayAgentStatus(state, "error", error.message);
   }
   console.log("response after step 2 (list converter) :>> ", llmResponse);
 
@@ -737,7 +728,10 @@ ${
 Here are the blocks in Roam graph database that match with this request:
 ${flattenedQueryResults}`),
   ]);
-  const structuredLlm = llm.withStructuredOutput(preselectionSchema);
+  const structuredLlm = llm.withStructuredOutput(
+    preselectionSchema,
+    getLlmSuitableOptions(state.model, "preselection")
+  );
   let llmResponse: any;
   try {
     llmResponse = await structuredLlm.invoke(messages);
@@ -812,8 +806,9 @@ Here are the main blocks in Roam graph database that match with this request:
 ${flattenedDetailedResults}`),
   ]);
   let llmResponse;
+  const generativeLlm = modelViaLanggraph(state.model, turnTokensUsage, false);
   try {
-    llmResponse = await llm.invoke(messages);
+    llmResponse = await generativeLlm.invoke(messages);
     state.errorInNode = null;
   } catch (error) {
     console.log("error at post-processing :>> ", error);

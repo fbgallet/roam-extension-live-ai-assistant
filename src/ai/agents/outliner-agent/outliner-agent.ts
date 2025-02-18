@@ -10,8 +10,6 @@ import {
   HumanMessage,
   AIMessage,
 } from "@langchain/core/messages";
-
-import { defaultModel } from "../../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   createChildBlock,
@@ -27,13 +25,14 @@ import {
   balanceBraces,
   sanitizeClaudeJSON,
   sanitizeJSONstring,
-  splitParagraphs,
 } from "../../../utils/format";
-
 import { outlinerAgentSystemPrompt } from "./outliner-prompts";
-import { LlmInfos, modelViaLanggraph } from "../langraphModelsLoader";
+import {
+  LlmInfos,
+  getLlmSuitableOptions,
+  modelViaLanggraph,
+} from "../langraphModelsLoader";
 import { highlightHtmlElt, insertInstantButtons } from "../../../utils/domElts";
-import { modelAccordingToProvider } from "../../aiAPIsHub";
 import { getTemplateForPostProcessing } from "../../dataExtraction";
 import { insertStructuredAIResponse } from "../../responseInsertion";
 import { planerSchema } from "./outliner-schema";
@@ -78,17 +77,13 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
 
   if (!notCompletedOperations) state.treeSnapshot = getTreeByUid(state.rootUid);
 
-  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
-  const rawOption = isClaudeModel
-    ? {
-        includeRaw: true,
-      }
-    : {};
-
   const begin = performance.now();
   let llmResponse;
   try {
-    const structuredLlm = llm.withStructuredOutput(planerSchema, rawOption);
+    const structuredLlm = llm.withStructuredOutput(
+      planerSchema,
+      getLlmSuitableOptions(state.model, "planer_schema")
+    );
     let messages = [sys_msg].concat(state["messages"]);
     if (notCompletedOperations) {
       const outlineCurrentState = await getTemplateForPostProcessing(
@@ -109,19 +104,19 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
     }
     console.log("messages :>> ", messages);
     llmResponse = await structuredLlm.invoke(messages);
+    console.log("LLM response :>> ", llmResponse);
+    if (!llmResponse) {
+      AppToaster.show({
+        message: `Outliner Agent Error during LLM (${state.model.id}) request: no response from the LLM`,
+      });
+      return;
+    }
   } catch (error) {
     AppToaster.show({
       message: `Outliner Agent Error during LLM (${state.model.id}) request: ${error.message}`,
     });
   }
-  if (!llmResponse) {
-    AppToaster.show({
-      message: `Outliner Agent Error during LLM (${state.model.id}) request: no response from the LLM`,
-    });
-    return;
-  }
   const end = performance.now();
-  console.log("LLM response :>> ", llmResponse);
   console.log(
     "operationsPlanner request duration: ",
     `${((end - begin) / 1000).toFixed(2)}s`
@@ -143,9 +138,9 @@ const formatChecker = async (state: typeof outlinerAgentState.State) => {
     if (!state.llmResponse.parsed) {
       console.log("raw: ", raw);
       if (raw?.input?.operations) {
-        state.llmResponse.operations = JSON.parse(
-          balanceBraces(sanitizeClaudeJSON(raw.input.operations))
-        );
+        state.llmResponse.operations = Array.isArray(raw.input.operations)
+          ? raw.input.operations
+          : JSON.parse(balanceBraces(sanitizeClaudeJSON(raw.input.operations)));
         state.llmResponse.message = balanceBraces(raw?.input?.message);
       }
     } else {
@@ -189,19 +184,29 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
       if (targetParentUid !== "root" && targetParentUid !== "new") {
         targetParentUid = extractNormalizedUidFromRef(targetParentUid, false);
         isBlockInOutline = state.uidsInOutline.includes(targetParentUid);
+        if (!isBlockInOutline) {
+          targetParentUid = "root";
+          isBlockInOutline = true;
+        }
       }
+    } else if (action === "create") {
+      targetParentUid = "root";
     }
     // newChildren && (newChildren = sanitizeJSONstring(newChildren));
+    if (format && format["children-view-type"]) {
+      if (!"bullet|numbered|document".includes(format["children-view-type"]))
+        format["children-view-type"] = "bullet";
+    }
     newOrder &&
       newOrder.length &&
       (newOrder = newOrder.map((item: string) => sanitizeJSONstring(item)));
     try {
       if (!isBlockInOutline) {
-        throw new Error(
-          `Targeted block (${blockUid ? "blockUid: " + blockUid : ""} ${
-            targetParentUid ? "targetParentUid:" + targetParentUid : ""
-          }) not included in the Outline !`
-        );
+        // throw new Error(
+        //   `Targeted block (${blockUid ? "blockUid: " + blockUid : ""} ${
+        //     targetParentUid ? "targetParentUid:" + targetParentUid : ""
+        //   }) not included in the Outline !`
+        // );
       }
       switch (action) {
         case "update":
@@ -250,7 +255,7 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
             const newBlockUid = await createChildBlock(
               targetParentUid === "root" ? state.rootUid : targetParentUid,
               newContent,
-              position,
+              position || "last",
               format?.open,
               format?.heading
             );

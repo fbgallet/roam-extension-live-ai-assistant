@@ -118,7 +118,7 @@ export const invokeAskAgent = async ({
           isRandom: response.isRandom,
           perdiod: response.period,
           depthLimitation: response.depthLimitation,
-          pageLimitation: response.pageLimitation,
+          pagesLimitation: response.pagesLimitation,
           shiftDisplay:
             response.shiftDisplay < response.filteredBlocks?.length &&
             response.shiftDisplay,

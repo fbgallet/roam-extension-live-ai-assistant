@@ -29,6 +29,9 @@ export const BUILTIN_COMMANDS = [
   {
     id: 10,
     name: "Continue the conversation",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     category: "",
   },
   {

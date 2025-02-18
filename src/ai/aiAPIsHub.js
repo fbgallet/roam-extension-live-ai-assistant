@@ -32,6 +32,7 @@ import {
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import { sanitizeJSONstring, trimOutsideOuterBraces } from "../utils/format";
 import {
+  getModelsInfo,
   normalizeClaudeModel,
   tokensLimit,
   updateTokenCounter,
@@ -150,6 +151,8 @@ export function modelAccordingToProvider(model) {
         : openRouterModels.length
         ? openRouterModels[0]
         : undefined;
+    const openRouterInfos = openRouterModelsInfo.find((m) => m.id === llm.id);
+    llm.name = openRouterInfos.name;
     llm.library = openrouterLibrary;
   } else if (model.includes("ollama")) {
     llm.provider = "ollama";
