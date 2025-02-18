@@ -21,7 +21,8 @@ export interface TokensUsage {
 
 export function modelViaLanggraph(
   llmInfos: LlmInfos,
-  turnTokensUsage?: TokensUsage
+  turnTokensUsage?: TokensUsage,
+  structuredOutput?: boolean
 ) {
   let llm;
 
@@ -48,10 +49,26 @@ export function modelViaLanggraph(
     },
   });
 
-  const options = {
-    apiKey: llmInfos.library?.apiKey,
-    callbackManager: tokensUsageCallback,
+  let options: any = {
+    // callbackManager: tokensUsageCallback,
+    maxRetries: 2,
   };
+  if (llmInfos.provider !== "ollama") options.apiKey = llmInfos.library?.apiKey;
+  else options.temperature = 0;
+  if (structuredOutput && llmInfos.provider === "groq")
+    options.response_format = "json_object";
+  if (structuredOutput && llmInfos.provider === "openRouter")
+    options.response_format = "json_object";
+  // ? {
+  //     callbackManager: tokensUsageCallback,
+  //     format: structuredOutput ? "json" : "",
+  //   }
+  // : {
+  //     apiKey: llmInfos.library?.apiKey,
+  //     callbackManager: tokensUsageCallback,
+  //   };
+
+  console.log("llmInfos in langgraphModelsLoader :>> ", llmInfos);
 
   if (llmInfos.provider === "OpenAI" || llmInfos.provider === "groq") {
     llm = new ChatOpenAI({
@@ -62,17 +79,25 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "openRouter") {
-    llm = new ChatOpenAI({
-      model: llmInfos.id,
-      ...options,
-      configuration: {
-        baseURL: llmInfos.library.baseURL,
-      },
-    });
+    if (llmInfos.id.includes("gemini")) {
+      llm = new ChatGoogleGenerativeAI({
+        model: llmInfos.id,
+        ...options,
+        baseUrl: llmInfos.library.baseURL,
+      });
+    } else
+      llm = new ChatOpenAI({
+        model: llmInfos.id,
+        ...options,
+        configuration: {
+          baseURL: llmInfos.library.baseURL,
+        },
+      });
   } else if (llmInfos.provider === "ollama") {
     llm = new ChatOllama({
       model: llmInfos.id,
-      callbackManager: tokensUsageCallback,
+      ...options,
+      maxRetries: 2,
     });
   } else if (llmInfos.provider === "Anthropic") {
     llm = new ChatAnthropic({
@@ -100,3 +125,23 @@ export function modelViaLanggraph(
   }
   return llm;
 }
+
+export const getLlmSuitableOptions = (model: LlmInfos, schemaTitle: string) => {
+  const isClaudeModel = model.id.toLowerCase().includes("claude");
+  const isGPTmodel = model.id.toLocaleLowerCase().includes("gpt");
+
+  const outputOptions: any = {
+    name: schemaTitle,
+  };
+  // There is an issue with json_mode & GPT models in v.0.3 of Langchain OpenAI chat...
+  if (isGPTmodel) {
+    outputOptions.method = "jsonSchema"; //"function_calling";
+    // outputOptions.strict = true;
+  }
+  if (model.provider === "groq" || model.provider === "openRouter") {
+    outputOptions.method = "function_calling";
+  }
+
+  if (isClaudeModel) outputOptions.includeRaw = true;
+  return outputOptions;
+};

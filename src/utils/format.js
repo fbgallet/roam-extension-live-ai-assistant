@@ -15,6 +15,7 @@ export const hierarchyFlagRegex =
 export const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
 
 export const trimOutsideOuterBraces = (str) => {
+  if (!str) return str;
   const matches = str.match(/\{.*\}/gs);
   if (matches) {
     return matches[0];

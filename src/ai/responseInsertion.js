@@ -66,7 +66,7 @@ export const lastCompletion = {
   typeOfCompletion: null,
 };
 
-async function aiCompletion({
+export async function aiCompletion({
   instantModel,
   prompt,
   command,

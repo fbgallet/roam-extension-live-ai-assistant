@@ -33,7 +33,7 @@ WARNING: the data is valuable; only delete any block it if it's strictly relevan
 
 OUTPUT LANGUAGE: your response will always be in the same language as the user request and provided outline.
 
-Your precise response will be a JSON object, formatted according to the provided JSON schema. If a key is optional and your response would be 'null', just IGNORE this key!`;
+Your precise response will be a JSON object, formatted according to the provided planer_schema.`;
 
 export const genericRetryPrompt = `CONTEXT:
 The user has already asked an LLM to modify a structured content (in the form of an outline) according to their instructions, but the result is not satisfactory<retry-reasons>.

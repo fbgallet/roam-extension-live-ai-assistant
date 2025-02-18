@@ -84,7 +84,7 @@ export function openRouterModelPricing(model, inOrOut) {
 export async function getModelsInfo() {
   try {
     const { data } = await axios.get("https://openrouter.ai/api/v1/models");
-    // console.log("data", data.data);
+    // console.log("data", data);
     let result = data.data
       .filter((model) => openRouterModels.includes(model.id))
       .map((model) => {

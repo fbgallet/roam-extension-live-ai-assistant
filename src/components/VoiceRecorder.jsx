@@ -775,7 +775,7 @@ function VoiceRecorder({
               e.preventDefault();
               e.stopPropagation();
               if (command === handleCompletion) {
-                window.LiveAI.toggleContextMenu({ e });
+                window.LiveAI.toggleContextMenu({ e, onlyCompletion: true });
               } else if (command === handleOutlinerAgent) {
                 window.LiveAI.toggleContextMenu({ e, onlyOutliner: true });
               }

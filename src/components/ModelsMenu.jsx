@@ -31,6 +31,9 @@ const ModelsMenu = ({
 }) => {
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
+    console.log("model :>> ", model);
+    console.log("callback :>> ", callback);
+    console.log("command :>> ", command);
     await callback({ e, command, prompt, model });
   };
 
@@ -44,6 +47,7 @@ const ModelsMenu = ({
   const handleContextMenu = (e, prefix, modelId) => {
     e.preventDefault();
     let model = getModelFromMenu(e, prefix, modelId);
+    console.log("model from menu :>> ", model);
     setDefaultModel(model);
     AppToaster.show({
       message: `Default AI model set to: ${model}`,
@@ -372,8 +376,7 @@ const ModelsMenu = ({
                 text={
                   <Tooltip
                     matchTargetWidth={true}
-                    hoverOpenDelay={1000}
-                    hoverCloseDelay={1000}
+                    hoverOpenDelay={1500}
                     content={
                       <>
                         <div style={{ maxWidth: "350px" }}>
