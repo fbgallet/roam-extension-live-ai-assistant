@@ -44,7 +44,7 @@ In addition, you will extract the following information from the user request, i
   - to a limited set of pages or only dnp (daily notes pages)
   - to be limited to a given depth in hierarchy (all conditions in the same block, or in direct children or parent only, or to maximum 2 levels)
 
-OUTPUT FORMAT following the JSON schema provided:
+OUTPUT FORMAT: object following the JSON schema provided:
 - 'searchList': the formatted query, optimized for database search, expressing rigorously the logic of the user request, and made up of a set of search items that will serve as conjunctive conditions to be met according to the logic expressed by specific symbols:
   1) items in conjunction (AND) are separate by ' + '
   2) items in disjunction (OR) or alternatives a separated by '|'

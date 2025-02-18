@@ -5,7 +5,6 @@ import {
   START,
 } from "@langchain/langgraph/web";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { arrayOutputType, z } from "zod";
 import { defaultModel } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
@@ -23,7 +22,10 @@ import {
   insertInstantButtons,
   removeSpinner,
 } from "../../utils/domElts";
+import { turnTokensUsage } from "./search-agent/invoke-search-agent";
+import { AppToaster } from "../../components/Toaster";
 import { modelAccordingToProvider } from "../aiAPIsHub";
+import { aiCompletion } from "../responseInsertion";
 
 interface PeriodType {
   begin: string;
@@ -36,7 +38,7 @@ interface PeriodType {
 
 const QueryAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
-  model: Annotation<string>,
+  model: Annotation<LlmInfos>,
   rootUid: Annotation<string>,
   targetUid: Annotation<string>,
   userNLQuery: Annotation<string>,
@@ -95,51 +97,55 @@ let llm: StructuredOutputType;
 /*********/
 
 const loadModel = async (state: typeof QueryAgentState.State) => {
-  let modelShortcut: string = state.model || defaultModel;
-  let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
-  llm = modelViaLanggraph(llmInfos);
-  return {
-    model: llmInfos.id,
-  };
+  llm = modelViaLanggraph(state.model, turnTokensUsage, false);
 };
 
 const interpreter = async (state: typeof QueryAgentState.State) => {
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
   const currentPageUid = getPageUidByBlockUid(state.rootUid);
   const currentDate = getCurrentOrRelativeDateString(state.rootUid);
 
-  const rawOption = isClaudeModel
-    ? {
-        includeRaw: true,
-      }
-    : {};
   // const structuredLlm = llm.withStructuredOutput(querySchema, rawOption);
+  const sysMsgStr = datomicQuerySystemPrompt.replace(
+    "<CURRENT_DATE>",
+    currentDate
+  );
   const sys_msg = new SystemMessage({
-    content: datomicQuerySystemPrompt.replace("<CURRENT_DATE>", currentDate),
+    content: sysMsgStr,
   });
+  const humanMsgStr = !state.datomicQuery
+    ? state.userNLQuery
+    : `Here is the user request in natural language: ${state.userNLQuery}
+
+Here is the way this request has alreedy been transcribed by an AI assistant in a Roam :q Datomic query: ${state.datomicQuery}
+
+The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`;
   // console.log("sys_msg :>> ", sys_msg);
-  let messages = [sys_msg].concat([
-    new HumanMessage(
-      !state.datomicQuery
-        ? state.userNLQuery
-        : `Here is the user request in natural language: ${state.userNLQuery}
-    
-    Here is the way this request has alreedy been transcribed by an AI assistant in a Roam :q Datomic query: ${state.datomicQuery}
-    
-    The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
-    ),
-  ]);
-  let response = await llm.invoke(messages);
+  let messages = [sys_msg].concat([new HumanMessage(humanMsgStr)]);
+  let response;
+  try {
+    response =
+      state.model.provider !== "openRouter"
+        ? await llm.invoke(messages)
+        : await aiCompletion({
+            instantModel: state.model.prefix + state.model.id,
+            systemPrompt: sysMsgStr,
+            prompt: humanMsgStr,
+            isButtonToInsert: false,
+          });
+  } catch (error) {
+    AppToaster.show({ message: error.message });
+    return;
+  }
   console.log("response :>> ", response);
 
   return {
-    datomicQuery: response.content,
+    datomicQuery: response?.content || response,
   };
 };
 
 const formatChecker = async (state: typeof QueryAgentState.State) => {
   let query = state.datomicQuery;
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  // const isClaudeModel = state.model.toLowerCase().includes("claude");
   // if (isClaudeModel && state.llmResponse.raw?.content) {
   //   const raw = state.llmResponse.raw.content[0];
   //   if (!state.llmResponse.parsed) {
@@ -159,7 +165,6 @@ const formatChecker = async (state: typeof QueryAgentState.State) => {
   // console.log("Query after correction :>> ", correctedQuery);
   return {
     datomicQuery: correctedQuery,
-    // period: state.llmResponse.period || null,
   };
 };
 
@@ -270,8 +275,9 @@ export const invokeNLDatomicQueryInterpreter = async ({
   previousResponse,
 }: AgentInvoker) => {
   const spinnerId = displaySpinner(rootUid);
+  const llmModel: LlmInfos = modelAccordingToProvider(model || defaultModel);
   const response = await NLDatomicQueryInterpreter.invoke({
-    model,
+    model: llmModel,
     rootUid,
     userNLQuery: prompt,
     targetUid,
@@ -281,7 +287,7 @@ export const invokeNLDatomicQueryInterpreter = async ({
   if (response) {
     setTimeout(() => {
       insertInstantButtons({
-        model: response.model,
+        model: response.model.id,
         prompt: response.userNLQuery,
         currentUid: rootUid,
         targetUid: response.targetUid,

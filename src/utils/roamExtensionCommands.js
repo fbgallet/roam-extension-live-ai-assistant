@@ -260,7 +260,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   const openContextMenu = (blockUid) => {
     setTimeout(() => {
-      const centerX = window.innerWidth / 2 - 250;
+      const centerX = window.innerWidth / 4 - 150;
       const centerY = window.innerHeight / 5;
       window.LiveAI.toggleContextMenu({
         e: { clientX: centerX, clientY: centerY },
