@@ -69,17 +69,17 @@ export const lastCompletion = {
 export async function aiCompletion({
   instantModel,
   prompt,
-  command,
-  style,
-  systemPrompt,
+  command = "",
+  style = "",
+  systemPrompt = "",
   content = "",
-  responseFormat,
-  targetUid,
-  withSuggestions,
-  selectedUids,
-  roamContext,
-  target,
-  isButtonToInsert,
+  responseFormat = "",
+  targetUid = "",
+  withSuggestions = false,
+  selectedUids = null,
+  roamContext = null,
+  target = "",
+  isButtonToInsert = true,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;

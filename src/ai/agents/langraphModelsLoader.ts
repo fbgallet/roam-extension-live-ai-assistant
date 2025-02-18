@@ -50,7 +50,7 @@ export function modelViaLanggraph(
   });
 
   let options: any = {
-    // callbackManager: tokensUsageCallback,
+    callbackManager: tokensUsageCallback,
     maxRetries: 2,
   };
   if (llmInfos.provider !== "ollama") options.apiKey = llmInfos.library?.apiKey;
