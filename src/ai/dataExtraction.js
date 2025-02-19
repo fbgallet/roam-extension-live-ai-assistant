@@ -22,6 +22,7 @@ import {
   addContentToBlock,
   createChildBlock,
   createSiblingBlock,
+  extractNormalizedUidFromRef,
   getBlockContentByUid,
   getBlocksMentioningTitle,
   getBlocksSelectionUids,
@@ -36,6 +37,7 @@ import {
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
+  normalizePageTitle,
   resolveReferences,
 } from "../utils/roamAPI";
 import {
@@ -611,8 +613,8 @@ export const getFlattenedContentFromLinkedReferences = (
     `Content from linked references of [[${pageName}]] page:`,
   ];
 
-  console.log("maxCapturingDepth :>> ", maxCapturingDepth);
-  console.log("maxUidDepth :>> ", maxUidDepth);
+  // console.log("maxCapturingDepth :>> ", maxCapturingDepth);
+  // console.log("maxUidDepth :>> ", maxUidDepth);
 
   refTrees.forEach((tree) => {
     let { linearArray } = convertTreeToLinearArray(
@@ -723,7 +725,7 @@ const getMatchingInlineCommand = (text, regex) => {
     matches = newText.match(regex);
     if (!matches || matches.length < 2) return null;
   }
-  return { command: matches[0], options: matches[1] };
+  return { command: matches[0], options: matches[1] || matches[2] };
 };
 
 export const getTemplateFromPrompt = (prompt) => {
@@ -769,12 +771,12 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
   if (hasContext)
     return {
       roamContext: roamContext,
-      updatedPrompt: prompt.replace(command, "").trim(),
+      updatedPrompt: resolveReferences(prompt.replace(command, "").trim()),
     };
   if (alert)
     AppToaster.show({
       message:
-        "Valid options for ((context: )) command: block(uid1+uid2+...), page or page(title1+title2+...), linkedRefs or linkedRefs(title), sidebar, logPages. " +
+        "Valid options for ((context: )) or {{context: }} inline definition: block(uid1+uid2+...), page or page(title1+title2+...), linkedRefs or linkedRefs(title), sidebar, logPages. " +
         "For the last one, you can precise the number of days, eg.: logPages(30)",
       timeout: 0,
     });
@@ -785,11 +787,10 @@ const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
   if (options.includes(`${optionName}(`)) {
     if (optionName === "block")
       prompt = prompt.replaceAll("((", "").replaceAll("))", "");
-    console.log("prompt in getArgumentFromOption :>> ", prompt);
     let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
     const args = [];
     const splittedArgument = argument.split("+");
-    console.log("splittedArgument :>> ", splittedArgument);
+    // console.log("splittedArgument :>> ", splittedArgument);
     splittedArgument.forEach((arg) => {
       switch (optionName) {
         case "logPages":
@@ -800,12 +801,12 @@ const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
           break;
         case "linkedRefs":
         case "page":
-          arg = normlizePageTitle(arg);
+          arg = normalizePageTitle(arg);
       }
       arg && args.push(arg);
     });
     roamContext[`${optionName}Argument`] = args;
-    console.log("args :>> ", args);
+    // console.log("args :>> ", args);
     // optionName === "logPages"
     //   ? Number(argument)
     //   :

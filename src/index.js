@@ -175,7 +175,7 @@ export async function addToConversationHistory({
 export function getConversationParamsFromHistory(uid) {
   if (!uid) return null;
   let conversationHistory = extensionStorage.get("conversationHistory");
-  console.log("conversationHistory :>> ", conversationHistory);
+  // console.log("conversationHistory :>> ", conversationHistory);
   if (!conversationHistory || !conversationHistory.length) return null;
   let conversationParams = conversationHistory.find((conv) => conv.uid === uid);
   return conversationParams;
