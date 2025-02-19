@@ -36,8 +36,8 @@ import { highlightHtmlElt, insertInstantButtons } from "../../../utils/domElts";
 import { getTemplateForPostProcessing } from "../../dataExtraction";
 import { insertStructuredAIResponse } from "../../responseInsertion";
 import { planerSchema } from "./outliner-schema";
-import { turnTokensUsage } from "../search-agent/invoke-search-agent";
 import { AppToaster } from "../../../components/Toaster";
+import { turnTokensUsage } from "./invoke-outliner-agent";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
