@@ -511,7 +511,7 @@ export const extractNormalizedUidFromRef = (str, testIfExist = true) => {
     : matchingResult[1];
 };
 
-const normlizePageTitle = (str) => {
+export const normalizePageTitle = (str) => {
   if (strictPageRegex.test(str)) return str.slice(2, -2);
   else return str;
 };

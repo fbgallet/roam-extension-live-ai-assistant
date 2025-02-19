@@ -156,7 +156,7 @@ export const aiCompletionRunner = async ({
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
-  console.log("prompt in aiCompletionRunner :>> ", prompt);
+  // console.log("prompt in aiCompletionRunner :>> ", prompt);
 
   if (style !== "Normal") {
     let stylePromptText;
@@ -171,8 +171,6 @@ export const aiCompletionRunner = async ({
   systemPrompt +=
     `\nCurrent date and time are: ${getRelativeDateAndTimeString(sourceUid)}` +
     hierarchicalResponseFormat;
-
-  console.log("prompt before :>> ", prompt);
 
   let {
     targetUid,
