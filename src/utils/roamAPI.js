@@ -148,9 +148,7 @@ export function getParentBlock(uid) {
 
 export function getPreviousSiblingBlock(currentUid) {
   const parentUid = getParentBlock(currentUid);
-  console.log("parentUid :>> ", parentUid);
   const tree = getOrderedDirectChildren(parentUid);
-  console.log("tree :>> ", tree);
   const currentBlockOrder = tree.find(
     (block) => block.uid === currentUid
   ).order;
@@ -312,7 +310,6 @@ export async function deleteBlock(blockUid) {
 }
 
 export function reorderBlocks({ parentUid, newOrder }) {
-  console.log("parentUid :>> ", parentUid);
   window.roamAlphaAPI.data.block.reorderBlocks({
     location: { "parent-uid": parentUid },
     blocks: newOrder,
@@ -344,7 +341,7 @@ export async function createChildBlock(
 
 const deleteChildren = async (parentUid) => {
   const directChildren = getOrderedDirectChildren(parentUid);
-  console.log("directChildren :>> ", directChildren);
+  // console.log("directChildren :>> ", directChildren);
   if (directChildren) {
     await Promise.all(
       directChildren.map(async (child) => await deleteBlock(child.uid))
@@ -432,9 +429,9 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
   uidRegex.lastIndex = 0;
   if (uidRegex.test(content)) {
     uidRegex.lastIndex = 0;
-    let matches = content.matchAll(uidRegex);
+    let matches = content.match(uidRegex);
     for (const match of matches) {
-      let refUid = match[0].slice(2, -2);
+      let refUid = match.slice(2, -2);
       // prevent infinite loop !
       let isNewRef = !refsArray.includes(refUid);
       refsArray.push(refUid);
@@ -442,7 +439,7 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
       uidRegex.lastIndex = 0;
       if (uidRegex.test(resolvedRef) && isNewRef && !once)
         resolvedRef = resolveReferences(resolvedRef, refsArray);
-      content = content.replace(match, resolvedRef);
+      content = content.replaceAll(match, resolvedRef);
     }
   }
   return content;
@@ -463,7 +460,6 @@ export const getDNPTitleFromDate = (date) => {
 };
 
 export const getCurrentOrRelativeDateString = (uid) => {
-  console.log("uid :>> ", uid);
   const currentPageUid = uid && getPageUidByBlockUid(uid);
   const currentDate =
     currentPageUid && dnpUidRegex.test(currentPageUid)

@@ -139,7 +139,7 @@ export function removeContainer(position) {
 }
 
 export const displaySpinner = async (targetUid) => {
-  console.log("targetUid :>> ", targetUid);
+  // console.log("targetUid :>> ", targetUid);
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
@@ -335,7 +335,7 @@ export const setAsOutline = async (rootUid) => {
 };
 
 export const toggleOutlinerSelection = (targetUid, isSelected) => {
-  console.log("targetUid :>> ", targetUid);
+  // console.log("targetUid :>> ", targetUid);
   if (targetUid)
     setTimeout(() => {
       highlightHtmlElt({
