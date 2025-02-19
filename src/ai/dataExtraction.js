@@ -1,4 +1,3 @@
-import { ControlGroup } from "@blueprintjs/core";
 import {
   chatRoles,
   defaultModel,
@@ -33,7 +32,6 @@ import {
   getPageUidByBlockUid,
   getParentBlock,
   getPreviousSiblingBlock,
-  getTopOrActiveBlockUid,
   getTreeByUid,
   insertBlockInCurrentView,
   isCurrentPageDNP,
@@ -45,8 +43,7 @@ import {
   contextAsPrompt,
   instructionsOnTemplateProcessing,
 } from "./prompts";
-import { faArrowRightArrowLeft } from "@fortawesome/free-solid-svg-icons";
-import { BUILTIN_COMMANDS, PREBUILD_COMMANDS } from "./prebuildCommands";
+import { BUILTIN_COMMANDS } from "./prebuildCommands";
 
 export const getInputDataFromRoamContext = async (
   e,
@@ -69,7 +66,8 @@ export const getInputDataFromRoamContext = async (
     selectedUids = selectionUids;
   }
   let currentBlockContent;
-  if (sourceUid) currentBlockContent = getBlockContentByUid(sourceUid);
+  if (sourceUid)
+    currentBlockContent = resolveReferences(getBlockContentByUid(sourceUid));
 
   if (!sourceUid && !selectedUids?.length && !e) return { noData: true };
 
