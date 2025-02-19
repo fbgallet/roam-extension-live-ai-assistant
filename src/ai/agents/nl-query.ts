@@ -5,7 +5,7 @@ import {
   START,
 } from "@langchain/langgraph/web";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { arrayOutputType, z } from "zod";
+import { z } from "zod";
 import { defaultModel } from "../..";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
@@ -16,7 +16,12 @@ import {
   updateBlock,
 } from "../../utils/roamAPI";
 import { roamQuerySystemPrompt } from "./agent-prompts";
-import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
+import {
+  LlmInfos,
+  TokensUsage,
+  getLlmSuitableOptions,
+  modelViaLanggraph,
+} from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
 import {
   displaySpinner,
@@ -24,6 +29,7 @@ import {
   removeSpinner,
 } from "../../utils/domElts";
 import { modelAccordingToProvider } from "../aiAPIsHub";
+import { AppToaster } from "../../components/Toaster";
 
 interface PeriodType {
   begin: string;
@@ -36,7 +42,7 @@ interface PeriodType {
 
 const QueryAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
-  model: Annotation<string>,
+  model: Annotation<LlmInfos>,
   rootUid: Annotation<string>,
   targetUid: Annotation<string>,
   userNLQuery: Annotation<string>,
@@ -75,44 +81,37 @@ const querySchema = z.object({
           begin: z.enum(RoamRelativeDates).catch(undefined),
           end: z.enum(RoamRelativeDates).catch(undefined),
         })
-        .optional()
+        // .optional()
         .nullable()
         .describe(
-          "Relative dates, only if corresponding to one the available item"
+          "Relative dates, only if corresponding to one the available item, otherwise null"
         ),
     })
-    .optional()
+    // .optional()
     .nullable()
     .describe(
-      "Restricted period of the request, only if mentioned by the user"
+      "Restricted period of the request, only if mentioned by the user, otherwise null"
     ),
 });
 
 let llm: StructuredOutputType;
+let turnTokensUsage: TokensUsage;
 
 /*********/
 // NODES //
 /*********/
 
 const loadModel = async (state: typeof QueryAgentState.State) => {
-  let modelShortcut: string = state.model || defaultModel;
-  let llmInfos: LlmInfos = modelAccordingToProvider(modelShortcut);
-  llm = modelViaLanggraph(llmInfos);
-  return {
-    model: llmInfos.id,
-  };
+  llm = modelViaLanggraph(state.model, turnTokensUsage);
 };
 
 const interpreter = async (state: typeof QueryAgentState.State) => {
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
   const currentDate = getCurrentOrRelativeDateString(state.rootUid);
 
-  const rawOption = isClaudeModel
-    ? {
-        includeRaw: true,
-      }
-    : {};
-  const structuredLlm = llm.withStructuredOutput(querySchema, rawOption);
+  const structuredLlm = llm.withStructuredOutput(
+    querySchema,
+    getLlmSuitableOptions(state.model, "query")
+  );
   const sys_msg = new SystemMessage({
     content: roamQuerySystemPrompt.replace("<CURRENT_DATE>", currentDate),
   });
@@ -128,7 +127,12 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
     The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
     ),
   ]);
-  let response = await structuredLlm.invoke(messages);
+  let response;
+  try {
+    response = await structuredLlm.invoke(messages);
+  } catch (error) {
+    AppToaster.show({ message: error.message });
+  }
 
   return {
     llmResponse: response,
@@ -137,7 +141,7 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
 
 const formatChecker = async (state: typeof QueryAgentState.State) => {
   let query = state.llmResponse.roamQuery;
-  const isClaudeModel = state.model.toLowerCase().includes("claude");
+  const isClaudeModel = state.model.id.toLowerCase().includes("claude");
   if (isClaudeModel) {
     const raw = state.llmResponse.raw.content[0];
     if (!state.llmResponse.parsed) {
@@ -151,6 +155,7 @@ const formatChecker = async (state: typeof QueryAgentState.State) => {
       }
     } else {
       state.llmResponse = state.llmResponse.parsed;
+      query = state.llmResponse.roamQuery;
     }
   }
   const correctedQuery = balanceBraces(query);
@@ -255,6 +260,7 @@ interface AgentInvoker {
   model: string;
   rootUid: string;
   targetUid?: string;
+  target?: string;
   prompt: string;
   previousResponse?: string;
 }
@@ -263,22 +269,24 @@ export const invokeNLQueryInterpreter = async ({
   model = defaultModel,
   rootUid,
   targetUid,
+  target,
   prompt,
   previousResponse,
 }: AgentInvoker) => {
+  let llmInfos: LlmInfos = modelAccordingToProvider(model);
   const spinnerId = displaySpinner(rootUid);
   const response = await NLQueryInterpreter.invoke({
-    model,
+    model: llmInfos,
     rootUid,
     userNLQuery: prompt,
-    targetUid,
+    targetUid: target.includes("new") ? undefined : targetUid,
     roamQuery: previousResponse,
   });
   removeSpinner(spinnerId);
   if (response) {
     setTimeout(() => {
       insertInstantButtons({
-        model: response.model,
+        model: response.model.id,
         prompt: response.userNLQuery,
         currentUid: rootUid,
         targetUid: response.targetUid,

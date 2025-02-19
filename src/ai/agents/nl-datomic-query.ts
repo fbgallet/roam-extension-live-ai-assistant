@@ -15,14 +15,17 @@ import {
   updateBlock,
 } from "../../utils/roamAPI";
 import { datomicQuerySystemPrompt } from "./agent-prompts";
-import { LlmInfos, modelViaLanggraph } from "./langraphModelsLoader";
+import {
+  LlmInfos,
+  TokensUsage,
+  modelViaLanggraph,
+} from "./langraphModelsLoader";
 import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
 import {
   displaySpinner,
   insertInstantButtons,
   removeSpinner,
 } from "../../utils/domElts";
-import { turnTokensUsage } from "./search-agent/invoke-search-agent";
 import { AppToaster } from "../../components/Toaster";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import { aiCompletion } from "../responseInsertion";
@@ -91,6 +94,7 @@ const QueryAgentState = Annotation.Root({
 // });
 
 let llm: StructuredOutputType;
+let turnTokensUsage: TokensUsage;
 
 /*********/
 // NODES //
