@@ -1,8 +1,6 @@
 import {
-  assistantCharacter,
   chatRoles,
   contextInstruction,
-  defaultTemplate,
   getInstantAssistantRole,
   defaultModel,
   userContextInstructions,
@@ -26,12 +24,10 @@ import {
 import {
   defaultAssistantCharacter,
   hierarchicalResponseFormat,
-  instructionsOnJSONResponse,
   instructionsOnOutline,
   introduceStylePrompt,
   stylePrompts,
 } from "./prompts";
-import { AppToaster } from "../components/VoiceRecorder";
 import {
   displaySpinner,
   insertInstantButtons,
@@ -405,8 +401,8 @@ export const copyTemplate = async (
   strToExclude = "{text}"
 ) => {
   let uidsToExclude = [];
-  if (!templateUid && !defaultTemplate) return;
-  const tree = getTreeByUid(templateUid || defaultTemplate);
+  if (!templateUid) return;
+  const tree = getTreeByUid(templateUid);
   uidsToExclude = await copyTreeBranches(
     tree,
     targetUid,

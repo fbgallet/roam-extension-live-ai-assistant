@@ -5,7 +5,7 @@ import {
   exclusionStrings,
   getConversationParamsFromHistory,
   getInstantAssistantRole,
-  isMobileViewContext,
+  // isMobileViewContext,
   maxCapturingDepth,
   maxUidDepth,
 } from "..";
@@ -479,12 +479,12 @@ export const getAndNormalizeContext = async ({
     );
   // else if (startBlock)
   //   context = resolveReferences(getBlockContentByUid(startBlock));
-  else if (isMobileViewContext && window.innerWidth < 500)
-    context = getResolvedContentFromBlocks(
-      getBlocksSelectionUids(true).slice(0, -1),
-      maxUid,
-      withHierarchy
-    );
+  // else if (isMobileViewContext && window.innerWidth < 500)
+  //   context = getResolvedContentFromBlocks(
+  //     getBlocksSelectionUids(true).slice(0, -1),
+  //     maxUid,
+  //     withHierarchy
+  //   );
   if (roamContext) {
     if (roamContext.block) {
       let blockUids = [];
