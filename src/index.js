@@ -60,13 +60,13 @@ export let assistantCharacter = defaultAssistantCharacter;
 export let defaultStyle;
 export let contextInstruction = defaultContextInstructions;
 export let userContextInstructions;
-export let isMobileViewContext;
+// export let isMobileViewContext;
 export let isResponseToSplit;
 export let logPagesNbDefault;
 export let maxCapturingDepth = {};
 export let maxUidDepth = {};
 export let exclusionStrings = [];
-export let defaultTemplate;
+// export let defaultTemplate;
 export let streamResponse;
 export let maxImagesNb;
 export let openAiCustomModels = [];
@@ -227,7 +227,7 @@ export default {
         {
           id: "position",
           name: "Button position",
-          description: "Where do you want to display Speech-to-Roam button ?",
+          description: "Where do you want to display Assistant button ?",
           action: {
             type: "select",
             items: ["topbar", "left sidebar"],
@@ -255,9 +255,7 @@ export default {
               "Claude Haiku",
               "Claude Haiku 3.5",
               "Claude Sonnet 3.5",
-              "Claude Opus",
               "deepseek-chat",
-              "deepseek-reasoner",
               "first custom OpenAI model",
               "first OpenRouter model",
               "first Ollama local model",
@@ -533,18 +531,19 @@ export default {
             },
           },
         },
-        {
-          id: "mobileContext",
-          name: "View is context on mobile",
-          description:
-            "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
-          action: {
-            type: "switch",
-            onChange: (evt) => {
-              isMobileViewContext = !isMobileViewContext;
-            },
-          },
-        },
+        // DEPRECATED IN V.12
+        // {
+        //   id: "mobileContext",
+        //   name: "View is context on mobile",
+        //   description:
+        //     "On mobile, the content of all blocks in current view is provided to ChatGPT as the context:",
+        //   action: {
+        //     type: "switch",
+        //     onChange: (evt) => {
+        //       isMobileViewContext = !isMobileViewContext;
+        //     },
+        //   },
+        // },
         {
           id: "chatRoles",
           name: "Chat roles",
@@ -563,7 +562,7 @@ export default {
           name: "Assistant's character",
           className: "liveai-settings-largeinput",
           description:
-            "(DEPRECATED, replace it by a custom style) You can describe here the character and tone of the AI assistant (text or ((block-ref))):",
+            "(DEPRECATED, WILL BE REMOVED IN NEXT UPDATE, replace it by a custom style) You can describe here the character and tone of the AI assistant (text or ((block-ref))):",
           action: {
             type: "input",
             onChange: (evt) => {
@@ -578,39 +577,40 @@ export default {
             },
           },
         },
-        {
-          id: "defaultTemplate",
-          name: "Default template for post-processing",
-          description:
-            "If no template is provide in the block or in children, follow this template for GPT model response (copy its parent ((block reference))):",
-          action: {
-            type: "input",
-            onChange: (evt) => {
-              let input = evt.target.value;
-              uidRegex.lastIndex = 0;
-              if (uidRegex.test(input)) {
-                let templateUid = input.replace("((", "").replace("))", "");
-                if (!isExistingBlock(templateUid)) {
-                  AppToaster.show({
-                    message: "This block doesn't exist !",
-                    timeout: 5000,
-                  });
-                  defaultTemplate = "";
-                  extensionAPI.settings.set("defaultTemplate", "");
-                } else defaultTemplate = templateUid;
-              } else {
-                if (input.trim())
-                  AppToaster.show({
-                    message:
-                      "You have to enter a ((block reference)) of an existing block.",
-                    timeout: 5000,
-                  });
-                extensionAPI.settings.set("defaultTemplate", "");
-                defaultTemplate = "";
-              }
-            },
-          },
-        },
+        // DEPRECATED IN V.12
+        // {
+        //   id: "defaultTemplate",
+        //   name: "Default template for post-processing",
+        //   description:
+        //     "If no template is provide in the block or in children, follow this template for GPT model response (copy its parent ((block reference))):",
+        //   action: {
+        //     type: "input",
+        //     onChange: (evt) => {
+        //       let input = evt.target.value;
+        //       uidRegex.lastIndex = 0;
+        //       if (uidRegex.test(input)) {
+        //         let templateUid = input.replace("((", "").replace("))", "");
+        //         if (!isExistingBlock(templateUid)) {
+        //           AppToaster.show({
+        //             message: "This block doesn't exist !",
+        //             timeout: 5000,
+        //           });
+        //           defaultTemplate = "";
+        //           extensionAPI.settings.set("defaultTemplate", "");
+        //         } else defaultTemplate = templateUid;
+        //       } else {
+        //         if (input.trim())
+        //           AppToaster.show({
+        //             message:
+        //               "You have to enter a ((block reference)) of an existing block.",
+        //             timeout: 5000,
+        //           });
+        //         extensionAPI.settings.set("defaultTemplate", "");
+        //         defaultTemplate = "";
+        //       }
+        //     },
+        //   },
+        // },
         {
           id: "contextInstructions",
           name: "Instructions on context",
@@ -1007,9 +1007,9 @@ export default {
     if (extensionAPI.settings.get("contextInstructions") === null)
       await extensionAPI.settings.set("contextInstructions", "");
     userContextInstructions = extensionAPI.settings.get("contextInstructions");
-    if (extensionAPI.settings.get("mobileContext") === null)
-      await extensionAPI.settings.set("mobileContext", false);
-    isMobileViewContext = extensionAPI.settings.get("mobileContext");
+    // if (extensionAPI.settings.get("mobileContext") === null)
+    //   await extensionAPI.settings.set("mobileContext", false);
+    // isMobileViewContext = extensionAPI.settings.get("mobileContext");
     if (extensionAPI.settings.get("splitResponse") === null)
       await extensionAPI.settings.set("splitResponse", true);
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
@@ -1019,16 +1019,16 @@ export default {
     if (extensionAPI.settings.get("maxImages") === null)
       await extensionAPI.settings.set("maxImages", "3");
     maxImagesNb = extensionAPI.settings.get("maxImages");
-    if (extensionAPI.settings.get("defaultTemplate") === null)
-      await extensionAPI.settings.set("defaultTemplate", "");
-    let templateInput = extensionAPI.settings.get("defaultTemplate");
-    uidRegex.lastIndex = 0;
-    if (uidRegex.test(templateInput))
-      defaultTemplate = templateInput.replace("((", "").replace("))", "");
-    else {
-      defaultTemplate = "";
-      extensionAPI.settings.set("defaultTemplate", "");
-    }
+    // if (extensionAPI.settings.get("defaultTemplate") === null)
+    //   await extensionAPI.settings.set("defaultTemplate", "");
+    // let templateInput = extensionAPI.settings.get("defaultTemplate");
+    // uidRegex.lastIndex = 0;
+    // if (uidRegex.test(templateInput))
+    //   defaultTemplate = templateInput.replace("((", "").replace("))", "");
+    // else {
+    //   defaultTemplate = "";
+    //   extensionAPI.settings.set("defaultTemplate", "");
+    // }
     if (extensionAPI.settings.get("logPagesNbDefault") === null)
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");

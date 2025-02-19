@@ -22,7 +22,6 @@ import {
   getFirstChildUid,
   resolveReferences,
 } from "./roamAPI";
-import { queryAgent } from "../ai/agents/query-agent";
 import {
   NLQueryInterpreter,
   invokeNLQueryInterpreter,
