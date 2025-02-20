@@ -279,7 +279,7 @@ export const invokeNLQueryInterpreter = async ({
     model: llmInfos,
     rootUid,
     userNLQuery: prompt,
-    targetUid: target.includes("new") ? undefined : targetUid,
+    targetUid: target && target.includes("new") ? undefined : targetUid,
     roamQuery: previousResponse,
   });
   removeSpinner(spinnerId);
