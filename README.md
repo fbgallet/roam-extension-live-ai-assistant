@@ -22,7 +22,7 @@ Choose the LLM provider(s) that will provide you with an API key to use their se
 
 OpenAI and Anthropic currently provide the most suitable and widely tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus).
 
-Obtaining an API key is a simple operation, accessible to any user. Consult page X for the procedure to follow if you do not already have API keys and see here current API pricing.
+Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see here current API pricing.
 
 ### Simple prompt
 
@@ -84,28 +84,28 @@ Currently, 4 complementary AI Agents can help users to find precise information 
 ### Live Outliner Agent
 
 This is another way of using AI, an alternative to the "Chat" format. It involves an Agent that autonomously chooses to modify an outline, that is, a set of blocks located under a given parent block, based on user requests. Instead of generating a series of content one after another as in a chat, the Live Outliner Agent modifies, adds, or removes specific blocks in the outline, while maintaining the same structure. In other words, the generation is inserted into a pre-existing structure (similar to a template) and acts only surgically, modifying only the necessary elements, which reduces the number of output tokens.
-It's a powerful and innovative feature, still experimental 🧪. See details here.
+It's a powerful and innovative feature, still experimental 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md).
 
 ### Detailed documentation
 
-- Generative AI
+- **Generative AI**
 
-1. Voice transcription
-2. Built-in prompts
-3. Custom prompts
-4. Custom styles
-5. Using SmartBlocks commands
+1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#voice-transcription)
+2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#built-in-prompts)
+3. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-prompts)
+4. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-styles)
+5. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#smartblocks-commands)
 
-- AI Agents
+- **AI Agents**
 
-1. Query Agents
-2. Live Outliner Agent
+1. [Query Agents](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md)
+2. [Live Outliner Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md)
 
-- LLM Providers
+- **LLM Providers**
 
-1. Get API Keys
-2. Models pricing
-3. Ollama to run local models
+1. [Get API Keys](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#get-api-keys)
+2. [Models pricing](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens)
+3. [Ollama to run local models](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#using-ollama-to-run-local-models)
 
 ## Support my work
 
