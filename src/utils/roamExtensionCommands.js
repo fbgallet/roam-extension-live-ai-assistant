@@ -1,6 +1,11 @@
-import { faLessThanEqual } from "@fortawesome/free-solid-svg-icons";
-import { chatRoles, getInstantAssistantRole, isUsingWhisper } from "..";
 import {
+  chatRoles,
+  extensionStorage,
+  getInstantAssistantRole,
+  isUsingWhisper,
+} from "..";
+import {
+  aiCompletionRunner,
   copyTemplate,
   insertCompletion,
   lastCompletion,
@@ -9,33 +14,26 @@ import { specificContentPromptBeforeTemplate } from "../ai/prompts";
 import {
   displayTokensDialog,
   mountComponent,
+  setAsOutline,
   simulateClick,
   simulateClickOnRecordingButton,
   toggleComponentVisibility,
   unmountComponent,
 } from "./domElts";
 import {
-  cleanFlagFromBlocks,
   createChildBlock,
   extractNormalizedUidFromRef,
-  getBlockContentByUid,
   getFirstChildUid,
   resolveReferences,
 } from "./roamAPI";
-import {
-  NLQueryInterpreter,
-  invokeNLQueryInterpreter,
-} from "../ai/agents/nl-query";
+import { invokeNLQueryInterpreter } from "../ai/agents/nl-query";
 import { invokeNLDatomicQueryInterpreter } from "../ai/agents/nl-datomic-query";
-import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/outliner-agent";
+import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import {
-  getAndNormalizeContext,
   getContextFromSbCommand,
   getFlattenedContentFromTree,
   getFocusAndSelection,
-  getRoamContextFromPrompt,
   getTemplateForPostProcessing,
-  getTemplateFromPrompt,
 } from "../ai/dataExtraction";
 import { flexibleUidRegex, sbParamRegex } from "./regex";
 
@@ -64,24 +62,25 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       } else simulateClickOnRecordingButton();
     },
   });
+  // DEPRECATED IN V.12
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label: "Live AI Assistant: Translate to English",
+  //   callback: () => {
+  //     const button = document.getElementsByClassName("speech-translate")[0];
+  //     if (button) {
+  //       button.focus();
+  //       button.click();
+  //       if (
+  //         !isComponentVisible &&
+  //         document.getElementsByClassName("speech-to-roam")[0]?.style
+  //           .display !== "none"
+  //       )
+  //         toggleComponentVisibility();
+  //     } else simulateClickOnRecordingButton();
+  //   },
+  // });
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Translate to English",
-    callback: () => {
-      const button = document.getElementsByClassName("speech-translate")[0];
-      if (button) {
-        button.focus();
-        button.click();
-        if (
-          !isComponentVisible &&
-          document.getElementsByClassName("speech-to-roam")[0]?.style
-            .display !== "none"
-        )
-          toggleComponentVisibility();
-      } else simulateClickOnRecordingButton();
-    },
-  });
-  extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Transcribe & send as prompt to AI assistant",
+    label: "Live AI Assistant: Transcribe & send as prompt to generative AI",
     callback: () => {
       const button = document.getElementsByClassName("speech-completion")[0];
       if (button) {
@@ -97,25 +96,26 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     },
   });
 
-  extensionAPI.ui.commandPalette.addCommand({
-    label:
-      "Live AI Assistant: Transcribe & send as content for templated-based AI post-processing",
-    callback: () => {
-      const button = document.getElementsByClassName(
-        "speech-post-processing"
-      )[0];
-      if (button) {
-        button.focus();
-        button.click();
-        if (
-          !isComponentVisible &&
-          document.getElementsByClassName("speech-to-roam")[0]?.style
-            .display !== "none"
-        )
-          toggleComponentVisibility();
-      } else simulateClickOnRecordingButton();
-    },
-  });
+  // DEPRECATED IN V.12
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label:
+  //     "Live AI Assistant: Transcribe & send as prompt to Outliner Agent",
+  //   callback: () => {
+  //     const button = document.getElementsByClassName(
+  //       "speech-post-processing"
+  //     )[0];
+  //     if (button) {
+  //       button.focus();
+  //       button.click();
+  //       if (
+  //         !isComponentVisible &&
+  //         document.getElementsByClassName("speech-to-roam")[0]?.style
+  //           .display !== "none"
+  //       )
+  //         toggleComponentVisibility();
+  //     } else simulateClickOnRecordingButton();
+  //   },
+  // });
 
   extensionAPI.ui.commandPalette.addCommand({
     label:
@@ -130,121 +130,30 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   extensionAPI.ui.commandPalette.addCommand({
     label:
-      "Live AI Assistant: (text) AI completion of focused block as prompt & selection as context",
-    callback: async (test) => {
-      console.log("test :>> ", test);
-      aiCompletionRunner();
+      "Live AI Assistant: AI generation, focused/selected block(s) as prompt",
+    callback: async (e) => {
+      aiCompletionRunner({
+        e,
+        sourceUid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+      });
     },
   });
 
   extensionAPI.ui.commandPalette.addCommand({
     label:
-      "Live AI Assistant: (text) template-based AI post-processing, children as prompt template & focused block as content",
-    callback: async () => {
-      let { currentUid, currentBlockContent, selectionUids } =
-        getFocusAndSelection();
-      if (!currentUid) {
-        if (selectionUids.length) currentUid = selectionUids[0];
-        else return;
+      "Live AI Assistant: Outliner Agent, set active outline or apply prompt",
+    callback: async (e) => {
+      const focusedUid =
+        window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+      const isOutlineActive = extensionStorage.get("outlinerRootUid");
+      if (!isOutlineActive) {
+        await setAsOutline(focusedUid);
+        return;
       }
-
-      const inlineContext = getRoamContextFromPrompt(currentBlockContent);
-      if (inlineContext) currentBlockContent = inlineContext.updatedPrompt;
-      let context = await getAndNormalizeContext(
-        null,
-        selectionUids,
-        inlineContext?.roamContext
-      );
-
-      // simulateClick(document.querySelector(".roam-body-main"));
-      let targetUid;
-      let waitForBlockCopy = false;
-      let uidsToExclude = [];
-      if (currentBlockContent) {
-        let inlineTemplate = getTemplateFromPrompt(
-          getBlockContentByUid(currentUid)
-        );
-        // console.log("inlineTemplate :>> ", inlineTemplate);
-        if (inlineTemplate) {
-          uidsToExclude = await copyTemplate(
-            currentUid,
-            inlineTemplate.templateUid
-          );
-          currentBlockContent = resolveReferences(inlineTemplate.updatedPrompt);
-          waitForBlockCopy = true;
-        } else {
-          targetUid = getFirstChildUid(currentUid);
-          if (!targetUid) {
-            uidsToExclude = await copyTemplate(currentUid);
-            waitForBlockCopy = true;
-          }
-        }
-      }
-      setTimeout(
-        async () => {
-          let template = await getTemplateForPostProcessing(
-            currentUid,
-            99,
-            uidsToExclude
-          );
-          if (!template.isInMultipleBlocks) {
-            targetUid = await createChildBlock(
-              targetUid ? targetUid : currentUid,
-              chatRoles.assistant,
-              inlineContext?.roamContext
-            );
-            currentUid = targetUid;
-          }
-          let prompt = template.isInMultipleBlocks
-            ? specificContentPromptBeforeTemplate +
-              currentBlockContent +
-              "\n\n" +
-              template.stringified
-            : template.stringified;
-
-          if (!targetUid) targetUid = getFirstChildUid(currentUid);
-
-          // remove {text} mentions from template
-          if (template.excluded && template.excluded.length) {
-            cleanFlagFromBlocks("{text}", template.excluded);
-          }
-
-          insertCompletion({
-            prompt,
-            // waitForBlockCopy ? currentUid : targetUid,
-            targetUid,
-            context,
-            typeOfCompletion: template.isInMultipleBlocks
-              ? "gptPostProcessing"
-              : "gptCompletion",
-          });
-        },
-        waitForBlockCopy ? 100 : 0
-      );
-    },
-  });
-
-  extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Redo last AI completion (update response)",
-    callback: () => {
-      if (lastCompletion.prompt) {
-        const focusUid =
-          window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-        const targetUid = focusUid ? focusUid : lastCompletion.targetUid;
-        console.log("lastCompletion :>> ", lastCompletion);
-        insertCompletion({
-          prompt: lastCompletion.prompt,
-          targetUid,
-          context: lastCompletion.context,
-          typeOfCompletion: lastCompletion.typeOfCompletion,
-          instantModel: lastCompletion.instantModel,
-          withAssistantRole: lastCompletion.withAssistantRole,
-          withSuggestions: lastCompletion.withSuggestions,
-          target: lastCompletion.target,
-          selectionUids: lastCompletion.selectionUids,
-          isRedone: true,
-        });
-      }
+      invokeOutlinerAgent({
+        e,
+        //   sourceUid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+      });
     },
   });
 
@@ -279,43 +188,27 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     callback: (e) => openContextMenu(e["block-uid"]),
   });
 
-  // extensionAPI.ui.commandPalette.addCommand({
-  //   label: "Live AI Assistant: Set as target for Outliner Agent",
-  //   callback: async () => {
-  //     setAsOutline();
-  //   },
-  // });
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Natural language Query Agent",
+    callback: async () => {
+      let { currentUid, currentBlockContent } = getFocusAndSelection();
+      await invokeNLQueryInterpreter({
+        rootUid: currentUid,
+        prompt: currentBlockContent,
+      });
+    },
+  });
 
-  // extensionAPI.ui.commandPalette.addCommand({
-  //   label: "Live AI Assistant: Send this prompt to Outliner Agent",
-  //   callback: async () => {
-  //     invokeOutlinerAgent();
-  //   },
-  // });
-
-  // extensionAPI.ui.commandPalette.addCommand({
-  //   label: "Live AI Assistant: Natural language Query Agent",
-  //   callback: async () => {
-  //     let { currentUid, currentBlockContent, selectionUids } =
-  //       getFocusAndSelection();
-  //     await invokeNLQueryInterpreter({
-  //       rootUid: currentUid,
-  //       prompt: currentBlockContent,
-  //     });
-  //   },
-  // });
-
-  // extensionAPI.ui.commandPalette.addCommand({
-  //   label: "Live AI Assistant: Natural language Datomic :q Agent",
-  //   callback: async () => {
-  //     let { currentUid, currentBlockContent, selectionUids } =
-  //       getFocusAndSelection();
-  //     await invokeNLDatomicQueryInterpreter({
-  //       rootUid: currentUid,
-  //       prompt: currentBlockContent,
-  //     });
-  //   },
-  // });
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI Assistant: Natural language Datomic :q Agent",
+    callback: async () => {
+      let { currentUid, currentBlockContent } = getFocusAndSelection();
+      await invokeNLDatomicQueryInterpreter({
+        rootUid: currentUid,
+        prompt: currentBlockContent,
+      });
+    },
+  });
 
   // Add SmartBlock command
   const speechCmd = {

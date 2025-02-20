@@ -838,7 +838,7 @@ function VoiceRecorder({
                 disabled={window.roamAlphaAPI.platform.isMobile}
                 content={
                   <p>
-                    AI Completion following prompt (C)
+                    AI Generation following prompt (C)
                     <br />+<code>Alt</code>: <b>page</b> as context
                     <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
                     <b>linked refs or DNPs</b>
