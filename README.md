@@ -16,7 +16,7 @@
 
 Left sidebar or topbar controls:
 
-![image](https://github.com/user-attachments/assets/9c9bea03-17b8-4d06-b2bd-7523a10537b6)
+![image](https://github.com/user-attachments/assets/29af805f-6122-4443-b4fc-023e4615763f)
 
 ## **GETTING STARTED**
 
