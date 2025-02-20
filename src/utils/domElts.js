@@ -51,8 +51,6 @@ export function mountComponent(
 
   // isSafari = true;
 
-  console.log("currentBlockUid :>> ", currentBlockUid);
-
   ReactDOM.render(
     <App
       blockUid={currentBlockUid}

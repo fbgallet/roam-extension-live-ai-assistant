@@ -17,7 +17,9 @@ import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
   getResolvedContentFromBlocks,
+  getRoamContextFromPrompt,
   getTemplateForPostProcessing,
+  getUnionContext,
   handleModifierKeys,
 } from "../../dataExtraction";
 import {
@@ -100,12 +102,19 @@ export const invokeOutlinerAgent = async ({
     }
     outline = await getTemplateForPostProcessing(rootUid, 99, [], false, false);
     roamContextFromKeys = await handleModifierKeys(e);
+    let globalContext = getUnionContext(context, roamContextFromKeys);
+    const inlineContext = getRoamContextFromPrompt(
+      getBlockContentByUid(rootUid)
+    );
+    if (inlineContext) {
+      globalContext = getUnionContext(globalContext, inlineContext.roamContext);
+    }
     stringifiedContext = await getAndNormalizeContext({
-      roamContext: context || roamContextFromKeys,
+      roamContext: globalContext,
       model,
       uidToExclude: rootUid,
     });
-    console.log("context :>> ", context);
+    console.log("context :>> ", stringifiedContext);
 
     if (!outline || !outline?.stringified?.trim()) {
       await aiCompletionRunner({
@@ -114,7 +123,7 @@ export const invokeOutlinerAgent = async ({
         prompt,
         instantModel: model,
         target: "new w/o",
-        roamContext: context || roamContextFromKeys,
+        roamContext: globalContext,
         style,
         isButtonToInsert: false,
       });
