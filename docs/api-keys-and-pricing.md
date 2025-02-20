@@ -45,3 +45,5 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 For a complete and up-to-date comparison of pricing and performance, see https://artificialanalysis.ai/models#pricing
 
 See here on [OpenRouter.ai](https://openrouter.ai/models?order=pricing-low-to-high) for pricing of all other available models via OpenRouter
+
+## Using Ollama to run local models
