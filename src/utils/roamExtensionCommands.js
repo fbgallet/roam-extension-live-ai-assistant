@@ -8,7 +8,6 @@ import {
   aiCompletionRunner,
   copyTemplate,
   insertCompletion,
-  lastCompletion,
 } from "../ai/responseInsertion";
 import { specificContentPromptBeforeTemplate } from "../ai/prompts";
 import {

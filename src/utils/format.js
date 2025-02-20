@@ -14,6 +14,17 @@ export const hierarchyFlagRegex =
   /^\s*\(?[-\d](?:\.|\))\s*|^\s*[a-z]\)\s*|^\s*[ivx]+(?:\.|\))\s*|^\s*#{1,6}\s|^\s*(?:-|•)\s?/im;
 export const dashOrNumRegex = /^\s*-\s|^\d{1,2}\.\s/m;
 
+export const yearToWords = {
+  2023: "two thousand twenty-three",
+  2024: "two thousand twenty-four",
+  2025: "two thousand twenty-five",
+  2026: "two thousand twenty-six",
+  2027: "two thousand twenty-seven",
+  2028: "two thousand twenty-eight",
+  2029: "two thousand twenty-nine",
+  2030: "two thousand thirty",
+};
+
 export const trimOutsideOuterBraces = (str) => {
   if (!str) return str;
   const matches = str.match(/\{.*\}/gs);

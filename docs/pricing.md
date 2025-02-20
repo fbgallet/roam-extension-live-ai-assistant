@@ -2,6 +2,8 @@
 
 Pricing currently used in cost calculations in Live AI Assistant
 
+In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like o3, o1, deepseek-reasoner, etc.).
+
 NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI Assistant. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI Assistant are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
 
 | **Model**                  | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
