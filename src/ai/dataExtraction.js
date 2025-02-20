@@ -46,6 +46,7 @@ import {
   instructionsOnTemplateProcessing,
 } from "./prompts";
 import { BUILTIN_COMMANDS } from "./prebuildCommands";
+import { hasTrueBooleanKey, removeDuplicates } from "../utils/dataProcessing";
 
 export const getInputDataFromRoamContext = async (
   e,
@@ -96,38 +97,21 @@ export const getInputDataFromRoamContext = async (
 
   const roamContextFromKeys = e && (await handleModifierKeys(e));
 
+  let globalContext = getUnionContext(roamContext, roamContextFromKeys);
+
   const inlineContext = currentBlockContent
     ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
     : null;
-  // TO TEST
-  if (inlineContext)
+
+  console.log("inlineContext :>> ", inlineContext);
+  if (inlineContext) {
     completedPrompt = completedPrompt.replace(
       currentBlockContent,
       inlineContext.updatedPrompt
     );
-
-  const globalContext = {
-    linkedRefs:
-      roamContext?.linkedRefs ||
-      roamContextFromKeys?.linkedRefs ||
-      inlineContext?.roamContext?.linkedRefs,
-    sidebar:
-      roamContext?.sidebar ||
-      roamContextFromKeys?.sidebar ||
-      inlineContext?.roamContext?.sidebar,
-    mainPage:
-      roamContext?.mainPage ||
-      roamContextFromKeys?.mainPage ||
-      inlineContext?.roamContext?.mainPage,
-    logPages:
-      roamContext?.logPages ||
-      roamContextFromKeys?.logPages ||
-      inlineContext?.roamContext?.logPages,
-    block: roamContext?.block || inlineContext?.roamContext?.block,
-    blockArgument: roamContext?.blockArgument?.length
-      ? roamContext?.blockArgument
-      : inlineContext?.roamContext?.blockArgument,
-  };
+    globalContext = getUnionContext(globalContext, inlineContext.roamContext);
+    console.log("globalContext :>> ", globalContext);
+  }
 
   let context = await getAndNormalizeContext({
     blocksSelectionUids: remainingSelectionUids,
@@ -1029,4 +1013,25 @@ export const getOrderedCustomPromptBlocks = (tag) => {
         })
       );
   return ordered || [];
+};
+
+export const getUnionContext = (context1, context2) => {
+  return {
+    linkedRefs: context1?.linkedRefs || context2?.linkedRefs,
+    sidebar: context1?.sidebar || context2?.sidebar,
+    mainPage: context1?.mainPage || context2?.mainPage,
+    logPages: context1?.logPages || context2?.logPages,
+    block: context1?.block || context2?.block,
+    blockArgument: removeDuplicates(
+      []
+        .concat(context1?.blockArgument?.length ? context1?.blockArgument : [])
+        .concat(context2?.blockArgument?.length ? context2?.blockArgument : [])
+    ),
+    page: context1?.page || context2?.page,
+    pageArgument: removeDuplicates(
+      []
+        .concat(context1?.pageArgument?.length ? context1?.pageArgument : [])
+        .concat(context2?.pageArgument?.length ? context2?.pageArgument : [])
+    ),
+  };
 };

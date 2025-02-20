@@ -854,7 +854,7 @@ const StandaloneContextMenu = () => {
           }),
         };
       });
-      console.log("Live AI user custom styles :>> ", customStyles);
+      // console.log("Live AI user custom styles :>> ", customStyles);
       // setCustomStyleTitles(customStyleTitles);
     }
   };
