@@ -127,7 +127,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
         <p>
           See current reference pricing used in these calculations{" "}
           <a
-            href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/pricing.md"
+            href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens"
             target="_blank"
             rel="noopener noreferrer"
           >

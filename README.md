@@ -67,25 +67,45 @@ You can easily **add context** to your prompt, that is, a large set of data from
 
 To define the context, you can either check the corresponding box in the context menu or press the corresponding modifier keys to catch all the content of the following elements (at different children depths depending on the element type and settings):
 
-- **Page** (+ `Alt`): the current page zoom where the focus block or selected blocks are inserted, or by default, the main page zoom (at the center of the display)
-- **LinkedRefs** (+ `Ctrl`): the linked references of the current page
-- **Sidebar** (+ `Shift`): all the content of the sidebar
-- **DNPs** (+ `Ctrl`): if you are in Daily Notes, the last DNPs (7 by default, you can increase the limit in the options)
+- **Page** (click +`Alt`): the current page zoom where the focus block or selected blocks are inserted, or by default, the main page zoom (at the center of the display)
+- **LinkedRefs** (click +`Ctrl`): the linked references of the current page
+- **Sidebar** (click +`Shift`): all the content of the sidebar
+- **DNPs** (click +`Ctrl`): if you are in Daily Notes, the last DNPs (7 by default, you can increase the limit in the options)
 
 ### Query Agents
 
+Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask to your graph..." agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
+
+- **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, see details here. Very reliable.
+- **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax. The results are less reliable than with the previous agent because the syntax is much more complex. It works very well for fairly simple queries, more randomly for complex ones. See details here.
+- **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. See details here.
+- **Ask to your graph...**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. See details here.
+
 ### Live Outliner Agent
+
+This is another way of using AI, an alternative to the "Chat" format. It involves an Agent that autonomously chooses to modify an outline, that is, a set of blocks located under a given parent block, based on user requests. Instead of generating a series of content one after another as in a chat, the Live Outliner Agent modifies, adds, or removes specific blocks in the outline, while maintaining the same structure. In other words, the generation is inserted into a pre-existing structure (similar to a template) and acts only surgically, modifying only the necessary elements, which reduces the number of output tokens.
+It's a powerful and innovative feature, still experimental 🧪. See details here.
 
 ### Detailed documentation
 
-1. Built-in prompts and custom prompts
-2. Custom styles
-3. Query Agents
-4. Live Outliner Agent
-5. Voice transcription and limitations
-6. Using SmartBlocks commands
-7. API keys and pricing
-8. Using Ollama to run local models
+- Generative AI
+
+1. Voice transcription
+2. Built-in prompts
+3. Custom prompts
+4. Custom styles
+5. Using SmartBlocks commands
+
+- AI Agents
+
+1. Query Agents
+2. Live Outliner Agent
+
+- LLM Providers
+
+1. Get API Keys
+2. Models pricing
+3. Ollama to run local models
 
 ## Support my work
 
