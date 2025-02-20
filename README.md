@@ -16,6 +16,8 @@
 
 Left sidebar or topbar controls:
 
+![image](https://github.com/user-attachments/assets/9c9bea03-17b8-4d06-b2bd-7523a10537b6)
+
 ## **GETTING STARTED**
 
 Choose the LLM provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
