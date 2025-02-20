@@ -25,6 +25,7 @@ You will formulate a query in the format of Roam Research queries. You need to i
     - '{or: }': disjunction, at least one of the items has to be present,
     - '{not: }': negation, excluded element (only one by component),
     - '{search: string}': search blocks matching string. if '{search: stringA stringB}' = used: this will search text containing 'stringA' AND 'stringB'. If a disjonctive logic is needed, use multiple string search: {or: {search: stringA} {search: stringB}. IMPORTANT: Strings should not be enclosed in quotation marks !
+    - '{edited-by: [[user name]]}' or '{created-by: [[user name]]}': limit matching blocks to blocks edited or created by a given user, whose name has always to be inserted between double square brackets,
     - '{between: }': defined period limits of the query. At this point, if the user request mention a period to limit the query, insert exactly '{between: [[<begin>]] [[<end>]]}'. '<begin>' and '<end>' are placeholder that will be replaced later. Always insert this period indication as the last condition of a nesting {and: } condition (so, if the main codition is {or: }, you have to nest it in {and: } to add the conjunction with the period {between: }). 
 
 When structuring the query, check meticulously if it respects all these rules:
@@ -32,6 +33,7 @@ When structuring the query, check meticulously if it respects all these rules:
 - Roam Research query syntax is: {{[[query]]: {nested logic components...}}}
 - there is one and only one main nesting logic components, and it can be only {and: } or {or: }.
 - each {not: } component has only one item; if multiples elements have to be excluded, create a conjunction of {not: }.
+- {edited-by: } or {created-by: } components have to be nested in {and: } or {or: } component.
 - {between: } component has always to be nested in a {and: } component.
 - {search: } component has only strings as conditions, WITHOUT brackets NEITHER quotation mark, and is always nested in a logic component like {and:} or {or: } (e.g.: '{{[[query]]: {search: string}}}' = incorrect, it should be '{{[[query]]: {or: {search: string}}}}').
 - the number of opening braces and closing should be strictly equal.
@@ -53,8 +55,8 @@ Your response:  {roamQuery: "{{[[query]]: {and: [[meeting]] [[John]] {or: {searc
 Your response: {roamQuery: "{{[[query]]: {and: [[C]] {or: [[A]] [[B]]} {not: [[E]]}}}}}"
 (be aware here that 'and always [[C]] expressed an '{and: }' condition, distinct of the previous '{or: }' condition)
 
-4. "Every tasks to do today and yesterday"
-Your response (suppose that today is 2024/12/13): {roamQuery: "{{[[query]]: {and: [[TODO]] {between: [[<begin>]] [[<end>]]}}}}", period: {begin: "2024/12/12", end: "2024/12/13", relative: {begin: "yesterday",end: "today"}}
+4. "Every tasks to do today and yesterday created by [[John Doe]]"
+Your response (suppose that today is 2024/12/13): {roamQuery: "{{[[query]]: {and: [[TODO]] {created-by: [[John Doe]]} {between: [[<begin>]] [[<end>]]}}}}", period: {begin: "2024/12/12", end: "2024/12/13", relative: {begin: "yesterday",end: "today"}}
 
 5. "All blocks where practice* or habit have been discussed since two months"
 Your response (suppose that today is 2024/12/13): {roamQuery: "{{[[query]]: {and: {or: {search: practice} {search: practise} {search: practicing} {search: practical} {seach: habit}} {between: [[<begin>]] [[<end>]]}}}}", period: {begin: "2024/10/13" end: "2024/12/13", relative: {begin: undefined, end: 'today'}}}
