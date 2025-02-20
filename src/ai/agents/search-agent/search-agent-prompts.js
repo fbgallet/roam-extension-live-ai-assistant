@@ -1,3 +1,4 @@
+import { yearToWords } from "../../../utils/format";
 import { sameLanguageCondition } from "../../prompts";
 
 const wordsToIgnore = `- IMPORTANT: Disregard and do not use as search terms:
@@ -102,7 +103,9 @@ export const hierarchyNLInstructions = `More precisely, if a hierarchical condit
 export const inferenceNeededProperty =
   "- set 'isInferenceNeeded' property to true if the question asked is such that searching its keywords will probably not yield the most relevant results, but it is necessary to infer from this question keywords that could capture the most likely answers (which will be done at a later stage).";
 
-export const periodProperty = `- set 'period' range if specified, otherwise set to null. If dates or period are mentioned, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE>. If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.`;
+export const periodProperty = `- set 'period' range if specified, otherwise set to null. If dates or period are mentioned, you will interpret the begin and end periods concerned, knowing that today's date is <CURRENT_DATE> (be very careful about the year, we are actually in ${
+  yearToWords[new Date().getFullYear().toString()]
+}). If no end is suggested, set the corresponding property to null, and do the same if no start is indicated but only an end. If the time indication is vague, ignore it; if it's "recently", interpret as a quarter (but ignore the indication if the request ask for "the most recents..." because the most recent records about some subject can be old), and "these last few days" as a month.`;
 
 export const searchAgentListToFiltersSystemPrompt = `You are a smart and rigorous AI Agent that breaks down search list items into a set of regex elements that will serve as conjunctively joined filters to prepare a text search in a database.
 

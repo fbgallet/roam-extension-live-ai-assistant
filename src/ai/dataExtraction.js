@@ -221,7 +221,7 @@ export const handleModifierKeys = async (e) => {
   const roamContext = {
     linkedRefs: false,
     sidebar: false,
-    mainPage: false,
+    page: false,
     logPages: false,
   };
   if (!e) return null;
@@ -1019,7 +1019,6 @@ export const getUnionContext = (context1, context2) => {
   return {
     linkedRefs: context1?.linkedRefs || context2?.linkedRefs,
     sidebar: context1?.sidebar || context2?.sidebar,
-    mainPage: context1?.mainPage || context2?.mainPage,
     logPages: context1?.logPages || context2?.logPages,
     block: context1?.block || context2?.block,
     blockArgument: removeDuplicates(

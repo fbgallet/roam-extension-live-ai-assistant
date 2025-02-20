@@ -131,13 +131,16 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     state.isPostProcessingNeeded === false
       ? searchAgentNLQueryEvaluationPrompt
           .replace("<POST_PROCESSING_PROPERTY>", postProcessingToNull)
-          .replace("<PERIOD_PROPERTY>", "")
           .replace("<INFERENCE_PROPERTY>", "")
       : searchAgentNLQueryEvaluationPrompt
           .replace("<POST_PROCESSING_PROPERTY>", postProcessingProperty)
-          .replace("<INFERENCE_PROPERTY>", inferenceNeededProperty)
-          .replace("<PERIOD_PROPERTY>", periodProperty)
-          .replace("<CURRENT_DATE>", currentDate);
+          .replace("<INFERENCE_PROPERTY>", inferenceNeededProperty);
+
+  systemPrompt = systemPrompt
+    .replace("<PERIOD_PROPERTY>", periodProperty)
+    .replace("<CURRENT_DATE>", currentDate);
+
+  // console.log("systemPrompt :>> ", systemPrompt);
 
   systemPrompt = isDirected
     ? systemPrompt
@@ -173,7 +176,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     }
   }
 
-  console.log("llmResponse after basic interpreter :>> ", llmResponse);
+  // console.log("llmResponse after basic interpreter :>> ", llmResponse);
 
   return {
     llmResponse,
@@ -221,7 +224,7 @@ ${
     }
   }
 
-  console.log("llmResponse after question interpreter :>> ", llmResponse);
+  // console.log("llmResponse after question interpreter :>> ", llmResponse);
 
   return {
     llmResponse,
@@ -230,7 +233,7 @@ ${
 };
 
 const searchlistConverter = async (state: typeof SearchAgentState.State) => {
-  console.log("state.searchLists :>> ", state.searchLists);
+  // console.log("state.searchLists :>> ", state.searchLists);
   displayAgentStatus(state, "searchlist-converter");
 
   const structuredLlm = llm.withStructuredOutput(
@@ -278,7 +281,7 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
     }
     displayAgentStatus(state, "error", error.message);
   }
-  console.log("response after step 2 (list converter) :>> ", llmResponse);
+  // console.log("response after step 2 (list converter) :>> ", llmResponse);
 
   return {
     llmResponse,
@@ -293,7 +296,7 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
   if (isClaudeModel) {
     const raw = state.llmResponse.raw.content[0];
     if (!state.llmResponse.parsed) {
-      console.log("raw: ", raw);
+      //   console.log("raw: ", raw);
       if (raw?.input?.period && raw?.input?.roamQuery) {
         // console.log("raw period: ", raw?.input?.period);
         state.llmResponse.period = JSON.parse(
@@ -324,7 +327,6 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       : undefined;
     state.period = state.llmResponse.period;
     state.depthLimitation = state.llmResponse.depthLimitation;
-    console.log("state.depthLimitation :>> ", state.depthLimitation);
     state.pagesLimitation = state.llmResponse.pagesLimitation;
     state.isRandom = state.llmResponse.isRandom;
   }
@@ -358,10 +360,10 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
     state.remainingQueryFilters = [...filters];
   }
 
-  console.log("searchLists :>> ", state.searchLists);
-  state.filters && console.log("state.filters[0] :>> ", state.filters[0]);
-  state.filters?.length > 1 &&
-    console.log("state.filters[1] :>> ", state.filters[1]);
+  //  console.log("searchLists :>> ", state.searchLists);
+  // state.filters && console.log("state.filters[0] :>> ", state.filters[0]);
+  // state.filters?.length > 1 &&
+  //   console.log("state.filters[1] :>> ", state.filters[1]);
 
   return state;
 };
@@ -369,11 +371,11 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
 const periodFormater = async (state: typeof SearchAgentState.State) => {
   let begin = getDNPTitleFromDate(new Date(state.period.begin));
   let end = getDNPTitleFromDate(new Date(state.period.end));
-
-  console.log("begin :>> ", begin);
-  console.log("end :>> ", end);
-
-  return state;
+  // console.log("begin in periodFormater :>> ", begin);
+  // console.log("end in periodFormater :>> ", end);
+  return {
+    period: { begin, end },
+  };
 };
 
 const queryRunner = async (state: typeof SearchAgentState.State) => {
@@ -384,7 +386,6 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
   let matchingBlocks: any[];
 
   try {
-    console.log("state in queryRunner :>> ", state);
     let currentFilter = state.remainingQueryFilters.shift();
     if (state.getChildrenOnly)
       currentFilter = currentFilter.sort((a: any, b: any) => {
@@ -408,7 +409,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
     const allIncludeRegex: string[] = currentFilter
       .filter((f: any) => !f.isToExclude)
       .map((f: any) => f.regexString);
-    console.log("allIncludeRegex :>> ", allIncludeRegex);
+    // console.log("allIncludeRegex :>> ", allIncludeRegex);
 
     let blocksMatchingAllFilters: any[] = [];
     if (
@@ -451,7 +452,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
             ...params
           ) || [];
         blocksMatchingOneFilter = parseQueryResults(blocksMatchingOneFilter);
-        console.log("blocksMatchingOneFilter :>> ", blocksMatchingOneFilter);
+        // console.log("blocksMatchingOneFilter :>> ", blocksMatchingOneFilter);
 
         if (blocksMatchingOneFilter.length) {
           // to ignore if already matching all filters
@@ -493,7 +494,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
             : otherRegexString;
 
           // if multiple filters, test if children (any level) includes remaining filters
-          console.log("uidsMatchingOneFilter :>> ", uidsMatchingOneFilter);
+          //  console.log("uidsMatchingOneFilter :>> ", uidsMatchingOneFilter);
           if (additionalRegex.length) {
             blocksAndChildrenMatchingAllFilters = state.getChildrenOnly
               ? (window as any).roamAlphaAPI.q(
@@ -529,10 +530,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
             );
           } else
             blocksAndChildrenMatchingAllFilters = blocksMatchingOneFilter || [];
-          console.log(
-            "resultInChildren :>> ",
-            blocksAndChildrenMatchingAllFilters
-          );
+          // console.log(
+          //   "resultInChildren :>> ",
+          //   blocksAndChildrenMatchingAllFilters
+          // );
 
           matchingBlocks = concatWithoutDuplicates(
             matchingBlocks,
@@ -551,10 +552,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
               blocksAndChildrenMatchingAllFilters,
               "uid"
             );
-            console.log(
-              "potentialSiblingMatches :>> ",
-              potentialSiblingMatches
-            );
+            // console.log(
+            //   "potentialSiblingMatches :>> ",
+            //   potentialSiblingMatches
+            // );
             if (potentialSiblingMatches.length) {
               let params = [...allIncludeRegex];
               if (toExcludeFilter) params.push(regexToExclude);
@@ -568,10 +569,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
                   potentialSiblingMatches.map((elt: any) => elt.uid),
                   ...params
                 ) || [];
-              console.log(
-                "parentsWithMatchingSiblings :>> ",
-                parentsWithMatchingSiblings
-              );
+              // console.log(
+              //   "parentsWithMatchingSiblings :>> ",
+              //   parentsWithMatchingSiblings
+              // );
               parentsWithMatchingSiblings = parseQueryResults(
                 parentsWithMatchingSiblings
               );
@@ -579,10 +580,10 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
                 parentsWithMatchingSiblings,
                 "uid"
               );
-              console.log(
-                "parentsWithMatchingSiblings :>> ",
-                parentsWithMatchingSiblings
-              );
+              // console.log(
+              //   "parentsWithMatchingSiblings :>> ",
+              //   parentsWithMatchingSiblings
+              // );
               matchingBlocks = concatWithoutDuplicates(
                 matchingBlocks,
                 parentsWithMatchingSiblings,
@@ -608,7 +609,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
     displayAgentStatus(state, "error", error.message);
   }
 
-  console.log("matchingBlocks :>> ", matchingBlocks);
+  // console.log("matchingBlocks :>> ", matchingBlocks);
 
   const allMatchingBlocks =
     state.matchingBlocks && state.matchingBlocks.length
@@ -637,7 +638,7 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
     false
   );
   let filteredBlocks = state.matchingBlocks;
-  console.log("matchingBlocks in limitAndOrder :>> ", filteredBlocks);
+  // console.log("matchingBlocks in limitAndOrder :>> ", filteredBlocks);
 
   displayAgentStatus(state, "limitAndOrder");
 
@@ -666,7 +667,7 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
     filteredBlocks = getRandomElements(filteredBlocks, maxNumber);
   } else if (maxNumber < filteredBlocks.length)
     filteredBlocks = filteredBlocks.slice(0, maxNumber);
-  console.log("filteredBlocks & sorted :>> ", filteredBlocks);
+  //  console.log("filteredBlocks & sorted :>> ", filteredBlocks);
   return {
     matchingBlocks: state.matchingBlocks,
     filteredBlocks,
@@ -674,7 +675,7 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
 };
 
 const preselection = async (state: typeof SearchAgentState.State) => {
-  console.log("Preselection Node");
+  // console.log("Preselection Node");
   displayAgentStatus(state, "preselection-filter");
   let flattenedQueryResults = "";
   state.filteredBlocks.forEach((block: any, index: number) => {
@@ -708,7 +709,7 @@ const preselection = async (state: typeof SearchAgentState.State) => {
   });
 
   flattenedQueryResults = flattenedQueryResults.trim();
-  console.log("flattenedQueryResults :>> ", flattenedQueryResults);
+  //  console.log("flattenedQueryResults :>> ", flattenedQueryResults);
 
   const sys_msg = new SystemMessage({
     content: searchtAgentPreselectionPrompt.replace(
@@ -758,7 +759,7 @@ ${flattenedQueryResults}`),
 };
 
 const postProcessing = async (state: typeof SearchAgentState.State) => {
-  console.log("Process results");
+  // console.log("Process results");
   // const results = state.matchingBlocks;
   displayAgentStatus(state, "post-processing");
   let flattenedDetailedResults = "";
@@ -878,7 +879,7 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
           : "")
     );
 
-  console.log("state :>> ", state);
+  console.log("state at DisplayResult Node :>> ", state);
 
   await insertStructuredAIResponse({
     target: state.target,
