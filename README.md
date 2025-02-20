@@ -1,6 +1,6 @@
 # Live AI Assistant
 
-### Powerful and versatile AI Assistant supporting text, selection of structured blocks, voice or images as prompt. Pre-defined prompts adapted to Roam, natural language queries agent, custom prompts and templates, easy-to-define context and Live Outliner agent for response structured exactly as you want. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.
+**Powerful and versatile AI Assistant supporting text, selection of structured blocks, voice or images as prompt. Pre-defined prompts adapted to Roam, natural language queries agent, custom prompts and templates, easy-to-define context and Live Outliner agent for response structured exactly as you want. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
 ### 🆕 New in v.12 (MAJOR UPDATE)
 
@@ -14,13 +14,11 @@
 
 ![Live AI Demo 3](https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/fc35b01c-3172-4763-a4a2-2aa23e290dd9)
 
-Controls including vocal transcription:
-
-<img width="1130" alt="Formes 24 avril 17h45" src="https://github.com/fbgallet/roam-extension-speech-to-roam/assets/74436347/d4ab0756-2f55-4226-9cdd-758ec5ac5f1b">
+Left sidebar or topbar controls:
 
 ## **GETTING STARTED**
 
-The first thing to do is to choose the LLM provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
+Choose the LLM provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
 OpenAI and Anthropic currently provide the most suitable and widely tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus).
 
@@ -80,12 +78,14 @@ To define the context, you can either check the corresponding box in the context
 
 ### Detailed documentation
 
-1. Voice transcription
-2. Query Agents
-3. Live Outliner Agent
-4. Context definition and inline context
-5. Using SmartBlocks commands
-6. Using Ollama to run local models
+1. Built-in prompts and custom prompts
+2. Custom styles
+3. Query Agents
+4. Live Outliner Agent
+5. Voice transcription and limitations
+6. Using SmartBlocks commands
+7. API keys and pricing
+8. Using Ollama to run local models
 
 ## Support my work
 
