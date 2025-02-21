@@ -53,7 +53,7 @@ You can easily continue any conversation with an AI Assistant:
 Often, you will ask your assistant to process information already available in your graph, such as translating or summarizing a set of blocks. You could write instructions and copy the blocks to process to use them as a big prompt, but to make the most common tasks easier, Live AI Assistant offers a set of built-in prompts (around fifty) designed to be effective, rigorous, and tailored to Roam's specific constraints. You simply need, either:
 
 - to select (by multi-block selection) the content to process and choose the built-in prompt from the context menu.
-- open the context menu, select some context element to use as input content (see here for more details on context definition) and choose the built-in prompt to apply.
+- open the context menu, select some context element to use as input content and choose the built-in prompt to apply.
 
 To open the **context menu**, the most efficient way is to use the `Live AI Assistant: Open commands context menu` command from the Command Palette (Cmd/Ctrl + p), or even better, use the shortcut (default is `Cmd + Ctrl + a`, which you can modify as you wish). Two other very simple options: right-click on the AI completion icon, or Cmd/Ctrl + right-click anywhere on the page where right-clicking does not have a specific function in Roam.
 
@@ -66,6 +66,7 @@ You can view the exact content of each of these prompts [here](https://github.co
 ### Create & apply custom prompts
 
 Create your custom prompts simply by inserting `#liveai/prompt` in some block. The content of this block will be used as title of your custom prompt and all its children will be used as a structured prompt (block references will be resolved). They will appear in the "custom prompts" section of the context menu.
+In the title block of your custom prompt, you can define an inline context, see the syntax [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context).
 
 ### Providing rich context
 
@@ -77,6 +78,8 @@ To define the context, you can either check the corresponding box in the context
 - **LinkedRefs** (click +`Ctrl`): the linked references of the current page
 - **Sidebar** (click +`Shift`): all the content of the sidebar
 - **DNPs** (click +`Ctrl`): if you are in Daily Notes, the last DNPs (7 by default, you can increase the limit in the options)
+
+See more details on context definition and inline context [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
 
 ### Query Agents
 
@@ -98,7 +101,7 @@ It's a powerful and innovative feature, still experimental 🧪. [See details he
 
 1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#voice-transcription)
 2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#built-in-prompts)
-3. [Context definition and inline context]()
+3. [Context definition and inline context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
 4. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-prompts)
 5. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-styles)
 6. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#smartblocks-commands)
