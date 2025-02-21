@@ -394,11 +394,12 @@ function VoiceRecorder({
     let nextSiblingOfSelection;
     let toChain = false;
     let voiceProcessingCommand = lastCommand.current;
-    if (blocksSelectionUids.current) {
+    if (blocksSelectionUids.current?.length) {
       const lastTopUid = await getLastTopLevelOfSeletion(
         blocksSelectionUids.current
       );
-      nextSiblingOfSelection = await createSiblingBlock(lastTopUid);
+      nextSiblingOfSelection =
+        lastTopUid && (await createSiblingBlock(lastTopUid));
     }
     let targetUid =
       nextSiblingOfSelection ||

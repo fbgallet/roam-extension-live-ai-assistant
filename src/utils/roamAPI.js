@@ -190,7 +190,7 @@ export function getPageNameByPageUid(uid) {
 export function getBlockOrderByUid(uid) {
   let result = window.roamAlphaAPI.pull("[:block/order]", [":block/uid", uid]);
   if (result) return result[":block/order"];
-  else return "";
+  else return "last";
 }
 
 export function getLinkedReferencesTrees(pageUid) {
@@ -220,7 +220,13 @@ export async function createSiblingBlock(
   const siblingUid = await createChildBlock(
     parentUid,
     content,
-    position === "before" ? currentOrder : currentOrder + 1,
+    position === "before"
+      ? typeof currentOrder === "number"
+        ? currentOrder
+        : 0
+      : typeof currentOrder === "number"
+      ? currentOrder + 1
+      : "last",
     format?.open || true,
     format?.heading
   );
