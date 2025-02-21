@@ -15,11 +15,13 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 ## 2) Built-in prompts
 
-## 3) Custom prompts
+## 3) Context definition and inline context
 
-## 4) Custom styles
+## 4) Custom prompts
 
-## 5) SmartBlocks commands
+## 5) Custom styles
+
+## 6) SmartBlocks commands
 
 You can insert the following commands in your SmartBlocks template to use or run Live AI Assistant directly from your templates:
 
