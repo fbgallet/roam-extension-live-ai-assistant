@@ -201,10 +201,12 @@ export function modelAccordingToProvider(model) {
   }
   if (!model.includes("ollama") && !llm.library?.apiKey) {
     AppToaster.show({
-      message: `Provide an API key to use ${llm.model} model. See doc and settings.`,
+      message: `Provide an API key to use ${
+        llm.name || "an AI"
+      } model. See doc and settings.`,
       timeout: 15000,
     });
-    return null;
+    return llm;
   }
   return llm;
 }
