@@ -14,7 +14,6 @@
 
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
 
-
 Left sidebar or topbar controls:
 
 ![image](https://github.com/user-attachments/assets/29af805f-6122-4443-b4fc-023e4615763f)

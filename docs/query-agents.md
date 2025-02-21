@@ -47,3 +47,7 @@ Result will be:
  [?block :block/uid ?block-uid]]```
 
 ````
+
+## Smart Search Agent
+
+## Ask to your graph...

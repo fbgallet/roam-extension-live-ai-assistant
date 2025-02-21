@@ -144,6 +144,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "keyInsights",
     category: "CONTENT ANALYSIS",
     includeUids: true,
+    target: "new",
     submenu: [1310, 1311],
   },
   {
