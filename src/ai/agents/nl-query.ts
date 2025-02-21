@@ -90,7 +90,7 @@ const querySchema = z.object({
     // .optional()
     .nullable()
     .describe(
-      "Restricted period of the request, only if mentioned by the user, otherwise null"
+      "Restricted period of the request, only if mentioned by the user, otherwise set to null"
     ),
 });
 
@@ -110,7 +110,7 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
 
   const structuredLlm = llm.withStructuredOutput(
     querySchema,
-    getLlmSuitableOptions(state.model, "query")
+    getLlmSuitableOptions(state.model, "query", 0) // temperature = 0
   );
   const sys_msg = new SystemMessage({
     content: roamQuerySystemPrompt.replace("<CURRENT_DATE>", currentDate),
