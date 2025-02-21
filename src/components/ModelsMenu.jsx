@@ -155,6 +155,10 @@ const ModelsMenu = ({
                     <br />
                     & not available for all users
                     <br />
+                    (o3-mini is limited to tier 3-5 currently)
+                    <br />
+                    (but accessible through OpenRouter)
+                    <br />
                     See{" "}
                     <a href="https://openai.com/api/pricing/" target="_blank">
                       pricing
