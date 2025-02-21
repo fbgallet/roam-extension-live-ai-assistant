@@ -1,6 +1,8 @@
 # Live AI Assistant
 
-**Powerful and versatile AI Assistant tailor-made for Roam. Rely on efficient built-in prompt, create rich custom prompts or use voice, image or any part of your graph as prompt or context. Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
+**Powerful and versatile AI Assistant tailor-made for Roam. Rely on efficient and smart built-in prompts, create rich custom prompts or use voice, image or any part of your graph as prompt or context, change the style of the AI responses or create your custom styles !**
+
+**Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
 ### 🆕 New in v.12 (MAJOR UPDATE)
 
@@ -24,11 +26,13 @@ Choose the LLM provider(s) that will provide you with an API key to use their se
 
 OpenAI and Anthropic currently provide the most suitable and widely tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus).
 
-Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see here current API pricing.
+Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
 ### Simple prompt
 
-Just write some basic prompt in a block (or press the microphone button and provide vocal instructions) and, with the cursor focus in this block, click on the AI Generation button (lightning bolt icon). That's all !
+Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the AI Generation button (lightning bolt icon). That's all !
+
+You can change the **default model** in the extension settings or in the Live AI context menu, by right-clicking on a command to display the available models, and right-clicking on a model to set it as default model.
 
 You can easily use **structured prompts** by selecting multiple blocks (including images with models supporting image recognition). Note that block references will be resolved and remplaced by the corresponding block content.
 
@@ -42,18 +46,18 @@ You can easily continue any conversation with an AI Assistant:
 
 - click on the conversation icon on the right of the last AI response block (if generated recently) or simply insert a block as next sibling of an AI response block (the one that contains it's role description, provided in settings, by default: `AI Assistant (<model>):`). It is not necessary to insert your role (such as "Me:") but more convenient in terms of readability.
 - write or dictate your prompt (it can include children blocks),
-- click on the button to continue the conversation or run the usual AI generation command.
+- click on the button to continue the conversation, or run the usual AI generation command, or click on "Continue the conversation" command in Live AI context menu (all previous sibling blocks and their children will be taken into account).
 
 ### Apply built-in prompts to existing content
 
-Often, you will want your assistant to process information already available in your graph, such as translating or summarizing a set of blocks. You could write instructions to copy the blocks or their references and use them as a prompt, but to make the most common tasks easier, Live AI Assistant offers a set of built-in prompts (around fifty) designed to be effective, rigorous, and tailored to Roam's specific constraints. You simply need, either:
+Often, you will ask your assistant to process information already available in your graph, such as translating or summarizing a set of blocks. You could write instructions and copy the blocks to process to use them as a big prompt, but to make the most common tasks easier, Live AI Assistant offers a set of built-in prompts (around fifty) designed to be effective, rigorous, and tailored to Roam's specific constraints. You simply need, either:
 
 - to select (by multi-block selection) the content to process and choose the built-in prompt from the context menu.
-- open the context menu, select some context element to use as input content (see CONTEXT SECTION FOR MORE DETAILS ON CONTEXT DEFINITION) and choose the built-in prompt to apply.
+- open the context menu, select some context element to use as input content (see here for more details on context definition) and choose the built-in prompt to apply.
 
 To open the **context menu**, the most efficient way is to use the `Live AI Assistant: Open commands context menu` command from the Command Palette (Cmd/Ctrl + p), or even better, use the shortcut (default is `Cmd + Ctrl + a`, which you can modify as you wish). Two other very simple options: right-click on the AI completion icon, or Cmd/Ctrl + right-click anywhere on the page where right-clicking does not have a specific function in Roam.
 
-⚡️ In practice, all you need is a hotkey and a few letters to quickly find a command. For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' and press Enter!
+⚡️ **In practice, all you need is a hotkey and a few letters to quickly find a command. For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' and press Enter! It's almost instant !**
 
 You can add specific instructions to built-in prompts simply by clicking the '+' button on the left of the prompt search box.
 
@@ -94,9 +98,10 @@ It's a powerful and innovative feature, still experimental 🧪. [See details he
 
 1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#voice-transcription)
 2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#built-in-prompts)
-3. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-prompts)
-4. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-styles)
-5. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#smartblocks-commands)
+3. [Context definition and inline context]()
+4. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-prompts)
+5. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-styles)
+6. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#smartblocks-commands)
 
 - **AI Agents**
 
