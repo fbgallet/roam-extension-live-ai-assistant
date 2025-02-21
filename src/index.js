@@ -182,7 +182,7 @@ export function getConversationParamsFromHistory(uid) {
 
 export async function incrementCommandCounter(commandId) {
   const commandUsage = extensionStorage.get("commandCounter");
-  const existingCommand = commandUsage.counter.find(
+  const existingCommand = commandUsage?.counter?.find(
     (cmd) => cmd.id === commandId
   );
   if (existingCommand) {

@@ -281,8 +281,13 @@
 .aicommands-topbar .laia-topbar-icons {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   cursor: pointer;
+}
+.aicommands-topbar .laia-topbar-icons a {
+  transform: translateY(-1px);
+  color: black;
 }
 
 .aicommands-div > ul,
