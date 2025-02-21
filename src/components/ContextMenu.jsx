@@ -433,6 +433,7 @@ const StandaloneContextMenu = () => {
     if (isOutlinerAgent && item.isIncompatibleWith?.outliner) return false;
     if (isCompletionOnly && item.isIncompatibleWith?.completion) return false;
     if (!query) {
+      if (isFirstBlock.current && item.id === 1) return true;
       if (
         item.category === "MY LIVE OUTLINES" ||
         item.category === "MY OUTLINE TEMPLATES"
@@ -457,12 +458,11 @@ const StandaloneContextMenu = () => {
         return false;
       return item.isSub ? false : true;
     } else {
-      if (isFirstBlock.current && item.id === 1) return true;
       if (isFirstBlock.current && item.id === 10) return false;
       if (item.id === 100) return false;
       if (item.id === 22 && rootUid) return false;
     }
-    if (additionalPrompt) {
+    if (additionalPrompt && !query) {
       if (item.id === 0 && !isOutlinerAgent) return true;
       if (item.id === 2 && isOutlinerAgent) return true;
     }
