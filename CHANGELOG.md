@@ -1,3 +1,22 @@
+## v.12 (February 21th, 2025) Major update
+
+**New features**
+
+- New context menu with a large set of built-in prompts
+- NL query Agents
+- Live Outliner Agent, replacing templated post-processing
+- Tokens and pricing counter
+- custom prompts and custom styles
+
+**Update**
+- DeepSeek support
+- AI character setting replaced by styles
+
+**Fixed**
+- Haiku 3.5 was pointing to Haiku 3
+- block refs were not always properly replaced by block content
+- a lot of the small fixes
+
 ## v.11 (November 9th, 2024) SmartBlocks and new models
 
 **New feature**
