@@ -21,12 +21,12 @@ You must interpret the structure of the query that will be necessary to answer t
 OUTPUT: a JSON following the provided schema, with two main keys:
 1) 'roamQuery':
 You will formulate a query in the format of Roam Research queries. You need to interpret the logical structure of the user request by identifying possible hierarchical nesting of conjunctive and disjunctive logics: you must identify the logic condition expressed by the user and reproduce them by nesting logic components available for queries:
-    - '{and: }': conjunction, all mentioned items have to be simultaneously present,
-    - '{or: }': disjunction, at least one of the items has to be present,
-    - '{not: }': negation, excluded element (only one by component),
-    - '{search: string}': search blocks matching string. if '{search: stringA stringB}' = used: this will search text containing 'stringA' AND 'stringB'. If a disjonctive logic is needed, use multiple string search: {or: {search: stringA} {search: stringB}. IMPORTANT: Strings should not be enclosed in quotation marks !
-    - '{edited-by: [[user name]]}' or '{created-by: [[user name]]}': limit matching blocks to blocks edited or created by a given user, whose name has always to be inserted between double square brackets,
-    - '{between: }': defined period limits of the query. At this point, if the user request mention a period to limit the query, insert exactly '{between: [[<begin>]] [[<end>]]}'. '<begin>' and '<end>' are placeholder that will be replaced later. Always insert this period indication as the last condition of a nesting {and: } condition (so, if the main codition is {or: }, you have to nest it in {and: } to add the conjunction with the period {between: }). 
+  - '{and: }': conjunction, all mentioned items have to be simultaneously present,
+  - '{or: }': disjunction, at least one of the items has to be present,
+  - '{not: }': negation, excluded element (only one by component),
+  - '{search: string}': search blocks matching string. if '{search: stringA stringB}' = used: this will search text containing 'stringA' AND 'stringB'. If a disjonctive logic is needed, use multiple string search: {or: {search: stringA} {search: stringB}. IMPORTANT: Strings should not be enclosed in quotation marks !
+  - '{edited-by: [[user name]]}' or '{created-by: [[user name]]}': limit matching blocks to blocks edited or created by a given user, whose name has always to be inserted between double square brackets,
+  - '{between: }': defined period limits of the query. At this point, if the user request mention a period to limit the query, insert exactly '{between: [[<begin>]] [[<end>]]}'. '<begin>' and '<end>' are placeholder that will be replaced later. Always insert this period indication as the last condition of a nesting {and: } condition (so, if the main codition is {or: }, you have to nest it in {and: } to add the conjunction with the period {between: }). 
 
 When structuring the query, check meticulously if it respects all these rules:
 - all logical conditions in the user request are correctly transcribed in nested logic components and there are no unnecessary condition components (pay attention to subtleties in the natural language request, such as comma or parentheses positioning).
@@ -113,7 +113,7 @@ IMPORTANT SUBTELTY:
 If the user ask for blocks mentioning '[[page name]]', or '#tag' or 'attribute::', all these requests are asking for blocks including the :block/uid of the corresponding page, knowing that a page title can be mentioned in different ways in a block string: suppose that a page title is 'title', then it can be mentioned with all the following syntaxes: '[[title]]' (default format), '#title' or '#[[title]]' (tag format), or 'title::' (data attribute format). Since since the :block/uid is the same in any of these format, if the user ask for a 'tag' or an 'attribute', you have also to test if the :block/string includes the string '#title' or 'title::' according to the user request.
 Concerning data attributes, the user can ask for a given data attribute and a given value for this attribute (present in the same block). For example, if the user ask for all pages where 'status' attribute is set to '[[pending]]', to have to search for all pages containing a block including both 'status' and 'pending' page uid in its :block/refs AND including 'status::' strings in its :block/string. Searching for 'page with attribute A' means each page including in one of its block children a block string beginning with 'A::' and refering to 'A' page. Searching for 'attribute A with the value V' means each block with reference to 'A' page uid, beginning with 'A::' string and including 'V' but not necessarily 'A:: V' because it could include also other values.
 
-To create the query, meticulously respect the Datomic Datalog syntax and grammar. You can also use the following Clojure functions (and NO OTHER, since :q component environment limit the use of Clojure functions to this set only):
+To create the query, meticulously respect the Datomic Datalog syntax and grammar. You can eventually, but with caution, use the following Clojure functions (and NO OTHER, since :q component environment limit the use of Clojure functions to this set only):
 =, ==, not=, !=, <, >, <=, >=, +, -, *, /, quot, rem, mod, inc, dec, max, min, 
 zero?, pos?, neg?, even?, odd?, compare, rand, rand-int, true?, false?, nil?, 
 some?, not, and-fn, or-fn, complement, identical?, identity, keyword, meta, 

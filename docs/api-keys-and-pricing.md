@@ -11,11 +11,17 @@ NB: API fees should not be confused with the ChatGPT Plus subscription; they are
 
 - To use Claude models, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
 
-- To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model!
+- To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model.
 
-- You need an account on OpenAI to benefit from Whisper transcriptions
+- Use models throught OpenRouter:
 
-- To use free and local models with Ollama, you doesn't need API key, see 'Use Ollama to run local models' section.
+OpenRouter is an unified API routing requests to [wide range of models](https://openrouter.ai/docs#models). The benefit is having a single account to access to most of existing and up-to-date models. You pay as you go: after purchasing credit (you can test without credit), your credit is debited on each request. OpenRouter also offers a continuously updated [ranking](https://openrouter.ai/rankings) of the most popular models.
+
+In the settings, provide the list of IDs of the models you want to use in LiveAI. They will appear in the context menu in a dedicated section or replace the native models if you check the corresponding option. The first model in your list can be selected as your default model.
+
+By default, logging of your inputs & outputs in OpenRouter's settings is enabled, you can disable it from your OpenRouter account.
+
+- To use free and local models with Ollama, you doesn't need API key, see 'Use Ollama to run local models' section below.
 
 ## Main models pricing per million tokens
 
@@ -47,3 +53,29 @@ For a complete and up-to-date comparison of pricing and performance, see https:/
 See here on [OpenRouter.ai](https://openrouter.ai/models?order=pricing-low-to-high) for pricing of all other available models via OpenRouter
 
 ## Using Ollama to run local models
+
+[Ollama](https://ollama.com/) allows you to run local models like Llama3.1, so all your data shared with the AI assistant is processed entirely locally and is not sent to a third party like OpenAI or Anthropic. (Please note: a local model is typically slower than a remote model and requires a machine with a lot of RAM. E.g a 7B model may require 7GB of RAM to work properly)
+Install Ollama (or update it to last version), install a model (ex. `ollama run llama3.1`), add the model name in the settings above (e.g. `llama3.1`), and follow the instructions below:
+
+To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable to `https://roamresearch.com` (by default, Ollama CORS is restricted to local origins). See [Ollama documentation here](https://github.com/ollama/ollama/blob/main/docs/faq.md#how-do-i-configure-ollama-server) or proceed this way, according to your operating system:
+
+### on MacOS
+
+- Edit `~/.zshrc` file and add `export OLLAMA_ORIGINS="https://roamresearch.com"` command. The environment variable will be set at OS startup or when opening the zsh terminal. (To edit a file, open the terminal and run a text editor, e.g. `nano ~/.zshrc`. Save changes with Ctrl+x, Y and Enter). Close and open again the terminal. (You can also set this variable temporarily using the command `launchctl setenv OLLAMA_ORIGINS "https://roamresearch.com"` and restart the terminal)
+- Then, stop or close Ollama.app and run "ollama serve" in the terminal
+
+⚠️ In my experience, MacOS Ollama.app doesn't take into account OLLAMA_ORIGINS variable change. After Ollama installation, Ollapa.app will be loaded in the background. You need to close it (using, e.g., the activity monitor), then launch "ollama serve" from the terminal. It may also be necessary to disable the automatic startup of Ollama.app when your OS starts by going to System Preferences > General > Startup > Open at login: select Ollama.app and click on the minus sign (-).
+
+### on Windows
+
+- Close Ollama app (with Task manager).
+- Open the Control Panel and navigate to “Edit system environment variables.”
+- Choose to edit or create a new system environment variable named OLLAMA_ORIGINS and define it to `https://roamresearch.com`
+- Apply the changes and close the control panel.
+- Run 'ollama serve' from a new terminal window to ensure it picks up the updated environment variables. If ollama serve return an error message, it probably means that you have to stop Ollama app running in the background (with Task manager).
+
+### on Linux
+
+- Run `systemctl edit ollama.service` to open the service file in an editor.
+- In the `[Service]` section, add: `Environment="OLLAMA_ORIGINS=https://roamresearch.com"`
+- Save your changes, then reload systemd and restart Ollama with: `systemctl daemon-reload` and `systemctl restart ollama` commands
