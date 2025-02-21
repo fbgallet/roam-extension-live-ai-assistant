@@ -1,6 +1,6 @@
 # Live AI Assistant
 
-**Powerful and versatile AI Assistant supporting text, selection of structured blocks, voice or images as prompt. Pre-defined prompts adapted to Roam, natural language queries agent, custom prompts and templates, easy-to-define context and Live Outliner agent for response structured exactly as you want. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
+**Powerful and versatile AI Assistant tailor-made for Roam. Rely on efficient built-in prompt, create rich custom prompts or use voice, image or any part of your graph as prompt or context. Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
 ### 🆕 New in v.12 (MAJOR UPDATE)
 
@@ -78,10 +78,10 @@ To define the context, you can either check the corresponding box in the context
 
 Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask to your graph..." agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
 
-- **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, see details here. Very reliable.
-- **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax. The results are less reliable than with the previous agent because the syntax is much more complex. It works very well for fairly simple queries, more randomly for complex ones. See details here.
-- **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. See details here.
-- **Ask to your graph...**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. See details here.
+- **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, [see details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent). Very reliable.
+- **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax. The results are less reliable than with the previous agent because the syntax is much more complex. It works very well for fairly simple queries, more randomly for complex ones. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-q-datomic-agent).
+- **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#smart-search-agent).
+- **Ask to your graph...**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
 ### Live Outliner Agent
 
@@ -115,6 +115,6 @@ This extension requires a lot of work in my free time. If you want to encourage 
 
 ---
 
-### For any question or suggestion, DM me on **Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://twitter.com/fbgallet).
+### For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
 
-Please report any issue [here](https://github.com/fbgallet/roam-extension-speech-to-roam/issues).
+Please report any issue [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/issues).
