@@ -10,7 +10,7 @@
 - AI Agents to convert natural language requests in Roam queries or :q queries, search and ask question to your graph
 - Live Outliner Agent, a brand new way to apply generative AI to any given part of your Roam graph (an AI canva tailored for Roam)
 - Tokens and pricing counter
-- Recent models support, including DeepSeek, o3-mini...
+- Recent models support, including DeepSeek, o3-mini (avaible only if you are tier 3 minimum currently)...
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

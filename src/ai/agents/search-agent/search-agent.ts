@@ -379,6 +379,9 @@ const periodFormater = async (state: typeof SearchAgentState.State) => {
 };
 
 const queryRunner = async (state: typeof SearchAgentState.State) => {
+  if (typeof state.depthLimitation !== "number") state.depthLimitation = 2;
+  console.log("state.depthLimitation :>> ", state.depthLimitation);
+
   displayAgentStatus(state, "queryRunner");
   // small delay so the status toaster can be updated before running queries
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -507,7 +510,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
                     ? directChildrenRule
                     : state.depthLimitation === 2
                     ? twoLevelsChildrenRule
-                    : descendantRule,
+                    : twoLevelsChildrenRule, // descendantRule,
                   uidsMatchingOneFilter,
                   ...additionalRegex
                 )
@@ -541,59 +544,60 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
             "uid"
           );
 
-          if (
-            !state.getChildrenOnly &&
-            !isDirectedFilter &&
-            otherRegexString.length &&
-            allIncludeRegex.length < 3 // search for maximum 2 sibblings
-          ) {
-            const potentialSiblingMatches = excludeItemsInArray(
-              blocksMatchingOneFilter.slice(0, 50), // limit to 50 blocks, large sibblings search can crash browser
-              blocksAndChildrenMatchingAllFilters,
-              "uid"
-            );
-            // console.log(
-            //   "potentialSiblingMatches :>> ",
-            //   potentialSiblingMatches
-            // );
-            if (potentialSiblingMatches.length) {
-              let params = [...allIncludeRegex];
-              if (toExcludeFilter) params.push(regexToExclude);
-              let parentsWithMatchingSiblings =
-                (window as any).roamAlphaAPI.q(
-                  getSiblingsParentMatchingRegexQuery(
-                    allIncludeRegex.length,
-                    toExcludeFilter,
-                    state.pagesLimitation
-                  ),
-                  potentialSiblingMatches.map((elt: any) => elt.uid),
-                  ...params
-                ) || [];
-              // console.log(
-              //   "parentsWithMatchingSiblings :>> ",
-              //   parentsWithMatchingSiblings
-              // );
-              parentsWithMatchingSiblings = parseQueryResults(
-                parentsWithMatchingSiblings
-              );
-              parentsWithMatchingSiblings = removeDuplicatesByProperty(
-                parentsWithMatchingSiblings,
-                "uid"
-              );
-              // console.log(
-              //   "parentsWithMatchingSiblings :>> ",
-              //   parentsWithMatchingSiblings
-              // );
-              matchingBlocks = concatWithoutDuplicates(
-                matchingBlocks,
-                parentsWithMatchingSiblings,
-                "uid"
-              );
-              blocksAndChildrenMatchingAllFilters.push(
-                ...parentsWithMatchingSiblings
-              );
-            }
-          }
+          // DISCARD SIBLING SEARCH UNTIL QUERIES OPTIMIZATION
+          // if (
+          //   !state.getChildrenOnly &&
+          //   !isDirectedFilter &&
+          //   otherRegexString.length &&
+          //   allIncludeRegex.length < 3 // search for maximum 2 sibblings
+          // ) {
+          //   const potentialSiblingMatches = excludeItemsInArray(
+          //     blocksMatchingOneFilter.slice(0, 50), // limit to 50 blocks, large sibblings search can crash browser
+          //     blocksAndChildrenMatchingAllFilters,
+          //     "uid"
+          //   );
+          //   // console.log(
+          //   //   "potentialSiblingMatches :>> ",
+          //   //   potentialSiblingMatches
+          //   // );
+          //   if (potentialSiblingMatches.length) {
+          //     let params = [...allIncludeRegex];
+          //     if (toExcludeFilter) params.push(regexToExclude);
+          //     let parentsWithMatchingSiblings =
+          //       (window as any).roamAlphaAPI.q(
+          //         getSiblingsParentMatchingRegexQuery(
+          //           allIncludeRegex.length,
+          //           toExcludeFilter,
+          //           state.pagesLimitation
+          //         ),
+          //         potentialSiblingMatches.map((elt: any) => elt.uid),
+          //         ...params
+          //       ) || [];
+          //     // console.log(
+          //     //   "parentsWithMatchingSiblings :>> ",
+          //     //   parentsWithMatchingSiblings
+          //     // );
+          //     parentsWithMatchingSiblings = parseQueryResults(
+          //       parentsWithMatchingSiblings
+          //     );
+          //     parentsWithMatchingSiblings = removeDuplicatesByProperty(
+          //       parentsWithMatchingSiblings,
+          //       "uid"
+          //     );
+          //     // console.log(
+          //     //   "parentsWithMatchingSiblings :>> ",
+          //     //   parentsWithMatchingSiblings
+          //     // );
+          //     matchingBlocks = concatWithoutDuplicates(
+          //       matchingBlocks,
+          //       parentsWithMatchingSiblings,
+          //       "uid"
+          //     );
+          //     blocksAndChildrenMatchingAllFilters.push(
+          //       ...parentsWithMatchingSiblings
+          //     );
+          //   }
+          // }
 
           allMatchingUids = concatWithoutDuplicates(
             allMatchingUids,
