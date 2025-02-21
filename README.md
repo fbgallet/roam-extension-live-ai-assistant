@@ -12,7 +12,8 @@
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
-![Live AI Demo q](https://github.com/user-attachments/assets/695c69b3-c416-4dd8-b833-3bee95651083)
+![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
+
 
 Left sidebar or topbar controls:
 
