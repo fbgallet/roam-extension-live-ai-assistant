@@ -267,6 +267,7 @@ interface AgentInvoker {
   model: string;
   rootUid: string;
   targetUid?: string;
+  target?: string;
   prompt: string;
   previousResponse?: string;
 }
@@ -276,6 +277,7 @@ export const invokeNLDatomicQueryInterpreter = async ({
   rootUid,
   targetUid,
   prompt,
+  target,
   previousResponse,
 }: AgentInvoker) => {
   const spinnerId = displaySpinner(rootUid);
@@ -284,7 +286,7 @@ export const invokeNLDatomicQueryInterpreter = async ({
     model: llmModel,
     rootUid,
     userNLQuery: prompt,
-    targetUid,
+    targetUid: target && target.includes("new") ? undefined : targetUid,
     datomicQuery: previousResponse,
   });
   removeSpinner(spinnerId);
