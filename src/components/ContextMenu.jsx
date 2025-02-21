@@ -589,21 +589,25 @@ const StandaloneContextMenu = () => {
     });
 
     const usedCommands = extensionStorage.get("commandCounter");
-    const mostUsed = usedCommands.counter
-      .filter(
-        (item) =>
-          item &&
-          item.id > 10 &&
-          item.id !== usedCommands.last &&
-          item.id !== 20 &&
-          item.id !== 21 &&
-          item.id !== 22
-      )
-      .slice(0, 5)
-      .map((item) => {
-        let command = commands.find((cmd) => cmd.id === item.id);
-        return command;
-      });
+
+    const mostUsed =
+      userCommands && usedCommands?.counter?.length
+        ? usedCommands.counter
+            .filter(
+              (item) =>
+                item &&
+                item.id > 10 &&
+                item.id !== usedCommands.last &&
+                item.id !== 20 &&
+                item.id !== 21 &&
+                item.id !== 22
+            )
+            .slice(0, 5)
+            .map((item) => {
+              let command = commands.find((cmd) => cmd.id === item.id);
+              return command;
+            })
+        : [];
 
     return (
       <Menu className="str-aicommands-menu" ulRef={itemsParentRef} small={true}>
@@ -950,13 +954,19 @@ const StandaloneContextMenu = () => {
             <div className="aicommands-topbar">
               <div>LIVE AI ASSISTANT</div>
               <div className="laia-topbar-icons">
-                <Icon
-                  icon="help"
-                  size={12}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                />
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant?tab=readme-ov-file#detailed-documentation"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Icon
+                    icon="help"
+                    size={12}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  />
+                </a>
                 <Icon
                   icon="dollar"
                   size={12}

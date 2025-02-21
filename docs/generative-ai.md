@@ -25,6 +25,25 @@ We particularly draw users' attention to the prompts gathered under the "**Criti
 
 ## 3) Context definition and inline context
 
+You can easily provide context to your prompt, to process the information contained in this context (e.g. to summarize it or have a conversation with your own notes 🚀) or to provide resources to the AI for the required text generation. Main Roam UI elements can be designated as the context with checkboxes in the context menu or by using key modifiers when clicking on the AI assistant buttons or commands. You can use as context:
+
+- Linked references or DNPs (`Command/Control`): use linked refs of the current page or, if the page is a DNP or the daily notes log (journal), the previous DNP. Important limitation for linked refs: currently, the applied filters (including or excluding some reference) are not taken into account.
+- Current page (`Alt`): use the whole main page (more precisely: its current zoomed view) as context
+- Sidebar (`Shift`): use all the content in the right sidebar (pages, blocks, linked references)
+- Live Outline: option available only if a Live Outline is currently active
+- on mobile (selection being not possible), you can enable the option to use the whole current view as context (unless you place the cursor in a blank block).
+
+⚠️ Attention, be aware that using linked refs or DNPs as context can easily reach the model's maximum token limit and become costly. I highly recommend combining multiple questions or instructions into a single request, as the entire context needs to be sent with each request or each turn in a chat. To reduce costs and increase the usable context window, the following options can be configured (default values are set to limit important costs):
+
+- default number of previous DNPs (default is 7)
+- maximum block depth level, distinctively defined for pages, linked refs, and DNPs (default is no limit for page, and limit to 2 levers for linked refs and 3 for DNPs)
+- maximum level where block references (uid) are copied in the context sent to the AI assistant (so he can refer to them, make some citaiton...). When many blocks have very brief content, the ((uid)) occupies a significant proportion of space in the context. (default: not limit for pages, limit to 1 and 2 levels for linked refs and DNPs)
+- blocks (and their children) to exclude if they contain a given string (like a tag `#private`)
+
+### Inline context definition
+
+You can insert in any block used as prompt or in the first block of a custom prompt a command to define the context, following this syntax:
+
 ## 4) Custom prompts
 
 ## 5) Custom styles
