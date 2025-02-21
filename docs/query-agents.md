@@ -48,6 +48,36 @@ Result will be:
 
 ````
 
-## Smart Search Agent
+## Smart Search Agent (experimental 🧪)
+
+This agent first interprets a natural language request and formats it into a search list supporting regex, which will then be converted into a set of Datomic queries to be executed via the Roam API and filtered according to the criteria provided in the initial request (period, expected number of results, random, etc.). These queries enable testing conditions across the entire hierarchy (or, optionally, within the same block or on one or two levels of children), in both directions or in a specific direction, or even for sibling blocks (within a limit of two conditions).
+⚠️ Currently, the queries are limited to text search ([[page title]] or #tag are interpreted as text, not as reference).
+
+This method allows for more advanced searches in principle, but processing will generally be slower than with previous agents, and even more so as the graph becomes larger (which is why this is only an experimental Agent, still to be optimized. ⚠️ It can potentially cause a freeze in the graph during complex searches in large graphs ⚠️).
+
+The request can be a sentence, a question, or a set of keywords. Here are the specific syntactic elements that the Agent is capable of understanding:
+
+- same logical symbols as those supported by Natural language Query Agent: `+ & | -`
+- `word~` for semantic variations arount the word
+- Regex support. E.g. `word\d{3}` or `^Only this$`
+- hierarchically directed conditions: you can ask for some condition in parent block and other condition in children block by natural language or using the following symbols. Either you search for all blocks (parents) with some condition in children, or you search for all blocks with some condition in parents. You can only use one of this symbol, and only once:
+  - `>`: all blocks matching condition defined on the left, that have children (descendant) with condition on the right.
+  - `<`: all blocks matching condition defined on the left, that have parent (ascendant) with condition on the right
+    For example, 'All blocks mentioning [[recipe]] with mushroom in one of its children' is equivalent to '[[recipe]] > mushroom'
+- Depth limitation: by default, the conditions will be tested in all the hierarchy (from first parent to last children), but you can limit the depth with a natural language instruction so:
+  - all condition have to be combined in the same block
+  - 1 level: conditon have to be combined in a block and its direct children
+  - 2 levels of children
+- the number of results requested
+  - by default, they are sorted from the most recent edition date
+  - you can request random results
+- period of time limitation
+- pages limitation: only on DNP or only on pages matching a given condition in ther title
 
 ## Ask to your graph...
+
+You ask a question or request to process blocks that meet certain criteria (these blocks will not be directly affected, they are only extracted, then their content is processed). The search relies on the Smart Search Agent: its results (up to a maximum of 100, including their direct parent and first child) are provided as context to an LLM for a pre-selection of a maximum of 20 most relevant blocks based on the query. The most relevant blocks (including all their parents and children on 3 levels) then serve as context for processing the initial request.
+
+⚠️ Important to know: this is the only agent among Query Agents that will receive data directly from your graph. If you do not want a non-local LLM to use your data, do not use this agent (you can safely use the previous agents as they only access your query, with all processing done locally afterwards).
+
+It is recommended to first use the Smart Search Agent to test your query and see if it captures relevant data. From Smart Search Agent results, you can also ask a question about the results (by clicking on the magnifying glass that appears to the right of the results), which will indirectly call "Ask to my graph".

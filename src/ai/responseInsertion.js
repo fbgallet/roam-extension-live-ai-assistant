@@ -53,6 +53,7 @@ import {
 } from "./dataExtraction";
 import { uidRegex } from "../utils/regex";
 import { BUILTIN_STYLES, customStyles } from "../components/ContextMenu";
+import { AppToaster } from "../components/Toaster";
 
 export const lastCompletion = {
   prompt: null,
@@ -82,6 +83,13 @@ export async function aiCompletion({
 
   const llm = modelAccordingToProvider(model);
   if (!llm) return "";
+  if (!llm.library || (model.provider !== "ollama" && !llm.library?.apiKey)) {
+    AppToaster.show({
+      message: `Provide an API key to use ${llm.name} model. See doc and settings.`,
+      timeout: 15000,
+    });
+    return "";
+  }
 
   let completionOptions = {
     aiClient: llm.library,

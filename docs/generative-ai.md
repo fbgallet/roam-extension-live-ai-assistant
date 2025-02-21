@@ -15,6 +15,14 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 ## 2) Built-in prompts
 
+All prompts are written in English, but an instruction requires that the output language (unless otherwise specified) be equivalent to the input content (though this is not 100% reliable).
+
+They are structured so that the input content is clearly identified as such and never confused with instructions. It can therefore never serve as instructions to be followed. If you wish to add instructions, you can either do so by clicking the '+' button in the context menu or by creating your own prompts (see the following section).
+
+The prompts were drafted with the help of Claude Sonnet 3.5, to be comprehensive, precise, and ideally interpreted by LLMs, but no formulation can be perfect for all LLMs. In particular, these prompts were not specifically designed for reasoning LLMs but rather for classic generative AI. For a more relevant choice and better understanding of the results obtained, you can consult the details of the prompts [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/428602f8a383b46425a80f6e63ec2ef3af05d1b8/src/ai/prompts.js#L112).
+
+We particularly draw users' attention to the prompts gathered under the "**Critical reasoning toolkit**" category, which offer a wide range of prompts to produce or discuss arguments or statements, question them, change perspectives, and thus cultivate critical thinking. Indeed, the generalization of LLMs tends, as suggested by [this study](https://www.microsoft.com/en-us/research/uploads/prod/2025/01/lee_2025_ai_critical_thinking_survey.pdf), to reduce the exercise of critical thinking, even though the content produced by LLMs actually requires sharp critical thinking to avoid being misled by the appearance of confidence and certainty they often take on, even when they are pure hallucinations or bullshit. We believe that LLMs can help us think better and exercise our critical thinking, but this is probably not the general trend of their use. That's why we encourage testing and regularly using prompts to exercise reasoning capabilities, of which the "Critical reasoning toolkit" offers a sample, which can be supplemented by the Socratic style or Quiz style (see section on styles).
+
 ## 3) Context definition and inline context
 
 ## 4) Custom prompts

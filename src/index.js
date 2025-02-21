@@ -34,7 +34,6 @@ import {
   getMaxDephObjectFromList,
 } from "./ai/dataExtraction";
 import { uidRegex } from "./utils/regex";
-import { AppToaster } from "./components/Toaster";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -127,7 +126,7 @@ function getRolesFromString(str, model) {
     user: splittedStr[0],
     assistant:
       splittedStr.length > 1
-        ? splittedStr[1].trimStart().replace("<model>", model.name)
+        ? splittedStr[1].trimStart().replace("<model>", model?.name || "")
         : str && str.trim()
         ? "AI assistant: "
         : "",
