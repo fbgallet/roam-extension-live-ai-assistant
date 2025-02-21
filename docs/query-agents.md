@@ -9,8 +9,11 @@ Ideally, users simply need to write their request in natural language. The agent
 This agent generate native Roam queries of the type `{{[[query]]: {and: [[ex-A]] [[ex-B]]}}}`, which allow combining searches on page titles, text, time periods, and create/edit user. Roam queries capture results that meet conditions across their entire path (including parents and children), not just within the same block.
 
 - To differentiate between search on page title and simple text search, use the standard syntax to mention a [[page title]] and write simple text directly without quotes. E.g.: 'Which [[meeting]] with [[John]], about frontend or UX, is not [[DONE]]?'
-- In natural language, clearly express logical articulations (and, or, not...) or use the following symbols: - `&` as and, - `|` as or, - `-`as not.
-  For example: [[meeting]] & [[John]] & frontend|UX -[[DONE]]
+- In natural language, clearly express logical articulations (and, or, not...) or use the following symbols:
+  - space or `&` or `+` as and,
+  - `|` as or,
+  - `-`as not.
+    For example: [[meeting]] & [[John]] & frontend|UX -[[DONE]]
 - Text search will work better if you target multiple words separately rather than a whole expression (Smart Search is more suitable for searching expressions).
 - **Fuzzy search**: to search for different grammatical variants of a word, request a fuzzy search o radd the `*` symbol at the end of the word. E.g. 'pratice\*' will search also for 'practise', 'practising'
 - **Semantic search**: to expand the search to synonymous or related terms, add the `~` symbol, or a double `~~` for a broader semantic search. E.g.: 'practice~' can search also for 'workout', 'exercise', 'drill'...

@@ -126,13 +126,23 @@ export function modelViaLanggraph(
   return llm;
 }
 
-export const getLlmSuitableOptions = (model: LlmInfos, schemaTitle: string) => {
+export const getLlmSuitableOptions = (
+  model: LlmInfos,
+  schemaTitle: string,
+  temperature?: number
+) => {
   const isClaudeModel = model.id.toLowerCase().includes("claude");
   const isGPTmodel = model.id.toLocaleLowerCase().includes("gpt");
 
   const outputOptions: any = {
     name: schemaTitle,
   };
+  if (
+    temperature !== undefined &&
+    !model.id.toLowerCase().includes("o1") &&
+    !model.id.toLowerCase().includes("o3")
+  )
+    outputOptions.temperature = temperature;
   // There is an issue with json_mode & GPT models in v.0.3 of Langchain OpenAI chat...
   if (isGPTmodel) {
     outputOptions.method = "jsonSchema"; //"function_calling";
