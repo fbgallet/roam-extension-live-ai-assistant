@@ -83,7 +83,7 @@ export async function aiCompletion({
 
   const llm = modelAccordingToProvider(model);
   if (!llm) return "";
-  if (!llm.library || (model.provider !== "ollama" && !llm.library?.apiKey)) {
+  if (!llm.library || (llm.provider !== "ollama" && !llm.library?.apiKey)) {
     AppToaster.show({
       message: `Provide an API key to use ${llm.name} model. See doc and settings.`,
       timeout: 15000,

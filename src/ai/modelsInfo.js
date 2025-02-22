@@ -136,10 +136,9 @@ export function normalizeClaudeModel(model, getShortName) {
   return model;
 }
 
-export const updateTokenCounter = (
-  model = "gpt-4o-mini",
-  { input_tokens, output_tokens }
-) => {
+export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
+  if (!model) return;
+  console.log("model in updateTokenCounter :>> ", model);
   let tokensCounter = extensionStorage.get("tokensCounter");
   if (!tokensCounter) {
     tokensCounter = {
@@ -171,10 +170,14 @@ export const updateTokenCounter = (
     };
   }
 
-  tokensCounter.total[model].input += input_tokens || 0;
-  tokensCounter.total[model].output += output_tokens || 0;
-  tokensCounter.monthly[model].input += input_tokens || 0;
-  tokensCounter.monthly[model].output += output_tokens || 0;
+  tokensCounter.total[model].input +=
+    typeof input_tokens === "number" ? input_tokens : 0;
+  tokensCounter.total[model].output +=
+    typeof output_tokens === "number" ? output_tokens : 0;
+  tokensCounter.monthly[model].input +=
+    typeof input_tokens === "number" ? input_tokens : 0;
+  tokensCounter.monthly[model].output +=
+    typeof output_tokens === "number" ? output_tokens : 0;
   if (input_tokens && output_tokens) {
     tokensCounter.lastRequest = {
       model,

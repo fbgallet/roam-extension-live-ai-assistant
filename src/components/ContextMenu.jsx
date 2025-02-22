@@ -55,6 +55,7 @@ import {
   insertNewOutline,
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
+import HelpDialog from "./HelpDialog";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -84,6 +85,7 @@ const voidRoamContext = {
 const StandaloneContextMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMenuToDisplay, setIsMenuToDisplay] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
@@ -144,19 +146,7 @@ const StandaloneContextMenu = () => {
   }, []);
 
   useEffect(() => {
-    if (!isOpen) {
-      focusedBlockUid.current = null;
-      setIsMenuToDisplay(false);
-      setDisplayModelsMenu(false);
-      setTargetBlock("auto");
-      setIsInConversation(false);
-      setIsCompletionOnly(false);
-      setIsOutlinerAgent(false);
-      if (!isPinnedStyle) setStyle(defaultStyle);
-      setRoamContext({ ...voidRoamContext });
-      selectedBlocks.current = null;
-      isFirstBlock.current = null;
-    } else {
+    if (isOpen) {
       if (rootUid && !isExistingBlock(rootUid)) {
         setRootUid(null);
         toggleOutlinerSelection(null, false);
@@ -175,6 +165,22 @@ const StandaloneContextMenu = () => {
       updateMenu();
     }
   }, [isOpen]);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    focusedBlockUid.current = null;
+    setIsMenuToDisplay(false);
+    setDisplayModelsMenu(false);
+    setTargetBlock("auto");
+    setIsInConversation(false);
+    setIsCompletionOnly(false);
+    setIsOutlinerAgent(false);
+    setIsHelpOpen(false);
+    if (!isPinnedStyle) setStyle(defaultStyle);
+    setRoamContext({ ...voidRoamContext });
+    selectedBlocks.current = null;
+    isFirstBlock.current = null;
+  };
 
   useEffect(() => {
     setCommands((prev) => {
@@ -375,18 +381,19 @@ const StandaloneContextMenu = () => {
 
   const handleClickOutside = useCallback((e) => {
     const target = e.target;
-    if (!target.closest(".bp3-menu")) {
+
+    if (!target.closest(".bp3-menu") && !target.closest(".laia-help-dialog")) {
       setIsOpen(false);
     }
   }, []);
 
   useEffect(() => {
     document.addEventListener("contextmenu", handleGlobalContextMenu);
-    if (isOpen) {
+    if (isOpen && !isHelpOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       setTimeout(() => {
-        inputRef.current.focus();
-      }, 10);
+        inputRef.current?.focus();
+      }, 20);
     }
     return () => {
       document.removeEventListener("contextmenu", handleGlobalContextMenu);
@@ -601,13 +608,13 @@ const StandaloneContextMenu = () => {
     const usedCommands = extensionStorage.get("commandCounter");
 
     const mostUsed =
-      userCommands && usedCommands?.counter?.length
+      usedCommands && usedCommands?.counter?.length
         ? usedCommands.counter
             .filter(
               (item) =>
                 item &&
                 item.id > 10 &&
-                item.id !== usedCommands.last &&
+                item.id !== usedCommands?.last &&
                 item.id !== 20 &&
                 item.id !== 21 &&
                 item.id !== 22
@@ -639,11 +646,13 @@ const StandaloneContextMenu = () => {
               }}
             >
               <>
-                {mostUsed.length && mostUsed.map((cmd) => renderItem(cmd))}
+                {mostUsed &&
+                  mostUsed.length &&
+                  mostUsed.map((cmd) => renderItem(cmd))}
                 <MenuDivider className="menu-hint" title={"Last used:"} />
-                {usedCommands.last &&
+                {usedCommands?.last &&
                   renderItem(
-                    commands.find((cmd) => cmd.id === usedCommands.last)
+                    commands.find((cmd) => cmd.id === usedCommands?.last)
                   )}
               </>
             </MenuItem>
@@ -804,7 +813,7 @@ const StandaloneContextMenu = () => {
       if (context === "block") clone.blockArgument = [rootUid];
       return clone;
     });
-    inputRef.current.focus();
+    inputRef.current?.focus();
   };
 
   const handleAddPrompt = (e) => {
@@ -907,13 +916,14 @@ const StandaloneContextMenu = () => {
   return (
     <Popover
       isOpen={isOpen}
-      onClose={() => setIsOpen(false)}
+      onClose={() => handleClose()}
       onClick={(e) => e.stopPropagation()}
     >
       {isOpen && (
         <div
           className="bp3-elevation-3 aicommands-div"
           draggable={true}
+          onClick={(e) => e.stopPropagation()}
           style={{
             position: "fixed",
             left: position.x,
@@ -964,41 +974,64 @@ const StandaloneContextMenu = () => {
             <div className="aicommands-topbar">
               <div>LIVE AI ASSISTANT</div>
               <div className="laia-topbar-icons">
-                <a
-                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant?tab=readme-ov-file#detailed-documentation"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Tooltip
+                  content="Quick reminder"
+                  hoverOpenDelay={600}
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
                 >
                   <Icon
                     icon="help"
                     size={12}
                     onClick={(e) => {
                       e.stopPropagation();
+                      setIsHelpOpen(true);
                     }}
                   />
-                </a>
-                <Icon
-                  icon="dollar"
-                  size={12}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    displayTokensDialog();
-                    setIsOpen(false);
-                  }}
-                />
-                <Icon
-                  icon="reset"
-                  size={10}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateUserCommands(true);
-                    updateCustomStyles();
-                    updateLiveOutlines();
-                    updateTemplates();
-                    inputRef.current.focus();
-                  }}
-                />
-                <Icon icon="cross" size={12} onClick={() => setIsOpen(false)} />
+                </Tooltip>
+                <Tooltip
+                  content="Tokens usage and cost by model"
+                  hoverOpenDelay={600}
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
+                >
+                  <Icon
+                    icon="dollar"
+                    size={12}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      displayTokensDialog();
+                      setIsOpen(false);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip
+                  content="Refresh custom content menus"
+                  hoverOpenDelay={600}
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
+                >
+                  <Icon
+                    icon="reset"
+                    size={10}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateUserCommands(true);
+                      updateCustomStyles();
+                      updateLiveOutlines();
+                      updateTemplates();
+                      inputRef.current?.focus();
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip
+                  content="Quick reminder"
+                  hoverOpenDelay={600}
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
+                >
+                  <Icon icon="cross" size={12} onClick={() => handleClose()} />
+                </Tooltip>
               </div>
             </div>
             <MenuDivider
@@ -1061,14 +1094,26 @@ const StandaloneContextMenu = () => {
               }}
             >
               Style{" "}
-              <Icon
-                icon={isPinnedStyle ? "unpin" : "pin"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsPinnedStyle((prev) => !prev);
-                }}
-                intent={isPinnedStyle ? "primary" : "none"}
-              />
+              <Tooltip
+                content={
+                  <div>
+                    Pin/unpin this style for this session
+                    <br />
+                    To set is as default, see extension settings
+                  </div>
+                }
+                openOnTargetFocus={false}
+                style={{ zIndex: "9999" }}
+              >
+                <Icon
+                  icon={isPinnedStyle ? "unpin" : "pin"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsPinnedStyle((prev) => !prev);
+                  }}
+                  intent={isPinnedStyle ? "primary" : "none"}
+                />
+              </Tooltip>
               <HTMLSelect
                 options={BUILTIN_STYLES.concat(customStyleTitles)}
                 minimal={true}
@@ -1077,7 +1122,7 @@ const StandaloneContextMenu = () => {
                 }}
                 onChange={(e) => {
                   setStyle(e.currentTarget.value);
-                  inputRef.current.focus();
+                  inputRef.current?.focus();
                 }}
                 value={style}
               />
@@ -1138,7 +1183,7 @@ const StandaloneContextMenu = () => {
                       }}
                       onChange={(e) => {
                         setTargetBlock(e.currentTarget.value);
-                        inputRef.current.focus();
+                        inputRef.current?.focus();
                       }}
                       value={targetBlock}
                     />
@@ -1170,13 +1215,19 @@ const StandaloneContextMenu = () => {
                   onKeyDown={(e) => {
                     if (e.code === "Escape" || e.code === "Tab") {
                       e.preventDefault();
-                      inputRef.current.focus();
+                      inputRef.current?.focus();
                     }
                   }}
                 />
               </div>
             )}
           </Menu>
+          <HelpDialog
+            isOpen={isHelpOpen}
+            onClose={() => {
+              setIsHelpOpen(false);
+            }}
+          />
         </div>
       )}
     </Popover>

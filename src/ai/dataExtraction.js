@@ -109,7 +109,7 @@ export const getInputDataFromRoamContext = async (
     ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
     : null;
 
-  console.log("inlineContext :>> ", inlineContext);
+  // console.log("inlineContext :>> ", inlineContext);
   if (inlineContext) {
     completedPrompt = completedPrompt.replace(
       currentBlockContent,

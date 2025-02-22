@@ -58,11 +58,12 @@ Example: `{{context: block(((KhGPvRqR-))+((Z5Z2HtXYg))),page([[my page]],DNPs(14
 
 ## 4) Custom prompts
 
+// to complete
 click refresh to see recently created custom prompts
 
 ## 5) Custom styles
 
-click refresh to see recently created custom styles
+⚠️ Not working in v.14, will be fixed soon
 
 ## 6) SmartBlocks commands
 
