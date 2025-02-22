@@ -72,6 +72,9 @@ A style can match a character, a set of formatting guidelines, or any other type
 
 You can set a style for the session (until the graph is reloaded) by clicking on the pin icon in the context menu or define it as the default style through the extension settings. Otherwise, the style choice will be reset to "Normal" every time the context menu is opened.
 
+![image](https://github.com/user-attachments/assets/568c2e19-c898-4bad-ab03-13efc930a18a)
+
+
 ## 6) SmartBlocks commands
 
 You can insert the following commands in your SmartBlocks template to use or run Live AI Assistant directly from your templates:
