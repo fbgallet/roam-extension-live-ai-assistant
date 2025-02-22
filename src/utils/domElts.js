@@ -171,6 +171,7 @@ export const removeSpinner = (intervalId) => {
 
 export const insertParagraphForStream = (targetUid) => {
   let targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+  if (!targetBlockElt) targetBlockElt = document.querySelector(".rm-block");
   const previousStreamElt = targetBlockElt.querySelector(".speech-stream");
   if (previousStreamElt) previousStreamElt.remove();
   const streamElt = document.createElement("p");

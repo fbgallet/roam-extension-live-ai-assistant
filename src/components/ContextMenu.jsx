@@ -39,6 +39,7 @@ import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
   getOrderedCustomPromptBlocks,
+  getUnionContext,
   isPromptInConversation,
 } from "../ai/dataExtraction";
 import {
@@ -198,6 +199,7 @@ const StandaloneContextMenu = () => {
   }, [defaultLgg]);
 
   const handleClickOnCommand = async ({ e, command, prompt, model }) => {
+    let customContext;
     incrementCommandCounter(command.id);
     if (command.prompt && command.id > 22 && command.id !== 100)
       lastBuiltinCommand.current = {
@@ -244,7 +246,11 @@ const StandaloneContextMenu = () => {
       prompt = command.prompt ? completionCommands[command.prompt] : "";
     }
     if (command.category === "CUSTOM PROMPTS") {
-      prompt = getCustomPromptByUid(command.prompt);
+      const customCommand = getCustomPromptByUid(command.prompt);
+      prompt = customCommand.prompt;
+      if (customCommand.context)
+        customContext = getUnionContext(roamContext, customCommand.context);
+      console.log("roamContext in ContextMenu :>> ", customContext);
     }
     if (command.id === 11 || Math.floor(command.id / 100) === 11) {
       const selectedLgg =
@@ -320,7 +326,11 @@ const StandaloneContextMenu = () => {
           command.isIncompatibleWith?.specificStyle?.includes(style)
             ? "Normal"
             : conversationStyle || style,
-        roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
+        roamContext: customContext
+          ? customContext
+          : hasTrueBooleanKey(roamContext)
+          ? roamContext
+          : null,
         forceNotInConversation: isInConversation && command.id === 1,
       });
     } else {

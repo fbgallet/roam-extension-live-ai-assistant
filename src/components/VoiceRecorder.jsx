@@ -840,7 +840,11 @@ function VoiceRecorder({
                 content={
                   <p>
                     AI Generation following prompt (C)
-                    <br />+<code>Alt</code>: <b>page</b> as context
+                    <br /> <br />
+                    <b>Right-click</b> to open Live AI menu
+                    <br />
+                    <b>Click</b> + modifier key to define context:
+                    <br />+<code>Alt</code>: <b>page</b>
                     <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
                     <b>linked refs or DNPs</b>
                     <br />+<code>Shift</code>: <b>sidebar</b>
@@ -869,7 +873,11 @@ function VoiceRecorder({
                   isOutlineActive ? (
                     <p>
                       Outliner Agent (O)
-                      <br />+<code>Alt</code>: <b>page</b> as context
+                      <br /> <br />
+                      <b>Right-click</b> to open Live AI menu
+                      <br />
+                      <b>Click</b> + modifier key to define context:
+                      <br />+<code>Alt</code>: <b>page</b>
                       <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
                       <b>linked refs or DNPs</b>
                       <br />+<code>Shift</code>: <b>sidebar</b>
@@ -877,6 +885,10 @@ function VoiceRecorder({
                   ) : (
                     <p>
                       Outliner Agent (O)
+                      <br /> <br />
+                      <b>Right-click</b> to open Live AI menu
+                      <br />
+                      <b>Click</b> + modifier key to define context:
                       <br />
                       Select focused block as target
                     </p>

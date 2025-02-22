@@ -42,11 +42,27 @@ You can easily provide context to your prompt, to process the information contai
 
 ### Inline context definition
 
-You can insert in any block used as prompt or in the first block of a custom prompt a command to define the context, following this syntax:
+⚠️ Inline context has a issue in v.14 and crash the extension, don't use it until soon update
+
+You can insert in any block used as prompt (not yet available for custom prompt) a command to define the context, following this syntax: `{{context: options}}` or `((context: options))`
+
+Available options:
+
+- `sidebar`: all the content of the sidebar (blocks or page and their children)
+- `block(uid1+uid2+...)`: a list of block references in `uid` or `((uid))` format
+- `page` or `page(title1+title2+...)`: current page zoom content or the content of the listed pages in format `page title` or `[[page title]]`
+- `linkedRefs` or `ref(title1+title2+...)`: linked references of the current page, or linked references of the listed pages
+- `DNPs(nb)` or `logPages(nb)`: a defined number o fprevious daily note pages (eventually relative to the current DNP) or, if no number is specified, default number defined in extension settings (7 by default)
+
+Example: `{{context: block(((KhGPvRqR-))+((Z5Z2HtXYg))),page([[my page]],DNPs(14))}}`
 
 ## 4) Custom prompts
 
+click refresh to see recently created custom prompts
+
 ## 5) Custom styles
+
+click refresh to see recently created custom styles
 
 ## 6) SmartBlocks commands
 
@@ -72,7 +88,7 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
    - `{sidebar}`: all the content (including children blocks) of the right sidebar.
    - `{page}` or `{page([[title1]]+[[title2]]+...)}`: the current page view in the main window or the specified list of pages between parentheses separated by `+`, title with or without brackets.
    - `{ref}` or `{ref([[title1]]+[[title2]]+...)}` or `{linkedRefs}`: the current page linked references or the linked references of the specified list of pages.
-   - `{log(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include from the current date or the current DNP.
+   - `{DNPs(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include from the current date or the current DNP.
 3. Block reference of the target block (in `uid` or `((uid))` format), where the response will be inserted (Default: new direct child block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
    - `{replace}`: replace the current block content, preceded by the assistant name (as defined in role setting)
    - `{replace-}`: replace the current block content, without assistant name, only the response
