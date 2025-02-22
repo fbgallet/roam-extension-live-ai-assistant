@@ -372,7 +372,7 @@ export async function insertBlockInCurrentView(content, order) {
     // TODO : send a message "Added on DNP page"
   }
   const newUid = window.roamAlphaAPI.util.generateUID();
-  window.roamAlphaAPI.createBlock({
+  await window.roamAlphaAPI.createBlock({
     location: {
       "parent-uid": zoomUid,
       order: order === "first" || order === 0 ? 0 : "last",
@@ -484,7 +484,7 @@ export const getRelativeDateAndTimeString = (uid) => {
   return `${currentDate} ${hours}:${minutes}`;
 };
 
-const getYesterdayDate = (date = null) => {
+export const getYesterdayDate = (date = null) => {
   if (!date) date = new Date();
   return new Date(date.getTime() - 24 * 60 * 60 * 1000);
 };

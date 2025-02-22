@@ -4,6 +4,7 @@ import {
   exclusionStrings,
   getConversationParamsFromHistory,
   getInstantAssistantRole,
+  logPagesNbDefault,
   // isMobileViewContext,
   maxCapturingDepth,
   maxUidDepth,
@@ -31,9 +32,11 @@ import {
   getMainPageUid,
   getPageNameByPageUid,
   getPageUidByBlockUid,
+  getPageUidByPageName,
   getParentBlock,
   getPreviousSiblingBlock,
   getTreeByUid,
+  getYesterdayDate,
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
@@ -47,6 +50,9 @@ import {
 } from "./prompts";
 import { BUILTIN_COMMANDS } from "./prebuildCommands";
 import { hasTrueBooleanKey, removeDuplicates } from "../utils/dataProcessing";
+import { AppToaster } from "../components/Toaster";
+import { tokensLimit } from "./modelsInfo";
+import { tokenizer } from "./aiAPIsHub";
 
 export const getInputDataFromRoamContext = async (
   e,
@@ -544,7 +550,7 @@ export const getAndNormalizeContext = async ({
         startDate = new Date();
       }
       context += getFlattenedContentFromLog(
-        roamContext.logPagesArgument || logPagesNbDefault,
+        roamContext.logPagesArgument || logPagesNbDefault || 7,
         startDate,
         model,
         maxDepth,
@@ -736,15 +742,15 @@ export const getTemplateFromPrompt = (prompt) => {
 };
 
 export const getRoamContextFromPrompt = (prompt, alert = true) => {
-  const elts = ["linkedRefs", "sidebar", "page", "block"];
+  const elts = ["linkedRefs", "sidebar", "page", "block", "logPages"];
   const roamContext = {};
   let hasContext = false;
   const inlineCommand = getMatchingInlineCommand(prompt, contextRegex);
   if (!inlineCommand) return null;
   let { command, options } = inlineCommand;
-  prompt = prompt.replace("ref", "linkedRefs").replace("log", "logPages");
-  options = options.replace("ref", "linkedRefs").replace("log", "logPages");
-  // console.log("options :>> ", options);
+  prompt = prompt.replace("ref", "linkedRefs").replace("DNPs", "logPages");
+  options = options.replace("ref", "linkedRefs").replace("DNPs", "logPages");
+  console.log("options :>> ", options);
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
@@ -752,6 +758,7 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
       hasContext = true;
     }
   });
+  console.log("roamContext :>> ", roamContext);
   if (hasContext)
     return {
       roamContext: roamContext,
@@ -775,26 +782,20 @@ const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
     const args = [];
     const splittedArgument = argument.split("+");
     // console.log("splittedArgument :>> ", splittedArgument);
-    splittedArgument.forEach((arg) => {
-      switch (optionName) {
-        case "logPages":
-          arg = Number(arg);
-          break;
-        case "block":
-          arg = extractNormalizedUidFromRef(arg);
-          break;
-        case "linkedRefs":
-        case "page":
-          arg = normalizePageTitle(arg);
-      }
-      arg && args.push(arg);
-    });
-    roamContext[`${optionName}Argument`] = args;
-    // console.log("args :>> ", args);
-    // optionName === "logPages"
-    //   ? Number(argument)
-    //   :
-    //   normlizePageTitle(argument);
+    optionName !== "logPages" &&
+      splittedArgument.forEach((arg) => {
+        switch (optionName) {
+          case "block":
+            arg = extractNormalizedUidFromRef(arg);
+            break;
+          case "linkedRefs":
+          case "page":
+            arg = normalizePageTitle(arg);
+        }
+        arg && args.push(arg);
+      });
+    roamContext[`${optionName}Argument`] =
+      optionName === "logPages" ? Number(argument) : args;
     roamContext[`${optionName}`] = true;
   }
 };
@@ -966,6 +967,8 @@ export const getCustomPromptByUid = (uid) => {
       withDash: true,
       isParentToIgnore: true,
     }) + "\n";
+  const inlineContext = getRoamContextFromPrompt(prompt);
+  if (inlineContext) prompt = inlineContext.updatedPrompt;
   if (prompt.toLowerCase().includes("<built-in:")) {
     let matchingPrompt = prompt.match(builtInPromptRegex);
     if (matchingPrompt) {
@@ -987,7 +990,7 @@ export const getCustomPromptByUid = (uid) => {
       }
     }
   }
-  return prompt;
+  return { prompt, context: inlineContext?.roamContext };
 };
 
 export const getOrderedCustomPromptBlocks = (tag) => {
@@ -1020,6 +1023,7 @@ export const getUnionContext = (context1, context2) => {
     linkedRefs: context1?.linkedRefs || context2?.linkedRefs,
     sidebar: context1?.sidebar || context2?.sidebar,
     logPages: context1?.logPages || context2?.logPages,
+    logPagesArgument: context1?.logPagesArgument || context2?.logPagesArgument,
     block: context1?.block || context2?.block,
     blockArgument: removeDuplicates(
       []
