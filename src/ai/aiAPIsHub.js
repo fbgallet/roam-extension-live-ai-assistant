@@ -200,8 +200,7 @@ export function modelAccordingToProvider(model) {
     });
     return null;
   }
-  console.log("model :>> ", model);
-  console.log("llm :>> ", llm);
+
   if (llm.provider !== "ollama" && !llm.library?.apiKey) {
     AppToaster.show({
       message: `Provide an API key to use ${
