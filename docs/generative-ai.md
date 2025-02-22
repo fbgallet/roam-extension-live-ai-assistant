@@ -66,7 +66,11 @@ It's possible to insert built-in commands in your own custom commands ! Insert a
 
 ## 5) Custom styles
 
-🚧
+Describe simply the style of the expected responses from the generative AI, which will apply to all prompts and most built-in prompts when this style is selected via the context menu (some prompts, like translation or correction, are incompatible with a style, it won't apply).
+
+A style can match a character, a set of formatting guidelines, or any other type of instructions that will guide the construction of the response by the generative AI. The style instructions will be automatically inserted into the system message sent to the LLM.
+
+You can set a style for the session (until the graph is reloaded) by clicking on the pin icon in the context menu or define it as the default style through the extension settings. Otherwise, the style choice will be reset to "Normal" every time the context menu is opened.
 
 ## 6) SmartBlocks commands
 
