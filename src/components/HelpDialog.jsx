@@ -1,9 +1,7 @@
 import { Dialog, DialogBody, Classes, Divider } from "@blueprintjs/core";
-import { useState } from "react";
+import { DIVIDER } from "@blueprintjs/core/lib/esm/common/classes";
 
 const HelpDialog = ({ isOpen, onClose }) => {
-  // const [isCurrentOpen, setIsCurrentOpen] = useState(true);
-
   return (
     <Dialog
       isOpen={isOpen}
@@ -12,7 +10,37 @@ const HelpDialog = ({ isOpen, onClose }) => {
       className="laia-help-dialog"
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
-        <strong>Quick Reminder</strong>:
+        <p>
+          <strong>Live AI Assistant</strong> v.15 2025/02 by{" "}
+          <a href="https://github.com/sponsors/fbgallet" target="_blank">
+            Fabrice Gallet
+          </a>
+        </p>
+        <Divider />
+        <strong>Documentation</strong>
+        <ul>
+          <li>
+            Check "Getting started" help{" "}
+            <a
+              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai-assistant"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              here
+            </a>
+          </li>
+          <li>
+            Check more detailed documentation{" "}
+            <a
+              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#detailed-documentation"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              here
+            </a>
+          </li>
+        </ul>
+        <strong>Set Hotkeys for most used commands</strong>:
         <p>
           Remember to define or customize hotkeys for the following commands
           (via native Roam Command Palette) to access them quickly:
@@ -39,7 +67,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
             Live Outliner if an outline is active)
           </li>
         </ul>
-        <strong>Voice recorder button keyboard hotkeys</strong>
+        <strong>Voice recorder hotkeys</strong>
         <br />
         (⚠️ available only when the voice recording has been started by a mouse
         click):
@@ -78,29 +106,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
             favorite templates for Live Outliner: <code>#liveai/template</code>
           </li>
         </ul>
-        <strong>Documentation</strong>
-        <ul>
-          <li>
-            Check "Getting started" help{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai-assistant"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              here
-            </a>
-          </li>
-          <li>
-            Check more detailed documentation{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#detailed-documentation"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              here
-            </a>
-          </li>
-        </ul>
+        <br />
         <Divider />
         <strong>Support my work</strong>
         <p>
@@ -131,6 +137,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
           >
             here
           </a>
+          .
         </p>
       </div>
     </Dialog>
