@@ -42,9 +42,7 @@ You can easily provide context to your prompt, to process the information contai
 
 ### Inline context definition
 
-⚠️ Inline context has a issue in v.14 and crash the extension, don't use it until soon update
-
-You can insert in any block used as prompt (not yet available for custom prompt) a command to define the context, following this syntax: `{{context: options}}` or `((context: options))`
+You can insert in any block used as prompt or in a custom prompt (in its content, not it the title block with #liveai/prompt) a command to define the context, following this syntax: `{{context: options}}` or `((context: options))`
 
 Available options:
 
@@ -54,16 +52,16 @@ Available options:
 - `linkedRefs` or `ref(title1+title2+...)`: linked references of the current page, or linked references of the listed pages
 - `DNPs(nb)` or `logPages(nb)`: a defined number o fprevious daily note pages (eventually relative to the current DNP) or, if no number is specified, default number defined in extension settings (7 by default)
 
-Example: `{{context: block(((KhGPvRqR-))+((Z5Z2HtXYg))),page([[my page]],DNPs(14))}}`
+Example: `{{context: block(((KhGPvRqR-))+((Z5Z2HtXYg))),page([[my page]],DNPs(30))}}`
 
 ## 4) Custom prompts
 
-// to complete
+🚧 to complete
 click refresh to see recently created custom prompts
 
 ## 5) Custom styles
 
-⚠️ Not working in v.14, will be fixed soon
+🚧
 
 ## 6) SmartBlocks commands
 

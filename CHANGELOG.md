@@ -1,18 +1,21 @@
-## v.12 (February 21th, 2025) Major update
+## v.12-15 (February 22th, 2025) Major update, Query Agents and Live Outliner
 
 **New features**
 
 - New context menu with a large set of built-in prompts
 - NL query Agents
 - Live Outliner Agent, replacing templated post-processing
+- Custom prompts, custom styles
 - Tokens and pricing counter
-- custom prompts and custom styles
 
 **Update**
-- DeepSeek support
+
+- DeepSeek support, o3-mini (for tier 3 currently)
 - AI character setting replaced by styles
+- Full support of inline context, inclusing blocks, pages, DNPs...
 
 **Fixed**
+
 - Haiku 3.5 was pointing to Haiku 3
 - block refs were not always properly replaced by block content
 - a lot of the small fixes
