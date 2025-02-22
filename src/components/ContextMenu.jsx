@@ -855,7 +855,7 @@ const StandaloneContextMenu = () => {
     const orderedStyles = getOrderedCustomPromptBlocks("liveai/style");
     if (orderedStyles) {
       customStyleTitles = orderedStyles.map((custom) => custom.content);
-      customStyles = customStyleTitles.map((custom) => {
+      customStyles = orderedStyles.map((custom) => {
         return {
           name: custom.content,
           prompt: getFlattenedContentFromTree({
