@@ -285,10 +285,6 @@
   gap: 8px;
   cursor: pointer;
 }
-.aicommands-topbar .laia-topbar-icons a {
-  transform: translateY(-1px);
-  color: black;
-}
 
 .aicommands-div > ul,
 .aicommands-div > ul > li {
@@ -505,12 +501,14 @@
   z-index: 1000;
 }
 
-.tokens-dialog {
+.tokens-dialog,
+.laia-help-dialog {
   width: 95%;
   max-width: 800px;
   max-height: 90vh;
 }
-.tokens-dialog .bp3-dialog-body {
+.tokens-dialog .bp3-dialog-body,
+.laia-help-dialog .bp3-dialog-body {
   max-height: 80vh;
   overflow-y: auto;
 }

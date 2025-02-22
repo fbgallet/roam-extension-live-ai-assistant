@@ -163,6 +163,7 @@ export function modelAccordingToProvider(model) {
         : ollamaModels.length
         ? ollamaModels[0]
         : undefined;
+    llm.library = "ollama";
   } else if (model.includes("groq")) {
     llm.provider = "groq";
     llm.prefix = "groq/";
@@ -199,7 +200,9 @@ export function modelAccordingToProvider(model) {
     });
     return null;
   }
-  if (!model.includes("ollama") && !llm.library?.apiKey) {
+  console.log("model :>> ", model);
+  console.log("llm :>> ", llm);
+  if (llm.provider !== "ollama" && !llm.library?.apiKey) {
     AppToaster.show({
       message: `Provide an API key to use ${
         llm.name || "an AI"

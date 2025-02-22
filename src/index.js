@@ -4,11 +4,7 @@ import {
   modelAccordingToProvider,
 } from "./ai/aiAPIsHub";
 import { webLangCodes } from "./audio/audio";
-import {
-  getBlockContentByUid,
-  isExistingBlock,
-  resolveReferences,
-} from "./utils/roamAPI";
+import { getBlockContentByUid, resolveReferences } from "./utils/roamAPI";
 import {
   defaultAssistantCharacter,
   defaultContextInstructions,
@@ -117,11 +113,12 @@ function getRolesFromString(str, model) {
     } else if (defaultModel === "first Groq model" && groqModels.length) {
       model = groqModels[0];
     } else {
-      model = defaultModel;
+      model = defaultModel.includes("first") ? "gpt-4o-mini" : defaultModel;
     }
   }
   model = modelAccordingToProvider(model);
   return {
+    model,
     defaultStr: str,
     user: splittedStr[0],
     assistant:
