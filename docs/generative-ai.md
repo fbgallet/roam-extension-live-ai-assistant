@@ -1,3 +1,12 @@
+## Generative AI in Live AI Assistant
+
+1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#1-voice-transcription)
+2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-built-in-prompts)
+3. [Context definition and inline context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
+4. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#4-custom-prompts)
+5. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles)
+6. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#6-smartblocks-commands)
+
 ## 1) Voice transcription
 
 You need either an account on OpenAI to benefit from Whisper transcriptions, or a Groq one since you can define Groq as default provider for the audio transcription model and user the powerful `whisper-large-v3` model.
@@ -72,8 +81,7 @@ A style can match a character, a set of formatting guidelines, or any other type
 
 You can set a style for the session (until the graph is reloaded) by clicking on the pin icon in the context menu or define it as the default style through the extension settings. Otherwise, the style choice will be reset to "Normal" every time the context menu is opened.
 
-![image](https://github.com/user-attachments/assets/568c2e19-c898-4bad-ab03-13efc930a18a)
-
+<img src="https://github.com/user-attachments/assets/568c2e19-c898-4bad-ab03-13efc930a18a" width="300">
 
 ## 6) SmartBlocks commands
 
