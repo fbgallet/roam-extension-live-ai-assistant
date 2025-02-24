@@ -99,12 +99,12 @@ It's a powerful and innovative feature, still experimental 🧪. [See details he
 
 - **Generative AI**
 
-1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#voice-transcription)
-2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#built-in-prompts)
+1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#1-voice-transcription)
+2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-built-in-prompts)
 3. [Context definition and inline context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
-4. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-prompts)
-5. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#custom-styles)
-6. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#smartblocks-commands)
+4. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#4-custom-prompts)
+5. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles)
+6. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#6-smartblocks-commands)
 
 - **AI Agents**
 
