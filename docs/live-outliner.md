@@ -6,10 +6,9 @@ NB: The agent requires fairly strong AI models, it works well with GPT-4 or Deep
 
 It's easy to use:
 
-- first you choose which set of blocks will be the active Live Outline, the set of blocks that can be modified or completed by the Live Outliner Agent. To do this, point to the parent block of the target blocks and click on the Live Outliner icon or the `Set as active Live Outline` command in the context menu. The affected blocks will then be surrounded by a blue halo.
-
 ![Live Outliner small demo](https://github.com/user-attachments/assets/2466988a-ddf0-4058-980e-489070054c30)
 
+- first you choose which set of blocks will be the active Live Outline, the set of blocks that can be modified or completed by the Live Outliner Agent. To do this, point to the parent block of the target blocks and click on the Live Outliner icon or the `Set as active Live Outline` command in the context menu. The affected blocks will then be surrounded by a blue halo.
 - from now on, the prompts you send to the AI will apply to this set of blocks (if you click on the Live Outliner icon which is now on a contrasting background, or the `Apply selected blocks as prompt` command). The agent will be able to modify existing blocks (their content or format), add or remove them, and it will plan the required changes to respond to your request.
 - you can make as many requests to the AI as you want, and each time, it's the current state of the outline that's taken into account (and a possible context). After each modification to the Live outline (changed or added blocks are highlighted in orange), you can revert to the previous state if the result isn't satisfactory. You can of course modify it manually, since it's always part of your graph. When a live outline is active, you can keep using your graph as usual, even close the page with the live outline, and it will automatically reappear in the sidebar when you request a new modification.
 - To stop the Outliner Agent, click on the red cross or the `Disable current Live Outline` command.
