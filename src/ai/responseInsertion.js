@@ -257,6 +257,7 @@ export const insertCompletion = async ({
   lastCompletion.selectedUids = selectedUids;
 
   let model = instantModel || defaultModel;
+
   if (model === "first OpenRouter model") {
     model = openRouterModels.length
       ? "openRouter/" + openRouterModels[0]
