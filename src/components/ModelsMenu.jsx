@@ -1,15 +1,8 @@
-import {
-  ContextMenu,
-  Menu,
-  MenuItem,
-  MenuDivider,
-  Tooltip,
-} from "@blueprintjs/core";
+import { Menu, MenuItem, MenuDivider, Tooltip } from "@blueprintjs/core";
 import {
   anthropicLibrary,
   deepseekLibrary,
   defaultModel,
-  extensionStorage,
   googleLibrary,
   groqModels,
   ollamaModels,
@@ -70,7 +63,6 @@ const ModelsMenu = ({
     }
     if (prefix) model = prefix + model;
     // if (typeof instantModel !== undefined) instantModel.current = model;
-    // console.log("instantModel :>> ", instantModel);
     return model;
   };
 
@@ -235,6 +227,19 @@ const ModelsMenu = ({
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
             text="Claude Sonnet 3.5"
+            labelElement="200k"
+          />
+          <MenuItem
+            icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="Claude Sonnet 3.7"
             labelElement="200k"
           />
           <MenuItem text="Claude 3 older models">

@@ -11,6 +11,7 @@ export const tokensLimit = {
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,
+  "Claude Sonnet 3.7": 200000,
   "Claude Opus": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
@@ -54,6 +55,10 @@ export const modelsPricing = {
     output: 0.004,
   },
   "claude-3-5-sonnet-20241022": {
+    input: 0.003,
+    output: 0.015,
+  },
+  "claude-3-7-sonnet-20250219": {
     input: 0.003,
     output: 0.015,
   },
@@ -120,6 +125,12 @@ export function normalizeClaudeModel(model, getShortName) {
       // model = "claude-3-5-sonnet-20240620"; previous version
       // model = "claude-3-sonnet-20240229"; previous version
       break;
+    case "claude-sonnet-3.7":
+    case "claude-3-7-sonnet-20250219":
+    case "claude sonnet 3.7":
+      model = getShortName ? "Claude Sonnet 3.7" : "claude-3-7-sonnet-20250219";
+      break;
+    // claude-3-7-sonnet-latest
     case "claude-haiku-3.5":
     case "claude-3-5-haiku-20241022":
     case "claude haiku 3.5":
@@ -138,7 +149,6 @@ export function normalizeClaudeModel(model, getShortName) {
 
 export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
   if (!model) return;
-  console.log("model in updateTokenCounter :>> ", model);
   let tokensCounter = extensionStorage.get("tokensCounter");
   if (!tokensCounter) {
     tokensCounter = {

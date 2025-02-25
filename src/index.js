@@ -251,6 +251,7 @@ export default {
               "Claude Haiku",
               "Claude Haiku 3.5",
               "Claude Sonnet 3.5",
+              "Claude Sonnet 3.7",
               "deepseek-chat",
               "first custom OpenAI model",
               "first OpenRouter model",
