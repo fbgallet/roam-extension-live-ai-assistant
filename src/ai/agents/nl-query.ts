@@ -30,6 +30,7 @@ import {
 } from "../../utils/domElts";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import { AppToaster } from "../../components/Toaster";
+import { streamClaudeThinkingModel } from "./thinkingStreaming";
 
 interface PeriodType {
   begin: string;
@@ -129,7 +130,16 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
   ]);
   let response;
   try {
+    // if (!state.model.id.includes("+thinking")) {
     response = await structuredLlm.invoke(messages);
+    // Extended thinking not compatible with structured output yet
+    // } else {
+    //   response = await streamClaudeThinkingModel(
+    //     structuredLlm,
+    //     messages,
+    //     turnTokensUsage
+    //   );
+    // }
   } catch (error) {
     AppToaster.show({ message: error.message });
   }

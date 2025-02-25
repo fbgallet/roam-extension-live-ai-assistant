@@ -20,15 +20,16 @@ import {
   TokensUsage,
   modelViaLanggraph,
 } from "./langraphModelsLoader";
-import { balanceBraces, sanitizeClaudeJSON } from "../../utils/format";
+import { balanceBraces } from "../../utils/format";
 import {
   displaySpinner,
   insertInstantButtons,
   removeSpinner,
 } from "../../utils/domElts";
-import { AgentToaster, AppToaster } from "../../components/Toaster";
+import { AppToaster } from "../../components/Toaster";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import { aiCompletion } from "../responseInsertion";
+import { streamClaudeThinkingModel } from "./thinkingStreaming";
 
 interface PeriodType {
   begin: string;
@@ -127,34 +128,29 @@ The user is requesting a new and, if possible, better transcription. Do it by me
   let messages = [sys_msg].concat([new HumanMessage(humanMsgStr)]);
   let response;
   try {
-    response =
-      state.model.provider !== "openRouter"
-        ? await llm.invoke(messages)
-        : await aiCompletion({
-            instantModel: state.model.prefix + state.model.id,
-            systemPrompt: sysMsgStr,
-            prompt: humanMsgStr,
-            isButtonToInsert: false,
-          });
+    if (!state.model.id.includes("+thinking")) {
+      response =
+        state.model.provider !== "openRouter"
+          ? await llm.invoke(messages)
+          : await aiCompletion({
+              instantModel: state.model.prefix + state.model.id,
+              systemPrompt: sysMsgStr,
+              prompt: humanMsgStr,
+              isButtonToInsert: false,
+            });
+    } else {
+      response = await streamClaudeThinkingModel(
+        llm,
+        messages,
+        turnTokensUsage
+      );
+    }
   } catch (error) {
     AppToaster.show({ message: error.message });
     return;
   }
-
   console.log("response :>> ", response);
-  if (state.model.id.includes("+thinking")) {
-    const thinking = response?.content[0].thinking;
-    AgentToaster.show({
-      message: "Claude Sonnet Extended Thinking process:",
-      timeout: 0,
-    });
-    const thinkingToasterStream: any = document.querySelector(
-      ".search-agent-toaster .bp3-toast-message"
-    );
-    if (thinkingToasterStream)
-      thinkingToasterStream.innerText += `\n\n` + thinking;
-    response.content = response?.content[1].text;
-  }
+
   return {
     datomicQuery: response?.content || response,
   };
