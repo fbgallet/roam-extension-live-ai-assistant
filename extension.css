@@ -39,8 +39,13 @@
   color: black;
 }
 .search-agent-toaster .bp3-toast {
+  max-width: 50%;
   font-size: 13px;
   padding: 5px;
+}
+.search-agent-toaster .bp3-toast .bp3-toast-message {
+  overflow-y: scroll;
+  max-height: 90vh;
 }
 .search-agent-toaster .bp3-toast li {
   padding: 3px 0;
@@ -597,6 +602,10 @@
   }
   .bp3-popover.suggested-aicommands {
     transform: translateX(5px) translateY(15px) scale(0.9) !important;
+  }
+
+  .search-agent-toaster .bp3-toast {
+    max-width: 90%;
   }
 
   .tokens-dialog .bp3-dialog-body {

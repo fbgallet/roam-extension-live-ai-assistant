@@ -242,6 +242,19 @@ const ModelsMenu = ({
             text="Claude Sonnet 3.7"
             labelElement="200k"
           />
+          <MenuItem
+            icon={defaultModel === "Claude Sonnet 3.7 Thinking" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="Claude Sonnet 3.7 Thinking"
+            labelElement="200k"
+          />
           <MenuItem text="Claude 3 older models">
             <MenuItem
               icon={defaultModel === "Claude Haiku" && "pin"}

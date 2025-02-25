@@ -38,7 +38,7 @@ import {
   updateTokenCounter,
 } from "./modelsInfo";
 import { roamImageRegex } from "../utils/regex";
-import { AppToaster } from "../components/Toaster";
+import { AgentToaster, AppToaster } from "../components/Toaster";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -232,12 +232,27 @@ export async function claudeCompletion({
           content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
         },
       ].concat(prompt);
+      let thinkingToaster;
       const options = {
         max_tokens:
           model.includes("3-5") || model.includes("3.5") ? 8192 : 4096,
-        model: model,
+        model: model.replace("+thinking", ""),
         messages,
       };
+      if (model.includes("3-7") || model.includes("3.7")) {
+        options.max_tokens = 128000;
+        // options.betas = ["output-128k-2025-02-19"];
+        if (model.includes("+thinking")) {
+          thinkingToaster = AgentToaster.show({
+            message: "Sonnet 3.7 Extended Thinking process:",
+            timeout: 0,
+          });
+          options.thinking = {
+            type: "enabled",
+            budget_tokens: 6500, // limit to 0.10$ by request
+          };
+        }
+      }
       const usage = {
         input_tokens: 0,
         output_tokens: 0,
@@ -260,6 +275,7 @@ export async function claudeCompletion({
         headers: {
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "output-128k-2025-02-19",
           "content-type": "application/json",
           "anthropic-dangerous-direct-browser-access": "true",
         },
@@ -283,6 +299,10 @@ export async function claudeCompletion({
             isStreamStopped: false,
           });
         const streamElt = insertParagraphForStream(targetUid);
+        const thinkingToasterStream = document.querySelector(
+          ".search-agent-toaster .bp3-toast-message"
+        );
+        if (thinkingToasterStream) thinkingToasterStream.innerText += `\n\n`;
 
         try {
           while (true) {
@@ -301,13 +321,18 @@ export async function claudeCompletion({
                 const data = JSON.parse(line.slice(5));
                 // console.log("data :>> ", data);
                 if (data.type === "content_block_delta") {
-                  const text = data.delta.text;
-                  respStr += text;
-                  streamElt.innerHTML += text;
+                  if (data.delta.type === "text_delta") {
+                    const text = data.delta.text;
+                    respStr += text;
+                    streamElt.innerHTML += text;
+                  } else if (data.delta.type === "thinking_delta") {
+                    thinkingToasterStream.innerText += data.delta.thinking;
+                  }
                 } else if (data.type === "message_start") {
                   usage["input_tokens"] =
                     data.message?.usage["input_tokens"] || 0;
                 } else if (data.type === "message_delta" && data.usage) {
+                  console.log("data.usage :>> ", data.usage);
                   usage["output_tokens"] = data.usage["output_tokens"] || 0;
                 }
               }

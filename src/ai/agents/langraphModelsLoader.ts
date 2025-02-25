@@ -100,8 +100,13 @@ export function modelViaLanggraph(
       maxRetries: 2,
     });
   } else if (llmInfos.provider === "Anthropic") {
+    if (llmInfos.id.includes("+thinking")) {
+      options.maxTokens = 32000;
+      options.thinking = { type: "enabled", budget_tokens: 1024 };
+      options.streaming = true;
+    }
     llm = new ChatAnthropic({
-      model: llmInfos.id,
+      model: llmInfos.id.replace("+thinking", ""),
       ...options,
       clientOptions: {
         baseURL: llmInfos.library.baseURL,

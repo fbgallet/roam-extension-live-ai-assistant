@@ -12,6 +12,7 @@ export const tokensLimit = {
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,
   "Claude Sonnet 3.7": 200000,
+  "Claude Sonnet 3.7 Thinking": 200000,
   "Claude Opus": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
@@ -131,6 +132,12 @@ export function normalizeClaudeModel(model, getShortName) {
       model = getShortName ? "Claude Sonnet 3.7" : "claude-3-7-sonnet-20250219";
       break;
     // claude-3-7-sonnet-latest
+    case "claude-3-7-sonnet-20250219+thinking":
+    case "claude sonnet 3.7 thinking":
+      model = getShortName
+        ? "Claude Sonnet 3.7 Thinking"
+        : "claude-3-7-sonnet-20250219+thinking";
+      break;
     case "claude-haiku-3.5":
     case "claude-3-5-haiku-20241022":
     case "claude haiku 3.5":
@@ -155,6 +162,7 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
       total: {},
     };
   }
+  if (model.includes("+thinking")) model = model.replace("+thinking", "");
   if (!tokensCounter.total[model]) {
     tokensCounter.total[model] = {
       input: 0,

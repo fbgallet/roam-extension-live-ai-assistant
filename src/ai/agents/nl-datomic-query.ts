@@ -26,7 +26,7 @@ import {
   insertInstantButtons,
   removeSpinner,
 } from "../../utils/domElts";
-import { AppToaster } from "../../components/Toaster";
+import { AgentToaster, AppToaster } from "../../components/Toaster";
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import { aiCompletion } from "../responseInsertion";
 
@@ -140,8 +140,21 @@ The user is requesting a new and, if possible, better transcription. Do it by me
     AppToaster.show({ message: error.message });
     return;
   }
-  console.log("response :>> ", response);
 
+  console.log("response :>> ", response);
+  if (state.model.id.includes("+thinking")) {
+    const thinking = response?.content[0].thinking;
+    AgentToaster.show({
+      message: "Claude Sonnet Extended Thinking process:",
+      timeout: 0,
+    });
+    const thinkingToasterStream: any = document.querySelector(
+      ".search-agent-toaster .bp3-toast-message"
+    );
+    if (thinkingToasterStream)
+      thinkingToasterStream.innerText += `\n\n` + thinking;
+    response.content = response?.content[1].text;
+  }
   return {
     datomicQuery: response?.content || response,
   };
