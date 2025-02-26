@@ -109,9 +109,6 @@ export const SearchAgentState = Annotation.Root({
 
 const loadModel = async (state: typeof SearchAgentState.State) => {
   llm = modelViaLanggraph(state.model, turnTokensUsage);
-  // return {
-  //   model: llm,
-  // };
 };
 
 const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
@@ -261,13 +258,14 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
         state.searchLists[0] +
         (state.searchLists.length > 1
           ? "\nAlternative search list: " + state.searchLists[1]
-          : "") +
+          : "\nNo alternative search list: set 'laternativeListFilters' to null (but set it)") +
         `\n\nInitial user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${state.userNLQuery}` +
         (state.retryInstruction && state.retryInstruction !== state.userNLQuery
           ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
           : "")
     ),
   ]);
+  console.log("messages :>> ", messages);
   let llmResponse;
   try {
     llmResponse = await structuredLlm.invoke(messages);
@@ -307,7 +305,7 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       state.llmResponse = state.llmResponse.parsed;
     }
   }
-  // console.log("llmResponse after check :>> ", state.llmResponse);
+  console.log("llmResponse after check :>> ", state.llmResponse);
 
   // after "nlQueryInterpreter" node
   if ("searchList" in state.llmResponse) {
@@ -331,7 +329,7 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
     state.isRandom = state.llmResponse.isRandom;
   }
   // after "nlQuestionInterpreter" node
-  else if ("searchList" in state.llmResponse) {
+  else if ("alternativeSearchList" in state.llmResponse) {
     let alternativeSearchList = state.llmResponse.alternativeSearchList;
     alternativeSearchList && state.searchLists.push(alternativeSearchList);
   }
@@ -840,7 +838,11 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
   state.nbOfResultsDisplayed = 0;
   let previousShiftDisplay = state.shiftDisplay || 0;
 
-  if (!state.stringifiedResultToDisplay) {
+  const isPostProcessingAnswer = state.stringifiedResultToDisplay
+    ? true
+    : false;
+
+  if (!isPostProcessingAnswer) {
     state.stringifiedResultToDisplay = "";
     if (!state.filteredBlocks.length) {
       state.stringifiedResultToDisplay = "No matching blocks";
@@ -876,10 +878,10 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     targetUid = await createChildBlock(
       state.rootUid,
       (state.target === "new" || !state.target ? assistantRole : "") +
-        (state.shiftDisplay
+        (!isPostProcessingAnswer
           ? `Results ${previousShiftDisplay + 1} to ${
               previousShiftDisplay + (state.nbOfResultsDisplayed || 10)
-            } / ${state.filteredBlocks.length}`
+            }` + (state.shiftDisplay ? `/ ${state.filteredBlocks.length}` : "")
           : "")
     );
 
