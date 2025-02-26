@@ -1,12 +1,11 @@
 import { Dialog, DialogBody, Classes, Divider } from "@blueprintjs/core";
-import { DIVIDER } from "@blueprintjs/core/lib/esm/common/classes";
 
 const HelpDialog = ({ isOpen, onClose }) => {
   return (
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Live AI Assistant - Quick Reminded"
+      title="Live AI Assistant - Quick Reminder"
       className="laia-help-dialog"
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
@@ -40,55 +39,24 @@ const HelpDialog = ({ isOpen, onClose }) => {
             </a>
           </li>
         </ul>
-        <strong>Set Hotkeys for most used commands</strong>:
-        <p>
-          Remember to define or customize hotkeys for the following commands
-          (via native Roam Command Palette) to access them quickly:
-        </p>
+        <strong>Set Hotkeys for most useful commands</strong>:
+        <br />
+        Remember to define or customize hotkeys for commands (via native Roam
+        Command Palette) to access them quickly:
         <ul>
           <li>
-            <em>Live AI Assistant: Open commands context Menu</em>
-            <br />
-            (default hotkeys: <code>Cmd/Win + Ctrl + a</code>, another efficient
-            shortcut is `Cmd/Ctrl + rigth-click`)
+            <em>Open commands context Menu</em> (default hotkeys:{" "}
+            <code>Cmd/Win + Ctrl + a</code> or `Cmd/Ctrl + rigth-click`)
           </li>
           <li>
-            <em>
-              Live AI Assistant: AI generation, focused/selected block(s) as
-              prompt
-            </em>
-            <br />
-            (also allows continuing a conversation)
+            <em>AI generation, focused/selected block(s) as prompt</em> (also to
+            continue a conversation)
           </li>
           <li>
-            <em>Live AI Assistant: Start/Pause recording your vocal note</em>
+            <em>Start/Pause recording your vocal note</em>
             <br />
             (you can dictate a command directly and route it to AI generative or
             Live Outliner if an outline is active)
-          </li>
-        </ul>
-        <strong>Voice recorder hotkeys</strong>
-        <br />
-        (⚠️ available only when the voice recording has been started by a mouse
-        click):
-        <ul>
-          <li>
-            Pause/Resume: <code>Spacebar</code>
-          </li>
-          <li>
-            Stop and rewind: <code>Escape</code> or <code>Backspace</code>
-          </li>
-          <li>
-            Transcribe: <code>T or Enter</code>
-          </li>
-          <li>
-            Translate (in English): <code>E</code>
-          </li>
-          <li>
-            AI Generation using vocal note as prompt: <code>G</code>
-          </li>
-          <li>
-            Live Outliner: <code>O</code>
           </li>
         </ul>
         <strong>Tags to define custom contents</strong>:
@@ -106,7 +74,49 @@ const HelpDialog = ({ isOpen, onClose }) => {
             favorite templates for Live Outliner: <code>#liveai/template</code>
           </li>
         </ul>
-        <br />
+        <strong>Useful syntax in Query Agents</strong>:
+        <ul>
+          <li>
+            <code>&</code> or <code>+</code> mean 'and'
+          </li>
+          <li>
+            <code>|</code> means 'or'
+          </li>
+          <li>
+            <code>-</code> means 'not'
+          </li>
+          <li>
+            <code>*</code> for fuzzy search, <code>~</code> for broader semantic
+            search
+          </li>
+          <li>
+            <code>parent {">"} children</code> and{" "}
+            <code>children {"<"} parent</code> for hierarchical conditions (in
+            Smart Search)
+          </li>
+        </ul>
+        <strong>
+          Voice recorder hotkeys (⚠️ available only when started by a mouse
+          click)
+        </strong>
+        <ul>
+          <li>
+            Pause/Resume: <code>Spacebar</code>. Stop, Rewind:{" "}
+            <code>Escape</code> or <code>Backspace</code>
+          </li>
+          <li>
+            Transcribe: <code>T or Enter</code>
+          </li>
+          <li>
+            Translate (in English): <code>E</code>
+          </li>
+          <li>
+            AI Generation using vocal note as prompt: <code>G</code>
+          </li>
+          <li>
+            Live Outliner: <code>O</code>
+          </li>
+        </ul>
         <Divider />
         <strong>Support my work</strong>
         <p>

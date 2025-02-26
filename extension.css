@@ -511,11 +511,17 @@
   width: 95%;
   max-width: 800px;
   max-height: 90vh;
+  z-index: 9999;
 }
 .tokens-dialog .bp3-dialog-body,
 .laia-help-dialog .bp3-dialog-body {
   max-height: 80vh;
   overflow-y: auto;
+  margin-right: 2px;
+  padding-right: 15px;
+}
+.laia-help-dialog .bp3-dialog-body {
+  font-size: small;
 }
 .tokens-dialog h3 {
   cursor: pointer;
@@ -593,6 +599,13 @@
     justify-content: center;
     gap: 10px;
     scale: 2.5;
+  }
+
+  .laia-help-dialog .bp3-dialog-body {
+    margin-left: 12px;
+    margin-right: 2px;
+    padding-right: 12px;
+    font-size: smaller;
   }
 
   .bp3-elevation-3.aicommands-div {
