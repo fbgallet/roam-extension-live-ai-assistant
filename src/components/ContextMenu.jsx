@@ -976,9 +976,10 @@ const StandaloneContextMenu = () => {
               <div className="laia-topbar-icons">
                 <Tooltip
                   content="Quick reminder"
+                  disabled={window.roamAlphaAPI.platform.isMobile}
                   hoverOpenDelay={600}
                   openOnTargetFocus={false}
-                  style={{ zIndex: "9999" }}
+                  style={{ zIndex: "9990" }}
                 >
                   <Icon
                     icon="help"
@@ -991,6 +992,7 @@ const StandaloneContextMenu = () => {
                 </Tooltip>
                 <Tooltip
                   content="Tokens usage and cost by model"
+                  disabled={window.roamAlphaAPI.platform.isMobile}
                   hoverOpenDelay={600}
                   openOnTargetFocus={false}
                   style={{ zIndex: "9999" }}
@@ -1007,6 +1009,7 @@ const StandaloneContextMenu = () => {
                 </Tooltip>
                 <Tooltip
                   content="Refresh custom content menus"
+                  disabled={window.roamAlphaAPI.platform.isMobile}
                   hoverOpenDelay={600}
                   openOnTargetFocus={false}
                   style={{ zIndex: "9999" }}
@@ -1025,7 +1028,8 @@ const StandaloneContextMenu = () => {
                   />
                 </Tooltip>
                 <Tooltip
-                  content="Quick reminder"
+                  content="Close context menu"
+                  disabled={window.roamAlphaAPI.platform.isMobile}
                   hoverOpenDelay={600}
                   openOnTargetFocus={false}
                   style={{ zIndex: "9999" }}
