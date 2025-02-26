@@ -4,7 +4,7 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
-### 🆕 New in v.12 (MAJOR UPDATE)
+### 🆕 New in v.15 (MAJOR UPDATE)
 
 - New context menu with a large set of built-in prompts and better way to handle custom prompts
 - AI Agents to convert natural language requests in Roam queries or :q queries, search and ask question to your graph
@@ -81,7 +81,22 @@ To define the context, you can either check the corresponding box in the context
 
 See more details on context definition and inline context [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
 
-### Query Agents
+### Styles
+
+A style describes the way the generative AIs will write in all their responses, regardless of the specific prompt used (but some built-in prompts, like translation or correction, are incompatible with a style, it won't apply). A set of built-in styles are offered:
+
+- **Concise**: for shorter responses, often limited to a few sentences
+- **Conversational**: the AI will adopt a more oral style and encourage continuing the conversation, in a similar way to ChatGPT
+- **No bullet points**: responses will ideally take the form of one (or a few) paragraph, to avoid the multiplication of bullet points (which is suitable for Roam but not always desirable)
+- **Atomic**: on the other hand, will emphasize the tendency of generative AIs to break down their responses into bullet points, with simple content in each block
+- **Quiz**: instead of providing a direct answer, the LLM will offer multiple-choice responses to exercise your judgment, and if you can't identify the correct answer, it will give hints
+- **Socratic**: responses in the style of the famous philosopher Socrates (in the dialogues written by Plato). Socrates, not claiming to know the truth about the subject being asked, raises questions himself to encourage thinking, particularly about the meaning of key concepts, involved values, implicit beliefs, etc.
+
+You can read the detailed system prompts defining each built-in style [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/ff8fd131e1f893982f2206b1390d5e0e4bddd3a1/src/ai/prompts.js#L861).
+
+You can add your own custom style, using `#liveai/style` tag. See [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles) for detailed documentation.
+
+## Query Agents
 
 Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask to your graph..." agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
 
@@ -90,12 +105,30 @@ Currently, 4 complementary AI Agents can help users to find precise information 
 - **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#smart-search-agent).
 - **Ask to your graph...**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
-### Live Outliner Agent
+## Live Outliner Agent
 
 This is another way of using AI, an alternative to the "Chat" format. It involves an Agent that autonomously chooses to modify an outline, that is, a set of blocks located under a given parent block, based on user requests. Instead of generating a series of content one after another as in a chat, the Live Outliner Agent modifies, adds, or removes specific blocks in the outline, while maintaining the same structure. In other words, the generation is inserted into a pre-existing structure (similar to a template) and acts only surgically, modifying only the necessary elements, which reduces the number of output tokens.
 It's a powerful and innovative feature, still experimental 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md).
 
-### Detailed documentation
+## Security concerns
+
+Sending personal data to a LLMs is not trivial and should always be done with caution. The only completely safe method is to use local models (accessible via Ollama in Live AI Assistant), but the most powerful ones require very powerful computers and are generally slower than online models. It's therefore useful to be able to clearly identify which data from your graph will be sent to the LLMs.
+
+With Live AI Assistant, you generally have control over what you decide to send or not to the LLMs, except in the case of the `Ask to my graph...` agent. Here's what's sent to the LLM based on the type of command used:
+
+- when using the generative AI from a prompt, only the prompt (a block or the blocks selected by the user + the content of block refs without their children) is sent.
+- when using `Continue the conversation` command: all previous sibling blocks and all their children are sent. `Selected blocks as prompt` command checks if the previous sibling blocks contain a specific header for an AI response, if so, it behaves the same as `Continue the conversation`. In other words, to ensure that previous sibling blocks are not sent to the API by mistake, it's enough to start any new request as the first child of a new block.
+- when using a context, by default (customizable in the extension settings):
+  - the current page sends all the content of the current zoom,
+  - linked references send 3 levels of blocks (that means, 2 levels of children), and
+  - DNPs send 3 levels of blocks from the last 7 days (relative).
+  - You can also set tags to exclude blocks (and their children) from context
+- regarding agents:
+  - `NL query`, `NL: q Datomic query`, and `Smart Search` only send the natural language query, no graph content is sent to the LLM API !
+  - `Ask to your graph`, on the other hand, sends the results of Smart Search (blocks that match the conditions + their direct parent + their first child for pre-selection, and all children up to 3 levels for pre-selected blocks, up to 20). Here, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query.
+  - `Live Outliner Agent` only sends the content of the active Live Outline.
+
+## Detailed documentation
 
 - **Generative AI**
 
@@ -123,6 +156,6 @@ This extension requires a lot of work in my free time. If you want to encourage 
 
 ---
 
-### For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
+For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
 
 Please report any issue [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/issues).
