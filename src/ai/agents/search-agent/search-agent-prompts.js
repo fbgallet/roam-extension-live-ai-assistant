@@ -134,12 +134,12 @@ VERY IMPORTANT:
 Since each filters will be combined following the conjunctive logic with the other, be careful not to multiply them, as too many conjunctive conditions might result in finding no content that meets all of them. In general, the number of filters should be the same as the number of search items and should rarely exceed 3.
 
 OUTPUT FORMAT: For each provided search list, create a set of filters following the provided JSON schema, where:
-- "firstListFilters" and "alternativeListFilters" (if needed) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
+- "firstListFilters" and "alternativeListFilters" (if needed, otherwise set it to null) are array of filters, where each of them will be combined with the other through a conjunctive logic (AND). Each filter has the following properties:
   - 'regexString': the searched content, expressed as a regex to express disjunctive relationships (OR).
   - 'isToExclude': true only if this filter expresses a negation (search item preceded by '-'). Otherwise this property is to set to null.
   - 'isTopBlockFilter': <HIERARCHY-INSTRUCTIONS-2>`;
 
-export const semanticInstructions = `- IF AND ONLY IF EXPLICITLY REQUESTED with '~' (tilde) symbol at the end of a given word, add most relevant semantic variations (synonym, acronym, common alias or abbreviation), strictly limited to the same language used in the initial user's request (unless otherwise specified) ! E.g. if the searched item is 'practice~' (but not 'practice' !), semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
+export const semanticInstructions = `- IF AND ONLY IF EXPLICITLY REQUESTED with '~' (tilde) symbol at the end of a given word, add most relevant semantic variations (synonym, acronym, common alias or abbreviation) for this word and only this word, strictly limited to the same language used in the initial user's request (unless otherwise specified) ! E.g. if the searched item is 'practice~' (but not 'practice' !), semantic varations could be 'practi(?:c|s)e|training|exercise|rehearsal|drill'.
 WARNING: Adding variations should be done with great care to avoid any alternative that might introduce ambiguity and lead search down the wrong path or expand it too much !`;
 
 export const hierarchyInstructions1 = `- a search list including ' > ' or ' < ' symbol means that the search is hierarchically directed. BE VERY CAREFUL about the difference between these two symbols, as it profoundly changes the logic of the search:
