@@ -305,7 +305,7 @@
   opacity: 0.6;
   padding: 5px 0;
   display: flex;
-  gap: 12px;
+  gap: 5px;
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
@@ -322,6 +322,9 @@
 }
 .aicommands-context .bp3-control.bp3-inline {
   margin-right: 0px;
+}
+.aicommands-context .bp3-control-indicator {
+  margin-right: 3px;
 }
 .aicommands-context label {
   margin-bottom: 0;
