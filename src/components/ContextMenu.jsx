@@ -75,11 +75,14 @@ export let customStyles;
 
 const voidRoamContext = {
   linkedRefs: false,
+  linkedPages: false,
   sidebar: false,
   page: false,
+  pageArgument: [],
   logPages: false,
   block: false,
   blockArgument: [],
+  linkedRefsArgument: [],
 };
 
 const StandaloneContextMenu = () => {
@@ -1060,6 +1063,12 @@ const StandaloneContextMenu = () => {
                 label="Page"
                 inline={true}
                 onChange={() => updateContext("page")}
+              />
+              <Checkbox
+                checked={roamContext.linkedPages}
+                label="[[pages]]"
+                inline={true}
+                onChange={() => updateContext("linkedPages")}
               />
               {isLogView() ? (
                 <Checkbox

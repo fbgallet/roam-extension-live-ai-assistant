@@ -36,6 +36,7 @@ import {
   getParentBlock,
   getPreviousSiblingBlock,
   getTreeByUid,
+  getUidAndTitleOfMentionedPagesInBlock,
   getYesterdayDate,
   insertBlockInCurrentView,
   isCurrentPageDNP,
@@ -493,6 +494,28 @@ export const getAndNormalizeContext = async ({
             }))
       );
     }
+    if (roamContext.linkedPages) {
+      let sourceUids =
+        blocksSelectionUids && blocksSelectionUids.length
+          ? blocksSelectionUids
+          : focusedBlock
+          ? [focusedBlock]
+          : [];
+      sourceUids.length &&
+        sourceUids.forEach((uid) => {
+          const mentionedInBlock = getUidAndTitleOfMentionedPagesInBlock(uid);
+          if (mentionedInBlock) {
+            const mentionedPageTitles = mentionedInBlock.map(
+              (ref) => ref.title
+            );
+            roamContext.page = true;
+            roamContext.pageArgument.push(...mentionedPageTitles);
+            roamContext.linkedRefs = true;
+            roamContext.linkedRefsArgument.push(...mentionedPageTitles);
+          }
+        });
+    }
+    console.log("roamContext :>> ", roamContext);
     if (roamContext.page) {
       let pageUids = [];
       if (roamContext.pageArgument?.length) {
@@ -521,7 +544,7 @@ export const getAndNormalizeContext = async ({
     if (roamContext.linkedRefs) {
       let pageUids = [];
       if (roamContext.linkedRefsArgument?.length) {
-        pageUids = roamContext.linkedRefs.map((title) =>
+        pageUids = roamContext.linkedRefsArgument.map((title) =>
           getPageUidByPageName(title)
         );
       }
@@ -562,6 +585,8 @@ export const getAndNormalizeContext = async ({
       context += getFlattenedContentFromSidebar(uidToExclude, withUid);
     }
   }
+  console.log("roamContext :>> ", roamContext);
+  console.log("context :>> ", context);
 
   return context.trim();
 };
@@ -1021,6 +1046,7 @@ export const getOrderedCustomPromptBlocks = (tag) => {
 export const getUnionContext = (context1, context2) => {
   return {
     linkedRefs: context1?.linkedRefs || context2?.linkedRefs,
+    linkedPages: context1?.linkedPages || context2?.linkedPages,
     sidebar: context1?.sidebar || context2?.sidebar,
     logPages: context1?.logPages || context2?.logPages,
     logPagesArgument: context1?.logPagesArgument || context2?.logPagesArgument,
@@ -1035,6 +1061,19 @@ export const getUnionContext = (context1, context2) => {
       []
         .concat(context1?.pageArgument?.length ? context1?.pageArgument : [])
         .concat(context2?.pageArgument?.length ? context2?.pageArgument : [])
+    ),
+    linkedRefsArgument: removeDuplicates(
+      []
+        .concat(
+          context1?.linkedRefsArgument?.length
+            ? context1?.linkedRefsArgument
+            : []
+        )
+        .concat(
+          context2?.linkedRefsArgument?.length
+            ? context2?.linkedRefsArgument
+            : []
+        )
     ),
   };
 };

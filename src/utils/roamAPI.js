@@ -124,6 +124,19 @@ export function getParentBlock(uid) {
   return "";
 }
 
+export function getUidAndTitleOfMentionedPagesInBlock(uid) {
+  let result = window.roamAlphaAPI.pull(
+    "[{:block/refs [:block/uid :node/title]}]",
+    [":block/uid", uid]
+  );
+  if (!result) return null;
+  return result[":block/refs"]
+    .filter((ref) => ref[":node/title"])
+    .map((ref) => {
+      return { uid: ref[":block/uid"], title: ref[":node/title"] };
+    });
+}
+
 // export function getTopParentAmongBlocks(blockUids) {
 //   let result = window.roamAlphaAPI.q(
 //     `[:find ?uids
