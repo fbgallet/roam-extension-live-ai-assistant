@@ -9,6 +9,7 @@
 - Claude Sonnet 3.7 and Grok support
 - The thinking process of Sonnet 3.7 Extended thinking and DeepSeek-R1 appears in a popup
 - Added mentioned [[pages]] as option to define the context
+- Vision support for Claude models & Grok-2 Vision
 
 ### 🆕 New in v.15 (MAJOR UPDATE)
 
