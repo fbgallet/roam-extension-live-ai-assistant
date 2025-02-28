@@ -4,6 +4,12 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
+### 🆕 New in v.16
+
+- Claude Sonnet 3.7 and Grok support
+- The thinking process of Sonnet 3.7 Extended thinking and DeepSeek-R1 appears in a popup
+- Added mentioned [[pages]] as option to define the context
+
 ### 🆕 New in v.15 (MAJOR UPDATE)
 
 - New context menu with a large set of built-in prompts and better way to handle custom prompts
@@ -120,8 +126,9 @@ With Live AI Assistant, you generally have control over what you decide to send 
 - when using `Continue the conversation` command: all previous sibling blocks and all their children are sent. `Selected blocks as prompt` command checks if the previous sibling blocks contain a specific header for an AI response, if so, it behaves the same as `Continue the conversation`. In other words, to ensure that previous sibling blocks are not sent to the API by mistake, it's enough to start any new request as the first child of a new block.
 - when using a context, by default (customizable in the extension settings):
   - the current page sends all the content of the current zoom,
-  - linked references send 3 levels of blocks (that means, 2 levels of children), and
-  - DNPs send 3 levels of blocks from the last 7 days (relative).
+  - linked references send 3 levels of blocks (that means, 2 levels of children),
+  - [[pages]] links send corresponding page content and its linked references on 3 levels
+  - DNPs send 3 levels of blocks from the last 7 days (relative)
   - You can also set tags to exclude blocks (and their children) from context
 - regarding agents:
   - `NL query`, `NL: q Datomic query`, and `Smart Search` only send the natural language query, no graph content is sent to the LLM API !
