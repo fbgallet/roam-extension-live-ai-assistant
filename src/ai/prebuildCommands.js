@@ -150,7 +150,7 @@ export const BUILTIN_COMMANDS = [
   {
     id: 1310,
     name: "Extract actionable items",
-    prompt: "keyInsights",
+    prompt: "extractActionable",
     category: "CONTENT ANALYSIS",
     isIncompatibleWith: {
       specificStyles: ["Quiz"],
