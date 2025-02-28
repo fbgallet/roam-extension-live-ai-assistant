@@ -515,7 +515,7 @@ export const getAndNormalizeContext = async ({
           }
         });
     }
-    console.log("roamContext :>> ", roamContext);
+
     if (roamContext.page) {
       let pageUids = [];
       if (roamContext.pageArgument?.length) {
@@ -586,7 +586,7 @@ export const getAndNormalizeContext = async ({
     }
   }
   console.log("roamContext :>> ", roamContext);
-  console.log("context :>> ", context);
+  // console.log("context :>> ", context);
 
   return context.trim();
 };

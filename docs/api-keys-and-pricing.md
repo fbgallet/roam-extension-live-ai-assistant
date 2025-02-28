@@ -1,7 +1,7 @@
 ## Choose your LLMs provider
 
 If you haven't already, you will need to create a user account with one of the following providers. Payment is made to them and generally involves crediting your account in advance with a specific amount (you can start with 5 or 10$, which is usually more than enough for several months).
-All features of Live AI Assistant have been tested with OpenAI and Anthropic models, and they also work well with DeepSeek and Llama3.3 on Groq. Most models available on OpenRouter work for generative AI, but it's more unpredictable for Query Agents and Live Outliner. Currently, Gemini models work only with generative AI, not agents.
+All features of Live AI Assistant have been tested with OpenAI and Anthropic models, and they also work well with DeepSeek, Grok and Llama3.3 on Groq. Most models available on OpenRouter work for generative AI, but it's more unpredictable for Query Agents and Live Outliner. Currently, Gemini models work only with generative AI, not agents.
 
 ## Get API Keys
 
@@ -9,9 +9,9 @@ All features of Live AI Assistant have been tested with OpenAI and Anthropic mod
 
 NB: API fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
 
-- To use Claude models, provide your Anthropic API key (by copying/pasting an existing key or generating a new one via [this link](https://console.anthropic.com/settings/keys)).
+- To use Anthropic (Claude) models, or DeepSeek models, or Grok models, you have to provide an API key for each of these providers. The principle is the same, you have to create an account, credit your account with a few dollars, get an API and copy it in Live AI Assistant settings.
 
-- To use [other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model.
+- To use [any other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model.
 
 - Use models throught OpenRouter:
 
