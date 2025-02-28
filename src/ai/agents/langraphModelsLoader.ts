@@ -72,7 +72,11 @@ export function modelViaLanggraph(
 
   // console.log("llmInfos in langgraphModelsLoader :>> ", llmInfos);
 
-  if (llmInfos.provider === "OpenAI" || llmInfos.provider === "groq") {
+  if (
+    llmInfos.provider === "OpenAI" ||
+    llmInfos.provider === "groq" ||
+    llmInfos.provider === "Grok"
+  ) {
     llm = new ChatOpenAI({
       model: llmInfos.id,
       ...options,

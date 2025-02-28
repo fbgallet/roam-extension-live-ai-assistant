@@ -16,6 +16,8 @@ export const tokensLimit = {
   "Claude Opus": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
+  "grok-2-1212": 131072,
+  "grok-2-vision-1212": 32768,
   "gemini-2.0-flash-exp": 1048576,
   "gemini-1.5-flash": 1048576,
   "gemini-1.5-pro": 2097152,
@@ -74,6 +76,14 @@ export const modelsPricing = {
   "deepseek-reasoner": {
     input: 0.00055,
     output: 0.00219,
+  },
+  "grok-2-1212": {
+    input: 0.002,
+    output: 0.01,
+  },
+  "grok-2-vision-1212": {
+    input: 0.002,
+    output: 0.01,
   },
 };
 

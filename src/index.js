@@ -35,6 +35,7 @@ export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
 export let DEEPSEEK_API_KEY = "";
 export let GOOGLE_API_KEY = "";
+export let GROK_API_KEY = "";
 export let OPENROUTER_API_KEY = "";
 export let GROQ_API_KEY = "";
 export let isUsingWhisper;
@@ -76,6 +77,7 @@ export let openaiLibrary,
   openrouterLibrary,
   groqLibrary,
   deepseekLibrary,
+  grokLibrary,
   googleLibrary;
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
@@ -253,6 +255,7 @@ export default {
               "Claude Sonnet 3.5",
               "Claude Sonnet 3.7",
               "deepseek-chat",
+              "Grok-2",
               "first custom OpenAI model",
               "first OpenRouter model",
               "first Ollama local model",
@@ -385,6 +388,36 @@ export default {
                 deepseekLibrary = initializeOpenAIAPI(
                   DEEPSEEK_API_KEY,
                   "https://api.deepseek.com"
+                );
+              }, 200);
+              setTimeout(() => {
+                mountComponent(position);
+              }, 200);
+            },
+          },
+        },
+        {
+          id: "grokapi",
+          name: "Grok API Key",
+          description: (
+            <>
+              <span>Copy here your Grok API key</span>
+              <br></br>
+              <a href="https://console.x.ai/" target="_blank">
+                (Follow this link to generate a new one)
+              </a>
+              <br></br>
+            </>
+          ),
+          action: {
+            type: "input",
+            onChange: async (evt) => {
+              unmountComponent(position);
+              setTimeout(() => {
+                GROK_API_KEY = evt.target.value;
+                grokLibrary = initializeOpenAIAPI(
+                  GROK_API_KEY,
+                  "https://api.x.ai/v1"
                 );
               }, 200);
               setTimeout(() => {
@@ -935,6 +968,9 @@ export default {
     if (extensionAPI.settings.get("deepseekapi") === null)
       await extensionAPI.settings.set("deepseekapi", "");
     DEEPSEEK_API_KEY = extensionAPI.settings.get("deepseekapi");
+    if (extensionAPI.settings.get("grokapi") === null)
+      await extensionAPI.settings.set("grokapi", "");
+    GROK_API_KEY = extensionAPI.settings.get("grokapi");
     // if (extensionAPI.settings.get("googleapi") === null)
     //   await extensionAPI.settings.set("googleapi", "");
     // GOOGLE_API_KEY = extensionAPI.settings.get("googleapi");
@@ -1084,6 +1120,8 @@ export default {
         DEEPSEEK_API_KEY,
         "https://api.deepseek.com"
       );
+    if (GROK_API_KEY)
+      grokLibrary = initializeOpenAIAPI(GROK_API_KEY, "https://api.x.ai/v1");
     // if (GOOGLE_API_KEY)
     //   googleLibrary = initializeOpenAIAPI(
     //     GOOGLE_API_KEY,

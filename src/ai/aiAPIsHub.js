@@ -24,6 +24,7 @@ import {
   openRouterModelsInfo,
   deepseekLibrary,
   googleLibrary,
+  grokLibrary,
 } from "..";
 import {
   insertInstantButtons,
@@ -194,6 +195,16 @@ export function modelAccordingToProvider(model) {
       llm.name = "DeepSeek-V3";
     }
     llm.library = deepseekLibrary;
+  } else if (model.includes("grok")) {
+    llm.provider = "Grok";
+    if (model === "grok-2 vision") {
+      llm.id = "grok-2-vision-1212";
+      llm.name = "Grok-2 Vision";
+    } else {
+      llm.id = "grok-2-1212";
+      llm.name = "Grok-2";
+    }
+    llm.library = grokLibrary;
   } else if (model.includes("gemini")) {
     llm.provider = "Google";
     llm.id = model;
