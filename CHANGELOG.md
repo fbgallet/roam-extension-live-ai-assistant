@@ -1,3 +1,19 @@
+## v.16 (February 28th, 2025) New models & [[pages]] as context
+
+**Updates**
+
+- Claude Sonnet 3.7 and Grok support (not GPT-4.5 because so expensive !)
+- The thinking process of Sonnet 3.7 Extended thinking and DeepSeek-R1 appears in a popup
+- Added mentioned [[pages]] as option to define the context
+- Vision support for Claude models & Grok-2 Vision
+- More complete readme and quickreminder
+
+**Fixed**
+
+- For Groq & Ollama, the first model in the list was always used
+- "Extract actianable items" built-in prompt was pointing to "Extract key insights"
+- Proper names for DeepSeek models (instead of their API id)
+
 ## v.12-15 (February 22th, 2025) Major update, Query Agents and Live Outliner
 
 **New features**
