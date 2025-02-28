@@ -4,6 +4,7 @@ import {
   deepseekLibrary,
   defaultModel,
   googleLibrary,
+  grokLibrary,
   groqModels,
   ollamaModels,
   openAiCustomModels,
@@ -288,39 +289,72 @@ const ModelsMenu = ({
       ) : (
         <MenuDivider className="menu-hint" title="No Anthropic API key" />
       )}
-      {openRouterOnly ? null : deepseekLibrary ? (
-        <>
-          {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
-          <MenuItem
-            icon={defaultModel === "DeepSeek-V3" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="DeepSeek-V3"
-            labelElement="64k"
-          />
-          <MenuItem
-            icon={defaultModel === "DeepSeek-R1" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="DeepSeek-R1"
-            labelElement="64k"
-          />
-        </>
-      ) : (
-        <MenuDivider className="menu-hint" title="No DeepSeek API key" />
-      )}
+      {openRouterOnly
+        ? null
+        : deepseekLibrary && (
+            <>
+              {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
+              <MenuItem
+                icon={defaultModel === "DeepSeek-V3" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="DeepSeek-V3"
+                labelElement="64k"
+              />
+              <MenuItem
+                icon={defaultModel === "DeepSeek-R1" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="DeepSeek-R1"
+                labelElement="64k"
+              />
+            </>
+          )}
+      {openRouterOnly
+        ? null
+        : grokLibrary && (
+            <>
+              {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
+              <MenuItem
+                icon={defaultModel === "Grok-2" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="Grok-2"
+                labelElement="128k"
+              />
+              <MenuItem
+                icon={defaultModel === "Grok-2 Vision" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="Grok-2 Vision"
+                labelElement="32k"
+              />
+            </>
+          )}
       {/* {openRouterOnly ? null : googleLibrary ? (
         <>
           {(openaiLibrary || anthropicLibrary || deepseekLibrary) && (

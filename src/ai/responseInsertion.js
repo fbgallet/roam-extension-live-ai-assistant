@@ -107,6 +107,7 @@ export async function aiCompletion({
     llm.provider === "openRouter" ||
     llm.provider === "groq" ||
     llm.provider === "DeepSeek" ||
+    llm.provider === "Grok" ||
     llm.provider === "Google"
   ) {
     aiResponse = await openaiCompletion(completionOptions);
