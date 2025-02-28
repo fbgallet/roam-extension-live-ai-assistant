@@ -288,6 +288,10 @@ export async function claudeCompletion({
 
       console.log("Messages sent as prompt to the model:", messages);
 
+      if (isModelSupportingImage(model)) {
+        messages = addImagesUrlToMessages(messages, content, true);
+      }
+
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -603,7 +607,7 @@ export async function ollamaCompletion({
   }
 }
 
-const addImagesUrlToMessages = (messages, content) => {
+const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
   let nbCountdown = maxImagesNb;
 
   for (let i = 1; i < messages.length; i++) {
@@ -623,14 +627,24 @@ const addImagesUrlToMessages = (messages, content) => {
       messages[i].content[0].text = messages[i].content[0].text
         .replace(matchingImagesInPrompt[j][0], "")
         .trim();
-      if (nbCountdown > 0)
-        messages[i].content.push({
-          type: "image_url",
-          image_url: {
-            url: matchingImagesInPrompt[j][1],
-            detail: resImages,
-          },
-        });
+      if (nbCountdown > 0) {
+        if (!isAnthropicModel)
+          messages[i].content.push({
+            type: "image_url",
+            image_url: {
+              url: matchingImagesInPrompt[j][1],
+              detail: resImages,
+            },
+          });
+        else if (isAnthropicModel)
+          messages[i].content.push({
+            type: "image",
+            source: {
+              type: "url",
+              url: matchingImagesInPrompt[j][1],
+            },
+          });
+      }
       nbCountdown--;
     }
   }
@@ -664,9 +678,13 @@ const addImagesUrlToMessages = (messages, content) => {
 };
 
 const isModelSupportingImage = (model) => {
-  if (model === "gpt-4o" || model === "gpt-4o-mini") return true;
+  model = model.toLowerCase();
+  if (model.includes("gpt-4o") || model.includes("vision")) return true;
+  if (model.includes("claude-3-5") || model.includes("claude-3-7")) return true;
   if (openRouterModelsInfo.length) {
-    const ormodel = openRouterModelsInfo.find((m) => m.id === model);
+    const ormodel = openRouterModelsInfo.find(
+      (m) => m.id.toLowerCase() === model
+    );
     // console.log("ormodel :>> ", ormodel);
     if (ormodel) return ormodel.imagePricing ? true : false;
   }
