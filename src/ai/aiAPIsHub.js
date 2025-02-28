@@ -38,7 +38,12 @@ import {
   updateTokenCounter,
 } from "./modelsInfo";
 import { roamImageRegex } from "../utils/regex";
-import { AgentToaster, AppToaster } from "../components/Toaster";
+import {
+  ThinkingToaster,
+  AppToaster,
+  addButtonsToThinkingToaster,
+  displayThinkingToast,
+} from "../components/Toaster";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -181,7 +186,13 @@ export function modelAccordingToProvider(model) {
     llm.library = anthropicLibrary;
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
-    llm.id = model;
+    if (model === "deepseek-r1") {
+      llm.id = "deepseek-reasoner";
+      llm.name = "DeepSeek-R1";
+    } else {
+      llm.id = "deepseek-chat";
+      llm.name = "DeepSeek-V3";
+    }
     llm.library = deepseekLibrary;
   } else if (model.includes("gemini")) {
     llm.provider = "Google";
@@ -243,10 +254,6 @@ export async function claudeCompletion({
         options.max_tokens = 128000;
         // options.betas = ["output-128k-2025-02-19"];
         if (model.includes("+thinking")) {
-          thinkingToaster = AgentToaster.show({
-            message: "Sonnet 3.7 Extended Thinking process:",
-            timeout: 0,
-          });
           options.thinking = {
             type: "enabled",
             budget_tokens: 6500, // limit to 0.10$ by request
@@ -299,10 +306,12 @@ export async function claudeCompletion({
             isStreamStopped: false,
           });
         const streamElt = insertParagraphForStream(targetUid);
-        const thinkingToasterStream = document.querySelector(
-          ".search-agent-toaster .bp3-toast-message"
-        );
-        if (thinkingToasterStream) thinkingToasterStream.innerText += `\n\n`;
+        let thinkingToasterStream;
+        if (model.includes("+thinking")) {
+          thinkingToasterStream = displayThinkingToast(
+            "Sonnet 3.7 Extended Thinking process:"
+          );
+        }
 
         try {
           while (true) {
@@ -326,7 +335,8 @@ export async function claudeCompletion({
                     respStr += text;
                     streamElt.innerHTML += text;
                   } else if (data.delta.type === "thinking_delta") {
-                    thinkingToasterStream.innerText += data.delta.thinking;
+                    if (thinkingToasterStream)
+                      thinkingToasterStream.innerText += data.delta.thinking;
                   }
                 } else if (data.type === "message_start") {
                   usage["input_tokens"] =
@@ -471,6 +481,12 @@ export async function openaiCompletion({
           isStreamStopped: false,
         });
       const streamElt = insertParagraphForStream(targetUid);
+      let thinkingToasterStream;
+      if (model === "deepseek-reasoner") {
+        thinkingToasterStream = displayThinkingToast(
+          "DeepSeek-R1 thinking process:"
+        );
+      }
 
       try {
         for await (const chunk of response) {
@@ -479,6 +495,9 @@ export async function openaiCompletion({
             // respStr = "";
             break;
           }
+          if (chunk.choices[0]?.delta?.reasoning_content)
+            thinkingToasterStream.innerText +=
+              chunk.choices[0]?.delta?.reasoning_content;
           respStr += chunk.choices[0]?.delta?.content || "";
           streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
           if (chunk.usage) usage = chunk.usage;

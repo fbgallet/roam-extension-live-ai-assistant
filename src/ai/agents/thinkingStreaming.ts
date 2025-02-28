@@ -1,7 +1,7 @@
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import { TokensUsage } from "./langraphModelsLoader";
 import { SystemMessage } from "@langchain/core/messages";
-import { AgentToaster } from "../../components/Toaster";
+import { AgentToaster, displayThinkingToast } from "../../components/Toaster";
 import { updateTokenCounter } from "../modelsInfo";
 
 export const streamClaudeThinkingModel = async (
@@ -16,12 +16,8 @@ export const streamClaudeThinkingModel = async (
   });
 
   let streamedResponse = "";
-  AgentToaster.show({
-    message: "Claude Sonnet 3.7 Extended Thinking:",
-    timeout: 0,
-  });
-  const thinkingToasterStream: any = document.querySelector(
-    ".search-agent-toaster .bp3-toast-message"
+  let thinkingToasterStream: any = displayThinkingToast(
+    "Claude Sonnet 3.7 Extended Thinking process:"
   );
 
   turnTokensUsage = {

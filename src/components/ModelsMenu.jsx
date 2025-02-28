@@ -241,20 +241,21 @@ const ModelsMenu = ({
             tabindex="0"
             text="Claude Sonnet 3.7"
             labelElement="200k"
-          />
-          <MenuItem
-            icon={defaultModel === "Claude Sonnet 3.7 Thinking" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="Claude Sonnet 3.7 Thinking"
-            labelElement="200k"
-          />
+          >
+            <MenuItem
+              icon={defaultModel === "Claude Sonnet 3.7 Thinking" && "pin"}
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="Claude Sonnet 3.7 Thinking"
+              labelElement="200k"
+            />
+          </MenuItem>
           <MenuItem text="Claude 3 older models">
             <MenuItem
               icon={defaultModel === "Claude Haiku" && "pin"}
@@ -291,7 +292,7 @@ const ModelsMenu = ({
         <>
           {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
           <MenuItem
-            icon={defaultModel === "deepseek-chat" && "pin"}
+            icon={defaultModel === "DeepSeek-V3" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -300,11 +301,11 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="deepseek-chat"
+            text="DeepSeek-V3"
             labelElement="64k"
           />
           <MenuItem
-            icon={defaultModel === "deepseek-reasoner" && "pin"}
+            icon={defaultModel === "DeepSeek-R1" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -313,7 +314,7 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="deepseek-reasoner"
+            text="DeepSeek-R1"
             labelElement="64k"
           />
         </>

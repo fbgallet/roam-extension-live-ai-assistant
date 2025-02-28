@@ -38,14 +38,28 @@
 .color-toaster .bp3-toast-messge {
   color: black;
 }
-.search-agent-toaster .bp3-toast {
-  max-width: 50%;
+.search-agent-toaster .bp3-toast,
+.thinking-toaster .bp3-toast {
+  max-width: 600px;
+  max-height: 90vh;
   font-size: 13px;
   padding: 5px;
 }
+.thinking-toaster .bp3-toast {
+  resize: both;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.thinking-toaster .bp3-toast .bp3-button-group {
+  display: none;
+}
+.thinking-toaster .bp3-toast .buttons {
+  align-self: flex-end;
+  background: inherit;
+}
 .search-agent-toaster .bp3-toast .bp3-toast-message {
   overflow-y: scroll;
-  max-height: 90vh;
 }
 .search-agent-toaster .bp3-toast li {
   padding: 3px 0;
@@ -305,7 +319,7 @@
   opacity: 0.6;
   padding: 5px 0;
   display: flex;
-  gap: 5px;
+  gap: 6px;
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
@@ -315,7 +329,7 @@
   padding-top: 0;
 }
 .aicommands-context {
-  padding-right: 5px;
+  padding-right: 6px;
 }
 .aicommands-context .bp3-control {
   margin-bottom: 0;

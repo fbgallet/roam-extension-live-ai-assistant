@@ -1064,12 +1064,6 @@ const StandaloneContextMenu = () => {
                 inline={true}
                 onChange={() => updateContext("page")}
               />
-              <Checkbox
-                checked={roamContext.linkedPages}
-                label="[[pages]]"
-                inline={true}
-                onChange={() => updateContext("linkedPages")}
-              />
               {isLogView() ? (
                 <Checkbox
                   checked={roamContext.logPages}
@@ -1091,6 +1085,24 @@ const StandaloneContextMenu = () => {
                 inline={true}
                 onChange={() => updateContext("sidebar")}
               />
+              {focusedBlockUid.current || selectedBlocks.current?.length ? (
+                <Tooltip
+                  content={
+                    <div>
+                      ⚠️ Mentioned pages content
+                      <br />+ their linked references
+                    </div>
+                  }
+                  openOnTargetFocus={false}
+                >
+                  <Checkbox
+                    checked={roamContext.linkedPages}
+                    label="[[pages]]"
+                    inline={true}
+                    onChange={() => updateContext("linkedPages")}
+                  />
+                </Tooltip>
+              ) : null}
               {rootUid && (
                 <Checkbox
                   checked={roamContext.block}
