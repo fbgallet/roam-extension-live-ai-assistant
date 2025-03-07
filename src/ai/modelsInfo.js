@@ -1,5 +1,31 @@
-import { extensionStorage, openRouterModels, openRouterModelsInfo } from "..";
+import {
+  extensionStorage,
+  openAiCustomModels,
+  openRouterModels,
+  openRouterModelsInfo,
+} from "..";
 import axios from "axios";
+
+export const getAvailableModels = (provider) => {
+  switch (provider) {
+    case "OpenAI":
+      return ["gpt-4o-mini", "gpt-4o", "o3-mini", "o1-mini", "o1"].concat(
+        openAiCustomModels
+      );
+    case "Anthropic":
+      return [
+        "Claude Haiku",
+        "Claude Haiku 3.5",
+        "Claude Sonnet 3.5",
+        "Claude Sonnet 3.7",
+        "Claude Sonnet 3.7 Thinking",
+      ];
+    case "DeepSeek":
+      return ["DeepSeek-V3", "DeepSeek-R1"];
+    case "Grok":
+      return ["Grok-2", "Grok-2 Vision"];
+  }
+};
 
 export const tokensLimit = {
   "gpt-4o-mini": 131073,
