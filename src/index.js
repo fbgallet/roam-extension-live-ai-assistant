@@ -118,14 +118,18 @@ function getRolesFromString(str, model) {
       model = defaultModel.includes("first") ? "gpt-4o-mini" : defaultModel;
     }
   }
+  console.log("model :>> ", model);
   model = modelAccordingToProvider(model);
+  console.log("model :>> ", model);
   return {
     model,
     defaultStr: str,
     user: splittedStr[0],
     assistant:
       splittedStr.length > 1
-        ? splittedStr[1].trimStart().replace("<model>", model?.name || "")
+        ? splittedStr[1]
+            .trimStart()
+            .replace("<model>", model?.name || "default model")
         : str && str.trim()
         ? "AI assistant: "
         : "",
@@ -582,8 +586,7 @@ export default {
           action: {
             type: "input",
             onChange: (evt) => {
-              if (evt.target.value)
-                chatRoles = getRolesFromString(evt.target.value);
+              chatRoles = getRolesFromString(evt.target.value || "Me: ,AI: ");
             },
           },
         },

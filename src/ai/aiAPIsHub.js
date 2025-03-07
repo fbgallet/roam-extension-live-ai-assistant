@@ -158,7 +158,8 @@ export function modelAccordingToProvider(model) {
         ? openRouterModels[0]
         : undefined;
     const openRouterInfos = openRouterModelsInfo.find((m) => m.id === llm.id);
-    llm.name = openRouterInfos.name;
+
+    llm.name = llm.id && openRouterInfos ? openRouterInfos.name : llm.id;
     llm.library = openrouterLibrary;
   } else if (model.includes("ollama")) {
     llm.provider = "ollama";
@@ -211,7 +212,7 @@ export function modelAccordingToProvider(model) {
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
-    llm.id = model;
+    llm.id = model || "gpt-4o-mini";
     llm.library = openaiLibrary;
   }
   if (!llm.name) llm.name = llm.id;
