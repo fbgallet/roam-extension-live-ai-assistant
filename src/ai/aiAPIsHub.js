@@ -223,7 +223,7 @@ export function modelAccordingToProvider(model) {
     });
     return null;
   }
-  console.log("Used LLM id :>> ", llm.id);
+  // console.log("Used LLM id :>> ", llm.id);
 
   if (llm.provider !== "ollama" && !llm.library?.apiKey) {
     AppToaster.show({

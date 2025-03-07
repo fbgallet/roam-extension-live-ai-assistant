@@ -15,6 +15,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
   addToConversationHistory,
+  availableModels,
   defaultModel,
   defaultStyle,
   extensionStorage,
@@ -56,6 +57,7 @@ import {
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import HelpDialog from "./HelpDialog";
+import { modelAccordingToProvider } from "../ai/aiAPIsHub";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -298,6 +300,14 @@ const StandaloneContextMenu = () => {
       }
     }
 
+    if (command.category === "AI MODEL") {
+      model = command.model;
+      if (isOutlinerAgent && rootUid)
+        command = commands.find((c) => c.id === 21);
+      else if (isInConversation) command = commands.find((c) => c.id === 10);
+      else command = commands.find((c) => c.id === 1);
+    }
+
     if (
       command.name === "Selected blocks as prompt" ||
       command.name === "Continue the conversation" ||
@@ -456,9 +466,10 @@ const StandaloneContextMenu = () => {
       if (isFirstBlock.current && item.id === 1) return true;
       if (
         item.category === "MY LIVE OUTLINES" ||
-        item.category === "MY OUTLINE TEMPLATES"
+        item.category === "MY OUTLINE TEMPLATES" ||
+        item.category === "AI MODEL"
       )
-        return;
+        return false;
       if (item.id === 1 && rootUid) return false;
       if (item.id === 10 && rootUid) return false;
       if (item.id === 1 && (isInConversation || isOutlinerAgent)) return false;
@@ -1045,7 +1056,12 @@ const StandaloneContextMenu = () => {
               className="menu-hint"
               title={
                 <div>
-                  Default model: <b>{defaultModel}</b>
+                  Default model:{" "}
+                  <b>
+                    {defaultModel
+                      .replace("openRouter/", "")
+                      .replace("groq/", "")}
+                  </b>
                 </div>
               }
             />
@@ -1160,7 +1176,18 @@ const StandaloneContextMenu = () => {
               items={commands
                 .concat(userCommands)
                 .concat(liveOutlines)
-                .concat(templates)}
+                .concat(templates)
+                .concat(
+                  availableModels.map((model, index) => {
+                    const llm = modelAccordingToProvider(model);
+                    return {
+                      id: 9000 + index,
+                      name: llm?.name || defaultModel,
+                      model: llm?.id || defaultModel,
+                      category: "AI MODEL",
+                    };
+                  })
+                )}
               itemListRenderer={groupedItemRenderer}
               itemRenderer={renderCommand}
               itemPredicate={filterCommands}
