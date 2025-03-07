@@ -872,7 +872,7 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
 
   const assistantRole = state.model.id
     ? getInstantAssistantRole(state.model.id)
-    : chatRoles.assistant;
+    : chatRoles?.assistant || "";
   let targetUid;
   if (state.target?.includes("new") || !state.target)
     targetUid = await createChildBlock(

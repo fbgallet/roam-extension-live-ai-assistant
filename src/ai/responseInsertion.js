@@ -272,7 +272,7 @@ export const insertCompletion = async ({
     withAssistantRole || isInConversation
       ? instantModel
         ? getInstantAssistantRole(instantModel)
-        : chatRoles.assistant
+        : chatRoles?.assistant || ""
       : "";
 
   let content;

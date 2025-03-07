@@ -302,7 +302,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       ) => {
         const assistantRole = model
           ? getInstantAssistantRole(model)
-          : chatRoles.assistant;
+          : chatRoles?.assistant || "";
         const currentUid = sbContext.currentUid;
         let { currentBlockContent, selectionUids } =
           getFocusAndSelection(currentUid);
@@ -437,7 +437,7 @@ const getInfosFromSmartBlockParams = async ({
   const assistantRole = isRoleToInsert
     ? model
       ? getInstantAssistantRole(model)
-      : chatRoles.assistant
+      : chatRoles?.assistant || ""
     : "";
   const currentUid = sbContext.currentUid;
   let currentBlockContent = sbContext.currentContent;

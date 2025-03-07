@@ -164,7 +164,7 @@ const getFinalPromptAndTarget = async (
     withAssistantRole || isInConversation
       ? instantModel
         ? getInstantAssistantRole(instantModel)
-        : chatRoles.assistant
+        : chatRoles?.assistant || ""
       : "";
   let targetUid;
 
