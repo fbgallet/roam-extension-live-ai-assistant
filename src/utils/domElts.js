@@ -1,7 +1,12 @@
 // import React from "react";
 import ReactDOM from "react-dom";
 import InstantButtons from "../components/InstantButtons";
-import { extensionStorage, isComponentVisible, position } from "..";
+import {
+  extensionStorage,
+  isComponentVisible,
+  position,
+  updateAvailableModels,
+} from "..";
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
@@ -25,6 +30,9 @@ export function mountComponent(
     createContainer(position);
     return mountComponent(position);
   }
+
+  updateAvailableModels();
+
   if (!props) {
     props = {};
     // props.transcribeOnly = isTranslateIconDisplayed ? false : true;
