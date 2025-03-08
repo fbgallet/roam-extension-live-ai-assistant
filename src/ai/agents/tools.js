@@ -125,3 +125,29 @@ const generalQuery = () => {
   const end = performance.now();
   console.log(finalResults, (end - begin) / 1000);
 };
+
+export function replaceStringNullWithActualNull(obj) {
+  if (obj === null || typeof obj !== "object") {
+    return obj === "null" ? null : obj;
+  }
+  // Process array of objects
+  if (Array.isArray(obj)) {
+    return obj.map((item) => replaceStringNullWithActualNull(item));
+  }
+
+  const result = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const value = obj[key];
+      if (value === "null" || value === "") {
+        result[key] = null;
+        // recursivity if the key itself an object
+      } else if (typeof value === "object") {
+        result[key] = replaceStringNullWithActualNull(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}

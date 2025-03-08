@@ -163,9 +163,8 @@ function getRolesFromString(str, model) {
       model = defaultModel.includes("first") ? "gpt-4o-mini" : defaultModel;
     }
   }
-  console.log("model :>> ", model);
   model = modelAccordingToProvider(model);
-  console.log("model :>> ", model);
+  // console.log("model :>> ", model);
   return {
     model,
     defaultStr: str,
