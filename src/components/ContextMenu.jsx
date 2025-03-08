@@ -119,6 +119,7 @@ const StandaloneContextMenu = () => {
   const popoverRef = useRef(null);
   const focusedBlockUid = useRef(null);
   const focusedBlockContent = useRef(null);
+  const selectedTextInBlock = useRef(null);
   const positionInRoamWindow = useRef(null);
   const selectedBlocks = useRef(null);
   const lastBuiltinCommand = useRef(null);
@@ -156,14 +157,20 @@ const StandaloneContextMenu = () => {
         setRootUid(null);
         toggleOutlinerSelection(null, false);
       }
-      const { currentUid, currentBlockContent, selectionUids, position } =
-        getFocusAndSelection();
+      const {
+        currentUid,
+        currentBlockContent,
+        selectionUids,
+        selectedText,
+        position,
+      } = getFocusAndSelection();
       isFirstBlock.current =
         getBlockOrderByUid(currentUid) === 0 ? true : false;
       focusedBlockUid.current = !focusedBlockUid.current && currentUid;
       focusedBlockContent.current =
         focusedBlockUid.current && currentBlockContent.trim();
       selectedBlocks.current = selectionUids;
+      selectedTextInBlock.current = selectedText;
       positionInRoamWindow.current = position;
       setIsInConversation(isPromptInConversation(currentUid, false));
       // if (!isPinnedStyle) setStyle(defaultStyle);
@@ -340,6 +347,7 @@ const StandaloneContextMenu = () => {
         withSuggestions: command.withSuggestions,
         target,
         selectedUids: selectedBlocks.current,
+        selectedText: selectedTextInBlock.current,
         style:
           command.isIncompatibleWith?.style ||
           command.isIncompatibleWith?.specificStyle?.includes(style)

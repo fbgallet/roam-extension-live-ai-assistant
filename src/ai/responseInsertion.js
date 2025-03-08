@@ -158,6 +158,7 @@ export const aiCompletionRunner = async ({
   target = "new",
   withSuggestions = false,
   selectedUids = [],
+  selectedText = undefined,
   style = defaultStyle,
   roamContext = undefined,
   isButtonToInsert = true,
@@ -198,6 +199,7 @@ export const aiCompletionRunner = async ({
     withAssistantRole,
     target,
     selectedUids,
+    selectedText,
     roamContext,
     forceNotInConversation
   );

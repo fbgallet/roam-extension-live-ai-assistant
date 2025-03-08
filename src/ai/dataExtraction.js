@@ -65,6 +65,7 @@ export const getInputDataFromRoamContext = async (
   withAssistantRole,
   target,
   selectedUids,
+  selectedText,
   roamContext,
   forceNotInConversation
 ) => {
@@ -81,10 +82,11 @@ export const getInputDataFromRoamContext = async (
 
   if (!sourceUid && !selectedUids?.length && !e) return { noData: true };
 
-  if (currentBlockContent && currentBlockContent.trim()) {
+  if ((currentBlockContent && currentBlockContent.trim()) || selectedText) {
+    let sourceText = selectedText || currentBlockContent;
     if (prompt.toLowerCase().includes("<target content>"))
-      prompt = prompt.replace(/<target content>/i, currentBlockContent);
-    else prompt += (prompt ? "\n" : "") + currentBlockContent.trim();
+      prompt = prompt.replace(/<target content>/i, sourceText.trim());
+    else prompt += (prompt ? "\n" : "") + sourceText.trim();
   }
 
   let { completedPrompt, targetUid, remainingSelectionUids, isInConversation } =
@@ -106,6 +108,8 @@ export const getInputDataFromRoamContext = async (
 
   let globalContext = getUnionContext(roamContext, roamContextFromKeys);
 
+  console.log("globalContext :>> ", globalContext);
+
   const inlineContext = currentBlockContent
     ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
     : null;
@@ -117,7 +121,11 @@ export const getInputDataFromRoamContext = async (
       inlineContext.updatedPrompt
     );
     globalContext = getUnionContext(globalContext, inlineContext.roamContext);
-    console.log("globalContext :>> ", globalContext);
+  }
+
+  if (selectedText && sourceUid) {
+    globalContext.block = true;
+    globalContext.blockArgument.push(sourceUid);
   }
 
   let context = await getAndNormalizeContext({
@@ -331,6 +339,8 @@ export const getFocusAndSelection = (currentUid) => {
   const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
   const selectionUids = getBlocksSelectionUids();
 
+  const selectedText = window.getSelection().toString();
+
   if (focusedBlock) {
     !currentUid && (currentUid = focusedBlock["block-uid"]);
     currentBlockContent = currentUid
@@ -355,7 +365,13 @@ export const getFocusAndSelection = (currentUid) => {
     } else position = null;
   }
 
-  return { currentUid, currentBlockContent, selectionUids, position };
+  return {
+    currentUid,
+    currentBlockContent,
+    selectionUids,
+    selectedText,
+    position,
+  };
 };
 
 export const getResolvedContentFromBlocks = (

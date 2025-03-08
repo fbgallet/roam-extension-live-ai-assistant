@@ -1008,18 +1008,12 @@ export default {
         "Me: ,AI assistant (<model>): "
       );
     const chatRolesStr = extensionAPI.settings.get("chatRoles");
-    //if (extensionAPI.settings.get("assistantCharacter") === null)
-    //   await extensionAPI.settings.set("assistantCharacter", assistantCharacter);
-    // assistantCharacter = extensionAPI.settings.get("assistantCharacter");
     if (extensionAPI.settings.get("defaultStyle") === null)
       await extensionAPI.settings.set("defaultStyle", "Normal");
     defaultStyle = extensionAPI.settings.get("defaultStyle");
     if (extensionAPI.settings.get("contextInstructions") === null)
       await extensionAPI.settings.set("contextInstructions", "");
     userContextInstructions = extensionAPI.settings.get("contextInstructions");
-    // if (extensionAPI.settings.get("mobileContext") === null)
-    //   await extensionAPI.settings.set("mobileContext", false);
-    // isMobileViewContext = extensionAPI.settings.get("mobileContext");
     if (extensionAPI.settings.get("splitResponse") === null)
       await extensionAPI.settings.set("splitResponse", true);
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
@@ -1029,16 +1023,6 @@ export default {
     if (extensionAPI.settings.get("maxImages") === null)
       await extensionAPI.settings.set("maxImages", "3");
     maxImagesNb = extensionAPI.settings.get("maxImages");
-    // if (extensionAPI.settings.get("defaultTemplate") === null)
-    //   await extensionAPI.settings.set("defaultTemplate", "");
-    // let templateInput = extensionAPI.settings.get("defaultTemplate");
-    // uidRegex.lastIndex = 0;
-    // if (uidRegex.test(templateInput))
-    //   defaultTemplate = templateInput.replace("((", "").replace("))", "");
-    // else {
-    //   defaultTemplate = "";
-    //   extensionAPI.settings.set("defaultTemplate", "");
-    // }
     if (extensionAPI.settings.get("logPagesNbDefault") === null)
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");
@@ -1120,7 +1104,7 @@ export default {
     chatRoles = getRolesFromString(chatRolesStr, defaultModel);
 
     updateAvailableModels();
-    console.log("availableModels :>> ", availableModels);
+    // console.log("availableModels :>> ", availableModels);
 
     console.log("defaultModel :>> ", defaultModel);
 
