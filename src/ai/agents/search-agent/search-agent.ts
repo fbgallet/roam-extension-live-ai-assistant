@@ -68,6 +68,7 @@ import {
   twoLevelsChildrenRule,
 } from "./datomicQueries";
 import { turnTokensUsage } from "./invoke-search-agent";
+import { replaceStringNullWithActualNull } from "../tools";
 
 interface PeriodType {
   begin: string;
@@ -305,6 +306,8 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       state.llmResponse = state.llmResponse.parsed;
     }
   }
+  state.llmResponse = replaceStringNullWithActualNull(state.llmResponse);
+
   console.log("llmResponse after check :>> ", state.llmResponse);
 
   // after "nlQueryInterpreter" node
@@ -323,7 +326,10 @@ const formatChecker = async (state: typeof SearchAgentState.State) => {
       : state.llmResponse.isRandom
       ? 1
       : undefined;
-    state.period = state.llmResponse.period;
+    state.period =
+      !state.llmResponse.period?.begin && !state.llmResponse.period?.end
+        ? null
+        : state.llmResponse.period;
     state.depthLimitation = state.llmResponse.depthLimitation;
     state.pagesLimitation = state.llmResponse.pagesLimitation;
     state.isRandom = state.llmResponse.isRandom;
@@ -412,9 +418,11 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
       .map((f: any) => f.regexString);
     // console.log("allIncludeRegex :>> ", allIncludeRegex);
 
+    if (allIncludeRegex.length <= 1) state.depthLimitation = 0;
+
     let blocksMatchingAllFilters: any[] = [];
     if (
-      allIncludeRegex.length > 1 &&
+      allIncludeRegex.length >= 1 && // CHANGED HERE =
       !isDirectedFilter &&
       !state.getChildrenOnly
     ) {
@@ -611,7 +619,7 @@ const queryRunner = async (state: typeof SearchAgentState.State) => {
     displayAgentStatus(state, "error", error.message);
   }
 
-  // console.log("matchingBlocks :>> ", matchingBlocks);
+  console.log("matchingBlocks :>> ", matchingBlocks);
 
   const allMatchingBlocks =
     state.matchingBlocks && state.matchingBlocks.length
@@ -878,7 +886,7 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     targetUid = await createChildBlock(
       state.rootUid,
       (state.target === "new" || !state.target ? assistantRole : "") +
-        (!isPostProcessingAnswer
+        (!isPostProcessingAnswer && state.nbOfResultsDisplayed
           ? `Results ${previousShiftDisplay + 1} to ${
               previousShiftDisplay + (state.nbOfResultsDisplayed || 10)
             }` + (state.shiftDisplay ? `/ ${state.filteredBlocks.length}` : "")
