@@ -313,6 +313,7 @@ const StandaloneContextMenu = () => {
         command = commands.find((c) => c.id === 21);
       else if (isInConversation) command = commands.find((c) => c.id === 10);
       else command = commands.find((c) => c.id === 1);
+      if (model.includes("-search")) command.includeUids = false;
     }
 
     if (
@@ -343,7 +344,8 @@ const StandaloneContextMenu = () => {
         prompt,
         command: command.prompt,
         instantModel: model,
-        includeUids: command.includeUids,
+        includeUids:
+          command.includeUids || target === "replace" || target === "append",
         withSuggestions: command.withSuggestions,
         target,
         selectedUids: selectedBlocks.current,

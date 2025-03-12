@@ -67,6 +67,7 @@ export let logPagesNbDefault;
 export let maxCapturingDepth = {};
 export let maxUidDepth = {};
 export let exclusionStrings = [];
+export let websearchContext;
 // export let defaultTemplate;
 export let streamResponse;
 export let maxImagesNb;
@@ -700,6 +701,30 @@ function getPanelConfig() {
         },
       },
       {
+        id: "webContext",
+        name: "Web Search context",
+        description: (
+          <>
+            Context size for Web Search OpenAI tool is medium by default. <br />
+            Low: fastest, cheaper. High: slower, higher cost.
+            <br />
+            <a
+              href="https://platform.openai.com/docs/pricing#web-search"
+              target="_blank"
+            >
+              See pricing here
+            </a>
+          </>
+        ),
+        action: {
+          type: "select",
+          items: ["high", "medium", "low"],
+          onChange: (evt) => {
+            websearchContext = evt;
+          },
+        },
+      },
+      {
         id: "customBaseUrl",
         name: "Custom OpenAI baseURL",
         description:
@@ -1043,6 +1068,9 @@ export default {
     if (extensionAPI.settings.get("resImages") === null)
       await extensionAPI.settings.set("resImages", "auto");
     resImages = extensionAPI.settings.get("resImages");
+    if (extensionAPI.settings.get("webContext") === null)
+      await extensionAPI.settings.set("webContext", "medium");
+    websearchContext = extensionAPI.settings.get("webContext");
 
     // persistant variables for context menu
     if (extensionAPI.settings.get("translationCustomLgg") === null)

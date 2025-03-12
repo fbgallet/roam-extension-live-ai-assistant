@@ -196,6 +196,7 @@ const getFinalPromptAndTarget = async (
     } else {
       targetUid = selectionUids[0];
     }
+    console.log("includeUids :>> ", includeUids);
     const content = getResolvedContentFromBlocks(
       selectionUids,
       includeUids,
