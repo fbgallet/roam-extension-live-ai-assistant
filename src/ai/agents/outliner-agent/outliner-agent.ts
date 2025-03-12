@@ -259,8 +259,8 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
               format?.open,
               format?.heading
             );
-            console.log("newChildren :>> ", newChildren);
-            console.log("newBlockUid :>> ", newBlockUid);
+            // console.log("newChildren :>> ", newChildren);
+            // console.log("newBlockUid :>> ", newBlockUid);
             if (newChildren)
               setTimeout(async () => {
                 await insertStructuredAIResponse({
@@ -272,8 +272,8 @@ const sequentialAPIrunner = async (state: typeof outlinerAgentState.State) => {
           }
           break;
         case "reorder":
-          console.log("targetParentUid :>> ", targetParentUid);
-          console.log("newOrder :>> ", newOrder);
+          // console.log("targetParentUid :>> ", targetParentUid);
+          // console.log("newOrder :>> ", newOrder);
           if (!targetParentUid || targetParentUid === "new")
             notCompletedOperations += JSON.stringify(nextOperation) + "\n";
           else

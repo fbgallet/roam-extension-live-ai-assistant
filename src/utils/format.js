@@ -48,6 +48,7 @@ export const sanitizeJSONstring = (str) => {
 };
 
 export const sanitizeClaudeJSON = (str) => {
+  if (!str) return str;
   str = trimOutsideOuterBraces(str);
   str = str.replace(/\\"/g, '"');
   str = str.replace(/(begin|end|relative)/g, '"$1"');
@@ -88,7 +89,7 @@ export const parseAndCreateBlocks = async (
   isParentToReplace = false
 ) => {
   const lines = text.split("\n");
-  // console.log("lines :>> ", lines);
+  console.log("lines :>> ", lines);
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
   let minTitleLevel;
@@ -173,6 +174,7 @@ export const parseAndCreateBlocks = async (
         true,
         heading
       );
+      //  await new Promise((resolve) => setTimeout(resolve, 10));
     } else if (position !== undefined && !isFistParent) {
       newBlockRef = await createSiblingBlock(
         currentParentRef,
@@ -180,6 +182,7 @@ export const parseAndCreateBlocks = async (
         content,
         { open: true, heading }
       );
+      //  await new Promise((resolve) => setTimeout(resolve, 10));
     } else if (isFistParent) {
       newBlockRef = currentParentRef;
       position++;

@@ -386,6 +386,7 @@ export async function insertStructuredAIResponse({
   format = undefined,
   target = undefined,
 }) {
+  if (Array.isArray(content)) content = content.join("\n\n");
   const splittedResponse = splitParagraphs(content);
   if (
     (!isResponseToSplit || splittedResponse.length === 1) &&
