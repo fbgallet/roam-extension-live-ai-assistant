@@ -228,7 +228,8 @@ export async function createSiblingBlock(
   content = "",
   format
 ) {
-  const currentOrder = getBlockOrderByUid(currentUid);
+  const currentOrder =
+    typeof position === "number" ? position : getBlockOrderByUid(currentUid);
   const parentUid = getParentBlock(currentUid);
   const siblingUid = await createChildBlock(
     parentUid,
