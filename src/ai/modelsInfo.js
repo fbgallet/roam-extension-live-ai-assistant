@@ -9,9 +9,15 @@ import axios from "axios";
 export const getAvailableModels = (provider) => {
   switch (provider) {
     case "OpenAI":
-      return ["gpt-4o-mini", "gpt-4o", "o3-mini", "o1-mini", "o1"].concat(
-        openAiCustomModels
-      );
+      return [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4o-mini-search",
+        "gpt-4o-search",
+        "o3-mini",
+        "o1-mini",
+        "o1",
+      ].concat(openAiCustomModels);
     case "Anthropic":
       return [
         "Claude Haiku",

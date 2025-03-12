@@ -25,6 +25,7 @@ import {
   deepseekLibrary,
   googleLibrary,
   grokLibrary,
+  websearchContext,
 } from "..";
 import {
   insertInstantButtons,
@@ -212,7 +213,15 @@ export function modelAccordingToProvider(model) {
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
-    llm.id = model || "gpt-4o-mini";
+    if (model.includes("search")) {
+      if (model.includes("-preview")) {
+        llm.id = model;
+        llm.name = model.replace("-preview", "");
+      } else {
+        llm.id = model + "-preview";
+        llm.name = model;
+      }
+    } else llm.id = model || "gpt-4o-mini";
     llm.library = openaiLibrary;
   }
   if (!llm.name) llm.name = llm.id;
@@ -464,6 +473,10 @@ export async function openaiCompletion({
       (model.includes("gpt") || model.includes("o1") || model.includes("o3"))
     )
       options.temperature = 1.3;
+    if (model.includes("-search-preview"))
+      options.web_search_options = {
+        search_context_size: websearchContext,
+      };
 
     if (!isSafari) {
       const timeoutPromise = new Promise((_, reject) => {
