@@ -30,6 +30,8 @@ export const getAvailableModels = (provider) => {
 export const tokensLimit = {
   "gpt-4o-mini": 131073,
   "gpt-4o": 131073,
+  "gpt-4o-mini-search-preview": 128000,
+  "gpt-4o-search-preview": 128000,
   "o1-mini": 131073,
   "o1-preview": 200000,
   o1: 200000,
@@ -52,74 +54,81 @@ export const tokensLimit = {
 
 export const modelsPricing = {
   "gpt-4o-mini": {
-    input: 0.00015, //  /1K tokens
-    output: 0.0006,
+    input: 0.15, //  /1M tokens
+    output: 0.6,
   },
   "gpt-4o": {
-    input: 0.0025,
-    output: 0.01,
+    input: 2.5,
+    output: 10,
+  },
+  "gpt-4o-mini-search-preview": {
+    input: 0.15,
+    output: 0.6,
+  },
+  "gpt-4o-search-preview": {
+    input: 2.5,
+    output: 10,
   },
   "o3-mini": {
-    input: 0.0011,
-    output: 0.0044,
+    input: 1.1,
+    output: 4.4,
   },
   "o1-mini": {
-    input: 0.0011,
-    output: 0.0044,
+    input: 1.1,
+    output: 4.4,
   },
   "o1-preview": {
-    input: 0.015,
-    output: 0.06,
+    input: 15,
+    output: 60,
   },
   o1: {
-    input: 0.015,
-    output: 0.06,
+    input: 15,
+    output: 60,
   },
   "claude-3-haiku-20240307": {
-    input: 0.00025,
-    output: 0.00125,
+    input: 0.25,
+    output: 1.25,
   },
   "claude-3-5-haiku-20241022": {
-    input: 0.0008,
-    output: 0.004,
+    input: 0.8,
+    output: 4,
   },
   "claude-3-5-sonnet-20241022": {
-    input: 0.003,
-    output: 0.015,
+    input: 3,
+    output: 15,
   },
   "claude-3-7-sonnet-20250219": {
-    input: 0.003,
-    output: 0.015,
+    input: 3,
+    output: 15,
   },
   "claude-3-opus-20240229": {
-    input: 0.015,
-    output: 0.075,
+    input: 15,
+    output: 75,
   },
   "deepseek-chat": {
-    input: 0.00027,
-    output: 0.0011,
+    input: 0.27,
+    output: 1.1,
   },
   "deepseek-reasoner": {
-    input: 0.00055,
-    output: 0.00219,
+    input: 0.55,
+    output: 2.19,
   },
   "grok-2-1212": {
-    input: 0.002,
-    output: 0.01,
+    input: 2,
+    output: 10,
   },
   "grok-2-vision-1212": {
-    input: 0.002,
-    output: 0.01,
+    input: 2,
+    output: 10,
   },
 };
 
 export function openRouterModelPricing(model, inOrOut) {
   const modelInfo = openRouterModelsInfo.find((mdl) => mdl.id === model);
   if (modelInfo)
-    return (
-      modelInfo[inOrOut === "input" ? "promptPricing" : "completionPricing"] /
-      1000
-    );
+    return modelInfo[
+      inOrOut === "input" ? "promptPricing" : "completionPricing"
+    ];
   return null;
 }
 

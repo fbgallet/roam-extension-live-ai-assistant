@@ -20,9 +20,9 @@ const TokensDialog = ({ isOpen, onClose }) => {
     extensionStorage.get("tokensCounter")
   );
 
-  const calculateCost = (tokens, pricePerK) => {
-    if (!tokens || !pricePerK) return NaN;
-    return (tokens * pricePerK) / 1000;
+  const calculateCost = (tokens, pricePerM) => {
+    if (!tokens || !pricePerM) return NaN;
+    return (tokens * pricePerM) / 1000000;
   };
   // Fonction pour formater un coût
   const formatCost = (cost) => {
