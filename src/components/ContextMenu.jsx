@@ -1194,7 +1194,7 @@ const StandaloneContextMenu = () => {
                     return {
                       id: 9000 + index,
                       name: llm?.name || defaultModel,
-                      model: llm?.id || defaultModel,
+                      model: llm?.prefix + llm?.id || defaultModel,
                       category: "AI MODEL",
                     };
                   })
