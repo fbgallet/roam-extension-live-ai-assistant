@@ -8,7 +8,11 @@ import {
   Button,
 } from "@blueprintjs/core";
 import { extensionStorage, openRouterModelsInfo } from "..";
-import { modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
+import {
+  modelsPricing,
+  normalizeModelId,
+  openRouterModelPricing,
+} from "../ai/modelsInfo";
 import { useState } from "react";
 
 const TokensDialog = ({ isOpen, onClose }) => {
@@ -44,12 +48,13 @@ const TokensDialog = ({ isOpen, onClose }) => {
       .map(([model, counts]) => {
         const inputCost = calculateCost(
           counts.input,
-          modelsPricing[model]?.input || openRouterModelPricing(model, "input")
+          modelsPricing[model]?.input ||
+            openRouterModelPricing(normalizeModelId(model, false), "input")
         );
         const outputCost = calculateCost(
           counts.output,
           modelsPricing[model]?.output ||
-            openRouterModelPricing(model, "output")
+            openRouterModelPricing(normalizeModelId(model, false), "output")
         );
         const totalCost =
           isNaN(inputCost) || isNaN(outputCost) ? NaN : inputCost + outputCost;
@@ -103,7 +108,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
               className={index % 2 === 0 ? "even-row" : "odd-row"}
               style={row.model === "TOTAL" ? { fontWeight: "bolder" } : null}
             >
-              <td>{row.model}</td>
+              <td>{normalizeModelId(row.model, false)}</td>
               <td>{row.inputTokens}</td>
               <td>{row.outputTokens}</td>
               <td>{formatCost(row.inputCost)}</td>
@@ -163,7 +168,9 @@ const TokensDialog = ({ isOpen, onClose }) => {
                 </thead>
                 <tbody>
                   <tr className="even-row">
-                    <td>{tokensCounter.lastRequest.model}</td>
+                    <td>
+                      {normalizeModelId(tokensCounter.lastRequest.model, false)}
+                    </td>
                     <td>{tokensCounter.lastRequest.input}</td>
                     <td>{tokensCounter.lastRequest.output}</td>
                     <td>
@@ -173,7 +180,10 @@ const TokensDialog = ({ isOpen, onClose }) => {
                           modelsPricing[tokensCounter.lastRequest.model]
                             ?.input ||
                             openRouterModelPricing(
-                              tokensCounter.lastRequest.model,
+                              normalizeModelId(
+                                tokensCounter.lastRequest.model,
+                                false
+                              ),
                               "input"
                             )
                         )
@@ -186,7 +196,10 @@ const TokensDialog = ({ isOpen, onClose }) => {
                           modelsPricing[tokensCounter.lastRequest.model]
                             ?.output ||
                             openRouterModelPricing(
-                              tokensCounter.lastRequest.model,
+                              normalizeModelId(
+                                tokensCounter.lastRequest.model,
+                                false
+                              ),
                               "output"
                             )
                         )
@@ -199,7 +212,10 @@ const TokensDialog = ({ isOpen, onClose }) => {
                           modelsPricing[tokensCounter.lastRequest.model]
                             ?.input ||
                             openRouterModelPricing(
-                              tokensCounter.lastRequest.model,
+                              normalizeModelId(
+                                tokensCounter.lastRequest.model,
+                                false
+                              ),
                               "input"
                             )
                         ) +
@@ -208,7 +224,10 @@ const TokensDialog = ({ isOpen, onClose }) => {
                             modelsPricing[tokensCounter.lastRequest.model]
                               ?.output ||
                               openRouterModelPricing(
-                                tokensCounter.lastRequest.model,
+                                normalizeModelId(
+                                  tokensCounter.lastRequest.model,
+                                  false
+                                ),
                                 "output"
                               )
                           )

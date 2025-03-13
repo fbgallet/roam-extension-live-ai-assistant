@@ -204,7 +204,7 @@ export async function addToConversationHistory({
   context,
 }) {
   if (!uid && !selectedUids) return;
-  let conversationHistory = extensionStorage.get("conversationHistory");
+  let conversationHistory = extensionStorage.get("conversationHistory") || [];
   if (conversationHistory.find((conv) => conv.uid === uid)) return;
   // conversation storage is limited to 30
   if (conversationHistory.length > 30) {
@@ -1078,6 +1078,7 @@ export default {
     if (extensionAPI.settings.get("translationDefaultLgg") === null)
       await extensionAPI.settings.set("translationDefaultLgg", "English");
 
+    await extensionAPI.settings.set("tokensCounter", null);
     if (extensionAPI.settings.get("tokensCounter") === null)
       updateTokenCounter(undefined, {});
     console.log(

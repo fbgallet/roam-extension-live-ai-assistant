@@ -89,7 +89,7 @@ export const parseAndCreateBlocks = async (
   isParentToReplace = false
 ) => {
   const lines = text.split("\n");
-  console.log("lines :>> ", lines);
+  // console.log("lines :>> ", lines);
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
   let minTitleLevel;
