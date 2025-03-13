@@ -1078,7 +1078,7 @@ export default {
     if (extensionAPI.settings.get("translationDefaultLgg") === null)
       await extensionAPI.settings.set("translationDefaultLgg", "English");
 
-    await extensionAPI.settings.set("tokensCounter", null);
+    // await extensionAPI.settings.set("tokensCounter", null);
     if (extensionAPI.settings.get("tokensCounter") === null)
       updateTokenCounter(undefined, {});
     console.log(
