@@ -38,6 +38,7 @@ import { insertStructuredAIResponse } from "../../responseInsertion";
 import { planerSchema } from "./outliner-schema";
 import { AppToaster } from "../../../components/Toaster";
 import { turnTokensUsage } from "./invoke-outliner-agent";
+import { replaceStringNullWithActualNull } from "../tools";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -147,6 +148,7 @@ const formatChecker = async (state: typeof outlinerAgentState.State) => {
       state.llmResponse = state.llmResponse.parsed;
     }
   }
+  state.llmResponse = replaceStringNullWithActualNull(state.llmResponse);
   return {
     messages: [new AIMessage(state.llmResponse.message)],
     remainingOperations:
