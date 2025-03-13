@@ -139,7 +139,7 @@ export function replaceStringNullWithActualNull(obj) {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
       const value = obj[key];
-      if (value === "null" || value === "") {
+      if (value === "null" || value === ":null") {
         result[key] = null;
         // recursivity if the key itself an object
       } else if (typeof value === "object") {

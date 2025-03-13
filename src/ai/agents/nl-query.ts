@@ -31,6 +31,7 @@ import {
 import { modelAccordingToProvider } from "../aiAPIsHub";
 import { AppToaster } from "../../components/Toaster";
 import { streamClaudeThinkingModel } from "./thinkingStreaming";
+import { replaceStringNullWithActualNull } from "./tools";
 
 interface PeriodType {
   begin: string;
@@ -169,6 +170,7 @@ const formatChecker = async (state: typeof QueryAgentState.State) => {
     }
   }
   const correctedQuery = balanceBraces(query);
+  state.llmResponse = replaceStringNullWithActualNull(state.llmResponse);
   // console.log("Query after correction :>> ", correctedQuery);
   return {
     roamQuery: correctedQuery,
