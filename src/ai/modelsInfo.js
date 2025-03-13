@@ -207,6 +207,7 @@ export function normalizeClaudeModel(model, getShortName) {
 
 export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
   if (!model) return;
+  model = normalizeModelId(model);
   let tokensCounter = extensionStorage.get("tokensCounter");
   if (!tokensCounter) {
     tokensCounter = {
@@ -255,4 +256,23 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
     };
   }
   extensionStorage.set("tokensCounter", { ...tokensCounter });
+};
+
+export const normalizeModelId = (model, toAscii = true) => {
+  // extension API storage object keys doesn't support ".", "#", "$", "/", "[", or "]"
+  if (toAscii)
+    return model
+      .replaceAll("#", "%35")
+      .replaceAll("$", "%36")
+      .replaceAll("/", "%47")
+      .replaceAll(".", "%46")
+      .replaceAll("[", "%91")
+      .replaceAll("]", "%93");
+  return model
+    .replaceAll("%35", "#")
+    .replaceAll("%36", "$")
+    .replaceAll("%47", "/")
+    .replaceAll("%46", ".")
+    .replaceAll("%91", "[")
+    .replaceAll("%93", "]");
 };

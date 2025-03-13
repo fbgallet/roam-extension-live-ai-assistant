@@ -1119,6 +1119,7 @@ const StandaloneContextMenu = () => {
                       <br />+ their linked references
                     </div>
                   }
+                  hoverOpenDelay={500}
                   openOnTargetFocus={false}
                 >
                   <Checkbox
