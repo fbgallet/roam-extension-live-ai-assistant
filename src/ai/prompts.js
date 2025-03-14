@@ -13,6 +13,8 @@ VERY IMPORTANT: you can ONLY refer to one of those that is currently present in 
 export const contextAsPrompt = `Follow the instructions provided in the context \
 (the language in which they are written will determine the language of the response).`;
 
+export const retryPrompt = `The user is requesting to generate a response again to obtain a more satisfactory result. Evaluate what might have been lacking in your previous response to the previous user's request (previous user turn in the conversation), take the time to carefully consider what is being asked and the best possible answer, and do your best to formulate it in the most satisfactory way possible.`;
+
 // For Post-Processing
 
 export const instructionsOnJSONResponse =
