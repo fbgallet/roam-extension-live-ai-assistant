@@ -15,6 +15,8 @@ export const contextAsPrompt = `Follow the instructions provided in the context 
 
 export const retryPrompt = `The user is requesting to generate a response again to obtain a more satisfactory result. Evaluate what might have been lacking in your previous response to the previous user's request (previous user turn in the conversation), take the time to carefully consider what is being asked and the best possible answer, and do your best to formulate it in the most satisfactory way possible.`;
 
+export const suggestionsPrompt = `Make several brief relevant suggestions to simply continue or deepen or make more lively and interesting the current conversation with an AI assistant. Each should be a short phrase, demand or question that could be said by a human in response to the assistant's previous message (and taking into account the whole conversation). One of them should be quite surprising or makes one think. Format these suggestions exactly as follows: {{or: Suggestion1|Suggestion2|...}}. Your response will be strictly limited to these suggestions, do not add any introductory sentence or comment.`;
+
 // For Post-Processing
 
 export const instructionsOnJSONResponse =

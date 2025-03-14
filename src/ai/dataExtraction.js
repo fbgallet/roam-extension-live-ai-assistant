@@ -17,6 +17,7 @@ import {
   numbersRegex,
   pageRegex,
   sbParamRegex,
+  suggestionsComponentRegex,
   uidRegex,
 } from "../utils/regex";
 import {
@@ -903,7 +904,8 @@ export const getConversationArray = async (parentUid) => {
     const orderedChildrenTree = tree[0].children.sort(
       (a, b) => a.order - b.order
     );
-    for (let i = 0; i < orderedChildrenTree.length - 1; i++) {
+    const lastBlockOrder = orderedChildrenTree.length - 1;
+    for (let i = 0; i < lastBlockOrder; i++) {
       const child = orderedChildrenTree[i];
       let turnFlattenedContent = getFlattenedContentFromTree({
         parentUid: child.uid,
@@ -917,6 +919,16 @@ export const getConversationArray = async (parentUid) => {
           /<target content>/i,
           turnFlattenedContent
         );
+      }
+      if (i === lastBlockOrder - 1) {
+        const matchingSuggestion = turnFlattenedContent.match(
+          suggestionsComponentRegex
+        );
+        if (matchingSuggestion)
+          turnFlattenedContent = turnFlattenedContent.replace(
+            matchingSuggestion[0],
+            matchingSuggestion[1].trim()
+          );
       }
       if (chatRoles.genericAssistantRegex.test(getBlockContentByUid(child.uid)))
         conversation.push({ role: "assistant", content: turnFlattenedContent });

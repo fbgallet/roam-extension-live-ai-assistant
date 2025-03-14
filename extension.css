@@ -518,6 +518,14 @@
   fill: var(--icon-color-top);
 }
 
+/* Suggestions menu, native {{or:}} component   */
+.rm-option {
+  margin: 0;
+}
+.bp3-select-popover .bp3-menu {
+  max-width: 600px;
+}
+
 /* Tokens usage dialog */
 .tokens-dialog-container {
   z-index: 1000;
@@ -650,6 +658,11 @@
   .tokens-dialog .bp3-dialog-body td,
   .tokens-dialog .bp3-dialog-body th {
     padding: 6px;
+  }
+
+  /* Suggestions menu, native {{or:}} component   */
+  .bp3-select-popover .bp3-menu {
+    max-width: 400px;
   }
 }
 
