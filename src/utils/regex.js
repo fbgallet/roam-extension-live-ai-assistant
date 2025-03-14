@@ -17,6 +17,7 @@ export const customTagRegex = {
   "liveai/template": /\#?\[?\[?liveai\/template\]?\]?/i,
 };
 export const builtInPromptRegex = /<built-in:([^>:]+)(?::([^>:]+))?>/i;
+export const suggestionsComponentRegex = /\{\{or:\s?([^|]*)\|.*\}\}/;
 
 export const getConjunctiveRegex = (allRegex) => {
   let totalRegexControl = "^";

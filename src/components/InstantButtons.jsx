@@ -12,6 +12,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button, ContextMenu, Icon, Tooltip } from "@blueprintjs/core";
 import { useEffect, useState } from "react";
 import {
+  aiCompletion,
   aiCompletionRunner,
   insertCompletion,
   lastCompletion,
@@ -21,6 +22,7 @@ import {
   createChildBlock,
   focusOnBlockInMainWindow,
   getParentBlock,
+  updateBlock,
 } from "../utils/roamAPI.js";
 import {
   addToConversationHistory,
@@ -29,11 +31,14 @@ import {
   getInstantAssistantRole,
 } from "../index.js";
 import {
+  displaySpinner,
   highlightHtmlElt,
   insertInstantButtons,
+  removeSpinner,
+  simulateClick,
   toggleOutlinerSelection,
 } from "../utils/domElts.js";
-import { completionCommands } from "../ai/prompts.js";
+import { completionCommands, suggestionsPrompt } from "../ai/prompts.js";
 import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
@@ -145,52 +150,56 @@ const InstantButtons = ({
     setIsToUnmount(true);
   };
 
-  const handleConversation = async () => {
-    // const parentUid = getParentBlock(targetUid);
-    // const nextBlock = await createChildBlock(
-    //   parentUid,
-    //   getInstantAssistantRole(model)
-    // );
-    // const userPrompt = getFlattenedContentFromTree({
-    //   parentUid: targetUid,
-    //   maxCapturing: 99,
-    //   maxUid: null,
-    //   withDash: true,
-    // });
+  const handleConversation = async (e) => {
     aiCompletionRunner({
       sourceUid: targetUid,
       instantModel: model,
       style,
       roamContext,
     });
-    // // if (!Array.isArray(prompt)) prompt = [prompt];
-    // insertCompletion({
-    //   prompt: prompt.concat({ role: "user", content: userPrompt }),
-    //   systemPrompt,
-    //   targetUid: nextBlock,
-    //   typeOfCompletion: "gptCompletion",
-    //   instantModel: model,
-    //   isInConversation: true,
-    // });
     setIsToUnmount(true);
   };
 
   const handleInsertConversationButtons = async (props) => {
     const parentUid = getParentBlock(targetUid);
-    const nextBlock = await createChildBlock(parentUid, chatRoles.user);
+    let userTurnContent = chatRoles.user || "";
+    prompt.push({ role: "assistant", content: suggestionsPrompt });
+    const isSuggestionToInsert = props.e.altKey;
+    const nextBlock = await createChildBlock(parentUid, userTurnContent);
     const conversationParams = { uid: parentUid };
-    console.log("selectedUids :>> ", selectedUids);
+    // console.log("selectedUids :>> ", selectedUids);
     if (selectedUids) conversationParams.selectedUids = selectedUids;
     if (command) conversationParams.command = command;
     if (roamContext) conversationParams.context = roamContext;
     await addToConversationHistory(conversationParams);
     // console.log(extensionStorage.get("conversationHistory"));
+    let spinnerId;
     setTimeout(() => {
       setIsToUnmount(true);
       insertInstantButtons({ ...props, targetUid: nextBlock });
+      if (isSuggestionToInsert) spinnerId = displaySpinner(nextBlock);
     }, 100);
+    if (isSuggestionToInsert) {
+      let aiSuggestions = await aiCompletion({
+        instantModel: props.model,
+        systemPrompt: props.systemPrompt,
+        prompt,
+        style: props.style,
+        isButtonToInsert: false,
+      });
+      userTurnContent += aiSuggestions;
+      if (isSuggestionToInsert) removeSpinner(spinnerId);
+      await updateBlock({ blockUid: nextBlock, newContent: userTurnContent });
+    }
     setTimeout(() => {
-      focusOnBlockInMainWindow(nextBlock);
+      if (!isSuggestionToInsert) focusOnBlockInMainWindow(nextBlock);
+      else {
+        const nextBlockElt = document.querySelector(`[id*="${nextBlock}"]`);
+        if (nextBlock) {
+          const optionElt = nextBlockElt.querySelector(".rm-option");
+          if (optionElt) simulateClick(optionElt);
+        }
+      }
     }, 250);
   };
 
@@ -277,8 +286,8 @@ const InstantButtons = ({
     ) : (
       <>
         <Button
-          onClick={async () => {
-            await handleConversation();
+          onClick={async (e) => {
+            await handleConversation(e);
           }}
         >
           <Tooltip content="Continue the conversation" hoverOpenDelay="500">
@@ -331,28 +340,30 @@ const InstantButtons = ({
       )}
       {!isOutlinerAgent && aiCallback !== invokeSearchAgent && (
         <Button
-          onClick={() => {
+          onClick={(e) => {
             const props = {
+              e,
               systemPrompt,
               command,
               style,
-              // prompt: prompt.concat({
-              //   role: "assistant",
-              //   content:
-              //     aiCallback === invokeAskAgent
-              //       ? agentData?.response
-              //       : response,
-              // }),
               model,
               isUserResponse: true,
               content,
               roamContext,
             };
-
             handleInsertConversationButtons(props);
           }}
         >
-          <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+          <Tooltip
+            content={
+              <p>
+                Continue the conversation
+                <br />
+                Click + <code>Alt</code> to insert suggestions
+              </p>
+            }
+            hoverOpenDelay="500"
+          >
             <FontAwesomeIcon icon={faComments} size="sm" />
           </Tooltip>
         </Button>
@@ -435,8 +446,8 @@ const InstantButtons = ({
                   Generate a response again
                   <br />
                   <code>Right Click</code> to choose another AI model
-                  <br />+<code>Command/Control</code> to ask for a better
-                  response
+                  <br />
+                  Click +<code>Cmd/Ctrl</code> to ask for a better response
                 </p>
               )
             }
