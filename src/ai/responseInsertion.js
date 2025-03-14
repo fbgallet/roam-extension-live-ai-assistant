@@ -26,6 +26,7 @@ import {
   hierarchicalResponseFormat,
   instructionsOnOutline,
   introduceStylePrompt,
+  roamBasicsFormat,
   stylePrompts,
 } from "./prompts";
 import {
@@ -179,6 +180,7 @@ export const aiCompletionRunner = async ({
   }
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
   systemPrompt +=
+    roamBasicsFormat +
     `\nCurrent date and time are: ${getRelativeDateAndTimeString(sourceUid)}` +
     hierarchicalResponseFormat;
 
@@ -283,9 +285,11 @@ export const insertCompletion = async ({
   uidRegex.lastIndex = 0;
   if (uidRegex.test(context)) isContextInstructionToInsert = true;
 
-  if (!systemPrompt)
-    systemPrompt =
-      defaultAssistantCharacter +
+  if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
+
+  if (!systemPrompt.includes("Current date and time are:"))
+    systemPrompt +=
+      roamBasicsFormat +
       `\nCurrent date and time are: ${getRelativeDateAndTimeString(targetUid)}`;
   if (
     !systemPrompt.includes(hierarchicalResponseFormat) &&
