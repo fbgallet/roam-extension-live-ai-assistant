@@ -1,12 +1,8 @@
-export const defaultAssistantCharacter = `You are a very smart assistant who meticulously follows the instructions provided. You always respond in the same language as the user's input content or instructions unless specified otherwise in the prompt itself.
-Since your response will be inserted into the Roam Research application, you can format it using Roam-compatible markdown syntax. If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert between two double dollar signs:export  $$formula$$`;
+export const roamBasicsFormat = `\nSince your response will be inserted into Roam Research app, you can format it using Roam-compatible markdown syntax (**bold**, __italics__, ^^highlighted^^, ~~strikethrough~~, 'inline code', [alias](url) ). If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert between two double dollar $$formula$$. If you write some date, respect this format between two double brackets: [[Month numeric-dayst|nd|rd|th, YYYY]], e.g.: [[March 13th, 2025]], with the month always in english and capitalized.`;
+
+export const defaultAssistantCharacter = `You are a very smart assistant who meticulously follows the instructions provided. You always respond in the same language as the user's input content or instructions unless specified otherwise in the prompt itself.`;
 
 export const hierarchicalResponseFormat = `\n\nIMPORTANT RULE on your response format (ONLY FOR HIERARCHICALLY STRUCTURED RESPONSE): If your response contains hierarchically structured information, each sub-level in the hierarchy should be indented exactly 2 spaces more relative to the immediate higher level. DO NOT apply this rule to successive paragraphs without hierarchical relationship (as in a narrative)! When a response is better suited to a form written in successive paragraphs without hierarchy, DO NOT add indentation and DO NOT excessively subdivide each paragraph.`;
-// For example:
-// 1. First level (0 space)
-//   a) Level 2 (2 spaces)
-//     Level 3 (4 spaces)
-//   b) Level 2
 
 export const defaultContextInstructions = `
 Below is the context of the user request: it can consist of data to rely on, content to apply to the user instructions or additional instructions, depending on the user's prompt.
