@@ -99,6 +99,13 @@ const InstantButtons = ({
     isCanceledStreamGlobal = true;
     const { currentBlockContent } = getFocusAndSelection();
     let retryInstruction = currentBlockContent || "";
+    const isToRedoBetter = e.metaKey || e.ctrlKey ? true : false;
+    if (isToRedoBetter) {
+      prompt.push({
+        role: "assistant",
+        content: response,
+      });
+    }
 
     !aiCallback
       ? isOutlinerAgent
@@ -118,9 +125,11 @@ const InstantButtons = ({
               responseFormat === "text" ? "gptCompletion" : "SelectionOutline",
             instantModel: model,
             isRedone: true,
+            isToRedoBetter,
             withSuggestions,
             target,
             selectedUids,
+            retryInstruction,
           })
       : aiCallback({
           model: model,
@@ -401,7 +410,7 @@ const InstantButtons = ({
         questionAgentResultsButton()}
       {!(isOutlinerAgent && !treeSnapshot) && (
         <Button
-          onClick={handleRedo}
+          onClick={(e) => handleRedo({ e })}
           onContextMenu={(e) => {
             e.preventDefault();
             ContextMenu.show(
@@ -426,6 +435,8 @@ const InstantButtons = ({
                   Generate a response again
                   <br />
                   <code>Right Click</code> to choose another AI model
+                  <br />+<code>Command/Control</code> to ask for a better
+                  response
                 </p>
               )
             }

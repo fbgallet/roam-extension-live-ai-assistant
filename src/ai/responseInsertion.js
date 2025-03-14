@@ -26,6 +26,7 @@ import {
   hierarchicalResponseFormat,
   instructionsOnOutline,
   introduceStylePrompt,
+  retryPrompt,
   roamBasicsFormat,
   stylePrompts,
 } from "./prompts";
@@ -242,6 +243,7 @@ export const insertCompletion = async ({
   command,
   style,
   isRedone,
+  isToRedoBetter,
   isInConversation,
   withAssistantRole = true,
   withSuggestions,
@@ -249,6 +251,7 @@ export const insertCompletion = async ({
   selectedUids,
   roamContext,
   isButtonToInsert = true,
+  retryInstruction,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.systemPrompt = systemPrompt;
@@ -330,6 +333,18 @@ export const insertCompletion = async ({
     } else {
       if (target !== "replace" && target !== "append")
         targetUid = await insertBlockInCurrentView(assistantRole);
+    }
+    if (isToRedoBetter) {
+      const initialPrompt = prompt[0].content;
+      prompt.push({
+        role: "user",
+        content:
+          retryPrompt +
+          (retryInstruction && retryInstruction !== initialPrompt
+            ? "\n\nHere is an additional response from the user to guide the improvement or correction of the initial response: " +
+              retryInstruction
+            : ""),
+      });
     }
   } else {
     if (typeof prompt === "string") {

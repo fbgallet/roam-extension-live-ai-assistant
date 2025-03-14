@@ -192,6 +192,8 @@ export const insertParagraphForStream = (targetUid) => {
 export const insertInstantButtons = async (props) => {
   let targetElts = [...document.querySelectorAll(`[id$="${props.targetUid}"]`)];
 
+  if (!targetElts.length) return;
+
   targetElts = targetElts
     .map((elt) =>
       elt.id.includes("sidebar-window")
