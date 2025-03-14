@@ -4,20 +4,22 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
-### 🆕 New in v.16
+### 🆕 New in v.17
 
+- Web search OpenAI models support
+- retry (with `Cmd/Ctrl` key) force the LLM to 'think' and improve its previous response
+- suggestions to continue a conversation (with `Alt` key)
+- find models with keyboard input
+- a lot of fixes
+
+### 🆕 New in v.15-16 (MAJOR UPDATE)
+
+- New context menu withbuilt-in prompts and easy custom prompts handling
+- AI Agents to convert natural language requests in Roam queries or :q queries
+- Live Outliner Agent (an AI canvas tailored for Roam)
 - Claude Sonnet 3.7 and Grok support
 - The thinking process of Sonnet 3.7 Extended thinking and DeepSeek-R1 appears in a popup
 - Added mentioned [[pages]] as option to define the context
-- Vision support for Claude models & Grok-2 Vision
-
-### 🆕 New in v.15 (MAJOR UPDATE)
-
-- New context menu with a large set of built-in prompts and better way to handle custom prompts
-- AI Agents to convert natural language requests in Roam queries or :q queries, search and ask question to your graph
-- Live Outliner Agent, a brand new way to apply generative AI to any given part of your Roam graph (an AI canva tailored for Roam)
-- Tokens and pricing counter
-- Recent models support, including DeepSeek, o3-mini (avaible only if you are tier 3 minimum currently)...
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -43,6 +45,8 @@ You can change the **default model** in the extension settings or in the Live AI
 
 You can easily use **structured prompts** by selecting multiple blocks (including images with models supporting image recognition). Note that block references will be resolved and remplaced by the corresponding block content.
 
+You can easily **improve the response**: click + `Cmd/Ctrl` on 'Generate a response again' button `⟳` and the previous result will be taken into account to be improved. You can even add feedback on the errors or shortcomings of the previous result: place the focus in the block with your correction instructions before clicking the retry button.
+
 You can easily **compare AI models** responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
 ### Chat with your AI Assistant
@@ -54,6 +58,7 @@ You can easily continue any conversation with an AI Assistant:
 - click on the conversation icon on the right of the last AI response block (if generated recently) or simply insert a block as next sibling of an AI response block (the one that contains it's role description, provided in settings, by default: `AI Assistant (<model>):`). It is not necessary to insert your role (such as "Me:") but more convenient in terms of readability.
 - write or dictate your prompt (it can include children blocks),
 - click on the button to continue the conversation, or run the usual AI generation command, or click on "Continue the conversation" command in Live AI context menu (all previous sibling blocks and their children will be taken into account).
+  - click + `alt` on the button to continue conversation will insert suggestions. Only the selected one will be used as prompt.
 
 ### Apply built-in prompts to existing content
 

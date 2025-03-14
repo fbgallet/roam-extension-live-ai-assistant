@@ -1,3 +1,25 @@
+## v.17 (March 14th, 2025) Web search, generation improvements & fixes
+
+**New features**
+
+- Web search OpenAI models support
+- force the LLM to 'think' and improve its previous response (with click + `Cmd/Ctrl` on retry button)
+- suggestions to continue a conversation (with click + `Alt` on conversation button)
+
+**Updates**
+
+- find models by typing their name in the context menu input
+- roam dates support (DNP title)
+- more complete default model definition (all models available)
+
+**Fixed**
+
+- paragraph order in long responses in multiple blocks was not always correct
+- Smart Search & Query Agent 'null' error with some models
+- OpenRouter models were not correctly taken into account in tokens counter
+- issue with creation of children blocks in Live Outliner
+- other small fixes
+
 ## v.16 (February 28th, 2025) New models & [[pages]] as context
 
 **Updates**
