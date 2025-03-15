@@ -39,7 +39,7 @@ export const searchListSchema = z.object({
     // .optional()
     .nullable()
     .describe(
-      "Depth limitation of the search: 0, 1 or two levels of children, set to null if no indication"
+      "Depth limitation of the search: 1 or 2 levels of children/parents, or 0 for no depth (block only), set to null if no or not clear indication"
     ),
   pagesLimitation: z
     .string()

@@ -105,7 +105,7 @@ const InstantButtons = ({
     const { currentBlockContent } = getFocusAndSelection();
     let retryInstruction = currentBlockContent || "";
     const isToRedoBetter = e.metaKey || e.ctrlKey ? true : false;
-    if (isToRedoBetter) {
+    if (isToRedoBetter && !aiCallback) {
       prompt.push({
         role: "assistant",
         content: response,

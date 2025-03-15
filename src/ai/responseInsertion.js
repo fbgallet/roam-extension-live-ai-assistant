@@ -72,7 +72,7 @@ export async function aiCompletion({
   style = "",
   systemPrompt = "",
   content = "",
-  responseFormat = "",
+  responseFormat = "text",
   targetUid = "",
   withSuggestions = false,
   selectedUids = null,

@@ -37,13 +37,13 @@ ${wordsToIgnore}
 - '-' (right before a word) mean 'not'
 - '>' and '<' symbols expressing a hierarchical condition between parent block (greater than, higher in hierarchy) and children (less). When present, the user request is generally to reproduce exactly and the symbol itself is always to reproduce. This symbol can be followed by '(1)' or '(2)' to indicate the hierarchy depth for the search. Do not reproduce these number.
 
-In addition, you will extract the following information from the user request, if available:
+In addition, you will extract the following information from the user request, if available (otherwise, set the corresponding key to null):
 - the number of results requested (explicitly with a number or implicitly, for example, "the most recent block" is only 1 block requested)
 - if random results are requested
 - if there are additional indications that narrow the scope of the search:
   - in time, some period indications (dates, range or relative description)
   - to a limited set of pages or only dnp (daily notes pages)
-  - to be limited to a given depth in hierarchy (all conditions in the same block, or in direct children or parent only, or to maximum 2 levels)
+  - to be limited to a given depth in hierarchy (the depth limitation has to be clearly expressed in the user request; do not infer it from vague expression like "all blocks with...", by default set it to null)
 
 OUTPUT FORMAT: object following the JSON schema provided:
 - 'searchList': the formatted query, optimized for database search, expressing rigorously the logic of the user request, and made up of a set of search items that will serve as conjunctive conditions to be met according to the logic expressed by specific symbols:
@@ -54,10 +54,11 @@ OUTPUT FORMAT: object following the JSON schema provided:
 - 'alternativeList': the main logic of a query has to be a disjunction, but if the main logic of the usere request is a disjunction with a clear distinction between two distinct sets of conditions (they separated by a strong disjunctive term, e.g. 'OR' or double '||' symbol), then these two sets should be processed separately, the first one in 'searchList' and the second one here in 'alternativeList', following the same rules as defined above. Generate an alternartive search list only if strongly required by the user request logic, otherwise set this property to null.
 - set 'nbOfResults' if a number of results is specified, otherwise set to null
 - set 'isRandom' to true if a random result is requested
-- set 'depthLimitation' to a number from 0 to 2, if not relevant set to null. Set depthLimitation to
-    - 0 if all conditions have to match the same block,
-    - 1 if they can be also matched by direct chidren blocks, 
-    - 2 if they can be matched by two levels of children.
+- set 'depthLimitation' to a number from 0 to 2, or to null if no indication:
+    - null by default if no indication or no clear and strong indication is provided on levels of children or parents to include (so, include all by default)
+    - 1 if they can be also matched by direct chidren or parent blocks, 
+    - 2 if they can be matched by two levels of children or parents,
+    - 0 only if all conditions have to match the same block (indication has to be very clear and should be rare),
 - set 'pagesLimitation' to "dnp" if the user restricts the search to Daily notes or to any other string if the user request to restrict the search to a defined set of page according to one or multiple keywords, e.g.: "project|product". Otherwise set to null.
 <PERIOD_PROPERTY>
 <POST_PROCESSING_PROPERTY>
