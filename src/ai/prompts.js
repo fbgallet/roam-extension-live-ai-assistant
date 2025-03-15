@@ -17,6 +17,8 @@ export const retryPrompt = `The user is requesting to generate a response again 
 
 export const suggestionsPrompt = `Make several brief relevant suggestions to simply continue or deepen or make more lively and interesting the current conversation with an AI assistant. Each should be a short phrase, demand or question that could be said by a human in response to the assistant's previous message (and taking into account the whole conversation). One of them should be quite surprising or makes one think. Format these suggestions exactly as follows: {{or: Suggestion1|Suggestion2|...}}. Your response will be strictly limited to these suggestions, do not add any introductory sentence or comment.`;
 
+export const llmConversationSystemPrompt = `You're a conversational agent and your role is to respond or react to the last message in a smooth way, as if you were joining a live conversation, you have to respond or react to the last message, no matter whether the role is held by a human user or an assistant (in this case it would be another assistant, not you, imagine you're discussing with them).`;
+
 // For Post-Processing
 
 export const instructionsOnJSONResponse =
