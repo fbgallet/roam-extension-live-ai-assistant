@@ -129,7 +129,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     state.isPostProcessingNeeded === false
       ? searchAgentNLQueryEvaluationPrompt
           .replace("<POST_PROCESSING_PROPERTY>", postProcessingToNull)
-          .replace("<INFERENCE_PROPERTY>", "")
+          .replace("<INFERENCE_PROPERTY>", "- set 'isInferenceNeeded' to null")
       : searchAgentNLQueryEvaluationPrompt
           .replace("<POST_PROCESSING_PROPERTY>", postProcessingProperty)
           .replace("<INFERENCE_PROPERTY>", inferenceNeededProperty);
@@ -142,7 +142,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 
   systemPrompt = isDirected
     ? systemPrompt
-        .replace("<INFERENCE_PROPERTY>", "")
+        .replace("<INFERENCE_PROPERTY>", "- set 'isInferenceNeeded' to null")
         .replace("<HIERARCHY_NL>", "")
     : systemPrompt
         .replace("<INFERENCE_PROPERTY>", inferenceNeededProperty)

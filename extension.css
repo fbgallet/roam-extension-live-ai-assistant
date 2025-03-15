@@ -523,7 +523,8 @@
   margin: 0;
 }
 .bp3-select-popover .bp3-menu {
-  max-width: 600px;
+  width: fit-content;
+  max-width: -webkit-fill-available;
 }
 
 /* Tokens usage dialog */
@@ -658,11 +659,6 @@
   .tokens-dialog .bp3-dialog-body td,
   .tokens-dialog .bp3-dialog-body th {
     padding: 6px;
-  }
-
-  /* Suggestions menu, native {{or:}} component   */
-  .bp3-select-popover .bp3-menu {
-    max-width: 400px;
   }
 }
 
