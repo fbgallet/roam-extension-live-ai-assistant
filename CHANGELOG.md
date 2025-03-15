@@ -3,7 +3,7 @@
 **New features**
 
 - Web search OpenAI models support
-- force the LLM to 'think' and improve its previous response (with click + `Cmd/Ctrl` on retry button)
+- force the LLM to 'think' and improve its previous response (with click + `Alt` on retry button)
 - suggestions to continue a conversation (with click + `Alt` on conversation button)
 
 **Updates**
@@ -11,6 +11,7 @@
 - find models by typing their name in the context menu input
 - roam dates support (DNP title)
 - more complete default model definition (all models available)
+- switch model during conversation, or even have multiple AI discuss with each other
 
 **Fixed**
 

@@ -7,9 +7,10 @@
 ### 🆕 New in v.17
 
 - Web search OpenAI models support
-- retry (with `Cmd/Ctrl` key) force the LLM to 'think' and improve its previous response
+- force the LLM to 'think' and improve its previous response (with click + `Alt` on retry button)
 - suggestions to continue a conversation (with `Alt` key)
-- find models with keyboard input
+- switch model with keyboard only
+- switch model during conversation, or even have multiple AI discuss with each other
 - a lot of fixes
 
 ### 🆕 New in v.15-16 (MAJOR UPDATE)
@@ -45,7 +46,7 @@ You can change the **default model** in the extension settings or in the Live AI
 
 You can easily use **structured prompts** by selecting multiple blocks (including images with models supporting image recognition). Note that block references will be resolved and remplaced by the corresponding block content.
 
-You can easily **improve the response**: click + `Cmd/Ctrl` on 'Generate a response again' button `⟳` and the previous result will be taken into account to be improved. You can even add feedback on the errors or shortcomings of the previous result: place the focus in the block with your correction instructions before clicking the retry button.
+You can easily **improve the response**: click + `Alt` on 'Generate a response again' button `⟳` and the previous result will be taken into account to be improved. You can even add feedback on the errors or shortcomings of the previous result: place the focus in the block with your correction instructions before clicking the retry button.
 
 You can easily **compare AI models** responses: right click on 'Generate a response again' button `⟳` appearing on the right of the AI response and choose another model. The new response will be inserted just above the first one.
 
@@ -58,7 +59,9 @@ You can easily continue any conversation with an AI Assistant:
 - click on the conversation icon on the right of the last AI response block (if generated recently) or simply insert a block as next sibling of an AI response block (the one that contains it's role description, provided in settings, by default: `AI Assistant (<model>):`). It is not necessary to insert your role (such as "Me:") but more convenient in terms of readability.
 - write or dictate your prompt (it can include children blocks),
 - click on the button to continue the conversation, or run the usual AI generation command, or click on "Continue the conversation" command in Live AI context menu (all previous sibling blocks and their children will be taken into account).
-  - click + `alt` on the button to continue conversation will insert suggestions. Only the selected one will be used as prompt.
+  - click + `Alt` on the button to continue conversation will insert **suggestions**. Only the selected one will be used as prompt.
+- you can easily switch model during the conversation, just `right-click` on the conversation icon and choose another model
+- You can even ask one AI to respond to another and follow the conversation between two AIs: `right-click` on the conversation icon at the level of the last AI's response to choose the model that will respond.
 
 ### Apply built-in prompts to existing content
 

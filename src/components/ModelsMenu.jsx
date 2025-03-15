@@ -22,10 +22,11 @@ const ModelsMenu = ({
   command,
   prompt,
   roleStructure = "menuitem",
+  isConversationToContinue,
 }) => {
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
-    await callback({ e, command, prompt, model });
+    await callback({ e, command, prompt, model, isConversationToContinue });
   };
 
   const handleKeyDownOnModel = (e, prefix, modelId) => {

@@ -38,7 +38,11 @@ import {
   simulateClick,
   toggleOutlinerSelection,
 } from "../utils/domElts.js";
-import { completionCommands, suggestionsPrompt } from "../ai/prompts.js";
+import {
+  completionCommands,
+  llmConversationSystemPrompt,
+  suggestionsPrompt,
+} from "../ai/prompts.js";
 import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
@@ -104,7 +108,7 @@ const InstantButtons = ({
     isCanceledStreamGlobal = true;
     const { currentBlockContent } = getFocusAndSelection();
     let retryInstruction = currentBlockContent || "";
-    const isToRedoBetter = e.metaKey || e.ctrlKey ? true : false;
+    const isToRedoBetter = e.altKey ? true : false;
     if (isToRedoBetter && !aiCallback) {
       prompt.push({
         role: "assistant",
@@ -150,13 +154,33 @@ const InstantButtons = ({
     setIsToUnmount(true);
   };
 
-  const handleConversation = async (e) => {
-    aiCompletionRunner({
-      sourceUid: targetUid,
-      instantModel: model,
-      style,
-      roamContext,
-    });
+  const handleConversation = async ({
+    e,
+    model = model,
+    isConversationToContinue,
+  }) => {
+    if (isConversationToContinue) {
+      prompt.push({ role: "user", content: response });
+      insertCompletion({
+        targetUid: await createChildBlock(
+          getParentBlock(targetUid),
+          getInstantAssistantRole(model)
+        ),
+        systemPrompt: llmConversationSystemPrompt,
+        prompt,
+        roamContext,
+        style,
+        isInConversation: true,
+        target: "new",
+      });
+    } else {
+      aiCompletionRunner({
+        sourceUid: targetUid,
+        instantModel: model,
+        style,
+        roamContext,
+      });
+    }
     setIsToUnmount(true);
   };
 
@@ -287,7 +311,17 @@ const InstantButtons = ({
       <>
         <Button
           onClick={async (e) => {
-            await handleConversation(e);
+            await handleConversation({ e });
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({
+                callback: handleConversation,
+              }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
           }}
         >
           <Tooltip content="Continue the conversation" hoverOpenDelay="500">
@@ -352,6 +386,17 @@ const InstantButtons = ({
               roamContext,
             };
             handleInsertConversationButtons(props);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({
+                callback: handleConversation,
+                isConversationToContinue: true,
+              }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
           }}
         >
           <Tooltip
@@ -447,7 +492,7 @@ const InstantButtons = ({
                   <br />
                   <code>Right Click</code> to choose another AI model
                   <br />
-                  Click +<code>Cmd/Ctrl</code> to ask for a better response
+                  Click + <code>Alt</code> to ask for a better response
                 </p>
               )
             }
