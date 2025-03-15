@@ -9,6 +9,7 @@
 **Updates**
 
 - find models by typing their name in the context menu input
+- text selection as prompt or content to process, with whole block as context
 - roam dates support (DNP title)
 - more complete default model definition (all models available)
 - switch model during conversation, or even have multiple AI discuss with each other

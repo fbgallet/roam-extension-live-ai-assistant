@@ -11,6 +11,7 @@
 - suggestions to continue a conversation (with `Alt` key)
 - switch model with keyboard only
 - switch model during conversation, or even have multiple AI discuss with each other
+- text selection with whole block as context (e.g. to define a word in context)
 - a lot of fixes
 
 ### 🆕 New in v.15-16 (MAJOR UPDATE)
