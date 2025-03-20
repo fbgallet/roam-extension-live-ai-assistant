@@ -10,7 +10,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         <p>
-          <strong>Live AI Assistant</strong> v.16 2025/02/28 by{" "}
+          <strong>Live AI Assistant</strong> v.17 2025/03/18 by{" "}
           <a href="https://github.com/sponsors/fbgallet" target="_blank">
             Fabrice Gallet
           </a>

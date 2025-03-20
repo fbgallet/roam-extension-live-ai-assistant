@@ -496,6 +496,7 @@ export async function openaiCompletion({
       response = await aiClient.chat.completions.create(options);
     }
     let streamEltCopy = "";
+    let annotations;
 
     console.log("OpenAI response :>>", response);
 
@@ -529,6 +530,8 @@ export async function openaiCompletion({
               chunk.choices[0]?.delta?.reasoning_content;
           respStr += chunk.choices[0]?.delta?.content || "";
           streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
+          if (chunk.choices[0]?.delta?.annotations)
+            annotations = chunk.choices[0].delta.annotations;
           if (chunk.usage) usage = chunk.usage;
           if (chunk.x_groq?.usage) usage = chunk.x_groq.usage;
         }
@@ -543,6 +546,18 @@ export async function openaiCompletion({
         else streamElt.remove();
       }
     } else usage = response.usage;
+
+    // Add web sources annotations with Web search models
+    if (!isToStream && response.choices[0].message.annotations?.length)
+      annotations = response.choices[0].message.annotations;
+    if (model.includes("-search") && annotations && annotations.length) {
+      let webSources = "\n\nWeb sources:";
+      annotations.forEach((annotation) => {
+        webSources += `\n  - [${annotation["url_citation"].title}](${annotation["url_citation"].url})`;
+      });
+      if (isToStream) respStr += webSources;
+      else response.choices[0].message.content += webSources;
+    }
     console.log(`Tokens usage (${model}):>> `, usage);
     updateTokenCounter(model, {
       input_tokens: usage.prompt_tokens,

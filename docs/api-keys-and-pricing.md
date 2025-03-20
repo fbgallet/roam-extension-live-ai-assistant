@@ -53,10 +53,10 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | **Grok**                     |                           |                            |
 | grok-2-1212                  | $2.00                     | $10.00                     |
 
-(\*) additional pricing for OpenAI Web Search models **by 1k calls**:
+(\*) additional pricing for OpenAI Web Search models **by 1k calls** (included as input tokens for each request in Live AI tokens counter):
 
-- gpt-4o-mini default (low / high) context size: 27.5$ (30$ / 50$)
-- gpt-4o-mini default (low / high) context size: 35$ (25$ / 30$)
+- gpt-4o-mini (low / medium / high context size): 25$ / 27.5$ / 30$
+- gpt-4o default (low / medium / high context size): 30$ / 35$ / 50$
 
 For a complete and up-to-date comparison of pricing and performance, see https://artificialanalysis.ai/models#pricing
 

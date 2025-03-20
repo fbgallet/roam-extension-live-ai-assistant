@@ -3,6 +3,7 @@ import {
   openAiCustomModels,
   openRouterModels,
   openRouterModelsInfo,
+  websearchContext,
 } from "..";
 import axios from "axios";
 
@@ -129,6 +130,21 @@ export const modelsPricing = {
   },
 };
 
+export const additionalPricingPerRequest = {
+  "gpt-4o-mini-search-preview-low": 0.025,
+  "gpt-4o-mini-search-preview-medium": 0.0275,
+  "gpt-4o-mini-search-preview-high": 0.03,
+  "gpt-4o-search-preview-low": 0.03,
+  "gpt-4o-search-preview-medium": 0.035,
+  "gpt-4o-search-preview-high": 0.05,
+};
+
+function getAdditionalPricingPerRequest(model, level) {
+  const additionalPricing =
+    additionalPricingPerRequest[`${model}-${level}`] || 0;
+  return additionalPricing;
+}
+
 export function openRouterModelPricing(model, inOrOut) {
   const modelInfo = openRouterModelsInfo.find((mdl) => mdl.id === model);
   if (modelInfo)
@@ -238,6 +254,18 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
       input: 0,
       output: 0,
     };
+  }
+
+  // addtional cost for Web search OpenAI models per request (converted in input tokens)
+  if (model.includes("-search") && typeof input_tokens === "number") {
+    const additionalCost = getAdditionalPricingPerRequest(
+      model,
+      websearchContext
+    );
+    const additionalTokens = Math.ceil(
+      additionalCost / (modelsPricing[model].input / 1000000)
+    );
+    input_tokens += additionalTokens || 0;
   }
 
   tokensCounter.total[model].input +=
