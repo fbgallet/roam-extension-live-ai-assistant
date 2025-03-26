@@ -95,7 +95,13 @@ export async function transcribeAudio(filename) {
     const options = {
       file: filename,
       model:
-        isUsingGroqWhisper && groqLibrary ? "whisper-large-v3" : "whisper-1",
+        isUsingGroqWhisper && groqLibrary
+          ? "whisper-large-v3"
+          : "gpt-4o-mini-transcribe",
+      // "whisper-1",
+      // "gpt-4o-transcribe"
+      // "gpt-4o-mini-transcribe"
+      // stream: true, // doesn't work as real streaming here
     };
     if (transcriptionLanguage) options.language = transcriptionLanguage;
     if (whisperPrompt) options.prompt = whisperPrompt;
@@ -103,8 +109,37 @@ export async function transcribeAudio(filename) {
       isUsingGroqWhisper && groqLibrary
         ? await groqLibrary.audio.transcriptions.create(options)
         : await openaiLibrary.audio.transcriptions.create(options);
-    console.log(transcript);
+    // console.log(transcript);
+
     return transcript.text;
+
+    // streaming doesn't work as expected (await for the whole audio transcription before streaming...)
+    // let transcribedText = "";
+    // const streamElt = insertParagraphForStream("FSeIh5CS8"); // test uid
+    // let accumulatedData = "";
+    // for await (const event of transcript) {
+    //   accumulatedData += event;
+    //   const endOfMessageIndex = accumulatedData.indexOf("\n");
+    //   if (endOfMessageIndex !== -1) {
+    //     const completeMessage = accumulatedData.substring(0, endOfMessageIndex);
+    //     console.log("completedMessage :>> ", completeMessage);
+    //     if (completeMessage.startsWith("data: ")) {
+    //       try {
+    //         const jsonStr = completeMessage.replace("data: ", "");
+    //         const jsonObj = JSON.parse(jsonStr);
+    //         console.log("Nouvel objet reçu:", jsonObj);
+    //         // console.log(`Type: ${jsonObj.type}, Delta: ${jsonObj.delta}`);s
+    //         streamElt.innerHTML += jsonObj.delta;
+    //         transcribedText += jsonObj.delta;
+    //       } catch (error) {
+    //         console.error("Erreur de parsing JSON:", error);
+    //       }
+    //     }
+    //     accumulatedData = accumulatedData.substring(endOfMessageIndex + 2);
+    //   }
+    // }
+    // streamElt.remove();
+    // return transcribedText;
   } catch (error) {
     console.error(error.message);
     AppToaster.show({
