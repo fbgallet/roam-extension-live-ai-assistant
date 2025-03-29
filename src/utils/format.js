@@ -140,7 +140,9 @@ export const parseAndCreateBlocks = async (
       continue;
     }
     if (inCodeBlock) {
-      codeBlockContent += line.slice(codeBlockShift) + "\n";
+      codeBlockContent +=
+        (trimmedLine === "---" ? trimmedLine : line.slice(codeBlockShift)) +
+        "\n";
       continue;
     }
 
