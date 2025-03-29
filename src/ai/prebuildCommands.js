@@ -85,6 +85,11 @@ export const BUILTIN_COMMANDS = [
     },
   },
   {
+    id: 3,
+    name: "Text to Speech",
+    category: "",
+  },
+  {
     id: 80,
     name: "Natural language query",
     callback: invokeNLQueryInterpreter,
@@ -275,6 +280,17 @@ export const BUILTIN_COMMANDS = [
       style: true,
     },
     target: "new w/o",
+  },
+  {
+    id: 145,
+    name: "Mermaid diagram",
+    prompt: "mermaid",
+    category: "CREATION",
+    keyWords: "chart, worfkow",
+    isIncompatibleWith: {
+      style: true,
+    },
+    target: "new",
   },
 
   // REPHRASING

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+// import { playAudio } from "openai/helpers/audio";
 import Anthropic from "@anthropic-ai/sdk";
 import { Tiktoken } from "js-tiktoken/lite"; // too big in bundle (almost 3 Mb)
 import axios from "axios";
@@ -171,6 +172,27 @@ export async function translateAudio(filename) {
     });
     return null;
   }
+}
+
+export async function textToSpeech(inputText) {
+  const response = await openaiLibrary.audio.speech.create({
+    model: "gpt-4o-mini-tts",
+    voice: "coral",
+    input:
+      inputText ||
+      "Please focus or select some block so that I can read their content out loud !",
+    instructions: "Speak in a cheerful and positive tone.",
+    response_format: "wav",
+  });
+
+  console.log("response :>> ", response);
+
+  const audioBlob = await response.blob();
+  const audioUrl = URL.createObjectURL(audioBlob);
+  const audio = new Audio(audioUrl);
+  audio.play();
+
+  // await playAudio(response);
 }
 
 export function modelAccordingToProvider(model) {
