@@ -57,7 +57,7 @@ import {
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import HelpDialog from "./HelpDialog";
-import { modelAccordingToProvider } from "../ai/aiAPIsHub";
+import { modelAccordingToProvider, textToSpeech } from "../ai/aiAPIsHub";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -227,6 +227,10 @@ const StandaloneContextMenu = () => {
       };
     const target =
       targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
+    if (command.name === "Text to Speech") {
+      textToSpeech(selectedTextInBlock.current || focusedBlockContent.current);
+      return;
+    }
     if (command.category === "QUERY AGENTS") {
       if (command.callback) {
         command.callback({

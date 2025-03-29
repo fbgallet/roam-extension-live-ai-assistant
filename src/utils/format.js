@@ -102,24 +102,32 @@ export const parseAndCreateBlocks = async (
   let position = isParentToReplace
     ? getBlockOrderByUid(parentBlockRef)
     : undefined;
+  let codeblockInChild = false;
 
   for (const line of lines) {
     if (!line.trim()) continue;
 
     let trimmedLine = line.trimStart();
+
+    // const content = trimmedLine.startsWith("- ") || trimmedLine.startsWith("• ")
+    const content = /^(?:-|•)\s?/.test(trimmedLine)
+      ? trimmedLine.slice(trimmedLine.match(/^(?:-|•)\s?/).length).trim()
+      : trimmedLine;
+
     // Handle codeblocks (multiline)
-    if (trimmedLine.startsWith("```")) {
+    if (content.startsWith("```")) {
       if (!inCodeBlock) {
         // Codeblock begin
         codeBlockShift = line.length - trimmedLine.length;
         inCodeBlock = true;
-        codeBlockContent = line.slice(codeBlockShift) + "\n";
+        codeBlockContent = content + "\n"; // line.slice(codeBlockShift) + "\n";
+        if (/^(?:-|•)\s?/.test(trimmedLine)) codeblockInChild = true;
       } else {
         // Codeblock end
         inCodeBlock = false;
         codeBlockContent += line.slice(codeBlockShift);
         const newBlockRef = await createChildBlock(
-          currentParentRef,
+          codeblockInChild ? stack[stack.length - 1].ref : currentParentRef,
           codeBlockContent
         );
         stack.push({
@@ -127,6 +135,7 @@ export const parseAndCreateBlocks = async (
           ref: newBlockRef,
         });
         codeBlockContent = "";
+        codeblockInChild = false;
       }
       continue;
     }
@@ -148,11 +157,6 @@ export const parseAndCreateBlocks = async (
       }
       trimmedLine = trimmedLine.replace(/^#{1,6}\s*/, "").trim();
     }
-
-    // const content = trimmedLine.startsWith("- ") || trimmedLine.startsWith("• ")
-    const content = /^(?:-|•)\s?/.test(trimmedLine)
-      ? trimmedLine.slice(trimmedLine.match(/^(?:-|•)\s?/).length).trim()
-      : trimmedLine;
 
     // Get parent of current block
     while (stack.length > 0 && stack[stack.length - 1].level >= level) {
