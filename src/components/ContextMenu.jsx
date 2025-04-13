@@ -228,7 +228,12 @@ const StandaloneContextMenu = () => {
     const target =
       targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
     if (command.name === "Text to Speech") {
-      textToSpeech(selectedTextInBlock.current || focusedBlockContent.current);
+      textToSpeech(
+        selectedTextInBlock.current ||
+          focusedBlockContent.current ||
+          selectedBlocks.current,
+        additionalPrompt
+      );
       return;
     }
     if (command.category === "QUERY AGENTS") {
@@ -468,6 +473,15 @@ const StandaloneContextMenu = () => {
   const filterCommands = (query, item) => {
     // console.log("item :>> ", item);
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
+    if (
+      item.name === "Text to Speech" &&
+      !(
+        selectedTextInBlock.current ||
+        focusedBlockContent.current ||
+        selectedBlocks.current?.length
+      )
+    )
+      return false;
     if (
       !focusedBlockUid?.current &&
       !selectedBlocks?.current?.length &&

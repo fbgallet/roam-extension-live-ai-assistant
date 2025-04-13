@@ -31,6 +31,7 @@ import {
 import { getValidLanguageCode } from "./ai/languagesSupport";
 import {
   getArrayFromList,
+  getFlattenedContentFromTree,
   getMaxDephObjectFromList,
 } from "./ai/dataExtraction";
 import { uidRegex } from "./utils/regex";
@@ -59,6 +60,8 @@ export let groqModels = [];
 export let chatRoles;
 export let assistantCharacter = defaultAssistantCharacter;
 export let defaultStyle;
+export let ttsVoice;
+export let voiceInstructions;
 export let contextInstruction = defaultContextInstructions;
 export let userContextInstructions;
 // export let isMobileViewContext;
@@ -554,6 +557,61 @@ function getPanelConfig() {
         },
       },
       {
+        id: "ttsVoice",
+        name: "Text to Speech voice",
+        description: (
+          <>
+            <span>Choose the voice for OpenAI Text to Speech:"</span>
+            <br></br>
+            <a href="https://www.openai.fm/" target="_blank">
+              (Test the available voices here on openai.fm)
+            </a>
+          </>
+        ),
+        action: {
+          type: "select",
+          items: [
+            "alloy",
+            "ash",
+            "ballad",
+            "coral",
+            "echo",
+            "fable",
+            "onyx",
+            "nova",
+            "sage",
+            "shimmer",
+            "verse",
+          ],
+          onChange: (evt) => {
+            ttsVoice = evt;
+          },
+        },
+      },
+      {
+        id: "voiceInstructions",
+        name: "Instructions for Speech to Text",
+        className: "liveai-settings-largeinput",
+        description:
+          "Prompt to control aspects of speech, including: Accent, Emotional range, Intonation, Impressions, Speed of speech, Tone, Whispering: (text or ((block-ref))):",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            if (evt.target.value) {
+              let input = evt.target.value;
+              voiceInstructions = uidRegex.test(input)
+                ? getFlattenedContentFromTree({
+                    parentUid: input.slice(2, -2),
+                    maxUid: 0,
+                    withDash: false,
+                  })
+                : input;
+              console.log(voiceInstructions);
+            }
+          },
+        },
+      },
+      {
         id: "translateIcon",
         name: "Translate Icon",
         description: "Always display translate icon:",
@@ -998,6 +1056,12 @@ export default {
     if (extensionAPI.settings.get("translateIcon") === null)
       await extensionAPI.settings.set("translateIcon", true);
     isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
+    if (extensionAPI.settings.get("ttsVoice") === null)
+      await extensionAPI.settings.set("ttsVoice", "Ash");
+    ttsVoice = extensionAPI.settings.get("ttsVoice");
+    if (extensionAPI.settings.get("voiceInstructions") === null)
+      await extensionAPI.settings.set("voiceInstructions", "");
+    voiceInstructions = extensionAPI.settings.get("voiceInstructions");
     if (
       extensionAPI.settings.get("defaultModel") === null ||
       extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo"

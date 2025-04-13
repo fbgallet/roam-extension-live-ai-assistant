@@ -27,6 +27,8 @@ import {
   googleLibrary,
   grokLibrary,
   websearchContext,
+  ttsVoice,
+  voiceInstructions,
 } from "..";
 import {
   insertInstantButtons,
@@ -47,6 +49,7 @@ import {
   addButtonsToThinkingToaster,
   displayThinkingToast,
 } from "../components/Toaster";
+import { getResolvedContentFromBlocks } from "./dataExtraction";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -174,25 +177,58 @@ export async function translateAudio(filename) {
   }
 }
 
-export async function textToSpeech(inputText) {
-  const response = await openaiLibrary.audio.speech.create({
-    model: "gpt-4o-mini-tts",
-    voice: "coral",
-    input:
-      inputText ||
-      "Please focus or select some block so that I can read their content out loud !",
-    instructions: "Speak in a cheerful and positive tone.",
-    response_format: "wav",
-  });
+export async function textToSpeech(inputText, instructions) {
+  if (!inputText) return;
+  if (!openaiLibrary) {
+    AppToaster.show({
+      message: `OpenAI API Key is needed for Text to Speech feature`,
+      timeout: 10000,
+    });
+    return;
+  }
+  if (Array.isArray(inputText)) {
+    inputText = getResolvedContentFromBlocks(inputText, false, false);
+  }
+  try {
+    const response = await openaiLibrary.audio.speech.create({
+      model: "gpt-4o-mini-tts",
+      voice: ttsVoice.toLowerCase() || "ash",
+      input: inputText,
+      instructions:
+        instructions ||
+        voiceInstructions ||
+        "Voice Affect: Calm, composed, and reassuring. Competent and in control, instilling trust.",
+      response_format: "wav",
+    });
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
 
-  console.log("response :>> ", response);
+    // events to handle stop or end of audio
+    const stopAudio = () => {
+      audio.pause();
+      audio.currentTime = 0;
+      document.removeEventListener("keydown", handleKeyPress);
+    };
+    const handleKeyPress = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        stopAudio();
+      }
+    };
+    audio.addEventListener("ended", () => {
+      document.removeEventListener("keydown", handleKeyPress);
+    });
 
-  const audioBlob = await response.blob();
-  const audioUrl = URL.createObjectURL(audioBlob);
-  const audio = new Audio(audioUrl);
-  audio.play();
-
-  // await playAudio(response);
+    audio.play();
+    document.addEventListener("keydown", handleKeyPress);
+  } catch (error) {
+    console.error(error);
+    AppToaster.show({
+      message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
+  }
 }
 
 export function modelAccordingToProvider(model) {

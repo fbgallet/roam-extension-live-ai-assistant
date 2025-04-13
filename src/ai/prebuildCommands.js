@@ -88,6 +88,7 @@ export const BUILTIN_COMMANDS = [
     id: 3,
     name: "Text to Speech",
     category: "",
+    keyWords: "TTS, read, voice",
   },
   {
     id: 80,
