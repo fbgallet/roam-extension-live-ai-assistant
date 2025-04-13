@@ -29,6 +29,7 @@ import {
   websearchContext,
   ttsVoice,
   voiceInstructions,
+  transcriptionModel,
 } from "..";
 import {
   insertInstantButtons,
@@ -101,10 +102,7 @@ export async function transcribeAudio(filename) {
       model:
         isUsingGroqWhisper && groqLibrary
           ? "whisper-large-v3"
-          : "gpt-4o-mini-transcribe",
-      // "whisper-1",
-      // "gpt-4o-transcribe"
-      // "gpt-4o-mini-transcribe"
+          : transcriptionModel,
       // stream: true, // doesn't work as real streaming here
     };
     if (transcriptionLanguage) options.language = transcriptionLanguage;
