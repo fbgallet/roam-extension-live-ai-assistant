@@ -205,13 +205,14 @@ const InstantButtons = ({
     }, 100);
     if (isSuggestionToInsert) {
       let aiSuggestions = await aiCompletion({
+        targetUid: nextBlock,
         instantModel: props.model,
         systemPrompt: props.systemPrompt,
         prompt,
         style: props.style,
         isButtonToInsert: false,
       });
-      userTurnContent += aiSuggestions;
+      userTurnContent += aiSuggestions.trim();
       if (isSuggestionToInsert) removeSpinner(spinnerId);
       await updateBlock({ blockUid: nextBlock, newContent: userTurnContent });
     }

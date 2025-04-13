@@ -43,7 +43,9 @@ export let GOOGLE_API_KEY = "";
 export let GROK_API_KEY = "";
 export let OPENROUTER_API_KEY = "";
 export let GROQ_API_KEY = "";
+export let menuModifierKey;
 export let isUsingWhisper;
+export let transcriptionModel;
 export let isUsingGroqWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
@@ -290,6 +292,23 @@ function getPanelConfig() {
         },
       },
       {
+        id: "menuModKey",
+        name: "Context menu",
+        description:
+          "Key to press while right-clicking to open Context menu (no needed when hover Live IA icons):",
+        action: {
+          type: "select",
+          items: ["Control", "Meta", "Shift", "Alt", "disabled"],
+          onChange: (evt) => {
+            let key = evt;
+            if (key === "Control") key = "ctrl";
+            menuModifierKey =
+              key !== "disabled" ? key.toLowerCase() + "Key" : null;
+          },
+        },
+      },
+
+      {
         id: "defaultModel",
         name: "Default AI assistant model",
         description:
@@ -492,15 +511,28 @@ function getPanelConfig() {
       // },
       {
         id: "whisper",
-        name: "Use Whisper API",
+        name: "Use OpenAI Speech API",
         description:
-          "Use Whisper API (paid service) for transcription. If disabled, free system speech recognition will be used:",
+          "Use OpenAI Speech API (former Whisper) (paid service) for transcription. If disabled, free system speech recognition will be used:",
         action: {
           type: "switch",
           onChange: (evt) => {
             isUsingWhisper = !isUsingWhisper;
             unmountComponent(position);
             mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "transcriptionModel",
+        name: "Voice transcription model",
+        description:
+          "Choose which OpenAI hrefvoice transcription model to use: ",
+        action: {
+          type: "select",
+          items: ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
+          onChange: (evt) => {
+            transcriptionModel = evt;
           },
         },
       },
@@ -1005,6 +1037,9 @@ export default {
       await extensionAPI.settings.set("position", "left sidebar");
     position =
       extensionAPI.settings.get("position") === "topbar" ? "top" : "left";
+    if (extensionAPI.settings.get("menuModKey") === null)
+      await extensionAPI.settings.set("menuModKey", "ctrlKey");
+    menuModifierKey = extensionAPI.settings.get("menuModKey");
     if (extensionAPI.settings.get("temperature") === null)
       await extensionAPI.settings.set("temperature", "models default");
     modelTemperature =
@@ -1014,6 +1049,9 @@ export default {
     if (extensionAPI.settings.get("whisper") === null)
       await extensionAPI.settings.set("whisper", true);
     isUsingWhisper = extensionAPI.settings.get("whisper");
+    if (extensionAPI.settings.get("transcriptionModel") === null)
+      await extensionAPI.settings.set("transcriptionModel", "whisper-1");
+    transcriptionModel = extensionAPI.settings.get("transcriptionModel");
     if (extensionAPI.settings.get("groqwhisper") === null)
       await extensionAPI.settings.set("groqwhisper", false);
     isUsingGroqWhisper = extensionAPI.settings.get("groqwhisper");

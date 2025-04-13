@@ -21,6 +21,7 @@ import {
   extensionStorage,
   getConversationParamsFromHistory,
   incrementCommandCounter,
+  menuModifierKey,
 } from "..";
 import ModelsMenu from "./ModelsMenu";
 import { completionCommands, stylePrompts } from "../ai/prompts";
@@ -388,7 +389,7 @@ const StandaloneContextMenu = () => {
   };
 
   const handleGlobalContextMenu = useCallback(async (e) => {
-    if (e.metaKey || e.ctrlKey) {
+    if (menuModifierKey && e[menuModifierKey]) {
       e.preventDefault();
       e.stopPropagation();
       const x = Math.min(e.clientX - 140, window.innerWidth - 360);
