@@ -179,7 +179,15 @@ export const BUILTIN_COMMANDS = [
     prompt: "reasoningAnalysis",
     category: "CONTENT ANALYSIS",
     target: "new",
-    submenu: [1320, 1321],
+    submenu: [1322, 1320, 1321],
+  },
+  {
+    id: 1322,
+    name: "Extract argument map (Mermaid)",
+    prompt: "argumentMapMermaid",
+    category: "CONTENT ANALYSIS",
+    keyWords: "reasoning, diagram",
+    target: "new",
   },
   {
     id: 1320,
