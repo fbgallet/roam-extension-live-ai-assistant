@@ -97,30 +97,32 @@ a) for BLOCKS (the main component of Roam, since Roam is an outliner where each 
 - ':edit/time' = last edition time
 - ':create/user' = user who created the block
 - ':edit/user' = last user who edited the block	
-- ':block/props'
-- ':children/view-type'
-- ':edit/seen-by'	
-- ':last-used/time'
 
 b) for PAGES (they are just a special kind of block with a title but no :block/string content, mostly used as an semantic index in the database. So each page has a unique :block/uid also name 'page uid')
 - ':node/title' (another main attribute to be used in the resulting table) = page title.
-- ':page/permissions'
-- ':page/sidebar'
 
 c) for USERS
 - 'user/uid' = user unique identifier
 - 'user/display-name' = user name, how it appears in the UI
-- 'user/settings'
-- 'user/photo-url'
 - 'user/display-page' = page to mention the user with [[display-page]] syntaxt in a block content
 
 VERY IMPORTANT: When the user ask for 'blocks', 'pages' or 'page titles', you need always (unless otherwise specified) to provide the corresponding ':block/uid' value in the resulting table (i.e. some ?block-uid or ?page-uid, since :block/uid is both about blocks and pages). If the user asks to filter the result according to certain conditions, the attributes corresponding to these conditions (e.g., time) should also appear in the result table.
 
-IMPORTANT SUBTELTY:
-If the user ask for blocks mentioning '[[page name]]', or '#tag' or 'attribute::', all these requests are asking for blocks including the :block/uid of the corresponding page, knowing that a page title can be mentioned in different ways in a block string: suppose that a page title is 'title', then it can be mentioned with all the following syntaxes: '[[title]]' (default format), '#title' or '#[[title]]' (tag format), or 'title::' (data attribute format). Since since the :block/uid is the same in any of these format, if the user ask for a 'tag' or an 'attribute', you have also to test if the :block/string includes the string '#title' or 'title::' according to the user request.
-Concerning data attributes, the user can ask for a given data attribute and a given value for this attribute (present in the same block). For example, if the user ask for all pages where 'status' attribute is set to '[[pending]]', to have to search for all pages containing a block including both 'status' and 'pending' page uid in its :block/refs AND including 'status::' strings in its :block/string. Searching for 'page with attribute A' means each page including in one of its block children a block string beginning with 'A::' and refering to 'A' page. Searching for 'attribute A with the value V' means each block with reference to 'A' page uid, beginning with 'A::' string and including 'V' but not necessarily 'A:: V' because it could include also other values.
+Additionaly to the database attributes, here is a set of database variables that can be used in Datomic queries in Roam (they will be replaced by the corresponding value):
+- Information about the current location where the query is created (variable name speaks for itself): current/block-id, current/page-id, current/page-title, current/block-uid,current/page-uid
+- A set of timestamps expressed in milliseconds (variable name speaks for itself), usefull to filter by ':create/time' or ':edit/time' attributes when using date interval rules (see below): ms/today-start, ms/today-end, ms/this-week-start, ms/this-week-end, ms/last-week-start, ms/last-week-end, ms/next-week-start, ms/next-week-end, ms/this-month-start, ms/this-month-end, ms/this-year-start, ms/this-year-end, ms/+1D-end (D means day), ms/-5D-start, ms/+1D-start, ms/+1D-end, ms/+1W-end (W means week), ms/+1M-start (M means month), ms/+0Y-start (Y means year), ms/+0Y-end, ms/=2025-01-01-start (it's an example of date, works for any other date), ms/=2025-12-31-end
+- Variable resolving in the Daily note page (dnp) title (corresponding :node/title attribute) for the correspoding relative date: dnp/today, dnp/yesterday, dnp/tomorrow, dnp/-1D, dnp/+1D, dnp/this-week-start, dnp/this-week-end, dnp/this-month-start, dnp/this-year-end, dnp/=2025-01-01 (resolves to "January 1st, 2025")
 
-To create the query, meticulously respect the Datomic Datalog syntax and grammar. You can eventually, but with caution, use the following Clojure functions (and NO OTHER, since :q component environment limit the use of Clojure functions to this set only):
+Here is also a set of available Datomic rules, specific to Roam, for common operations:
+- '(created-by ?user-name ?block)'
+- '(edited-by ?user-name ?block)'
+- '(by ?user-name ?block)' = created or edited by...
+- '(refs-page ?page-title ?block)' = all blocks mentioning a given page title (having a link to '[[page-title]]')
+- '(block-or-parent-refs-page ?page-title ?block)' = all blocks mentioning in themself or in one of their parent block a given page title
+- '(created-between ?t1 ?t2 ?block)' = time intervale between t1 & t2 (time beeing expressed in milliseconds, using ms/... variable defined above)
+- '(edited-between ?t1 ?t2 ?block)' = time intervale for edition time
+
+You can eventually, but with caution, use also the following Clojure functions (and NO OTHER, since :q component environment limit the use of Clojure functions to this set only):
 =, ==, not=, !=, <, >, <=, >=, +, -, *, /, quot, rem, mod, inc, dec, max, min, 
 zero?, pos?, neg?, even?, odd?, compare, rand, rand-int, true?, false?, nil?, 
 some?, not, and-fn, or-fn, complement, identical?, identity, keyword, meta, 
@@ -130,7 +132,11 @@ prn-str, re-find, re-matches, re-seq, re-pattern, -differ?, -get-else,
 -get-some, -missing?, ground, clojure.string/blank?, clojure.string/includes?, 
 clojure.string/starts-with?, clojure.string/ends-with?, tuple, untuple
 
-When structuring the query, check meticulously if it respects all these rules:
+IMPORTANT SUBTELTY:
+If the user ask for blocks mentioning '[[page name]]', or '#tag' or 'attribute::', all these requests are asking for blocks including the :block/uid of the corresponding page, knowing that a page title can be mentioned in different ways in a block string: suppose that a page title is 'title', then it can be mentioned with all the following syntaxes: '[[title]]' (default format), '#title' or '#[[title]]' (tag format), or 'title::' (data attribute format). Since the :block/uid is the same in any of these format, if the user ask for a 'tag' or an 'attribute', you have also to test if the :block/string includes the string '#title' or 'title::' according to the user request.
+Concerning data attributes, the user can ask for a given data attribute and a given value for this attribute (present in the same block). For example, if the user ask for all pages where 'status' attribute is set to '[[pending]]', to have to search for all pages containing a block including both 'status' and 'pending' page uid in its :block/refs AND including 'status::' strings in its :block/string. Searching for 'page with attribute A' means each page including in one of its block children a block string beginning with 'A::' and refering to 'A' page. Searching for 'attribute A with the value V' means each block with reference to 'A' page uid, beginning with 'A::' string and including 'V' but not necessarily 'A:: V' because it could include also other values.
+
+When structuring the query, respect the Datomic Datalog syntax and grammar, and check meticulously if it respects all these rules:
 - all logical conditions in the user request are correctly transcribed in a set nested and successive vectors and there are no unnecessary condition (pay attention to subtleties in the natural language request, such as comma or parentheses positioning).
 - be aware of this IMPORTANT RULE when using 'or' and 'or-join' functions: "All clauses in 'or' must use same set of free vars", what means that the left element of each vector has to be the same.
 - IMPORTANT: the conditions are arranged in an order that optimizes the database query loading time (by reducing the number of elements to manage as quickly as possible)
@@ -188,6 +194,16 @@ Your response:
  [?page :block/children ?toread-block]
  [?block :block/page ?page]
  [?page :block/uid ?page-uid]]
+
+ 6. "All blocks mentioning [[Quality of Life Improvements]]) created by 'Baibhav Bista' in the current calendar year:
+ :q "Blocks mentioning [[Quality of Life Improvements]]) created by 'Baibhav Bista' in current year
+ [:find ?b ?t
+  :where
+  [?b :block/uid ?uid]
+  (refs-page "Quality of Life Improvements" ?b)
+  (created-by "Baibhav Bista" ?b)
+  [?b :create/time ?t]
+  (created-between ms/this-year-start ms/this-xyear-end ?b)]
 `;
 
 // NO MORE USED:

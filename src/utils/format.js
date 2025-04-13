@@ -118,7 +118,7 @@ export const parseAndCreateBlocks = async (
     if (content.startsWith("```")) {
       if (!inCodeBlock) {
         // Codeblock begin
-        codeBlockShift = line.length - trimmedLine.length;
+        codeBlockShift = line.length - content.length; // trimmedLine.length;
         inCodeBlock = true;
         codeBlockContent = content + "\n"; // line.slice(codeBlockShift) + "\n";
         if (/^(?:-|•)\s?/.test(trimmedLine)) codeblockInChild = true;
