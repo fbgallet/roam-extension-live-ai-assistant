@@ -463,14 +463,14 @@ The user may provide styling preferences, that you have to interpret using avail
 - look: "classic"|"handDrawn"
 - darkMode: boolean
 
-Without specific styling instructions, ensure diagram elements have consistent and visually pleasing and relevant colors (same type elements have the same color. Important: always use CSS hexadecimal code for colors, e.g. #ff8000).
+Without specific styling instructions, ensure diagram elements have consistent, visually pleasing and relevant colors (e.g. same type elements have the same color, most intense colors highlight the main information, do not overuse colors. Important: always use CSS hexadecimal code for colors, e.g. #ff8000).
 
 C/ Output Format
 Always place the Mermaid code in a 'plain text' code block using the following model (include the config section between three dashes '---' if necessary, with these three dashes at the exact same indentation as the first three backticks of the codeblock) and as a list item indented under a line containing '{{[[mermaid]]}}' keyword.
 
 Generate the diagram only if you have all the needed information, otherwise, guide the user to obtain the required information, and once you have it, generate the diagram. If the user asks questions about a diagram you have generated, respond in text form, unless it is clear that the user wants you to complete the initial diagram and provide one that contains the answer to their questions.
 
-Here is an example of a correctly formated diagram (IMPORTANT: the code of the codeblock has to be defined as 'plain text', NOT 'mermaid' ! And be sure that the all the content of the codeblock and its closing backticks are properly indented. )
+Here is an example of a correctly formated diagram (IMPORTANT: the code of the codeblock has to be defined as 'plain text', NOT 'mermaid' ! Be sure that all the content of the codeblock and its closing backticks are properly indented.)
 
 {{[[mermaid]]}}
 - \`\`\`plain text
@@ -903,7 +903,9 @@ Output: "- highlighted portion [*](((abc123-d_)))"
 ${outputConditions.replace("<ACTION>", "extract higlights from")}`,
 };
 
-completionCommands.argumentMapMermaid = `Present a schematic overview of the argumentative structure of the text provided below between the <begin> and <end> tags. Represent the logical sequence of the different reasoning steps by distinguishing moments of justification (arguments), explanatory or illustrative elements (examples, clarifications...), critical points, questions, or any other component with a specific role. The objective is to reveal the logic of the reasoning progression, highlighting the role and sequence of the different steps. For clear reading, identify the role of each step and summarize its content in a brief formula. The main thesis, the central idea, should be emphasized, along with any intermediate theses, as well as principles, theories, evidence, or implicit assumptions on which the reasoning might be based. Each element must be formulated in a sentence with a verb to make its logic more explicit, and logical connections must also be clarified (in other words, you need to add a label to the arrows). A component of the argument map should not be reduced to a simple term or a simple element of an enumeration; each component must be synthetic enough to reflect the author's thought progression in their argumentative construction. Do not subdivide the reasoning too much (up to 10 elements, more probably 4 or 5); this is a first step that should give the reader a clear initial overview, who can then request more precision in breaking down the reasoning.
+completionCommands.argumentMapMermaid = `Present a schematic overview of the argumentative structure of the text provided below between the <begin> and <end> tags. Represent the logical sequence of the different reasoning steps by distinguishing moments of justification (arguments), explanatory (definition, concept analysis) or illustrative elements (examples, clarifications...), critical points, questions, or any other component with a specific role.
+
+The goal is to reveal the logic of the reasoning progression, highlighting the role and sequence of the different steps. For clear reading, identify the role of each step and summarize its content in a brief formula. The main thesis or central idea should be emphasized, along with any intermediate theses, as well as principles, theories, evidence, or implicit assumptions on which the reasoning might be based. Each element must be formulated in a clear sentence with a verb to make its logic more explicit. Logical connections must also be clarified (you need to add a label to most of the arrows). A component of the argument map should not be reduced to a simple term or a simple element of an enumeration (unless it's relevant); each component must be synthetic enough to reflect the author's thought progression in their argumentative construction. Do not subdivide the reasoning too much (up to 10 elements, more probably 4 or 5); this is a first step that should give the reader a clear initial overview, who can then request more precision in breaking down the reasoning.
   
 Follow the instructions below to generate a Mermaid workflow diagram, creating the argument map from the input text. Try to differentiate elements using colors (if possible green for supporting arguments, red for objections or criticisms, orange for responses to objections, blue for conceptual analyses, or any other color scheme you consider relevant to distinguish the types of elements to represent):
 
