@@ -96,7 +96,7 @@ export let isSafari =
 
 export let extensionStorage;
 
-export function setDefaultModel(str = "gpt-4o-mini") {
+export function setDefaultModel(str = "gpt-4.1-mini") {
   defaultModel = str;
   extensionStorage.set("defaultModel", str);
   chatRoles = getRolesFromString(
@@ -166,7 +166,7 @@ function getRolesFromString(str, model) {
     } else if (defaultModel === "first Groq model" && groqModels.length) {
       model = groqModels[0];
     } else {
-      model = defaultModel.includes("first") ? "gpt-4o-mini" : defaultModel;
+      model = defaultModel.includes("first") ? "gpt-4.1-mini" : defaultModel;
     }
   }
   model = modelAccordingToProvider(model);
@@ -769,7 +769,7 @@ function getPanelConfig() {
         name: "Images limit",
         className: "liveai-settings-smallinput",
         description:
-          "Maximum number of images to process by models supporting Vision (e.g. GPT-4o):",
+          "Maximum number of images to process by models supporting Vision (e.g. GPT-4.1):",
         action: {
           type: "input",
           onChange: (evt) => {
@@ -1104,7 +1104,7 @@ export default {
       extensionAPI.settings.get("defaultModel") === null ||
       extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo"
     )
-      await extensionAPI.settings.set("defaultModel", "gpt-4o-mini");
+      await extensionAPI.settings.set("defaultModel", "gpt-4.1-mini");
     defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");

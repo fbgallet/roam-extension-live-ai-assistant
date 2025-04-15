@@ -84,7 +84,7 @@ const ModelsMenu = ({
               onContextMenu={(e) => handleContextMenu(e)}
               tabindex="0"
               text="gpt-4.1-nano"
-              labelElement="128k"
+              labelElement="1000k"
             />
             <MenuItem
               icon={defaultModel === "gpt-4.1-mini" && "pin"}
@@ -97,7 +97,7 @@ const ModelsMenu = ({
               onContextMenu={(e) => handleContextMenu(e)}
               tabindex="0"
               text="gpt-4.1-mini"
-              labelElement="128k"
+              labelElement="1000k"
             />
             <MenuItem
               icon={defaultModel === "gpt-4.1" && "pin"}
@@ -110,37 +110,9 @@ const ModelsMenu = ({
               onContextMenu={(e) => handleContextMenu(e)}
               tabindex="0"
               text="gpt-4.1"
-              labelElement="128k"
+              labelElement="1000k"
             />
-            <MenuItem text="GPT 4o models">
-              <MenuItem
-                icon={defaultModel === "gpt-4o-mini" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="GPT 4o mini"
-                labelElement="128k"
-              />
-              <MenuItem
-                icon={defaultModel === "gpt-4o" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="GPT 4o"
-                labelElement="128k"
-              />
-            </MenuItem>
-            <MenuItem text="Web Search  models">
+            <MenuItem text="Web Search models">
               <MenuItem
                 icon={defaultModel === "gpt-4o-mini-search" && "pin"}
                 onClick={(e) => {
@@ -235,6 +207,34 @@ const ModelsMenu = ({
                     </a>
                   </p>
                 }
+              />
+            </MenuItem>
+            <MenuItem text="gpt-4o models (deprecated)">
+              <MenuItem
+                icon={defaultModel === "gpt-4o-mini" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="GPT 4o mini"
+                labelElement="128k"
+              />
+              <MenuItem
+                icon={defaultModel === "gpt-4o" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="GPT 4o"
+                labelElement="128k"
               />
             </MenuItem>
             {openAiCustomModels && openAiCustomModels.length ? (

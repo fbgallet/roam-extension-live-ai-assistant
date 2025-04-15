@@ -34,6 +34,9 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | **Model**                    | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
 | ---------------------------- | ------------------------- | -------------------------- |
 | **OpenAI**                   |                           |                            |
+| gpt-4.1-nano                 | $0.10                     | $0.40                      |
+| gpt-4.1-mini                 | $0.40                     | $1.60                      |
+| gpt-4.1                      | $2.00                     | $8.00                      |
 | gpt-4o-mini                  | $0.15                     | $0.60                      |
 | gpt-4o                       | $2.50                     | $10.00                     |
 | gpt-4o-mini-search-preview\* | $0.15                     | $0.60                      |
