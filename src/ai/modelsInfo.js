@@ -11,6 +11,9 @@ export const getAvailableModels = (provider) => {
   switch (provider) {
     case "OpenAI":
       return [
+        "gpt-4.1-nano",
+        "gpt-4.1-mini",
+        "gpt-4.1",
         "gpt-4o-mini",
         "gpt-4o",
         "gpt-4o-mini-search",
@@ -35,6 +38,9 @@ export const getAvailableModels = (provider) => {
 };
 
 export const tokensLimit = {
+  "gpt-4.1-nano": 1047576,
+  "gpt-4.1-mini": 1047576,
+  "gpt-4.1": 1047576,
   "gpt-4o-mini": 131073,
   "gpt-4o": 131073,
   "gpt-4o-mini-search-preview": 128000,
@@ -53,15 +59,28 @@ export const tokensLimit = {
   "deepseek-reasoner": 64000,
   "grok-2-1212": 131072,
   "grok-2-vision-1212": 32768,
-  "gemini-2.0-flash-exp": 1048576,
+  "gemini-2.0-flash-exp": 1047576,
   "gemini-1.5-flash": 1048576,
   "gemini-1.5-pro": 2097152,
   custom: undefined,
 };
 
+// pricing for 1M tokens
 export const modelsPricing = {
+  "gpt-4.1-nano": {
+    input: 0.1,
+    output: 0.4,
+  },
+  "gpt-4.1-mini": {
+    input: 0.4,
+    output: 1.6,
+  },
+  "gpt-4.1": {
+    input: 2,
+    output: 8,
+  },
   "gpt-4o-mini": {
-    input: 0.15, //  /1M tokens
+    input: 0.15,
     output: 0.6,
   },
   "gpt-4o": {

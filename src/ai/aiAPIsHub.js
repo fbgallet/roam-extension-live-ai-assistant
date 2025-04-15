@@ -312,7 +312,7 @@ export function modelAccordingToProvider(model) {
         llm.id = model + "-preview";
         llm.name = model;
       }
-    } else llm.id = model || "gpt-4o-mini";
+    } else llm.id = model || "gpt-4.1-mini";
     llm.library = openaiLibrary;
   }
   if (!llm.name) llm.name = llm.id;
@@ -799,7 +799,12 @@ const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
 
 const isModelSupportingImage = (model) => {
   model = model.toLowerCase();
-  if (model.includes("gpt-4o") || model.includes("vision")) return true;
+  if (
+    model.includes("gpt-4o") ||
+    model.includes("gpt-4.1") ||
+    model.includes("vision")
+  )
+    return true;
   if (model.includes("claude-3-5") || model.includes("claude-3-7")) return true;
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find(
