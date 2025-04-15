@@ -463,7 +463,7 @@ The user may provide styling preferences, that you have to interpret using avail
 - look: "classic"|"handDrawn"
 - darkMode: boolean
 
-Without specific styling instructions, ensure diagram elements have consistent and visually pleasing colors (same type elements have the same color).
+Without specific styling instructions, ensure diagram elements have consistent and visually pleasing and relevant colors (same type elements have the same color. Important: always use CSS hexadecimal code for colors, e.g. #ff8000).
 
 C/ Output Format
 Always place the Mermaid code in a 'plain text' code block using the following model (include the config section between three dashes '---' if necessary, with these three dashes at the exact same indentation as the first three backticks of the codeblock) and as a list item indented under a line containing '{{[[mermaid]]}}' keyword.
