@@ -86,6 +86,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 3,
+    icon: "volume-up",
     name: "Text to Speech",
     category: "",
     keyWords: "TTS, read, voice",
@@ -188,6 +189,7 @@ export const BUILTIN_COMMANDS = [
     category: "CONTENT ANALYSIS",
     keyWords: "reasoning, diagram",
     target: "new",
+    isSub: true,
   },
   {
     id: 1320,

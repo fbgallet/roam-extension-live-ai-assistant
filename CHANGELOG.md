@@ -1,3 +1,22 @@
+## v.18 (April 16th, 2025) Mermaid, advanced :q queries & fixes
+
+**New features**
+
+- Generate any Mermaid diagrams (and argument map using Mermaid)
+- Text to Speech (using OpenAI gpt-4o-mini-tts)
+
+**Updates**
+
+- OpenAI gpt-4.1 models support
+- OpenAI gpt-4o[-mini]-transcribe models support for voice transcription
+- :q Datomic query Agent now support the new native rules and variables
+- list of sources at the end of Web search response
+- Modifier key to open context menu is customizable (default is Meta/Win) and can be disabled
+
+**Fixed**
+
+- Smart search Agent was often returning only 1 result and other small issues
+
 ## v.17 (March 14th, 2025) Web search, generation improvements & fixes
 
 **New features**

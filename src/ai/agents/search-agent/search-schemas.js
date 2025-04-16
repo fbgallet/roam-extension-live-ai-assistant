@@ -18,7 +18,9 @@ export const searchListSchema = z.object({
     .number()
     // .optional()
     .nullable()
-    .describe("Number of requested results, otherwise set to null"),
+    .describe(
+      "Number of requested results only if speficied, otherwise set to null"
+    ),
   isRandom: z.boolean().nullable().describe("Is a random result requested"),
   isPostProcessingNeeded: z
     .boolean()
@@ -39,7 +41,7 @@ export const searchListSchema = z.object({
     // .optional()
     .nullable()
     .describe(
-      "Depth limitation of the search: 1 or 2 levels of children/parents, or 0 for no depth (block only), set to null if no or not clear indication"
+      "Depth limitation of the search: 2 by default, can be limited to 1 level or 0 (only same block) if specified explicitly"
     ),
   pagesLimitation: z
     .string()

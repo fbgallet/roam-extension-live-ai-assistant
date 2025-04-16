@@ -10,7 +10,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         <p>
-          <strong>Live AI Assistant</strong> v.17 2025/03/18 by{" "}
+          <strong>Live AI Assistant</strong> v.18 2025/04/16 by{" "}
           <a href="https://github.com/sponsors/fbgallet" target="_blank">
             Fabrice Gallet
           </a>
@@ -46,7 +46,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
         <ul>
           <li>
             <em>Open commands context Menu</em> (default hotkeys:{" "}
-            <code>Cmd/Win + Ctrl + a</code> or `Cmd/Ctrl + rigth-click`)
+            <code>Cmd/Win + Ctrl + a</code> or `Cmd/Win + rigth-click`)
           </li>
           <li>
             <em>AI generation, focused/selected block(s) as prompt</em> (also to

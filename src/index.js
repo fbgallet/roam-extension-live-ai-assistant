@@ -298,7 +298,7 @@ function getPanelConfig() {
           "Key to press while right-clicking to open Context menu (no needed when hover Live IA icons):",
         action: {
           type: "select",
-          items: ["Control", "Meta", "Shift", "Alt", "disabled"],
+          items: ["Meta", "Control", "Shift", "Alt", "disabled"],
           onChange: (evt) => {
             menuModifierKey = evt;
           },
@@ -1035,7 +1035,7 @@ export default {
     position =
       extensionAPI.settings.get("position") === "topbar" ? "top" : "left";
     if (extensionAPI.settings.get("menuModKey") === null)
-      await extensionAPI.settings.set("menuModKey", "Control");
+      await extensionAPI.settings.set("menuModKey", "Meta");
     menuModifierKey = extensionAPI.settings.get("menuModKey");
     if (extensionAPI.settings.get("temperature") === null)
       await extensionAPI.settings.set("temperature", "models default");
