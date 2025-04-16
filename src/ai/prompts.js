@@ -2,7 +2,7 @@ export const roamBasicsFormat = `\nSince your response will be inserted into Roa
 
 export const roamTableFormat = `\nIf the user ask to generate some table or if you handle the content of an existing Roam table, you have to strictly respect the following rules to generate or update the table:
 a) the content of a Roam table is always a set of bullet points indented under a bullet point containing '{{[[table]]}}' string.
-b) rows and columns content are recorded in the following way: each sibling bullet point at the top level define different lines, each sub-levels define different columns. E.g. for a table with 3 columns and 3 rows, including titles:
+b) rows and columns content are recorded in the following way: each sibling bullet point at the top level define different lines, each sub-levels define different columns (for each bullet point, its direct indented sub-bullet is the next column, at the same level. So to add a column you have to insert an item as an indented bullet-point of the last child. Be very strict with indentations (add 2 spaces per level)). E.g. for a table with 3 columns and 3 rows, including titles:
 '- {{[[table]]}}
   - **column 1 Title (or row 1)**
     - **column 2 Title (or row 1)**
@@ -13,6 +13,28 @@ b) rows and columns content are recorded in the following way: each sibling bull
   - column 1 row 3
     - column 2 row 3
       - column 3 row 3'
+Here is a real example:
+'- {{[[table]]}}
+  - Country
+    - Capital
+  - France
+    - Paris
+  - Germany
+    Berlin'
+Suppose that you have to add a column with the language, and add a line for Italy, the whole table would become:
+'- {{[[table]]}}
+  - Country
+    - Capital
+      - Language
+  - France
+    - Paris
+      - French
+  - Germany
+    - Berlin
+      - German
+  - Italy
+    - Rome
+      - Italian'
 c) if some cell is empty, the correspoding bullet point must still be present, but without content (just a space)
 d) if you need to do calculations on a table, you must take this structure into account (for example, to add the elements in the same column, considere the cells at the same depth level).`;
 
