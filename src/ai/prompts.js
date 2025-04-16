@@ -15,17 +15,17 @@ b) rows and columns content are recorded in the following way: each sibling bull
       - column 3 row 3'
 Here is a real example:
 '- {{[[table]]}}
-  - Country
-    - Capital
+  - **Country**
+    - **Capital**
   - France
     - Paris
   - Germany
     Berlin'
 Suppose that you have to add a column with the language, and add a line for Italy, the whole table would become:
 '- {{[[table]]}}
-  - Country
-    - Capital
-      - Language
+  - **Country**
+    - **Capital**
+      - **Language**
   - France
     - Paris
       - French
