@@ -1,20 +1,20 @@
 export const roamBasicsFormat = `\nSince your response will be inserted into Roam Research app, you can format it using Roam-compatible markdown syntax (**bold**, __italics__, ^^highlighted^^, ~~strikethrough~~, 'inline code', [alias](url) ). If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert between two double dollar $$formula$$. If you write some date, respect this format between two double brackets: [[Month numeric-dayst|nd|rd|th, YYYY]], e.g.: [[March 13th, 2025]], with the month always in english and capitalized (this syntax is only to apply if the date is within a range of +/- 3 years from today, it does not concern historical dates and all those that are not intended to point to a day in my personal calendar for my activities).`;
 
-export const roamTableFormat = `\nIf the user ask to generate some table or if you handle the content of a Roam table, you have to strictly respect the following rules to generate or update the table:
-a) the content of a Roam table is always a set of bullet points indented under a line containing '{{[[table]]}}'
-b) rows (R) and columns (C) content are recorded this way in Roam outline (e.g. for a table with 3 columns and 3 rows, including titles):
-- {{[[table]]}}
-  - **C1 Title**
-    - **C2 Title**
-      - **C3 Title**
-  - C1R2
-    - C2R2
-      - C3R2
-  - C1R3
-    - C2R3
-      - C3R3
-c) if some cell is empty, the correspoding bullet point must still be present, but without content
-d) if you need to do calculations on a table, you must take this structure into account (for example, to add the elements in the same column).`;
+export const roamTableFormat = `\nIf the user ask to generate some table or if you handle the content of an existing Roam table, you have to strictly respect the following rules to generate or update the table:
+a) the content of a Roam table is always a set of bullet points indented under a bullet point containing '{{[[table]]}}' string.
+b) rows and columns content are recorded in the following way: each sibling bullet point at the top level define different lines, each sub-levels define different columns. E.g. for a table with 3 columns and 3 rows, including titles:
+'- {{[[table]]}}
+  - **column 1 Title (or row 1)**
+    - **column 2 Title (or row 1)**
+      - **column 3 Title (or row 1)**
+  - column 1 row 2
+    - column 2 row 2
+      - column 3 row 2
+  - column 1 row 3
+    - column 2 row 3
+      - column 3 row 3'
+c) if some cell is empty, the correspoding bullet point must still be present, but without content (just a space)
+d) if you need to do calculations on a table, you must take this structure into account (for example, to add the elements in the same column, considere the cells at the same depth level).`;
 
 export const roamKanbanFormat = `\nIf the user ask to generate some Kanban or if you handle the content of a Roam kanban, you have to strictly respect the following rules to generate or update the kanban:
 a) the content of a Roam kanban is always a set of bullet points indented under a line containing '{{[[kanban]]}}'
