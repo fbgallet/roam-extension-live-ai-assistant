@@ -18,9 +18,8 @@ export const getAvailableModels = (provider) => {
         "gpt-4o",
         "gpt-4o-mini-search",
         "gpt-4o-search",
-        "o3-mini",
-        "o1-mini",
-        "o1",
+        "o4-mini",
+        "o3",
       ].concat(openAiCustomModels);
     case "Anthropic":
       return [
@@ -45,9 +44,8 @@ export const tokensLimit = {
   "gpt-4o": 131073,
   "gpt-4o-mini-search-preview": 128000,
   "gpt-4o-search-preview": 128000,
-  "o1-mini": 131073,
-  "o1-preview": 200000,
-  o1: 200000,
+  "o4-mini": 200000,
+  o3: 200000,
   "o3-mini": 200000,
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
@@ -95,21 +93,21 @@ export const modelsPricing = {
     input: 2.5,
     output: 10,
   },
+  "o4-mini": {
+    input: 1.1,
+    output: 4.4,
+  },
   "o3-mini": {
     input: 1.1,
     output: 4.4,
   },
-  "o1-mini": {
-    input: 1.1,
-    output: 4.4,
-  },
-  "o1-preview": {
-    input: 15,
-    output: 60,
-  },
   o1: {
     input: 15,
     output: 60,
+  },
+  o3: {
+    input: 10,
+    output: 40,
   },
   "claude-3-haiku-20240307": {
     input: 0.25,

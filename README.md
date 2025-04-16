@@ -6,7 +6,7 @@
 
 ### 🆕 New in v.18
 
-- Gpt-4.1 models support
+- OpenAI Gpt-4.1, o3 & o4-mini models support
 - Generate any Mermaid diagrams (and argument map using Mermaid)
 - Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
