@@ -140,9 +140,9 @@ const ModelsMenu = ({
                 labelElement="128k"
               />
             </MenuItem>
-            <MenuItem text="o1/o3 'reasoning' models">
+            <MenuItem text="o3/o4 'reasoning' models">
               <MenuItem
-                icon={defaultModel === "o3-mini" && "pin"}
+                icon={defaultModel === "o4-mini" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -151,11 +151,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="o3-mini"
+                text="o4-mini"
                 labelElement="200k"
               />
               <MenuItem
-                icon={defaultModel === "o1-mini" && "pin"}
+                icon={defaultModel === "o3" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -164,20 +164,7 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="o1-mini"
-                labelElement="128k"
-              />
-              <MenuItem
-                icon={defaultModel === "o1" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="o1"
+                text="o3"
                 labelElement="200k"
               />
               <MenuDivider
@@ -186,13 +173,9 @@ const ModelsMenu = ({
                   <p>
                     ⚠️ Use with caution,
                     <br />
-                    quite expensive models!
+                    o3 is an expensive model
                     <br />
-                    & not available for all users
-                    <br />
-                    (o3-mini is limited to tier 3-5 currently)
-                    <br />
-                    (but accessible through OpenRouter)
+                    (o4-mini is almost 15x cheaper)
                     <br />
                     See{" "}
                     <a href="https://openai.com/api/pricing/" target="_blank">

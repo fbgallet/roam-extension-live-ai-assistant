@@ -8,7 +8,7 @@
 
 **Updates**
 
-- OpenAI gpt-4.1 models support
+- OpenAI gpt-4.1, o3 & o4-mini models support
 - OpenAI gpt-4o[-mini]-transcribe models support for voice transcription
 - :q Datomic query Agent now support the new native rules and variables
 - list of sources at the end of Web search response
