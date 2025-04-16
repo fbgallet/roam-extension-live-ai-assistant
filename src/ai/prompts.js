@@ -1,4 +1,36 @@
-export const roamBasicsFormat = `\nSince your response will be inserted into Roam Research app, you can format it using Roam-compatible markdown syntax (**bold**, __italics__, ^^highlighted^^, ~~strikethrough~~, 'inline code', [alias](url) ). If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert between two double dollar $$formula$$. If you write some date (which could designate a date within a range of +/- 3 years from today,otherwise it does not concern historical dates and all those that are not intended to point to a day in my personal calendar for my activities), respect this format between two double brackets: [[Month numeric-dayst|nd|rd|th, YYYY]], e.g.: [[March 13th, 2025]], with the month always in english and capitalized.`;
+export const roamBasicsFormat = `\nSince your response will be inserted into Roam Research app, you can format it using Roam-compatible markdown syntax (**bold**, __italics__, ^^highlighted^^, ~~strikethrough~~, 'inline code', [alias](url) ). If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert between two double dollar $$formula$$. If you write some date, respect this format between two double brackets: [[Month numeric-dayst|nd|rd|th, YYYY]], e.g.: [[March 13th, 2025]], with the month always in english and capitalized (this syntax is only to apply if the date is within a range of +/- 3 years from today, it does not concern historical dates and all those that are not intended to point to a day in my personal calendar for my activities).`;
+
+export const roamTableFormat = `\nIf the user ask to generate some table or if you handle the content of a Roam table, you have to strictly respect the following rules to generate or update the table:
+a) the content of a Roam table is always a set of bullet points indented under a line containing '{{[[table]]}}'
+b) rows (R) and columns (C) content are recorded this way in Roam outline (e.g. for a table with 3 columns and 3 rows, including titles):
+- {{[[table]]}}
+  - **C1 Title**
+    - **C2 Title**
+      - **C3 Title**
+  - C1R2
+    - C2R2
+      - C3R2
+  - C1R3
+    - C2R3
+      - C3R3
+c) if some cell is empty, the correspoding bullet point must still be present, but without content
+d) if you need to do calculations on a table, you must take this structure into account (for example, to add the elements in the same column).`;
+
+export const roamKanbanFormat = `\nIf the user ask to generate some Kanban or if you handle the content of a Roam kanban, you have to strictly respect the following rules to generate or update the kanban:
+a) the content of a Roam kanban is always a set of bullet points indented under a line containing '{{[[kanban]]}}'
+b) columns (C) and content in the kanban are recorded this way in Roam outline (e.g. for a kanban with 3 columns):
+- {{[[kanban]]}}
+  - C1 Title
+    - cell1 in C1
+      - some child content not directly visible in the kanban
+    - cell2 in C1
+  - C2 Title
+    - cell1 in C2
+    - cell2 in C2
+    - cell3 in C2
+  - C3 Title
+    - cell1 in C3
+d) Cells representing tasks to do or done begin with '{{[[TODO]]}}' or '{{[[DONE]]}}' string`;
 
 export const defaultAssistantCharacter = `You are a very smart assistant who meticulously follows the instructions provided. You always respond in the same language as the user's input content or instructions unless specified otherwise in the prompt itself.`;
 

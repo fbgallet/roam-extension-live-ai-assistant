@@ -187,6 +187,7 @@ ${
       },
     ],
     humanPrompt: prompt,
+    stringifiedOutline: outline?.stringified,
     uidsInOutline: outline?.allBlocks,
     historyCommand,
     treeTarget: treeSnapshot,

@@ -19,6 +19,8 @@ If the user requests:
 - to reference or mention some page name: [[page name]]
 - to reference to an existing block: ((UID)), or embeding it with its children: {{embed: ((UID))}}
 - to replace some content by an alias: [alias](content or reference)
+<TABLE_INSTRUCTIONS>
+<KANBAN_INSTRUCTIONS>
 
 IMPORTANT: user requests are by default (unless clearly stated otherwise) meant to apply directly to the content of the outline, to be inserted or added to it. When the user asks to "create", "add", "provide", "insert", "write", "explain", "develop", etc., this should typically be done within the outline.
 

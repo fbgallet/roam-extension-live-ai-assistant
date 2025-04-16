@@ -4,6 +4,7 @@
 
 - Generate any Mermaid diagrams (and argument map using Mermaid)
 - Text to Speech (using OpenAI gpt-4o-mini-tts)
+- LLMs can generate Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
 
 **Updates**
 

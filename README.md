@@ -8,6 +8,7 @@
 
 - Gpt-4.1 models support
 - Generate any Mermaid diagrams (and argument map using Mermaid)
+- Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
 - :q Datomic query Agent now support the new native rules and variables (usefull for time ranges)
 

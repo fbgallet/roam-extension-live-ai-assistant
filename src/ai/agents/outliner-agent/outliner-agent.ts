@@ -39,12 +39,14 @@ import { planerSchema } from "./outliner-schema";
 import { AppToaster } from "../../../components/Toaster";
 import { turnTokensUsage } from "./invoke-outliner-agent";
 import { replaceStringNullWithActualNull } from "../tools";
+import { roamKanbanFormat, roamTableFormat } from "../../prompts";
 
 const outlinerAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
   model: Annotation<LlmInfos>,
   rootUid: Annotation<String>,
   humanPrompt: Annotation<String>,
+  stringifiedOutline: Annotation<String>,
   // context: Annotation<String>,
   llmResponse: Annotation<any>,
   remainingOperations: Annotation<string>,
@@ -55,11 +57,6 @@ const outlinerAgentState = Annotation.Root({
   uidsInOutline: Annotation<Array<string>>,
   historyCommand: Annotation<string>,
   retry: Annotation<boolean>,
-});
-
-// System message
-const sys_msg = new SystemMessage({
-  content: outlinerAgentSystemPrompt,
 });
 
 let llm: StructuredOutputType;
@@ -85,6 +82,31 @@ const operationsPlanner = async (state: typeof outlinerAgentState.State) => {
       planerSchema,
       getLlmSuitableOptions(state.model, "planer_schema")
     );
+    let systemPrompt = outlinerAgentSystemPrompt;
+
+    if (
+      state.humanPrompt.toLowerCase().includes("table") ||
+      state.stringifiedOutline.includes("{{[[table]]}}")
+    ) {
+      systemPrompt = systemPrompt.replace(
+        "<TABLE_INSTRUCTIONS>",
+        roamTableFormat
+      );
+    } else systemPrompt = systemPrompt.replace("<TABLE_INSTRUCTIONS>", "");
+    if (
+      state.humanPrompt.toLowerCase().includes("kanban") ||
+      state.stringifiedOutline.includes("{{[[kanban]]}}")
+    ) {
+      systemPrompt = systemPrompt.replace(
+        "<KANBAN_INSTRUCTIONS>",
+        roamKanbanFormat
+      );
+    } else systemPrompt = systemPrompt.replace("<KANBAN_INSTRUCTIONS>", "");
+    // System message
+    let sys_msg = new SystemMessage({
+      content: systemPrompt,
+    });
+
     let messages = [sys_msg].concat(state["messages"]);
     if (notCompletedOperations) {
       const outlineCurrentState = await getTemplateForPostProcessing(

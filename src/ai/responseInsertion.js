@@ -28,6 +28,8 @@ import {
   introduceStylePrompt,
   retryPrompt,
   roamBasicsFormat,
+  roamKanbanFormat,
+  roamTableFormat,
   stylePrompts,
 } from "./prompts";
 import {
@@ -91,6 +93,21 @@ export async function aiCompletion({
       timeout: 15000,
     });
     return "";
+  }
+
+  const lastTurn = Array.isArray(prompt) ? prompt.at(-1).content : prompt;
+
+  if (
+    lastTurn.toLowerCase().includes("table") ||
+    content.includes("{{[[table]]}}")
+  ) {
+    systemPrompt += "\n" + roamTableFormat;
+  }
+  if (
+    lastTurn.toLowerCase().includes("kanban") ||
+    content.includes("{{[[kanban]]}}")
+  ) {
+    systemPrompt += "\n" + roamKanbanFormat;
   }
 
   let completionOptions = {
