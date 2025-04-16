@@ -4,6 +4,13 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
+### 🆕 New in v.18
+
+- Gpt-4.1 models support
+- Generate any Mermaid diagrams (and argument map using Mermaid)
+- Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
+- :q Datomic query Agent now support the new native rules and variables (usefull for time ranges)
+
 ### 🆕 New in v.17
 
 - Web search OpenAI models support
@@ -12,16 +19,6 @@
 - switch model with keyboard only
 - switch model during conversation, or even have multiple AI discuss with each other
 - text selection with whole block as context (e.g. to define a word in context)
-- a lot of fixes
-
-### 🆕 New in v.15-16 (MAJOR UPDATE)
-
-- New context menu withbuilt-in prompts and easy custom prompts handling
-- AI Agents to convert natural language requests in Roam queries or :q queries
-- Live Outliner Agent (an AI canvas tailored for Roam)
-- Claude Sonnet 3.7 and Grok support
-- The thinking process of Sonnet 3.7 Extended thinking and DeepSeek-R1 appears in a popup
-- Added mentioned [[pages]] as option to define the context
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
