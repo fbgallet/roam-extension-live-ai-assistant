@@ -389,7 +389,11 @@ const StandaloneContextMenu = () => {
   };
 
   const handleGlobalContextMenu = useCallback(async (e) => {
-    if (menuModifierKey && e[menuModifierKey]) {
+    let modifierKey = menuModifierKey;
+    if (modifierKey === "Control") modifierKey = "ctrl";
+    modifierKey =
+      modifierKey !== "disabled" ? modifierKey.toLowerCase() + "Key" : null;
+    if (modifierKey && e[modifierKey]) {
       e.preventDefault();
       e.stopPropagation();
       const x = Math.min(e.clientX - 140, window.innerWidth - 360);

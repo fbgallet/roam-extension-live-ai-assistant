@@ -300,10 +300,7 @@ function getPanelConfig() {
           type: "select",
           items: ["Control", "Meta", "Shift", "Alt", "disabled"],
           onChange: (evt) => {
-            let key = evt;
-            if (key === "Control") key = "ctrl";
-            menuModifierKey =
-              key !== "disabled" ? key.toLowerCase() + "Key" : null;
+            menuModifierKey = evt;
           },
         },
       },
@@ -1038,7 +1035,7 @@ export default {
     position =
       extensionAPI.settings.get("position") === "topbar" ? "top" : "left";
     if (extensionAPI.settings.get("menuModKey") === null)
-      await extensionAPI.settings.set("menuModKey", "ctrlKey");
+      await extensionAPI.settings.set("menuModKey", "Control");
     menuModifierKey = extensionAPI.settings.get("menuModKey");
     if (extensionAPI.settings.get("temperature") === null)
       await extensionAPI.settings.set("temperature", "models default");
