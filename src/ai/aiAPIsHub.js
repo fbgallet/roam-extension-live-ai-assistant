@@ -244,7 +244,7 @@ export function modelAccordingToProvider(model) {
     llm.provider = "openRouter";
     llm.prefix = "openRouter/";
     llm.id =
-      prefix === "openrouter/"
+      prefix === "openrouter"
         ? model.replace("openrouter/", "")
         : openRouterModels.length
         ? openRouterModels[0]
@@ -257,7 +257,7 @@ export function modelAccordingToProvider(model) {
     llm.provider = "ollama";
     llm.prefix = "ollama/";
     llm.id =
-      prefix === "ollama/"
+      prefix === "ollama"
         ? model.replace("ollama/", "")
         : ollamaModels.length
         ? ollamaModels[0]
@@ -267,7 +267,7 @@ export function modelAccordingToProvider(model) {
     llm.provider = "groq";
     llm.prefix = "groq/";
     llm.id =
-      llm.prefix === "groq/"
+      prefix === "groq"
         ? model.replace("groq/", "")
         : groqModels.length
         ? groqModels[0]
