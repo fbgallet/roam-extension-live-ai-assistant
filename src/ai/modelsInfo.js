@@ -109,6 +109,11 @@ export const modelsPricing = {
     input: 10,
     output: 40,
   },
+  "gpt-image-1": {
+    input: 5,
+    input_image: 10,
+    output: 40,
+  },
   "claude-3-haiku-20240307": {
     input: 0.25,
     output: 1.25,
@@ -284,6 +289,19 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
     );
     input_tokens += additionalTokens || 0;
   }
+
+  // specific count for gpt-image-1
+  if (model === "gpt-image-1") {
+    console.log("input_tokens :>> ", input_tokens);
+    const detailled_input_tokens = input_tokens;
+    input_tokens = 0;
+    input_tokens =
+      detailled_input_tokens["text_tokens"] +
+      detailled_input_tokens["image_tokens"] *
+        (modelsPricing["gpt-image-1"]["input_image"] /
+          modelsPricing["gpt-image-1"]["input"]);
+  }
+  console.log("input_tokens :>> ", input_tokens);
 
   tokensCounter.total[model].input +=
     typeof input_tokens === "number" ? input_tokens : 0;

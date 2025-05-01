@@ -48,12 +48,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
       .map(([model, counts]) => {
         const inputCost = calculateCost(
           counts.input,
-          modelsPricing[model]?.input ||
+          modelsPricing[normalizeModelId(model, false)]?.input ||
             openRouterModelPricing(normalizeModelId(model, false), "input")
         );
         const outputCost = calculateCost(
           counts.output,
-          modelsPricing[model]?.output ||
+          modelsPricing[normalizeModelId(model, false)]?.output ||
             openRouterModelPricing(normalizeModelId(model, false), "output")
         );
         const totalCost =
@@ -177,8 +177,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
                       {formatCost(
                         calculateCost(
                           tokensCounter.lastRequest.input,
-                          modelsPricing[tokensCounter.lastRequest.model]
-                            ?.input ||
+                          modelsPricing[
+                            normalizeModelId(
+                              tokensCounter.lastRequest.model,
+                              false
+                            )
+                          ]?.input ||
                             openRouterModelPricing(
                               normalizeModelId(
                                 tokensCounter.lastRequest.model,
@@ -193,8 +197,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
                       {formatCost(
                         calculateCost(
                           tokensCounter.lastRequest.output,
-                          modelsPricing[tokensCounter.lastRequest.model]
-                            ?.output ||
+                          modelsPricing[
+                            normalizeModelId(
+                              tokensCounter.lastRequest.model,
+                              false
+                            )
+                          ]?.output ||
                             openRouterModelPricing(
                               normalizeModelId(
                                 tokensCounter.lastRequest.model,
@@ -209,8 +217,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
                       {formatCost(
                         calculateCost(
                           tokensCounter.lastRequest.input,
-                          modelsPricing[tokensCounter.lastRequest.model]
-                            ?.input ||
+                          modelsPricing[
+                            normalizeModelId(
+                              tokensCounter.lastRequest.model,
+                              false
+                            )
+                          ]?.input ||
                             openRouterModelPricing(
                               normalizeModelId(
                                 tokensCounter.lastRequest.model,
@@ -221,8 +233,12 @@ const TokensDialog = ({ isOpen, onClose }) => {
                         ) +
                           calculateCost(
                             tokensCounter.lastRequest.output,
-                            modelsPricing[tokensCounter.lastRequest.model]
-                              ?.output ||
+                            modelsPricing[
+                              normalizeModelId(
+                                tokensCounter.lastRequest.model,
+                                false
+                              )
+                            ]?.output ||
                               openRouterModelPricing(
                                 normalizeModelId(
                                   tokensCounter.lastRequest.model,
