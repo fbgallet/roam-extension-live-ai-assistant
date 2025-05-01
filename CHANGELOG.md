@@ -18,6 +18,7 @@
 **Fixed**
 
 - Smart search Agent was often returning only 1 result and other small issues
+- OpenRouter & Ollama first model was always used
 
 ## v.17 (March 14th, 2025) Web search, generation improvements & fixes
 
