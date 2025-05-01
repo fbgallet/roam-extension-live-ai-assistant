@@ -230,7 +230,7 @@ export async function textToSpeech(inputText, instructions) {
   }
 }
 
-export async function imageGeneration(prompt, targetUid) {
+export async function imageGeneration(prompt, quality = "auto") {
   if (!openaiLibrary) {
     AppToaster.show({
       message: `OpenAI API Key is needed for image generation`,
@@ -239,16 +239,52 @@ export async function imageGeneration(prompt, targetUid) {
     return;
   }
   try {
-    console.log("prompt :>> ", prompt);
-    const result = await openaiLibrary.images.generate({
+    let mode = "generate";
+    let options = {
       model: "gpt-image-1",
       prompt,
-      quality: "low",
+      quality,
       size: "auto",
       background: "auto",
       moderation: "low",
-    });
-    console.log("result :>> ", result);
+    };
+    let result;
+
+    // extract images from prompt
+    roamImageRegex.lastIndex = 0;
+    const matchingImagesInPrompt = Array.from(prompt.matchAll(roamImageRegex));
+    if (matchingImagesInPrompt.length) {
+      const imageURLs = [];
+      let maskIndex = null;
+      for (let i = 0; i < matchingImagesInPrompt.length; i++) {
+        imageURLs.push(matchingImagesInPrompt[i][2]);
+        if (matchingImagesInPrompt[i][1] === "mask") maskIndex = i;
+        prompt = prompt.replace(
+          matchingImagesInPrompt[i][0],
+          matchingImagesInPrompt[i][1]
+            ? i === maskIndex
+              ? `Image n°${i} is the mask`
+              : `Title of image n°${i + 1}: ${matchingImagesInPrompt[i][1]}`
+            : ""
+        );
+        //console.log(imageURLs);
+      }
+      mode = "edit";
+      const images = await Promise.all(
+        imageURLs.map(async (url) => await roamAlphaAPI.file.get({ url }))
+      );
+
+      if (maskIndex !== null) {
+        options.mask = images[maskIndex];
+        options.image = images[maskIndex === 0 ? 1 : 0];
+      } else {
+        options.image = images;
+      }
+    }
+    if (mode === "generate")
+      result = await openaiLibrary.images.generate(options);
+    else if (mode === "edit") result = await openaiLibrary.images.edit(options);
+    // console.log("result :>> ", result);
     if (result.usage) {
       const usage = {
         input_tokens: {},
@@ -799,7 +835,7 @@ const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
           messages[i].content.push({
             type: "image_url",
             image_url: {
-              url: matchingImagesInPrompt[j][1],
+              url: matchingImagesInPrompt[j][2],
               detail: resImages,
             },
           });
@@ -808,7 +844,7 @@ const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
             type: "image",
             source: {
               type: "url",
-              url: matchingImagesInPrompt[j][1],
+              url: matchingImagesInPrompt[j][2],
             },
           });
       }
@@ -833,7 +869,7 @@ const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
         messages[1].content.push({
           type: "image_url",
           image_url: {
-            url: matchingImagesInContext[i][1],
+            url: matchingImagesInContext[i][2],
             detail: resImages,
           },
         });

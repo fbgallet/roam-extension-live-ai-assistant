@@ -357,7 +357,9 @@ const StandaloneContextMenu = () => {
         sourceUid: focusedBlockUid.current,
         prompt,
         command:
-          command.name === "Image generation" ? command.name : command.prompt,
+          command.name.slice(0, 16) === "Image generation"
+            ? command.name
+            : command.prompt,
         instantModel: model,
         includeUids:
           command.includeUids || target === "replace" || target === "append",
