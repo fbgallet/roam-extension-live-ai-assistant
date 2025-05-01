@@ -41,6 +41,7 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | gpt-4o                       | $2.50                     | $10.00                     |
 | gpt-4o-mini-search-preview\* | $0.15                     | $0.60                      |
 | gpt-4o-search-preview\*      | $2.50                     | $10.00                     |
+| gpt-image-1\*\*              | text: $5, image: \*10     | $40.00                     |
 | o4-mini                      | $1.10                     | $4.40                      |
 | o3                           | $10.00                    | $40.00                     |
 | **Anthropic**                |                           |                            |
@@ -59,6 +60,12 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 
 - gpt-4o-mini (low / medium / high context size): 25$ / 27.5$ / 30$
 - gpt-4o default (low / medium / high context size): 30$ / 35$ / 50$
+
+(\*\*) pricing examples for 1 image generation in square format (1024\*1024) (portrait or landscape format are 50% more expensive) (not taking into account tokens for input images if you edit or combine them):
+
+- low quality: $0.011
+- medim: $0.042
+- high: $0.167
 
 For a complete and up-to-date comparison of pricing and performance, see https://artificialanalysis.ai/models#pricing
 

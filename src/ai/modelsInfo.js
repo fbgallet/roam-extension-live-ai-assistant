@@ -292,7 +292,7 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
 
   // specific count for gpt-image-1
   if (model === "gpt-image-1") {
-    console.log("input_tokens :>> ", input_tokens);
+    //console.log("input_tokens :>> ", input_tokens);
     const detailled_input_tokens = input_tokens;
     input_tokens = 0;
     input_tokens =
@@ -301,7 +301,7 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
         (modelsPricing["gpt-image-1"]["input_image"] /
           modelsPricing["gpt-image-1"]["input"]);
   }
-  console.log("input_tokens :>> ", input_tokens);
+  // console.log("input_tokens :>> ", input_tokens);
 
   tokensCounter.total[model].input +=
     typeof input_tokens === "number" ? input_tokens : 0;

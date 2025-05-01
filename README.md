@@ -6,7 +6,8 @@
 
 ### 🆕 New in v.18
 
-- OpenAI Gpt-4.1, o3 & o4-mini models support
+- Generate or edit images with OpenAI gpt-image-1 model (see doc here)
+- OpenAI gpt-4.1, o3 & o4-mini models support
 - Generate any Mermaid diagrams (and argument map using Mermaid)
 - Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
@@ -109,6 +110,14 @@ A style describes the way the generative AIs will write in all their responses, 
 You can read the detailed system prompts defining each built-in style [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/ff8fd131e1f893982f2206b1390d5e0e4bddd3a1/src/ai/prompts.js#L861).
 
 You can add your own custom style, using `#liveai/style` tag. See [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles) for detailed documentation.
+
+## Generate images
+
+You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key and your organization’s authentication (identity verification).
+
+You can choose from three quality levels: the low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see this link for details). In the prompt, you can specify if you want a square, portrait, or landscape format, or a transparent background.
+
+You can edit an image or combine several by adding images to your prompt (by selecting the corresponding blocks). You can also target editing a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ## Query Agents
 

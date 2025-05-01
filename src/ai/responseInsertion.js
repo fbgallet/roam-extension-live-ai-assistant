@@ -171,7 +171,7 @@ export const aiCompletionRunner = async ({
   e,
   sourceUid,
   prompt = "",
-  command = undefined,
+  command = "",
   systemPrompt = "",
   instantModel = undefined,
   includeUids = false,
@@ -382,10 +382,13 @@ export const insertCompletion = async ({
   // }
   const intervalId = await displaySpinner(targetUid);
 
+  console.log("command.slice(0, 16) :>> ", command.slice(0, 16));
+
   let aiResponse =
-    command === "Image generation"
+    command.slice(0, 16) === "Image generation"
       ? await imageGeneration(
-          prompt.at(-1).content + (context ? "\n" + context : "")
+          prompt.at(-1).content + (context ? "\n" + context : ""),
+          command.split("(")[1].split(")")[0]
         )
       : await aiCompletion({
           instantModel: model,

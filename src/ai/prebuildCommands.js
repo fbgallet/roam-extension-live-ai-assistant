@@ -305,7 +305,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 146,
-    name: "Image generation",
+    name: "Image generation (low)",
     prompt: "",
     category: "CREATION",
     keyWords: "draw, picture",
@@ -314,6 +314,33 @@ export const BUILTIN_COMMANDS = [
       style: true,
     },
     target: "new w/o",
+    submenu: [1461, 1462],
+  },
+  {
+    id: 1461,
+    name: "Image generation (medium)",
+    prompt: "",
+    category: "CREATION",
+    keyWords: "draw, picture",
+    includeUids: false,
+    isIncompatibleWith: {
+      style: true,
+    },
+    target: "new w/o",
+    isSub: true,
+  },
+  {
+    id: 1462,
+    name: "Image generation (high)",
+    prompt: "",
+    category: "CREATION",
+    keyWords: "draw, picture",
+    includeUids: false,
+    isIncompatibleWith: {
+      style: true,
+    },
+    target: "new w/o",
+    isSub: true,
   },
 
   // REPHRASING
