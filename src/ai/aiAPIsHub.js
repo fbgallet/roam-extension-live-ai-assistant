@@ -51,6 +51,7 @@ import {
   displayThinkingToast,
 } from "../components/Toaster";
 import { getResolvedContentFromBlocks } from "./dataExtraction";
+import { updateBlock } from "../utils/roamAPI";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -220,6 +221,52 @@ export async function textToSpeech(inputText, instructions) {
 
     audio.play();
     document.addEventListener("keydown", handleKeyPress);
+  } catch (error) {
+    console.error(error);
+    AppToaster.show({
+      message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
+  }
+}
+
+export async function imageGeneration(prompt, targetUid) {
+  if (!openaiLibrary) {
+    AppToaster.show({
+      message: `OpenAI API Key is needed for image generation`,
+      timeout: 10000,
+    });
+    return;
+  }
+  try {
+    console.log("prompt :>> ", prompt);
+    const result = await openaiLibrary.images.generate({
+      model: "gpt-image-1",
+      prompt,
+      quality: "low",
+      size: "auto",
+      background: "auto",
+      moderation: "low",
+    });
+    console.log("result :>> ", result);
+    if (result.usage) {
+      const usage = {
+        input_tokens: {},
+        output_tokens: 0,
+      };
+      usage["input_tokens"] = result.usage["input_tokens_details"];
+      usage["output_tokens"] = result.usage["output_tokens"];
+      updateTokenCounter("gpt-image-1", usage);
+    }
+    const image_base64 = result.data[0].b64_json;
+    const byteCharacters = atob(image_base64);
+    const byteNumbers = Array.from(byteCharacters).map((c) => c.charCodeAt(0));
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: "image/png" });
+    const firebaseUrl = await roamAlphaAPI.file.upload({
+      file: blob,
+    });
+    return firebaseUrl;
   } catch (error) {
     console.error(error);
     AppToaster.show({

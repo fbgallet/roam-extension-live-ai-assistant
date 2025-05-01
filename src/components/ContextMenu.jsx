@@ -58,7 +58,11 @@ import {
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import HelpDialog from "./HelpDialog";
-import { modelAccordingToProvider, textToSpeech } from "../ai/aiAPIsHub";
+import {
+  imageGeneration,
+  modelAccordingToProvider,
+  textToSpeech,
+} from "../ai/aiAPIsHub";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -352,7 +356,8 @@ const StandaloneContextMenu = () => {
         e,
         sourceUid: focusedBlockUid.current,
         prompt,
-        command: command.prompt,
+        command:
+          command.name === "Image generation" ? command.name : command.prompt,
         instantModel: model,
         includeUids:
           command.includeUids || target === "replace" || target === "append",

@@ -303,6 +303,18 @@ export const BUILTIN_COMMANDS = [
     },
     target: "new",
   },
+  {
+    id: 146,
+    name: "Image generation",
+    prompt: "",
+    category: "CREATION",
+    keyWords: "draw, picture",
+    includeUids: false,
+    isIncompatibleWith: {
+      style: true,
+    },
+    target: "new w/o",
+  },
 
   // REPHRASING
   {

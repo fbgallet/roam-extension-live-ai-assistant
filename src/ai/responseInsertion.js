@@ -45,6 +45,7 @@ import {
 } from "../utils/format";
 import {
   claudeCompletion,
+  imageGeneration,
   modelAccordingToProvider,
   ollamaCompletion,
   openaiCompletion,
@@ -381,22 +382,27 @@ export const insertCompletion = async ({
   // }
   const intervalId = await displaySpinner(targetUid);
 
-  let aiResponse = await aiCompletion({
-    instantModel: model,
-    prompt,
-    systemPrompt,
-    content,
-    responseFormat,
-    targetUid,
-    command,
-    style,
-    isInConversation,
-    withSuggestions,
-    selectedUids,
-    roamContext,
-    target,
-    isButtonToInsert,
-  });
+  let aiResponse =
+    command === "Image generation"
+      ? await imageGeneration(
+          prompt.at(-1).content + (context ? "\n" + context : "")
+        )
+      : await aiCompletion({
+          instantModel: model,
+          prompt,
+          systemPrompt,
+          content,
+          responseFormat,
+          targetUid,
+          command,
+          style,
+          isInConversation,
+          withSuggestions,
+          selectedUids,
+          roamContext,
+          target,
+          isButtonToInsert,
+        });
   console.log("aiResponse :>> ", aiResponse);
 
   if (isInConversation)
