@@ -6,7 +6,7 @@
 
 ### 🆕 New in v.18
 
-- Generate or edit images with OpenAI gpt-image-1 model (see doc here)
+- Generate or edit images with OpenAI gpt-image-1 model (see [instructions here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#images-generation))
 - OpenAI gpt-4.1, o3 & o4-mini models support
 - Generate any Mermaid diagrams (and argument map using Mermaid)
 - Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
@@ -111,7 +111,7 @@ You can read the detailed system prompts defining each built-in style [here](htt
 
 You can add your own custom style, using `#liveai/style` tag. See [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles) for detailed documentation.
 
-## Generate images
+## Images generation
 
 You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key and your organization’s authentication (identity verification).
 
