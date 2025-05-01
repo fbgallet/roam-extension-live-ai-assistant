@@ -109,7 +109,7 @@ c) for USERS
 VERY IMPORTANT: When the user ask for 'blocks', 'pages' or 'page titles', you need always (unless otherwise specified) to provide the corresponding ':block/uid' value in the resulting table (i.e. some ?block-uid or ?page-uid, since :block/uid is both about blocks and pages). If the user asks to filter the result according to certain conditions, the attributes corresponding to these conditions (e.g., time) should also appear in the result table.
 
 Additionaly to the database attributes, here is a set of database variables that can be used in Datomic queries in Roam (they will be replaced by the corresponding value):
-- Information about the current location where the query is created (variable name speaks for itself): current/block-id, current/page-id, current/page-title, current/block-uid,current/page-uid
+- Information about the current location where the query is created (variable name speaks for itself): current/block-id, current/page-id, current/page-title, current/block-uid, current/page-uid
 - A set of timestamps expressed in milliseconds (variable name speaks for itself), usefull to filter by ':create/time' or ':edit/time' attributes when using date interval rules (see below): ms/today-start, ms/today-end, ms/this-week-start, ms/this-week-end, ms/last-week-start, ms/last-week-end, ms/next-week-start, ms/next-week-end, ms/this-month-start, ms/this-month-end, ms/this-year-start, ms/this-year-end, ms/+1D-end (D means day), ms/-5D-start, ms/+1D-start, ms/+1D-end, ms/+1W-end (W means week), ms/+1M-start (M means month), ms/+0Y-start (Y means year), ms/+0Y-end, ms/=2025-01-01-start (it's an example of date, works for any other date), ms/=2025-12-31-end
 - Variable resolving in the Daily note page (dnp) title (corresponding :node/title attribute) for the correspoding relative date: dnp/today, dnp/yesterday, dnp/tomorrow, dnp/-1D, dnp/+1D, dnp/this-week-start, dnp/this-week-end, dnp/this-month-start, dnp/this-year-end, dnp/=2025-01-01 (resolves to "January 1st, 2025")
 
@@ -137,14 +137,14 @@ If the user ask for blocks mentioning '[[page name]]', or '#tag' or 'attribute::
 Concerning data attributes, the user can ask for a given data attribute and a given value for this attribute (present in the same block). For example, if the user ask for all pages where 'status' attribute is set to '[[pending]]', to have to search for all pages containing a block including both 'status' and 'pending' page uid in its :block/refs AND including 'status::' strings in its :block/string. Searching for 'page with attribute A' means each page including in one of its block children a block string beginning with 'A::' and refering to 'A' page. Searching for 'attribute A with the value V' means each block with reference to 'A' page uid, beginning with 'A::' string and including 'V' but not necessarily 'A:: V' because it could include also other values.
 
 When structuring the query, respect the Datomic Datalog syntax and grammar, and check meticulously if it respects all these rules:
-- all logical conditions in the user request are correctly transcribed in a set nested and successive vectors and there are no unnecessary condition (pay attention to subtleties in the natural language request, such as comma or parentheses positioning).
+- all logical conditions in the user request are correctly transcribed in a set of nested and successive vectors and there are no unnecessary condition (pay attention to subtleties in the natural language request, such as comma or parentheses positioning).
 - be aware of this IMPORTANT RULE when using 'or' and 'or-join' functions: "All clauses in 'or' must use same set of free vars", what means that the left element of each vector has to be the same.
 - IMPORTANT: the conditions are arranged in an order that optimizes the database query loading time (by reducing the number of elements to manage as quickly as possible)
 - VERY IMPORTANT: be sure that the provided query will not fall into an infinite loop or massively multiplies the data to process by chaining cartesian products between data tables that grow exponentially without ever being filtered
 - only one 'count' function can be used per query
 
-IMPORTANT: You response will only be the Roam Research :q component and the query, in the following syntax, and NOTHING else (no introductory phrase neither commentary on the query, and NOT inserted in any code block):
-:q "Vert brief description"(optional)
+IMPORTANT: Your response will only be the Roam Research :q component and the query, in the following syntax, and NOTHING else (no introductory phrase neither commentary on the query, and NOT inserted in any code block):
+:q "Vert brief description"
 [:find ... 
  :where ...]'
 
