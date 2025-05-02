@@ -34,7 +34,7 @@ Left sidebar or topbar controls:
 
 Choose the LLM provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
-OpenAI and Anthropic currently provide the most suitable and widely tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus).
+OpenAI and Anthropic currently provide the most tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech, Web search and Image generation.
 
 Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
@@ -96,6 +96,14 @@ To define the context, you can either check the corresponding box in the context
 
 See more details on context definition and inline context [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
 
+### Web search (or web as context)
+
+The knowledge base used for the LLM responses can be the web itself if you use `gpt-4o-search` or `gpt-4o-mini-search` models. It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
+
+The models don't just summarize different relevant content found on the internet. You can use a rich prompt that requests all types of advanced and structured content processing that the LLM will gather.
+
+Web search context option (in extension settings): you can choose the context size extracted from relevant websites. Low: fastest, cheaper. High: slower, higher cost. See pricing [here](https://platform.openai.com/docs/pricing#web-search)
+
 ### Styles
 
 A style describes the way the generative AIs will write in all their responses, regardless of the specific prompt used (but some built-in prompts, like translation or correction, are incompatible with a style, it won't apply). A set of built-in styles are offered:
@@ -115,9 +123,10 @@ You can add your own custom style, using `#liveai/style` tag. See [here](https:/
 
 You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key and your organization’s authentication (identity verification).
 
-You can choose from three quality levels: the low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see this link for details). In the prompt, you can specify if you want a square, portrait, or landscape format, or a transparent background.
-
-You can edit an image or combine several by adding images to your prompt (by selecting the corresponding blocks). You can also target editing a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+- **Image quality** (low, medium or high): the low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc] for details).
+- **Image format**: if you want a square (1024x1024), portrait (1024*1536), or landscape format (1536x1024), or a transparent background, you have to specify it in your prompt (or the model will choose by itself)
+- **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
+- **Image edition with mask**: you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ## Query Agents
 
