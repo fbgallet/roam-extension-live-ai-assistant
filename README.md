@@ -13,15 +13,6 @@
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
 - :q Datomic query Agent now support the new native rules and variables (usefull for time ranges)
 
-### 🆕 New in v.17
-
-- Web search OpenAI models support
-- force the LLM to 'think' and improve its previous response (with click + `Alt` on retry button)
-- suggestions to continue a conversation (with `Alt` key)
-- switch model with keyboard only
-- switch model during conversation, or even have multiple AI discuss with each other
-- text selection with whole block as context (e.g. to define a word in context)
-
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
