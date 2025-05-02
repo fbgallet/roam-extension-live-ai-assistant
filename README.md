@@ -23,6 +23,8 @@ Left sidebar or topbar controls:
 
 ## **GETTING STARTED**
 
+### Get an API key
+
 Choose the LLM provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
 OpenAI and Anthropic currently provide the most tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech, Web search and Image generation.
