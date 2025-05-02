@@ -23,6 +23,16 @@ Left sidebar or topbar controls:
 
 ## **GETTING STARTED**
 
+- [Get an API key](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#get-an-api-key)
+- [Simple prompt](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#chat-with-your-ai-assistant)
+- [Chat with your AI Assistant](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#chat-with-your-ai-assistant)
+- [Apply built-in prompts to existing content](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content)
+- [Create & apply custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#create--apply-custom-prompts)
+- [Providing rich context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context)
+- [Web search (or web as context)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#web-search-or-web-as-context)
+- [Styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles)
+- [Images generation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#images-generation)
+
 ### Get an API key
 
 Choose the LLM provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
@@ -112,7 +122,7 @@ You can read the detailed system prompts defining each built-in style [here](htt
 
 You can add your own custom style, using `#liveai/style` tag. See [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles) for detailed documentation.
 
-## Images generation
+### Images generation
 
 You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key and your organization’s authentication (identity verification).
 
@@ -121,7 +131,9 @@ You can generate images directly embedded in Roam using a prompt (written in a b
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
 - **Image edition with mask**: you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
-## Query Agents
+## Agents
+
+### Query Agents
 
 Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask to your graph..." agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
 
@@ -130,10 +142,11 @@ Currently, 4 complementary AI Agents can help users to find precise information 
 - **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#smart-search-agent).
 - **Ask to your graph...**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
-## Live Outliner Agent
+### Live Outliner Agent
 
 This is another way of using AI, an alternative to the "Chat" format. It involves an Agent that autonomously chooses to modify an outline, that is, a set of blocks located under a given parent block, based on user requests. Instead of generating a series of content one after another as in a chat, the Live Outliner Agent modifies, adds, or removes specific blocks in the outline, while maintaining the same structure. In other words, the generation is inserted into a pre-existing structure (similar to a template) and acts only surgically, modifying only the necessary elements, which reduces the number of output tokens.
 It's a powerful and innovative feature, still experimental 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md).
+
 
 ## Security concerns
 
@@ -153,6 +166,7 @@ With Live AI Assistant, you generally have control over what you decide to send 
   - `NL query`, `NL: q Datomic query`, and `Smart Search` only send the natural language query, no graph content is sent to the LLM API !
   - `Ask to your graph`, on the other hand, sends the results of Smart Search (blocks that match the conditions + their direct parent + their first child for pre-selection, and all children up to 3 levels for pre-selected blocks, up to 20). Here, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query.
   - `Live Outliner Agent` only sends the content of the active Live Outline.
+
 
 ## Detailed documentation
 
