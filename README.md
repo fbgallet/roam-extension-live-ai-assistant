@@ -17,9 +17,11 @@
 
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
 
-Left sidebar or topbar controls:
+Left sidebar or topbar (in option) **Live AI controls**:
+<img width="500" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
 
-![image](https://github.com/user-attachments/assets/29af805f-6122-4443-b4fc-023e4615763f)
+**Live AI rich context menu** with search box to find commands or models quicky, define context, change style... (toggle it with `Cmd/Win + Ctrl + a` by default or Cmd/Win + rigth click anywhere)
+<img width="500" alt="Live AI context menu" src="https://github.com/user-attachments/assets/641fc33f-7d1f-4665-9162-390726335cc7" />
 
 ## **GETTING STARTED**
 
