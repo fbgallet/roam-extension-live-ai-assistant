@@ -30,8 +30,8 @@ Left sidebar or topbar controls:
 - [Create & apply custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#create--apply-custom-prompts)
 - [Providing rich context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context)
 - [Web search (or web as context)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#web-search-or-web-as-context)
-- [Styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles)
 - [Images generation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#images-generation)
+- [Styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles)
 
 ### Get an API key
 
