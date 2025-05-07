@@ -23,7 +23,8 @@
 
 ### **Live AI rich context menu** with search box to find commands or models quicky, define context, change style... (toggle it with `Cmd/Win + Ctrl + a` by default or Cmd/Win + rigth click anywhere)
 
-<img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/641fc33f-7d1f-4665-9162-390726335cc7" />
+<img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
+
 
 ## **GETTING STARTED**
 
