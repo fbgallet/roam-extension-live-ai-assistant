@@ -15,15 +15,14 @@
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
+1. GETTING STARTED
+2. Model-Specific Features (Speech, Image, Web search)
+3. Go further to get better answers
+4. Agents (Query agents and Live Outliner)
+5. Security concerns
+6. Detailed documentation for advanced uses
+
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
-
-### Left sidebar or topbar (in option) **Live AI basic controls**:
-
-<img width="600" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
-
-### **Live AI rich context menu** with search box to find commands or models quicky, define context, change style... (toggle it with `Cmd/Win + Ctrl + a` by default or Cmd/Win + rigth click anywhere)
-
-<img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
 
 ## 1. **GETTING STARTED**
 
@@ -42,13 +41,17 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 ### Your first prompts using buttons & Live AI context menu
 
-Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the AI Generation button (lightning bolt icon). That's all !
+Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the AI Generation button (lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+
+<img width="600" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
 
 This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
 
 To open the **context menu**, the most efficient way is to use the `Live AI Assistant: Open commands context menu` command from the Command Palette; default hotkeys are `Cmd + Ctrl + a`, which you can modify as you wish. Two other very simple options: right-click on the AI completion icon, or Cmd/Ctrl + right-click anywhere on the page where right-clicking does not have a specific function in Roam (you can customize the key to press while right clicking in the settings).
 
 Once the context menu is open, the first selected command is `Selected blocks as prompt`. Select this command to send your prompt to the default model.
+
+<img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
 
 ⚡️ **In practice, the process to send some prompt to your AI assistant is almost instant:**:
 
