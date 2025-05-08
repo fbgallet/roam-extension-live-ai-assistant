@@ -15,21 +15,24 @@
 
 (See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
-1. GETTING STARTED
-2. Model-Specific Features (Speech, Image, Web search)
-3. Go further to get better answers
-4. Agents (Query agents and Live Outliner)
-5. Security concerns
-6. Detailed documentation for advanced uses
-
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
+
+1. [GETTING STARTED](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#1-getting-started)
+2. [Model-Specific Features (Speech, Image, Web search)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-speech-image-web-search)
+3. [Go further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-go-further-to-get-better-answers)
+4. [Agents (Query agents and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
+5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
+6. [Detailed documentation for advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
 
 ## 1. **GETTING STARTED**
 
 - [Get an API key](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#get-an-api-key)
 - [Simple prompt](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#chat-with-your-ai-assistant)
+- [The basics of AI requests](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#the-basics-of-ai-requests)
 - [Chat with your AI Assistant](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#chat-with-your-ai-assistant)
 - [Apply built-in prompts to existing content](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content)
+- [Providing rich context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context)
+- [About the cost](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#about-the-cost)
 
 ### Get an API key
 
@@ -41,7 +44,7 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 ### Your first prompts using buttons & Live AI context menu
 
-Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the AI Generation button (lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask to AI" button (lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
 
 <img width="600" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
 
@@ -53,7 +56,8 @@ Once the context menu is open, the first selected command is `Selected blocks as
 
 <img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
 
-⚡️ **In practice, the process to send some prompt to your AI assistant is almost instant:**:
+> [!TIP]
+> ⚡️ In practice, the process to send some prompt to your AI assistant is almost instant:\*\*:
 
 - write your prompt and let the focus in the corresponding block
 - trigger hotkeys (`Cmd + Ctrl+ a` by default) to open the Live AI context menu
@@ -89,6 +93,7 @@ Often, you will ask your assistant to process information already available in y
 - open the Live AI context menu and choose a command to apply the corresponding built-in prompt
 - eventually use a specific model (not the default one) by right-clicking on the command: a list of available models will appear in a submenu
 
+> [!TIP]
 > ⚡️ **In practice, all you need is a hotkey and a few letters to quickly find a command. For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' and press Enter! It's almost instant !**
 
 You can also add specific instructions to built-in prompts simply by clicking the '+' button on the left of the prompt search box.
