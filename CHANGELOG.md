@@ -1,4 +1,4 @@
-## v.18 (April 16th, 2025) Mermaid, advanced :q queries & fixes
+## v.18 (May 8th, 2025) Image generation, Mermaid, advanced :q queries & fixes
 
 **New features**
 
@@ -14,6 +14,8 @@
 - :q Datomic query Agent now support the new native rules and variables
 - list of sources at the end of Web search response
 - Modifier key to open context menu is customizable (default is Meta/Win) and can be disabled
+- New command to use focused block & all its children as prompt (without selection)
+- Main command adapts to block selection (focused, selected, text selection)
 
 **Fixed**
 

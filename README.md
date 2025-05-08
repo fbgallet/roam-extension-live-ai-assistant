@@ -54,7 +54,7 @@ This simple process can be still more efficient with keyboard only, using `Live 
 
 To open the **context menu**, the most efficient way is to use the `Live AI Assistant: Open commands context menu` command from the Command Palette; default hotkeys are `Cmd + Ctrl + a`, which you can modify as you wish. Two other very simple options: right-click on the AI completion icon, or Cmd/Ctrl + right-click anywhere on the page where right-clicking does not have a specific function in Roam (you can customize the key to press while right clicking in the settings).
 
-Once the context menu is open, the first selected command is `Selected blocks as prompt`. Select this command to send your prompt to the default model.
+Once the context menu is open, the first selected command is `Focused block as prompt`. Select this command to send your prompt to the default model.
 
 <img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
 
@@ -63,15 +63,15 @@ Once the context menu is open, the first selected command is `Selected blocks as
 >
 > - write your prompt and let the focus in the corresponding block
 > - trigger hotkeys (`Cmd + Ctrl+ a` by default) to open the Live AI context menu
-> - press `Enter`
+> - press `Enter` to run the first command: 'Focused block as prompt' or press down arrow to select the next command 'Focused block & all children as prompt' to include all the descendants of the focused block in the prompt
 
 ### The basics of AI requests
 
 The following 4 ingredients will be part of your requests (the last 2 are optional):
 
-- **PROMPT**: your instructions to the AI model, available either in the currently focused block or in a selection of blocks (using native Roam blocks selection), or the selected text in a block. It can includes images for models supporting image recognition. Note that block references will be resolved and remplaced by the corresponding block content. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
-- **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Selected blocks as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
-- **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam by using content from different parts of the interface as context, like the sidebar, linked references, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
+- **PROMPT**: your instructions to the AI model, available either in the currently focused block or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them). Note that block references will be resolved and remplaced by the corresponding block content. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
+- **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused/Selected blocks as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
+- **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
 - **STYLE**: the output format of the AI model response. You can provide details on how the answer should be written as well as how it will be inserted into Roam, for example, whether it should be broken down into more or less blocks (by default, Live AI supports most Roam-specific formatting like bold or highlighted text, headings, and Katex...). Live AI provide a few predefined styles and you can create your own custom styles. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles) for more details.
 
 ### Chat with your AI Assistant

@@ -179,9 +179,38 @@ const StandaloneContextMenu = () => {
       positionInRoamWindow.current = position;
       setIsInConversation(isPromptInConversation(currentUid, false));
       // if (!isPinnedStyle) setStyle(defaultStyle);
+      // console.log("selectedBlocks.current :>> ", selectedBlocks.current);
+      if (selectedTextInBlock.current) {
+        adaptMainCommandToSelection("text");
+      } else if (focusedBlockUid.current) {
+        adaptMainCommandToSelection("focus");
+      } else if (selectedBlocks.current.length) {
+        adaptMainCommandToSelection("blocks");
+      }
       updateMenu();
     }
   }, [isOpen]);
+
+  const adaptMainCommandToSelection = (selectionType) => {
+    let adaptedName;
+    switch (selectionType) {
+      case "focus":
+        adaptedName = "Focused blocks as prompt";
+        break;
+      case "text":
+        adaptedName = "Selected text as prompt";
+        break;
+      default:
+        adaptedName = "Selected blocks as prompt";
+    }
+    setCommands((prev) => {
+      let selectedBlockCommand1 = prev.find((cmd) => cmd.id === 1);
+      selectedBlockCommand1.name = adaptedName;
+      let selectedBlockCommand101 = prev.find((cmd) => cmd.id === 100);
+      selectedBlockCommand101.name = adaptedName;
+      return [...prev];
+    });
+  };
 
   const handleClose = () => {
     setIsOpen(false);
@@ -332,6 +361,8 @@ const StandaloneContextMenu = () => {
 
     if (
       command.name === "Selected blocks as prompt" ||
+      command.name === "Focused block as prompt" ||
+      command.name === "Focused block & all children as prompt" ||
       command.name === "Continue the conversation" ||
       // (command.id !== 20 &&
       //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
@@ -363,6 +394,7 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids:
           command.includeUids || target === "replace" || target === "append",
+        includeChildren: command.id === 101 || false,
         withSuggestions: command.withSuggestions,
         target,
         selectedUids: selectedBlocks.current,
@@ -512,10 +544,21 @@ const StandaloneContextMenu = () => {
         return false;
       if (item.id === 1 && rootUid) return false;
       if (item.id === 10 && rootUid) return false;
-      if (item.id === 1 && (isInConversation || isOutlinerAgent)) return false;
+      if (
+        (item.id === 1 || item.id === 101) &&
+        (isInConversation || isOutlinerAgent)
+      )
+        return false;
       if (item.id === 100 && (!isInConversation || isOutlinerAgent))
         return false;
       // TODO : display if the current outline is not visible...
+      if (
+        item.name === "Focused block & all children as prompt" &&
+        (selectedBlocks?.current?.length ||
+          !focusedBlockContent.current ||
+          selectedTextInBlock.current)
+      )
+        return false;
       if (
         item.id === 20 &&
         (rootUid || !focusedBlockUid.current) &&
