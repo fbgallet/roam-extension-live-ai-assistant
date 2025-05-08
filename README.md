@@ -62,11 +62,11 @@ Once the context menu is open, the first selected command is `Selected blocks as
 <img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
 
 > [!TIP]
-> ⚡️ In practice, the process to send some prompt to your AI assistant is almost instant:\*\*:
-
-- write your prompt and let the focus in the corresponding block
-- trigger hotkeys (`Cmd + Ctrl+ a` by default) to open the Live AI context menu
-- press `Enter`
+> ⚡️ \*\*In practice, the process to send some prompt to your AI assistant is almost instant:
+>
+> - write your prompt and let the focus in the corresponding block
+> - trigger hotkeys (`Cmd + Ctrl+ a` by default) to open the Live AI context menu
+> - press `Enter`
 
 ### The basics of AI requests
 
