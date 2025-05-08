@@ -27,6 +27,12 @@ export const BUILTIN_COMMANDS = [
     includeUids: true,
   },
   {
+    id: 101,
+    name: "Focused block & all children as prompt",
+    category: "",
+    includeUids: false,
+  },
+  {
     id: 10,
     name: "Continue the conversation",
     isIncompatibleWith: {

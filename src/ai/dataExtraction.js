@@ -62,6 +62,7 @@ export const getInputDataFromRoamContext = async (
   prompt,
   instantModel,
   includeUids = false,
+  includeChildren = false,
   withHierarchy,
   withAssistantRole,
   target,
@@ -78,8 +79,16 @@ export const getInputDataFromRoamContext = async (
     selectedUids = selectionUids;
   }
   let currentBlockContent;
-  if (sourceUid)
-    currentBlockContent = resolveReferences(getBlockContentByUid(sourceUid));
+  if (sourceUid) {
+    currentBlockContent = !includeChildren
+      ? resolveReferences(getBlockContentByUid(sourceUid))
+      : getFlattenedContentFromTree({
+          parentUid: sourceUid,
+          maxCapturing: 99,
+          maxUid: 0,
+          withDash: true,
+        });
+  }
 
   if (!sourceUid && !selectedUids?.length && !e) return { noData: true };
 
@@ -98,6 +107,7 @@ export const getInputDataFromRoamContext = async (
       currentBlockContent,
       instantModel,
       includeUids,
+      includeChildren,
       withHierarchy,
       withAssistantRole,
       isCommandPrompt,
@@ -159,6 +169,7 @@ const getFinalPromptAndTarget = async (
   sourceBlockContent,
   instantModel,
   includeUids,
+  includeChildren,
   withHierarchy,
   withAssistantRole,
   isCommandPrompt,
@@ -178,15 +189,17 @@ const getFinalPromptAndTarget = async (
   let targetUid;
 
   if (
-    !sourceUid &&
-    selectionUids.length
+    (!sourceUid && selectionUids.length) ||
+    includeChildren
     // &&
     // (document.querySelector(".block-highlight-blue") ||
     //   target === "replace" ||
     //   target === "append")
   ) {
     if (target !== "replace" && target !== "append") {
-      const lastTopLevelBlock = getLastTopLevelOfSeletion(selectionUids);
+      const lastTopLevelBlock = !includeChildren
+        ? getLastTopLevelOfSeletion(selectionUids)
+        : sourceUid;
       const topLevelInView =
         await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
       // can't create sibling if top parent block is top block in view

@@ -175,6 +175,7 @@ export const aiCompletionRunner = async ({
   systemPrompt = "",
   instantModel = undefined,
   includeUids = false,
+  includeChildren = false,
   target = "new",
   withSuggestions = false,
   selectedUids = [],
@@ -186,7 +187,7 @@ export const aiCompletionRunner = async ({
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
-  // console.log("prompt in aiCompletionRunner :>> ", prompt);
+  console.log("prompt in aiCompletionRunner :>> ", prompt);
 
   if (style !== "Normal") {
     let stylePromptText;
@@ -216,6 +217,7 @@ export const aiCompletionRunner = async ({
     prompt,
     instantModel,
     includeUids || target === "replace" || target === "append",
+    includeChildren,
     true, // withHierarchy
     withAssistantRole,
     target,
