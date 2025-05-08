@@ -8,6 +8,7 @@
 
 - Generate or edit images with OpenAI gpt-image-1 model (see [instructions here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#images-generation))
 - OpenAI gpt-4.1, o3 & o4-mini models support
+- Web search support for Anthropic models & Web search command in context menu
 - Generate any Mermaid diagrams (and argument map using Mermaid)
 - Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
@@ -40,7 +41,7 @@
 
 Choose the AI models provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
-OpenAI and Anthropic currently provide the most tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech, Web search and Image generation.
+OpenAI and Anthropic currently provide the most tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation. Web Search can be achieved with OpenAI or Anthropic models.
 
 Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
@@ -128,11 +129,17 @@ You can track the cost of each request and the total per model for the current a
 
 ### Web search (or web as context)
 
-The knowledge base used for the LLM responses can be the web itself if you use `gpt-4o-search` or `gpt-4o-mini-search` models. It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
+⚠️ Currently Web Search can only be achieved with OpenAI dedicated models or Anthropic models.
+
+The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
 
 The models don't just summarize different relevant content found on the internet. You can use a rich prompt that requests all types of advanced and structured content processing that the LLM will gather.
 
-Web search context option (in extension settings): you can choose the context size extracted from relevant websites. Low: fastest, cheaper. High: slower, higher cost. See pricing [here](https://platform.openai.com/docs/pricing#web-search)
+You can set the default model to use for Web search (OpenAI or Anthropic models) either in extension settings or by right-clicking on the choosen model in the submenu of `Web search` command.
+
+⚠️ To collect its data and prepare its response, the model will browse several sites: the input tokens used will be much higher than your prompt, leading to additional costs. Additionally, providers charge a fee per 1,000 queries: $10 for Anthropic, and between $25 and $50 for OpenAI, depending on the context size and model.
+
+Web search context option (in extension settings) for OpenAI models: you can choose the context size extracted from relevant websites. Low: fastest, cheaper. High: slower, higher cost. See pricing [here](https://platform.openai.com/docs/pricing#web-search)
 
 ### Images generation
 

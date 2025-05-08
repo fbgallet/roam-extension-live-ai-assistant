@@ -307,7 +307,7 @@ function getPanelConfig() {
 
       {
         id: "defaultModel",
-        name: "Default AI assistant model",
+        name: "Default AI model",
         description:
           "Choose the default model for AI completion with simple click or hotkeys:",
         action: {
@@ -788,6 +788,24 @@ function getPanelConfig() {
         },
       },
       {
+        id: "webModel",
+        name: "Web search model",
+        description: "Define the default model to run a 'Web search':",
+        action: {
+          type: "select",
+          items: [
+            "gpt-4o-mini-search-preview",
+            "gpt-4o-search-preview",
+            "claude-3-5-haiku-20241022",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-7-sonnet-20250219",
+          ],
+          onChange: async (evt) => {
+            await extensionStorage.set("webModel", evt);
+          },
+        },
+      },
+      {
         id: "webContext",
         name: "Web Search context",
         description: (
@@ -1167,6 +1185,8 @@ export default {
     if (extensionAPI.settings.get("resImages") === null)
       await extensionAPI.settings.set("resImages", "auto");
     resImages = extensionAPI.settings.get("resImages");
+    if (extensionAPI.settings.get("webModel") === null)
+      await extensionAPI.settings.set("webModel", "gpt-4o-mini-search-preview");
     if (extensionAPI.settings.get("webContext") === null)
       await extensionAPI.settings.set("webContext", "medium");
     websearchContext = extensionAPI.settings.get("webContext");

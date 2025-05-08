@@ -3,6 +3,7 @@ import {
   anthropicLibrary,
   deepseekLibrary,
   defaultModel,
+  extensionStorage,
   googleLibrary,
   grokLibrary,
   groqModels,
@@ -14,7 +15,7 @@ import {
   openaiLibrary,
   setDefaultModel,
 } from "..";
-import { tokensLimit } from "../ai/modelsInfo";
+import { normalizeClaudeModel, tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "./Toaster";
 
 const ModelsMenu = ({
@@ -24,6 +25,8 @@ const ModelsMenu = ({
   roleStructure = "menuitem",
   isConversationToContinue,
 }) => {
+  let isWebSearch;
+  if (command.name === "Web search") isWebSearch = true;
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
     await callback({ e, command, prompt, model, isConversationToContinue });
@@ -39,9 +42,15 @@ const ModelsMenu = ({
   const handleContextMenu = (e, prefix, modelId) => {
     e.preventDefault();
     let model = getModelFromMenu(e, prefix, modelId);
-    setDefaultModel(model);
+    if (!isWebSearch) {
+      setDefaultModel(model);
+    } else {
+      extensionStorage.set("webModel", normalizeClaudeModel(model));
+    }
     AppToaster.show({
-      message: `Default AI model set to: ${model}`,
+      message: `Default AI model ${
+        isWebSearch ? "for Web search" : ""
+      } set to: ${model}`,
       timeout: 5000,
     });
   };
@@ -68,53 +77,47 @@ const ModelsMenu = ({
     return model;
   };
 
+  const openAiWebSearchModels = () => {
+    return (
+      <>
+        <MenuItem
+          icon={defaultModel === "gpt-4o-mini-search" && "pin"}
+          onClick={(e) => {
+            handleClickOnModel(e);
+          }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e);
+          }}
+          onContextMenu={(e) => handleContextMenu(e)}
+          tabindex="0"
+          text="gpt-4o-mini-search"
+          labelElement="128k"
+        />
+        <MenuItem
+          icon={defaultModel === "gpt-4o-search" && "pin"}
+          onClick={(e) => {
+            handleClickOnModel(e);
+          }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e);
+          }}
+          onContextMenu={(e) => handleContextMenu(e)}
+          tabindex="0"
+          text="gpt-4o-search"
+          labelElement="128k"
+        />
+      </>
+    );
+  };
+
   return (
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
       {
         openRouterOnly ? null : openaiLibrary ? (
-          <>
-            <MenuItem
-              icon={defaultModel === "gpt-4.1-nano" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gpt-4.1-nano"
-              labelElement="1000k"
-            />
-            <MenuItem
-              icon={defaultModel === "gpt-4.1-mini" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gpt-4.1-mini"
-              labelElement="1000k"
-            />
-            <MenuItem
-              icon={defaultModel === "gpt-4.1" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gpt-4.1"
-              labelElement="1000k"
-            />
-            <MenuItem text="Web Search models">
+          !isWebSearch ? (
+            <>
               <MenuItem
-                icon={defaultModel === "gpt-4o-mini-search" && "pin"}
+                icon={defaultModel === "gpt-4.1-nano" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -123,11 +126,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="gpt-4o-mini-search"
-                labelElement="128k"
+                text="gpt-4.1-nano"
+                labelElement="1000k"
               />
               <MenuItem
-                icon={defaultModel === "gpt-4o-search" && "pin"}
+                icon={defaultModel === "gpt-4.1-mini" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -136,13 +139,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="gpt-4o-search"
-                labelElement="128k"
+                text="gpt-4.1-mini"
+                labelElement="1000k"
               />
-            </MenuItem>
-            <MenuItem text="o3/o4 'reasoning' models">
               <MenuItem
-                icon={defaultModel === "o4-mini" && "pin"}
+                icon={defaultModel === "gpt-4.1" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -151,104 +152,124 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="o4-mini"
-                labelElement="200k"
+                text="gpt-4.1"
+                labelElement="1000k"
               />
-              <MenuItem
-                icon={defaultModel === "o3" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="o3"
-                labelElement="200k"
-              />
-              <MenuDivider
-                className="menu-hint"
-                title={
-                  <p>
-                    ⚠️ Use with caution,
-                    <br />
-                    o3 is an expensive model
-                    <br />
-                    (o4-mini is almost 15x cheaper)
-                    <br />
-                    See{" "}
-                    <a href="https://openai.com/api/pricing/" target="_blank">
-                      pricing
-                    </a>{" "}
-                    &{" "}
-                    <a
-                      href="https://openai.com/index/learning-to-reason-with-llms/"
-                      target="_blank"
-                    >
-                      purpose
-                    </a>
-                  </p>
-                }
-              />
-            </MenuItem>
-            <MenuItem text="gpt-4o models (deprecated)">
-              <MenuItem
-                icon={defaultModel === "gpt-4o-mini" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="GPT 4o mini"
-                labelElement="128k"
-              />
-              <MenuItem
-                icon={defaultModel === "gpt-4o" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="GPT 4o"
-                labelElement="128k"
-              />
-            </MenuItem>
-            {openAiCustomModels && openAiCustomModels.length ? (
-              <MenuItem tabindex="0" text="Custom OpenAI models">
-                {openAiCustomModels.map((model) => (
-                  <MenuItem
-                    icon={
-                      defaultModel === "first custom OpenAI model" &&
-                      openAiCustomModels[0] === model &&
-                      "pin"
-                    }
-                    onClick={(e) => {
-                      handleClickOnModel(e);
-                    }}
-                    onKeyDown={(e) => {
-                      handleKeyDownOnModel(e);
-                    }}
-                    onContextMenu={(e) => handleContextMenu(e)}
-                    tabindex="0"
-                    text={model}
-                    labelElement={
-                      tokensLimit[model]
-                        ? (tokensLimit[model] / 1000).toFixed(0).toString() +
-                          "k"
-                        : null
-                    }
-                  />
-                ))}
+              <MenuItem text="Web Search models">
+                {openAiWebSearchModels()}
               </MenuItem>
-            ) : null}
-          </>
+              <MenuItem text="o3/o4 'reasoning' models">
+                <MenuItem
+                  icon={defaultModel === "o4-mini" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="o4-mini"
+                  labelElement="200k"
+                />
+                <MenuItem
+                  icon={defaultModel === "o3" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="o3"
+                  labelElement="200k"
+                />
+                <MenuDivider
+                  className="menu-hint"
+                  title={
+                    <p>
+                      ⚠️ Use with caution,
+                      <br />
+                      o3 is an expensive model
+                      <br />
+                      (o4-mini is almost 15x cheaper)
+                      <br />
+                      See{" "}
+                      <a href="https://openai.com/api/pricing/" target="_blank">
+                        pricing
+                      </a>{" "}
+                      &{" "}
+                      <a
+                        href="https://openai.com/index/learning-to-reason-with-llms/"
+                        target="_blank"
+                      >
+                        purpose
+                      </a>
+                    </p>
+                  }
+                />
+              </MenuItem>
+              <MenuItem text="gpt-4o models (deprecated)">
+                <MenuItem
+                  icon={defaultModel === "gpt-4o-mini" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="GPT 4o mini"
+                  labelElement="128k"
+                />
+                <MenuItem
+                  icon={defaultModel === "gpt-4o" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="GPT 4o"
+                  labelElement="128k"
+                />
+              </MenuItem>
+              {openAiCustomModels && openAiCustomModels.length ? (
+                <MenuItem tabindex="0" text="Custom OpenAI models">
+                  {openAiCustomModels.map((model) => (
+                    <MenuItem
+                      icon={
+                        defaultModel === "first custom OpenAI model" &&
+                        openAiCustomModels[0] === model &&
+                        "pin"
+                      }
+                      onClick={(e) => {
+                        handleClickOnModel(e);
+                      }}
+                      onKeyDown={(e) => {
+                        handleKeyDownOnModel(e);
+                      }}
+                      onContextMenu={(e) => handleContextMenu(e)}
+                      tabindex="0"
+                      text={model}
+                      labelElement={
+                        tokensLimit[model]
+                          ? (tokensLimit[model] / 1000).toFixed(0).toString() +
+                            "k"
+                          : null
+                      }
+                    />
+                  ))}
+                </MenuItem>
+              ) : null}
+            </>
+          ) : (
+            openAiWebSearchModels()
+          )
         ) : (
           <MenuDivider className="menu-hint" title="No OpenAI API key" />
         )
@@ -270,47 +291,7 @@ const ModelsMenu = ({
             text="Claude Haiku 3.5"
             labelElement="200k"
           />
-          <MenuItem
-            icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="Claude Sonnet 3.7"
-            labelElement="200k"
-          />
-          <MenuItem
-            icon={defaultModel === "Claude Sonnet 3.7 Thinking" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="Claude Sonnet 3.7 Thinking"
-            labelElement="200k"
-          />
-
-          <MenuItem text="Claude older models">
-            <MenuItem
-              icon={defaultModel === "Claude Haiku" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="Claude Haiku"
-              labelElement="200k"
-            />
+          {isWebSearch && (
             <MenuItem
               icon={defaultModel === "Claude Sonnet 3.5" && "pin"}
               onClick={(e) => {
@@ -324,27 +305,87 @@ const ModelsMenu = ({
               text="Claude Sonnet 3.5"
               labelElement="200k"
             />
-            <MenuItem
-              icon={defaultModel === "Claude Opus" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="Claude Opus"
-              labelElement="200k"
-            />
-          </MenuItem>
+          )}
+          <MenuItem
+            icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="Claude Sonnet 3.7"
+            labelElement="200k"
+          />
+          {!isWebSearch && (
+            <>
+              <MenuItem
+                icon={defaultModel === "Claude Sonnet 3.7 Thinking" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="Claude Sonnet 3.7 Thinking"
+                labelElement="200k"
+              />
+
+              <MenuItem text="Claude older models">
+                <MenuItem
+                  icon={defaultModel === "Claude Haiku" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Claude Haiku"
+                  labelElement="200k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Claude Sonnet 3.5" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Claude Sonnet 3.5"
+                  labelElement="200k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Claude Opus" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Claude Opus"
+                  labelElement="200k"
+                />
+              </MenuItem>
+            </>
+          )}
         </>
       ) : (
         <MenuDivider className="menu-hint" title="No Anthropic API key" />
       )}
       {openRouterOnly
         ? null
-        : deepseekLibrary && (
+        : deepseekLibrary &&
+          !isWebSearch && (
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
@@ -377,7 +418,8 @@ const ModelsMenu = ({
           )}
       {openRouterOnly
         ? null
-        : grokLibrary && (
+        : grokLibrary &&
+          !isWebSearch && (
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
@@ -456,7 +498,7 @@ const ModelsMenu = ({
       ) : (
         <MenuDivider className="menu-hint" title="No Google API key" />
       )} */}
-      {openRouterModels.length ? (
+      {openRouterModels.length && !isWebSearch ? (
         <>
           {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}
           {openRouterModelsInfo.length ? (
@@ -519,7 +561,7 @@ const ModelsMenu = ({
           )}
         </>
       ) : null}
-      {groqModels.length ? (
+      {groqModels.length && !isWebSearch ? (
         <>
           <MenuDivider title="Through Groq" />
           {groqModels.map((model) => (
@@ -544,7 +586,7 @@ const ModelsMenu = ({
           ))}
         </>
       ) : null}
-      {ollamaModels.length ? (
+      {ollamaModels.length && !isWebSearch ? (
         <>
           <MenuDivider title="Ollama local models" />
           {ollamaModels.map((model) => (

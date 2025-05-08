@@ -8,6 +8,9 @@ import {
   ollamaModels,
   isResponseToSplit,
   defaultStyle,
+  openaiLibrary,
+  anthropicLibrary,
+  extensionStorage,
 } from "..";
 import {
   addContentToBlock,
@@ -116,6 +119,7 @@ export async function aiCompletion({
     model: llm.id,
     systemPrompt,
     prompt,
+    command,
     content,
     responseFormat,
     targetUid,
@@ -203,6 +207,13 @@ export const aiCompletionRunner = async ({
     roamBasicsFormat +
     `\nCurrent date and time are: ${getRelativeDateAndTimeString(sourceUid)}` +
     hierarchicalResponseFormat;
+
+  if (prompt === "Web search") {
+    console.log("instantModel :>> ", instantModel);
+    if (!instantModel) instantModel = extensionStorage.get("webModel");
+    command = "Web search";
+    prompt = "";
+  }
 
   let {
     targetUid,
