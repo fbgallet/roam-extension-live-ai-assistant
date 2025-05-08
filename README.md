@@ -13,7 +13,7 @@
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
 - :q Datomic query Agent now support the new native rules and variables (usefull for time ranges)
 
-(See changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
+(See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
 ## Summary
 
@@ -69,7 +69,7 @@ Once the context menu is open, the first selected command is `Selected blocks as
 
 The following 4 ingredients will be part of your requests (the last 2 are optional):
 
-- **PROMPT**: your instructions to the AI model, available either in the currently focused block or in a selection of blocks (using native Roam blocks selection), or the selected text in a block. It can includes images for models supporting image recognition. Note that block references will be resolved and remplaced by the corresponding block content. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#4-custom-prompts) templates for prompts you use regularly.
+- **PROMPT**: your instructions to the AI model, available either in the currently focused block or in a selection of blocks (using native Roam blocks selection), or the selected text in a block. It can includes images for models supporting image recognition. Note that block references will be resolved and remplaced by the corresponding block content. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
 - **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Selected blocks as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam by using content from different parts of the interface as context, like the sidebar, linked references, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
 - **STYLE**: the output format of the AI model response. You can provide details on how the answer should be written as well as how it will be inserted into Roam, for example, whether it should be broken down into more or less blocks (by default, Live AI supports most Roam-specific formatting like bold or highlighted text, headings, and Katex...). Live AI provide a few predefined styles and you can create your own custom styles. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles) for more details.
@@ -96,7 +96,8 @@ Often, you will ask your assistant to process information already available in y
 - eventually use a specific model (not the default one) by right-clicking on the command: a list of available models will appear in a submenu
 
 > [!TIP]
-> ⚡️ **In practice, all you need is a hotkey and a few letters to quickly find a command. For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' and press Enter! It's almost instant !**
+> ⚡️ In practice, all you need is a hotkey and a few letters to quickly find a command.
+> For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' and press Enter! It's almost instant !
 
 You can also add specific instructions to built-in prompts simply by clicking the '+' button on the left of the prompt search box.
 
@@ -180,7 +181,7 @@ You can even add feedback on the errors or shortcomings of the previous result: 
 ### Create & apply custom prompts
 
 Create your custom prompts simply by inserting `#liveai/prompt` in some block. The content of this block will be used as title of your custom prompt and all its children will be used as a structured prompt (block references will be resolved). They will appear in the "custom prompts" section of the context menu.
-In the title block of your custom prompt, you can define an inline context, see the syntax [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context).
+In the title block of your custom prompt, you can define an inline context, see the syntax [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context).
 
 ### Styles
 
@@ -195,7 +196,7 @@ A style describes the way the generative AIs will write in all their responses, 
 
 You can read the detailed system prompts defining each built-in style [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/ff8fd131e1f893982f2206b1390d5e0e4bddd3a1/src/ai/prompts.js#L861).
 
-You can add your own custom style, using `#liveai/style` tag. See [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles) for detailed documentation.
+You can add your own custom style, using `#liveai/style` tag. See [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#4-custom-styles) for detailed documentation.
 
 ## 4. Agents
 
