@@ -11,6 +11,8 @@
 
 - OpenAI gpt-4.1, o3 & o4-mini models support
 - OpenAI gpt-4o[-mini]-transcribe models support for voice transcription
+- Web search support for Anthropic models
+- Added a Web search command
 - :q Datomic query Agent now support the new native rules and variables
 - list of sources at the end of Web search response
 - Modifier key to open context menu is customizable (default is Meta/Win) and can be disabled
@@ -21,6 +23,7 @@
 
 - Smart search Agent was often returning only 1 result and other small issues
 - OpenRouter & Ollama first model was always used
+- Clearer "Getting started" instructions
 
 ## v.17 (March 14th, 2025) Web search, generation improvements & fixes
 

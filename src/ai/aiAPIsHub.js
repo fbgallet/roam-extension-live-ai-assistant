@@ -423,6 +423,7 @@ export function modelAccordingToProvider(model) {
 export async function claudeCompletion({
   model,
   prompt,
+  command,
   systemPrompt,
   content = "",
   responseFormat,
@@ -432,12 +433,24 @@ export async function claudeCompletion({
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
     try {
-      let messages = [
-        {
-          role: "user",
-          content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
-        },
-      ].concat(prompt);
+      let messages =
+        command === "Web search"
+          ? [
+              {
+                role: "user",
+                content:
+                  (systemPrompt ? systemPrompt + "\n\n" : "") +
+                  "Prompt for the web search tool: " +
+                  prompt[0].content +
+                  (content ? "\n\nContext:\n" + content : ""),
+              },
+            ]
+          : [
+              {
+                role: "user",
+                content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
+              },
+            ].concat(prompt);
       let thinkingToaster;
       const options = {
         max_tokens:
@@ -445,6 +458,16 @@ export async function claudeCompletion({
         model: model.replace("+thinking", ""),
         messages,
       };
+      console.log("command :>> ", command);
+      if (command === "Web search")
+        options.tools = [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 5,
+          },
+        ];
+
       if (model.includes("3-7") || model.includes("3.7")) {
         options.max_tokens = 128000;
         // options.betas = ["output-128k-2025-02-19"];
@@ -490,6 +513,7 @@ export async function claudeCompletion({
 
       // handle streamed responses (not working from client-side)
       let respStr = "";
+      console.log("response :>> ", response);
 
       if (streamResponse && responseFormat === "text") {
         const reader = response.body.getReader();
@@ -511,6 +535,9 @@ export async function claudeCompletion({
             "Sonnet 3.7 Extended Thinking process:"
           );
         }
+
+        let citations = [];
+        let lastCitationIndex = -1;
 
         try {
           while (true) {
@@ -536,13 +563,35 @@ export async function claudeCompletion({
                   } else if (data.delta.type === "thinking_delta") {
                     if (thinkingToasterStream)
                       thinkingToasterStream.innerText += data.delta.thinking;
+                  } else if (data.delta?.type === "citations_delta") {
+                    if (data.delta?.citation) {
+                      if (
+                        !citations.find(
+                          (cit) => cit.url === data.delta.citation.url
+                        )
+                      ) {
+                        citations.push(data.delta.citation);
+                      }
+                    }
+                    // streamElt.innerHTML += source;
                   }
                 } else if (data.type === "message_start") {
                   usage["input_tokens"] =
                     data.message?.usage["input_tokens"] || 0;
                 } else if (data.type === "message_delta" && data.usage) {
                   console.log("data.usage :>> ", data.usage);
+                  if (data.usage.server_tool_use?.web_search_requests)
+                    usage["input_tokens"] = data.usage["input_tokens"] || 0;
                   usage["output_tokens"] = data.usage["output_tokens"] || 0;
+                }
+                // TO EDIT: inline links are not properly inserted
+                else if (data.type === "content_block_stop") {
+                  if (citations.length - 1 > lastCitationIndex) {
+                    const cit =
+                      citations.length && citations[++lastCitationIndex];
+                    const src = ` ([source](${cit.url}))`;
+                    respStr = respStr.trim() + src;
+                  }
                 }
               }
             }
@@ -551,6 +600,14 @@ export async function claudeCompletion({
           console.log("Error during stream response: ", e);
           return "";
         } finally {
+          console.log("citations :>> ", citations);
+          if (citations.length) {
+            respStr += "\n\nWeb sources:\n";
+            citations.forEach((cit) => {
+              respStr += `  - [${cit.title}](${cit.url})\n`;
+              // + `    - > ${cit.cited_text}\n`  // text citation...
+            });
+          }
           streamEltCopy = streamElt.innerHTML;
           if (isCanceledStreamGlobal)
             console.log("Anthropic API response stream interrupted.");
@@ -573,6 +630,8 @@ export async function claudeCompletion({
 
       console.log(`Tokens usage (${model}):>> `, usage);
       updateTokenCounter(model, usage);
+
+      // console.log("respStr :>> ", respStr);
 
       return jsonOnly || respStr;
     } catch (error) {

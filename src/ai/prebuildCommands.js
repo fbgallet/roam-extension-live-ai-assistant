@@ -46,6 +46,16 @@ export const BUILTIN_COMMANDS = [
     category: "",
     includeUids: true,
   },
+  {
+    id: 102,
+    name: "Web search",
+    category: "",
+    prompt: "Web search",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+    },
+  },
   // OUTLINER AGENT COMMANDS
   {
     id: 2,

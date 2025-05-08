@@ -304,7 +304,11 @@ const StandaloneContextMenu = () => {
       return;
     }
     if (!prompt && command.category !== "CUSTOM PROMPTS") {
-      prompt = command.prompt ? completionCommands[command.prompt] : "";
+      prompt = command.prompt
+        ? completionCommands[command.prompt]
+        : command.id !== 102
+        ? ""
+        : command.prompt;
     }
     if (command.category === "CUSTOM PROMPTS") {
       const customCommand = getCustomPromptByUid(command.prompt);
@@ -313,7 +317,10 @@ const StandaloneContextMenu = () => {
         customContext = getUnionContext(roamContext, customCommand.context);
       console.log("roamContext in ContextMenu :>> ", customContext);
     }
-    if (command.id === 11 || Math.floor(command.id / 100) === 11) {
+    if (
+      (command.id === 11 || Math.floor(command.id / 100) === 11) &&
+      command.id !== 102
+    ) {
       const selectedLgg =
         command.id === 11
           ? defaultLgg
@@ -326,6 +333,8 @@ const StandaloneContextMenu = () => {
       }
       prompt = prompt.replace("<language>", selectedLgg);
     }
+
+    if (command.id === 102) prompt = command.prompt;
 
     if (additionalPrompt)
       prompt += "\n\nIMPORTANT additional instructions:\n" + additionalPrompt;
@@ -362,8 +371,10 @@ const StandaloneContextMenu = () => {
     if (
       command.name === "Selected blocks as prompt" ||
       command.name === "Focused block as prompt" ||
+      command.name === "Selected text as prompt" ||
       command.name === "Focused block & all children as prompt" ||
       command.name === "Continue the conversation" ||
+      command.name === "Web search" ||
       // (command.id !== 20 &&
       //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
       isCompletionOnly ||
