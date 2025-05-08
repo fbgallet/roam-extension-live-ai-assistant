@@ -1,28 +1,12 @@
 ## Generative AI in Live AI Assistant
 
-1. [Voice transcription](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#1-voice-transcription)
-2. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-built-in-prompts)
-3. [Context definition and inline context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
-4. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#4-custom-prompts)
-5. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-custom-styles)
-6. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#6-smartblocks-commands)
+1. [Built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#1-built-in-prompts)
+2. [Context definition and inline context](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context)
+3. [Custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts)
+4. [Custom styles](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#4-custom-styles)
+5. [Using SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands)
 
-## 1) Voice transcription
-
-You need either an account on OpenAI to benefit from Whisper transcriptions, or a Groq one since you can define Groq as default provider for the audio transcription model and user the powerful `whisper-large-v3` model.
-
-⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved. But all commands relying only on text (like AI completion or post-processing) are available. The extensions works properly on all browsers (desktop and mobile, MacOs, iOS, Windows or Android) and on Windows desktop app._
-
-- the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere just before clicking the button or running the transcription command).
-- by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
-- You can specify a list of words to be spelled in a specific way (e.g. proper nouns, acronyms, technical terms, etc.), see the Whisper prompt option in the settings.
-- if you have not entered any OpenAI API Key or Groq API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
-
-### Direct translation of vocal recording
-
-A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a generative AI, as it only requires asking it to translate into almost any language.
-
-## 2) Built-in prompts
+## 1) Built-in prompts
 
 All prompts are written in English, but an instruction requires that the output language (unless otherwise specified) be equivalent to the input content (though this is not 100% reliable).
 
@@ -32,7 +16,7 @@ The prompts were drafted with the help of Claude Sonnet 3.5, to be comprehensive
 
 We particularly draw users' attention to the prompts gathered under the "**Critical reasoning toolkit**" category, which offer a wide range of prompts to produce or discuss arguments or statements, question them, change perspectives, and thus cultivate critical thinking. Indeed, the generalization of LLMs tends, as suggested by [this study](https://www.microsoft.com/en-us/research/uploads/prod/2025/01/lee_2025_ai_critical_thinking_survey.pdf), to reduce the exercise of critical thinking, even though the content produced by LLMs actually requires sharp critical thinking to avoid being misled by the appearance of confidence and certainty they often take on, even when they are pure hallucinations or bullshit. We believe that LLMs can help us think better and exercise our critical thinking, but this is probably not the general trend of their use. That's why we encourage testing and regularly using prompts to exercise reasoning capabilities, of which the "Critical reasoning toolkit" offers a sample, which can be supplemented by the Socratic style or Quiz style (see section on styles).
 
-## 3) Context definition and inline context
+## 2) Context definition and inline context
 
 You can easily provide context to your prompt, to process the information contained in this context (e.g. to summarize it or have a conversation with your own notes 🚀) or to provide resources to the AI for the required text generation. Main Roam UI elements can be designated as the context with checkboxes in the context menu or by using key modifiers when clicking on the AI assistant buttons or commands. You can use as context:
 
@@ -63,7 +47,7 @@ Available options:
 
 Example: `{{context: block(((KhGPvRqR-))+((Z5Z2HtXYg))),page([[my page]],DNPs(30))}}`
 
-## 4) Custom prompts
+## 3) Custom prompts
 
 You can easily add your custom prompts to the prompts menu by using `#liveai/prompt`. Insert this tag in a block with the title of your prompt. All the children blocks will be used as a prompt applied to your input content (focused block, or selected block, or context if no focused/selected block).
 
@@ -73,7 +57,7 @@ You can **define a context** always used as resource for your prompt, using the 
 
 It's possible to insert built-in commands in your own custom commands ! Insert anywhere in your command the following string: `<built-in:command>` where 'command' has to be replaced by the exact (case sensitive) name of the built-in prompt to insert (available commands are keys of `completionCommands` object, [listed here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/e5ce3a8bfa74e3e9b5c245a790b02f40937003f8/src/ai/prompts.js#L114)). In this case, you have not to add `<target content>` placeholder since it's already in the built-in command. If you use `translate` command, add the language as a second argument: `<built-in:translate:English>
 
-## 5) Custom styles
+## 4) Custom styles
 
 Describe simply the style of the expected responses from the generative AI, which will apply to all prompts and most built-in prompts when this style is selected via the context menu (some prompts, like translation or correction, are incompatible with a style, it won't apply).
 
@@ -83,7 +67,7 @@ You can set a style for the session (until the graph is reloaded) by clicking on
 
 <img src="https://github.com/user-attachments/assets/568c2e19-c898-4bad-ab03-13efc930a18a" width="300">
 
-## 6) SmartBlocks commands
+## 5) SmartBlocks commands
 
 You can insert the following commands in your SmartBlocks template to use or run Live AI Assistant directly from your templates:
 
