@@ -65,7 +65,7 @@ Just write some basic prompt in a block (or press the microphone button and prov
 
 This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
 
-> ![IMPORTANT]
+> [!IMPORTANT]
 > The context menu is the main entry point to Live AI, read the following instructions carrefuly:
 
 To open Live AI **context menu**, you can either:
@@ -76,7 +76,7 @@ To open Live AI **context menu**, you can either:
 
 Once the context menu is open, the first selected command is `Focused block as prompt` if a block is focused. Select this command to send your prompt to the default model.
 
-> ![NOTE]
+> [!NOTE]
 > This first command, used to send your own prompts to an AI model, will automatically adjust to the selection state: focus, blocks selection, text selection, entire page or zoom view if neither focus nor selection.
 > You can also write a quick prompt directly in the search bar of the context menu and run the command "Use this custom prompt". The AI generated response will be inserted as last block of the current page/view.
 
@@ -181,7 +181,8 @@ The models don't just summarize different relevant content found on the internet
 
 You can set the default model to use for Web search (OpenAI or Anthropic models) either in extension settings or by right-clicking on the choosen model in the submenu of `Web search` command.
 
-⚠️ To collect its data and prepare its response, the model will browse several sites: the input tokens used will be much higher than your prompt, leading to additional costs. Additionally, providers charge a fee per 1,000 queries: $10 for Anthropic, and between $25 and $50 for OpenAI, depending on the context size and model.
+> [!CAUTION]
+> ⚠️ To collect its data and prepare its response, the model will browse several sites: the input tokens used will be much higher than your prompt, leading to additional costs. Additionally, providers charge a fee per 1,000 queries: $10 for Anthropic, and between $25 and $50 for OpenAI, depending on the context size and model.
 
 Web search context option (in extension settings) for OpenAI models: you can choose the context size extracted from relevant websites. Low: fastest, cheaper. High: slower, higher cost. See pricing [here](https://platform.openai.com/docs/pricing#web-search)
 
