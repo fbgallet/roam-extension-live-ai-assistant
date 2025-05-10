@@ -513,7 +513,7 @@ export async function claudeCompletion({
 
       // handle streamed responses (not working from client-side)
       let respStr = "";
-      console.log("response :>> ", response);
+      // console.log("response :>> ", response);
 
       if (streamResponse && responseFormat === "text") {
         const reader = response.body.getReader();
@@ -598,9 +598,18 @@ export async function claudeCompletion({
           }
         } catch (e) {
           console.log("Error during stream response: ", e);
+          AppToaster.show({
+            message: (
+              <>
+                <h4>Claude Web Search error, try again!</h4>
+                <p>{e}</p>
+              </>
+            ),
+            timeout: 15000,
+          });
           return "";
         } finally {
-          console.log("citations :>> ", citations);
+          // console.log("citations :>> ", citations);
           if (citations.length) {
             respStr += "\n\nWeb sources:\n";
             citations.forEach((cit) => {
@@ -623,7 +632,7 @@ export async function claudeCompletion({
       }
       let jsonOnly;
       if (responseFormat !== "text") {
-        console.log("respStr :>> ", respStr);
+        // console.log("respStr :>> ", respStr);
         jsonOnly = trimOutsideOuterBraces(respStr);
         jsonOnly = sanitizeJSONstring(jsonOnly);
       }

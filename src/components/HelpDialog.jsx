@@ -5,111 +5,29 @@ const HelpDialog = ({ isOpen, onClose }) => {
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Live AI Assistant - Quick Reminder"
+      title="Live AI - Quick Reminder"
       className="laia-help-dialog"
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         <p>
-          <strong>Live AI Assistant</strong> v.18 2025/05/08 by{" "}
+          <strong>Live AI</strong> v.18 2025/05/10 by{" "}
           <a href="https://github.com/sponsors/fbgallet" target="_blank">
             Fabrice Gallet
           </a>
         </p>
         <Divider />
-        <strong>Documentation</strong>
-        <ul>
-          <li>
-            Basic instructions:{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blame/main/README.md#1-getting-started"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Getting started (simple prompt, basics, chat, built-in prompts,
-              context...)
-            </a>
-            ,{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-speech-image-web-search"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Model-Specific Features (Speech, Image, Web search)
-            </a>
-            ,{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-go-further-to-get-better-answers"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Go further to get better answers
-            </a>
-          </li>
-          <li>
-            Detailed instructions on{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              generative AI (custom prompts & styles, context definition,
-              SmartBlocks...)
-            </a>
-            ,{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Query Agents (NL queries, :q, Smart search...)
-            </a>
-            ,{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Live Outliner
-            </a>
-            ,{" "}
-            <a
-              href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              AI Providers, CtrlAPI keys, pricing...
-            </a>
-          </li>
-          {/* 
-GETTING STARTED
-Model-Specific Features (Speech, Image, Web search)
-Go further to get better answers
-Generative AI
-Built-in prompts
-Context definition and inline context
-Custom prompts
-Custom styles
-Using SmartBlocks commands
-AI Agents
-Query Agents
-Live Outliner Agent
-LLM Providers
-Get API Keys
-Models pricing
-Ollama to run local models
- */}
-        </ul>
         <strong>Set Hotkeys for most useful commands</strong>:
         <br />
         Remember to define or customize hotkeys for commands (via native Roam
         Command Palette) to access them quickly:
         <ul>
           <li>
-            <em>Open commands context Menu</em> (default hotkeys:{" "}
-            <code>Cmd/Win + Ctrl + a</code> or `Cmd/Win + rigth-click`)
+            <em>Context Menu</em> (default hotkeys:{" "}
+            <code>Cmd/Win + Ctrl + a</code> or{" "}
+            <code>Cmd/Win + rigth-click</code>)
           </li>
           <li>
-            <em>AI generation, focused/selected block(s) as prompt</em> (also to
+            <em>Ask to AI (prompt in focused/selected blocks)</em> (also to
             continue a conversation)
           </li>
           <li>
@@ -171,7 +89,7 @@ Ollama to run local models
             Translate (in English): <code>E</code>
           </li>
           <li>
-            AI Generation using vocal note as prompt: <code>G</code>
+            Ask to AI, eventually using vocal note as prompt: <code>A</code>
           </li>
           <li>
             Live Outliner: <code>O</code>
@@ -209,6 +127,85 @@ Ollama to run local models
           </a>
           .
         </p>
+        <Divider />
+        <strong>Documentation</strong>
+        <ul>
+          <li>
+            Basic instructions:{" "}
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blame/main/README.md#1-getting-started"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Getting started (simple prompt, basics, chat, built-in
+                  prompts, context...)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-voice-web-search-image"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Model-Specific Features (Voice, Web search, Image)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-going-further-to-get-better-answers"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Going further to get better answers
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li>
+            Detailed instructions on:{" "}
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Generative AI (custom prompts & styles, context definition,
+                  SmartBlocks...)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Query Agents (NL queries, :q, Smart search...)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Live Outliner
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  AI Providers, API keys, pricing...
+                </a>
+              </li>
+            </ul>
+          </li>
+        </ul>
       </div>
     </Dialog>
   );

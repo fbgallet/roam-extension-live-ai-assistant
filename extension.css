@@ -536,12 +536,13 @@
 .laia-help-dialog {
   width: 95%;
   max-width: 800px;
-  max-height: 90vh;
+  max-height: 95vh;
   z-index: 9999;
+  margin: 10px 0;
 }
 .tokens-dialog .bp3-dialog-body,
 .laia-help-dialog .bp3-dialog-body {
-  max-height: 80vh;
+  max-height: 90vh;
   overflow-y: auto;
   margin-right: 2px;
   padding-right: 15px;

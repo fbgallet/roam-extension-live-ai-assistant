@@ -21,6 +21,7 @@ import {
   extensionStorage,
   getConversationParamsFromHistory,
   incrementCommandCounter,
+  logPagesNbDefault,
   menuModifierKey,
 } from "..";
 import ModelsMenu from "./ModelsMenu";
@@ -137,6 +138,7 @@ const StandaloneContextMenu = () => {
       onlyOutliner = false,
       onlyCompletion = false,
       focusUid,
+      focusBlockContent,
     }) => {
       setIsOutlinerAgent(onlyOutliner);
       setIsCompletionOnly(onlyCompletion);
@@ -148,6 +150,7 @@ const StandaloneContextMenu = () => {
         y: Math.min(e.clientY, window.innerHeight - 300),
       });
       focusedBlockUid.current = focusUid;
+      focusedBlockContent.current = focusBlockContent || "";
       setIsOpen(true);
     };
     updateUserCommands();
@@ -158,6 +161,7 @@ const StandaloneContextMenu = () => {
 
   useEffect(() => {
     if (isOpen) {
+      // console.log("focusedBlockUid.current :>> ", focusedBlockUid.current);
       if (rootUid && !isExistingBlock(rootUid)) {
         setRootUid(null);
         toggleOutlinerSelection(null, false);
@@ -169,15 +173,21 @@ const StandaloneContextMenu = () => {
         selectedText,
         position,
       } = getFocusAndSelection();
+
       isFirstBlock.current =
         getBlockOrderByUid(currentUid) === 0 ? true : false;
-      focusedBlockUid.current = !focusedBlockUid.current && currentUid;
+      focusedBlockUid.current = !focusedBlockUid.current
+        ? currentUid
+        : focusedBlockUid;
       focusedBlockContent.current =
-        focusedBlockUid.current && currentBlockContent.trim();
+        focusedBlockUid.current && currentBlockContent?.trim();
       selectedBlocks.current = selectionUids;
       selectedTextInBlock.current = selectedText;
       positionInRoamWindow.current = position;
-      setIsInConversation(isPromptInConversation(currentUid, false));
+
+      setIsInConversation(
+        currentUid ? isPromptInConversation(currentUid, false) : false
+      );
       // if (!isPinnedStyle) setStyle(defaultStyle);
       // console.log("selectedBlocks.current :>> ", selectedBlocks.current);
       if (selectedTextInBlock.current) {
@@ -186,7 +196,7 @@ const StandaloneContextMenu = () => {
         adaptMainCommandToSelection("focus");
       } else if (selectedBlocks.current.length) {
         adaptMainCommandToSelection("blocks");
-      }
+      } else adaptMainCommandToSelection("zoom");
       updateMenu();
     }
   }, [isOpen]);
@@ -200,8 +210,11 @@ const StandaloneContextMenu = () => {
       case "text":
         adaptedName = "Selected text as prompt";
         break;
-      default:
+      case "blocks":
         adaptedName = "Selected blocks as prompt";
+        break;
+      default:
+        adaptedName = "Current Page/Zoom content as prompt";
     }
     setCommands((prev) => {
       let selectedBlockCommand1 = prev.find((cmd) => cmd.id === 1);
@@ -225,6 +238,7 @@ const StandaloneContextMenu = () => {
     if (!isPinnedStyle) setStyle(defaultStyle);
     setRoamContext({ ...voidRoamContext });
     selectedBlocks.current = null;
+    selectedTextInBlock.current = null;
     isFirstBlock.current = null;
   };
 
@@ -306,9 +320,11 @@ const StandaloneContextMenu = () => {
     if (!prompt && command.category !== "CUSTOM PROMPTS") {
       prompt = command.prompt
         ? completionCommands[command.prompt]
-        : command.id !== 102
+        : command.id !== 19
         ? ""
         : command.prompt;
+      if (command.customPrompt)
+        prompt = prompt.replace("<target content>", command.customPrompt);
     }
     if (command.category === "CUSTOM PROMPTS") {
       const customCommand = getCustomPromptByUid(command.prompt);
@@ -319,7 +335,7 @@ const StandaloneContextMenu = () => {
     }
     if (
       (command.id === 11 || Math.floor(command.id / 100) === 11) &&
-      command.id !== 102
+      command.id !== 19
     ) {
       const selectedLgg =
         command.id === 11
@@ -334,10 +350,12 @@ const StandaloneContextMenu = () => {
       prompt = prompt.replace("<language>", selectedLgg);
     }
 
-    if (command.id === 102) prompt = command.prompt;
+    if (command.id === 19) prompt = command.prompt;
 
     if (additionalPrompt)
-      prompt += "\n\nIMPORTANT additional instructions:\n" + additionalPrompt;
+      prompt = prompt
+        ? prompt + "\n\nIMPORTANT additional instructions:\n" + additionalPrompt
+        : additionalPrompt;
 
     let conversationStyle;
     if (command.name === "Continue the conversation") {
@@ -367,13 +385,16 @@ const StandaloneContextMenu = () => {
       else command = commands.find((c) => c.id === 1);
       if (model.includes("-search")) command.includeUids = false;
     }
+    let includeChildren;
+    if (command.name === "Current Page/Zoom content as prompt") {
+      includeChildren = true;
+    }
 
     if (
-      command.name === "Selected blocks as prompt" ||
-      command.name === "Focused block as prompt" ||
-      command.name === "Selected text as prompt" ||
-      command.name === "Focused block & all children as prompt" ||
-      command.name === "Continue the conversation" ||
+      command.id === 1 ||
+      command.id === 10 ||
+      command.id === 100 ||
+      command.id === 101 ||
       command.name === "Web search" ||
       // (command.id !== 20 &&
       //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
@@ -405,7 +426,9 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids:
           command.includeUids || target === "replace" || target === "append",
-        includeChildren: command.id === 101 || false,
+        includeChildren: !additionalPrompt
+          ? includeChildren || command.id === 101 || false
+          : command.id === 101,
         withSuggestions: command.withSuggestions,
         target,
         selectedUids: selectedBlocks.current,
@@ -545,6 +568,14 @@ const StandaloneContextMenu = () => {
       return false;
     if (isOutlinerAgent && item.isIncompatibleWith?.outliner) return false;
     if (isCompletionOnly && item.isIncompatibleWith?.completion) return false;
+    // if any block is focused or selected, and no context is selected
+    if (item.id === 102 && !hasTrueBooleanKey(roamContext)) return false;
+    // if (item.prompt === "translate" ||
+    //   item.id === 154 ||
+    //   item.name === "Web search" ||
+    //   item.name.includes(
+    //     "Image generation" || item.category === "QUERY AGENTS"
+    //   ))
     if (!query) {
       if (isFirstBlock.current && item.id === 1) return true;
       if (
@@ -556,7 +587,7 @@ const StandaloneContextMenu = () => {
       if (item.id === 1 && rootUid) return false;
       if (item.id === 10 && rootUid) return false;
       if (
-        (item.id === 1 || item.id === 101) &&
+        (item.id === 1 || item.id === 100) &&
         (isInConversation || isOutlinerAgent)
       )
         return false;
@@ -602,7 +633,15 @@ const StandaloneContextMenu = () => {
   };
 
   const insertModelsMenu = (callback, command) => {
-    return displayModelsMenu || command.id === 1 ? (
+    return (displayModelsMenu ||
+      command.id === 1 ||
+      command.id === 100 ||
+      command.id === 101 ||
+      command.id === 102 ||
+      command.id === 102 ||
+      command.name === "Web search") &&
+      command.name !== "Text to Speech" &&
+      !command.name.includes("Image generation") ? (
       <ModelsMenu callback={callback} command={command} />
     ) : null;
   };
@@ -615,10 +654,7 @@ const StandaloneContextMenu = () => {
         icon={command.icon}
         text={command.name}
         label={command.label}
-        active={
-          // activeCommand === command.id ||
-          activeCommand === undefined && modifiers.active
-        }
+        active={activeCommand === undefined && modifiers.active}
         aria-haspopup={true}
         tabindex="0"
         onClick={(e) => {
@@ -640,7 +676,7 @@ const StandaloneContextMenu = () => {
           setActiveCommand(command.id);
         }}
       >
-        {command.submenu && !query ? (
+        {command.submenu && (!query || command.customPrompt) ? (
           <>
             {displayModelsMenu && (
               <MenuItem text={`Model for ${command.name}`}>
@@ -689,21 +725,40 @@ const StandaloneContextMenu = () => {
     const grouped = {};
 
     const filteredItems = items.filter((item) => filterCommands(query, item));
+    let isCustomPrompt = false;
 
     // console.log("filteredItems :>> ", filteredItems);
 
     if (!filteredItems.length) {
+      isCustomPrompt = true;
       const customCommand = rootUid
         ? items.find((cmd) => cmd.id === 2)
         : items.find((cmd) => cmd.id === 0);
       customCommand.prompt = query + ":\n";
       filteredItems.push(customCommand);
-    } //else if (query) setActiveCommand(filteredItems[0].id);
+      // display a selectin of commands that can handle a custom basic content
+      if (!rootUid) {
+        const commandsToApplyToCustomPrompt = items.filter(
+          (cmd) =>
+            cmd.id === 11 ||
+            cmd.id === 154 ||
+            cmd.id === 1460 ||
+            cmd.name === "Web search"
+          // cmd.category === "QUERY AGENTS"
+        );
+        commandsToApplyToCustomPrompt.forEach((cmd) => {
+          cmd.customPrompt = query;
+          filteredItems.push(cmd);
+        });
+      }
+      setActiveCommand(filteredItems[0].id);
+    }
 
     // console.log("filteredItems :>> ", filteredItems);
 
     let noCategoryItems = [];
     filteredItems.forEach((item) => {
+      !isCustomPrompt && (item.customPrompt = null);
       if (!item.category) noCategoryItems.push(item);
       else {
         if (!grouped[item.category]) {
@@ -1168,19 +1223,43 @@ const StandaloneContextMenu = () => {
               }}
             >
               Context:{" "}
-              <Checkbox
-                checked={roamContext.page}
-                label="Page"
-                inline={true}
-                onChange={() => updateContext("page")}
-              />
-              {isLogView() ? (
+              <Tooltip
+                content={
+                  <div>
+                    Or zoom content
+                    <br />
+                    if page view is zoomed on a block
+                  </div>
+                }
+                hoverOpenDelay={500}
+                openOnTargetFocus={false}
+              >
                 <Checkbox
-                  checked={roamContext.logPages}
-                  label="DNPs"
+                  checked={roamContext.page}
+                  label="Page"
                   inline={true}
-                  onChange={() => updateContext("logPages")}
+                  onChange={() => updateContext("page")}
                 />
+              </Tooltip>
+              {isLogView() ? (
+                <Tooltip
+                  content={
+                    <div>
+                      {logPagesNbDefault} last daily note pages
+                      <br />
+                      (Nb of last DNP customizable in extension settings)
+                    </div>
+                  }
+                  hoverOpenDelay={500}
+                  openOnTargetFocus={false}
+                >
+                  <Checkbox
+                    checked={roamContext.logPages}
+                    label="DNPs"
+                    inline={true}
+                    onChange={() => updateContext("logPages")}
+                  />
+                </Tooltip>
               ) : (
                 <Checkbox
                   checked={roamContext.linkedRefs}
@@ -1195,25 +1274,25 @@ const StandaloneContextMenu = () => {
                 inline={true}
                 onChange={() => updateContext("sidebar")}
               />
-              {focusedBlockUid.current || selectedBlocks.current?.length ? (
-                <Tooltip
-                  content={
-                    <div>
-                      ⚠️ Mentioned pages content
-                      <br />+ their linked references
-                    </div>
-                  }
-                  hoverOpenDelay={500}
-                  openOnTargetFocus={false}
-                >
-                  <Checkbox
-                    checked={roamContext.linkedPages}
-                    label="[[pages]]"
-                    inline={true}
-                    onChange={() => updateContext("linkedPages")}
-                  />
-                </Tooltip>
-              ) : null}
+              {/* {focusedBlockUid.current || selectedBlocks.current?.length ? ( */}
+              <Tooltip
+                content={
+                  <div>
+                    ⚠️ Mentioned pages content
+                    <br />+ their linked references
+                  </div>
+                }
+                hoverOpenDelay={500}
+                openOnTargetFocus={false}
+              >
+                <Checkbox
+                  checked={roamContext.linkedPages}
+                  label="[[pages]]"
+                  inline={true}
+                  onChange={() => updateContext("linkedPages")}
+                />
+              </Tooltip>
+              {/* ) : null} */}
               {rootUid && (
                 <Checkbox
                   checked={roamContext.block}
@@ -1341,6 +1420,7 @@ const StandaloneContextMenu = () => {
                 minimal: true,
                 placement: "right-start",
                 popoverClassName: "suggested-aicommands",
+                isOpen: true,
               }}
               inputValueRenderer={(item) => item.label}
             />
