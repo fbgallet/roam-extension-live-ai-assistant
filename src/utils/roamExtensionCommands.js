@@ -12,16 +12,15 @@ import {
 import { specificContentPromptBeforeTemplate } from "../ai/prompts";
 import {
   displayTokensDialog,
-  mountComponent,
   setAsOutline,
   simulateClick,
   simulateClickOnRecordingButton,
   toggleComponentVisibility,
-  unmountComponent,
 } from "./domElts";
 import {
   createChildBlock,
   extractNormalizedUidFromRef,
+  getBlockContentByUid,
   getFirstChildUid,
   resolveReferences,
 } from "./roamAPI";
@@ -38,15 +37,13 @@ import { flexibleUidRegex, sbParamRegex } from "./regex";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Start/Pause recording your vocal note",
+    label: "Live AI: Start/Pause recording vocal note",
     callback: () => {
       simulateClickOnRecordingButton();
     },
   });
   extensionAPI.ui.commandPalette.addCommand({
-    label: `Live AI Assistant: Transcribe your vocal note${
-      isUsingWhisper ? " with Whisper" : ""
-    }`,
+    label: `Live AI: Transcribe vocal note`,
     callback: () => {
       const button = document.getElementsByClassName("speech-transcribe")[0];
       if (button) {
@@ -79,7 +76,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   //   },
   // });
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Transcribe & send as prompt to generative AI",
+    label: "Live AI: Ask to AI by voice",
     callback: () => {
       const button = document.getElementsByClassName("speech-completion")[0];
       if (button) {
@@ -116,31 +113,20 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   //   },
   // });
 
-  extensionAPI.ui.commandPalette.addCommand({
-    label:
-      "Live AI Assistant: Toggle visibility of the button (not permanently)",
-    callback: () => {
-      isComponentVisible = !isComponentVisible;
-      unmountComponent(position);
-      mountComponent(position);
-      toggleComponentVisibility();
-    },
-  });
+  // Deprecated, replaced by an option in settings
+  // extensionAPI.ui.commandPalette.addCommand({
+  //   label:
+  //     "Live AI: Toggle visibility of the button (not permanently)",
+  //   callback: () => {
+  //     isComponentVisible = !isComponentVisible;
+  //     unmountComponent(position);
+  //     mountComponent(position);
+  //     toggleComponentVisibility();
+  //   },
+  // });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label:
-      "Live AI Assistant: AI generation, focused/selected block(s) as prompt",
-    callback: async (e) => {
-      aiCompletionRunner({
-        e,
-        sourceUid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
-      });
-    },
-  });
-
-  extensionAPI.ui.commandPalette.addCommand({
-    label:
-      "Live AI Assistant: Outliner Agent, set active outline or apply prompt",
+    label: "Live AI: Outliner Agent, set active outline or apply prompt",
     callback: async (e) => {
       const focusedUid =
         window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
@@ -157,7 +143,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Tokens usage and cost overview",
+    label: "Live AI: Tokens usage and cost overview",
     callback: () => {
       setTimeout(() => {
         displayTokensDialog();
@@ -171,24 +157,35 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       const centerY = window.innerHeight / 5;
       window.LiveAI.toggleContextMenu({
         e: { clientX: centerX, clientY: centerY },
-        focusUid: blockUid ? [blockUid] : undefined,
+        focusUid: blockUid ? blockUid : undefined,
       });
     }, 50);
   };
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Open commands context Menu",
+    label: "Live AI: Ask to AI (prompt in focused/selected blocks)",
+    callback: async (e) => {
+      aiCompletionRunner({
+        e,
+        sourceUid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+      });
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI: Context menu (all commands & built-in prompts)",
     "default-hotkey": "ctrl-super-a",
     callback: (e) => openContextMenu(),
   });
 
-  window.roamAlphaAPI.ui.blockContextMenu.addCommand({
-    label: "Live AI Assistant: Open context Menu",
-    callback: (e) => openContextMenu(e["block-uid"]),
-  });
+  // Deprecated, not very usefull !
+  // window.roamAlphaAPI.ui.blockContextMenu.addCommand({
+  //   label: "Live AI context menu",
+  //   callback: (e) => openContextMenu(e["block-uid"]),
+  // });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Natural language Query Agent",
+    label: "Live AI: Natural language Query Agent",
     callback: async () => {
       let { currentUid, currentBlockContent } = getFocusAndSelection();
       await invokeNLQueryInterpreter({
@@ -199,7 +196,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI Assistant: Natural language Datomic :q Agent",
+    label: "Live AI: Natural language Datomic :q Agent",
     callback: async () => {
       let { currentUid, currentBlockContent } = getFocusAndSelection();
       await invokeNLDatomicQueryInterpreter({
@@ -220,7 +217,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   };
   const menuCmd = {
     text: "LIVEAIMENU",
-    help: "Open Live AI Assisant menu",
+    help: "Open Live AI context menu",
     handler: (sbContext) => () => {
       const centerX = window.innerWidth / 2 - 250;
       const centerY = window.innerHeight / 5;

@@ -23,6 +23,7 @@ import {
 import {
   addContentToBlock,
   createChildBlock,
+  createNextSiblingIfPossible,
   createSiblingBlock,
   extractNormalizedUidFromRef,
   getBlockContentByUid,
@@ -44,6 +45,7 @@ import {
   isLogView,
   normalizePageTitle,
   resolveReferences,
+  updateBlock,
 } from "../utils/roamAPI";
 import {
   completionCommands,
@@ -79,15 +81,55 @@ export const getInputDataFromRoamContext = async (
     selectedUids = selectionUids;
   }
   let currentBlockContent;
-  if (sourceUid) {
-    currentBlockContent = !includeChildren
-      ? resolveReferences(getBlockContentByUid(sourceUid))
-      : getFlattenedContentFromTree({
-          parentUid: sourceUid,
-          maxCapturing: 99,
-          maxUid: 0,
-          withDash: true,
-        });
+
+  // get context
+  const roamContextFromKeys = e && (await handleModifierKeys(e));
+  let globalContext = getUnionContext(roamContext, roamContextFromKeys);
+  console.log("globalContext :>> ", globalContext);
+  const inlineContext = currentBlockContent
+    ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
+    : null;
+  if (inlineContext) {
+    globalContext = getUnionContext(globalContext, inlineContext.roamContext);
+  }
+
+  // get prompt
+  if (
+    !sourceUid &&
+    !selectedUids?.length &&
+    !hasTrueBooleanKey(globalContext) &&
+    !prompt
+  )
+    includeChildren = true;
+  if (sourceUid || includeChildren) {
+    if (!includeChildren)
+      currentBlockContent = resolveReferences(getBlockContentByUid(sourceUid));
+    else {
+      let isParentToIgnore = false;
+      let parentUid = sourceUid;
+      if (!sourceUid) {
+        let topLevelUidInView =
+          await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+        // if in Daily log, not in zoom or page
+        if (!topLevelUidInView) {
+          topLevelUidInView = window.roamAlphaAPI.util.dateToPageUid(
+            new Date()
+          );
+          isParentToIgnore = true;
+        } else {
+          const pageUid = await getMainPageUid();
+          if (topLevelUidInView === pageUid) isParentToIgnore = true;
+        }
+        parentUid = topLevelUidInView;
+      }
+      currentBlockContent = getFlattenedContentFromTree({
+        parentUid,
+        maxCapturing: 99,
+        maxUid: 0,
+        withDash: true,
+        isParentToIgnore,
+      });
+    }
   }
 
   if (!sourceUid && !selectedUids?.length && !e) return { noData: true };
@@ -97,6 +139,13 @@ export const getInputDataFromRoamContext = async (
     if (prompt.toLowerCase().includes("<target content>"))
       prompt = prompt.replace(/<target content>/i, sourceText.trim());
     else prompt += (prompt ? "\n" : "") + sourceText.trim();
+  }
+
+  if (inlineContext) {
+    completedPrompt = completedPrompt.replace(
+      currentBlockContent,
+      inlineContext.updatedPrompt
+    );
   }
 
   let { completedPrompt, targetUid, remainingSelectionUids, isInConversation } =
@@ -114,25 +163,6 @@ export const getInputDataFromRoamContext = async (
       target,
       forceNotInConversation
     );
-
-  const roamContextFromKeys = e && (await handleModifierKeys(e));
-
-  let globalContext = getUnionContext(roamContext, roamContextFromKeys);
-
-  console.log("globalContext :>> ", globalContext);
-
-  const inlineContext = currentBlockContent
-    ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
-    : null;
-
-  // console.log("inlineContext :>> ", inlineContext);
-  if (inlineContext) {
-    completedPrompt = completedPrompt.replace(
-      currentBlockContent,
-      inlineContext.updatedPrompt
-    );
-    globalContext = getUnionContext(globalContext, inlineContext.roamContext);
-  }
 
   if (selectedText && sourceUid) {
     globalContext.block = true;
@@ -188,34 +218,20 @@ const getFinalPromptAndTarget = async (
       : "";
   let targetUid;
 
-  if (
-    (!sourceUid && selectionUids.length) ||
-    includeChildren
-    // &&
-    // (document.querySelector(".block-highlight-blue") ||
-    //   target === "replace" ||
-    //   target === "append")
-  ) {
+  if (!sourceUid && selectionUids.length) {
     if (target !== "replace" && target !== "append") {
       const lastTopLevelBlock = !includeChildren
         ? getLastTopLevelOfSeletion(selectionUids)
         : sourceUid;
-      const topLevelInView =
-        await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-      // can't create sibling if top parent block is top block in view
-      if (lastTopLevelBlock === topLevelInView)
-        targetUid = await createChildBlock(topLevelInView);
-      else targetUid = await createSiblingBlock(lastTopLevelBlock);
+      targetUid = createNextSiblingIfPossible(lastTopLevelBlock);
       await addContentToBlock(targetUid, assistantRole);
     } else {
       targetUid = selectionUids[0];
     }
     console.log("includeUids :>> ", includeUids);
-    const content = getResolvedContentFromBlocks(
-      selectionUids,
-      includeUids,
-      withHierarchy
-    );
+    const content = !includeChildren
+      ? getResolvedContentFromBlocks(selectionUids, includeUids, withHierarchy)
+      : sourceBlockContent;
 
     if (prompt.toLowerCase().includes("<target content>"))
       prompt = prompt.replace(/<target content>/i, content);
@@ -230,15 +246,19 @@ const getFinalPromptAndTarget = async (
       targetUid = sourceUid;
     } else {
       targetUid = sourceUid
-        ? await createChildBlock(
-            isInConversation ? getParentBlock(sourceUid) : sourceUid,
-            assistantRole
-          )
-        : await insertBlockInCurrentView(assistantRole);
+        ? includeChildren
+          ? await createNextSiblingIfPossible(sourceUid)
+          : await createChildBlock(
+              isInConversation ? getParentBlock(sourceUid) : sourceUid,
+              ""
+            )
+        : await insertBlockInCurrentView("");
+      await updateBlock({ blockUid: targetUid, newContent: assistantRole });
     }
     if (!prompt) prompt = contextAsPrompt;
     // prompt = getBlockContentByUid(sourceUid) ? "" : contextAsPrompt;
   }
+  console.log("prompt :>> ", prompt);
   return {
     completedPrompt: prompt,
     targetUid,
@@ -272,6 +292,7 @@ export const handleModifierKeys = async (e) => {
 export const isPromptInConversation = (promptUid, removeButton = true) => {
   if (!promptUid) return false;
   const directParentUid = getParentBlock(promptUid);
+  if (!directParentUid) return false;
   // if (directParentUid === getPageUidByBlockUid(promptUid)) return false;
   const previousSiblingUid = getPreviousSiblingBlock(promptUid);
 

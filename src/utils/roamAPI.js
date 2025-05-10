@@ -121,7 +121,7 @@ export function getParentBlock(uid) {
     if (directParent && ":block/uid" in directParent)
       return directParent[":block/uid"];
   }
-  return "";
+  return null;
 }
 
 export function getUidAndTitleOfMentionedPagesInBlock(uid) {
@@ -160,7 +160,9 @@ export function getUidAndTitleOfMentionedPagesInBlock(uid) {
 // }
 
 export function getPreviousSiblingBlock(currentUid) {
+  if (!currentUid) return null;
   const parentUid = getParentBlock(currentUid);
+  if (!parentUid) return null;
   const tree = getOrderedDirectChildren(parentUid);
   const currentBlockOrder = tree.find(
     (block) => block.uid === currentUid
@@ -255,6 +257,18 @@ export async function getTopOrActiveBlockUid() {
     if (getBlockContentByUid(uid)) return uid;
     return getFirstChildUid(uid);
   }
+}
+
+export async function createNextSiblingIfPossible(sourceUid) {
+  // otherwise (current block is top zoom block) create children block
+  let targetUid;
+  const topLevelInView =
+    await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+  // can't create sibling if top parent block is top block in view
+  if (sourceUid === topLevelInView)
+    targetUid = await createChildBlock(topLevelInView);
+  else targetUid = await createSiblingBlock(sourceUid);
+  return targetUid;
 }
 
 export function getFirstChildUid(uid) {

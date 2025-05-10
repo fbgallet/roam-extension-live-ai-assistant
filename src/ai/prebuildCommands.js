@@ -22,7 +22,7 @@ export const BUILTIN_COMMANDS = [
   { id: 0, name: "Use this custom prompt", category: "", onlyGen: true },
   {
     id: 1,
-    name: "Selected blocks as prompt",
+    name: "Focused block as prompt",
     category: "",
     includeUids: true,
   },
@@ -31,10 +31,23 @@ export const BUILTIN_COMMANDS = [
     name: "Focused block & all children as prompt",
     category: "",
     includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+    },
+  },
+  {
+    id: 102,
+    name: "Choosen context as prompt",
+    category: "",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+    },
   },
   {
     id: 10,
     name: "Continue the conversation",
+    icon: "chat",
     isIncompatibleWith: {
       outliner: true,
     },
@@ -42,13 +55,17 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 100,
-    name: "Selected blocks as prompt",
+    name: "Focused block as prompt",
     category: "",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     includeUids: true,
   },
   {
-    id: 102,
+    id: 19,
     name: "Web search",
+    icon: "globe-network",
     category: "",
     prompt: "Web search",
     includeUids: false,
@@ -320,8 +337,9 @@ export const BUILTIN_COMMANDS = [
     target: "new",
   },
   {
-    id: 146,
+    id: 1460,
     name: "Image generation (low)",
+    icon: "media",
     prompt: "",
     category: "CREATION",
     keyWords: "draw, picture",
@@ -335,6 +353,7 @@ export const BUILTIN_COMMANDS = [
   {
     id: 1461,
     name: "Image generation (medium)",
+    icon: "media",
     prompt: "",
     category: "CREATION",
     keyWords: "draw, picture",
@@ -348,6 +367,7 @@ export const BUILTIN_COMMANDS = [
   {
     id: 1462,
     name: "Image generation (high)",
+    icon: "media",
     prompt: "",
     category: "CREATION",
     keyWords: "draw, picture",

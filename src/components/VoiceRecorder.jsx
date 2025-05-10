@@ -238,8 +238,8 @@ function VoiceRecorder({
       handleTranslate(e);
       return;
     }
-    if (e.keyCode === 71) {
-      // "g", to make it compatible with modifiers
+    if (e.keyCode === 65) {
+      // "a", to make it compatible with modifiers
       handleCompletion(e);
       return;
     }
@@ -839,7 +839,7 @@ function VoiceRecorder({
                 disabled={window.roamAlphaAPI.platform.isMobile}
                 content={
                   <p>
-                    AI Generation following prompt (G)
+                    Ask to AI (focused/selected content as prompt) (A)
                     <br /> <br />
                     <b>Right-click</b> to open Live AI menu
                     <br />

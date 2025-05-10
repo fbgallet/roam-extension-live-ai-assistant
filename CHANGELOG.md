@@ -1,4 +1,4 @@
-## v.18 (May 8th, 2025) Image generation, Mermaid, advanced :q queries & fixes
+## v.18 (May 10th, 2025) Image generation, Mermaid, advanced :q queries & fixes
 
 **New features**
 
@@ -9,21 +9,25 @@
 
 **Updates**
 
-- OpenAI gpt-4.1, o3 & o4-mini models support
-- OpenAI gpt-4o[-mini]-transcribe models support for voice transcription
 - Web search support for Anthropic models
 - Added a Web search command
+- OpenAI gpt-4.1, o3 & o4-mini models support
+- OpenAI gpt-4o[-mini]-transcribe models support for voice transcription
 - :q Datomic query Agent now support the new native rules and variables
 - list of sources at the end of Web search response
+- Added 'Current Page/Zoom content as prompt' command when no block is selected
+- Prompt command adapting to block/text focus/selection (or none)
 - Modifier key to open context menu is customizable (default is Meta/Win) and can be disabled
 - New command to use focused block & all its children as prompt (without selection)
 - Main command adapts to block selection (focused, selected, text selection)
+- extension renammed to Live AI
 
 **Fixed**
 
 - Smart search Agent was often returning only 1 result and other small issues
 - OpenRouter & Ollama first model was always used
 - Clearer "Getting started" instructions
+- Clearer commands names in Command palette
 
 ## v.17 (March 14th, 2025) Web search, generation improvements & fixes
 

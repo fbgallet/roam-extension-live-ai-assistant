@@ -1,4 +1,4 @@
-# Live AI Assistant
+# Live AI
 
 **Powerful and versatile AI Assistant tailor-made for Roam. Rely on efficient and smart built-in prompts, create rich custom prompts or use voice, image or any part of your graph as prompt or context, change the style of the AI responses or create your custom styles !**
 
@@ -19,11 +19,21 @@
 ## Summary
 
 1. [GETTING STARTED](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#1-getting-started)
-2. [Model-Specific Features (Speech, Image, Web search)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-speech-image-web-search)
-3. [Go further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-go-further-to-get-better-answers)
+2. [Model-Specific Features (Speech, Image, Web search)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-voice-web-search-image)
+3. [Going further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-going-further-to-get-better-answers)
 4. [Agents (Query agents and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
 6. [Detailed documentation for advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
+
+## Support my work
+
+This extension requires a lot of work in my free time. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
+
+---
+
+For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
+
+Please report any issue [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/issues).
 
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
 
@@ -41,21 +51,32 @@
 
 Choose the AI models provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
-OpenAI and Anthropic currently provide the most tested models for Live AI Assistant, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI Assistant, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation. Web Search can be achieved with OpenAI or Anthropic models.
+OpenAI and Anthropic currently provide the most tested models for Live AI, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation. Web Search can be achieved both with specific OpenAI or Anthropic models.
 
 Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
 ### Your first prompts using buttons & Live AI context menu
 
-Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask to AI" button (lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask to AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
 
 <img width="600" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
 
 This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
 
-To open the **context menu**, the most efficient way is to use the `Live AI Assistant: Open commands context menu` command from the Command Palette; default hotkeys are `Cmd + Ctrl + a`, which you can modify as you wish. Two other very simple options: right-click on the AI completion icon, or Cmd/Ctrl + right-click anywhere on the page where right-clicking does not have a specific function in Roam (you can customize the key to press while right clicking in the settings).
+> ![IMPORTANT]
+> The context menu is the main entry point to Live AI, read the following instructions carrefuly:
 
-Once the context menu is open, the first selected command is `Focused block as prompt`. Select this command to send your prompt to the default model.
+To open Live AI **context menu**, you can either:
+
+- run `Live AI: Context menu` command from the Command Palette, using the hotkeys. Default hotkeys are `Cmd + Ctrl + a`, which you can modify as you wish (recommanded way, very efficient)
+- right-click on the Ask to AI button (⚡️ lightning bolt icon),
+- `Cmd/Ctrl + right-click` anywhere on the page where right-clicking does not have a specific function in Roam (you can customize the key to press while right clicking in the settings).
+
+Once the context menu is open, the first selected command is `Focused block as prompt` if a block is focused. Select this command to send your prompt to the default model.
+
+> ![INFO]
+> This first command, used to send your own prompts to an AI model, will automatically adjust to the selection state: focus, blocks selection, text selection, entire page or zoom view if neither focus nor selection.
+> You can also write a quick prompt directly in the search bar of the context menu and run the command "Use this custom prompt". The AI generated response will be inserted as last block of the current page/view.
 
 <img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
 
@@ -71,7 +92,7 @@ Once the context menu is open, the first selected command is `Focused block as p
 The following 4 ingredients will be part of your requests (the last 2 are optional):
 
 - **PROMPT**: your instructions to the AI model, available either in the currently focused block or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them). Note that block references will be resolved and remplaced by the corresponding block content. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
-- **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused/Selected blocks as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
+- **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused block as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
 - **STYLE**: the output format of the AI model response. You can provide details on how the answer should be written as well as how it will be inserted into Roam, for example, whether it should be broken down into more or less blocks (by default, Live AI supports most Roam-specific formatting like bold or highlighted text, headings, and Katex...). Live AI provide a few predefined styles and you can create your own custom styles. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles) for more details.
 
@@ -90,7 +111,7 @@ You can easily continue and deepen any conversation with an AI Assistant:
 
 ### Apply built-in prompts to existing content
 
-Often, you will ask your assistant to process information already available in your graph, such as translating or summarizing a set of blocks. You could write instructions and copy the blocks to process to use them as a big prompt, but to make the most common tasks easier, Live AI Assistant offers a set of built-in prompts (around fifty) designed to be effective, rigorous, and tailored to Roam's specific constraints. You simply need, either:
+Often, you will ask your assistant to process information already available in your graph, such as translating or summarizing a set of blocks. You could write instructions and copy the blocks to process to use them as a big prompt, but to make the most common tasks easier, Live AI offers a set of built-in prompts (around fifty) designed to be effective, rigorous, and tailored to Roam's specific constraints. You simply need, either:
 
 - to select (by multi-block selection) the content to process,
 - open the Live AI context menu and choose a command to apply the corresponding built-in prompt
@@ -98,9 +119,9 @@ Often, you will ask your assistant to process information already available in y
 
 > [!TIP]
 > ⚡️ In practice, all you need is a hotkey and a few letters to quickly find a command.
-> For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' and press Enter! It's almost instant !
+> For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' in the search bar of the context menu and press Enter! It's almost instant !
 
-You can also add specific instructions to built-in prompts simply by clicking the '+' button on the left of the prompt search box.
+You can also add specific instructions to built-in prompts simply by clicking the `+` button on the left of the prompt search box !
 
 You can view the exact content of each of these prompts [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/428602f8a383b46425a80f6e63ec2ef3af05d1b8/src/ai/prompts.js#L112).
 
@@ -125,7 +146,28 @@ To give you an idea, a request based on about 10 pages of text (4000 words) that
 
 You can track the cost of each request and the total per model for the current and past months by clicking the `$` button at the top of Live AI context menu popup. Learn more about models and providers pricing [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens).
 
-## 2. Model-Specific Features (Speech, Image, Web search)
+## 2. Model-Specific Features (Voice, Web search, Image)
+
+### Voice transcription
+
+You need either an account on OpenAI to benefit from Whisper (or `gpt-4o-transcribe` models) transcriptions, or a Groq one since you can define Groq as default provider for the audio transcription model and user the powerful `whisper-large-v3` model. Estimated cost is $0.006/minute.
+
+⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved._
+
+- the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere just before clicking the button or running the transcription command).
+- by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
+- You can specify a list of words to be spelled in a specific way (e.g. proper nouns, acronyms, technical terms, etc.), see the Whisper prompt option in the settings.
+- if you have not entered any OpenAI API Key or Groq API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
+
+- **Direct translation of vocal recording**:
+
+A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a generative AI, as it only requires asking it to translate into almost any language.
+
+### Text to speech (TTS)
+
+You can have any selection read aloud (the focus block, part of the selected text in that block, or a set of selected blocks). You just need an active OpenAI key (since the `gpt-4o-mini-tts` model will be used) and run the `Text To Speech` command from Live AI context menu. Press `Escape` to stop the reading. Estimated cost is $0.015/minute.
+
+In the extension settings, you can change the voice and provide instructions to control aspects of speech, including: Accent, Emotional range, Intonation, Impressions, Speed of speech, Tone, Whispering...
 
 ### Web search (or web as context)
 
@@ -150,28 +192,7 @@ You can generate images directly embedded in Roam using a prompt (written in a b
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
 - **Image edition with mask**: you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
-### Voice transcription
-
-You need either an account on OpenAI to benefit from Whisper (or `gpt-4o-transcribe` models) transcriptions, or a Groq one since you can define Groq as default provider for the audio transcription model and user the powerful `whisper-large-v3` model. Estimated cost is $0.006/minute.
-
-⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved._
-
-- the transcribed text will be inserted by default at the **bottom of the current page** (or page view) or **appended to the current focused block** (so exactly where you want, you have just to place the cursor anywhere just before clicking the button or running the transcription command).
-- by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
-- You can specify a list of words to be spelled in a specific way (e.g. proper nouns, acronyms, technical terms, etc.), see the Whisper prompt option in the settings.
-- if you have not entered any OpenAI API Key or Groq API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
-
-- **Direct translation of vocal recording**:
-
-A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a generative AI, as it only requires asking it to translate into almost any language.
-
-### Text to speech (TTS)
-
-You can have any selection read aloud (the focus block, part of the selected text in that block, or a set of selected blocks). You just need an active OpenAI key (since the `gpt-4o-mini-tts` model will be used) and run the `Text To Speech` command from Live AI context menu. Press `Escape` to stop the reading. Estimated cost is $0.015/minute.
-
-In the extension settings, you can change the voice and provide instructions to control aspects of speech, including: Accent, Emotional range, Intonation, Impressions, Speed of speech, Tone, Whispering...
-
-## 3. Go further to get better answers
+## 3. Going further to get better answers
 
 The most important thing is the precision of your prompt, which is why it can be helpful to create personalized or style-specific prompt templates to reuse instructions proven effective through experience. However, different LLMs respond very differently to instructions and vary in how sensitive they are to certain types of directions, so it can be very useful to compare their responses.
 
@@ -188,7 +209,7 @@ You can even add feedback on the errors or shortcomings of the previous result: 
 ### Create & apply custom prompts
 
 Create your custom prompts simply by inserting `#liveai/prompt` in some block. The content of this block will be used as title of your custom prompt and all its children will be used as a structured prompt (block references will be resolved). They will appear in the "custom prompts" section of the context menu.
-In the title block of your custom prompt, you can define an inline context, see the syntax [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context).
+In the title block of your custom prompt, you can define an inline context, see the syntax [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context).
 
 ### Styles
 
@@ -223,9 +244,9 @@ It's a powerful and innovative feature, still experimental 🧪. [See details he
 
 ## 5. Security concerns
 
-Sending personal data to a LLMs is not trivial and should always be done with caution. The only completely safe method is to use local models (accessible via Ollama in Live AI Assistant), but the most powerful ones require very powerful computers and are generally slower than online models. It's therefore useful to be able to clearly identify which data from your graph will be sent to the LLMs.
+Sending personal data to a LLMs is not trivial and should always be done with caution. The only completely safe method is to use local models (accessible via Ollama in Live AI), but the most powerful ones require very powerful computers and are generally slower than online models. It's therefore useful to be able to clearly identify which data from your graph will be sent to the LLMs.
 
-With Live AI Assistant, you generally have control over what you decide to send or not to the LLMs, except in the case of the `Ask to my graph...` agent. Here's what's sent to the LLM based on the type of command used:
+With Live AI, you generally have control over what you decide to send or not to the LLMs, except in the case of the `Ask to my graph...` agent. Here's what's sent to the LLM based on the type of command used:
 
 - when using the generative AI from a prompt, only the prompt (a block or the blocks selected by the user + the content of block refs without their children) is sent.
 - when using `Continue the conversation` command: all previous sibling blocks and all their children are sent. `Selected blocks as prompt` command checks if the previous sibling blocks contain a specific header for an AI response, if so, it behaves the same as `Continue the conversation`. In other words, to ensure that previous sibling blocks are not sent to the API by mistake, it's enough to start any new request as the first child of a new block.
@@ -260,13 +281,3 @@ With Live AI Assistant, you generally have control over what you decide to send 
 1. [Get API Keys](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#get-api-keys)
 2. [Models pricing](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens)
 3. [Ollama to run local models](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#using-ollama-to-run-local-models)
-
-## Support my work
-
-This extension requires a lot of work in my free time. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
-
----
-
-For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
-
-Please report any issue [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/issues).
