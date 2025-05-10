@@ -59,11 +59,7 @@ import {
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import HelpDialog from "./HelpDialog";
-import {
-  imageGeneration,
-  modelAccordingToProvider,
-  textToSpeech,
-} from "../ai/aiAPIsHub";
+import { modelAccordingToProvider, textToSpeech } from "../ai/aiAPIsHub";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -1135,7 +1131,7 @@ const StandaloneContextMenu = () => {
             }}
           >
             <div className="aicommands-topbar">
-              <div>LIVE AI ASSISTANT</div>
+              <div>LIVE AI</div>
               <div className="laia-topbar-icons">
                 <Tooltip
                   content="Quick reminder"
@@ -1470,11 +1466,8 @@ export function initializeContextMenu() {
 // Fonction de nettoyage si nécessaire
 export function cleanupContextMenu() {
   window.roamAlphaAPI.ui.blockContextMenu.removeCommand({
-    label: "Live AI Assistant: Open context Menu",
+    label: "Live AI: Context Menu (all commands & built-in prompts)",
   });
-  // window.roamAlphaAPI.ui.msContextMenu.removeCommand({
-  //   label: "Live AI Assistant: Open context Menu",
-  // });
   const container = document.getElementById("context-menu-container");
   if (container) {
     ReactDOM.unmountComponentAtNode(container);

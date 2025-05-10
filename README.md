@@ -13,6 +13,8 @@
 - Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
 - Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
 - :q Datomic query Agent now support the new native rules and variables (usefull for time ranges)
+- Adaptative command to run prompt from focused/selected blocks or text selection or whole page/zoom view
+- Renamed to Live AI
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

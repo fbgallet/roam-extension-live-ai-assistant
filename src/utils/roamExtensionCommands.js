@@ -20,7 +20,6 @@ import {
 import {
   createChildBlock,
   extractNormalizedUidFromRef,
-  getBlockContentByUid,
   getFirstChildUid,
   resolveReferences,
 } from "./roamAPI";
@@ -60,7 +59,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
   // DEPRECATED IN V.12
   // extensionAPI.ui.commandPalette.addCommand({
-  //   label: "Live AI Assistant: Translate to English",
+  //   label: "Live AI: Translate to English",
   //   callback: () => {
   //     const button = document.getElementsByClassName("speech-translate")[0];
   //     if (button) {
@@ -230,7 +229,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   };
   const chatCmd = {
     text: "LIVEAIGEN",
-    help: `Live AI Assistant text generation and chat.
+    help: `Live AI text generation and chat.
       \nParameters:
       \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
       \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
@@ -279,7 +278,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   const templateCmd = {
     text: "LIVEAITEMPLATE",
-    help: `Live AI Assistant response following a template.
+    help: `Live AI response following a template.
       \nParameters:
       \n1: template ({children} or block ref, default: children blocks)
       \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
@@ -359,7 +358,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
 
   const agentCmd = {
     text: "LIVEAIAGENT",
-    help: `Live AI Assistant Agent calling.
+    help: `Live AI Agent calling.
       \nParameters:
       \n1: Agent name
       \n2: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)

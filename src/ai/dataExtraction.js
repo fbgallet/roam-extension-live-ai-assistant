@@ -24,7 +24,6 @@ import {
   addContentToBlock,
   createChildBlock,
   createNextSiblingIfPossible,
-  createSiblingBlock,
   extractNormalizedUidFromRef,
   getBlockContentByUid,
   getBlocksMentioningTitle,
