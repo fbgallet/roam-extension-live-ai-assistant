@@ -26,7 +26,7 @@ const ModelsMenu = ({
   isConversationToContinue,
 }) => {
   let isWebSearch;
-  if (command.name === "Web search") isWebSearch = true;
+  if (command?.name === "Web search") isWebSearch = true;
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
     await callback({ e, command, prompt, model, isConversationToContinue });
