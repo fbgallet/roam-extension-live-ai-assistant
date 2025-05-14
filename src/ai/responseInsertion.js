@@ -191,7 +191,7 @@ export const aiCompletionRunner = async ({
 }) => {
   const withAssistantRole = target === "new" ? true : false;
 
-  console.log("prompt in aiCompletionRunner :>> ", prompt);
+  // console.log("prompt in aiCompletionRunner :>> ", prompt);
 
   if (style !== "Normal") {
     let stylePromptText;
@@ -209,7 +209,7 @@ export const aiCompletionRunner = async ({
     hierarchicalResponseFormat;
 
   if (prompt === "Web search") {
-    console.log("instantModel :>> ", instantModel);
+    // console.log("instantModel :>> ", instantModel);
     if (!instantModel) instantModel = extensionStorage.get("webModel");
     command = "Web search";
     prompt = "";
@@ -239,7 +239,7 @@ export const aiCompletionRunner = async ({
   );
   if (noData) return;
 
-  console.log("systemPrompt :>> ", systemPrompt);
+  // console.log("systemPrompt :>> ", systemPrompt);
   console.log("completed prompt :>> ", completedPrompt);
 
   insertCompletion({
@@ -395,13 +395,13 @@ export const insertCompletion = async ({
   // }
   const intervalId = await displaySpinner(targetUid);
 
-  console.log("command.slice(0, 16) :>> ", command.slice(0, 16));
+  // console.log("command.slice(0, 16) :>> ", command.slice(0, 16));
 
   let aiResponse =
-    command.slice(0, 16) === "Image generation"
+    command?.slice(0, 16) === "Image generation"
       ? await imageGeneration(
           prompt.at(-1).content + (context ? "\n" + context : ""),
-          command.split("(")[1].split(")")[0]
+          command?.split("(")[1].split(")")[0]
         )
       : await aiCompletion({
           instantModel: model,
