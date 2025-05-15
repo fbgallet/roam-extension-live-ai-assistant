@@ -160,7 +160,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 83,
-    name: "Ask to your graph...",
+    name: "Ask your graph",
     callback: invokeAskAgent,
     category: "QUERY AGENTS",
     isIncompatibleWith: {

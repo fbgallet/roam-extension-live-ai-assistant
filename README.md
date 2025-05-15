@@ -59,7 +59,7 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 ### Your first prompts using buttons & Live AI context menu
 
-Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask to AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
 
 <img width="600" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
 
@@ -71,7 +71,7 @@ This simple process can be still more efficient with keyboard only, using `Live 
 To open Live AI **context menu**, you can either:
 
 - run `Live AI: Context menu` command from the Command Palette, using the hotkeys. Default hotkeys are `Cmd + Ctrl + a`, which you can modify as you wish (recommanded way, very efficient)
-- right-click on the Ask to AI button (⚡️ lightning bolt icon),
+- right-click on the "Ask AI" button (⚡️ lightning bolt icon),
 - `Cmd/Ctrl + right-click` anywhere on the page where right-clicking does not have a specific function in Roam (you can customize the key to press while right clicking in the settings).
 
 Once the context menu is open, the first selected command is `Focused block as prompt` if a block is focused. Select this command to send your prompt to the default model.
@@ -235,12 +235,12 @@ You can add your own custom style, using `#liveai/style` tag. See [here](https:/
 
 ### Query Agents
 
-Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask to your graph..." agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
+Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask your graph" agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
 
 - **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, [see details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent). Very reliable.
 - **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax. The results are less reliable than with the previous agent because the syntax is much more complex. It works very well for fairly simple queries, more randomly for complex ones. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-q-datomic-agent).
 - **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#smart-search-agent).
-- **Ask to your graph...**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
+- **Ask your graph**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
 ### Live Outliner Agent
 
@@ -251,7 +251,7 @@ It's a powerful and innovative feature, still experimental 🧪. [See details he
 
 Sending personal data to a LLMs is not trivial and should always be done with caution. The only completely safe method is to use local models (accessible via Ollama in Live AI), but the most powerful ones require very powerful computers and are generally slower than online models. It's therefore useful to be able to clearly identify which data from your graph will be sent to the LLMs.
 
-With Live AI, you generally have control over what you decide to send or not to the LLMs, except in the case of the `Ask to my graph...` agent. Here's what's sent to the LLM based on the type of command used:
+With Live AI, you generally have control over what you decide to send or not to the LLMs, except in the case of the `Ask your graph` agent. Here's what's sent to the LLM based on the type of command used:
 
 - when using the generative AI from a prompt, only the prompt (a block or the blocks selected by the user + the content of block refs without their children) is sent.
 - when using `Continue the conversation` command: all previous sibling blocks and all their children are sent. `Selected blocks as prompt` command checks if the previous sibling blocks contain a specific header for an AI response, if so, it behaves the same as `Continue the conversation`. In other words, to ensure that previous sibling blocks are not sent to the API by mistake, it's enough to start any new request as the first child of a new block.
@@ -263,7 +263,7 @@ With Live AI, you generally have control over what you decide to send or not to 
   - You can also set tags to exclude blocks (and their children) from context
 - regarding agents:
   - `NL query`, `NL: q Datomic query`, and `Smart Search` only send the natural language query, no graph content is sent to the LLM API !
-  - `Ask to your graph`, on the other hand, sends the results of Smart Search (blocks that match the conditions + their direct parent + their first child for pre-selection, and all children up to 3 levels for pre-selected blocks, up to 20). Here, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query.
+  - `Ask your graph`, on the other hand, sends the results of Smart Search (blocks that match the conditions + their direct parent + their first child for pre-selection, and all children up to 3 levels for pre-selected blocks, up to 20). Here, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query.
   - `Live Outliner Agent` only sends the content of the active Live Outline.
 
 ## 6. Detailed documentation for advanced uses
