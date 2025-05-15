@@ -839,7 +839,7 @@ function VoiceRecorder({
                 disabled={window.roamAlphaAPI.platform.isMobile}
                 content={
                   <p>
-                    Ask to AI (focused/selected content as prompt) (A)
+                    Ask AI (focused/selected content as prompt) (A)
                     <br /> <br />
                     <b>Right-click</b> to open Live AI menu
                     <br />

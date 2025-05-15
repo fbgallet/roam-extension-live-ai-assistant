@@ -75,7 +75,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   //   },
   // });
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI: Ask to AI by voice",
+    label: "Live AI: Ask AI by voice",
     callback: () => {
       const button = document.getElementsByClassName("speech-completion")[0];
       if (button) {
@@ -162,7 +162,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   };
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI: Ask to AI (prompt in focused/selected blocks)",
+    label: "Live AI: Ask AI (prompt in focused/selected blocks)",
     callback: async (e) => {
       aiCompletionRunner({
         e,
