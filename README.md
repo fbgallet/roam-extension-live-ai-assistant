@@ -16,6 +16,8 @@
 - Adaptative command to run prompt from focused/selected blocks or text selection or whole page/zoom view
 - Renamed to Live AI
 
+v.19: bug fix for the broken retry button & way better (almost perfect ?) parsing of highly hierarchical and structured LLM responses
+
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
 ## Summary
