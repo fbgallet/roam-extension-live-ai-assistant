@@ -33,6 +33,7 @@ import {
   roamBasicsFormat,
   roamKanbanFormat,
   roamTableFormat,
+  roamUidsPrompt,
   stylePrompts,
 } from "./prompts";
 import {
@@ -62,6 +63,7 @@ import {
 import { uidRegex } from "../utils/regex";
 import { BUILTIN_STYLES, customStyles } from "../components/ContextMenu";
 import { AppToaster } from "../components/Toaster";
+import { hasTrueBooleanKey } from "../utils/dataProcessing";
 
 export const lastCompletion = {
   prompt: null,
@@ -205,8 +207,13 @@ export const aiCompletionRunner = async ({
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
   systemPrompt +=
     roamBasicsFormat +
-    `\nCurrent date and time are: ${getRelativeDateAndTimeString(sourceUid)}` +
+    (includeUids || hasTrueBooleanKey(roamContext) ? roamUidsPrompt : "") +
+    `\n\nCurrent date and time are: ${getRelativeDateAndTimeString(
+      sourceUid
+    )}` +
     hierarchicalResponseFormat;
+
+  console.log("systemPrompt :>> ", systemPrompt);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
@@ -324,7 +331,11 @@ export const insertCompletion = async ({
   if (!systemPrompt.includes("Current date and time are:"))
     systemPrompt +=
       roamBasicsFormat +
-      `\nCurrent date and time are: ${getRelativeDateAndTimeString(targetUid)}`;
+      (context
+        ? roamUidsPrompt
+        : "")`\nCurrent date and time are: ${getRelativeDateAndTimeString(
+        targetUid
+      )}`;
   if (
     !systemPrompt.includes(hierarchicalResponseFormat) &&
     responseFormat === "text"

@@ -1013,6 +1013,7 @@ const StandaloneContextMenu = () => {
           category: "CUSTOM PROMPTS",
           keyWords: "user",
           prompt: cmd.uid,
+          includeUids: true,
         };
       });
       setUserCommands(userCmds);

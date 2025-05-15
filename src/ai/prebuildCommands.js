@@ -30,7 +30,7 @@ export const BUILTIN_COMMANDS = [
     id: 101,
     name: "Focused block & all children as prompt",
     category: "",
-    includeUids: false,
+    includeUids: true,
     isIncompatibleWith: {
       outliner: true,
     },
@@ -39,7 +39,7 @@ export const BUILTIN_COMMANDS = [
     id: 102,
     name: "Choosen context as prompt",
     category: "",
-    includeUids: false,
+    includeUids: true,
     isIncompatibleWith: {
       outliner: true,
     },

@@ -84,13 +84,17 @@ export const getInputDataFromRoamContext = async (
   // get context
   const roamContextFromKeys = e && (await handleModifierKeys(e));
   let globalContext = getUnionContext(roamContext, roamContextFromKeys);
-  console.log("globalContext :>> ", globalContext);
   const inlineContext = currentBlockContent
-    ? getRoamContextFromPrompt(getBlockContentByUid(sourceUid)) // non resolved content
+    ? getRoamContextFromPrompt(
+        getBlockContentByUid(
+          sourceUid || (selectedUids?.length ? selectedUids[0] : null)
+        )
+      ) // non resolved content
     : null;
   if (inlineContext) {
     globalContext = getUnionContext(globalContext, inlineContext.roamContext);
   }
+  console.log("globalContext :>> ", globalContext);
 
   // get prompt
   if (
@@ -222,12 +226,12 @@ const getFinalPromptAndTarget = async (
       const lastTopLevelBlock = !includeChildren
         ? getLastTopLevelOfSeletion(selectionUids)
         : sourceUid;
-      targetUid = createNextSiblingIfPossible(lastTopLevelBlock);
+      targetUid = await createNextSiblingIfPossible(lastTopLevelBlock);
       await addContentToBlock(targetUid, assistantRole);
     } else {
       targetUid = selectionUids[0];
     }
-    console.log("includeUids :>> ", includeUids);
+    // console.log("includeUids :>> ", includeUids);
     const content = !includeChildren
       ? getResolvedContentFromBlocks(selectionUids, includeUids, withHierarchy)
       : sourceBlockContent;
