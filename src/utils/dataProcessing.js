@@ -74,6 +74,7 @@ export function getRandomElements(arr, n) {
 }
 
 export function hasTrueBooleanKey(obj) {
+  if (!obj) return false;
   return Object.keys(obj).some(
     (key) => typeof obj[key] === "boolean" && obj[key]
   );

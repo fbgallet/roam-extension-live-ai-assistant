@@ -57,6 +57,7 @@ export function getLastTopLevelOfSeletion(selectionUids) {
 }
 
 export function getBlockContentByUid(uid) {
+  if (!uid) return "";
   let result = window.roamAlphaAPI.pull("[:block/string]", [":block/uid", uid]);
   if (result) return result[":block/string"];
   else return "";
