@@ -666,7 +666,7 @@ export async function claudeCompletion({
           timeout: 15000,
         });
       }
-      return "see error message";
+      return "There is an error. Please try again, Anthropic’s web search is sometimes overloaded.";
     }
   }
 }
