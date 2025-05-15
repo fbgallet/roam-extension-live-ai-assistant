@@ -89,90 +89,233 @@ export const parseAndCreateBlocks = async (
   isParentToReplace = false
 ) => {
   const lines = text.split("\n");
-  // console.log("lines :>> ", lines);
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
-  let minTitleLevel;
-  let minLevel;
-  let updatedMinLevel = false;
+  let minTitleLevel = null;
   let inCodeBlock = false;
   let codeBlockContent = "";
-  let codeBlockShift = 0;
   let isFistParent = true;
   let position = isParentToReplace
     ? getBlockOrderByUid(parentBlockRef)
     : undefined;
-  let codeblockInChild = false;
 
+  // Browse first to identify the minimum heading level
   for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+
+    const headerMatch = trimmedLine.match(/^(#{1,6})\s+/);
+    if (headerMatch) {
+      const headerLevel = headerMatch[1].length;
+      minTitleLevel =
+        minTitleLevel === null
+          ? headerLevel
+          : Math.min(minTitleLevel, headerLevel);
+    }
+  }
+
+  minTitleLevel = minTitleLevel || 1;
+
+  const hierarchyTracker = new Map();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (!line.trim()) continue;
 
+    // Detect indentation by spaces
+    const leadingSpaces = line.match(/^ */)[0].length;
+    const indentLevel = Math.floor(leadingSpaces / 2);
     let trimmedLine = line.trimStart();
 
-    // const content = trimmedLine.startsWith("- ") || trimmedLine.startsWith("• ")
-    const content = /^(?:-|•)\s?/.test(trimmedLine)
-      ? trimmedLine.slice(trimmedLine.match(/^(?:-|•)\s?/).length).trim()
-      : trimmedLine;
-
-    // Handle codeblocks (multiline)
-    if (content.startsWith("```")) {
+    // Handle code blocks and Katex multi-lines
+    if (trimmedLine.startsWith("```") || trimmedLine.startsWith("$$")) {
       if (!inCodeBlock) {
-        // Codeblock begin
-        codeBlockShift = line.length - content.length; // trimmedLine.length;
+        // Begin
         inCodeBlock = true;
-        codeBlockContent = content + "\n"; // line.slice(codeBlockShift) + "\n";
-        if (/^(?:-|•)\s?/.test(trimmedLine)) codeblockInChild = true;
+        codeBlockContent = line + "\n";
       } else {
-        // Codeblock end
+        // End
         inCodeBlock = false;
-        codeBlockContent += line.slice(codeBlockShift);
+        codeBlockContent += line;
+
+        const codeParentRef =
+          stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
+
         const newBlockRef = await createChildBlock(
-          codeblockInChild ? stack[stack.length - 1].ref : currentParentRef,
+          codeParentRef,
           codeBlockContent
         );
-        stack.push({
-          level: stack[stack.length - 1].level + 1,
+
+        hierarchyTracker.set(i, {
+          level: indentLevel,
           ref: newBlockRef,
+          isHeader: false,
+          headerLevel: null,
+          indentLevel: indentLevel,
         });
+
         codeBlockContent = "";
-        codeblockInChild = false;
       }
       continue;
     }
+
     if (inCodeBlock) {
-      codeBlockContent +=
-        (trimmedLine === "---" ? trimmedLine : line.slice(codeBlockShift)) +
-        "\n";
+      codeBlockContent += line + "\n";
       continue;
     }
 
-    const { level, titleDegree } = getLevel(line, minTitleLevel);
+    // Line analysis
+    let content = trimmedLine;
+    let hierarchyLevel = indentLevel;
+    let isHeader = false;
+    let headerLevel = null;
+    let isList = false;
+    let listMatchType = null;
 
-    if (minLevel === undefined) minLevel = level;
+    // 1. Is it a header ?
+    const headerMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+    if (headerMatch) {
+      headerLevel = headerMatch[1].length;
+      content = headerMatch[2].trim();
+      hierarchyLevel = headerLevel - minTitleLevel;
+      isHeader = true;
+    }
+    // 2. Numbered list (1., 2., etc.)
+    else if (trimmedLine.match(/^\d+[.)]\s+/)) {
+      content = trimmedLine.replace(/^\d+[.)]\s+/, "");
+      listMatchType = "numeric";
+      isList = true;
+    }
+    // 3. Alpha list (a., b., A., B., etc.)
+    else if (trimmedLine.match(/^[a-zA-Z][.)]\s+/)) {
+      content = trimmedLine.replace(/^[a-zA-Z][.)]\s+/, "");
+      listMatchType = "alpha";
+      isList = true;
+    }
+    // 4. Roman numbers (i., ii., I., II., etc.)
+    else if (trimmedLine.match(/^[ivx]+[.)]\s+|^[IVX]+[.)]\s+/i)) {
+      content = trimmedLine.replace(/^[ivx]+[.)]\s+|^[IVX]+[.)]\s+/i, "");
+      listMatchType = "roman";
+      isList = true;
+    }
+    // 5. Bullets (-, •, *)
+    else if (trimmedLine.match(/^[-•*]\s+/)) {
+      content = trimmedLine.replace(/^[-•*]\s+/, "");
+      listMatchType = "bullet";
+      isList = true;
+    }
 
-    if (titleDegree !== null) {
-      if (!updatedMinLevel) {
-        minTitleLevel = minTitleLevel
-          ? Math.min(minTitleLevel, titleDegree)
-          : titleDegree;
-        updatedMinLevel = true;
+    let parentInfo = null;
+
+    if (isHeader) {
+      for (let j = i - 1; j >= 0; j--) {
+        const prevInfo = hierarchyTracker.get(j);
+        if (
+          prevInfo &&
+          prevInfo.isHeader &&
+          prevInfo.headerLevel < headerLevel
+        ) {
+          parentInfo = prevInfo;
+          break;
+        }
       }
-      trimmedLine = trimmedLine.replace(/^#{1,6}\s*/, "").trim();
-    }
 
-    // Get parent of current block
-    while (stack.length > 0 && stack[stack.length - 1].level >= level) {
-      stack.pop();
+      // first level ?
+      if (!parentInfo) {
+        stack = [{ level: 0, ref: parentBlockRef }];
+        currentParentRef = parentBlockRef;
+      } else {
+        while (
+          stack.length > 0 &&
+          stack[stack.length - 1].level >= hierarchyLevel
+        ) {
+          stack.pop();
+        }
+        currentParentRef = parentInfo.ref;
+        if (
+          stack.length === 0 ||
+          stack[stack.length - 1].ref !== currentParentRef
+        ) {
+          stack.push({ level: hierarchyLevel - 1, ref: currentParentRef });
+        }
+      }
+    } else {
+      // Special case: first line after a title is a child of this title
+      let foundParent = false;
+
+      for (let j = i - 1; j >= 0; j--) {
+        const prevInfo = hierarchyTracker.get(j);
+        if (!prevInfo) continue;
+
+        if (
+          prevInfo.indentLevel !== undefined &&
+          prevInfo.indentLevel < indentLevel
+        ) {
+          parentInfo = prevInfo;
+          foundParent = true;
+          break;
+        }
+
+        if (prevInfo.isHeader) {
+          parentInfo = prevInfo;
+          foundParent = true;
+          break;
+        }
+      }
+
+      if (!foundParent) {
+        currentParentRef = parentBlockRef;
+      } else if (parentInfo) {
+        while (
+          stack.length > 0 &&
+          stack[stack.length - 1].level >= hierarchyLevel
+        ) {
+          stack.pop();
+        }
+
+        if (isList && indentLevel > 0) {
+          const prevLine = i > 0 ? hierarchyTracker.get(i - 1) : null;
+          const prevIndentLevel =
+            prevLine && prevLine.indentLevel !== undefined
+              ? prevLine.indentLevel
+              : 0;
+
+          if (indentLevel > prevIndentLevel && stack.length > 0) {
+            currentParentRef = stack[stack.length - 1].ref;
+            hierarchyLevel = stack[stack.length - 1].level + 1;
+          } else {
+            currentParentRef = parentInfo.ref;
+          }
+        } else {
+          currentParentRef = parentInfo.ref;
+        }
+      }
     }
-    currentParentRef =
-      stack[stack.length - 1] !== undefined
-        ? stack[stack.length - 1].ref
-        : parentBlockRef;
 
     let newBlockRef;
-    let heading = titleDegree ? (titleDegree > 3 ? 3 : titleDegree) : undefined;
+    let heading = isHeader ? (headerLevel > 3 ? 3 : headerLevel) : undefined;
 
-    if (position === undefined || level > minLevel) {
+    if (isList) {
+      let listPrefix = "";
+      if (listMatchType === "numeric") {
+        const numMatch = trimmedLine.match(/^(\d+[.)])\s+/);
+        listPrefix = numMatch ? numMatch[1] + " " : "";
+      } else if (listMatchType === "alpha") {
+        const alphaMatch = trimmedLine.match(/^([a-zA-Z][.)])\s+/);
+        listPrefix = alphaMatch ? alphaMatch[1] + " " : "";
+      } else if (listMatchType === "roman") {
+        const romanMatch = trimmedLine.match(
+          /^([ivx]+[.]|[IVX]+[.]|[ivx]+[)]|[IVX]+[)])\s+/i
+        );
+        listPrefix = romanMatch ? romanMatch[1] + " " : "";
+      }
+
+      if (listPrefix) {
+        content = listPrefix + content;
+      }
+    }
+
+    if (position === undefined || !isFistParent) {
       newBlockRef = await createChildBlock(
         currentParentRef,
         content,
@@ -180,15 +323,6 @@ export const parseAndCreateBlocks = async (
         true,
         heading
       );
-      //  await new Promise((resolve) => setTimeout(resolve, 10));
-    } else if (position !== undefined && !isFistParent) {
-      newBlockRef = await createSiblingBlock(
-        currentParentRef,
-        position++,
-        content,
-        { open: true, heading }
-      );
-      //  await new Promise((resolve) => setTimeout(resolve, 10));
     } else if (isFistParent) {
       newBlockRef = currentParentRef;
       position++;
@@ -199,33 +333,18 @@ export const parseAndCreateBlocks = async (
       });
       isFistParent = false;
     }
-    stack.push({ level, ref: newBlockRef });
+
+    if (newBlockRef) {
+      stack.push({ level: hierarchyLevel, ref: newBlockRef });
+    }
+
+    hierarchyTracker.set(i, {
+      level: hierarchyLevel,
+      ref: newBlockRef,
+      indentLevel: indentLevel,
+      isHeader: isHeader,
+      headerLevel: headerLevel,
+      isList: isList,
+    });
   }
 };
-
-function getLevel(line, minTitleLevel) {
-  let level = 0;
-  let titleDegree = null;
-
-  const spaces = line.match(/^ */)[0].length;
-  level = spaces;
-
-  let trimmedLine = line.trim();
-
-  // Markdown title
-  const titleMatch = trimmedLine.match(/^#{1,6}\s/);
-  if (titleMatch) {
-    titleDegree = titleMatch[0].trim().length; // Le nombre de # correspond au degré de titre
-    level = titleDegree - (minTitleLevel ? minTitleLevel : titleDegree); // Ajuster le niveau en fonction du titre le plus élevé
-    return { level, titleDegree };
-  }
-
-  if (/^\*?\*?\(?\d+(?:\.|\))/.test(trimmedLine))
-    level += 1; // Numbers 1. 2. or 1) 2)
-  else if (/^\*?\*?[a-z]\)/.test(trimmedLine)) level += 1; // Lettres a) b) etc.
-  else if (/^\*?\*?[ivx]+(?:\.|\))/i.test(trimmedLine))
-    level += 1; // Roman numbers i) ii) or I. II.
-  else if (/^\*?\*?(?:-|•)\s?/.test(trimmedLine)) level += 1; // Dash -
-
-  return { level, titleDegree };
-}

@@ -106,9 +106,9 @@ export const getInputDataFromRoamContext = async (
   )
     includeChildren = true;
   if (sourceUid || includeChildren) {
-    if (!includeChildren)
+    if (!includeChildren) {
       currentBlockContent = resolveReferences(getBlockContentByUid(sourceUid));
-    else {
+    } else {
       let isParentToIgnore = false;
       let parentUid = sourceUid;
       if (!sourceUid) {
@@ -266,7 +266,7 @@ const getFinalPromptAndTarget = async (
     if (!prompt) prompt = contextAsPrompt;
     // prompt = getBlockContentByUid(sourceUid) ? "" : contextAsPrompt;
   }
-  console.log("prompt :>> ", prompt);
+  // console.log("prompt :>> ", prompt);
   return {
     completedPrompt: prompt,
     targetUid,

@@ -37,6 +37,7 @@ import {
   isUsingWhisper,
   openaiLibrary,
   extensionStorage,
+  uidsInPrompt,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import {
@@ -339,6 +340,7 @@ function VoiceRecorder({
     if (model) instantModel.current = model;
     lastCommand.current = "gptCompletion";
     roamContext.current = await handleModifierKeys(e);
+    blocksSelectionUids.current = getBlocksSelectionUids();
     initializeProcessing(e);
   };
   const handleOutlinerAgent = async (e, model) => {
@@ -533,10 +535,14 @@ function VoiceRecorder({
       aiCompletionRunner({
         e,
         prompt,
+        includeUids:
+          blocksSelectionUids.current?.length && uidsInPrompt ? true : false,
         selectedUids: blocksSelectionUids.current,
         model: instantModel.current,
         sourceUid:
-          targetUid || window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+          /*targetUid ||*/ window.roamAlphaAPI.ui.getFocusedBlock()?.[
+            "block-uid"
+          ],
         target: "new",
       });
     }

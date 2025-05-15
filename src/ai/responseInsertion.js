@@ -203,6 +203,7 @@ export const aiCompletionRunner = async ({
     }
     if (stylePromptText) systemPrompt = introduceStylePrompt + stylePromptText;
   }
+  if ((sourceUid || selectedText) && !selectedUids?.length) includeUids = false;
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
   systemPrompt +=
     roamBasicsFormat +
@@ -214,7 +215,7 @@ export const aiCompletionRunner = async ({
     )}` +
     hierarchicalResponseFormat;
 
-  console.log("systemPrompt :>> ", systemPrompt);
+  // console.log("systemPrompt :>> ", systemPrompt);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
@@ -334,7 +335,7 @@ export const insertCompletion = async ({
   if (!systemPrompt.includes("Current date and time are:"))
     systemPrompt +=
       roamBasicsFormat +
-      (context
+      (context || selectedUids?.length
         ? roamUidsPrompt
         : "")`\nCurrent date and time are: ${getRelativeDateAndTimeString(
         targetUid

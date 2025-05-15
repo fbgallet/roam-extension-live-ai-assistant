@@ -2,12 +2,14 @@
 
 **Updates**
 
+- Way better (almost perfect ?) parsing of highly hierarchical and structured LLM responses
 - Better system prompt to handle block references from multi-block prompts or context (you can now mention "block uid" or "block reference" in your prompts to encourage the AI to insert them in some way)
 - Added option to disable insertion of uids of each block in multi-blocks prompts & context (inserted by default in most built-in prompts & in custom prompts)
 
 **Fixed**
 
 - retry button & right-click on retry or conversation to change model were broken since last update
+- support of multi-lines Katex formula between $$
 
 ## v.18 (May 10th, 2025) Image generation, Mermaid, advanced :q queries & fixes
 
