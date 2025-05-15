@@ -8,6 +8,7 @@ import {
   // isMobileViewContext,
   maxCapturingDepth,
   maxUidDepth,
+  uidsInPrompt,
 } from "..";
 import { highlightHtmlElt, insertInstantButtons } from "../utils/domElts";
 import {
@@ -128,7 +129,7 @@ export const getInputDataFromRoamContext = async (
       currentBlockContent = getFlattenedContentFromTree({
         parentUid,
         maxCapturing: 99,
-        maxUid: 0,
+        maxUid: includeUids && uidsInPrompt ? 99 : 0,
         withDash: true,
         isParentToIgnore,
       });
@@ -177,7 +178,7 @@ export const getInputDataFromRoamContext = async (
     roamContext: globalContext,
     focusedBlock: sourceUid,
     withHierarchy: true,
-    withUid: includeUids,
+    withUid: includeUids && uidsInPrompt,
   });
 
   if (completedPrompt.toLowerCase().includes("<target content>") && context) {
@@ -233,7 +234,11 @@ const getFinalPromptAndTarget = async (
     }
     // console.log("includeUids :>> ", includeUids);
     const content = !includeChildren
-      ? getResolvedContentFromBlocks(selectionUids, includeUids, withHierarchy)
+      ? getResolvedContentFromBlocks(
+          selectionUids,
+          includeUids && uidsInPrompt,
+          withHierarchy
+        )
       : sourceBlockContent;
 
     if (prompt.toLowerCase().includes("<target content>"))
@@ -468,7 +473,7 @@ export function convertTreeToLinearArray(
       let content = element.string;
       if (content) {
         let uidString =
-          (maxUid && level > maxUid) || !maxUid
+          (maxUid && level > maxUid) || !maxUid || !uidsInPrompt
             ? ""
             : "((" + element.uid + ")) ";
         toExcludeWithChildren = exclusionStrings.some((str) =>
@@ -544,7 +549,7 @@ export const getAndNormalizeContext = async ({
             getFlattenedContentFromTree({
               parentUid: uid,
               maxCapturing: maxDepth || 99,
-              maxUid: withUid && 99,
+              maxUid: withUid && uidsInPrompt && 99,
               withDash: withHierarchy,
             }))
       );
@@ -591,7 +596,7 @@ export const getAndNormalizeContext = async ({
             getFlattenedContentFromTree({
               parentUid: uid,
               maxCapturing: maxDepth || 99,
-              maxUid: withUid && 99,
+              maxUid: withUid && uidsInPrompt && 99,
               withDash: withHierarchy,
             }))
       );
@@ -718,7 +723,7 @@ export function getFlattenedContentFromSidebar(uidToExclude, withUid = true) {
         flattednedBlocks += getFlattenedContentFromTree({
           parentUid: uid,
           maxCapturing: maxCapturingDepth.page,
-          maxUid: withUid && maxUidDepth.page,
+          maxUid: withUid && uidsInPrompt && maxUidDepth.page,
           withDash: true,
         });
       else {

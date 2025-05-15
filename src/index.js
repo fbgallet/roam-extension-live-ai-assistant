@@ -75,6 +75,7 @@ export let exclusionStrings = [];
 export let websearchContext;
 // export let defaultTemplate;
 export let streamResponse;
+export let uidsInPrompt;
 export let maxImagesNb;
 export let openAiCustomModels = [];
 export let openRouterModelsInfo = [];
@@ -678,6 +679,18 @@ function getPanelConfig() {
         },
       },
       {
+        id: "uidsInPrompt",
+        name: "Uids of blocks in promt/context",
+        description:
+          "Provide the uid of each block in multi-blocks or context to the LLM (default): ",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            uidsInPrompt = !uidsInPrompt;
+          },
+        },
+      },
+      {
         id: "chatRoles",
         name: "Chat roles",
         description:
@@ -1161,6 +1174,9 @@ export default {
     if (extensionAPI.settings.get("streamResponse") === null)
       await extensionAPI.settings.set("streamResponse", true);
     streamResponse = extensionAPI.settings.get("streamResponse");
+    if (extensionAPI.settings.get("uidsInPrompt") === null)
+      await extensionAPI.settings.set("uidsInPrompt", true);
+    uidsInPrompt = extensionAPI.settings.get("uidsInPrompt");
     if (extensionAPI.settings.get("maxImages") === null)
       await extensionAPI.settings.set("maxImages", "3");
     maxImagesNb = extensionAPI.settings.get("maxImages");

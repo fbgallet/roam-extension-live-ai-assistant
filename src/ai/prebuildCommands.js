@@ -213,6 +213,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "reasoningAnalysis",
     category: "CONTENT ANALYSIS",
     target: "new",
+    includeUids: true,
     submenu: [1322, 1320, 1321],
   },
   {
@@ -230,6 +231,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "sentimentAnalysis",
     category: "CONTENT ANALYSIS",
     target: "new",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -238,6 +240,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "valueAnalysis",
     category: "CONTENT ANALYSIS",
     target: "new",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -312,6 +315,7 @@ export const BUILTIN_COMMANDS = [
       outliner: true,
       style: true,
     },
+    includeUids: true,
     target: "new",
   },
   {
@@ -562,6 +566,7 @@ export const BUILTIN_COMMANDS = [
     category: "ACTION",
     keyWords: "task",
     target: "new",
+    includeUids: true,
     submenu: [1450, 1451, 1452],
   },
   {
@@ -571,6 +576,7 @@ export const BUILTIN_COMMANDS = [
     category: "ACTION",
     keyWords: "help, self discovery, problem-solving, step",
     target: "new",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -580,6 +586,7 @@ export const BUILTIN_COMMANDS = [
     category: "ACTION",
     keyWords: "coach",
     target: "new",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -597,6 +604,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "choice",
     category: "ACTION",
     keyword: "choose, decision",
+    includeUids: true,
     target: "new",
   },
 
@@ -614,6 +622,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "consolidate",
     category: "CRITICAL REASONING TOOLKIT",
     keyWords: "argument",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -621,6 +630,7 @@ export const BUILTIN_COMMANDS = [
     name: "Objection, counterargument",
     prompt: "objection",
     category: "CRITICAL REASONING TOOLKIT",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -646,6 +656,7 @@ export const BUILTIN_COMMANDS = [
     name: "Explanation",
     prompt: "explanation",
     category: "CRITICAL REASONING TOOLKIT",
+    includeUids: true,
     submenu: [1540, 1541, 1542, 1543],
   },
   {
@@ -700,6 +711,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "perspectiveShift",
     category: "CRITICAL REASONING TOOLKIT",
     keyWords: "change, view, frame, reframing",
+    includeUids: true,
     isSub: true,
   },
   {
@@ -707,6 +719,7 @@ export const BUILTIN_COMMANDS = [
     name: "Brainstorming",
     prompt: "brainstorming",
     category: "CRITICAL REASONING TOOLKIT",
+    includeUids: true,
     isSub: true,
   },
 ].concat(

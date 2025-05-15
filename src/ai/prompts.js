@@ -2,7 +2,7 @@ export const roamBasicsFormat = `\nSince your response will be inserted into Roa
 
 export const roamUidsPrompt = `\n\nThe 9-characters-identifier between double parentheses (named "block-uid") preceding each piece of content (or block) in the prompt or in the context is its unique ID in the database and isn't a part of the block content (e.g.: "- ((kVZwmFnFF)) block content". In Roam, you can insert the content of another block in a given block by inserting its ((block-uid)). This transclusion of another block is named a "block reference".
 IMPORTANT: block-uids preceding blocks content are only there for referencing and sourcing purpose if needed as described below. In other cases (most cases), DO NOT reproduce or insert any block-uids in your response.
-In case it would be relevant to include in your response the content of an existing block provided in the prompt or in the context (e.g. to comment it, as a header to your comment or response to a part of a structured prompt including multiple blocks), use ONLY (please respect strictly this condition) the block reference but DO NOT insert the block content itself, it would be redundant!
+In case it would be relevant to include in your response the whole content of an existing block provided in the prompt or in the context (e.g. to comment it, as a header to your comment or response to a part of a structured prompt including multiple blocks), use ONLY (please respect strictly this condition) the block reference but DO NOT insert the block content itself, it would be redundant since the block reference will be replaced by the block content in the UI !
 For example:
 "- ((kVZwmFnFF))
   - In this block, ... (your comment)"
@@ -944,10 +944,10 @@ ${outputConditions.replace("<ACTION>", "extract actionable from")}`,
   - Keep the original text's order
 
 2. Source block referencing:
-If the source blocks have unique ID (9-character string in double parentheses, containing alphanumeric, - or _):
-  - Add a markdown reference link immediately after each extract in this exact format: [*](((unique ID of the block)))
+If the source blocks have a ((block-uid)):
+  - Add a markdown reference link immediately after each extract in this exact format: [*](((block-uid)))
   - Place the reference on the same line as the extract
-  - Carefully verify that the unique ID used to reference the source block contains strictly 9 characters and exactly matches the one indicated at the beginning of the block if applicable.
+  - Carefully verify that the unique block-uid used to reference the source block contains strictly 9 characters and exactly matches the one indicated at the beginning of the block if applicable.
   - Do not invent an identifier if there isn't one! If there is no identifier available, do not insert any mardown reference: doesn't add anything to the extracted text.
 
 3. Format requirements:
