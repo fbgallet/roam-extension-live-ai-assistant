@@ -956,11 +956,11 @@ const StandaloneContextMenu = () => {
     );
   };
 
-  const updateContext = (context) => {
+  const updateContext = (context, e) => {
     if (context === "liveOutline") {
       context = "block";
     } else {
-      if (!roamContext[context])
+      if (e.target.checked)
         highlightHtmlElt({
           roamElt:
             context === "logPages" && !isLogView() ? "pageTitle" : context,
@@ -1234,7 +1234,7 @@ const StandaloneContextMenu = () => {
                   checked={roamContext.page}
                   label="Page"
                   inline={true}
-                  onChange={() => updateContext("page")}
+                  onChange={(e) => updateContext("page", e)}
                 />
               </Tooltip>
               {isLogView() ? (
@@ -1253,7 +1253,7 @@ const StandaloneContextMenu = () => {
                     checked={roamContext.logPages}
                     label="DNPs"
                     inline={true}
-                    onChange={() => updateContext("logPages")}
+                    onChange={(e) => updateContext("logPages", e)}
                   />
                 </Tooltip>
               ) : (
@@ -1261,14 +1261,14 @@ const StandaloneContextMenu = () => {
                   checked={roamContext.linkedRefs}
                   label="Linked Refs"
                   inline={true}
-                  onChange={() => updateContext("linkedRefs")}
+                  onChange={(e) => updateContext("linkedRefs", e)}
                 />
               )}
               <Checkbox
                 checked={roamContext.sidebar}
                 label="Sidebar"
                 inline={true}
-                onChange={() => updateContext("sidebar")}
+                onChange={(e) => updateContext("sidebar", e)}
               />
               {/* {focusedBlockUid.current || selectedBlocks.current?.length ? ( */}
               <Tooltip
@@ -1285,7 +1285,7 @@ const StandaloneContextMenu = () => {
                   checked={roamContext.linkedPages}
                   label="[[pages]]"
                   inline={true}
-                  onChange={() => updateContext("linkedPages")}
+                  onChange={(e) => updateContext("linkedPages", e)}
                 />
               </Tooltip>
               {/* ) : null} */}
@@ -1294,7 +1294,7 @@ const StandaloneContextMenu = () => {
                   checked={roamContext.block}
                   label="Outline"
                   inline={true}
-                  onChange={() => updateContext("liveOutline")}
+                  onChange={(e) => updateContext("liveOutline", e)}
                 />
               )}
             </div>

@@ -276,12 +276,15 @@ export const highlightHtmlElt = ({
     switch (roamElt) {
       case "sidebar":
         selector = "#roam-right-sidebar-content";
+        isInset = true;
         break;
       case "logPages":
         selector = ".roam-log-container";
         break;
       case "pageTitle":
-        selector = ".rm-title-display";
+      case "page":
+        selector = ".roam-article > div:first-child";
+        break;
       case "linkedRefs":
         selector = ".rm-reference-main";
         break;

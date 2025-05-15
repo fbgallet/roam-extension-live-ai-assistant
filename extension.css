@@ -226,6 +226,9 @@
 .highlight-elt {
   animation: green-shadow-flash 5s;
 }
+.highlight-elt-inset {
+  animation: green-shadow-inset-flash 5s;
+}
 .highlight-elt-orange-inset {
   animation: orange-shadow-inset-flash 3s;
   animation-iteration-count: 4;
@@ -263,6 +266,18 @@
   }
   100% {
     -webkit-box-shadow: 0 0 10px 5px transparent;
+  }
+}
+@keyframes green-shadow-inset-flash {
+  0% {
+    -webkit-box-shadow: inset 0 0 10px 5px transparent;
+  }
+  50% {
+    filter: brightness(0.9);
+    -webkit-box-shadow: inset 0 0 10px 5px green;
+  }
+  100% {
+    -webkit-box-shadow: inset 0 0 10px 5px transparent;
   }
 }
 @keyframes orange-shadow-inset-flash {
