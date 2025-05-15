@@ -8,9 +8,8 @@ import {
   ollamaModels,
   isResponseToSplit,
   defaultStyle,
-  openaiLibrary,
-  anthropicLibrary,
   extensionStorage,
+  uidsInPrompt,
 } from "..";
 import {
   addContentToBlock,
@@ -207,7 +206,9 @@ export const aiCompletionRunner = async ({
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
   systemPrompt +=
     roamBasicsFormat +
-    (includeUids || hasTrueBooleanKey(roamContext) ? roamUidsPrompt : "") +
+    (uidsInPrompt && (includeUids || hasTrueBooleanKey(roamContext))
+      ? roamUidsPrompt
+      : "") +
     `\n\nCurrent date and time are: ${getRelativeDateAndTimeString(
       sourceUid
     )}` +
@@ -234,7 +235,9 @@ export const aiCompletionRunner = async ({
     sourceUid,
     prompt,
     instantModel,
-    includeUids || target === "replace" || target === "append",
+    (includeUids && uidsInPrompt) ||
+      target === "replace" ||
+      target === "append",
     includeChildren,
     true, // withHierarchy
     withAssistantRole,

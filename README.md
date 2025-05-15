@@ -135,10 +135,16 @@ You can easily **add context** to your prompt, that is, a large set of data from
 
 To define the context, you can either check the corresponding box in the context menu or press the corresponding modifier keys to catch all the content of the following elements (at different children depths depending on the element type and settings):
 
-- **Page** (click +`Alt`): the current page zoom where the focus block or selected blocks are inserted, or by default, the main page zoom (at the center of the display)
+- **Page** (click +`Alt`): the current page or zoom where the focus block or selected blocks are inserted, or by default, the main page zoom (at the center of the display)
 - **LinkedRefs** (click +`Ctrl`): the linked references of the current page
 - **Sidebar** (click +`Shift`): all the content of the sidebar
 - **DNPs** (click +`Ctrl`): if you are in Daily Notes, the last DNPs (7 by default, you can increase the limit in the options)
+- **[[page]]** mentions: the content and linked references of the mentioned pages (as [[page]], #tag or atttribute::)
+
+> [!TIP]
+> If a context is defined (or if you have selected multiple blocks as prompt) the uids (or block reference identifier) of all the corresponding blocks will be provided to the LLM, so it can refer to one of them if needed.
+> Thanks to this, you can easily ask your LLMs to mention or cite relevant block uids or block references as sources (they will understand these terms).
+> This is the default behavior but you can disable this feature if you feel that the uids are being handled improperly by your LLMs or are unnecessarily weighing down your prompts (more tokens)
 
 See more details on context definition and inline context [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
 
