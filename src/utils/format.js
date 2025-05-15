@@ -242,11 +242,9 @@ export const parseAndCreateBlocks = async (
     } else {
       // Special case: first line after a title is a child of this title
       let foundParent = false;
-
       for (let j = i - 1; j >= 0; j--) {
         const prevInfo = hierarchyTracker.get(j);
         if (!prevInfo) continue;
-
         if (
           prevInfo.indentLevel !== undefined &&
           prevInfo.indentLevel < indentLevel
@@ -258,11 +256,23 @@ export const parseAndCreateBlocks = async (
 
         if (prevInfo.isHeader) {
           parentInfo = prevInfo;
+          if (j === i - 1 && !isList && indentLevel === 0) {
+            hierarchyLevel = prevInfo.level + 1;
+          }
+          foundParent = true;
+          break;
+        } else if (
+          prevInfo.isList &&
+          listMatchType !== "numeric" &&
+          j === i - 1 &&
+          !isList
+        ) {
+          parentInfo = prevInfo;
+          hierarchyLevel = prevInfo.level + 1;
           foundParent = true;
           break;
         }
       }
-
       if (!foundParent) {
         currentParentRef = parentBlockRef;
       } else if (parentInfo) {
@@ -272,14 +282,12 @@ export const parseAndCreateBlocks = async (
         ) {
           stack.pop();
         }
-
         if (isList && indentLevel > 0) {
           const prevLine = i > 0 ? hierarchyTracker.get(i - 1) : null;
           const prevIndentLevel =
             prevLine && prevLine.indentLevel !== undefined
               ? prevLine.indentLevel
               : 0;
-
           if (indentLevel > prevIndentLevel && stack.length > 0) {
             currentParentRef = stack[stack.length - 1].ref;
             hierarchyLevel = stack[stack.length - 1].level + 1;
