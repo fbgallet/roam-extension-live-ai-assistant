@@ -525,7 +525,7 @@ export const getAndNormalizeContext = async ({
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
     context = getResolvedContentFromBlocks(
       blocksSelectionUids,
-      maxUid,
+      withUid, //maxUid,
       withHierarchy
     );
   // else if (startBlock)
@@ -645,7 +645,7 @@ export const getAndNormalizeContext = async ({
       context += getFlattenedContentFromSidebar(uidToExclude, withUid);
     }
   }
-  console.log("roamContext :>> ", roamContext);
+  // console.log("roamContext :>> ", roamContext);
   // console.log("context :>> ", context);
 
   return context.trim();
@@ -688,9 +688,6 @@ export const getFlattenedContentFromLinkedReferences = (
     `Content from linked references of [[${pageName}]] page:`,
   ];
 
-  // console.log("maxCapturingDepth :>> ", maxCapturingDepth);
-  // console.log("maxUidDepth :>> ", maxUidDepth);
-
   refTrees.forEach((tree) => {
     let { linearArray } = convertTreeToLinearArray(
       tree,
@@ -723,7 +720,7 @@ export function getFlattenedContentFromSidebar(uidToExclude, withUid = true) {
         flattednedBlocks += getFlattenedContentFromTree({
           parentUid: uid,
           maxCapturing: maxCapturingDepth.page,
-          maxUid: withUid && uidsInPrompt && maxUidDepth.page,
+          maxUid: withUid && uidsInPrompt ? maxUidDepth.page : 0,
           withDash: true,
         });
       else {

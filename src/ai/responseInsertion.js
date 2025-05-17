@@ -203,19 +203,6 @@ export const aiCompletionRunner = async ({
     }
     if (stylePromptText) systemPrompt = introduceStylePrompt + stylePromptText;
   }
-  if ((sourceUid || selectedText) && !selectedUids?.length) includeUids = false;
-  if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
-  systemPrompt +=
-    roamBasicsFormat +
-    (uidsInPrompt && (includeUids || hasTrueBooleanKey(roamContext))
-      ? roamUidsPrompt
-      : "") +
-    `\n\nCurrent date and time are: ${getRelativeDateAndTimeString(
-      sourceUid
-    )}` +
-    hierarchicalResponseFormat;
-
-  // console.log("systemPrompt :>> ", systemPrompt);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
@@ -223,6 +210,8 @@ export const aiCompletionRunner = async ({
     command = "Web search";
     prompt = "";
   }
+
+  console.log("includeUids from aiCompletionRunner :>> ", includeUids);
 
   let {
     targetUid,
@@ -249,6 +238,21 @@ export const aiCompletionRunner = async ({
     forceNotInConversation
   );
   if (noData) return;
+
+  if (
+    (sourceUid || selectedText) &&
+    !selectedUids?.length &&
+    !hasTrueBooleanKey(context)
+  )
+    includeUids = false;
+  if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
+  systemPrompt +=
+    roamBasicsFormat +
+    (uidsInPrompt && includeUids ? roamUidsPrompt : "") +
+    `\n\nCurrent date and time are: ${getRelativeDateAndTimeString(
+      sourceUid
+    )}` +
+    hierarchicalResponseFormat;
 
   // console.log("systemPrompt :>> ", systemPrompt);
   console.log("completed prompt :>> ", completedPrompt);
