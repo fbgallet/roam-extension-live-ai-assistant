@@ -411,6 +411,7 @@ const StandaloneContextMenu = () => {
         roamContext.block = true;
         roamContext.blockArgument.push(rootUid);
       }
+      // console.log("command :>> ", command);
       aiCompletionRunner({
         e,
         sourceUid: focusedBlockUid.current,
