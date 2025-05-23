@@ -26,8 +26,9 @@ export const getAvailableModels = (provider) => {
         "Claude Haiku",
         "Claude Haiku 3.5",
         "Claude Sonnet 3.5",
-        "Claude Sonnet 3.7",
-        "Claude Sonnet 3.7 Thinking",
+        "Claude Sonnet 4",
+        "Claude Sonnet 4 Thinking",
+        "Claude Opus 4",
       ];
     case "DeepSeek":
       return ["DeepSeek-V3", "DeepSeek-R1"];
@@ -50,9 +51,11 @@ export const tokensLimit = {
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,
-  "Claude Sonnet 3.7": 200000,
-  "Claude Sonnet 3.7 Thinking": 200000,
-  "Claude Opus": 200000,
+  // "Claude Sonnet 3.7": 200000,
+  // "Claude Sonnet 3.7 Thinking": 200000,
+  "Claude Sonnet 4": 200000,
+  "Claude Sonnet 4 Thinking": 200000,
+  "Claude Opus 4": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
   "grok-2-1212": 131072,
@@ -130,7 +133,11 @@ export const modelsPricing = {
     input: 3,
     output: 15,
   },
-  "claude-3-opus-20240229": {
+  "claude-sonnet-4-20250514": {
+    input: 3,
+    output: 15,
+  },
+  "claude-opus-4-20250514": {
     input: 15,
     output: 75,
   },
@@ -203,10 +210,22 @@ export async function getModelsInfo() {
 
 export function normalizeClaudeModel(model, getShortName) {
   switch (model.toLowerCase()) {
-    case "claude-3-opus":
-    case "claude-3-opus-20240229":
+    case "claude-4-opus":
+    case "claude-opus-4-20250514":
     case "claude opus":
-      model = getShortName ? "Claude Opus" : "claude-3-opus-20240229";
+      model = getShortName ? "Claude Opus 4" : "claude-opus-4-20250514";
+      break;
+    case "claude-sonnet-4":
+    case "claude-sonnet-4-20250514":
+    case "claude sonnet 4":
+      model = getShortName ? "Claude Sonnet 4" : "claude-sonnet-4-20250514";
+      break;
+    // claude-3-7-sonnet-latest
+    case "claude-sonnet-4-20250514+thinking":
+    case "claude sonnet 4 thinking":
+      model = getShortName
+        ? "Claude Sonnet 4 Thinking"
+        : "claude-sonnet-4-20250514+thinking";
       break;
     case "claude-sonnet-3.5":
     case "claude-3-5-sonnet-20241022":

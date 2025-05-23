@@ -48,8 +48,8 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | claude-3-haiku-20240307      | $0.25                     | $1.25                      |
 | claude-3-5-haiku-20241022    | $0.80                     | $4.00                      |
 | claude-3-5-sonnet-20241022   | $3.00                     | $15.00                     |
-| claude-3-7-sonnet-20250219   | $3.00                     | $15.00                     |
-| claude-3-opus-20240229       | $15.00                    | $75.00                     |
+| claude-sonnet-4-20250514     | $3.00                     | $15.00                     |
+| claude-opus-4-20250514       | $15.00                    | $75.00                     |
 | **DeepSeek**                 |                           |                            |
 | DeepSeek-V3                  | $0.27                     | $1.10                      |
 | deepseek-R1                  | $0.55                     | $2.19                      |
