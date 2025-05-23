@@ -1133,6 +1133,13 @@ export default {
       extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo"
     )
       await extensionAPI.settings.set("defaultModel", "gpt-4.1-mini");
+    if (extensionAPI.settings.get("defaultModel").includes("Sonnet 3.7"))
+      await extensionAPI.settings.set(
+        "defaultModel",
+        extensionAPI.settings
+          .get("defaultModel")
+          .replace("Sonnet 3.7", "Sonnet 4")
+      );
     defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");

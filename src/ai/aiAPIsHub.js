@@ -468,8 +468,14 @@ export async function claudeCompletion({
           },
         ];
 
-      if (model.includes("3-7") || model.includes("3.7")) {
-        options.max_tokens = 128000;
+      if (
+        model.includes("3-7") ||
+        model.includes("3.7") ||
+        model.includes("4")
+      ) {
+        options.max_tokens = model.toLowerCase().includes("opus")
+          ? 32000
+          : 64000;
         // options.betas = ["output-128k-2025-02-19"];
         if (model.includes("+thinking")) {
           options.thinking = {
@@ -532,7 +538,7 @@ export async function claudeCompletion({
         let thinkingToasterStream;
         if (model.includes("+thinking")) {
           thinkingToasterStream = displayThinkingToast(
-            "Sonnet 3.7 Extended Thinking process:"
+            "Sonnet 4 Extended Thinking process:"
           );
         }
 
@@ -956,7 +962,12 @@ const isModelSupportingImage = (model) => {
     model.includes("vision")
   )
     return true;
-  if (model.includes("claude-3-5") || model.includes("claude-3-7")) return true;
+  if (
+    model.includes("claude-3-5") ||
+    model.includes("sonnet") ||
+    model.includes("opus")
+  )
+    return true;
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find(
       (m) => m.id.toLowerCase() === model

@@ -307,7 +307,7 @@ const ModelsMenu = ({
             />
           )}
           <MenuItem
-            icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
+            icon={defaultModel === "Claude Sonnet 4" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -316,13 +316,13 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="Claude Sonnet 3.7"
+            text="Claude Sonnet 4"
             labelElement="200k"
           />
           {!isWebSearch && (
             <>
               <MenuItem
-                icon={defaultModel === "Claude Sonnet 3.7 Thinking" && "pin"}
+                icon={defaultModel === "Claude Sonnet 4 Thinking" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -331,10 +331,22 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="Claude Sonnet 3.7 Thinking"
+                text="Claude Sonnet 4 Thinking"
                 labelElement="200k"
               />
-
+              <MenuItem
+                icon={defaultModel === "Claude Opus 4" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="Claude Opus 4"
+                labelElement="200k"
+              />
               <MenuItem text="Claude older models">
                 <MenuItem
                   icon={defaultModel === "Claude Haiku" && "pin"}
@@ -360,19 +372,6 @@ const ModelsMenu = ({
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
                   text="Claude Sonnet 3.5"
-                  labelElement="200k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Claude Opus" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Claude Opus"
                   labelElement="200k"
                 />
               </MenuItem>
