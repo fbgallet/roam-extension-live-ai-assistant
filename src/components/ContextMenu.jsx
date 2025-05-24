@@ -81,7 +81,6 @@ const DNP_PERIOD_OPTIONS = [
   { value: "1 M", label: "1 month", days: 30 },
   { value: "2 M", label: "2 months", days: 60 },
   { value: "1 Q", label: "1 quarter", days: 92 },
-  { value: "2 Q", label: "2 quarters", days: 184 },
   { value: "1 Y", label: "1 year", days: 365 },
   { value: "Custom", label: "Custom" },
 ];
