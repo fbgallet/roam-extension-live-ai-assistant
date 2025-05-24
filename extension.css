@@ -339,6 +339,26 @@
   justify-content: space-between;
   font-size: 12px;
 }
+.aicommands-context button {
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.aicommands-context button > .bp3-icon-caret-down {
+  padding-right: 0;
+}
+.aicommands-context > div > .bp3-input-group.bp3-small > input {
+  width: 35px;
+  font-size: 12px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
 .aicommands-style {
   gap: 5px;
   padding-top: 0;

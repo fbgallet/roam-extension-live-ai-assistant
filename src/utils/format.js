@@ -205,104 +205,80 @@ export const parseAndCreateBlocks = async (
       isList = true;
     }
 
-    let parentInfo = null;
-
+    // Determine the correct parent and clean the stack
     if (isHeader) {
-      for (let j = i - 1; j >= 0; j--) {
-        const prevInfo = hierarchyTracker.get(j);
-        if (
-          prevInfo &&
-          prevInfo.isHeader &&
-          prevInfo.headerLevel < headerLevel
-        ) {
-          parentInfo = prevInfo;
-          break;
-        }
+      // For headers, clean the stack according to hierarchy level
+      while (
+        stack.length > 1 &&
+        stack[stack.length - 1].level >= hierarchyLevel
+      ) {
+        stack.pop();
       }
-
-      // first level ?
-      if (!parentInfo) {
-        stack = [{ level: 0, ref: parentBlockRef }];
-        currentParentRef = parentBlockRef;
-      } else {
-        while (
-          stack.length > 0 &&
-          stack[stack.length - 1].level >= hierarchyLevel
-        ) {
-          stack.pop();
-        }
-        currentParentRef = parentInfo.ref;
-        if (
-          stack.length === 0 ||
-          stack[stack.length - 1].ref !== currentParentRef
-        ) {
-          stack.push({ level: hierarchyLevel - 1, ref: currentParentRef });
-        }
-      }
+      currentParentRef = stack[stack.length - 1].ref;
     } else {
-      // Special case: first line after a title is a child of this title
+      // For non-header elements, handle indentation and hierarchy
+      let targetLevel = hierarchyLevel;
       let foundParent = false;
+
+      // Find the appropriate parent by looking backwards
       for (let j = i - 1; j >= 0; j--) {
         const prevInfo = hierarchyTracker.get(j);
         if (!prevInfo) continue;
-        if (
-          prevInfo.indentLevel !== undefined &&
-          prevInfo.indentLevel < indentLevel
-        ) {
-          parentInfo = prevInfo;
-          foundParent = true;
-          break;
-        }
 
-        if (prevInfo.isHeader) {
-          parentInfo = prevInfo;
-          if (j === i - 1 && !isList && indentLevel === 0) {
-            hierarchyLevel = prevInfo.level + 1;
-          }
-          foundParent = true;
-          break;
-        } else if (
-          prevInfo.isList &&
-          listMatchType !== "numeric" &&
-          j === i - 1 &&
-          !isList
-        ) {
-          parentInfo = prevInfo;
-          hierarchyLevel = prevInfo.level + 1;
-          foundParent = true;
-          break;
-        }
-      }
-      if (!foundParent) {
-        currentParentRef = parentBlockRef;
-      } else if (parentInfo) {
-        while (
-          stack.length > 0 &&
-          stack[stack.length - 1].level >= hierarchyLevel
-        ) {
-          stack.pop();
-        }
-        if (isList && indentLevel > 0) {
-          const prevLine = i > 0 ? hierarchyTracker.get(i - 1) : null;
-          const prevIndentLevel =
-            prevLine && prevLine.indentLevel !== undefined
-              ? prevLine.indentLevel
-              : 0;
-          if (indentLevel > prevIndentLevel && stack.length > 0) {
-            currentParentRef = stack[stack.length - 1].ref;
-            hierarchyLevel = stack[stack.length - 1].level + 1;
-          } else {
-            currentParentRef = parentInfo.ref;
+        // For indented content, find parent with lower indentation
+        if (indentLevel > 0) {
+          if (prevInfo.indentLevel < indentLevel) {
+            targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
           }
         } else {
-          currentParentRef = parentInfo.ref;
+          // For root level content (indentLevel === 0)
+          if (prevInfo.isHeader) {
+            // Place under the most recent header
+            targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
+          } else if (
+            prevInfo.indentLevel === 0 &&
+            !prevInfo.isList &&
+            !isList
+          ) {
+            // Same level paragraphs
+            targetLevel = prevInfo.level;
+            foundParent = true;
+            break;
+          } else if (prevInfo.indentLevel === 0 && !prevInfo.isList && isList) {
+            // List under paragraph
+            targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
+          }
         }
       }
+
+      if (!foundParent) {
+        // Default: use the last element from stack
+        targetLevel = stack.length > 0 ? stack[stack.length - 1].level + 1 : 1;
+      }
+
+      hierarchyLevel = targetLevel;
+
+      // Clean the stack to match target level
+      while (
+        stack.length > 1 &&
+        stack[stack.length - 1].level >= hierarchyLevel
+      ) {
+        stack.pop();
+      }
+
+      currentParentRef = stack[stack.length - 1].ref;
     }
 
     let newBlockRef;
     let heading = isHeader ? (headerLevel > 3 ? 3 : headerLevel) : undefined;
 
+    // Handle list prefixes
     if (isList) {
       let listPrefix = "";
       if (listMatchType === "numeric") {
@@ -323,6 +299,7 @@ export const parseAndCreateBlocks = async (
       }
     }
 
+    // Create the block
     if (position === undefined || !isFistParent) {
       newBlockRef = await createChildBlock(
         currentParentRef,
@@ -342,10 +319,13 @@ export const parseAndCreateBlocks = async (
       isFistParent = false;
     }
 
+    // Update the stack with the new block
     if (newBlockRef) {
+      // Add the new block to the stack
       stack.push({ level: hierarchyLevel, ref: newBlockRef });
     }
 
+    // Store hierarchy information
     hierarchyTracker.set(i, {
       level: hierarchyLevel,
       ref: newBlockRef,
@@ -353,6 +333,8 @@ export const parseAndCreateBlocks = async (
       isHeader: isHeader,
       headerLevel: headerLevel,
       isList: isList,
+      listMatchType: listMatchType,
+      parentRef: currentParentRef,
     });
   }
 };

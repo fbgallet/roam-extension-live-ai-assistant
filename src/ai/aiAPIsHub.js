@@ -471,7 +471,7 @@ export async function claudeCompletion({
       if (
         model.includes("3-7") ||
         model.includes("3.7") ||
-        model.includes("4")
+        model.includes("-4")
       ) {
         options.max_tokens = model.toLowerCase().includes("opus")
           ? 32000
@@ -499,11 +499,16 @@ export async function claudeCompletion({
       // );
       // See server code here: https://github.com/fbgallet/ai-api-back
 
-      console.log("Messages sent as prompt to the model:", messages);
-
       if (isModelSupportingImage(model)) {
-        messages = addImagesUrlToMessages(messages, content, true);
+        options.messages = await addImagesUrlToMessages(
+          messages,
+          content,
+          true
+        );
       }
+
+      console.log("Messages sent as prompt to the model:", options.messages);
+      console.log("options :>> ", options);
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -884,7 +889,7 @@ export async function ollamaCompletion({
   }
 }
 
-const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
+const addImagesUrlToMessages = async (messages, content, isAnthropicModel) => {
   let nbCountdown = maxImagesNb;
 
   for (let i = 1; i < messages.length; i++) {
@@ -940,13 +945,23 @@ const addImagesUrlToMessages = (messages, content, isAnthropicModel) => {
               { type: "text", text: "Image(s) provided in the context:" },
             ],
           });
-        messages[1].content.push({
-          type: "image_url",
-          image_url: {
-            url: matchingImagesInContext[i][2],
-            detail: resImages,
-          },
-        });
+        if (!isAnthropicModel) {
+          messages[1].content.push({
+            type: "image_url",
+            image_url: {
+              url: matchingImagesInContext[i][2],
+              detail: resImages,
+            },
+          });
+        } else if (isAnthropicModel) {
+          messages[1].content.push({
+            type: "image",
+            source: {
+              type: "url",
+              url: matchingImagesInContext[i][2],
+            },
+          });
+        }
         nbCountdown--;
       }
     }
