@@ -10,7 +10,7 @@ import {
   Checkbox,
   TextArea,
 } from "@blueprintjs/core";
-import { Suggest } from "@blueprintjs/select";
+import { Suggest, Select } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
@@ -72,6 +72,19 @@ export const BUILTIN_STYLES = [
   "Quiz",
   "Socratic",
 ];
+
+const DNP_PERIOD_OPTIONS = [
+  { value: "0", label: "0", days: 0 },
+  { value: "1 W", label: "1 week", days: 7 },
+  { value: "2 W", label: "2 weeks", days: 14 },
+  { value: "3 W", label: "3 weeks", days: 21 },
+  { value: "1 M", label: "1 month", days: 30 },
+  { value: "2 M", label: "2 months", days: 60 },
+  { value: "1 Q", label: "1 quarter", days: 92 },
+  { value: "2 Q", label: "2 quarters", days: 184 },
+  { value: "1 Y", label: "1 year", days: 365 },
+  { value: "Custom", label: "Custom" },
+];
 export let customStyleTitles = getOrderedCustomPromptBlocks("liveai/style").map(
   (custom) => custom.content
 );
@@ -84,6 +97,7 @@ const voidRoamContext = {
   page: false,
   pageArgument: [],
   logPages: false,
+  logPagesArgument: 0,
   block: false,
   blockArgument: [],
   linkedRefsArgument: [],
@@ -117,6 +131,8 @@ const StandaloneContextMenu = () => {
   const [liveOutlines, setLiveOutlines] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [isInConversation, setIsInConversation] = useState(false);
+  const [dnpPeriod, setDnpPeriod] = useState("0");
+  const [customDays, setCustomDays] = useState("");
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlockUid = useRef(null);
@@ -231,6 +247,7 @@ const StandaloneContextMenu = () => {
     setIsCompletionOnly(false);
     setIsOutlinerAgent(false);
     setIsHelpOpen(false);
+    setDnpPeriod("0");
     if (!isPinnedStyle) setStyle(defaultStyle);
     setRoamContext({ ...voidRoamContext });
     selectedBlocks.current = null;
@@ -984,6 +1001,29 @@ const StandaloneContextMenu = () => {
     });
   };
 
+  const handleDnpPeriodChange = (selectedOption) => {
+    setDnpPeriod(selectedOption.value);
+    let nbOfDays = selectedOption.days;
+    // Update the roamContext.logPages based on selection
+    setRoamContext((prev) => ({
+      ...prev,
+      logPages: selectedOption.value === "0" ? false : true,
+      logPagesArgument: nbOfDays,
+    }));
+    inputRef.current?.focus();
+  };
+
+  const renderDnpPeriodItem = (option, { handleClick, modifiers }) => {
+    return (
+      <MenuItem
+        key={option.value}
+        text={option.label}
+        active={modifiers.active}
+        onClick={handleClick}
+      />
+    );
+  };
+
   const updateMenu = () => {
     const currentRootUid = extensionStorage.get("outlinerRootUid");
     const outlinerCommand = commands.find((cmd) => cmd.id === 20);
@@ -1239,33 +1279,6 @@ const StandaloneContextMenu = () => {
                   onChange={(e) => updateContext("page", e)}
                 />
               </Tooltip>
-              {isLogView() ? (
-                <Tooltip
-                  content={
-                    <div>
-                      {logPagesNbDefault} last daily note pages
-                      <br />
-                      (Nb of last DNP customizable in extension settings)
-                    </div>
-                  }
-                  hoverOpenDelay={500}
-                  openOnTargetFocus={false}
-                >
-                  <Checkbox
-                    checked={roamContext.logPages}
-                    label="DNPs"
-                    inline={true}
-                    onChange={(e) => updateContext("logPages", e)}
-                  />
-                </Tooltip>
-              ) : (
-                <Checkbox
-                  checked={roamContext.linkedRefs}
-                  label="Linked Refs"
-                  inline={true}
-                  onChange={(e) => updateContext("linkedRefs", e)}
-                />
-              )}
               <Checkbox
                 checked={roamContext.sidebar}
                 label="Sidebar"
@@ -1291,6 +1304,60 @@ const StandaloneContextMenu = () => {
                 />
               </Tooltip>
               {/* ) : null} */}
+              {isLogView() ? (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Select
+                    items={DNP_PERIOD_OPTIONS}
+                    itemRenderer={renderDnpPeriodItem}
+                    onItemSelect={handleDnpPeriodChange}
+                    filterable={false}
+                    popoverProps={{
+                      minimal: true,
+                      placement: "bottom-start",
+                    }}
+                  >
+                    <Tooltip
+                      content={
+                        <div>
+                          Select DNP period
+                          <br />
+                          (Daily Note Pages context)
+                        </div>
+                      }
+                      hoverOpenDelay={500}
+                      openOnTargetFocus={false}
+                    >
+                      <button>
+                        {dnpPeriod}
+                        <Icon icon="caret-down" size={12} />
+                      </button>
+                    </Tooltip>
+                  </Select>
+                  {dnpPeriod === "Custom" && (
+                    <InputGroup
+                      value={customDays}
+                      onChange={(e) => setCustomDays(e.target.value)}
+                      placeholder="days"
+                      small={true}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
+                  <>DNPs</>
+                </div>
+              ) : (
+                <Checkbox
+                  checked={roamContext.linkedRefs}
+                  label="Linked Refs"
+                  inline={true}
+                  onChange={(e) => updateContext("linkedRefs", e)}
+                />
+              )}
               {rootUid && (
                 <Checkbox
                   checked={roamContext.block}
