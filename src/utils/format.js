@@ -88,6 +88,7 @@ export const parseAndCreateBlocks = async (
   text,
   isParentToReplace = false
 ) => {
+  let codeBlockBaseIndent = 0;
   const lines = text.split("\n");
   let currentParentRef = parentBlockRef;
   let stack = [{ level: 0, ref: parentBlockRef }];
@@ -129,14 +130,23 @@ export const parseAndCreateBlocks = async (
 
     // Handle code blocks and Katex multi-lines
     if (trimmedLine.startsWith("```") || trimmedLine.startsWith("$$")) {
-      if (!inCodeBlock) {
-        // Begin
+      // Check if it's a single-line Katex block
+      if (
+        trimmedLine.startsWith("$$") &&
+        trimmedLine.endsWith("$$") &&
+        trimmedLine.length > 4
+      ) {
+        // Single-line Katex, treat as normal content - don't continue
+      } else if (!inCodeBlock) {
+        // Begin multi-line block
         inCodeBlock = true;
-        codeBlockContent = line + "\n";
+        codeBlockContent = trimmedLine + "\n";
+        codeBlockBaseIndent = leadingSpaces; // Store the base indentation
+        continue;
       } else {
-        // End
+        // End multi-line block
         inCodeBlock = false;
-        codeBlockContent += line;
+        codeBlockContent += trimmedLine;
 
         const codeParentRef =
           stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
@@ -155,12 +165,15 @@ export const parseAndCreateBlocks = async (
         });
 
         codeBlockContent = "";
+        continue;
       }
-      continue;
     }
 
     if (inCodeBlock) {
-      codeBlockContent += line + "\n";
+      // Remove only the base indentation, preserve relative indentation
+      const relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
+      const adjustedLine = " ".repeat(relativeIndent) + trimmedLine;
+      codeBlockContent += adjustedLine + "\n";
       continue;
     }
 
@@ -251,6 +264,11 @@ export const parseAndCreateBlocks = async (
           } else if (prevInfo.indentLevel === 0 && !prevInfo.isList && isList) {
             // List under paragraph
             targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
+          } else if (prevInfo.indentLevel === 0 && prevInfo.isList && isList) {
+            // Same level lists
+            targetLevel = prevInfo.level;
             foundParent = true;
             break;
           }
