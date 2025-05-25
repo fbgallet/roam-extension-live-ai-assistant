@@ -626,7 +626,7 @@ export const getAndNormalizeContext = async ({
           startDate = new Date(getPageUidByBlockUid(focusedBlock));
         }
         highlightHtmlElt({ selector: ".roam-log-container" });
-      } else if (isCurrentPageDNP()) {
+      } else if (await isCurrentPageDNP()) {
         startDate = new Date(await getMainPageUid());
         highlightHtmlElt({ selector: ".rm-title-display" });
       } else {
