@@ -49,6 +49,7 @@ import {
   getBlockContentByUid,
   getBlockOrderByUid,
   getParentBlock,
+  isCurrentPageDNP,
   isExistingBlock,
   isLogView,
 } from "../utils/roamAPI";
@@ -1303,7 +1304,15 @@ const StandaloneContextMenu = () => {
                 />
               </Tooltip>
               {/* ) : null} */}
-              {isLogView() ? (
+              {!isLogView() && (
+                <Checkbox
+                  checked={roamContext.linkedRefs}
+                  label="Linked Refs"
+                  inline={true}
+                  onChange={(e) => updateContext("linkedRefs", e)}
+                />
+              )}
+              {(isLogView() || isCurrentPageDNP()) && (
                 <div
                   style={{
                     display: "inline-flex",
@@ -1349,13 +1358,6 @@ const StandaloneContextMenu = () => {
                   )}
                   <>DNPs</>
                 </div>
-              ) : (
-                <Checkbox
-                  checked={roamContext.linkedRefs}
-                  label="Linked Refs"
-                  inline={true}
-                  onChange={(e) => updateContext("linkedRefs", e)}
-                />
               )}
               {rootUid && (
                 <Checkbox

@@ -336,8 +336,10 @@
   display: flex;
   gap: 6px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   font-size: 12px;
+  flex-wrap: wrap;
+  max-width: 350px;
 }
 .aicommands-context button {
   background: none;
