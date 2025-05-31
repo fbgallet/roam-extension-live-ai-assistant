@@ -38,6 +38,7 @@ import { BUILTIN_COMMANDS, CATEGORY_ICON } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
 import {
+  getAndNormalizeContext,
   getCustomPromptByUid,
   getFlattenedContentFromTree,
   getFocusAndSelection,
@@ -60,7 +61,13 @@ import {
 } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import HelpDialog from "./HelpDialog";
-import { modelAccordingToProvider, textToSpeech } from "../ai/aiAPIsHub";
+import {
+  estimateContextTokens,
+  estimateTokensPricing,
+  modelAccordingToProvider,
+  textToSpeech,
+} from "../ai/aiAPIsHub";
+import { tokensLimit } from "../ai/modelsInfo";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -133,6 +140,7 @@ const StandaloneContextMenu = () => {
   const [isInConversation, setIsInConversation] = useState(false);
   const [dnpPeriod, setDnpPeriod] = useState("0");
   const [customDays, setCustomDays] = useState("");
+  const [estimatedTokens, setEstimatedTokens] = useState("");
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlockUid = useRef(null);
@@ -212,6 +220,18 @@ const StandaloneContextMenu = () => {
       updateMenu();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    async function estimateTokens() {
+      if (hasTrueBooleanKey(roamContext)) {
+        let tokensEstimation = estimateContextTokens(
+          await getAndNormalizeContext({ roamContext })
+        );
+        setEstimatedTokens(tokensEstimation);
+      } else setEstimatedTokens(null);
+    }
+    estimateTokens();
+  }, [roamContext]);
 
   const adaptMainCommandToSelection = (selectionType) => {
     let adaptedName;
@@ -974,7 +994,7 @@ const StandaloneContextMenu = () => {
     );
   };
 
-  const updateContext = (context, e) => {
+  const updateContext = async (context, e) => {
     if (context === "liveOutline") {
       context = "block";
     } else {
@@ -1312,24 +1332,23 @@ const StandaloneContextMenu = () => {
                   onChange={(e) => updateContext("linkedRefs", e)}
                 />
               )}
-              (
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
+              <Tooltip
+                content={
+                  <div>
+                    Previous Daily Note Pages
+                    <br />
+                    (from today or relative to current DNP)
+                  </div>
+                }
+                hoverOpenDelay={500}
+                openOnTargetFocus={false}
               >
-                <Tooltip
-                  content={
-                    <div>
-                      Previous Daily Note Pages
-                      <br />
-                      (from today or relative to current DNP)
-                    </div>
-                  }
-                  hoverOpenDelay={500}
-                  openOnTargetFocus={false}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
                 >
                   <Select
                     items={DNP_PERIOD_OPTIONS}
@@ -1346,6 +1365,7 @@ const StandaloneContextMenu = () => {
                       <Icon icon="caret-down" size={12} />
                     </button>
                   </Select>
+
                   {dnpPeriod === "Custom" && (
                     <InputGroup
                       value={customDays}
@@ -1356,9 +1376,9 @@ const StandaloneContextMenu = () => {
                     />
                   )}
                   <>DNPs</>
-                </Tooltip>
-              </div>
-              )
+                </div>
+              </Tooltip>
+              {/* </div> */}
               {rootUid && (
                 <Checkbox
                   checked={roamContext.block}
@@ -1368,6 +1388,38 @@ const StandaloneContextMenu = () => {
                 />
               )}
             </div>
+            {estimatedTokens && estimatedTokens !== "0" && (
+              <div className="aicommands-context">
+                <Tooltip
+                  content={
+                    <div>
+                      Rough estimate: 1 character = 0.3 token
+                      <br />
+                      Multiply by 2 or 3 for CJK characters
+                    </div>
+                  }
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
+                >
+                  <div>
+                    Estimated context tokens: {estimatedTokens.toLocaleString()}{" "}
+                    (±
+                    {estimateTokensPricing(
+                      defaultModel,
+                      parseInt(estimatedTokens)
+                    )}
+                    $)
+                    {tokensLimit[defaultModel] &&
+                      parseInt(estimatedTokens) > tokensLimit[defaultModel] && (
+                        <div style={{ color: "red", fontSize: "smaller" }}>
+                          Context window for this model is{" "}
+                          {tokensLimit[defaultModel].toLocaleString()}.
+                        </div>
+                      )}
+                  </div>
+                </Tooltip>
+              </div>
+            )}
             <div
               className="aicommands-style"
               onClick={(e) => {

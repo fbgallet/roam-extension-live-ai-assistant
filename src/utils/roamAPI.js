@@ -466,7 +466,6 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
   if (uidRegex.test(content)) {
     uidRegex.lastIndex = 0;
     let matches = content.match(uidRegex);
-    console.log("matches :>> ", matches);
     for (const match of matches) {
       let refUid = match.slice(2, -2);
       // prevent infinite loop !

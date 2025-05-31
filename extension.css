@@ -355,7 +355,7 @@
 .aicommands-context button > .bp3-icon-caret-down {
   padding-right: 0;
 }
-.aicommands-context > div > .bp3-input-group.bp3-small > input {
+.aicommands-context div > .bp3-input-group.bp3-small > input {
   width: 35px;
   font-size: 12px;
   padding-left: 4px;
