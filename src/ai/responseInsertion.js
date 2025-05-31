@@ -201,7 +201,8 @@ export const aiCompletionRunner = async ({
       const customStl = customStyles.find((custom) => custom.name === style);
       if (customStl) stylePromptText = customStl.prompt;
     }
-    if (stylePromptText) systemPrompt = introduceStylePrompt + stylePromptText;
+    if (stylePromptText)
+      systemPrompt = introduceStylePrompt + stylePromptText + "\n";
   }
 
   if (prompt === "Web search") {
