@@ -39,7 +39,10 @@ import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import { sanitizeJSONstring, trimOutsideOuterBraces } from "../utils/format";
 import {
   getModelsInfo,
+  modelsPricing,
   normalizeClaudeModel,
+  normalizeModelId,
+  openRouterModelPricing,
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
@@ -1035,4 +1038,29 @@ export const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
     );
   }
   return content;
+};
+
+export const estimateContextTokens = (context) => {
+  // Tokenizer is too slow for quick estimation of big context
+  // if (!tokenizer) {
+  //   tokenizer = await getTokenizer();
+  // }
+  // let tokens = tokenizer && tokenizer.encode(context);
+
+  const estimation = context.length * 0.3;
+
+  return estimation.toFixed(0);
+};
+
+export const estimateTokensPricing = (model, tokens) => {
+  const llm = modelAccordingToProvider(model);
+  console.log("model :>> ", llm);
+  const inputPricing =
+    modelsPricing[llm.id]?.input || openRouterModelPricing(llm.id, "input");
+  console.log("inputPricing :>> ", inputPricing);
+  const estimation = (inputPricing * tokens) / 1000000;
+
+  console.log("estimation :>> ", estimation);
+
+  return estimation.toFixed(3);
 };

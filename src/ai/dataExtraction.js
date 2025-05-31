@@ -536,6 +536,7 @@ export const getAndNormalizeContext = async ({
   //     maxUid,
   //     withHierarchy
   //   );
+  console.log("roamContext :>> ", roamContext);
   if (roamContext) {
     if (roamContext.block) {
       let blockUids = [];
@@ -760,11 +761,11 @@ export const getFlattenedContentFromLog = (
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
-      if (flattenedBlocks.length > 24000) {
-        tokens = tokenizer
-          ? tokenizer.encode(flattenedBlocks).length
-          : flattenedBlocks.length * 3;
-      }
+      // if (flattenedBlocks.length > 24000) {
+      //   tokens = tokenizer
+      //     ? tokenizer.encode(flattenedBlocks).length
+      //     : flattenedBlocks.length * 0.75;
+      // }
       if (tokens > tokensLimit[model]) {
         console.log(
           "Context truncated to fit model context window. Tokens:",
@@ -782,8 +783,9 @@ export const getFlattenedContentFromLog = (
     processedDays++;
     date = getYesterdayDate(date);
   }
-  // console.log("processedDays :>> ", processedDays);
-  // console.log("flattenedBlocks :>> ", flattenedBlocks);
+  console.log("processedDays :>> ", processedDays);
+  console.log("tokens :>> ", tokens);
+  console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
 };
 
