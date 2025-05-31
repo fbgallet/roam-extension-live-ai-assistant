@@ -1312,13 +1312,24 @@ const StandaloneContextMenu = () => {
                   onChange={(e) => updateContext("linkedRefs", e)}
                 />
               )}
-              {(isLogView() || isCurrentPageDNP()) && (
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                  }}
+              (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <Tooltip
+                  content={
+                    <div>
+                      Previous Daily Note Pages
+                      <br />
+                      (from today or relative to current DNP)
+                    </div>
+                  }
+                  hoverOpenDelay={500}
+                  openOnTargetFocus={false}
                 >
                   <Select
                     items={DNP_PERIOD_OPTIONS}
@@ -1330,22 +1341,10 @@ const StandaloneContextMenu = () => {
                       placement: "bottom-start",
                     }}
                   >
-                    <Tooltip
-                      content={
-                        <div>
-                          Select DNP period
-                          <br />
-                          (Daily Note Pages context)
-                        </div>
-                      }
-                      hoverOpenDelay={500}
-                      openOnTargetFocus={false}
-                    >
-                      <button>
-                        {dnpPeriod}
-                        <Icon icon="caret-down" size={12} />
-                      </button>
-                    </Tooltip>
+                    <button>
+                      {dnpPeriod}
+                      <Icon icon="caret-down" size={12} />
+                    </button>
                   </Select>
                   {dnpPeriod === "Custom" && (
                     <InputGroup
@@ -1357,8 +1356,9 @@ const StandaloneContextMenu = () => {
                     />
                   )}
                   <>DNPs</>
-                </div>
-              )}
+                </Tooltip>
+              </div>
+              )
               {rootUid && (
                 <Checkbox
                   checked={roamContext.block}
