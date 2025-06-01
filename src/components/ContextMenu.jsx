@@ -225,11 +225,6 @@ const StandaloneContextMenu = () => {
         pageUid.current = currentPageUid;
         isZoom.current = isZoomInMainPage;
 
-        console.log("isLogView() :>> ", isLogView());
-        console.log("isZoom.current :>> ", isZoom.current);
-        console.log("mainViewUid :>> ", mainViewUid.current);
-        console.log("pageUid.current :>> ", pageUid.current);
-
         if (selectedTextInBlock.current) {
           adaptMainCommandToSelection("text");
         } else if (focusedBlockUid.current) {
@@ -245,8 +240,6 @@ const StandaloneContextMenu = () => {
   }, [isOpen]);
 
   useEffect(() => {
-    console.log("UseEffect roamContext");
-
     async function estimateTokens() {
       if (hasTrueBooleanKey(roamContext)) {
         let tokensEstimation = estimateContextTokens(
@@ -257,7 +250,7 @@ const StandaloneContextMenu = () => {
       } else setEstimatedTokens(null);
     }
     estimateTokens();
-    console.log("roamContext :>> ", roamContext);
+    // console.log("roamContext :>> ", roamContext);
   }, [roamContext]);
 
   const adaptMainCommandToSelection = (selectionType) => {
@@ -1072,7 +1065,7 @@ const StandaloneContextMenu = () => {
     // Update the roamContext.logPages based on selection
     setRoamContext((prev) => ({
       ...prev,
-      logPages: selectedOption.value === "0" ? false : true,
+      logPages: selectedOption.value === 0 ? false : true,
       logPagesArgument: nbOfDays,
     }));
     inputRef.current?.focus();
@@ -1454,7 +1447,9 @@ const StandaloneContextMenu = () => {
                   onChange={(e) => updateContext("liveOutline", e)}
                 />
               )}
-              {estimatedTokens && estimatedTokens !== "0" && (
+            </div>
+            {estimatedTokens && estimatedTokens !== "0" && (
+              <div className="estimate-tokens">
                 <Tooltip
                   content={
                     <div>
@@ -1483,8 +1478,8 @@ const StandaloneContextMenu = () => {
                       )}
                   </div>
                 </Tooltip>
-              )}
-            </div>
+              </div>
+            )}
             <div
               className="aicommands-style"
               onClick={(e) => {

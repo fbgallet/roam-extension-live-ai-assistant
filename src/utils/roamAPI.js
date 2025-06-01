@@ -557,7 +557,6 @@ export const isLogView = () => {
 
 export const isCurrentPageDNP = async () => {
   const pageUid = await getMainPageUid();
-  console.log("dnpUidRegex.test(pageUid) :>> ", dnpUidRegex.test(pageUid));
   return dnpUidRegex.test(pageUid);
 };
 
