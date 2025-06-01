@@ -330,7 +330,8 @@
 }
 
 .aicommands-style,
-.aicommands-context {
+.aicommands-context,
+.estimate-tokens {
   opacity: 0.6;
   padding: 5px 0;
   display: flex;
@@ -340,6 +341,9 @@
   font-size: 12px;
   flex-wrap: wrap;
   max-width: 350px;
+}
+.estimate-tokens {
+  padding: 1px 0 5px 0;
 }
 .aicommands-context div {
   font-size: 12px;

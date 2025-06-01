@@ -147,13 +147,6 @@ export const getInputDataFromRoamContext = async (
     else prompt += (prompt ? "\n" : "") + sourceText.trim();
   }
 
-  if (inlineContext) {
-    completedPrompt = completedPrompt.replace(
-      currentBlockContent,
-      inlineContext.updatedPrompt
-    );
-  }
-
   let { completedPrompt, targetUid, remainingSelectionUids, isInConversation } =
     await getFinalPromptAndTarget(
       sourceUid,
@@ -169,6 +162,13 @@ export const getInputDataFromRoamContext = async (
       target,
       forceNotInConversation
     );
+
+  if (inlineContext) {
+    completedPrompt = completedPrompt.replace(
+      currentBlockContent,
+      inlineContext.updatedPrompt
+    );
+  }
 
   if (selectedText && sourceUid) {
     globalContext.block = true;
@@ -293,6 +293,7 @@ export const handleModifierKeys = async (e) => {
           "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. ",
       });
       roamContext.logPages = true;
+      roamContext.logPagesArgument = logPagesNbDefault;
     } else roamContext.linkedRefs = true;
   }
   if (e.altKey) roamContext.page = true;
@@ -538,6 +539,7 @@ export const getAndNormalizeContext = async ({
   //     maxUid,
   //     withHierarchy
   //   );
+
   if (roamContext) {
     if (roamContext.block) {
       let blockUids = [];
@@ -709,7 +711,7 @@ export const getFlattenedContentFromLinkedReferences = (
     linkedRefsArray.push(linearArray.join("\n"));
   });
   let flattenedRefsString = linkedRefsArray.join("\n\n");
-  console.log("flattenedRefsString :>> ", flattenedRefsString);
+  // console.log("flattenedRefsString :>> ", flattenedRefsString);
   // console.log("length :>> ", flattenedRefsString.length);
 
   return flattenedRefsString;
@@ -757,7 +759,6 @@ export const getFlattenedContentFromLog = (
   let tokens = 0;
   let date = startDate || getYesterdayDate();
 
-  // **** Version using tokenizer from js-tiktoken
   while (
     tokens < tokensLimit[model] &&
     (!nbOfDays || processedDays < nbOfDays)
@@ -772,31 +773,30 @@ export const getFlattenedContentFromLog = (
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
+
+      // using Tokenizer from js-tiktoken is too slow for large context...
       // if (flattenedBlocks.length > 24000) {
       //   tokens = tokenizer
       //     ? tokenizer.encode(flattenedBlocks).length
       //     : flattenedBlocks.length * 0.75;
       // }
-      if (tokens > tokensLimit[model]) {
-        console.log(
-          "Context truncated to fit model context window. Tokens:",
-          tokens
-        );
-        AppToaster.show({
-          message: `The token limit (${tokensLimit[model]}) has been exceeded (more than ${tokens} needed), only ${processedDays} DNPs have been processed to fit ${model} token window.`,
-        });
-        flattenedBlocks = flattenedBlocks.slice(
-          0,
-          -(dayContent.length + dayTitle.length + 4)
-        );
-      }
+      // if (tokens > tokensLimit[model]) {
+      //   console.log(
+      //     "Context truncated to fit model context window. Tokens:",
+      //     tokens
+      //   );
+      //   AppToaster.show({
+      //     message: `The token limit (${tokensLimit[model]}) has been exceeded (more than ${tokens} needed), only ${processedDays} DNPs have been processed to fit ${model} token window.`,
+      //   });
+      //   flattenedBlocks = flattenedBlocks.slice(
+      //     0,
+      //     -(dayContent.length + dayTitle.length + 4)
+      //   );
+      // }
     }
     processedDays++;
     date = getYesterdayDate(date);
   }
-  console.log("processedDays :>> ", processedDays);
-  console.log("tokens :>> ", tokens);
-  console.log("flattenedBlocks :>> ", flattenedBlocks);
   return flattenedBlocks;
 };
 
@@ -846,7 +846,7 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
   let { command, options } = inlineCommand;
   prompt = prompt.replace("ref", "linkedRefs").replace("DNPs", "logPages");
   options = options.replace("ref", "linkedRefs").replace("DNPs", "logPages");
-  console.log("options :>> ", options);
+  // console.log("options :>> ", options);
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
@@ -854,7 +854,7 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
       hasContext = true;
     }
   });
-  console.log("roamContext :>> ", roamContext);
+  console.log("roamContext from prompt:>> ", roamContext);
   if (hasContext)
     return {
       roamContext: roamContext,
@@ -943,7 +943,7 @@ export const getConversationArray = async (parentUid) => {
       true
     );
   }
-  console.log("initialPrompt :>> ", initialPrompt);
+  // console.log("initialPrompt :>> ", initialPrompt);
   if (convParams?.command && initialPrompt) {
     let commandPrompt = completionCommands[convParams.command];
     if (commandPrompt.toLowerCase().includes("<target content>"))
@@ -1131,7 +1131,8 @@ export const getUnionContext = (context1, context2) => {
     linkedPages: context1?.linkedPages || context2?.linkedPages,
     sidebar: context1?.sidebar || context2?.sidebar,
     logPages: context1?.logPages || context2?.logPages,
-    logPagesArgument: context1?.logPagesArgument || context2?.logPagesArgument,
+    logPagesArgument:
+      Math.max(context1?.logPagesArgument || context2?.logPagesArgument) || 0,
     block: context1?.block || context2?.block,
     blockArgument: removeDuplicates(
       []
@@ -1139,6 +1140,7 @@ export const getUnionContext = (context1, context2) => {
         .concat(context2?.blockArgument?.length ? context2?.blockArgument : [])
     ),
     page: context1?.page || context2?.page,
+    pageViewUid: context1?.pageViewUid || context2?.pageViewUid,
     pageArgument: removeDuplicates(
       []
         .concat(context1?.pageArgument?.length ? context1?.pageArgument : [])

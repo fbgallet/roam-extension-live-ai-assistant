@@ -212,7 +212,7 @@ export const aiCompletionRunner = async ({
     prompt = "";
   }
 
-  console.log("includeUids from aiCompletionRunner :>> ", includeUids);
+  // console.log("includeUids from aiCompletionRunner :>> ", includeUids);
 
   let {
     targetUid,
@@ -256,7 +256,7 @@ export const aiCompletionRunner = async ({
     hierarchicalResponseFormat;
 
   // console.log("systemPrompt :>> ", systemPrompt);
-  console.log("completed prompt :>> ", completedPrompt);
+  console.log("completed prompt from aiCompletionRunner :>> ", completedPrompt);
 
   insertCompletion({
     prompt: completedPrompt,
@@ -360,7 +360,7 @@ export const insertCompletion = async ({
           context +
           "\n<end>"
         : "";
-    content = await verifyTokenLimitAndTruncate(model, prompt, content);
+    // content = await verifyTokenLimitAndTruncate(model, prompt, content);
   }
 
   // if (typeOfCompletion === "gptCompletion") {
