@@ -405,8 +405,8 @@
 }
 
 .str-aimodels-menu {
-  /* height: fit-content; */
-  max-height: 65vh;
+  height: fit-content;
+  max-height: 75vh;
   /* opacity: 0.6; */
   font-size: 12px;
 }

@@ -567,9 +567,8 @@ export const getAndNormalizeContext = async ({
         let uids = treeToUidArray(
           getTreeByUid(roamContext.pageViewUid || (await getMainViewUid()))
         );
-        // console.log("uids :>> ", uids);
         sourceUids.push(...uids);
-        console.log("sourceUids :>> ", sourceUids);
+        // console.log("sourceUids :>> ", sourceUids);
       }
       sourceUids.length &&
         sourceUids.forEach((uid) => {
@@ -658,8 +657,8 @@ export const getAndNormalizeContext = async ({
       context += getFlattenedContentFromSidebar(uidToExclude, withUid);
     }
   }
-  console.log("roamContext :>> ", roamContext);
-  console.log("context :>> ", context);
+  // console.log("roamContext :>> ", roamContext);
+  // console.log("context :>> ", context);
 
   return context.trim();
 };

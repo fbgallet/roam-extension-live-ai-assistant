@@ -711,7 +711,7 @@ const StandaloneContextMenu = () => {
       command.name === "Web search") &&
       command.name !== "Text to Speech" &&
       !command.name.includes("Image generation") ? (
-      <ModelsMenu callback={callback} command={command} />
+      <ModelsMenu callback={callback} command={command} setModel={setModel} />
     ) : null;
   };
 
