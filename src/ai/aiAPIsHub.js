@@ -38,10 +38,8 @@ import {
 import { isCanceledStreamGlobal } from "../components/InstantButtons";
 import { sanitizeJSONstring, trimOutsideOuterBraces } from "../utils/format";
 import {
-  getModelsInfo,
   modelsPricing,
   normalizeClaudeModel,
-  normalizeModelId,
   openRouterModelPricing,
   tokensLimit,
   updateTokenCounter,
@@ -54,7 +52,6 @@ import {
   displayThinkingToast,
 } from "../components/Toaster";
 import { getResolvedContentFromBlocks } from "./dataExtraction";
-import { updateBlock } from "../utils/roamAPI";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {

@@ -17,7 +17,7 @@ export function getTreeByUid(uid) {
   else return null;
 }
 
-export function treeToUidArray(tree) {
+export function treeToUidArray(tree, isParentToIgnore = false) {
   console.log("tree :>> ", tree);
   const result = [];
   if (!tree) {
@@ -28,8 +28,8 @@ export function treeToUidArray(tree) {
     return result;
   }
 
-  function traverseBlock(block) {
-    if (block["uid"] && block["string"]) {
+  function traverseBlock(block, ignoreParent) {
+    if (!ignoreParent && block["uid"] && block["string"]) {
       result.push(block["uid"]);
     }
     const children = block["children"];
@@ -44,7 +44,7 @@ export function treeToUidArray(tree) {
       });
     }
   }
-  traverseBlock(rootBlock);
+  traverseBlock(rootBlock, isParentToIgnore);
   return result;
 }
 
@@ -137,6 +137,16 @@ export function isExistingBlock(uid) {
   let result = window.roamAlphaAPI.pull("[:block/uid]", [":block/uid", uid]);
   if (result) return true;
   return false;
+}
+
+export function isBlockClosedWithChildren(uid) {
+  if (!uid) return null;
+  let result = window.roamAlphaAPI.pull("[:block/children :block/open]", [
+    ":block/uid",
+    uid,
+  ]);
+  if (!result || !result[":block/children"]) return false;
+  return !result[":block/open"];
 }
 
 export function getParentBlock(uid) {
@@ -489,6 +499,10 @@ export const getBlocksSelectionUids = (reverse) => {
       if (!inputBlock) return;
       const uid = inputBlock.id.slice(-9);
       if (!selectedBlocksUids.includes(uid)) selectedBlocksUids.push(uid);
+      if (isBlockClosedWithChildren(uid)) {
+        let childrenUidsList = treeToUidArray(getTreeByUid(uid), true);
+        selectedBlocksUids.push(...childrenUidsList);
+      }
     });
   } else if (checkSelection.length !== 0) {
     selectedBlocksUids = checkSelection;
