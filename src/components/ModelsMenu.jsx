@@ -22,6 +22,7 @@ const ModelsMenu = ({
   callback,
   command,
   prompt,
+  setModel,
   roleStructure = "menuitem",
   isConversationToContinue,
 }) => {
@@ -44,6 +45,7 @@ const ModelsMenu = ({
     let model = getModelFromMenu(e, prefix, modelId);
     if (!isWebSearch) {
       setDefaultModel(model);
+      setModel(model);
     } else {
       extensionStorage.set("webModel", normalizeClaudeModel(model));
     }
@@ -372,6 +374,19 @@ const ModelsMenu = ({
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
                   text="Claude Sonnet 3.5"
+                  labelElement="200k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Claude Sonnet 3.7"
                   labelElement="200k"
                 />
               </MenuItem>

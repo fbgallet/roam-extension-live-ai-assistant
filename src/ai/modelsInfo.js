@@ -51,7 +51,7 @@ export const tokensLimit = {
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude Sonnet 3.5": 200000,
-  // "Claude Sonnet 3.7": 200000,
+  "Claude Sonnet 3.7": 200000,
   // "Claude Sonnet 3.7 Thinking": 200000,
   "Claude Sonnet 4": 200000,
   "Claude Sonnet 4 Thinking": 200000,

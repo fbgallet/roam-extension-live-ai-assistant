@@ -312,7 +312,7 @@ const InstantButtons = ({
       <>
         <Button
           onClick={async (e) => {
-            await handleConversation({ e });
+            await handleConversation({ e, model });
           }}
           onContextMenu={(e) => {
             e.preventDefault();

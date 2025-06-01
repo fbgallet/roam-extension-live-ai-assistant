@@ -700,16 +700,21 @@ export async function openaiCompletion({
   let messages = [
     {
       role:
-        model.startsWith("o1") || model.startsWith("o3") ? "user" : "system",
+        model.startsWith("o1") ||
+        model.startsWith("o3") ||
+        model.startsWith("o4")
+          ? "user"
+          : "system",
       content: systemPrompt + (content ? "\n\n" + content : ""),
     },
   ].concat(prompt);
 
+  if (isModelSupportingImage(model)) {
+    messages = await addImagesUrlToMessages(messages, content);
+  }
+
   console.log("Messages sent as prompt to the model:", messages);
 
-  if (isModelSupportingImage(model)) {
-    messages = addImagesUrlToMessages(messages, content);
-  }
   const isToStream = model.startsWith("o1")
     ? false
     : streamResponse && responseFormat === "text";
@@ -1054,13 +1059,11 @@ export const estimateContextTokens = (context) => {
 
 export const estimateTokensPricing = (model, tokens) => {
   const llm = modelAccordingToProvider(model);
-  console.log("model :>> ", llm);
   const inputPricing =
     modelsPricing[llm.id]?.input || openRouterModelPricing(llm.id, "input");
-  console.log("inputPricing :>> ", inputPricing);
+  // console.log("inputPricing :>> ", inputPricing);
   const estimation = (inputPricing * tokens) / 1000000;
-
-  console.log("estimation :>> ", estimation);
+  // console.log("estimation :>> ", estimation);
 
   return estimation.toFixed(3);
 };
