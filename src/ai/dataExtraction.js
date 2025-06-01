@@ -645,7 +645,7 @@ export const getAndNormalizeContext = async ({
         startDate = new Date();
       }
       context += getFlattenedContentFromLog(
-        roamContext.logPagesArgument || logPagesNbDefault || 7,
+        roamContext.logPagesArgument || logPagesNbDefault,
         startDate,
         model,
         maxDepth,
