@@ -355,11 +355,29 @@
 .aicommands-context button > .bp3-icon-caret-down {
   padding-right: 0;
 }
-.aicommands-context div > .bp3-input-group.bp3-small > input {
+.aicommands-context .bp3-numeric-input {
+  align-items: center;
+}
+.aicommands-context .bp3-numeric-input input {
   width: 35px;
   font-size: 12px;
-  padding-left: 4px;
-  padding-right: 4px;
+  height: 24px;
+  align-items: center;
+  /* padding-left: 4px;
+  padding-right: 4px; */
+}
+.aicommands-context
+  .bp3-numeric-input
+  .bp3-button-group.bp3-vertical
+  > .bp3-button {
+  width: fit-content;
+  flex: 1 1 13px;
+}
+.aicommands-context .bp3-numeric-input button > .bp3-icon {
+  padding: 0;
+}
+.aicommands-context .bp3-numeric-input button svg {
+  width: 14px;
 }
 .aicommands-style {
   gap: 5px;

@@ -9,6 +9,7 @@ import {
   Icon,
   Checkbox,
   TextArea,
+  NumericInput,
 } from "@blueprintjs/core";
 import { Suggest, Select } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -141,7 +142,7 @@ const StandaloneContextMenu = () => {
   const [templates, setTemplates] = useState([]);
   const [isInConversation, setIsInConversation] = useState(false);
   const [dnpPeriod, setDnpPeriod] = useState("0");
-  const [customDays, setCustomDays] = useState("");
+  const [customDays, setCustomDays] = useState(parseInt(logPagesNbDefault));
   const [estimatedTokens, setEstimatedTokens] = useState("");
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
@@ -1066,7 +1067,8 @@ const StandaloneContextMenu = () => {
 
   const handleDnpPeriodChange = (selectedOption) => {
     setDnpPeriod(selectedOption.value);
-    let nbOfDays = selectedOption.days;
+    let nbOfDays =
+      selectedOption.value === "Custom" ? customDays : selectedOption.days;
     // Update the roamContext.logPages based on selection
     setRoamContext((prev) => ({
       ...prev,
@@ -1424,9 +1426,17 @@ const StandaloneContextMenu = () => {
                   </Select>
 
                   {dnpPeriod === "Custom" && (
-                    <InputGroup
+                    <NumericInput
                       value={customDays}
-                      onChange={(e) => setCustomDays(e.target.value)}
+                      size="small"
+                      min={1}
+                      onValueChange={(value) => {
+                        setCustomDays(value);
+                        setRoamContext((prev) => ({
+                          ...prev,
+                          logPagesArgument: value,
+                        }));
+                      }}
                       placeholder="days"
                       small={true}
                       onClick={(e) => e.stopPropagation()}
