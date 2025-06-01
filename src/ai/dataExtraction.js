@@ -32,6 +32,7 @@ import {
   getLastTopLevelOfSeletion,
   getLinkedReferencesTrees,
   getMainPageUid,
+  getMainViewUid,
   getPageNameByPageUid,
   getPageUidByBlockUid,
   getPageUidByPageName,
@@ -45,6 +46,7 @@ import {
   isLogView,
   normalizePageTitle,
   resolveReferences,
+  treeToUidArray,
   updateBlock,
 } from "../utils/roamAPI";
 import {
@@ -536,7 +538,6 @@ export const getAndNormalizeContext = async ({
   //     maxUid,
   //     withHierarchy
   //   );
-  console.log("roamContext :>> ", roamContext);
   if (roamContext) {
     if (roamContext.block) {
       let blockUids = [];
@@ -562,16 +563,24 @@ export const getAndNormalizeContext = async ({
           : focusedBlock
           ? [focusedBlock]
           : [];
+      if (roamContext.page) {
+        let uids = treeToUidArray(
+          getTreeByUid(roamContext.pageViewUid || (await getMainViewUid()))
+        );
+        // console.log("uids :>> ", uids);
+        sourceUids.push(...uids);
+        console.log("sourceUids :>> ", sourceUids);
+      }
       sourceUids.length &&
         sourceUids.forEach((uid) => {
           const mentionedInBlock = getUidAndTitleOfMentionedPagesInBlock(uid);
           if (mentionedInBlock) {
-            const mentionedPageTitles = mentionedInBlock.map(
-              (ref) => ref.title
+            const mentionedPageTitles = mentionedInBlock.flatMap((ref) =>
+              !roamContext.pageArgument.includes(ref.title) ? [ref.title] : []
             );
             roamContext.page = true;
             roamContext.pageArgument.push(...mentionedPageTitles);
-            roamContext.linkedRefs = true;
+            // roamContext.linkedRefs = true;
             roamContext.linkedRefsArgument.push(...mentionedPageTitles);
           }
         });
@@ -584,11 +593,10 @@ export const getAndNormalizeContext = async ({
           getPageUidByPageName(title)
         );
       }
-      if (!pageUids.length) {
+      // if (!pageUids.length) {
+      if (roamContext.pageViewUid) {
         highlightHtmlElt({ selector: ".roam-article > div:first-child" });
-        pageUids = [
-          await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid(),
-        ];
+        pageUids.unshift(roamContext.pageViewUid);
       }
       pageUids.forEach(
         (uid) =>
@@ -602,16 +610,20 @@ export const getAndNormalizeContext = async ({
             }))
       );
     }
-    if (roamContext.linkedRefs) {
+    if (
+      roamContext.linkedRefs ||
+      (roamContext.linkedPages && roamContext.linkedRefsArgument.length)
+    ) {
       let pageUids = [];
       if (roamContext.linkedRefsArgument?.length) {
         pageUids = roamContext.linkedRefsArgument.map((title) =>
           getPageUidByPageName(title)
         );
       }
-      if (!pageUids.length) {
+      // if (!pageUids.length) {
+      if (roamContext.pageViewUid) {
         highlightHtmlElt({ selector: ".rm-reference-main" });
-        pageUids = [await getMainPageUid()];
+        pageUids.unshift(roamContext.pageViewUid);
       }
       pageUids.forEach(
         (uid) =>
@@ -646,8 +658,8 @@ export const getAndNormalizeContext = async ({
       context += getFlattenedContentFromSidebar(uidToExclude, withUid);
     }
   }
-  // console.log("roamContext :>> ", roamContext);
-  // console.log("context :>> ", context);
+  console.log("roamContext :>> ", roamContext);
+  console.log("context :>> ", context);
 
   return context.trim();
 };

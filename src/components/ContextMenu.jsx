@@ -49,8 +49,9 @@ import {
 import {
   getBlockContentByUid,
   getBlockOrderByUid,
+  getPageStatus,
+  getPageUidByBlockUid,
   getParentBlock,
-  isCurrentPageDNP,
   isExistingBlock,
   isLogView,
 } from "../utils/roamAPI";
@@ -102,6 +103,7 @@ const voidRoamContext = {
   linkedPages: false,
   sidebar: false,
   page: false,
+  pageViewUid: null,
   pageArgument: [],
   logPages: false,
   logPagesArgument: 0,
@@ -148,6 +150,9 @@ const StandaloneContextMenu = () => {
   const selectedTextInBlock = useRef(null);
   const positionInRoamWindow = useRef(null);
   const selectedBlocks = useRef(null);
+  const mainViewUid = useRef(null);
+  const pageUid = useRef(null);
+  const isZoom = useRef(false);
   const lastBuiltinCommand = useRef(null);
   const isFirstBlock = useRef(null);
   const [roamContext, setRoamContext] = useState({ ...voidRoamContext });
@@ -209,28 +214,49 @@ const StandaloneContextMenu = () => {
         currentUid ? isPromptInConversation(currentUid, false) : false
       );
       // if (!isPinnedStyle) setStyle(defaultStyle);
-      // console.log("selectedBlocks.current :>> ", selectedBlocks.current);
-      if (selectedTextInBlock.current) {
-        adaptMainCommandToSelection("text");
-      } else if (focusedBlockUid.current) {
-        adaptMainCommandToSelection("focus");
-      } else if (selectedBlocks.current.length) {
-        adaptMainCommandToSelection("blocks");
-      } else adaptMainCommandToSelection("zoom");
-      updateMenu();
+
+      const adaptToStatus = async () => {
+        const { zoomOrMainPageUid, isZoomInMainPage, currentPageUid } =
+          await getPageStatus(
+            focusedBlockUid.current || selectedBlocks.current?.[0]
+          );
+        mainViewUid.current = zoomOrMainPageUid;
+        pageUid.current = currentPageUid;
+        isZoom.current = isZoomInMainPage;
+
+        console.log("isLogView() :>> ", isLogView());
+        console.log("isZoom.current :>> ", isZoom.current);
+        console.log("mainViewUid :>> ", mainViewUid.current);
+        console.log("pageUid.current :>> ", pageUid.current);
+
+        if (selectedTextInBlock.current) {
+          adaptMainCommandToSelection("text");
+        } else if (focusedBlockUid.current) {
+          adaptMainCommandToSelection("focus");
+        } else if (selectedBlocks.current.length) {
+          adaptMainCommandToSelection("blocks");
+        } else if (isZoomInMainPage) adaptMainCommandToSelection("zoom");
+        else adaptMainCommandToSelection("page");
+        updateMenu();
+      };
+      adaptToStatus();
     }
   }, [isOpen]);
 
   useEffect(() => {
+    console.log("UseEffect roamContext");
+
     async function estimateTokens() {
       if (hasTrueBooleanKey(roamContext)) {
         let tokensEstimation = estimateContextTokens(
           await getAndNormalizeContext({ roamContext })
         );
+        console.log("tokensEstimation :>> ", tokensEstimation);
         setEstimatedTokens(tokensEstimation);
       } else setEstimatedTokens(null);
     }
     estimateTokens();
+    console.log("roamContext :>> ", roamContext);
   }, [roamContext]);
 
   const adaptMainCommandToSelection = (selectionType) => {
@@ -245,8 +271,11 @@ const StandaloneContextMenu = () => {
       case "blocks":
         adaptedName = "Selected blocks as prompt";
         break;
+      case "zoom":
+        adaptedName = "Zoom content as prompt";
+        break;
       default:
-        adaptedName = "Current Page/Zoom content as prompt";
+        adaptedName = "Main Page content as prompt";
     }
     setCommands((prev) => {
       let selectedBlockCommand1 = prev.find((cmd) => cmd.id === 1);
@@ -273,6 +302,9 @@ const StandaloneContextMenu = () => {
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;
+    mainViewUid.current = null;
+    pageUid.current = null;
+    isZoom.current = null;
   };
 
   useEffect(() => {
@@ -419,7 +451,10 @@ const StandaloneContextMenu = () => {
       if (model.includes("-search")) command.includeUids = false;
     }
     let includeChildren;
-    if (command.name === "Current Page/Zoom content as prompt") {
+    if (
+      command.name === "Main Page content as prompt" ||
+      command.name === "Zoom content as prompt"
+    ) {
       includeChildren = true;
     }
 
@@ -994,7 +1029,8 @@ const StandaloneContextMenu = () => {
     );
   };
 
-  const updateContext = async (context, e) => {
+  const updateContext = (context, e) => {
+    //console.log("context :>> ", context);
     if (context === "liveOutline") {
       context = "block";
     } else {
@@ -1006,6 +1042,13 @@ const StandaloneContextMenu = () => {
     }
     setRoamContext((prev) => {
       const clone = { ...prev };
+      if (context === "page" || context === "zoom") {
+        clone.pageViewUid =
+          context === "page" && isZoom.current
+            ? getPageUidByBlockUid(mainViewUid.current)
+            : mainViewUid.current;
+        context = "page";
+      }
       clone[context] = !clone[context];
       if (context === "block") clone.blockArgument = [rootUid];
       return clone;
@@ -1281,24 +1324,38 @@ const StandaloneContextMenu = () => {
               }}
             >
               Context:{" "}
-              <Tooltip
-                content={
-                  <div>
-                    Or zoom content
-                    <br />
-                    if page view is zoomed on a block
-                  </div>
-                }
-                hoverOpenDelay={500}
-                openOnTargetFocus={false}
-              >
-                <Checkbox
-                  checked={roamContext.page}
-                  label="Page"
-                  inline={true}
-                  onChange={(e) => updateContext("page", e)}
-                />
-              </Tooltip>
+              {(!isLogView() || mainViewUid.current) && (
+                <Tooltip
+                  content={
+                    <div>
+                      Main view content{" "}
+                      {!isZoom.current || (isZoom.current && !pageUid.current)
+                        ? "(entire page)"
+                        : "(zoom)"}
+                    </div>
+                  }
+                  hoverOpenDelay={500}
+                  openOnTargetFocus={false}
+                >
+                  <Checkbox
+                    checked={roamContext.page}
+                    label={
+                      !isZoom.current || (isZoom.current && !pageUid.current)
+                        ? "Page"
+                        : "Zoom"
+                    }
+                    inline={true}
+                    onChange={(e) =>
+                      updateContext(
+                        !isZoom.current || (isZoom.current && !pageUid.current)
+                          ? "page"
+                          : "zoom",
+                        e
+                      )
+                    }
+                  />
+                </Tooltip>
+              )}
               <Checkbox
                 checked={roamContext.sidebar}
                 label="Sidebar"
