@@ -1454,9 +1454,7 @@ const StandaloneContextMenu = () => {
                   onChange={(e) => updateContext("liveOutline", e)}
                 />
               )}
-            </div>
-            {estimatedTokens && estimatedTokens !== "0" && (
-              <div className="aicommands-context">
+              {estimatedTokens && estimatedTokens !== "0" && (
                 <Tooltip
                   content={
                     <div>
@@ -1485,8 +1483,8 @@ const StandaloneContextMenu = () => {
                       )}
                   </div>
                 </Tooltip>
-              </div>
-            )}
+              )}
+            </div>
             <div
               className="aicommands-style"
               onClick={(e) => {
