@@ -17,6 +17,37 @@ export function getTreeByUid(uid) {
   else return null;
 }
 
+export function treeToUidArray(tree) {
+  console.log("tree :>> ", tree);
+  const result = [];
+  if (!tree) {
+    return result;
+  }
+  const rootBlock = Array.isArray(tree) ? tree[0] : tree;
+  if (!rootBlock) {
+    return result;
+  }
+
+  function traverseBlock(block) {
+    if (block["uid"] && block["string"]) {
+      result.push(block["uid"]);
+    }
+    const children = block["children"];
+    if (children && Array.isArray(children) && children.length > 0) {
+      const sortedChildren = [...children].sort((a, b) => {
+        const orderA = a["order"] || 0;
+        const orderB = b["order"] || 0;
+        return orderA - orderB;
+      });
+      sortedChildren.forEach((child) => {
+        traverseBlock(child);
+      });
+    }
+  }
+  traverseBlock(rootBlock);
+  return result;
+}
+
 export async function getFirstLevelBlocksInCurrentView() {
   let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
   if (!zoomUid) return null;
@@ -173,11 +204,13 @@ export function getPreviousSiblingBlock(currentUid) {
 }
 
 export function getPageUidByBlockUid(uid) {
+  if (!uid) return null;
   let result = window.roamAlphaAPI.pull("[:block/uid {:block/page ...}]", [
     ":block/uid",
     uid,
   ]);
-  if (result) return result[":block/page"][":block/uid"];
+  if (result && result[":block/page"])
+    return result[":block/page"][":block/uid"];
   else return "";
 }
 
@@ -187,14 +220,31 @@ export function getPageUidByPageName(title) {
   else return null;
 }
 
+export async function getMainViewUid() {
+  return await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+}
+
 export async function getMainPageUid() {
-  let uid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+  let uid = await getMainViewUid();
   let pageUid = window.roamAlphaAPI.pull("[{:block/page [:block/uid]}]", [
     ":block/uid",
     uid,
   ]);
   if (pageUid === null) return uid;
   return pageUid[":block/page"][":block/uid"];
+}
+
+export async function getPageStatus(blockUid) {
+  let currentPageUid;
+  if (blockUid) currentPageUid = getPageUidByBlockUid(blockUid);
+  const mainPageUid = await getMainPageUid();
+  let zoomUid = await getMainViewUid();
+  return {
+    zoomOrMainPageUid:
+      blockUid && !mainPageUid && !zoomUid ? currentPageUid : zoomUid,
+    isZoomInMainPage: zoomUid && zoomUid !== mainPageUid,
+    currentPageUid: currentPageUid, // !== mainPageUid ? currentPageUid : null,
+  };
 }
 
 export function getPageNameByPageUid(uid) {
