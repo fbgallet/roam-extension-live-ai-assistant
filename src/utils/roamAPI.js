@@ -18,7 +18,6 @@ export function getTreeByUid(uid) {
 }
 
 export function treeToUidArray(tree, isParentToIgnore = false) {
-  console.log("tree :>> ", tree);
   const result = [];
   if (!tree) {
     return result;

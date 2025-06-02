@@ -112,10 +112,48 @@ const ModelsMenu = ({
     );
   };
 
+  const customOpenAIModelsMenu = (withMenu = true) => {
+    const customModelsMap = () => {
+      return openAiCustomModels.map((model) => (
+        <MenuItem
+          icon={
+            defaultModel === "first custom OpenAI model" &&
+            openAiCustomModels[0] === model &&
+            "pin"
+          }
+          onClick={(e) => {
+            handleClickOnModel(e);
+          }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e);
+          }}
+          onContextMenu={(e) => handleContextMenu(e)}
+          tabindex="0"
+          text={model}
+          labelElement={
+            tokensLimit[model]
+              ? (tokensLimit[model] / 1000).toFixed(0).toString() + "k"
+              : null
+          }
+        />
+      ));
+    };
+
+    return openAiCustomModels && openAiCustomModels.length ? (
+      withMenu ? (
+        <MenuItem tabindex="0" text="Custom models via OpenAI API">
+          {customModelsMap()}
+        </MenuItem>
+      ) : (
+        customModelsMap()
+      )
+    ) : null;
+  };
+
   return (
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
       {
-        openRouterOnly ? null : openaiLibrary ? (
+        openRouterOnly ? null : openaiLibrary?.apiKey ? (
           !isWebSearch ? (
             <>
               <MenuItem
@@ -240,40 +278,16 @@ const ModelsMenu = ({
                   labelElement="128k"
                 />
               </MenuItem>
-              {openAiCustomModels && openAiCustomModels.length ? (
-                <MenuItem tabindex="0" text="Custom OpenAI models">
-                  {openAiCustomModels.map((model) => (
-                    <MenuItem
-                      icon={
-                        defaultModel === "first custom OpenAI model" &&
-                        openAiCustomModels[0] === model &&
-                        "pin"
-                      }
-                      onClick={(e) => {
-                        handleClickOnModel(e);
-                      }}
-                      onKeyDown={(e) => {
-                        handleKeyDownOnModel(e);
-                      }}
-                      onContextMenu={(e) => handleContextMenu(e)}
-                      tabindex="0"
-                      text={model}
-                      labelElement={
-                        tokensLimit[model]
-                          ? (tokensLimit[model] / 1000).toFixed(0).toString() +
-                            "k"
-                          : null
-                      }
-                    />
-                  ))}
-                </MenuItem>
-              ) : null}
+              {customOpenAIModelsMenu()}
             </>
           ) : (
             openAiWebSearchModels()
           )
         ) : (
-          <MenuDivider className="menu-hint" title="No OpenAI API key" />
+          <>
+            <MenuDivider className="menu-hint" title="No OpenAI API key" />
+            {customOpenAIModelsMenu(false)}
+          </>
         )
         // <MenuDivider />
       }

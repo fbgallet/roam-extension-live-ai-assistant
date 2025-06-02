@@ -49,6 +49,7 @@ import {
 import {
   claudeCompletion,
   imageGeneration,
+  isAPIKeyNeeded,
   modelAccordingToProvider,
   ollamaCompletion,
   openaiCompletion,
@@ -92,13 +93,7 @@ export async function aiCompletion({
 
   const llm = modelAccordingToProvider(model);
   if (!llm) return "";
-  if (!llm.library || (llm.provider !== "ollama" && !llm.library?.apiKey)) {
-    AppToaster.show({
-      message: `Provide an API key to use ${llm.name} model. See doc and settings.`,
-      timeout: 15000,
-    });
-    return "";
-  }
+  if (isAPIKeyNeeded(llm)) return "";
 
   const lastTurn = Array.isArray(prompt) ? prompt.at(-1).content : prompt;
 

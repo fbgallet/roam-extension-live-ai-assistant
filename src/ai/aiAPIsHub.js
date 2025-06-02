@@ -30,6 +30,7 @@ import {
   ttsVoice,
   voiceInstructions,
   transcriptionModel,
+  customBaseURL,
 } from "..";
 import {
   insertInstantButtons,
@@ -56,8 +57,8 @@ import { getResolvedContentFromBlocks } from "./dataExtraction";
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
     const clientSetting = {
-      apiKey: API_KEY,
       dangerouslyAllowBrowser: true,
+      apiKey: API_KEY,
     };
     if (baseURL) {
       clientSetting.baseURL = baseURL;
@@ -407,17 +408,26 @@ export function modelAccordingToProvider(model) {
     return null;
   }
   // console.log("Used LLM id :>> ", llm.id);
+  isAPIKeyNeeded(llm);
 
-  if (llm.provider !== "ollama" && !llm.library?.apiKey) {
+  return llm;
+}
+
+export function isAPIKeyNeeded(llm) {
+  if (
+    llm.provider !== "ollama" &&
+    !llm.library?.apiKey &&
+    !(llm.provider === "OpenAI" && customBaseURL)
+  ) {
     AppToaster.show({
       message: `Provide an API key to use ${
         llm.name || "an AI"
       } model. See doc and settings.`,
       timeout: 15000,
     });
-    return llm;
+    return true;
   }
-  return llm;
+  return false;
 }
 
 export async function claudeCompletion({
