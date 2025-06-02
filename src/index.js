@@ -1242,7 +1242,7 @@ export default {
 
     createContainer();
 
-    if (OPENAI_API_KEY)
+    if (OPENAI_API_KEY || customBaseURL)
       openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
     if (ANTHROPIC_API_KEY)
       anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
