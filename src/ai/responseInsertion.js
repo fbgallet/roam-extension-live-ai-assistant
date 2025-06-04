@@ -130,7 +130,8 @@ export async function aiCompletion({
     llm.provider === "groq" ||
     llm.provider === "DeepSeek" ||
     llm.provider === "Grok" ||
-    llm.provider === "Google"
+    llm.provider === "Google" ||
+    llm.provider === "custom"
   ) {
     aiResponse = await openaiCompletion(completionOptions);
   } else if (llm.provider === "ollama") {

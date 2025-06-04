@@ -54,6 +54,7 @@ export let isTranslateIconDisplayed;
 export let defaultModel;
 export let availableModels = [];
 export let customBaseURL;
+export let customOpenAIOnly;
 export let modelTemperature;
 export let openRouterOnly;
 export let ollamaModels = [];
@@ -86,6 +87,7 @@ export let isComponentVisible;
 export let resImages;
 export let position;
 export let openaiLibrary,
+  customOpenaiLibrary,
   anthropicLibrary,
   openrouterLibrary,
   groqLibrary,
@@ -859,12 +861,45 @@ function getPanelConfig() {
         id: "customBaseUrl",
         name: "Custom OpenAI baseURL",
         description:
-          "Use your own API baseURL instead of default OpenAI URL (namely: https://api.openai.com/v1)",
+          "Provide the baseURL of an OpenAI API compatible server (eventually local):",
         action: {
           type: "input",
           onChange: (evt) => {
             customBaseURL = evt.target.value;
-            openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
+            if (customOpenAIOnly)
+              openaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            else
+              customOpenaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "customOpenAIOnly",
+        name: "Custom OpenAI server only",
+        description:
+          "Use the custom baseURL as the only server for OpenAI API (both is disabled):",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            customOpenAIOnly = !customOpenAIOnly;
+            if (!customOpenAIOnly)
+              customOpenaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            openAiCustomModels = getArrayFromList(
+              extensionStorage.get("customModel"),
+              ",",
+              customOpenAIOnly ? "" : "custom/"
+            );
             unmountComponent(position);
             mountComponent(position);
           },
@@ -1157,10 +1192,15 @@ export default {
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");
     customBaseURL = extensionAPI.settings.get("customBaseUrl");
+    if (extensionAPI.settings.get("customOpenAIOnly") === null)
+      await extensionAPI.settings.set("customOpenAIOnly", true);
+    customOpenAIOnly = extensionAPI.settings.get("customOpenAIOnly");
     if (extensionAPI.settings.get("customModel") === null)
       await extensionAPI.settings.set("customModel", "");
     openAiCustomModels = getArrayFromList(
-      extensionAPI.settings.get("customModel")
+      extensionAPI.settings.get("customModel"),
+      ",",
+      customOpenAIOnly ? "" : "custom/"
     );
     if (extensionAPI.settings.get("openRouterModels") === null)
       await extensionAPI.settings.set("openRouterModels", "");
@@ -1258,8 +1298,13 @@ export default {
 
     createContainer();
 
-    if (OPENAI_API_KEY || customBaseURL)
-      openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
+    if (OPENAI_API_KEY || (customBaseURL && customOpenAIOnly))
+      openaiLibrary = initializeOpenAIAPI(
+        OPENAI_API_KEY,
+        customOpenAIOnly ? customBaseURL : null
+      );
+    if (customBaseURL && !customOpenAIOnly)
+      customOpenaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
     if (ANTHROPIC_API_KEY)
       anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
     if (DEEPSEEK_API_KEY)

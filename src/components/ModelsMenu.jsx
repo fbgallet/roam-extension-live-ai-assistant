@@ -1,6 +1,13 @@
-import { Menu, MenuItem, MenuDivider, Tooltip } from "@blueprintjs/core";
+import {
+  Menu,
+  MenuItem,
+  MenuDivider,
+  Tooltip,
+  Divider,
+} from "@blueprintjs/core";
 import {
   anthropicLibrary,
+  customOpenAIOnly,
   deepseekLibrary,
   defaultModel,
   extensionStorage,
@@ -116,20 +123,20 @@ const ModelsMenu = ({
     const customModelsMap = () => {
       return openAiCustomModels.map((model) => (
         <MenuItem
-          icon={
-            defaultModel === "first custom OpenAI model" &&
-            openAiCustomModels[0] === model &&
-            "pin"
-          }
+          icon={defaultModel === model && "pin"}
           onClick={(e) => {
-            handleClickOnModel(e);
+            handleClickOnModel(
+              e,
+              customOpenAIOnly ? "" : "custom/",
+              model.replace("custom/", "")
+            );
           }}
           onKeyDown={(e) => {
             handleKeyDownOnModel(e);
           }}
           onContextMenu={(e) => handleContextMenu(e)}
           tabindex="0"
-          text={model}
+          text={model.replace("custom/", "")}
           labelElement={
             tokensLimit[model]
               ? (tokensLimit[model] / 1000).toFixed(0).toString() + "k"
@@ -145,7 +152,10 @@ const ModelsMenu = ({
           {customModelsMap()}
         </MenuItem>
       ) : (
-        customModelsMap()
+        <>
+          <MenuDivider title="Custom OpenAI compatible models" />
+          {customModelsMap()}
+        </>
       )
     ) : null;
   };
@@ -291,8 +301,8 @@ const ModelsMenu = ({
           )
         ) : (
           <>
-            <MenuDivider className="menu-hint" title="No OpenAI API key" />
             {customOpenAIModelsMenu(false)}
+            <MenuDivider className="menu-hint" title="No OpenAI API key" />
           </>
         )
         // <MenuDivider />
