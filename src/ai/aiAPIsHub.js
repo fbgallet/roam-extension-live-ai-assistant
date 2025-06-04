@@ -728,7 +728,8 @@ export async function openaiCompletion({
       model: model,
       response_format:
         // Fixing current issue with LM studio not supporting "text" response_format...
-        openaiLibrary.baseURL === "http://127.0.0.1:1234/v1"
+        openaiLibrary.baseURL === "http://127.0.0.1:1234/v1" ||
+        openaiLibrary.baseURL === "http://localhost:1234/v1"
           ? undefined
           : { type: responseFormat },
       messages: messages,

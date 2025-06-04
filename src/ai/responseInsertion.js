@@ -10,6 +10,7 @@ import {
   defaultStyle,
   extensionStorage,
   uidsInPrompt,
+  isTitleToAdd,
 } from "..";
 import {
   addContentToBlock,
@@ -28,6 +29,7 @@ import {
   hierarchicalResponseFormat,
   instructionsOnOutline,
   introduceStylePrompt,
+  responseSummary,
   retryPrompt,
   roamBasicsFormat,
   roamKanbanFormat,
@@ -332,6 +334,17 @@ export const insertCompletion = async ({
 
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
 
+  console.log("typeOfCompletion :>> ", typeOfCompletion);
+  console.log("responseFormat :>> ", responseFormat);
+  if (
+    isTitleToAdd &&
+    typeOfCompletion === "gptCompletion" &&
+    !systemPrompt.includes(responseSummary) &&
+    responseFormat === "text"
+  ) {
+    systemPrompt += responseSummary;
+  }
+
   if (!systemPrompt.includes("Current date and time are:"))
     systemPrompt +=
       roamBasicsFormat +
@@ -345,6 +358,7 @@ export const insertCompletion = async ({
     responseFormat === "text"
   )
     systemPrompt += hierarchicalResponseFormat;
+  // console.log("systemPrompt :>> ", systemPrompt);
   if (!isRedone && !isInConversation) {
     //content = context;
     content =
@@ -470,6 +484,11 @@ export async function insertStructuredAIResponse({
       await createChildBlock(targetUid, content, format?.open, format?.heading);
     else await addContentToBlock(targetUid, content);
   else {
+    if (isTitleToAdd) {
+      const [firstLine, ...otherLines] = content.split("\n");
+      await addContentToBlock(targetUid, firstLine.trim());
+      content = otherLines.join("\n").trim();
+    }
     await parseAndCreateBlocks(
       targetUid,
       content,

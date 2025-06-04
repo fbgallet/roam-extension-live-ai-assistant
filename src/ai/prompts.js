@@ -68,6 +68,8 @@ export const defaultAssistantCharacter = `You are a very smart assistant who met
 
 export const hierarchicalResponseFormat = `\n\nIMPORTANT RULE on your response format (ONLY FOR HIERARCHICALLY STRUCTURED RESPONSE): If your response contains hierarchically structured information, each sub-level in the hierarchy should be indented exactly 2 spaces more relative to the immediate higher level (e.g. each direct bullet point under a numbered item has to be indented with 2 spaces). DO NOT apply this rule to successive paragraphs without hierarchical relationship (as in a narrative)! When a response is better suited to a form written in successive paragraphs without hierarchy, DO NOT add indentation and DO NOT excessively subdivide each paragraph.`;
 
+export const responseSummary = `\n\nOnly if your response spans multiple lines, first formulate a title that briefly summarizes the core content in a concise phrase (up to about fifteen words at most), carefully choosing words to help the user quickly identify relevant responses. IMPORTANT: Always place this summary on the first line of your response, without any special formatting.`;
+
 export const defaultContextInstructions = `
 Below is the context of the user request: it can consist of data to rely on, content to apply to the user instructions or additional instructions, depending on the user's prompt. Block-uids preceding blocks content are there for referencing and sourcing purpose if needed.`;
 

@@ -75,6 +75,7 @@ export let exclusionStrings = [];
 export let websearchContext;
 // export let defaultTemplate;
 export let streamResponse;
+export let isTitleToAdd;
 export let uidsInPrompt;
 export let maxImagesNb;
 export let openAiCustomModels = [];
@@ -655,18 +656,6 @@ function getPanelConfig() {
         },
       },
       {
-        id: "splitResponse",
-        name: "Split response in multiple blocks",
-        description:
-          "Divide the responses of the AI assistant into as many blocks as paragraphs",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            isResponseToSplit = !isResponseToSplit;
-          },
-        },
-      },
-      {
         id: "streamResponse",
         name: "Stream response",
         description:
@@ -675,6 +664,30 @@ function getPanelConfig() {
           type: "switch",
           onChange: (evt) => {
             streamResponse = !streamResponse;
+          },
+        },
+      },
+      {
+        id: "addTitleToResponse",
+        name: "Add response title",
+        description:
+          "In the AI response header, add a title summarizing multi-line responses:",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            isTitleToAdd = !isTitleToAdd;
+          },
+        },
+      },
+      {
+        id: "splitResponse",
+        name: "Split response in multiple blocks",
+        description:
+          "Divide the responses of the AI assistant into as many blocks as paragraphs",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            isResponseToSplit = !isResponseToSplit;
           },
         },
       },
@@ -1175,12 +1188,15 @@ export default {
     if (extensionAPI.settings.get("contextInstructions") === null)
       await extensionAPI.settings.set("contextInstructions", "");
     userContextInstructions = extensionAPI.settings.get("contextInstructions");
-    if (extensionAPI.settings.get("splitResponse") === null)
-      await extensionAPI.settings.set("splitResponse", true);
-    isResponseToSplit = extensionAPI.settings.get("splitResponse");
     if (extensionAPI.settings.get("streamResponse") === null)
       await extensionAPI.settings.set("streamResponse", true);
     streamResponse = extensionAPI.settings.get("streamResponse");
+    if (extensionAPI.settings.get("addTitleToResponse") === null)
+      await extensionAPI.settings.set("addTitleToResponse", true);
+    isTitleToAdd = extensionAPI.settings.get("addTitleToResponse");
+    if (extensionAPI.settings.get("splitResponse") === null)
+      await extensionAPI.settings.set("splitResponse", true);
+    isResponseToSplit = extensionAPI.settings.get("splitResponse");
     if (extensionAPI.settings.get("uidsInPrompt") === null)
       await extensionAPI.settings.set("uidsInPrompt", true);
     uidsInPrompt = extensionAPI.settings.get("uidsInPrompt");
