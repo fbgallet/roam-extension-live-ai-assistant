@@ -121,7 +121,7 @@ export const parseAndCreateBlocks = async (
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line.trim()) continue;
+    if (!line.trim() && !inCodeBlock) continue;
 
     // Detect indentation by spaces
     const leadingSpaces = line.match(/^ */)[0].length;
@@ -129,19 +129,30 @@ export const parseAndCreateBlocks = async (
     let trimmedLine = line.trimStart();
 
     // Handle code blocks and Katex multi-lines
-    if (trimmedLine.startsWith("```") || trimmedLine.startsWith("$$")) {
+
+    if (
+      trimmedLine.startsWith("```") ||
+      trimmedLine.startsWith("$$") ||
+      (trimmedLine.includes("$$") && !trimmedLine.match(/\$\$.*\$\$/))
+    ) {
       // Check if it's a single-line Katex block
       if (
-        trimmedLine.startsWith("$$") &&
-        trimmedLine.endsWith("$$") &&
-        trimmedLine.length > 4
+        trimmedLine.includes("$$") &&
+        trimmedLine.match(/\$\$.*\$\$/) &&
+        !trimmedLine.includes("\\begin")
       ) {
         // Single-line Katex, treat as normal content - don't continue
       } else if (!inCodeBlock) {
         // Begin multi-line block
         inCodeBlock = true;
-        codeBlockContent = trimmedLine + "\n";
-        codeBlockBaseIndent = leadingSpaces; // Store the base indentation
+        if (trimmedLine.includes("$$") && !trimmedLine.startsWith("$$")) {
+          // Extract only the Katex part
+          const katexStart = trimmedLine.indexOf("$$");
+          codeBlockContent = trimmedLine.substring(katexStart);
+        } else {
+          codeBlockContent = trimmedLine;
+        }
+        codeBlockBaseIndent = leadingSpaces;
         continue;
       } else {
         // End multi-line block
@@ -170,10 +181,15 @@ export const parseAndCreateBlocks = async (
     }
 
     if (inCodeBlock) {
-      // Remove only the base indentation, preserve relative indentation
-      const relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
-      const adjustedLine = " ".repeat(relativeIndent) + trimmedLine;
-      codeBlockContent += adjustedLine + "\n";
+      if (!line.trim()) {
+        // Preserve empty lines in code blocks
+        codeBlockContent += "\n";
+      } else {
+        // Remove only the base indentation, preserve relative indentation
+        const relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
+        const adjustedLine = " ".repeat(relativeIndent) + trimmedLine;
+        codeBlockContent += "\n" + adjustedLine;
+      }
       continue;
     }
 
@@ -261,14 +277,31 @@ export const parseAndCreateBlocks = async (
             targetLevel = prevInfo.level;
             foundParent = true;
             break;
+          } else if (prevInfo.indentLevel === 0 && prevInfo.isList && isList) {
+            // Same level lists
+            targetLevel = prevInfo.level;
+            foundParent = true;
+            break;
           } else if (prevInfo.indentLevel === 0 && !prevInfo.isList && isList) {
             // List under paragraph
             targetLevel = prevInfo.level + 1;
             foundParent = true;
             break;
-          } else if (prevInfo.indentLevel === 0 && prevInfo.isList && isList) {
-            // Same level lists
-            targetLevel = prevInfo.level;
+          } else if (prevInfo.indentLevel === 0 && prevInfo.isList && !isList) {
+            // Paragraph after list - find the level of the content before the list
+            let beforeListLevel = 1; // default
+            for (let k = j - 1; k >= 0; k--) {
+              const beforeInfo = hierarchyTracker.get(k);
+              if (
+                beforeInfo &&
+                beforeInfo.indentLevel === 0 &&
+                !beforeInfo.isList
+              ) {
+                beforeListLevel = beforeInfo.level;
+                break;
+              }
+            }
+            targetLevel = beforeListLevel;
             foundParent = true;
             break;
           }
