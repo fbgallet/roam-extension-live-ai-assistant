@@ -467,7 +467,7 @@ const ModelsMenu = ({
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
-                icon={defaultModel === "Grok-2" && "pin"}
+                icon={defaultModel === "Grok-3-mini" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -476,9 +476,50 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="Grok-2"
+                text="Grok-3-mini"
                 labelElement="128k"
-              />
+              >
+                <MenuItem
+                  icon={defaultModel === "Grok-3-mini-fast" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-3-mini-fast"
+                  labelElement="128k"
+                />
+              </MenuItem>
+              <MenuItem
+                icon={defaultModel === "Grok-3" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="Grok-3"
+                labelElement="128k"
+              >
+                <MenuItem
+                  icon={defaultModel === "Grok-3-fast" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-3-fast"
+                  labelElement="128k"
+                />
+              </MenuItem>
               <MenuItem
                 icon={defaultModel === "Grok-2 Vision" && "pin"}
                 onClick={(e) => {

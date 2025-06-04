@@ -386,12 +386,18 @@ export function modelAccordingToProvider(model) {
     llm.library = deepseekLibrary;
   } else if (model.includes("grok")) {
     llm.provider = "Grok";
-    if (model === "grok-2 vision") {
+
+    if (
+      model === "grok-2-vision" ||
+      model === "grok-2 vision" ||
+      model === "grok-2-vision-1212"
+    ) {
       llm.id = "grok-2-vision-1212";
-      llm.name = "Grok-2 Vision";
+      llm.name = "Grok-2-vision";
     } else {
-      llm.id = "grok-2-1212";
-      llm.name = "Grok-2";
+      model = model.replace("-latest", "");
+      llm.id = model + "-latest";
+      llm.name = model.charAt(0).toUpperCase() + model.slice(1);
     }
     llm.library = grokLibrary;
   } else if (model.includes("gemini")) {
@@ -761,6 +767,12 @@ export async function openaiCompletion({
       options.web_search_options = {
         search_context_size: websearchContext,
       };
+    if (model.includes("grok")) {
+      options["search_parameters"] = {
+        mode: "auto",
+        return_citations: true,
+      };
+    }
 
     if (!isSafari) {
       const timeoutPromise = new Promise((_, reject) => {
@@ -809,7 +821,10 @@ export async function openaiCompletion({
             // respStr = "";
             break;
           }
-          if (chunk.choices[0]?.delta?.reasoning_content)
+          if (
+            chunk.choices[0]?.delta?.reasoning_content &&
+            model === "deepseek-reasoner"
+          )
             thinkingToasterStream.innerText +=
               chunk.choices[0]?.delta?.reasoning_content;
           respStr += chunk.choices[0]?.delta?.content || "";
@@ -818,6 +833,7 @@ export async function openaiCompletion({
             annotations = chunk.choices[0].delta.annotations;
           if (chunk.usage) usage = chunk.usage;
           if (chunk.x_groq?.usage) usage = chunk.x_groq.usage;
+          // console.log(chunk);
         }
       } catch (e) {
         console.log("Error during OpenAI stream response: ", e);
