@@ -726,7 +726,11 @@ export async function openaiCompletion({
     let response;
     const options = {
       model: model,
-      response_format: { type: responseFormat },
+      response_format:
+        // Fixing current issue with LM studio not supporting "text" response_format...
+        openaiLibrary.baseURL === "http://127.0.0.1:1234/v1"
+          ? undefined
+          : { type: responseFormat },
       messages: messages,
       stream: isToStream,
     };
@@ -1066,6 +1070,7 @@ export const estimateTokensPricing = (model, tokens) => {
   const inputPricing =
     modelsPricing[llm.id]?.input || openRouterModelPricing(llm.id, "input");
   // console.log("inputPricing :>> ", inputPricing);
+  if (!inputPricing) return null;
   const estimation = (inputPricing * tokens) / 1000000;
   // console.log("estimation :>> ", estimation);
 

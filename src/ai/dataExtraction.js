@@ -760,8 +760,9 @@ export const getFlattenedContentFromLog = (
   let date = startDate || getYesterdayDate();
 
   while (
-    tokens < tokensLimit[model] &&
-    (!nbOfDays || processedDays < nbOfDays)
+    // tokens < tokensLimit[model] &&
+    !nbOfDays ||
+    processedDays < nbOfDays
   ) {
     let dnpUid = window.roamAlphaAPI.util.dateToPageUid(date);
     let dayContent = getFlattenedContentFromTree({

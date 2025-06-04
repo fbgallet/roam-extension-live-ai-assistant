@@ -1172,6 +1172,11 @@ const StandaloneContextMenu = () => {
     } else if (templates.length) setTemplates([]);
   };
 
+  const insertEstimatedCost = () => {
+    let cost = estimateTokensPricing(defaultModel, parseInt(estimatedTokens));
+    return cost ? ` (±${cost}$)` : "";
+  };
+
   return (
     <Popover
       isOpen={isOpen}
@@ -1392,7 +1397,7 @@ const StandaloneContextMenu = () => {
                     (from today or relative to current DNP)
                   </div>
                 }
-                hoverOpenDelay={500}
+                hoverOpenDelay={800}
                 openOnTargetFocus={false}
               >
                 <div
@@ -1458,17 +1463,13 @@ const StandaloneContextMenu = () => {
                       Multiply by 2 or 3 for CJK characters
                     </div>
                   }
+                  hoverOpenDelay={800}
                   openOnTargetFocus={false}
                   style={{ zIndex: "9999" }}
                 >
                   <div>
-                    Estimated context tokens: {estimatedTokens.toLocaleString()}{" "}
-                    (±
-                    {estimateTokensPricing(
-                      defaultModel,
-                      parseInt(estimatedTokens)
-                    )}
-                    $)
+                    Estimated context tokens: {estimatedTokens.toLocaleString()}
+                    {insertEstimatedCost()}
                     {tokensLimit[defaultModel] &&
                       parseInt(estimatedTokens) > tokensLimit[defaultModel] && (
                         <div style={{ color: "red", fontSize: "smaller" }}>
