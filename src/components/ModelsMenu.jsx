@@ -152,6 +152,12 @@ const ModelsMenu = ({
 
   return (
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
+      {!isWebSearch && (
+        <MenuDivider
+          className="menu-hint"
+          title="ℹ︎ Right click on model to set as default"
+        />
+      )}
       {
         openRouterOnly ? null : openaiLibrary?.apiKey ? (
           !isWebSearch ? (
@@ -640,10 +646,6 @@ const ModelsMenu = ({
           ))}
         </>
       ) : null}
-      <MenuDivider
-        className="menu-hint"
-        title="ℹ︎ Right click on model to set as default"
-      />
     </Menu>
   );
 };
