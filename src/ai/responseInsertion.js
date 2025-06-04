@@ -334,15 +334,16 @@ export const insertCompletion = async ({
 
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
 
-  console.log("typeOfCompletion :>> ", typeOfCompletion);
-  console.log("responseFormat :>> ", responseFormat);
+  let isTitleCompatible = false;
   if (
     isTitleToAdd &&
+    withAssistantRole &&
     typeOfCompletion === "gptCompletion" &&
-    !systemPrompt.includes(responseSummary) &&
     responseFormat === "text"
   ) {
-    systemPrompt += responseSummary;
+    isTitleCompatible = true;
+    if (!systemPrompt.includes(responseSummary))
+      systemPrompt += responseSummary;
   }
 
   if (!systemPrompt.includes("Current date and time are:"))
@@ -459,7 +460,13 @@ export const insertCompletion = async ({
       simulateClick();
       await updateBlock({ blockUid: targetUid, newContent: "" });
     }
-    insertStructuredAIResponse({ targetUid, content: aiResponse, target });
+    console.log("command :>> ", command);
+    insertStructuredAIResponse({
+      targetUid,
+      content: aiResponse,
+      target,
+      isTitleCompatible,
+    });
   }
   setTimeout(() => {
     removeSpinner(intervalId);
@@ -472,6 +479,7 @@ export async function insertStructuredAIResponse({
   forceInChildren = false,
   format = undefined,
   target = undefined,
+  isTitleCompatible = false,
 }) {
   if (Array.isArray(content)) content = content.join("\n\n");
   const splittedResponse = splitParagraphs(content);
@@ -484,7 +492,7 @@ export async function insertStructuredAIResponse({
       await createChildBlock(targetUid, content, format?.open, format?.heading);
     else await addContentToBlock(targetUid, content);
   else {
-    if (isTitleToAdd) {
+    if (isTitleToAdd && isTitleCompatible) {
       const [firstLine, ...otherLines] = content.split("\n");
       await addContentToBlock(targetUid, firstLine.trim());
       content = otherLines.join("\n").trim();
