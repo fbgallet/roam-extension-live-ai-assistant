@@ -914,8 +914,8 @@ export const getThreeNumbersFromList = (list) => {
   return arrayOfThreeNumbers;
 };
 
-export const getArrayFromList = (list, separator = ",") => {
-  const splittedList = list.split(separator).map((elt) => elt.trim());
+export const getArrayFromList = (list, separator = ",", prefix = "") => {
+  const splittedList = list.split(separator).map((elt) => prefix + elt.trim());
   if (splittedList.length === 1 && !splittedList[0].trim()) return [];
   return splittedList;
 };

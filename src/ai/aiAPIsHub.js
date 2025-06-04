@@ -31,6 +31,8 @@ import {
   voiceInstructions,
   transcriptionModel,
   customBaseURL,
+  openAiCustomModels,
+  customOpenaiLibrary,
 } from "..";
 import {
   insertInstantButtons,
@@ -357,6 +359,16 @@ export function modelAccordingToProvider(model) {
         ? groqModels[0]
         : undefined;
     llm.library = groqLibrary;
+  } else if (model.includes("custom")) {
+    llm.provider = "custom";
+    llm.prefix = "custom/";
+    llm.id =
+      prefix === "custom"
+        ? model.replace("custom/", "")
+        : openAiCustomModels.length
+        ? openAiCustomModels[0]
+        : undefined;
+    llm.library = customOpenaiLibrary;
   } else if (model.slice(0, 6) === "claude") {
     llm.provider = "Anthropic";
     llm.id = normalizeClaudeModel(model);
@@ -417,7 +429,8 @@ export function isAPIKeyNeeded(llm) {
   if (
     llm.provider !== "ollama" &&
     !llm.library?.apiKey &&
-    !(llm.provider === "OpenAI" && customBaseURL)
+    !(llm.provider === "OpenAI" && customBaseURL) &&
+    !llm.provider === "custom"
   ) {
     AppToaster.show({
       message: `Provide an API key to use ${
@@ -728,8 +741,9 @@ export async function openaiCompletion({
       model: model,
       response_format:
         // Fixing current issue with LM studio not supporting "text" response_format...
-        openaiLibrary.baseURL === "http://127.0.0.1:1234/v1" ||
-        openaiLibrary.baseURL === "http://localhost:1234/v1"
+        (aiClient.baseURL === "http://127.0.0.1:1234/v1" ||
+          aiClient.baseURL === "http://localhost:1234/v1") &&
+        responseFormat === "text"
           ? undefined
           : { type: responseFormat },
       messages: messages,
