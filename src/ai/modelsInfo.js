@@ -33,7 +33,13 @@ export const getAvailableModels = (provider) => {
     case "DeepSeek":
       return ["DeepSeek-V3", "DeepSeek-R1"];
     case "Grok":
-      return ["Grok-2", "Grok-2 Vision"];
+      return [
+        "Grok-3-mini",
+        "Grok-3-mini-fast",
+        "Grok-3",
+        "Grok-3-fast",
+        "Grok-2 Vision",
+      ];
   }
 };
 
@@ -58,6 +64,10 @@ export const tokensLimit = {
   "Claude Opus 4": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
+  "grok-3-mini-latest": 131072,
+  "grok-3-mini-fast-latest": 131072,
+  "grok-3-latest": 131072,
+  "grok-3-fast-latest": 131072,
   "grok-2-1212": 131072,
   "grok-2-vision-1212": 32768,
   "gemini-2.0-flash-exp": 1047576,
@@ -156,6 +166,22 @@ export const modelsPricing = {
   "grok-2-vision-1212": {
     input: 2,
     output: 10,
+  },
+  "grok-3-mini-latest": {
+    input: 0.3,
+    output: 0.5,
+  },
+  "grok-3-mini-fast-latest": {
+    input: 0.6,
+    output: 4,
+  },
+  "grok-3-latest": {
+    input: 3,
+    output: 15,
+  },
+  "grok-3-fast-latest": {
+    input: 5,
+    output: 25,
   },
 };
 
