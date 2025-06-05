@@ -94,7 +94,9 @@ export const parseAndCreateBlocks = async (
   let stack = [{ level: 0, ref: parentBlockRef }];
   let minTitleLevel = null;
   let inCodeBlock = false;
+  let blockType = null; // 'code' or 'katex'
   let codeBlockContent = "";
+  let isInListCodeBlock = false;
   let isFistParent = true;
   let position = isParentToReplace
     ? getBlockOrderByUid(parentBlockRef)
@@ -103,7 +105,7 @@ export const parseAndCreateBlocks = async (
   // Browse first to identify the minimum heading level
   for (const line of lines) {
     const trimmedLine = line.trim();
-    if (!trimmedLine) continue;
+    if (!trimmedLine && !inCodeBlock) continue;
 
     const headerMatch = trimmedLine.match(/^(#{1,6})\s+/);
     if (headerMatch) {
@@ -121,7 +123,62 @@ export const parseAndCreateBlocks = async (
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line.trim() && !inCodeBlock) continue;
+
+    // If we are in a code block, look for the end
+    if (inCodeBlock) {
+      const trimmedLine = line.trim();
+      if (
+        (blockType === "code" && trimmedLine.startsWith("```")) ||
+        (blockType === "katex" &&
+          (trimmedLine === "$$" || trimmedLine.endsWith("$$")))
+      ) {
+        // End of code block
+        inCodeBlock = false;
+        blockType = null;
+        isInListCodeBlock = false; // Reset flag
+        codeBlockContent += "\n" + trimmedLine;
+
+        // Create the code block
+        const codeParentRef =
+          stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
+        const newBlockRef = await createChildBlock(
+          codeParentRef,
+          codeBlockContent
+        );
+
+        hierarchyTracker.set(i, {
+          level: stack.length > 0 ? stack[stack.length - 1].level + 1 : 1,
+          ref: newBlockRef,
+          isHeader: false,
+          headerLevel: null,
+          indentLevel: Math.floor(line.match(/^ */)[0].length / 2),
+          isCodeBlock: true,
+        });
+
+        codeBlockContent = "";
+        continue;
+      } else {
+        // Add the line to the code block
+        if (!line.trim()) {
+          codeBlockContent += "\n";
+        } else {
+          const leadingSpaces = line.match(/^ */)[0].length;
+
+          let relativeIndent;
+          if (isInListCodeBlock) {
+            relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
+          } else {
+            relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
+          }
+
+          const adjustedLine = " ".repeat(relativeIndent) + line.trimStart();
+          codeBlockContent += "\n" + adjustedLine;
+        }
+        continue;
+      }
+    }
+
+    if (!line.trim()) continue;
 
     // Detect indentation by spaces
     const leadingSpaces = line.match(/^ */)[0].length;
@@ -129,11 +186,12 @@ export const parseAndCreateBlocks = async (
     let trimmedLine = line.trimStart();
 
     // Handle code blocks and Katex multi-lines
-
     if (
       trimmedLine.startsWith("```") ||
       trimmedLine.startsWith("$$") ||
-      (trimmedLine.includes("$$") && !trimmedLine.match(/\$\$.*\$\$/))
+      (trimmedLine.includes("$$") &&
+        !trimmedLine.match(/\$\$.*\$\$/) &&
+        !trimmedLine.endsWith("$$"))
     ) {
       // Check if it's a single-line Katex block
       if (
@@ -142,55 +200,26 @@ export const parseAndCreateBlocks = async (
         !trimmedLine.includes("\\begin")
       ) {
         // Single-line Katex, treat as normal content - don't continue
-      } else if (!inCodeBlock) {
+      } else {
         // Begin multi-line block
         inCodeBlock = true;
-        if (trimmedLine.includes("$$") && !trimmedLine.startsWith("$$")) {
-          // Extract only the Katex part
-          const katexStart = trimmedLine.indexOf("$$");
-          codeBlockContent = trimmedLine.substring(katexStart);
-        } else {
+        isInListCodeBlock = false; // Reset flag
+        if (trimmedLine.startsWith("```")) {
+          blockType = "code";
           codeBlockContent = trimmedLine;
+          codeBlockBaseIndent = leadingSpaces;
+        } else {
+          blockType = "katex";
+          if (trimmedLine.includes("$$") && !trimmedLine.startsWith("$$")) {
+            const katexStart = trimmedLine.indexOf("$$");
+            codeBlockContent = trimmedLine.substring(katexStart);
+          } else {
+            codeBlockContent = trimmedLine;
+          }
+          codeBlockBaseIndent = leadingSpaces;
         }
-        codeBlockBaseIndent = leadingSpaces;
-        continue;
-      } else {
-        // End multi-line block
-        inCodeBlock = false;
-        codeBlockContent += trimmedLine;
-
-        const codeParentRef =
-          stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
-
-        const newBlockRef = await createChildBlock(
-          codeParentRef,
-          codeBlockContent
-        );
-
-        hierarchyTracker.set(i, {
-          level: indentLevel,
-          ref: newBlockRef,
-          isHeader: false,
-          headerLevel: null,
-          indentLevel: indentLevel,
-        });
-
-        codeBlockContent = "";
         continue;
       }
-    }
-
-    if (inCodeBlock) {
-      if (!line.trim()) {
-        // Preserve empty lines in code blocks
-        codeBlockContent += "\n";
-      } else {
-        // Remove only the base indentation, preserve relative indentation
-        const relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
-        const adjustedLine = " ".repeat(relativeIndent) + trimmedLine;
-        codeBlockContent += "\n" + adjustedLine;
-      }
-      continue;
     }
 
     // Line analysis
@@ -227,11 +256,24 @@ export const parseAndCreateBlocks = async (
       listMatchType = "roman";
       isList = true;
     }
-    // 5. Bullets (-, •, *)
-    else if (trimmedLine.match(/^[-•*]\s+/)) {
+    // 5. Bullets (-, •, *) - but not if followed by code block
+    else if (
+      trimmedLine.match(/^[-•*]\s+/) &&
+      !trimmedLine.match(/^[-•*]\s+```/)
+    ) {
       content = trimmedLine.replace(/^[-•*]\s+/, "");
       listMatchType = "bullet";
       isList = true;
+    }
+    // Code blocks that start with list markers
+    else if (trimmedLine.match(/^[-•*]\s+```/)) {
+      const codeStart = trimmedLine.replace(/^[-•*]\s+/, "");
+      inCodeBlock = true;
+      blockType = "code";
+      codeBlockContent = codeStart;
+      isInListCodeBlock = true;
+      codeBlockBaseIndent = leadingSpaces + 2; // +2 pour compenser "- "
+      continue;
     }
 
     // Determine the correct parent and clean the stack
@@ -386,6 +428,7 @@ export const parseAndCreateBlocks = async (
       isList: isList,
       listMatchType: listMatchType,
       parentRef: currentParentRef,
+      isCodeBlock: false,
     });
   }
 };
