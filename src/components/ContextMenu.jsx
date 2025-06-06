@@ -245,7 +245,7 @@ const StandaloneContextMenu = () => {
         let tokensEstimation = estimateContextTokens(
           await getAndNormalizeContext({ roamContext })
         );
-        console.log("tokensEstimation :>> ", tokensEstimation);
+        // console.log("tokensEstimation :>> ", tokensEstimation);
         setEstimatedTokens(tokensEstimation);
       } else setEstimatedTokens(null);
     }

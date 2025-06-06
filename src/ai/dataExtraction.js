@@ -770,6 +770,7 @@ export const getFlattenedContentFromLog = (
       maxCapturing: maxDepth || maxCapturingDepth.dnp,
       maxUid: maxUid || maxUidDepth.dnp,
       withDash: true,
+      isParentToIgnore: true,
     });
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
