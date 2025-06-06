@@ -187,7 +187,7 @@ export const getInputDataFromRoamContext = async (
     completedPrompt = completedPrompt.replace(/<target content>/i, context);
   }
 
-  console.log("context :>> ", context);
+  // console.log("context :>> ", context);
 
   return {
     targetUid,
