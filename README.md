@@ -4,12 +4,22 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
+## Support my work
+
+This extension requires a lot of work in my free time. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
+
+For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
+
+Please report any issue [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/issues).
+
+---
+
 ### 🆕 New in v.20
 
 - Easily use a given range of previous Daily Notes as context
 - Each LLM response has now a title that summarizes its content (option)
-- Instant tokens estimation & pricing for the selectec context
-- Claude Sonnet 4 and Grok 3 support
+- Instant tokens estimation & pricing for the selected context
+- Claude Sonnet 4 and Grok 3 support (including reasoning & live search)
 
 ### 🆕 New in v.18
 
@@ -28,16 +38,6 @@
 4. [Agents (Query agents and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
 6. [Detailed documentation for advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
-
-## Support my work
-
-This extension requires a lot of work in my free time. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
-
----
-
-For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
-
-Please report any issue [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/issues).
 
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
 
