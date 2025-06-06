@@ -9,6 +9,7 @@
 **Updates**
 
 - Claude Sonnet 4 and Grok 3 support
+- Page/Zoom context fit to the current status (zoomed, focused block or not)
 - More reliable block sourcing (ask for block source or block-uid)
 - Better support of custom baseURL for OpenAI compatible server (no API key needed)
 - [[pages]] context now apply also to Page used as context
