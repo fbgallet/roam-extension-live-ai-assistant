@@ -48,12 +48,7 @@ import {
   updateTokenCounter,
 } from "./modelsInfo";
 import { roamImageRegex } from "../utils/regex";
-import {
-  ThinkingToaster,
-  AppToaster,
-  addButtonsToThinkingToaster,
-  displayThinkingToast,
-} from "../components/Toaster";
+import { AppToaster, displayThinkingToast } from "../components/Toaster";
 import { getResolvedContentFromBlocks } from "./dataExtraction";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
@@ -374,11 +369,15 @@ export function modelAccordingToProvider(model) {
     llm.id = normalizeClaudeModel(model);
     llm.name = normalizeClaudeModel(model, true);
     llm.library = anthropicLibrary;
+    if (model.includes("thinking")) {
+      llm.thinking = true;
+    }
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
     if (model === "deepseek-r1") {
       llm.id = "deepseek-reasoner";
       llm.name = "DeepSeek-R1";
+      llm.thinking = true;
     } else {
       llm.id = "deepseek-chat";
       llm.name = "DeepSeek-V3";
@@ -386,7 +385,6 @@ export function modelAccordingToProvider(model) {
     llm.library = deepseekLibrary;
   } else if (model.includes("grok")) {
     llm.provider = "Grok";
-
     if (
       model === "grok-2-vision" ||
       model === "grok-2 vision" ||
@@ -395,9 +393,12 @@ export function modelAccordingToProvider(model) {
       llm.id = "grok-2-vision-1212";
       llm.name = "Grok-2-vision";
     } else {
-      model = model.replace("-latest", "");
-      llm.id = model + "-latest";
+      llm.id = model;
+      llm.web = true;
       llm.name = model.charAt(0).toUpperCase() + model.slice(1);
+      if (model.includes("grok-3-mini")) {
+        llm.thinking = true;
+      }
     }
     llm.library = grokLibrary;
   } else if (model.includes("gemini")) {
@@ -406,7 +407,11 @@ export function modelAccordingToProvider(model) {
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
+    if (model.startsWith("o")) {
+      llm.thinking = true;
+    }
     if (model.includes("search")) {
+      llm.web = true;
       if (model.includes("-preview")) {
         llm.id = model;
         llm.name = model.replace("-preview", "");
@@ -487,7 +492,7 @@ export async function claudeCompletion({
         model: model.replace("+thinking", ""),
         messages,
       };
-      console.log("command :>> ", command);
+      // console.log("command :>> ", command);
       if (command === "Web search")
         options.tools = [
           {
@@ -713,6 +718,7 @@ export async function openaiCompletion({
   model,
   systemPrompt,
   prompt,
+  command,
   content,
   responseFormat = "text",
   targetUid,
@@ -769,7 +775,7 @@ export async function openaiCompletion({
       };
     if (model.includes("grok")) {
       options["search_parameters"] = {
-        mode: "auto",
+        mode: command === "Web search" ? "on" : "auto",
         return_citations: true,
       };
     }
@@ -808,10 +814,8 @@ export async function openaiCompletion({
         });
       const streamElt = insertParagraphForStream(targetUid);
       let thinkingToasterStream;
-      if (model === "deepseek-reasoner") {
-        thinkingToasterStream = displayThinkingToast(
-          "DeepSeek-R1 thinking process:"
-        );
+      if (model === "deepseek-reasoner" || model.includes("grok-3-mini")) {
+        thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
 
       try {
@@ -823,7 +827,7 @@ export async function openaiCompletion({
           }
           if (
             chunk.choices[0]?.delta?.reasoning_content &&
-            model === "deepseek-reasoner"
+            (model === "deepseek-reasoner" || model.includes("grok-3-mini"))
           )
             thinkingToasterStream.innerText +=
               chunk.choices[0]?.delta?.reasoning_content;
@@ -831,7 +835,10 @@ export async function openaiCompletion({
           streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
           if (chunk.choices[0]?.delta?.annotations)
             annotations = chunk.choices[0].delta.annotations;
-          if (chunk.usage) usage = chunk.usage;
+          if (chunk.usage) {
+            usage = chunk.usage;
+            if (chunk.citations) console.log(chunk.citations);
+          }
           if (chunk.x_groq?.usage) usage = chunk.x_groq.usage;
           // console.log(chunk);
         }

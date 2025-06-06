@@ -1538,6 +1538,7 @@ const StandaloneContextMenu = () => {
                       name: llm?.name || defaultModel,
                       model: llm?.prefix + llm?.id || defaultModel,
                       category: "AI MODEL",
+                      keyWords: llm?.thinking ? "reasoning, thinking" : "",
                     };
                   })
                 )}
