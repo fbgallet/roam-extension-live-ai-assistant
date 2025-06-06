@@ -55,10 +55,12 @@
   display: none;
 }
 .thinking-toaster .bp3-toast .buttons {
+  min-height: fit-content;
   align-self: flex-end;
   background: inherit;
 }
-.search-agent-toaster .bp3-toast .bp3-toast-message {
+.search-agent-toaster .bp3-toast .bp3-toast-message,
+.thinking-toaster .bp3-toast .bp3-toast-message {
   overflow-y: scroll;
 }
 .search-agent-toaster .bp3-toast li {

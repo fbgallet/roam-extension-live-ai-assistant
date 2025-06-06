@@ -462,8 +462,7 @@ const ModelsMenu = ({
           )}
       {openRouterOnly
         ? null
-        : grokLibrary &&
-          !isWebSearch && (
+        : grokLibrary && (
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
@@ -490,6 +489,19 @@ const ModelsMenu = ({
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
                   text="Grok-3-mini-fast"
+                  labelElement="128k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Grok-3-mini-high" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-3-mini-high"
                   labelElement="128k"
                 />
               </MenuItem>
@@ -520,19 +532,21 @@ const ModelsMenu = ({
                   labelElement="128k"
                 />
               </MenuItem>
-              <MenuItem
-                icon={defaultModel === "Grok-2 Vision" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="Grok-2 Vision"
-                labelElement="32k"
-              />
+              {!isWebSearch && (
+                <MenuItem
+                  icon={defaultModel === "Grok-2 Vision" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-2 Vision"
+                  labelElement="32k"
+                />
+              )}
             </>
           )}
       {/* {openRouterOnly ? null : googleLibrary ? (
