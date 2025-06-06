@@ -55,7 +55,6 @@ import {
   modelAccordingToProvider,
   ollamaCompletion,
   openaiCompletion,
-  verifyTokenLimitAndTruncate,
 } from "./aiAPIsHub";
 import {
   getConversationArray,
@@ -238,11 +237,9 @@ export const aiCompletionRunner = async ({
   );
   if (noData) return;
 
-  if (
-    (sourceUid || selectedText) &&
-    !selectedUids?.length &&
-    !hasTrueBooleanKey(context)
-  )
+  console.log("context :>> ", context);
+
+  if ((sourceUid || selectedText) && !selectedUids?.length && !context)
     includeUids = false;
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
   systemPrompt +=
@@ -329,10 +326,6 @@ export const insertCompletion = async ({
 
   let content;
 
-  let isContextInstructionToInsert = false;
-  uidRegex.lastIndex = 0;
-  if (uidRegex.test(context)) isContextInstructionToInsert = true;
-
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
 
   let isTitleCompatible = false;
@@ -348,13 +341,13 @@ export const insertCompletion = async ({
   }
 
   if (!systemPrompt.includes("Current date and time are:"))
+    systemPrompt += `\nCurrent date and time are: ${getRelativeDateAndTimeString(
+      targetUid
+    )}`;
+  if (!systemPrompt.includes(roamBasicsFormat))
     systemPrompt +=
       roamBasicsFormat +
-      (context || selectedUids?.length
-        ? roamUidsPrompt
-        : "")`\nCurrent date and time are: ${getRelativeDateAndTimeString(
-        targetUid
-      )}`;
+      (uidsInPrompt && (context || selectedUids?.length) ? roamUidsPrompt : "");
   if (
     !systemPrompt.includes(hierarchicalResponseFormat) &&
     responseFormat === "text"
@@ -362,10 +355,9 @@ export const insertCompletion = async ({
     systemPrompt += hierarchicalResponseFormat;
   // console.log("systemPrompt :>> ", systemPrompt);
   if (!isRedone && !isInConversation) {
-    //content = context;
     content =
       context && !context.includes(contextInstruction)
-        ? (isContextInstructionToInsert ? contextInstruction : "") +
+        ? contextInstruction +
           userContextInstructions +
           "\n\nThe input content to rely to or apply the next user prompt to, and eventually refered as 'context', is inserted below between '<begin>' and '<end>' tags (these tags are not a part of the context):\n<begin>" +
           context +
@@ -378,6 +370,9 @@ export const insertCompletion = async ({
   if (typeOfCompletion === "SelectionOutline" && !isRedone) {
     prompt = instructionsOnOutline + prompt;
   }
+
+  console.log("SystemPrompt :>> ", systemPrompt);
+  console.log("Context :>> ", content);
 
   if (isRedone) {
     if (

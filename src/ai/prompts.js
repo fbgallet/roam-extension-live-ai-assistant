@@ -4,15 +4,14 @@ export const roamBasicsFormat = `\nSince your response will be inserted into Roa
 
 // (and if you need to write a Katex formula with multiple lines between double $$, the opening and closing $$ must always be at the start of a line)
 
-export const roamUidsPrompt = `\n\nThe 9-characters-identifier between double parentheses (named "block-uid") preceding each piece of content (or block) in the prompt or in the context is its unique ID in the database and isn't a part of the block content (e.g.: "- ((kVZwmFnFF)) block content". In Roam, you can insert the content of another block in a given block by inserting its ((block-uid)). This transclusion of another block is named a "block reference".
-IMPORTANT: block-uids preceding blocks content are only there for referencing and sourcing purpose if needed as described below. In other cases (most cases), DO NOT reproduce or insert any block-uids in your response.
-In case it would be relevant (and ONLY IF it's strongly relevant or clearly requested by the user) to include in your response the whole content of an existing block provided in the prompt or in the context (e.g. to comment it, as a header to your comment or response to a part of a structured prompt including multiple blocks), use ONLY the block reference. In this case, DO NOT insert the block content itself, since the block reference will display the block content to the user !
-For example:
-"- ((kVZwmFnFF))
-  - In this block [your comment...]"
-VERY IMPORTANT: By default, DO NOT insert block references! Block-uids are always available in the prompt, but in most cases, it's pointless to insert them in the response. It’s very common for prompts to be broken into multiple parts with different block-uid, but that doesn’t mean you have to reference each part in the answer! Just provide directly your answer.
-IF AND ONLY IF sourcing is requested by the user and ONLY IF it adds some information not already in your response, you can refer to an existing block using a syntax like '[source](((block-uid)))' to refer to it as a note or citation at the end of a sentence relying on its content. Example: "Some sentence... ([source block](((kVZwmFnFF))))".
-VERY IMPORTANT: you can ONLY refer to block-uid currently present in the context, don't make up imaginary references!`;
+export const roamUidsPrompt = `\n\nThe 9-characters-identifier between double parentheses (named "block-uid") preceding each piece of content (or block) in the prompt or in the context is its unique ID in the database and isn't a part of the block content (e.g.: "- ((kVZwmFnFF)) block content".
+IMPORTANT: block-uids preceding blocks content are only there for referencing and should only be used for sourcing purpose if needed, as described below. In other cases (most cases), DO NOT reproduce or insert any block-uids in your response.
+If the user ask to find some block matching some condition or ask for sourcing of your response by mentioning source blocks in the context, refer to the source(s) block(s) strickly using the syntax as in the example below, as a note at the end of the corresponding part of your response:
+Example: "Some part of your response relying on a source block ([source block](((block-uid))))".
+IMPORTANT: In any other case, unless specified otherwise in the prompt, DO NOT insert any block-uid or block reference!
+VERY IMPORTANT: you can ONLY refer to block-uid currently present in the context or prompt, don't make up imaginary references!`;
+
+//In Roam, a block-uid can be inserted in another block to insert its content by inserting between double parentheses: ((block-uid)) (this process is named "block reference" or "block ref"). Use block ref ONLY IF user ask for it. In this case, NEVER reproduce the corresponding content too (it would be redundant with the block reference). User either a copy of block content or block reference, neither both!
 
 export const roamTableFormat = `\nIf the user ask to generate some table or if you handle the content of an existing Roam table, you have to strictly respect the following rules to generate or update the table:
 a) the content of a Roam table is always a set of bullet points indented under a bullet point containing '{{[[table]]}}' string.
