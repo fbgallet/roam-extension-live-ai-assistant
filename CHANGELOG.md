@@ -1,3 +1,26 @@
+## v.20 (June 6th, 2025) DNPs context range
+
+**New featiures**
+
+- Easily use a given range of previous Daily Notes as context
+- Each LLM response has now a title that summarizes its content (option)
+- Instant tokens estimation & pricing for the selectec context
+
+**Updates**
+
+- Claude Sonnet 4 and Grok 3 support
+- More reliable block sourcing (ask for block source or block-uid)
+- Better support of custom baseURL for OpenAI compatible server (no API key needed)
+- [[pages]] context now apply also to Page used as context
+- selection of blocks (blue selection) now include collapsed blocks
+
+**Fixed**
+
+- still better parser (for codeblocks in lists, Katex multiline, etc.)
+- continue conversation was sometime using default model instead of current one
+- changing default model instantly update context menu
+- Image in context with Anthropic model was broken
+
 ## v.19 (May 15th, 2025) small fixes
 
 **Updates**
