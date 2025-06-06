@@ -1,6 +1,6 @@
 {
   "name": "live-ai",
-  "version": "18.0.0",
+  "version": "20.0.0",
   "description": "AI assistant tailor-made for Roam",
   "main": "index.js",
   "scripts": {

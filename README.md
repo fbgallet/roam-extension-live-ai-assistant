@@ -4,19 +4,19 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
+### 🆕 New in v.20
+
+- Easily use a given range of previous Daily Notes as context
+- Each LLM response has now a title that summarizes its content (option)
+- Instant tokens estimation & pricing for the selectec context
+- Claude Sonnet 4 and Grok 3 support
+
 ### 🆕 New in v.18
 
 - Generate or edit images with OpenAI gpt-image-1 model (see [instructions here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#images-generation))
-- OpenAI gpt-4.1, o3 & o4-mini models support
 - Web search support for Anthropic models & Web search command in context menu
 - Generate any Mermaid diagrams (and argument map using Mermaid)
 - Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
-- Text to Speech (using OpenAI gpt-4o-mini-tts) & speech transcription supporting gpt-4o-transcribe models (Whisper remains default model)
-- :q Datomic query Agent now support the new native rules and variables (usefull for time ranges)
-- Adaptative command to run prompt from focused/selected blocks or text selection or whole page/zoom view
-- Renamed to Live AI
-
-v.19: bug fix for the broken retry button & way better (almost perfect ?) parsing of highly hierarchical and structured LLM responses
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -140,7 +140,7 @@ To define the context, you can either check the corresponding box in the context
 - **Page** (click +`Alt`): the current page or zoom where the focus block or selected blocks are inserted, or by default, the main page zoom (at the center of the display)
 - **LinkedRefs** (click +`Ctrl`): the linked references of the current page
 - **Sidebar** (click +`Shift`): all the content of the sidebar
-- **DNPs** (click +`Ctrl`): if you are in Daily Notes, the last DNPs (7 by default, you can increase the limit in the options)
+- **DNPs** (click +`Ctrl`): a defined range of previous Daily notes (relative to the currently opened or focused DNP)
 - **[[page]]** mentions: the content and linked references of the mentioned pages (as [[page]], #tag or atttribute::)
 
 > [!TIP]
@@ -183,7 +183,7 @@ In the extension settings, you can change the voice and provide instructions to 
 
 ### Web search (or web as context)
 
-⚠️ Currently Web Search can only be achieved with OpenAI dedicated models or Anthropic models.
+⚠️ Currently Web Search can only be achieved with OpenAI dedicated models, Anthropic models or Grok models.
 
 The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
 
