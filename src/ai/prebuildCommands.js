@@ -27,15 +27,6 @@ export const BUILTIN_COMMANDS = [
     includeUids: true,
   },
   {
-    id: 101,
-    name: "Focused block & all children as prompt",
-    category: "",
-    includeUids: true,
-    isIncompatibleWith: {
-      outliner: true,
-    },
-  },
-  {
     id: 102,
     name: "Choosen context as prompt",
     category: "",

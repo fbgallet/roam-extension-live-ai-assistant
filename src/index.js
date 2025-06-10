@@ -77,6 +77,7 @@ export let websearchContext;
 // export let defaultTemplate;
 export let streamResponse;
 export let isTitleToAdd;
+export let includeChildrenByDefault;
 export let uidsInPrompt;
 export let maxImagesNb;
 export let openAiCustomModels = [];
@@ -694,6 +695,19 @@ function getPanelConfig() {
         },
       },
       {
+        id: "includeChildrenByDefault",
+        name: "Include children in prompt",
+        description: "By default, include children of focused block in prompt:",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            includeChildrenByDefault = !includeChildrenByDefault;
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
         id: "uidsInPrompt",
         name: "Uids of blocks in promt/context",
         description:
@@ -702,6 +716,8 @@ function getPanelConfig() {
           type: "switch",
           onChange: (evt) => {
             uidsInPrompt = !uidsInPrompt;
+            unmountComponent(position);
+            mountComponent(position);
           },
         },
       },
@@ -1237,6 +1253,11 @@ export default {
     if (extensionAPI.settings.get("splitResponse") === null)
       await extensionAPI.settings.set("splitResponse", true);
     isResponseToSplit = extensionAPI.settings.get("splitResponse");
+    if (extensionAPI.settings.get("includeChildrenByDefault") === null)
+      await extensionAPI.settings.set("includeChildrenByDefault", false);
+    includeChildrenByDefault = extensionAPI.settings.get(
+      "includeChildrenByDefault"
+    );
     if (extensionAPI.settings.get("uidsInPrompt") === null)
       await extensionAPI.settings.set("uidsInPrompt", true);
     uidsInPrompt = extensionAPI.settings.get("uidsInPrompt");

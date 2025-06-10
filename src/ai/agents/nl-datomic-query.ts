@@ -232,7 +232,7 @@ const insertQuery = async (state: typeof QueryAgentState.State) => {
     state.targetUid = await createChildBlock(
       state.rootUid,
       state.datomicQuery,
-      "first"
+      "last"
     );
   }
   return {

@@ -57,6 +57,7 @@ import {
   openaiCompletion,
 } from "./aiAPIsHub";
 import {
+  concatAdditionalPrompt,
   getConversationArray,
   getFlattenedContentFromArrayOfBlocks,
   getInputDataFromRoamContext,
@@ -173,6 +174,7 @@ export const aiCompletionRunner = async ({
   e,
   sourceUid,
   prompt = "",
+  additionalPrompt = "",
   command = "",
   systemPrompt = "",
   instantModel = undefined,
@@ -250,6 +252,8 @@ export const aiCompletionRunner = async ({
     )}` +
     hierarchicalResponseFormat;
 
+  if (additionalPrompt && !completedPrompt.includes(additionalPrompt))
+    completedPrompt = concatAdditionalPrompt(completedPrompt, additionalPrompt);
   // console.log("systemPrompt :>> ", systemPrompt);
   console.log("completed prompt from aiCompletionRunner :>> ", completedPrompt);
 

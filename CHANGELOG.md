@@ -1,10 +1,11 @@
-## v.20 (June 6th, 2025) DNPs context range
+## v.20 (June 10th, 2025) DNPs context range
 
-**New featiures**
+**New features**
 
 - Easily use a given range of previous Daily Notes as context
 - Each LLM response has now a title that summarizes its content (option)
-- Instant tokens estimation & pricing for the selectec context
+- Instant tokens estimation & pricing for the selected context
+- Checkbox to include children blocks in prompt (& option to enable it by default)
 
 **Updates**
 
@@ -21,6 +22,7 @@
 - continue conversation was sometime using default model instead of current one
 - changing default model instantly update context menu
 - Image in context with Anthropic model was broken
+- Query Agents & Outliner agent now support multi-blocks prompt
 
 ## v.19 (May 15th, 2025) small fixes
 
