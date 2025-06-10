@@ -228,7 +228,7 @@ const insertQuery = async (state: typeof QueryAgentState.State) => {
     state.targetUid = await createChildBlock(
       state.rootUid,
       state.roamQuery,
-      "first"
+      "last"
     );
   }
   return {

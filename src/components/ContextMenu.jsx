@@ -21,6 +21,7 @@ import {
   defaultStyle,
   extensionStorage,
   getConversationParamsFromHistory,
+  includeChildrenByDefault,
   incrementCommandCounter,
   logPagesNbDefault,
   menuModifierKey,
@@ -39,11 +40,14 @@ import { BUILTIN_COMMANDS, CATEGORY_ICON } from "../ai/prebuildCommands";
 import { aiCompletionRunner } from "../ai/responseInsertion";
 import { languages } from "../ai/languagesSupport";
 import {
+  concatAdditionalPrompt,
   getAndNormalizeContext,
   getCustomPromptByUid,
+  getFlattenedContentFromArrayOfBlocks,
   getFlattenedContentFromTree,
   getFocusAndSelection,
   getOrderedCustomPromptBlocks,
+  getResolvedContentFromBlocks,
   getUnionContext,
   isPromptInConversation,
 } from "../ai/dataExtraction";
@@ -53,6 +57,7 @@ import {
   getPageStatus,
   getPageUidByBlockUid,
   getParentBlock,
+  hasBlockChildren,
   isExistingBlock,
   isLogView,
 } from "../utils/roamAPI";
@@ -120,6 +125,9 @@ const StandaloneContextMenu = () => {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
+  const [isChildrenTreeToInclude, setIsChildrenTreeToInclude] = useState(
+    includeChildrenByDefault
+  );
   const [model, setModel] = useState(null);
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [isCompletionOnly, setIsCompletionOnly] = useState(false);
@@ -293,6 +301,7 @@ const StandaloneContextMenu = () => {
     setDnpPeriod("0");
     if (!isPinnedStyle) setStyle(defaultStyle);
     setRoamContext({ ...voidRoamContext });
+    setIsChildrenTreeToInclude(includeChildrenByDefault);
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;
@@ -335,12 +344,7 @@ const StandaloneContextMenu = () => {
     const target =
       targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
     if (command.name === "Text to Speech") {
-      textToSpeech(
-        selectedTextInBlock.current ||
-          focusedBlockContent.current ||
-          selectedBlocks.current,
-        additionalPrompt
-      );
+      textToSpeech(getInstantPrompt(command, false), additionalPrompt);
       return;
     }
     if (command.category === "QUERY AGENTS") {
@@ -350,7 +354,7 @@ const StandaloneContextMenu = () => {
           target,
           rootUid: focusedBlockUid.current,
           targetUid: focusedBlockUid.current,
-          prompt: getBlockContentByUid(focusedBlockUid.current),
+          prompt: getInstantPrompt(command),
           retryInstruction: additionalPrompt,
         });
         return;
@@ -411,11 +415,6 @@ const StandaloneContextMenu = () => {
 
     if (command.id === 19) prompt = command.prompt;
 
-    if (additionalPrompt)
-      prompt = prompt
-        ? prompt + "\n\nIMPORTANT additional instructions:\n" + additionalPrompt
-        : additionalPrompt;
-
     let conversationStyle;
     if (command.name === "Continue the conversation") {
       const parentUid = getParentBlock(focusedBlockUid.current);
@@ -456,7 +455,6 @@ const StandaloneContextMenu = () => {
       command.id === 1 ||
       command.id === 10 ||
       command.id === 100 ||
-      command.id === 101 ||
       command.name === "Web search" ||
       // (command.id !== 20 &&
       //   (focusedBlockUid.current || selectedBlocks.current?.length)) ||
@@ -482,6 +480,7 @@ const StandaloneContextMenu = () => {
         e,
         sourceUid: focusedBlockUid.current,
         prompt,
+        additionalPrompt,
         command:
           command.name.slice(0, 16) === "Image generation"
             ? command.name
@@ -489,9 +488,7 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids:
           command.includeUids || target === "replace" || target === "append",
-        includeChildren: !additionalPrompt
-          ? includeChildren || command.id === 101 || false
-          : command.id === 101,
+        includeChildren: includeChildren || isChildrenTreeToInclude,
         withSuggestions: command.withSuggestions,
         target,
         selectedUids: selectedBlocks.current,
@@ -522,6 +519,31 @@ const StandaloneContextMenu = () => {
         handleOutlinePrompt(e, prompt, model);
       }
     }
+  };
+
+  const getInstantPrompt = (command, includeAdditionalPrompt = true) => {
+    let instantPrompt = "";
+    if (focusedBlockUid.current) {
+      if (isChildrenTreeToInclude && hasBlockChildren(focusedBlockUid.current))
+        instantPrompt = getFlattenedContentFromTree({
+          parentUid: focusedBlockUid.current,
+          maxCapturing: 99,
+          maxUid: 0,
+          withDash: true,
+        });
+      else
+        instantPrompt =
+          selectedTextInBlock.current || focusedBlockContent.current;
+    } else if (selectedBlocks?.current?.length) {
+      instantPrompt = getResolvedContentFromBlocks(
+        selectedBlocks.current,
+        command?.includeUids || false,
+        true
+      );
+    }
+    if (includeAdditionalPrompt)
+      instantPrompt = concatAdditionalPrompt(instantPrompt, additionalPrompt);
+    return instantPrompt;
   };
 
   const handleGlobalContextMenu = useCallback(async (e) => {
@@ -604,7 +626,7 @@ const StandaloneContextMenu = () => {
         e,
         sourceUid: focusedBlockUid.current,
         rootUid,
-        prompt,
+        prompt: prompt || getInstantPrompt(),
         context: hasTrueBooleanKey(roamContext) ? roamContext : null,
         model,
         style,
@@ -655,14 +677,6 @@ const StandaloneContextMenu = () => {
       )
         return false;
       if (item.id === 100 && (!isInConversation || isOutlinerAgent))
-        return false;
-      // TODO : display if the current outline is not visible...
-      if (
-        item.name === "Focused block & all children as prompt" &&
-        (selectedBlocks?.current?.length ||
-          !focusedBlockContent.current ||
-          selectedTextInBlock.current)
-      )
         return false;
       if (
         item.id === 20 &&
@@ -1315,15 +1329,43 @@ const StandaloneContextMenu = () => {
                 </div>
               }
             />
-            {/* <MenuDivider
-              title={ */}
+            {!selectedBlocks?.current?.length &&
+              !selectedTextInBlock.current &&
+              focusedBlockUid.current &&
+              hasBlockChildren(focusedBlockUid.current) && (
+                <div
+                  className="aicommands-context"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <strong>Prompt: </strong>
+                  <Tooltip
+                    content={
+                      <div>Prompt = focused block + all its children </div>
+                    }
+                    hoverOpenDelay={800}
+                    openOnTargetFocus={false}
+                  >
+                    <Checkbox
+                      checked={isChildrenTreeToInclude}
+                      label="Include children"
+                      inline={true}
+                      onChange={(e) => {
+                        setIsChildrenTreeToInclude((prev) => !prev);
+                      }}
+                    />
+                  </Tooltip>
+                </div>
+              )}
+
             <div
               className="aicommands-context"
               onClick={(e) => {
                 e.stopPropagation();
               }}
             >
-              Context:{" "}
+              <strong>Context: </strong>
               {(!isLogView() || mainViewUid.current) && (
                 <Tooltip
                   content={
@@ -1334,7 +1376,7 @@ const StandaloneContextMenu = () => {
                         : "(zoom)"}
                     </div>
                   }
-                  hoverOpenDelay={500}
+                  hoverOpenDelay={800}
                   openOnTargetFocus={false}
                 >
                   <Checkbox
@@ -1370,7 +1412,7 @@ const StandaloneContextMenu = () => {
                     <br />+ their linked references
                   </div>
                 }
-                hoverOpenDelay={500}
+                hoverOpenDelay={800}
                 openOnTargetFocus={false}
               >
                 <Checkbox

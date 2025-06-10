@@ -1163,3 +1163,10 @@ export const getUnionContext = (context1, context2) => {
     ),
   };
 };
+
+export const concatAdditionalPrompt = (prompt, additionalPrompt) => {
+  if (!additionalPrompt) return prompt;
+  return prompt
+    ? prompt + "\n\nIMPORTANT additional instructions:\n" + additionalPrompt
+    : additionalPrompt;
+};

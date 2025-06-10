@@ -148,6 +148,16 @@ export function isBlockClosedWithChildren(uid) {
   return !result[":block/open"];
 }
 
+export function hasBlockChildren(uid) {
+  if (!uid) return null;
+  let result = window.roamAlphaAPI.pull("[:block/children]", [
+    ":block/uid",
+    uid,
+  ]);
+  if (!result || !result[":block/children"]) return false;
+  return true;
+}
+
 export function getParentBlock(uid) {
   let result = window.roamAlphaAPI.pull(
     "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",

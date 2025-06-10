@@ -4,9 +4,9 @@
 
 **Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
 
-## Support my work
+## If you want to support my work
 
-This extension requires a lot of work in my free time. If you want to encourage me to develop further and enhance it, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
+If you want to encourage me to develop further and enhance Live AI extension, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
 
 For any question or suggestion, DM me on **X/Twitter** and follow me to be informed of updates and new extensions : [@fbgallet](https://x.com/fbgallet).
 
@@ -19,6 +19,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - Easily use a given range of previous Daily Notes as context
 - Each LLM response has now a title that summarizes its content (option)
 - Instant tokens estimation & pricing for the selected context
+- Checkbox to include children blocks in prompt (& option to enable it by default)
 - Claude Sonnet 4 and Grok 3 support (including reasoning & live search)
 
 ### 🆕 New in v.18
@@ -96,7 +97,7 @@ Once the context menu is open, the first selected command is `Focused block as p
 
 The following 5 ingredients will be part of your requests (the last 3 are optional):
 
-- **PROMPT**: your instructions to the AI model, available either in the currently focused block or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them). Note that block references will be resolved and remplaced by the corresponding block content. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
+- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them). Note that block references will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
 - **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused block as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
 - **OUTPUT TARGET**: the AI model response will be inserted directly in your graph. By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
