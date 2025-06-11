@@ -20,7 +20,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - Each LLM response has now a title that summarizes its content (option)
 - Instant tokens estimation & pricing for the selected context
 - Checkbox to include children blocks in prompt (& option to enable it by default)
-- Claude Sonnet 4 and Grok 3 support (including reasoning & live search)
+- Claude Sonnet 4, OpenAI o3-pro and Grok 3 support (including reasoning & live search)
 
 ### 🆕 New in v.18
 
