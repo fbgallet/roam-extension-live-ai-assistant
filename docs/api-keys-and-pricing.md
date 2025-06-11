@@ -43,7 +43,8 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | gpt-4o-search-preview\*      | $2.50                     | $10.00                     |
 | gpt-image-1\*\*              | text: $5, image: \*10     | $40.00                     |
 | o4-mini                      | $1.10                     | $4.40                      |
-| o3                           | $10.00                    | $40.00                     |
+| o3                           | $2.00                     | $8.00                      |
+| o3-pro                       | $20.00                    | $80.00                     |
 | **Anthropic**                |                           |                            |
 | claude-3-haiku-20240307      | $0.25                     | $1.25                      |
 | claude-3-5-haiku-20241022    | $0.80                     | $4.00                      |

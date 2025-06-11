@@ -729,10 +729,10 @@ export async function openaiCompletion({
   let messages = [
     {
       role:
-        model.startsWith("o1") ||
-        model.startsWith("o3") ||
-        model.startsWith("o4")
+        model.startsWith("o1") || model === "o3" || model.startsWith("o4")
           ? "user"
+          : model === "o3-pro"
+          ? "developer"
           : "system",
       content: systemPrompt + (content ? "\n\n" + content : ""),
     },
@@ -744,24 +744,31 @@ export async function openaiCompletion({
 
   console.log("Messages sent as prompt to the model:", messages);
 
-  const isToStream = model.startsWith("o1")
-    ? false
-    : streamResponse && responseFormat === "text";
+  const isToStream =
+    model.startsWith("o1") || model === "o3-pro"
+      ? false
+      : streamResponse && responseFormat === "text";
   try {
     let response;
     const options = {
       model: model,
-      response_format:
+      stream: isToStream,
+    };
+    if (model === "o3-pro") {
+      options.input = messages;
+      options["text"] = { format: { type: responseFormat } };
+      options.stream = false;
+    } else {
+      options.messages = messages;
+      options["response_format"] =
         // Fixing current issue with LM studio not supporting "text" response_format...
         (aiClient.baseURL === "http://127.0.0.1:1234/v1" ||
           aiClient.baseURL === "http://localhost:1234/v1") &&
         responseFormat === "text"
           ? undefined
-          : { type: responseFormat },
-      messages: messages,
-      stream: isToStream,
-    };
-    isToStream && (options["stream_options"] = { include_usage: true });
+          : { type: responseFormat };
+      isToStream && (options["stream_options"] = { include_usage: true });
+    }
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
     if (
@@ -780,7 +787,7 @@ export async function openaiCompletion({
       };
     }
 
-    if (!isSafari) {
+    if (!isSafari && model !== "o3-pro") {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
           reject(
@@ -795,7 +802,10 @@ export async function openaiCompletion({
         timeoutPromise,
       ]);
     } else {
-      response = await aiClient.chat.completions.create(options);
+      response =
+        model === "o3-pro"
+          ? await aiClient.responses.create(options)
+          : await aiClient.chat.completions.create(options);
     }
     let streamEltCopy = "";
     let annotations;
@@ -825,16 +835,23 @@ export async function openaiCompletion({
             // respStr = "";
             break;
           }
+          // console.log("chunk :>> ", chunk);
+          let streamData;
+          if (!chunk.choice && chunk.output_text)
+            streamData = chunk.output_text;
+          else streamData = chunk.choice?.length ? chunk.choice[0] : null;
           if (
-            chunk.choices[0]?.delta?.reasoning_content &&
+            streamData?.delta?.reasoning_content &&
             (model === "deepseek-reasoner" || model.includes("grok-3-mini"))
           )
             thinkingToasterStream.innerText +=
-              chunk.choices[0]?.delta?.reasoning_content;
-          respStr += chunk.choices[0]?.delta?.content || "";
-          streamElt.innerHTML += chunk.choices[0]?.delta?.content || "";
-          if (chunk.choices[0]?.delta?.annotations)
-            annotations = chunk.choices[0].delta.annotations;
+              streamData?.delta?.reasoning_content;
+          respStr += streamData?.delta?.content || "";
+          streamElt.innerHTML += streamData?.delta
+            ? streamData?.delta.content || streamData?.delta
+            : "";
+          if (streamData?.delta?.annotations)
+            annotations = streamData.delta.annotations;
           if (chunk.usage) {
             usage = chunk.usage;
             if (chunk.citations) console.log(chunk.citations);
@@ -855,7 +872,11 @@ export async function openaiCompletion({
     } else usage = response.usage;
 
     // Add web sources annotations with Web search models
-    if (!isToStream && response.choices[0].message.annotations?.length)
+    if (
+      !isToStream &&
+      model !== "o3-pro" &&
+      response.choices[0].message.annotations?.length
+    )
       annotations = response.choices[0].message.annotations;
     if (model.includes("-search") && annotations && annotations.length) {
       let webSources = "\n\nWeb sources:";
@@ -870,7 +891,11 @@ export async function openaiCompletion({
       input_tokens: usage.prompt_tokens,
       output_tokens: usage.completion_tokens,
     });
-    return isToStream ? respStr : response.choices[0].message.content;
+    return model === "o3-pro"
+      ? response.output_text
+      : isToStream
+      ? respStr
+      : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
     AppToaster.show({

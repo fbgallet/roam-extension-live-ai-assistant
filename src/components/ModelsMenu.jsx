@@ -241,13 +241,26 @@ const ModelsMenu = ({
                   text="o3"
                   labelElement="200k"
                 />
+                <MenuItem
+                  icon={defaultModel === "o3-pro" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="o3-pro"
+                  labelElement="200k"
+                />
                 <MenuDivider
                   className="menu-hint"
                   title={
                     <p>
                       ⚠️ Use with caution,
                       <br />
-                      o3 is an expensive model
+                      o3-pro is an expensive model
                       <br />
                       (o4-mini is almost 15x cheaper)
                       <br />

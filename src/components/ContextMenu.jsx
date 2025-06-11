@@ -488,7 +488,10 @@ const StandaloneContextMenu = () => {
         instantModel: model,
         includeUids:
           command.includeUids || target === "replace" || target === "append",
-        includeChildren: includeChildren || isChildrenTreeToInclude,
+        includeChildren:
+          includeChildren ||
+          (isChildrenTreeToInclude &&
+            hasBlockChildren(focusedBlockUid.current)),
         withSuggestions: command.withSuggestions,
         target,
         selectedUids: selectedBlocks.current,

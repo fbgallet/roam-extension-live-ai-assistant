@@ -20,6 +20,7 @@ export const getAvailableModels = (provider) => {
         "gpt-4o-search",
         "o4-mini",
         "o3",
+        "o3-pro",
       ].concat(openAiCustomModels);
     case "Anthropic":
       return [
@@ -54,6 +55,7 @@ export const tokensLimit = {
   "gpt-4o-search-preview": 128000,
   "o4-mini": 200000,
   o3: 200000,
+  "o3-pro": 200000,
   "o3-mini": 200000,
   "Claude Haiku": 200000,
   "Claude Haiku 3.5": 200000,
@@ -121,8 +123,12 @@ export const modelsPricing = {
     output: 60,
   },
   o3: {
-    input: 10,
-    output: 40,
+    input: 2,
+    output: 8,
+  },
+  "o3-pro": {
+    input: 20,
+    output: 80,
   },
   "gpt-image-1": {
     input: 5,
