@@ -58,7 +58,7 @@ import { BUILTIN_COMMANDS } from "./prebuildCommands";
 import { hasTrueBooleanKey, removeDuplicates } from "../utils/dataProcessing";
 import { AppToaster } from "../components/Toaster";
 import { tokensLimit } from "./modelsInfo";
-import { tokenizer } from "./aiAPIsHub";
+// import { tokenizer } from "./aiAPIsHub";
 
 export const getInputDataFromRoamContext = async (
   e,
