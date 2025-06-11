@@ -787,6 +787,8 @@ export async function openaiCompletion({
       };
     }
 
+    console.log("options :>> ", options);
+
     if (!isSafari && model !== "o3-pro") {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
@@ -835,11 +837,11 @@ export async function openaiCompletion({
             // respStr = "";
             break;
           }
-          // console.log("chunk :>> ", chunk);
+
           let streamData;
-          if (!chunk.choice && chunk.output_text)
+          if (!chunk.choices?.length && chunk.output_text)
             streamData = chunk.output_text;
-          else streamData = chunk.choice?.length ? chunk.choice[0] : null;
+          else streamData = chunk.choices?.length ? chunk.choices[0] : null;
           if (
             streamData?.delta?.reasoning_content &&
             (model === "deepseek-reasoner" || model.includes("grok-3-mini"))

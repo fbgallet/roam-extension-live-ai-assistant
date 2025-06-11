@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "./build/",
-    "noImplicitAny": true,
+    "noImplicitAny": false,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "module": "esnext",
@@ -9,7 +9,6 @@
     "esModuleInterop": true,
     "allowJs": true,
     "jsx": "preserve",
-    // "jsx": "react",
     "lib": ["dom", "dom.iterable", "esnext"],
     "skipLibCheck": true,
     "strict": false,
@@ -18,8 +17,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "importHelpers": true,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "declaration": false,
+    "noImplicitReturns": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": ["src"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "build", "dist"]
 }
