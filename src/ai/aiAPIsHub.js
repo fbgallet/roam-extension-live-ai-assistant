@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 // import { playAudio } from "openai/helpers/audio";
 import Anthropic from "@anthropic-ai/sdk";
-import { Tiktoken } from "js-tiktoken/lite"; // too big in bundle (almost 3 Mb)
+// import { Tiktoken } from "js-tiktoken/lite"; // too big in bundle (almost 3 Mb)
 import axios from "axios";
 
 import {
@@ -1072,49 +1072,49 @@ const isModelSupportingImage = (model) => {
   return false;
 };
 
-export const getTokenizer = async () => {
-  try {
-    const { data } = await axios.get(
-      "https://tiktoken.pages.dev/js/cl100k_base.json"
-    );
-    return new Tiktoken(data);
-  } catch (error) {
-    console.log("Fetching tiktoken rank error:>> ", error);
-    return null;
-  }
-};
+// export const getTokenizer = async () => {
+//   try {
+//     const { data } = await axios.get(
+//       "https://tiktoken.pages.dev/js/cl100k_base.json"
+//     );
+//     return new Tiktoken(data);
+//   } catch (error) {
+//     console.log("Fetching tiktoken rank error:>> ", error);
+//     return null;
+//   }
+// };
 
-export let tokenizer = await getTokenizer();
+// export let tokenizer = await getTokenizer();
 
-export const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
-  // console.log("tokensLimit object :>> ", tokensLimit);
-  if (!tokenizer) {
-    tokenizer = await getTokenizer();
-  }
-  if (!tokenizer) return content;
-  const tokens = tokenizer.encode(prompt + content);
-  console.log("context tokens :", tokens.length);
+// export const verifyTokenLimitAndTruncate = async (model, prompt, content) => {
+//   // console.log("tokensLimit object :>> ", tokensLimit);
+//   if (!tokenizer) {
+//     tokenizer = await getTokenizer();
+//   }
+//   if (!tokenizer) return content;
+//   const tokens = tokenizer.encode(prompt + content);
+//   console.log("context tokens :", tokens.length);
 
-  const limit = tokensLimit[model];
-  if (!limit) {
-    console.log("No context length provided for this model.");
-    return content;
-  }
+//   const limit = tokensLimit[model];
+//   if (!limit) {
+//     console.log("No context length provided for this model.");
+//     return content;
+//   }
 
-  if (tokens.length > limit) {
-    AppToaster.show({
-      message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
-    });
-    // 1% margin of error
-    const ratio = limit / tokens.length - 0.01;
-    content = content.slice(0, content.length * ratio);
-    console.log(
-      "tokens of truncated context:",
-      tokenizer.encode(prompt + content).length
-    );
-  }
-  return content;
-};
+//   if (tokens.length > limit) {
+//     AppToaster.show({
+//       message: `The token limit (${limit}) has been exceeded (${tokens.length} needed), the context will be truncated to fit ${model} token window.`,
+//     });
+//     // 1% margin of error
+//     const ratio = limit / tokens.length - 0.01;
+//     content = content.slice(0, content.length * ratio);
+//     console.log(
+//       "tokens of truncated context:",
+//       tokenizer.encode(prompt + content).length
+//     );
+//   }
+//   return content;
+// };
 
 export const estimateContextTokens = (context) => {
   // Tokenizer is too slow for quick estimation of big context
