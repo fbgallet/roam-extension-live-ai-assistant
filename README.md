@@ -1,8 +1,8 @@
 # Live AI
 
-**Powerful and versatile AI Assistant tailor-made for Roam. Rely on efficient and smart built-in prompts, create rich custom prompts or use voice, image or any part of your graph as prompt or context, change the style of the AI responses or create your custom styles !**
+**Powerful and versatile AI Assistant tailor-made for Roam: leverage Roam's features to create your prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, etc.) and get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts and all up-to-date LLMs (even local models through Ollama or OpenAI compatible servers)!**
 
-**Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need. Support up-to-date models, and most of existing models through OpenRouter and local ones through Ollama.**
+**Unlock the full power of advanced Roam queries using simple natural language queries with NL Query Agents! Discover a new way to interact with your graph with Live Outliner Agent, and structure AI responses exactly as you need.**
 
 ## If you want to support my work
 
