@@ -787,8 +787,6 @@ export async function openaiCompletion({
       };
     }
 
-    console.log("options :>> ", options);
-
     if (!isSafari && model !== "o3-pro") {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
@@ -839,7 +837,7 @@ export async function openaiCompletion({
           }
 
           let streamData;
-          if (!chunk.choices?.length && chunk.output_text)
+          if (!chunk.choices?.length && model === "o3-pro" && chunk.output_text)
             streamData = chunk.output_text;
           else streamData = chunk.choices?.length ? chunk.choices[0] : null;
           if (
@@ -849,9 +847,7 @@ export async function openaiCompletion({
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
           respStr += streamData?.delta?.content || "";
-          streamElt.innerHTML += streamData?.delta
-            ? streamData?.delta.content || streamData?.delta
-            : "";
+          streamElt.innerHTML += streamData?.delta?.content || "";
           if (streamData?.delta?.annotations)
             annotations = streamData.delta.annotations;
           if (chunk.usage) {
