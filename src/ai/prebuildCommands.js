@@ -1,3 +1,4 @@
+import { invokeGraphExplorer } from "./agents/graph-explorer-agent/graph-explorer";
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
 import {
@@ -159,6 +160,13 @@ export const BUILTIN_COMMANDS = [
     },
     target: "new",
     keyWords: "Natural language Agent, post-processing",
+  },
+  {
+    id: 84,
+    name: "Graph Explorer",
+    callback: invokeGraphExplorer,
+    category: "QUERY AGENTS",
+    target: "new",
   },
 
   // CONTENT ANALYSIS
