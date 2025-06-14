@@ -641,3 +641,34 @@ export const cleanFlagFromBlocks = (flag, blockUids) => {
     })
   );
 };
+
+/* --- */
+/* Tools for Graph Explorer and future MCP */
+const dnpPattern = `[(re-pattern "^(January|February|March|April|May|June|July|August|September|October|November|December) [0-9]{1,2}(st|nd|rd|th), [0-9]{4}$") ?pattern]
+ (not [(re-find ?pattern ?page-title)])`;
+
+// get all pages title, excluding DNPs
+export const getAllPagesTitle = (excludeDNP = true) => {
+  let result = window.roamAlphaAPI.q(`[:find ?page-title
+ :where
+ [?page :node/title ?page-title]
+ ${excludeDNP ? "" : dnpPattern}
+ ]`);
+  console.log("result :>> ", result);
+  if (!result) return "no page found !";
+  return result.map((p) => p[0]).join(", ");
+};
+
+export const searchPagesByRegex = (regex, excludeDNP = true) => {
+  console.log("regex :>> ", regex);
+  let result = window.roamAlphaAPI.q(`[:find ?page-title
+ :where
+ [?page :node/title ?page-title]
+ ${excludeDNP ? "" : dnpPattern}
+ [(re-pattern "${regex}") ?pattern]
+ [(re-find ?pattern ?page-title)]
+ ]`);
+  console.log("result :>> ", result);
+  if (!result) return "no page found !";
+  return result.map((p) => p[0]).join(", ");
+};
