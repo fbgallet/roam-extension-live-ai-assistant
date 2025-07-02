@@ -87,13 +87,13 @@ export const getInputDataFromRoamContext = async (
   // get context
   const roamContextFromKeys = e && (await handleModifierKeys(e));
   let globalContext = getUnionContext(roamContext, roamContextFromKeys);
-  const inlineContext = currentBlockContent
-    ? getRoamContextFromPrompt(
-        getBlockContentByUid(
-          sourceUid || (selectedUids?.length ? selectedUids[0] : null)
-        )
-      ) // non resolved content
-    : null;
+
+  const inlineContext = getRoamContextFromPrompt(
+    getBlockContentByUid(
+      sourceUid || (selectedUids?.length ? selectedUids[0] : null)
+    )
+  ); // non resolved content
+
   if (inlineContext) {
     globalContext = getUnionContext(globalContext, inlineContext.roamContext);
   }
@@ -1076,6 +1076,7 @@ export const getCustomPromptByUid = (uid) => {
       withDash: true,
       isParentToIgnore: true,
     }) + "\n";
+  console.log("prompt in getCustomPromp: ", prompt);
   const inlineContext = getRoamContextFromPrompt(prompt);
   if (inlineContext) prompt = inlineContext.updatedPrompt;
   if (prompt.toLowerCase().includes("<built-in:")) {
