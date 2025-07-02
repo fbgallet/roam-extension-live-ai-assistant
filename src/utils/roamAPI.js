@@ -1,6 +1,8 @@
+import { getRoamContextFromPrompt } from "../ai/dataExtraction";
 import { copyTreeBranches } from "../ai/responseInsertion";
 import { sliceByWordLimit } from "./dataProcessing";
 import {
+  contextRegex,
   dateStringRegex,
   dnpUidRegex,
   flexibleUidRegex,
@@ -537,6 +539,13 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
   uidRegex.lastIndex = 0;
   // console.log("content :>> ", content);
   if (uidRegex.test(content)) {
+    let inlineContext = "";
+    contextRegex.lastIndex = 0;
+    if (contextRegex.test(content)) {
+      const matchingInlineContext = content.match(contextRegex);
+      if (matchingInlineContext && matchingInlineContext.length > 1)
+        inlineContext = matchingInlineContext[1];
+    }
     uidRegex.lastIndex = 0;
     let matches = content.match(uidRegex);
     for (const match of matches) {
@@ -545,7 +554,10 @@ export const resolveReferences = (content, refsArray = [], once = false) => {
       let isNewRef = !refsArray.includes(refUid);
       refsArray.push(refUid);
       let resolvedRef;
-      if (isExistingBlock(refUid)) {
+      if (
+        (!inlineContext || !inlineContext.includes(refUid)) &&
+        isExistingBlock(refUid)
+      ) {
         resolvedRef = getBlockContentByUid(refUid);
         uidRegex.lastIndex = 0;
         if (uidRegex.test(resolvedRef) && isNewRef && !once)
