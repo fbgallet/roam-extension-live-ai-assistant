@@ -545,6 +545,19 @@ const ModelsMenu = ({
                   labelElement="128k"
                 />
               </MenuItem>
+              <MenuItem
+                icon={defaultModel === "Grok-4" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="Grok-4"
+                labelElement="128k"
+              />
               {!isWebSearch && (
                 <MenuItem
                   icon={defaultModel === "Grok-2 Vision" && "pin"}
