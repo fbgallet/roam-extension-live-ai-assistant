@@ -39,6 +39,7 @@ export const getAvailableModels = (provider) => {
         "Grok-3-mini-fast",
         "Grok-3-mini-high",
         "Grok-3",
+        "Grok-4",
         "Grok-3-fast",
         "Grok-2 Vision",
       ];
@@ -67,13 +68,14 @@ export const tokensLimit = {
   "Claude Opus 4": 200000,
   "deepseek-chat": 64000,
   "deepseek-reasoner": 64000,
+  "grok-2-vision-1212": 32768,
+  "grok-2-1212": 131072,
   "grok-3-mini": 131072,
   "grok-3-mini-fast": 131072,
   "grok-3-mini-high": 131072,
   "grok-3": 131072,
   "grok-3-fast": 131072,
-  "grok-2-1212": 131072,
-  "grok-2-vision-1212": 32768,
+  "grok-4": 131072,
   "gemini-2.0-flash-exp": 1047576,
   "gemini-1.5-flash": 1048576,
   "gemini-1.5-pro": 2097152,
@@ -194,6 +196,10 @@ export const modelsPricing = {
   "grok-3-fast": {
     input: 5,
     output: 25,
+  },
+  "grok-4": {
+    input: 3,
+    output: 15,
   },
 };
 

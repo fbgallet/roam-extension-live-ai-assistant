@@ -396,7 +396,7 @@ export function modelAccordingToProvider(model) {
       llm.id = model;
       llm.web = true;
       llm.name = model.charAt(0).toUpperCase() + model.slice(1);
-      if (model.includes("grok-3-mini")) {
+      if (model.includes("grok-3-mini") || model === "grok-4") {
         llm.thinking = true;
       }
     }
@@ -824,7 +824,11 @@ export async function openaiCompletion({
         });
       const streamElt = insertParagraphForStream(targetUid);
       let thinkingToasterStream;
-      if (model === "deepseek-reasoner" || model.includes("grok-3-mini")) {
+      if (
+        model === "deepseek-reasoner" ||
+        model.includes("grok-3-mini") ||
+        model === "grok-4"
+      ) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
 
@@ -842,7 +846,9 @@ export async function openaiCompletion({
           else streamData = chunk.choices?.length ? chunk.choices[0] : null;
           if (
             streamData?.delta?.reasoning_content &&
-            (model === "deepseek-reasoner" || model.includes("grok-3-mini"))
+            (model === "deepseek-reasoner" ||
+              model.includes("grok-3-mini") ||
+              model === "grok-4")
           )
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
