@@ -47,7 +47,7 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
-import { roamImageRegex } from "../utils/regex";
+import { pdfLinkRegex, roamImageRegex } from "../utils/regex";
 import { AppToaster, displayThinkingToast } from "../components/Toaster";
 import { getResolvedContentFromBlocks } from "./dataExtraction";
 
@@ -726,6 +726,7 @@ export async function openaiCompletion({
 }) {
   let respStr = "";
   let usage = {};
+  let withPdf = false;
   let messages = [
     {
       role:
@@ -739,7 +740,13 @@ export async function openaiCompletion({
   ].concat(prompt);
 
   if (isModelSupportingImage(model)) {
-    messages = await addImagesUrlToMessages(messages, content);
+    if (
+      pdfLinkRegex.test(JSON.stringify(prompt)) ||
+      pdfLinkRegex.test(content)
+    ) {
+      withPdf = true;
+      messages = await addPdfUrlToMessages(messages, content);
+    } else messages = await addImagesUrlToMessages(messages, content);
   }
 
   console.log("Messages sent as prompt to the model:", messages);
@@ -754,10 +761,10 @@ export async function openaiCompletion({
       model: model,
       stream: isToStream,
     };
-    if (model === "o3-pro") {
+    if (model === "o3-pro" || withPdf) {
       options.input = messages;
       options["text"] = { format: { type: responseFormat } };
-      options.stream = false;
+      options.stream = model === "o3-pro" ? false : streamResponse;
     } else {
       options.messages = messages;
       options["response_format"] =
@@ -787,7 +794,7 @@ export async function openaiCompletion({
       };
     }
 
-    if (!isSafari && model !== "o3-pro") {
+    if (!isSafari && model !== "o3-pro" && !withPdf) {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
           reject(
@@ -803,7 +810,7 @@ export async function openaiCompletion({
       ]);
     } else {
       response =
-        model === "o3-pro"
+        model === "o3-pro" || withPdf
           ? await aiClient.responses.create(options)
           : await aiClient.chat.completions.create(options);
     }
@@ -839,11 +846,13 @@ export async function openaiCompletion({
             // respStr = "";
             break;
           }
-
+          console.log("chunk :>> ", chunk);
           let streamData;
           if (!chunk.choices?.length && model === "o3-pro" && chunk.output_text)
             streamData = chunk.output_text;
+          else if (withPdf && chunk.delta) streamData = chunk;
           else streamData = chunk.choices?.length ? chunk.choices[0] : null;
+          // console.log("streamData :>> ", streamData);
           if (
             streamData?.delta?.reasoning_content &&
             (model === "deepseek-reasoner" ||
@@ -852,12 +861,13 @@ export async function openaiCompletion({
           )
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
-          respStr += streamData?.delta?.content || "";
-          streamElt.innerHTML += streamData?.delta?.content || "";
+          respStr += streamData?.delta?.content || streamData?.delta || "";
+          streamElt.innerHTML +=
+            streamData?.delta?.content || streamData?.delta || "";
           if (streamData?.delta?.annotations)
             annotations = streamData.delta.annotations;
-          if (chunk.usage) {
-            usage = chunk.usage;
+          if (chunk.usag || chunk.response?.usage) {
+            usage = chunk.usage || chunk.response?.usage;
             if (chunk.citations) console.log(chunk.citations);
           }
           if (chunk.x_groq?.usage) usage = chunk.x_groq.usage;
@@ -879,6 +889,7 @@ export async function openaiCompletion({
     if (
       !isToStream &&
       model !== "o3-pro" &&
+      !withPdf &&
       response.choices[0].message.annotations?.length
     )
       annotations = response.choices[0].message.annotations;
@@ -892,10 +903,10 @@ export async function openaiCompletion({
     }
     console.log(`Tokens usage (${model}):>> `, usage);
     updateTokenCounter(model, {
-      input_tokens: usage.prompt_tokens,
-      output_tokens: usage.completion_tokens,
+      input_tokens: usage.prompt_tokens || usage.input_tokens,
+      output_tokens: usage.completion_tokens || usage.output_tokens,
     });
-    return model === "o3-pro"
+    return model === "o3-pro" || (withPdf && !isToStream)
       ? response.output_text
       : isToStream
       ? respStr
@@ -1057,7 +1068,9 @@ const isModelSupportingImage = (model) => {
   if (
     model.includes("gpt-4o") ||
     model.includes("gpt-4.1") ||
-    model.includes("vision")
+    model.includes("vision") ||
+    model === "o4-mini" ||
+    model === "o3"
   )
     return true;
   if (
@@ -1074,6 +1087,52 @@ const isModelSupportingImage = (model) => {
     if (ormodel) return ormodel.imagePricing ? true : false;
   }
   return false;
+};
+
+const addPdfUrlToMessages = async (messages, content) => {
+  for (let i = 1; i < messages.length; i++) {
+    pdfLinkRegex.lastIndex = 0;
+    const matchingPdfInPrompt = Array.from(
+      messages[i].content?.matchAll(pdfLinkRegex)
+    );
+
+    if (matchingPdfInPrompt.length) {
+      messages[i].content = [
+        {
+          type: "input_text",
+          text: messages[i].content,
+        },
+      ];
+    }
+    for (let j = 0; j < matchingPdfInPrompt.length; j++) {
+      messages[i].content[0].text = messages[i].content[0].text
+        .replace(matchingPdfInPrompt[j][0], "")
+        .trim();
+      messages[i].content.push({
+        type: "input_file",
+        file_url: matchingPdfInPrompt[j][1] || matchingPdfInPrompt[j][2],
+      });
+    }
+  }
+
+  if (content && content.length) {
+    pdfLinkRegex.lastIndex = 0;
+    const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
+    for (let i = 0; i < matchingPdfInContext.length; i++) {
+      if (i === 0)
+        messages.splice(1, 0, {
+          role: "user",
+          content: [
+            { type: "input_text", text: "Pdf(s) provided in the context:" },
+          ],
+        });
+      messages[1].content.push({
+        type: "input_file",
+        file_url: matchingPdfInContext[i][1] || matchingPdfInContext[i][2],
+      });
+    }
+  }
+  return messages;
 };
 
 // export const getTokenizer = async () => {
