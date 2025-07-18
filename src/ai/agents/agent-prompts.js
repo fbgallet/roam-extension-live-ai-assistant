@@ -82,7 +82,7 @@ You need to interpret the user request to know which database attributes will be
 
 Here are the available attributes in Roam database for each item type.
 a) for BLOCKS (the main component of Roam, since Roam is an outliner where each bullet is a block)
-- ':block/uid' = block unique identifier, also named 'block uid', block reference or block ref, or simply block (it's the main attribute to be used in the resulting table, when the user asks for 'all blocks' matching such or such conditions)
+- ':block/uid' = block unique identifier, also named 'block uid', block reference or block ref when inserted in a block content by the user in the format ((block-uid))
 - ':block/string' = block content (formated string)
 - ':block/refs' = array of blocks or page uid mentioned in the block string
 - ':block/children' = array of the direct children of the block
@@ -106,7 +106,7 @@ c) for USERS
 - 'user/display-name' = user name, how it appears in the UI
 - 'user/display-page' = page to mention the user with [[display-page]] syntaxt in a block content
 
-VERY IMPORTANT: When the user ask for 'blocks', 'pages' or 'page titles', you need always (unless otherwise specified) to provide the corresponding ':block/uid' value in the resulting table (i.e. some ?block-uid or ?page-uid, since :block/uid is both about blocks and pages). If the user asks to filter the result according to certain conditions, the attributes corresponding to these conditions (e.g., time) should also appear in the result table.
+IMPORTANT: When the user ask for 'blocks', providing ':block/uid' value in the resulting table (i.e. some ?block-uid) is needed (unless otherwise specified) if ?block is not projected from any other vector. Also, if the user asks to filter the result according to certain conditions, the attributes corresponding to these conditions (e.g., time) should also appear in the result table.
 
 Additionaly to the database attributes, here is a set of database variables that can be used in Datomic queries in Roam (they will be replaced by the corresponding value):
 - Information about the current location where the query is created (variable name speaks for itself): current/block-id, current/page-id, current/page-title, current/block-uid, current/page-uid
@@ -164,46 +164,47 @@ Your response:
 :q "5 random pages in the graph"
 [:find (sample 5 ?class_title) .
     :where
-    [?a_class_page :node/title ?class_title]
-    [?a_class_page :block/uid ?class_page_uid]]
+    [?a_class_page :node/title ?class_title]]
 
 4. "All pages with 'API' in their title and display their first blocks"
-:q "All pages with 'API' in their title and their first blocks"
-[:find ?page-title ?page-uid ?first-block-uid
+:q "All pages with 'test' in their title and their first blocks"
+[:find ?page ?block
  :where 
 [?page :node/title ?page-title]
-[?page :block/uid ?page-uid]
-[(clojure.string/includes? ?page-title "API")]
+[(clojure.string/includes? ?page-title "test")]
 [?page :block/children ?block]
-[?block :block/order 0]
-[?block :block/uid ?first-block-uid]]
+[?block :block/order 0]]
 
-5. "All blocks with 'important' tag, if in page where 'To Read' attribute has [[pending]] as value
-:q "Blocks with 'important' tag in page where 'toRead:: [[pending]]'"
-[:find ?page-uid ?block-uid
+5. "All blocks referencing [[test]]"
+:q "All blocks referencing [[test]]"
+[:find ?block
+ :where
+ (refs-page "test" ?b)
+ [?block :block/uid]]
+
+5. "All blocks with 'important' tag, if in page where 'to read' attribute has [[pending]] as value
+:q "Blocks with 'important' tag in page where 'to read:: [[pending]]'"
+[:find ?page ?block
  :where
  [?important-page :node/title "important"]
  [?block :block/refs ?important-page]
- [?block :block/uid ?block-uid]
- [?toread-page :node/title "To Read"]
+ [?toread-page :node/title "to read"]
  [?pending-page :node/title "pending"]
  [?toread-block :block/refs ?toread-page]
  [?toread-block :block/refs ?pending-page]
  [?toread-block :block/string ?toread-string]
- [(clojure.string/starts-with? ?toread-string "To Read::")]
+ [(clojure.string/starts-with? ?toread-string "to read::")]
  [?page :block/children ?toread-block]
- [?block :block/page ?page]
- [?page :block/uid ?page-uid]]
+ [?block :block/page ?page]]
 
  6. "All blocks mentioning [[Quality of Life Improvements]]) created by 'Baibhav Bista' in the current calendar year:
- :q "Blocks mentioning [[Quality of Life Improvements]]) created by 'Baibhav Bista' in current year
+ :q "Blocks mentioning [[Quality of Life Improvements]] created by 'Baibhav Bista' in current year"
  [:find ?b ?t
   :where
-  [?b :block/uid ?uid]
   (refs-page "Quality of Life Improvements" ?b)
   (created-by "Baibhav Bista" ?b)
   [?b :create/time ?t]
-  (created-between ms/this-year-start ms/this-xyear-end ?b)]
+  (created-between ms/this-year-start ms/this-year-end ?b)]
 `;
 
 // NO MORE USED:
