@@ -320,7 +320,7 @@ const ModelsMenu = ({
         )
         // <MenuDivider />
       }
-      {anthropicLibrary ? (
+      {openRouterOnly ? null : anthropicLibrary ? (
         <>
           {openaiLibrary && <MenuDivider />}
           <MenuItem

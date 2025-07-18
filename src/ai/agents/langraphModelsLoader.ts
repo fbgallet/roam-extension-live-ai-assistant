@@ -85,20 +85,20 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "openRouter") {
-    if (llmInfos.id.includes("gemini")) {
-      llm = new ChatGoogleGenerativeAI({
-        model: llmInfos.id,
-        ...options,
-        baseUrl: llmInfos.library.baseURL,
-      });
-    } else
-      llm = new ChatOpenAI({
-        model: llmInfos.id,
-        ...options,
-        configuration: {
-          baseURL: llmInfos.library.baseURL,
-        },
-      });
+    // if (llmInfos.id.includes("gemini")) {
+    //   llm = new ChatGoogleGenerativeAI({
+    //     model: llmInfos.id,
+    //     ...options,
+    //     baseUrl: llmInfos.library.baseURL,
+    //   });
+    // } else
+    llm = new ChatOpenAI({
+      model: llmInfos.id,
+      ...options,
+      configuration: {
+        baseURL: llmInfos.library.baseURL,
+      },
+    });
   } else if (llmInfos.provider === "ollama") {
     llm = new ChatOllama({
       model: llmInfos.id,
@@ -144,6 +144,7 @@ export const getLlmSuitableOptions = (
 ) => {
   const isClaudeModel = model.id.toLowerCase().includes("claude");
   const isGPTmodel = model.id.toLocaleLowerCase().includes("gpt");
+  const isKimiModel = model.id.toLocaleLowerCase().includes("kimi");
 
   const outputOptions: any = {
     name: schemaTitle,
@@ -151,7 +152,8 @@ export const getLlmSuitableOptions = (
   if (
     temperature !== undefined &&
     !model.id.toLowerCase().includes("o1") &&
-    !model.id.toLowerCase().includes("o3")
+    !model.id.toLowerCase().includes("o3") &&
+    !model.id.toLowerCase().includes("o4")
   )
     outputOptions.temperature = temperature;
   // There is an issue with json_mode & GPT models in v.0.3 of Langchain OpenAI chat...
@@ -159,7 +161,10 @@ export const getLlmSuitableOptions = (
     outputOptions.method = "jsonSchema"; //"function_calling";
     // outputOptions.strict = true;
   }
-  if (model.provider === "groq" || model.provider === "openRouter") {
+  if (
+    !isKimiModel &&
+    (model.provider === "groq" || model.provider === "openRouter")
+  ) {
     outputOptions.method = "function_calling";
   }
 

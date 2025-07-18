@@ -840,19 +840,24 @@ export async function openaiCompletion({
       }
 
       try {
+        let chunkStr = "";
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
             // respStr = "";
             break;
           }
-          console.log("chunk :>> ", chunk);
+          // console.log("chunk :>> ", chunk);
           let streamData;
           if (!chunk.choices?.length && model === "o3-pro" && chunk.output_text)
             streamData = chunk.output_text;
           else if (withPdf && chunk.delta) streamData = chunk;
           else streamData = chunk.choices?.length ? chunk.choices[0] : null;
-          // console.log("streamData :>> ", streamData);
+
+          chunkStr =
+            typeof streamData?.delta === "string"
+              ? streamData?.delta
+              : streamData?.delta?.content || "";
           if (
             streamData?.delta?.reasoning_content &&
             (model === "deepseek-reasoner" ||
@@ -861,9 +866,8 @@ export async function openaiCompletion({
           )
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
-          respStr += streamData?.delta?.content || streamData?.delta || "";
-          streamElt.innerHTML +=
-            streamData?.delta?.content || streamData?.delta || "";
+          respStr += chunkStr;
+          streamElt.innerHTML += chunkStr;
           if (streamData?.delta?.annotations)
             annotations = streamData.delta.annotations;
           if (chunk.usag || chunk.response?.usage) {
