@@ -114,6 +114,7 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
     querySchema,
     getLlmSuitableOptions(state.model, "query", 0) // temperature = 0
   );
+
   const sys_msg = new SystemMessage({
     content: roamQuerySystemPrompt.replace("<CURRENT_DATE>", currentDate),
   });
@@ -129,10 +130,12 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
     The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`
     ),
   ]);
-  let response;
+  let response: any;
   try {
     // if (!state.model.id.includes("+thinking")) {
+
     response = await structuredLlm.invoke(messages);
+
     // Extended thinking not compatible with structured output yet
     // } else {
     //   response = await streamClaudeThinkingModel(

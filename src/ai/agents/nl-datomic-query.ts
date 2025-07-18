@@ -126,18 +126,19 @@ Here is the way this request has alreedy been transcribed by an AI assistant in 
 The user is requesting a new and, if possible, better transcription. Do it by meticulously respecting the whole indications and syntax rules provided above in the conversation. Do your best not to disappoint!`;
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([new HumanMessage(humanMsgStr)]);
-  let response;
+  let response: any;
   try {
     if (!state.model.id.includes("+thinking")) {
       response =
-        state.model.provider !== "openRouter"
-          ? await llm.invoke(messages)
-          : await aiCompletion({
+        state.model.provider == "openRouter" &&
+        state.model.id.includes("gemini")
+          ? await aiCompletion({
               instantModel: state.model.prefix + state.model.id,
               systemPrompt: sysMsgStr,
-              prompt: humanMsgStr,
+              prompt: [{ role: "user", content: humanMsgStr }],
               isButtonToInsert: false,
-            });
+            })
+          : await llm.invoke(messages);
     } else {
       response = await streamClaudeThinkingModel(
         llm,
