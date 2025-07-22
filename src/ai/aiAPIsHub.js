@@ -463,6 +463,7 @@ export async function claudeCompletion({
   responseFormat,
   targetUid,
   isButtonToInsert = true,
+  tools,
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
@@ -501,6 +502,9 @@ export async function claudeCompletion({
             max_uses: 5,
           },
         ];
+      else if (command === "MCP Agent") {
+        options.tools = tools;
+      }
 
       if (
         model.includes("3-7") ||
@@ -534,11 +538,17 @@ export async function claudeCompletion({
       // See server code here: https://github.com/fbgallet/ai-api-back
 
       if (isModelSupportingImage(model)) {
-        options.messages = await addImagesUrlToMessages(
-          messages,
-          content,
-          true
-        );
+        if (
+          pdfLinkRegex.test(JSON.stringify(prompt)) ||
+          pdfLinkRegex.test(content)
+        ) {
+          options.messages = await addPdfUrlToMessages(messages, content, true);
+        } else
+          options.messages = await addImagesUrlToMessages(
+            messages,
+            content,
+            true
+          );
       }
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -552,6 +562,8 @@ export async function claudeCompletion({
         },
         body: JSON.stringify(options),
       });
+
+      console.log("response :>> ", response);
 
       // handle streamed responses (not working from client-side)
       let respStr = "";
@@ -910,6 +922,7 @@ export async function openaiCompletion({
       input_tokens: usage.prompt_tokens || usage.input_tokens,
       output_tokens: usage.completion_tokens || usage.output_tokens,
     });
+    console.log(respStr);
     return model === "o3-pro" || (withPdf && !isToStream)
       ? response.output_text
       : isToStream
@@ -1093,7 +1106,7 @@ const isModelSupportingImage = (model) => {
   return false;
 };
 
-const addPdfUrlToMessages = async (messages, content) => {
+const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
   for (let i = 1; i < messages.length; i++) {
     pdfLinkRegex.lastIndex = 0;
     const matchingPdfInPrompt = Array.from(
@@ -1103,7 +1116,7 @@ const addPdfUrlToMessages = async (messages, content) => {
     if (matchingPdfInPrompt.length) {
       messages[i].content = [
         {
-          type: "input_text",
+          type: isAnthropicModel ? "text" : "input_text",
           text: messages[i].content,
         },
       ];
@@ -1112,10 +1125,21 @@ const addPdfUrlToMessages = async (messages, content) => {
       messages[i].content[0].text = messages[i].content[0].text
         .replace(matchingPdfInPrompt[j][0], "")
         .trim();
-      messages[i].content.push({
-        type: "input_file",
-        file_url: matchingPdfInPrompt[j][1] || matchingPdfInPrompt[j][2],
-      });
+      messages[i].content.push(
+        isAnthropicModel
+          ? {
+              type: "document",
+              source: {
+                type: "url",
+                url: matchingPdfInPrompt[j][1] || matchingPdfInPrompt[j][2],
+              },
+            }
+          : {
+              type: "input_file",
+              url_property:
+                matchingPdfInPrompt[j][1] || matchingPdfInPrompt[j][2],
+            }
+      );
     }
   }
 
@@ -1127,13 +1151,27 @@ const addPdfUrlToMessages = async (messages, content) => {
         messages.splice(1, 0, {
           role: "user",
           content: [
-            { type: "input_text", text: "Pdf(s) provided in the context:" },
+            {
+              type: isAnthropicModel ? "text" : "input_text",
+              text: "Pdf(s) provided in the context:",
+            },
           ],
         });
-      messages[1].content.push({
-        type: "input_file",
-        file_url: matchingPdfInContext[i][1] || matchingPdfInContext[i][2],
-      });
+      messages[1].content.push(
+        isAnthropicModel
+          ? {
+              type: "document",
+              source: {
+                type: "url",
+                url: matchingPdfInContext[i][1] || matchingPdfInContext[i][2],
+              },
+            }
+          : {
+              type: "input_file",
+              file_url:
+                matchingPdfInContext[i][1] || matchingPdfInContext[i][2],
+            }
+      );
     }
   }
   return messages;
