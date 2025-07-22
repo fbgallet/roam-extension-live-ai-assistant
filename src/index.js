@@ -35,6 +35,9 @@ import {
   getMaxDephObjectFromList,
 } from "./ai/dataExtraction";
 import { uidRegex } from "./utils/regex";
+import MCPConfigComponent from "./components/MCPConfigComponent";
+import { mcpManager } from "./mcp/mcpManager";
+import React from "react";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -1110,6 +1113,18 @@ function getPanelConfig() {
           },
         },
       },
+      {
+        id: "mcpServers",
+        name: "MCP Servers",
+        description: "Configure Model Context Protocol servers for external tools and capabilities",
+        action: {
+          type: "custom",
+          component: (props) => React.createElement(MCPConfigComponent, { 
+            extensionStorage: extensionStorage,
+            ...props 
+          }),
+        },
+      },
     ],
   };
   return panelConfig;
@@ -1361,6 +1376,8 @@ export default {
     console.log("defaultModel :>> ", defaultModel);
 
     loadRoamExtensionCommands(extensionAPI);
+
+    mcpManager.initialize(extensionStorage);
 
     mountComponent(position);
     if (!isComponentAlwaysVisible) toggleComponentVisibility();

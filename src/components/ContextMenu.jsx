@@ -10,6 +10,7 @@ import {
   Checkbox,
   TextArea,
   NumericInput,
+  Dialog,
 } from "@blueprintjs/core";
 import { Suggest, Select } from "@blueprintjs/select";
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -75,6 +76,13 @@ import {
   textToSpeech,
 } from "../ai/aiAPIsHub";
 import { tokensLimit } from "../ai/modelsInfo";
+import { mcpManager } from "../mcp/mcpManager";
+import { MCPExecutor } from "../mcp/mcpExecutor";
+import { MCPAgent } from "../mcp/mcpAgent";
+import { MCPAgentV2 } from "../mcp/mcpAgentV2";
+import { invokeMCPAgent } from "../ai/agents/mcp-agent/mcp-agent";
+import { MCPDiagnostics } from "../mcp/mcpDiagnostics";
+import MCPConfigComponent from "./MCPConfigComponent";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
@@ -152,6 +160,11 @@ const StandaloneContextMenu = () => {
   const [dnpPeriod, setDnpPeriod] = useState("0");
   const [customDays, setCustomDays] = useState(parseInt(logPagesNbDefault));
   const [estimatedTokens, setEstimatedTokens] = useState("");
+  const [mcpTools, setMcpTools] = useState([]);
+  const [mcpResources, setMcpResources] = useState([]);
+  const [mcpPrompts, setMcpPrompts] = useState([]);
+  const [mcpAgents, setMcpAgents] = useState([]);
+  const [isMCPConfigOpen, setIsMCPConfigOpen] = useState(false);
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
   const focusedBlockUid = useRef(null);
@@ -191,6 +204,10 @@ const StandaloneContextMenu = () => {
     updateCustomStyles();
     updateLiveOutlines();
     updateTemplates();
+    updateMCPItems();
+
+    // Set up a global function that can be called when MCP state changes
+    window.LiveAI.updateMCPItems = updateMCPItems;
   }, []);
 
   useEffect(() => {
@@ -298,6 +315,7 @@ const StandaloneContextMenu = () => {
     setIsCompletionOnly(false);
     setIsOutlinerAgent(false);
     setIsHelpOpen(false);
+    setIsMCPConfigOpen(false);
     setDnpPeriod("0");
     if (!isPinnedStyle) setStyle(defaultStyle);
     setRoamContext({ ...voidRoamContext });
@@ -443,6 +461,97 @@ const StandaloneContextMenu = () => {
       else command = commands.find((c) => c.id === 1);
       if (model.includes("-search")) command.includeUids = false;
     }
+
+    if (command.mcpType) {
+      console.log("🚀 MCP command detected:", command);
+      const target = targetBlock === "auto" ? "new" : targetBlock || "new";
+
+      try {
+        if (command.mcpType === "agent") {
+          // MCP Agent execution - uses LangGraph with MultiServerMCPClient
+          const userPrompt = focusedBlockContent.current;
+          console.log("📝 User prompt for LangGraph MCP agent:", userPrompt);
+
+          // New LangGraph implementation with MultiServerMCPClient
+          const result = await invokeMCPAgent({
+            model: model || defaultModel,
+            rootUid: focusedBlockUid.current,
+            targetUid: focusedBlockUid.current,
+            target,
+            prompt:
+              userPrompt + (additionalPrompt ? `\n\n${additionalPrompt}` : ""),
+            serverId: command.serverId,
+            serverName: command.serverName,
+          });
+
+          // Previous implementation (kept for reference):
+          /*
+          const result = await MCPAgentV2.executeMCPAgent({
+            serverId: command.serverId,
+            serverName: command.serverName,
+            userPrompt,
+            sourceUid: focusedBlockUid.current,
+            additionalPrompt,
+            instantModel: model || defaultModel,
+            target,
+            roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
+            style,
+          });
+          */
+          console.log("✅ MCP Agent execution completed:", result);
+        } else if (command.mcpType === "tool") {
+          // Use the MCP agent with preferred tool for individual tool execution
+          const userPrompt =
+            focusedBlockContent.current || getInstantPrompt(command);
+          console.log(
+            `📝 User prompt for individual tool "${command.preferredToolName}":`,
+            userPrompt
+          );
+
+          const result = await invokeMCPAgent({
+            model: model || defaultModel,
+            rootUid: focusedBlockUid.current,
+            targetUid: focusedBlockUid.current,
+            target,
+            prompt:
+              userPrompt + (additionalPrompt ? `\n\n${additionalPrompt}` : ""),
+            serverId: command.serverId,
+            serverName: command.serverName,
+            preferredToolName: command.preferredToolName, // This guides the agent to use this specific tool
+          });
+
+          console.log(`✅ Individual MCP tool execution completed:`, result);
+        } else if (command.mcpType === "resource") {
+          await MCPExecutor.executeMCPResource({
+            serverId: command.serverId,
+            resourceUri: command.mcpData.uri,
+            sourceUid: focusedBlockUid.current,
+            prompt: getInstantPrompt(command),
+            additionalPrompt,
+            instantModel: model || defaultModel,
+            target,
+            roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
+            style,
+          });
+        } else if (command.mcpType === "prompt") {
+          await MCPExecutor.executeMCPPrompt({
+            serverId: command.serverId,
+            promptName: command.mcpData.name,
+            promptArguments: {},
+            sourceUid: focusedBlockUid.current,
+            additionalPrompt,
+            instantModel: model || defaultModel,
+            target,
+            roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
+            style,
+          });
+        }
+      } catch (error) {
+        console.error("Error executing MCP command:", error);
+        alert(`Error executing MCP ${command.mcpType}: ${error.message}`);
+      }
+      return;
+    }
     let includeChildren;
     if (
       command.name === "Main Page content as prompt" ||
@@ -580,14 +689,18 @@ const StandaloneContextMenu = () => {
   const handleClickOutside = useCallback((e) => {
     const target = e.target;
 
-    if (!target.closest(".bp3-menu") && !target.closest(".laia-help-dialog")) {
+    if (
+      !target.closest(".bp3-menu") &&
+      !target.closest(".laia-help-dialog") &&
+      !target.closest(".bp3-dialog")
+    ) {
       setIsOpen(false);
     }
   }, []);
 
   useEffect(() => {
     document.addEventListener("contextmenu", handleGlobalContextMenu);
-    if (isOpen && !isHelpOpen) {
+    if (isOpen && !isHelpOpen && !isMCPConfigOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       setTimeout(() => {
         inputRef.current?.focus();
@@ -1189,6 +1302,75 @@ const StandaloneContextMenu = () => {
     } else if (templates.length) setTemplates([]);
   };
 
+  const updateMCPItems = () => {
+    try {
+      // Create MCP Agent commands (one per connected server)
+      const connectedServers = mcpManager.getConnectedServers();
+      console.log(
+        "🔄 Updating MCP items. Connected servers:",
+        connectedServers
+      );
+
+      const agentCommands = connectedServers.map((server, index) => ({
+        id: 5500 + index,
+        name: `Use MCP Agent: ${server.name}`,
+        category: "MCP AGENTS",
+        keyWords: `mcp agent ${server.name}`,
+        serverName: server.name,
+        serverId: server.serverId,
+        description: `AI agent with access to all tools and resources from ${server.name}`,
+        mcpType: "agent",
+        mcpData: server,
+      }));
+      setMcpAgents(agentCommands);
+
+      const allTools = mcpManager.getAllTools();
+      const toolCommands = allTools.map((tool, index) => ({
+        id: 6000 + index,
+        name: `${tool.serverName}: ${tool.name}`,
+        category: "MCP TOOLS",
+        keyWords: `mcp tool ${tool.serverName}`,
+        serverName: tool.serverName,
+        serverId: tool.serverId,
+        description: tool.description,
+        mcpType: "tool",
+        mcpData: tool,
+        preferredToolName: tool.name,
+      }));
+      setMcpTools(toolCommands);
+
+      const allResources = mcpManager.getAllResources();
+      const resourceCommands = allResources.map((resource, index) => ({
+        id: 7000 + index,
+        name: resource.name || resource.uri,
+        category: "MCP RESOURCES",
+        keyWords: `mcp resource ${resource.serverName}`,
+        serverName: resource.serverName,
+        serverId: resource.serverId,
+        description: resource.description,
+        mcpType: "resource",
+        mcpData: resource,
+      }));
+      setMcpResources(resourceCommands);
+
+      const allPrompts = mcpManager.getAllPrompts();
+      const promptCommands = allPrompts.map((prompt, index) => ({
+        id: 8000 + index,
+        name: prompt.name,
+        category: "MCP PROMPTS",
+        keyWords: `mcp prompt ${prompt.serverName}`,
+        serverName: prompt.serverName,
+        serverId: prompt.serverId,
+        description: prompt.description,
+        mcpType: "prompt",
+        mcpData: prompt,
+      }));
+      setMcpPrompts(promptCommands);
+    } catch (error) {
+      console.error("Error updating MCP items:", error);
+    }
+  };
+
   const insertEstimatedCost = () => {
     let cost = estimateTokensPricing(defaultModel, parseInt(estimatedTokens));
     return cost ? ` (±${cost}$)` : "";
@@ -1272,6 +1454,22 @@ const StandaloneContextMenu = () => {
                   />
                 </Tooltip>
                 <Tooltip
+                  content="Configure MCP servers"
+                  disabled={window.roamAlphaAPI.platform.isMobile}
+                  hoverOpenDelay={600}
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
+                >
+                  <Icon
+                    icon="data-connection"
+                    size={12}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMCPConfigOpen(true);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip
                   content="Tokens usage and cost by model"
                   disabled={window.roamAlphaAPI.platform.isMobile}
                   hoverOpenDelay={600}
@@ -1304,6 +1502,9 @@ const StandaloneContextMenu = () => {
                       updateCustomStyles();
                       updateLiveOutlines();
                       updateTemplates();
+                      updateMCPItems();
+                      // Run MCP diagnostic for debugging
+                      MCPDiagnostics.runFullDiagnostic();
                       inputRef.current?.focus();
                     }}
                   />
@@ -1575,6 +1776,10 @@ const StandaloneContextMenu = () => {
                 .concat(userCommands)
                 .concat(liveOutlines)
                 .concat(templates)
+                .concat(mcpAgents)
+                .concat(mcpTools)
+                .concat(mcpResources)
+                .concat(mcpPrompts)
                 .concat(
                   availableModels.map((model, index) => {
                     const llm = modelAccordingToProvider(model);
@@ -1680,6 +1885,19 @@ const StandaloneContextMenu = () => {
               setIsHelpOpen(false);
             }}
           />
+          <Dialog
+            isOpen={isMCPConfigOpen}
+            onClose={() => {
+              setIsMCPConfigOpen(false);
+              updateMCPItems();
+            }}
+            title="MCP Server Configuration"
+            style={{ width: "800px", maxHeight: "80vh" }}
+            canOutsideClickClose={true}
+            canEscapeKeyClose={true}
+          >
+            <MCPConfigComponent extensionStorage={extensionStorage} />
+          </Dialog>
         </div>
       )}
     </Popover>

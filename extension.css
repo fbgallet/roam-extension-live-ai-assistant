@@ -39,28 +39,33 @@
   color: black;
 }
 .search-agent-toaster .bp3-toast,
-.thinking-toaster .bp3-toast {
+.thinking-toaster .bp3-toast,
+.mcp-toaster .bp3-toast {
   max-width: 600px;
   max-height: 90vh;
   font-size: 13px;
   padding: 5px;
 }
-.thinking-toaster .bp3-toast {
+.thinking-toaster .bp3-toast,
+.mcp-toaster .bp3-toast {
   resize: both;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
-.thinking-toaster .bp3-toast .bp3-button-group {
+.thinking-toaster .bp3-toast .bp3-button-group,
+.mcp-toaster .bp3-toast .bp3-button-group {
   display: none;
 }
-.thinking-toaster .bp3-toast .buttons {
+.thinking-toaster .bp3-toast .buttons,
+.mcp-toaster .bp3-toast .buttons {
   min-height: fit-content;
   align-self: flex-end;
   background: inherit;
 }
 .search-agent-toaster .bp3-toast .bp3-toast-message,
-.thinking-toaster .bp3-toast .bp3-toast-message {
+.thinking-toaster .bp3-toast .bp3-toast-message,
+.mcp-toaster .bp3-toast .bp3-toast-message {
   overflow-y: scroll;
 }
 .search-agent-toaster .bp3-toast li {
