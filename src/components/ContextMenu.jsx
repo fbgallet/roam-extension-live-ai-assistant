@@ -76,12 +76,10 @@ import {
   textToSpeech,
 } from "../ai/aiAPIsHub";
 import { tokensLimit } from "../ai/modelsInfo";
-import { mcpManager } from "../mcp/mcpManager";
-import { MCPExecutor } from "../mcp/mcpExecutor";
-import { MCPAgent } from "../mcp/mcpAgent";
-import { MCPAgentV2 } from "../mcp/mcpAgentV2";
+import { mcpManager } from "../ai/agents/mcp-agent/mcpManager";
+import { MCPExecutor } from "../ai/agents/mcp-agent/mcpExecutor";
 import { invokeMCPAgent } from "../ai/agents/mcp-agent/mcp-agent";
-import { MCPDiagnostics } from "../mcp/mcpDiagnostics";
+import { MCPDiagnostics } from "../ai/agents/mcp-agent/mcpDiagnostics";
 import MCPConfigComponent from "./MCPConfigComponent";
 
 const SELECT_CMD = "Set as active Live Outline";
