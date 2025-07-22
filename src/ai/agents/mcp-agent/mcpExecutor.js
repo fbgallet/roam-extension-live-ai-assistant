@@ -1,6 +1,6 @@
 import { mcpManager } from './mcpManager.js';
-import { aiCompletionRunner } from '../ai/responseInsertion.js';
-import { getAndNormalizeContext } from '../ai/dataExtraction.js';
+import { aiCompletionRunner } from '../../responseInsertion.js';
+import { getAndNormalizeContext } from '../../dataExtraction.js';
 
 export class MCPExecutor {
   static async executeMCPTool({

@@ -13,8 +13,8 @@ import {
   Tag,
   Collapse,
 } from "@blueprintjs/core";
-import { mcpManager } from "../mcp/mcpManager.js";
-import { MCPDiscovery } from "../mcp/mcpDiscovery.js";
+import { mcpManager } from "../ai/agents/mcp-agent/mcpManager.js";
+import { MCPDiscovery } from "../ai/agents/mcp-agent/mcpDiscovery.js";
 
 const MCPConfigComponent = ({ extensionStorage }) => {
   const [servers, setServers] = useState([]);

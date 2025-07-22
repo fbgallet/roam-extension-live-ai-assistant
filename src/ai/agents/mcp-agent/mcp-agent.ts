@@ -25,7 +25,7 @@ import {
   updateBlock,
 } from "../../../utils/roamAPI";
 import { roamBasicsFormat } from "../../prompts";
-import { mcpManager } from "../../../mcp/mcpManager";
+import { mcpManager } from "./mcpManager";
 
 // Extend Window interface for our global toaster element
 declare global {

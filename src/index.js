@@ -36,7 +36,7 @@ import {
 } from "./ai/dataExtraction";
 import { uidRegex } from "./utils/regex";
 import MCPConfigComponent from "./components/MCPConfigComponent";
-import { mcpManager } from "./mcp/mcpManager";
+import { mcpManager } from "./ai/agents/mcp-agent/mcpManager";
 import React from "react";
 
 export let OPENAI_API_KEY = "";
