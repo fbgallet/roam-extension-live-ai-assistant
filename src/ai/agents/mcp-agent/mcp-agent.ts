@@ -42,6 +42,9 @@ const MCPAgentState = Annotation.Root({
   conversationHistory: Annotation<string[]>,
   previousResponse: Annotation<string | undefined>,
   isConversationMode: Annotation<boolean>,
+  // Retry state
+  isRetry: Annotation<boolean>,
+  isToRedoBetter: Annotation<boolean>,
   // Timing
   startTime: Annotation<number>,
 });
@@ -94,15 +97,15 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   const mcpToolsList = getFilteredMCPTools(client, state.serverId);
 
   // Log original MCP tool schemas for debugging
-  console.log("📋 Original MCP Tools from server:");
-  mcpToolsList.forEach((tool) => {
-    console.log(`\n  Tool: ${tool.name}`);
-    console.log(`  Description: ${tool.description || "No description"}`);
-    console.log(
-      `  Original inputSchema:`,
-      JSON.stringify(tool.inputSchema, null, 2)
-    );
-  });
+  // console.log("📋 Original MCP Tools from server:");
+  // mcpToolsList.forEach((tool) => {
+  //   console.log(`\n  Tool: ${tool.name}`);
+  //   console.log(`  Description: ${tool.description || "No description"}`);
+  //   console.log(
+  //     `  Original inputSchema:`,
+  //     JSON.stringify(tool.inputSchema, null, 2)
+  //   );
+  // });
 
   // Store available tools for dynamic loading
   availableToolsForDynamic = mcpToolsList;
@@ -206,6 +209,46 @@ CONVERSATION MODE OPTIMIZATION:
 - Only make new tool calls if: 1) You need fresh/updated data, 2) The user is asking for something not covered by previous results, 3) You need to perform a new action
 - When possible, reference and build upon previous responses and cached tool results
 `;
+  } else if (state.isRetry && state.isToRedoBetter && state.previousResponse) {
+    // For better retry mode, include previous context but with retry-specific optimization
+    const validCachedResults = Object.entries(
+      state.toolResultsCache || {}
+    ).filter(
+      ([_, result]: [string, any]) =>
+        result.content && !result.content.toString().startsWith("Error:")
+    );
+
+    const cachedResultsText =
+      validCachedResults.length > 0
+        ? validCachedResults
+            .map(([callId, result]: [string, any]) => {
+              const contentStr = result.content.toString();
+              const truncatedContent =
+                contentStr.length > 50000
+                  ? contentStr.substring(0, 50000) + "..."
+                  : contentStr;
+              return `\n- ${
+                result.tool_name || "Unknown tool"
+              } (${callId}): ${truncatedContent}`;
+            })
+            .join("")
+        : "None";
+
+    conversationContext = `
+RETRY CONTEXT:
+Previous response: ${state.previousResponse}
+
+Available cached tool results: ${cachedResultsText}
+
+This is a retry attempt to improve the previous response.
+`;
+    conversationOptimization = `
+RETRY MODE OPTIMIZATION:
+- This is a retry attempt to improve the previous response
+- Check the previous response and tool cache results to decide if you need new tool calls or can improve with existing data
+- Only make new tool calls if: 1) Previous tools had errors, 2) You need additional data not in cache, 3) The retry instruction requires new information
+- Focus on addressing the specific improvement requested in the retry instruction
+`;
   } else {
     conversationContext = "";
     conversationOptimization = "";
@@ -231,61 +274,61 @@ CONVERSATION MODE OPTIMIZATION:
   console.log("systemPrompt :>> ", systemPrompt);
 
   // Log tool schemas for debugging
-  console.log("🔧 MCP Tools schemas:");
-  mcpTools.forEach((tool) => {
-    console.log(`\n  Tool: ${tool.name}`);
-    console.log(`  Description: ${tool.description || "No description"}`);
-    if (tool.schema && tool.schema._def) {
-      const formatZodType = (zodType: any, indent: string = "    "): string => {
-        const def = zodType._def;
-        const isOptional = def.typeName === "ZodOptional";
-        const innerType = isOptional ? def.innerType : zodType;
-        const innerDef = innerType._def;
-        const typeName =
-          innerDef.typeName?.replace("Zod", "").toLowerCase() || "unknown";
-        const description = innerType.description || "No description";
+  // console.log("🔧 MCP Tools schemas:");
+  // mcpTools.forEach((tool) => {
+  //   console.log(`\n  Tool: ${tool.name}`);
+  //   console.log(`  Description: ${tool.description || "No description"}`);
+  //   if (tool.schema && tool.schema._def) {
+  //     const formatZodType = (zodType: any, indent: string = "    "): string => {
+  //       const def = zodType._def;
+  //       const isOptional = def.typeName === "ZodOptional";
+  //       const innerType = isOptional ? def.innerType : zodType;
+  //       const innerDef = innerType._def;
+  //       const typeName =
+  //         innerDef.typeName?.replace("Zod", "").toLowerCase() || "unknown";
+  //       const description = innerType.description || "No description";
 
-        if (typeName === "object" && innerDef.shape) {
-          const shape = innerDef.shape();
-          const objectFields = Object.entries(shape)
-            .map(([key, nestedType]: [string, any]) => {
-              const nestedDef = nestedType._def;
-              const nestedIsOptional = nestedDef.typeName === "ZodOptional";
-              const formattedType = formatZodType(
-                nestedType,
-                indent + "  "
-              ).trim();
-              return `${indent}  ${key}${
-                nestedIsOptional ? "?" : ""
-              }: ${formattedType}`;
-            })
-            .join("\n");
-          return `object {\n${objectFields}\n${indent}}`;
-        } else if (typeName === "array" && innerDef.type) {
-          const arrayType = formatZodType(innerDef.type, indent).trim();
-          return `array<${arrayType}> - ${description}`;
-        } else if (typeName === "enum" && innerDef.values) {
-          const enumValues = innerDef.values.join(" | ");
-          return `enum(${enumValues}) - ${description}`;
-        } else {
-          return `${typeName} - ${description}`;
-        }
-      };
+  //       if (typeName === "object" && innerDef.shape) {
+  //         const shape = innerDef.shape();
+  //         const objectFields = Object.entries(shape)
+  //           .map(([key, nestedType]: [string, any]) => {
+  //             const nestedDef = nestedType._def;
+  //             const nestedIsOptional = nestedDef.typeName === "ZodOptional";
+  //             const formattedType = formatZodType(
+  //               nestedType,
+  //               indent + "  "
+  //             ).trim();
+  //             return `${indent}  ${key}${
+  //               nestedIsOptional ? "?" : ""
+  //             }: ${formattedType}`;
+  //           })
+  //           .join("\n");
+  //         return `object {\n${objectFields}\n${indent}}`;
+  //       } else if (typeName === "array" && innerDef.type) {
+  //         const arrayType = formatZodType(innerDef.type, indent).trim();
+  //         return `array<${arrayType}> - ${description}`;
+  //       } else if (typeName === "enum" && innerDef.values) {
+  //         const enumValues = innerDef.values.join(" | ");
+  //         return `enum(${enumValues}) - ${description}`;
+  //       } else {
+  //         return `${typeName} - ${description}`;
+  //       }
+  //     };
 
-      const shape = tool.schema._def.shape();
-      const schemaInfo = Object.entries(shape).map(
-        ([key, zodType]: [string, any]) => {
-          const def = zodType._def;
-          const isOptional = def.typeName === "ZodOptional";
-          const formatted = formatZodType(zodType);
-          return `    ${key}${isOptional ? "?" : ""}: ${formatted}`;
-        }
-      );
-      console.log(`  Schema:\n${schemaInfo.join("\n")}`);
-    } else {
-      console.log(`  Schema: No schema available`);
-    }
-  });
+  //     const shape = tool.schema._def.shape();
+  //     const schemaInfo = Object.entries(shape).map(
+  //       ([key, zodType]: [string, any]) => {
+  //         const def = zodType._def;
+  //         const isOptional = def.typeName === "ZodOptional";
+  //         const formatted = formatZodType(zodType);
+  //         return `    ${key}${isOptional ? "?" : ""}: ${formatted}`;
+  //       }
+  //     );
+  //     // console.log(`  Schema:\n${schemaInfo.join("\n")}`);
+  //   } else {
+  //     console.log(`  Schema: No schema available`);
+  //   }
+  // });
 
   sys_msg = new SystemMessage({ content: systemPrompt });
 
@@ -352,27 +395,32 @@ const insertResponse = async (state: typeof MCPAgentState.State) => {
     console.log(`🏁 [MCP AGENT] Total execution time: ${totalDuration}s`);
   }
 
-  if (state.targetUid && isExistingBlock(state.targetUid)) {
-    await insertStructuredAIResponse({
-      targetUid: state.targetUid,
-      content: lastMessage,
-      target: "replace",
-    });
-  } else {
-    const assistantRole = state.model.id
-      ? getInstantAssistantRole(state.model.id)
-      : chatRoles?.assistant || "";
-    state.targetUid = await createChildBlock(
-      state.isConversationMode ? getParentBlock(state.rootUid) : state.rootUid,
-      assistantRole,
-      "last"
-    );
-    await insertStructuredAIResponse({
-      targetUid: state.targetUid,
-      content: lastMessage,
-      forceInChildren: true,
-    });
+  const assistantRole = state.model.id
+    ? getInstantAssistantRole(state.model.id)
+    : chatRoles?.assistant || "";
+
+  // Determine parent block based on conversation mode or retry mode
+  let parentUid = state.rootUid;
+  console.log("state.isConversationMode :>> ", state.isConversationMode);
+  console.log("state.targetUid :>> ", state.targetUid);
+  if (state.isConversationMode) {
+    parentUid = getParentBlock(state.rootUid);
   }
+  // else if (state.isRetry) {
+  //   parentUid = state.targetUid;
+  // }
+
+  state.targetUid = await createChildBlock(
+    parentUid,
+    assistantRole,
+    state.isRetry ? "first" : "last"
+  );
+  await insertStructuredAIResponse({
+    targetUid: state.targetUid,
+    content: lastMessage,
+    forceInChildren: true,
+  });
+  // }
 
   return {
     targetUid: state.targetUid,

@@ -36,6 +36,12 @@ interface MCPAgentInvoker {
     previousResponse?: string;
     isConversationMode?: boolean;
   };
+  // Retry options
+  options?: {
+    retryInstruction?: string;
+    isRetry?: boolean;
+    isToRedoBetter?: boolean;
+  };
 }
 
 // Invoke MCP agent
@@ -51,6 +57,7 @@ export const invokeMCPAgent = async ({
   preferredToolName,
   previousResponse,
   agentData,
+  options,
 }: MCPAgentInvoker) => {
   console.log("🤖 Invoking MCP Agent with:", {
     model,
@@ -60,14 +67,11 @@ export const invokeMCPAgent = async ({
     preferredToolName: preferredToolName || "(all tools)",
     rootUid,
     agentData: !!agentData,
+    isRetry: options?.isRetry,
+    hasRetryInstruction: !!options?.retryInstruction,
   });
 
   console.log("💾 Agent data received:", agentData);
-  console.log("🔧 Tool results cache:", agentData?.toolResultsCache);
-  console.log(
-    "📊 Cache size:",
-    Object.keys(agentData?.toolResultsCache || {}).length
-  );
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
   const spinnerId = displaySpinner(rootUid);
@@ -97,8 +101,17 @@ export const invokeMCPAgent = async ({
     // Create the graph with these tools
     const mcpAgent = createMCPGraph(langchainTools);
 
-    // Handle conversation state
+    // Handle conversation state and retry logic
     const isConversationMode = agentData?.isConversationMode || false;
+    const isRetry = options?.isRetry || false;
+    const isToRedoBetter = options?.isToRedoBetter || false;
+
+    // Process prompt with retry instructions if provided
+    let finalPrompt = prompt;
+    if (options?.retryInstruction && isRetry && isToRedoBetter) {
+      finalPrompt = `${prompt}\n\nPlease improve the response considering: ${options.retryInstruction}`;
+    }
+
     const conversationData = agentData || {
       serverId: serverId,
       serverName: serverName,
@@ -112,7 +125,7 @@ export const invokeMCPAgent = async ({
     const response = await mcpAgent.invoke({
       model: llmInfos,
       rootUid,
-      userPrompt: prompt,
+      userPrompt: finalPrompt,
       style,
       serverId: conversationData.serverId || serverId,
       serverName: conversationData.serverName || serverName,
@@ -122,12 +135,18 @@ export const invokeMCPAgent = async ({
       mcpTools: langchainTools,
       availableToolsForDynamic: [],
       mcpToasterStream: mcpToasterStream,
-      messages: [new HumanMessage(prompt)], // Initialize with user message
+      messages: [new HumanMessage(finalPrompt)], // Initialize with final prompt (includes retry instructions)
       // Conversation state
       toolResultsCache: conversationData.toolResultsCache || {},
       conversationHistory: conversationData.conversationHistory || [],
-      previousResponse: conversationData.previousResponse || previousResponse,
-      isConversationMode,
+      previousResponse:
+        (isRetry && isToRedoBetter) || isConversationMode
+          ? conversationData.previousResponse || previousResponse
+          : undefined,
+      isConversationMode: isRetry ? false : isConversationMode, // Retry is not conversation mode
+      // Retry state
+      isRetry: isRetry,
+      isToRedoBetter: isToRedoBetter,
     });
 
     console.log("✅ MCP Agent response:", response);
@@ -142,7 +161,7 @@ export const invokeMCPAgent = async ({
         insertInstantButtons({
           model: llmInfos.id,
           prompt: [
-            { role: "user", content: prompt },
+            { role: "user", content: finalPrompt },
             {
               role: "assistant",
               content: response.messages?.at(-1)?.content || "",
