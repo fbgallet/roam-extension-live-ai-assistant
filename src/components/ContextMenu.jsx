@@ -478,25 +478,10 @@ const StandaloneContextMenu = () => {
             target,
             prompt:
               userPrompt + (additionalPrompt ? `\n\n${additionalPrompt}` : ""),
-            serverId: command.serverId,
-            serverName: command.serverName,
-          });
-
-          // Previous implementation (kept for reference):
-          /*
-          const result = await MCPAgentV2.executeMCPAgent({
-            serverId: command.serverId,
-            serverName: command.serverName,
-            userPrompt,
-            sourceUid: focusedBlockUid.current,
-            additionalPrompt,
-            instantModel: model || defaultModel,
-            target,
-            roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
             style,
+            serverId: command.serverId,
+            serverName: command.serverName,
           });
-          */
-          console.log("✅ MCP Agent execution completed:", result);
         } else if (command.mcpType === "tool") {
           // Use the MCP agent with preferred tool for individual tool execution
           const userPrompt =
@@ -513,12 +498,11 @@ const StandaloneContextMenu = () => {
             target,
             prompt:
               userPrompt + (additionalPrompt ? `\n\n${additionalPrompt}` : ""),
+            style,
             serverId: command.serverId,
             serverName: command.serverName,
             preferredToolName: command.preferredToolName, // This guides the agent to use this specific tool
           });
-
-          console.log(`✅ Individual MCP tool execution completed:`, result);
         } else if (command.mcpType === "resource") {
           await MCPExecutor.executeMCPResource({
             serverId: command.serverId,

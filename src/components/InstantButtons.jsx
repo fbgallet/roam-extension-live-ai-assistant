@@ -21,6 +21,7 @@ import ModelsMenu from "./ModelsMenu.jsx";
 import {
   createChildBlock,
   focusOnBlockInMainWindow,
+  getBlockContentByUid,
   getParentBlock,
   updateBlock,
 } from "../utils/roamAPI.js";
@@ -128,6 +129,7 @@ const InstantButtons = ({
           })
         : insertCompletion({
             prompt,
+            style,
             systemPrompt,
             targetUid,
             typeOfCompletion:
@@ -143,6 +145,7 @@ const InstantButtons = ({
       : aiCallback({
           model: model,
           prompt,
+          style,
           rootUid: currentUid,
           currentUid,
           targetUid,
@@ -159,8 +162,56 @@ const InstantButtons = ({
     model = model,
     isConversationToContinue,
   }) => {
-    if (isConversationToContinue) {
-      prompt.push({ role: "user", content: response });
+    console.log("🔄 handleConversation called", {
+      aiCallback: !!aiCallback,
+      agentData: !!agentData,
+      isConversationToContinue,
+    });
+    console.log("targetUid :>> ", targetUid);
+    const userPrompt = getBlockContentByUid(targetUid) || "";
+    console.log("userPrompt :>> ", userPrompt);
+    // Check if this is an agent callback (like MCP agent)
+    if (aiCallback && agentData) {
+      console.log("🎯 Using agent callback path");
+
+      console.log("🔍 Debug info:", {
+        targetUid,
+        userPrompt,
+        toolResultsCache: agentData?.toolResultsCache,
+      });
+      console.log(
+        "📊 Cache keys:",
+        Object.keys(agentData?.toolResultsCache || {})
+      );
+
+      if (userPrompt) {
+        console.log("✅ Calling agent with:", {
+          serverId: agentData.serverId,
+          serverName: agentData.serverName,
+          preferredToolName: agentData.preferredToolName,
+          rootUid: targetUid,
+          prompt: userPrompt,
+        });
+
+        aiCallback({
+          model: model,
+          prompt: userPrompt,
+          style,
+          rootUid: targetUid,
+          targetUid: undefined, // Let agent create new block
+          target: "new",
+          serverId: agentData.serverId,
+          serverName: agentData.serverName,
+          preferredToolName: agentData.preferredToolName,
+          agentData: agentData, // Pass conversation state
+        });
+      } else {
+        console.log("❌ No user prompt found in block", targetUid);
+      }
+    } else if (isConversationToContinue) {
+      // prompt.push({ role: "user", content: response });
+      prompt.push({ role: "user", content: userPrompt });
+      console.log("conversation prompts :>> ", prompt);
       insertCompletion({
         targetUid: await createChildBlock(
           getParentBlock(targetUid),
@@ -385,6 +436,8 @@ const InstantButtons = ({
               isUserResponse: true,
               content,
               roamContext,
+              aiCallback,
+              agentData,
             };
             handleInsertConversationButtons(props);
           }}

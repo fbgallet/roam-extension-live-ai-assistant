@@ -5,11 +5,11 @@ export class MCPDiscovery {
 
   static DISCOVERY_ENDPOINTS = [
     "/mcp",
-    "/api/mcp",
+    // "/api/mcp",
     "/rpc",
     "/jsonrpc",
-    "/api/jsonrpc",
-    "/v1/mcp",
+    // "/api/jsonrpc",
+    // "/v1/mcp",
     "",
   ];
 
@@ -266,10 +266,10 @@ export class MCPDiscovery {
         },
       };
 
-      console.log(
-        `📤 [DISCOVERY] Sending request to ${url}:`,
-        JSON.stringify(initRequest, null, 2)
-      );
+      // console.log(
+      //   `📤 [DISCOVERY] Sending request to ${url}:`,
+      //   JSON.stringify(initRequest, null, 2)
+      // );
 
       const response = await fetch(url, {
         method: "POST",
@@ -282,20 +282,16 @@ export class MCPDiscovery {
 
       clearTimeout(timeoutId);
 
-      console.log(
-        `📥 [DISCOVERY] Response from ${url}: Status ${response.status} ${response.statusText}`
-      );
+      // console.log(
+      //   `📥 [DISCOVERY] Response from ${url}: Status ${response.status} ${response.statusText}`
+      // );
 
       if (!response.ok) {
-        console.log(`❌ [DISCOVERY] ${url} returned HTTP ${response.status}`);
+        // console.log(`❌ [DISCOVERY] ${url} returned HTTP ${response.status}`);
         return null;
       }
 
       const data = await response.json();
-      console.log(
-        `📦 [DISCOVERY] Response data from ${url}:`,
-        JSON.stringify(data, null, 2)
-      );
 
       if (data.result && data.result.capabilities) {
         console.log(`✅ [DISCOVERY] Valid MCP server found at ${url}`);
