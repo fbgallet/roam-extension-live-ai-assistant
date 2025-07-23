@@ -144,14 +144,22 @@ const InstantButtons = ({
           })
       : aiCallback({
           model: model,
-          prompt,
+          prompt: Array.isArray(prompt) ? prompt[0]?.content || prompt : prompt,
           style,
           rootUid: currentUid,
           currentUid,
           targetUid,
-          previousResponse: response,
+          previousResponse: isToRedoBetter ? response : undefined,
+          serverId: agentData?.serverId,
+          serverName: agentData?.serverName,
+          preferredToolName: agentData?.preferredToolName,
+          agentData: isToRedoBetter
+            ? agentData
+            : { ...agentData, toolResultsCache: {} }, // Clear cache for simple retry
           options: {
-            retryInstruction,
+            retryInstruction: isToRedoBetter ? retryInstruction : undefined,
+            isRetry: true,
+            isToRedoBetter: isToRedoBetter,
           },
         });
     setIsToUnmount(true);
@@ -162,37 +170,11 @@ const InstantButtons = ({
     model = model,
     isConversationToContinue,
   }) => {
-    console.log("🔄 handleConversation called", {
-      aiCallback: !!aiCallback,
-      agentData: !!agentData,
-      isConversationToContinue,
-    });
-    console.log("targetUid :>> ", targetUid);
     const userPrompt = getBlockContentByUid(targetUid) || "";
-    console.log("userPrompt :>> ", userPrompt);
+
     // Check if this is an agent callback (like MCP agent)
     if (aiCallback && agentData) {
-      console.log("🎯 Using agent callback path");
-
-      console.log("🔍 Debug info:", {
-        targetUid,
-        userPrompt,
-        toolResultsCache: agentData?.toolResultsCache,
-      });
-      console.log(
-        "📊 Cache keys:",
-        Object.keys(agentData?.toolResultsCache || {})
-      );
-
       if (userPrompt) {
-        console.log("✅ Calling agent with:", {
-          serverId: agentData.serverId,
-          serverName: agentData.serverName,
-          preferredToolName: agentData.preferredToolName,
-          rootUid: targetUid,
-          prompt: userPrompt,
-        });
-
         aiCallback({
           model: model,
           prompt: userPrompt,

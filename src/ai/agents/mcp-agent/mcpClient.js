@@ -246,10 +246,10 @@ class MCPClient {
       },
     };
 
-    console.log(
-      `🔧 [MCP CLIENT] Sending tool call request:`,
-      JSON.stringify(request, null, 2)
-    );
+    // console.log(
+    //   `🔧 [MCP CLIENT] Sending tool call request:`,
+    //   JSON.stringify(request, null, 2)
+    // );
 
     const response = await this.sendRequest(request);
 
