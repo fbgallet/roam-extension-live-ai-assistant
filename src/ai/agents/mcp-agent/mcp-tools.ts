@@ -21,17 +21,20 @@ export const getFilteredMCPTools = (client: any, serverId: string) => {
 };
 
 // Helper function to create a full LangChain tool from MCP tool
-export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFeedback: boolean = false) => {
+export const createFullLangChainTool = (
+  mcpTool: any,
+  client: any,
+  withToasterFeedback: boolean = false
+) => {
   // Create Zod schema from MCP tool input schema
-  const createZodSchema = (inputSchema: any) => {
+  const createZodSchema = (inputSchema: any): z.ZodObject<any> => {
     if (!inputSchema || !inputSchema.properties) {
       return z.object({});
     }
 
     const zodObject: Record<string, z.ZodType<any>> = {};
 
-    for (const [key, prop] of Object.entries(inputSchema.properties)) {
-      const property = prop as any;
+    const createZodTypeFromProperty = (property: any): z.ZodType<any> => {
       let zodType: z.ZodType<any>;
 
       switch (property.type) {
@@ -51,14 +54,44 @@ export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFe
           zodType = z.boolean();
           break;
         case "array":
-          zodType = z.array(z.any());
+          if (property.items) {
+            const itemType = createZodTypeFromProperty(property.items);
+            zodType = z.array(itemType);
+          } else {
+            zodType = z.array(z.any());
+          }
           break;
         case "object":
-          zodType = z.object({}).passthrough();
+          if (property.properties) {
+            const nestedZodObject: Record<string, z.ZodType<any>> = {};
+            for (const [nestedKey, nestedProp] of Object.entries(property.properties)) {
+              let nestedZodType = createZodTypeFromProperty(nestedProp as any);
+              
+              if ((nestedProp as any).description) {
+                nestedZodType = nestedZodType.describe((nestedProp as any).description);
+              }
+              
+              if (!property.required || !property.required.includes(nestedKey)) {
+                nestedZodType = nestedZodType.optional();
+              }
+              
+              nestedZodObject[nestedKey] = nestedZodType;
+            }
+            zodType = z.object(nestedZodObject);
+          } else {
+            zodType = z.object({}).passthrough();
+          }
           break;
         default:
           zodType = z.any();
       }
+
+      return zodType;
+    };
+
+    for (const [key, prop] of Object.entries(inputSchema.properties)) {
+      const property = prop as any;
+      let zodType = createZodTypeFromProperty(property);
 
       if (property.description) {
         zodType = zodType.describe(property.description);
@@ -80,16 +113,17 @@ export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFe
 
   return tool(
     async (input: any) => {
+      const startTime = Date.now();
+      
       // Toaster feedback for UI integration
       if (withToasterFeedback) {
-        const toolCallMsg = `\n🔧 Calling tool: ${mcpTool.name}`;
-        const argsMsg = `\n📝 Args: ${JSON.stringify(input, null, 2)}`;
+        const toolCallMsg = `\n🔧 Calling ${mcpTool.name}...`;
 
         const currentToaster =
           window.mcpToasterStreamElement ||
           document.querySelector(".mcp-toaster .bp3-toast-message");
         if (currentToaster) {
-          currentToaster.innerText += toolCallMsg + argsMsg;
+          currentToaster.innerText += toolCallMsg;
         }
       }
 
@@ -100,16 +134,18 @@ export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFe
         );
         const result = await client.callTool(mcpTool.name, input);
 
-        console.log(
-          `✅ [MCP RESPONSE] Tool "${mcpTool.name}" raw result:`,
-          JSON.stringify(result, null, 2)
-        );
+        // console.log(
+        //   `✅ [MCP RESPONSE] Tool "${mcpTool.name}" raw result:`,
+        //   JSON.stringify(result, null, 2)
+        // );
 
         if (result.result) {
           const formattedResult = JSON.stringify(result.result, null, 2);
-          
+          const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+          const responseLength = formattedResult.length;
+
           if (withToasterFeedback) {
-            const responseMsg = `\n✅ Response received\n`;
+            const responseMsg = `\n✅ Success (${duration}s, ${responseLength} chars)`;
             const currentToaster =
               window.mcpToasterStreamElement ||
               document.querySelector(".mcp-toaster .bp3-toast-message");
@@ -124,8 +160,10 @@ export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFe
           );
           return formattedResult;
         } else if (result.error) {
+          const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+          
           if (withToasterFeedback) {
-            const errorMsg = `\n❌ Error: ${result.error}\n`;
+            const errorMsg = `\n❌ Failed (${duration}s): ${result.error}`;
             const currentToaster =
               window.mcpToasterStreamElement ||
               document.querySelector(".mcp-toaster .bp3-toast-message");
@@ -140,8 +178,10 @@ export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFe
           );
           throw new Error(`MCP Tool Error: ${result.error}`);
         } else {
+          const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+          
           if (withToasterFeedback) {
-            const warningMsg = `\n⚠️ Tool executed but returned no result\n`;
+            const warningMsg = `\n⚠️ No result (${duration}s)`;
             const currentToaster =
               window.mcpToasterStreamElement ||
               document.querySelector(".mcp-toaster .bp3-toast-message");
@@ -156,8 +196,10 @@ export const createFullLangChainTool = (mcpTool: any, client: any, withToasterFe
           return "Tool executed but returned no result";
         }
       } catch (error) {
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        
         if (withToasterFeedback) {
-          const errorMsg = `\n💥 Exception: ${error.message}\n`;
+          const errorMsg = `\n💥 Exception (${duration}s): ${error.message}`;
           const currentToaster =
             window.mcpToasterStreamElement ||
             document.querySelector(".mcp-toaster .bp3-toast-message");
@@ -193,7 +235,7 @@ export const createToolsForLLM = (
 ) => {
   if (!preferredToolName) {
     // Normal behavior - return all tools with full descriptions
-    return mcpToolsList.map((tool) => createFullLangChainTool(tool, client));
+    return mcpToolsList.map((tool) => createFullLangChainTool(tool, client, true));
   }
 
   // Preferred tool mode - create optimized set
@@ -204,7 +246,7 @@ export const createToolsForLLM = (
 
   // Add preferred tool with full description
   if (preferredTool) {
-    tools.push(createFullLangChainTool(preferredTool, client));
+    tools.push(createFullLangChainTool(preferredTool, client, true));
   }
 
   // Add "request_tool_access" meta-tool to get descriptions of other tools
@@ -221,7 +263,7 @@ export const createToolsForLLM = (
         }
 
         // Create and add the full tool for future use
-        const fullTool = createFullLangChainTool(requestedTool, currentClient);
+        const fullTool = createFullLangChainTool(requestedTool, currentClient, true);
         mcpTools?.push(fullTool);
 
         return `Tool "${toolName}" is now available. Description: ${requestedTool.description}\\n\\nYou can now use this tool directly in your next response.`;
