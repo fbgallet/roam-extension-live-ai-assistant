@@ -17,8 +17,8 @@ export const CATEGORY_ICON = {
   TRANSLATION: "translate",
   "CRITICAL REASONING TOOLKIT": "predictive-analysis",
   "CUSTOM PROMPTS": "user",
-  "MCP AGENTS": "robot",
-  "MCP TOOLS": "satellite",
+  "MCP AGENTS": "data-connection",
+  "MCP TOOLS": "wrench",
   "MCP RESOURCES": "database",
   "MCP PROMPTS": "chat",
 };

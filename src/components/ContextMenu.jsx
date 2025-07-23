@@ -78,7 +78,7 @@ import {
 import { tokensLimit } from "../ai/modelsInfo";
 import { mcpManager } from "../ai/agents/mcp-agent/mcpManager";
 import { MCPExecutor } from "../ai/agents/mcp-agent/mcpExecutor";
-import { invokeMCPAgent } from "../ai/agents/mcp-agent/mcp-agent";
+import { invokeMCPAgent } from "../ai/agents/mcp-agent/invoke-mcp-agent";
 import { MCPDiagnostics } from "../ai/agents/mcp-agent/mcpDiagnostics";
 import MCPConfigComponent from "./MCPConfigComponent";
 
@@ -1311,7 +1311,7 @@ const StandaloneContextMenu = () => {
 
       const agentCommands = connectedServers.map((server, index) => ({
         id: 5500 + index,
-        name: `Use MCP Agent: ${server.name}`,
+        name: `Server: ${server.name}`,
         category: "MCP AGENTS",
         keyWords: `mcp agent ${server.name}`,
         serverName: server.name,
