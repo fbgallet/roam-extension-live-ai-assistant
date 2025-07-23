@@ -308,30 +308,28 @@ const assistant = async (state: typeof MCPAgentState.State) => {
     currentToaster.innerText += `\n🤖 LLM thinking...`;
   }
 
+  const llmStartTime = Date.now();
   const response = await llm_with_tools.invoke(messages);
+  const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
 
   console.log(`🤖 [LLM RESPONSE] Response type: ${response.constructor.name}`);
   console.log(`🤖 [LLM CONTENT] Response content:`, response.content);
 
   if ("tool_calls" in response && response.tool_calls) {
-    const toolCallsMsg = `\n🎯 LLM wants to call ${
-      response.tool_calls.length
-    } tool${response.tool_calls.length > 1 ? "s" : ""}:`;
+    const toolCallNb = response.tool_calls.length;
+    const toolCallsMsg = `\n🎯 LLM ${
+      toolCallNb ? "decided to call tool" : "generated the final answer"
+    } (${llmDuration}s)`;
     if (currentToaster) {
       currentToaster.innerText += toolCallsMsg;
     }
-
-    response.tool_calls.forEach((call: any) => {
-      const toolMsg = `\n  • ${call.name}`;
-      if (currentToaster) {
-        currentToaster.innerText += toolMsg;
-      }
-    });
   } else {
     if (currentToaster) {
-      currentToaster.innerText += `\n✅ LLM provided final answer`;
+      currentToaster.innerText += `\n✅ LLM provided final answer (${llmDuration}s)`;
     }
-    console.log(`🤖 [LLM NO_TOOLS] LLM provided final answer without tools`);
+    console.log(
+      `🤖 [LLM NO_TOOLS] LLM provided final answer without tools in ${llmDuration}s`
+    );
   }
 
   return {
