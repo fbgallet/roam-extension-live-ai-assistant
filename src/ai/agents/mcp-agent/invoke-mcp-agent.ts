@@ -22,14 +22,14 @@ interface MCPAgentInvoker {
   target?: string;
   prompt: string;
   style?: string;
-  serverId: string;
-  serverName: string;
+  serverId: string | string[]; // Support multiple servers
+  serverName: string | string[]; // Support multiple servers
   preferredToolName?: string;
   previousResponse?: string;
   // Conversation state for continuing conversations
   agentData?: {
-    serverId: string;
-    serverName: string;
+    serverId: string | string[]; // Support multiple servers
+    serverName: string | string[]; // Support multiple servers
     preferredToolName?: string;
     toolResultsCache?: Record<string, any>;
     conversationHistory?: string[];
@@ -64,7 +64,8 @@ export const invokeMCPAgent = async ({
     style,
     serverId,
     serverName,
-    preferredToolName: preferredToolName || "(all tools)",
+    preferredToolName: preferredToolName, // Keep undefined when not set
+    preferredToolDisplay: preferredToolName || "(all tools)", // For logging clarity
     rootUid,
     agentData: !!agentData,
     isRetry: options?.isRetry,
@@ -77,26 +78,60 @@ export const invokeMCPAgent = async ({
   const spinnerId = displaySpinner(rootUid);
 
   displayMCPToast("");
-  setTimeout(() => {
-    mcpToasterStream = window.mcpToasterStreamElement as HTMLElement | null;
-    if (mcpToasterStream) {
-      mcpToasterStream.innerText += `\n🚀 Starting MCP agent with server "${serverName}"`;
-    }
-  }, 100);
+  
+  // Wait for toaster to be ready before starting agent
+  await new Promise(resolve => {
+    setTimeout(() => {
+      mcpToasterStream = window.mcpToasterStreamElement as HTMLElement | null;
+      if (mcpToasterStream) {
+        const serverDisplay = Array.isArray(serverName) 
+          ? `servers: ${serverName.join(', ')}`
+          : `server "${serverName}"`;
+        mcpToasterStream.innerText += `\n🚀 Starting MCP agent with ${serverDisplay}`;
+      }
+      resolve(true);
+    }, 100);
+  });
 
   try {
-    const client = mcpManager.getClient(serverId);
-    if (!client) {
-      throw new Error(`MCP server ${serverName} not connected`);
+    // Handle single or multiple servers
+    const serverIds = Array.isArray(serverId) ? serverId : [serverId];
+    const serverNames = Array.isArray(serverName) ? serverName : [serverName];
+    
+    // Validate all servers are connected
+    for (let i = 0; i < serverIds.length; i++) {
+      const client = mcpManager.getClient(serverIds[i]);
+      if (!client) {
+        throw new Error(`MCP server ${serverNames[i]} not connected`);
+      }
     }
 
-    // Get filtered MCP tools based on user preferences
-    const mcpToolsList = getFilteredMCPTools(client, serverId);
+    // Get filtered MCP tools from all servers
+    let allMcpToolsList: any[] = [];
+    const allLangchainTools: any[] = [];
+    
+    for (let i = 0; i < serverIds.length; i++) {
+      const sId = serverIds[i];
+      const sName = serverNames[i];
+      const client = mcpManager.getClient(sId);
+      
+      const mcpToolsList = getFilteredMCPTools(client, sId);
+      
+      // Namespace tools if multiple servers
+      const namespacedTools = serverIds.length > 1
+        ? mcpToolsList.map((tool: any) => ({ ...tool, name: `${sName}:${tool.name}`, serverId: sId, serverName: sName }))
+        : mcpToolsList.map((tool: any) => ({ ...tool, serverId: sId, serverName: sName }));
+      
+      allMcpToolsList = [...allMcpToolsList, ...namespacedTools];
+      
+      // Create LangChain tools for this server
+      const serverLangchainTools = mcpToolsList.map((mcpTool: any) =>
+        createFullLangChainTool(mcpTool, client, true)
+      );
+      allLangchainTools.push(...serverLangchainTools);
+    }
 
-    // Create tools in LangChain format using unified function with toaster feedback
-    const langchainTools = mcpToolsList.map((mcpTool: any) =>
-      createFullLangChainTool(mcpTool, client, true)
-    );
+    const langchainTools = allLangchainTools;
 
     // Create the graph with these tools
     const mcpAgent = createMCPGraph(langchainTools);
@@ -133,7 +168,7 @@ export const invokeMCPAgent = async ({
         conversationData.preferredToolName || preferredToolName,
       targetUid: target && target.includes("new") ? undefined : targetUid,
       mcpTools: langchainTools,
-      availableToolsForDynamic: [],
+      availableToolsForDynamic: allMcpToolsList, // Pass the tools list for planning
       mcpToasterStream: mcpToasterStream,
       messages: [new HumanMessage(finalPrompt)], // Initialize with final prompt (includes retry instructions)
       // Conversation state
@@ -147,6 +182,9 @@ export const invokeMCPAgent = async ({
       // Retry state
       isRetry: isRetry,
       isToRedoBetter: isToRedoBetter,
+      // Planning state
+      executionPlan: undefined,
+      needsPlanning: false,
     });
 
     console.log("✅ MCP Agent response:", response);

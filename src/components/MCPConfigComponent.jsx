@@ -58,7 +58,7 @@ const MCPConfigComponent = ({ extensionStorage }) => {
     const connectedServers = mcpManager.getConnectedServers();
     const states = {};
 
-    setServers(currentServers => {
+    setServers((currentServers) => {
       currentServers.forEach((server) => {
         const connectedServer = connectedServers.find(
           (cs) => cs.name === server.name
@@ -178,9 +178,9 @@ const MCPConfigComponent = ({ extensionStorage }) => {
   };
 
   const toggleServerExpanded = (serverId) => {
-    setExpandedServers(prev => ({
+    setExpandedServers((prev) => ({
       ...prev,
-      [serverId]: !prev[serverId]
+      [serverId]: !prev[serverId],
     }));
   };
 
@@ -189,11 +189,11 @@ const MCPConfigComponent = ({ extensionStorage }) => {
       ...toolPreferences,
       [serverId]: {
         ...toolPreferences[serverId],
-        [toolName]: enabled
-      }
+        [toolName]: enabled,
+      },
     };
     await saveToolPreferences(newPreferences);
-    
+
     // Trigger ContextMenu update to reflect changes
     if (window.LiveAI?.updateMCPItems) {
       window.LiveAI.updateMCPItems();
@@ -287,20 +287,26 @@ const MCPConfigComponent = ({ extensionStorage }) => {
                 <Button
                   minimal
                   small
-                  icon={expandedServers[server.id] ? "chevron-down" : "chevron-right"}
+                  icon={
+                    expandedServers[server.id]
+                      ? "chevron-down"
+                      : "chevron-right"
+                  }
                   onClick={() => toggleServerExpanded(server.id)}
                   style={{ fontSize: "11px", padding: "2px 4px" }}
                 >
                   {expandedServers[server.id] ? "Hide Tools" : "Show Tools"}
                 </Button>
-                
+
                 <Collapse isOpen={expandedServers[server.id]}>
-                  <div style={{ 
-                    marginTop: "8px", 
-                    padding: "8px", 
-                    backgroundColor: "#f5f5f5", 
-                    borderRadius: "4px" 
-                  }}>
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      padding: "8px",
+                      backgroundColor: "#f5f5f5",
+                      borderRadius: "4px",
+                    }}
+                  >
                     {getServerTools(server.id).map((tool) => (
                       <div
                         key={tool.name}
@@ -309,30 +315,40 @@ const MCPConfigComponent = ({ extensionStorage }) => {
                           justifyContent: "space-between",
                           alignItems: "flex-start",
                           marginBottom: "8px",
-                          padding: "4px 0"
+                          padding: "4px 0",
                         }}
                       >
                         <div style={{ flex: 1, marginRight: "8px" }}>
-                          <div style={{ 
-                            fontWeight: "bold", 
-                            fontSize: "12px",
-                            marginBottom: "2px"
-                          }}>
+                          <div
+                            style={{
+                              fontWeight: "bold",
+                              fontSize: "12px",
+                              marginBottom: "2px",
+                            }}
+                          >
                             {tool.name}
                           </div>
                           {tool.description && (
-                            <div style={{ 
-                              fontSize: "11px", 
-                              color: "#666",
-                              lineHeight: "1.3"
-                            }}>
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                color: "#666",
+                                lineHeight: "1.3",
+                              }}
+                            >
                               {tool.description}
                             </div>
                           )}
                         </div>
                         <Switch
                           checked={isToolEnabled(server.id, tool.name)}
-                          onChange={(e) => toggleToolEnabled(server.id, tool.name, e.target.checked)}
+                          onChange={(e) =>
+                            toggleToolEnabled(
+                              server.id,
+                              tool.name,
+                              e.target.checked
+                            )
+                          }
                           small
                         />
                       </div>
@@ -386,7 +402,14 @@ const MCPConfigComponent = ({ extensionStorage }) => {
   };
 
   return (
-    <div style={{ padding: "10px" }}>
+    <div
+      style={{
+        padding: "10px",
+        height: "100%",
+        overflow: "auto",
+        maxHeight: "900px",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -438,9 +461,7 @@ const MCPConfigComponent = ({ extensionStorage }) => {
       <Dialog
         isOpen={isAddDialogOpen}
         onClose={resetForm}
-        title={
-          editingServer ? "Edit MCP Server" : "Add MCP Server"
-        }
+        title={editingServer ? "Edit MCP Server" : "Add MCP Server"}
         style={{ width: "500px" }}
       >
         <div style={{ padding: "20px" }}>
