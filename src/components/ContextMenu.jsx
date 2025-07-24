@@ -1304,6 +1304,29 @@ const StandaloneContextMenu = () => {
         mcpType: "agent",
         mcpData: server,
       }));
+      
+      // Add multi-server command if multiple servers are connected
+      if (connectedServers.length > 1) {
+        const allServerNames = connectedServers.map(s => s.name);
+        const allServerIds = connectedServers.map(s => s.serverId);
+        
+        agentCommands.unshift({
+          id: 5499, // Lower ID to appear first
+          name: `All Servers (${connectedServers.length})`,
+          category: "MCP AGENTS",
+          keyWords: `mcp agent multi server all ${allServerNames.join(' ')}`,
+          serverName: allServerNames,
+          serverId: allServerIds,
+          description: `AI agent with coordinated access to all ${connectedServers.length} connected MCP servers: ${allServerNames.join(', ')}`,
+          mcpType: "agent",
+          mcpData: {
+            isMultiServer: true,
+            servers: connectedServers,
+            serverCount: connectedServers.length
+          },
+        });
+      }
+      
       setMcpAgents(agentCommands);
 
       const allTools = mcpManager.getAllTools();
