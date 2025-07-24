@@ -1436,22 +1436,6 @@ const StandaloneContextMenu = () => {
                   />
                 </Tooltip>
                 <Tooltip
-                  content="Configure MCP servers"
-                  disabled={window.roamAlphaAPI.platform.isMobile}
-                  hoverOpenDelay={600}
-                  openOnTargetFocus={false}
-                  style={{ zIndex: "9999" }}
-                >
-                  <Icon
-                    icon="data-connection"
-                    size={12}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsMCPConfigOpen(true);
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip
                   content="Tokens usage and cost by model"
                   disabled={window.roamAlphaAPI.platform.isMobile}
                   hoverOpenDelay={600}
@@ -1465,6 +1449,22 @@ const StandaloneContextMenu = () => {
                       e.stopPropagation();
                       displayTokensDialog();
                       setIsOpen(false);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip
+                  content="Configure MCP servers"
+                  disabled={window.roamAlphaAPI.platform.isMobile}
+                  hoverOpenDelay={600}
+                  openOnTargetFocus={false}
+                  style={{ zIndex: "9999" }}
+                >
+                  <Icon
+                    icon="data-connection"
+                    size={12}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMCPConfigOpen(true);
                     }}
                   />
                 </Tooltip>

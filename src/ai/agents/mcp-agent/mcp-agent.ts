@@ -78,6 +78,11 @@ IMPORTANT TOOL USAGE:
 CRITICAL PARAMETER GUIDELINES:
 - Always use exact parameter names as specified in the tool schema
 
+FINAL RESPONSE GUIDANCE BASED ON OPERATION TYPE:
+- **For ACTION operations** (writing to databases, creating elements, updating records, deleting items): Provide CONCISE summaries focusing on what was accomplished. Do NOT duplicate the full content of what was created/modified.
+- **For RETRIEVAL operations** (fetching data, searching, reading information): Provide COMPREHENSIVE responses with the retrieved data that adds value to the user.
+- **For CONVERSATIONAL operations** (user seeking advice, analysis, or interactive dialogue that may involve mixed actions/retrievals): Provide THOUGHTFUL, CONTEXTUAL responses that synthesize information and engage meaningfully with the user's intent, regardless of underlying tool operations.
+
 Here is the user request: <USER_PROMPT>`;
 
 // Nodes
@@ -208,6 +213,7 @@ CONVERSATION MODE OPTIMIZATION:
 - In a conversation, if you have sufficient data from previous tool calls (provide above in the prompt), you should answer without making new tool calls
 - Only make new tool calls if: 1) You need fresh/updated data, 2) The user is asking for something not covered by previous results, 3) You need to perform a new action
 - When possible, reference and build upon previous responses and cached tool results
+- Apply response guidance: Concise summaries for actions, comprehensive data for retrievals, thoughtful engagement for conversations
 `;
   } else if (state.isRetry && state.isToRedoBetter && state.previousResponse) {
     // For better retry mode, include previous context but with retry-specific optimization
@@ -248,13 +254,12 @@ RETRY MODE OPTIMIZATION:
 - Check the previous response and tool cache results to decide if you need new tool calls or can improve with existing data
 - Only make new tool calls if: 1) Previous tools had errors, 2) You need additional data not in cache, 3) The retry instruction requires new information
 - Focus on addressing the specific improvement requested in the retry instruction
+- Apply response guidance: Concise summaries for actions, comprehensive data for retrievals, thoughtful engagement for conversations
 `;
   } else {
     conversationContext = "";
     conversationOptimization = "";
   }
-
-  console.log("state.style :>> ", state.style);
 
   const systemPrompt = system_prompt_template
     .replace("<SERVER_NAME>", state.serverName)
@@ -271,7 +276,7 @@ RETRY MODE OPTIMIZATION:
     .replace("<CONVERSATION_OPTIMIZATION>", conversationOptimization)
     .replace("<USER_PROMPT>", state.userPrompt);
 
-  console.log("systemPrompt :>> ", systemPrompt);
+  console.log("Agent systemPrompt :>> ", systemPrompt);
 
   // Log tool schemas for debugging
   // console.log("🔧 MCP Tools schemas:");

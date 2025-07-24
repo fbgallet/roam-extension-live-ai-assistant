@@ -340,7 +340,7 @@ class MCPClient {
 
   async sendHTTPRequest(request) {
     try {
-      console.log(`🔥 [HTTP] Sending request to: ${this.connection.url}`);
+      // console.log(`🔥 [HTTP] Sending request to: ${this.connection.url}`);
       // console.log(`🔥 [HTTP] Headers:`, this.connection.headers);
       // console.log(`🔥 [HTTP] Body:`, JSON.stringify(request, null, 2));
 
@@ -348,7 +348,7 @@ class MCPClient {
       const headers = { ...this.connection.headers };
       if (this.sessionId) {
         headers["Mcp-Session-Id"] = this.sessionId;
-        console.log(`🔥 [HTTP] Using session ID:`, this.sessionId);
+        // console.log(`🔥 [HTTP] Using session ID:`, this.sessionId);
       }
 
       const response = await fetch(this.connection.url, {
@@ -357,9 +357,9 @@ class MCPClient {
         body: JSON.stringify(request),
       });
 
-      console.log(
-        `🔥 [HTTP] Response status: ${response.status} ${response.statusText}`
-      );
+      // console.log(
+      //   `🔥 [HTTP] Response status: ${response.status} ${response.statusText}`
+      // );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -383,17 +383,17 @@ class MCPClient {
           if (idLine && parsed.method === undefined) {
             // Only for responses, not notifications
             this.sessionId = idLine.substring(4); // Remove 'id: ' prefix
-            console.log(`🔥 [HTTP] Captured session ID:`, this.sessionId);
+            // console.log(`🔥 [HTTP] Captured session ID:`, this.sessionId);
           }
 
-          console.log(`🔥 [HTTP] Parsed SSE:`, parsed);
+          // console.log(`🔥 [HTTP] Parsed SSE:`, parsed);
           return parsed;
         }
       }
 
       // Fallback to regular JSON
       const parsed = JSON.parse(text);
-      console.log(`🔥 [HTTP] Parsed JSON:`, parsed);
+      // console.log(`🔥 [HTTP] Parsed JSON:`, parsed);
       return parsed;
     } catch (error) {
       console.error("🚨 [HTTP] Request failed:", error);
@@ -422,10 +422,10 @@ class MCPClient {
   }
 
   handleMessage(message) {
-    console.log(
-      `📨 [MCP CLIENT] Received message:`,
-      JSON.stringify(message, null, 2)
-    );
+    // console.log(
+    //   `📨 [MCP CLIENT] Received message:`,
+    //   JSON.stringify(message, null, 2)
+    // );
 
     if (message.id && this.pendingRequests.has(message.id)) {
       const { resolve, reject } = this.pendingRequests.get(message.id);
