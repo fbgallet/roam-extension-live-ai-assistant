@@ -160,16 +160,8 @@ export const createFullLangChainTool = (
       }
 
       try {
-        console.log(
-          `⚡ [MCP REQUEST] Calling server tool "${mcpTool.name}" with processed args:`,
-          input
-        );
         const result = await client.callTool(mcpTool.name, input);
 
-        // console.log(
-        //   `✅ [MCP RESPONSE] Tool "${mcpTool.name}" raw result:`,
-        //   JSON.stringify(result, null, 2)
-        // );
 
         if (result.result) {
           const formattedResult = JSON.stringify(result.result, null, 2);
@@ -186,10 +178,6 @@ export const createFullLangChainTool = (
             }
           }
 
-          console.log(
-            `📊 [MCP SUCCESS] Tool "${mcpTool.name}" formatted result:`,
-            formattedResult
-          );
           return formattedResult;
         } else if (result.error) {
           const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -204,10 +192,6 @@ export const createFullLangChainTool = (
             }
           }
 
-          console.error(
-            `❌ [MCP ERROR] Tool "${mcpTool.name}" returned error:`,
-            result.error
-          );
           throw new Error(`MCP Tool Error: ${result.error}`);
         } else {
           const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -222,9 +206,6 @@ export const createFullLangChainTool = (
             }
           }
 
-          console.log(
-            `⚠️  [MCP WARNING] Tool "${mcpTool.name}" returned no result or error`
-          );
           return "Tool executed but returned no result";
         }
       } catch (error) {
@@ -240,10 +221,6 @@ export const createFullLangChainTool = (
           }
         }
 
-        console.error(
-          `💥 [MCP EXCEPTION] Error executing tool "${mcpTool.name}":`,
-          error
-        );
 
         throw error;
       }

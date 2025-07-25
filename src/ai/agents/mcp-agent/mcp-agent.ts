@@ -25,12 +25,7 @@ import {
   RETRY_PLAN_TEMPLATE,
 } from "./mcp-agent-prompts";
 import { mcpManager } from "./mcpManager";
-import {
-  getFilteredMCPTools,
-  getMCPResources,
-  getMCPPrompts,
-  createToolsForLLM,
-} from "./mcp-tools";
+import { getFilteredMCPTools, createToolsForLLM } from "./mcp-tools";
 import { chatRoles, getInstantAssistantRole } from "../../..";
 
 const MCPAgentState = Annotation.Root({
@@ -160,16 +155,6 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
     // Get filtered MCP tools based on user preferences
     const mcpToolsList = getFilteredMCPTools(client, serverId as string);
 
-    // Resources and prompts are handled separately in their respective processing nodes
-    // Resources: processResourceContext node
-    // Prompts: processPromptContext node
-
-    // Resources are not tools - they provide context content
-    // Store resources separately for context injection
-
-    // Store prompts separately - they're not tools, they're conversation enhancers
-    // We'll handle prompts differently in the prompt processing node
-
     // Only include actual tools, not resources
     const allServerItems = [...mcpToolsList];
 
@@ -192,25 +177,6 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   // Store available tools for dynamic loading
   availableToolsForDynamic = mcpToolsList;
 
-  if (state.preferredToolName) {
-    console.log(
-      `Using "${state.preferredToolName}" from ${buildServerInfo(
-        state.serverName,
-        isMultiple
-      )}`
-    );
-  } else {
-    const toolCount = mcpToolsList.filter((item) => !item.type).length;
-    const resourceCount = mcpToolsList.filter(
-      (item) => item.type === "resource"
-    ).length;
-    console.log(
-      `🔧 Found ${toolCount} tools and ${resourceCount} resources from ${buildServerInfo(
-        state.serverName,
-        isMultiple
-      )}`
-    );
-  }
 
   // Create tools for LLM - need to handle multiple clients and resources
   const allTools: any[] = [];
@@ -250,14 +216,6 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   const serverInfo = buildServerInfo(state.serverName as any, isMultiple);
 
   // Build base system prompt with MCP guidance and resource content if available
-  console.log(
-    "🔍 [DEBUG] MCP prompt guidance in state:",
-    state.mcpPromptGuidance
-  );
-  console.log("🔍 [DEBUG] isPromptProcessed:", state.isPromptProcessed);
-  console.log("🔍 [DEBUG] promptContext:", state.promptContext);
-  console.log("🔍 [DEBUG] activeResources:", Object.keys(state.activeResources || {}));
-  console.log("🔍 [DEBUG] resourceContext:", state.resourceContext);
 
   // Build resource content for system prompt
   const resourceContent = buildResourceContent(
@@ -279,7 +237,6 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
     resourceContent, // Include resource content
   });
 
-  // console.log("systemPrompt :>> ", systemPrompt);
 
   sys_msg = new SystemMessage({ content: systemPrompt });
 
@@ -293,8 +250,6 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
 // Simple emergency parser for minor JSON formatting issues
 const emergencyParsePlanningResponse = (responseText: string) => {
   try {
-    console.log(`🔧 [EMERGENCY PARSING] Original text:`, responseText);
-
     // Clean up - focus only on removing markdown wrapper
     let cleanedText = responseText.trim();
 
@@ -302,20 +257,14 @@ const emergencyParsePlanningResponse = (responseText: string) => {
     cleanedText = cleanedText.replace(/^```json\s*\n?/, ""); // Remove opening ```json
     cleanedText = cleanedText.replace(/\n?\s*```\s*$/, ""); // Remove closing ```
     cleanedText = cleanedText.replace(/```/g, ""); // Remove any remaining ```
-
-    // Additional cleanup
     cleanedText = cleanedText.trim();
 
-    console.log(`🔧 [EMERGENCY PARSING] After markdown removal:`, cleanedText);
-
-    // Try parsing the cleaned text directly (Claude's JSON is usually valid)
+    // Try parsing the cleaned text directly
     const result = JSON.parse(cleanedText);
 
-    console.log(`🔧 [EMERGENCY PARSING] Parsed result:`, result);
-
     // For multi-server planning, we always expect an execution plan
-    const finalResult = {
-      needsPlanning: true, // Always true for multi-server scenarios
+    return {
+      needsPlanning: true,
       executionPlan:
         result.executionPlan ||
         result.execution_plan ||
@@ -323,12 +272,7 @@ const emergencyParsePlanningResponse = (responseText: string) => {
         undefined,
       reasoning: result.reasoning || "Emergency parsing applied",
     };
-
-    console.log(`🔧 [EMERGENCY PARSING] Final result:`, finalResult);
-    return finalResult;
   } catch (error) {
-    console.warn(`🔧 [EMERGENCY PARSING] Failed to clean and parse:`, error);
-    console.warn(`🔧 [EMERGENCY PARSING] Text that failed:`, responseText);
     return null;
   }
 };
@@ -340,17 +284,16 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
   }
 
   // Skip processing if already done in this conversation (stateful optimization)
-  if (state.isResourceProcessed && state.activeResources[state.resourceContext.resourceUri]) {
-    console.log(
-      `📄 [RESOURCE PROCESSING] Skipping - already processed in this conversation`
-    );
+  if (
+    state.isResourceProcessed &&
+    state.activeResources[state.resourceContext.resourceUri]
+  ) {
     return {
       resourceContent: state.activeResources[state.resourceContext.resourceUri],
     };
   }
 
   const { resourceUri, serverId } = state.resourceContext;
-  console.log(`📄 [RESOURCE PROCESSING] Processing MCP resource: ${resourceUri}`);
 
   const currentToaster = state.mcpToasterStream;
   if (currentToaster) {
@@ -359,7 +302,9 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
 
   try {
     // Get the appropriate server client
-    const targetServerId = serverId || (Array.isArray(state.serverId) ? state.serverId[0] : state.serverId);
+    const targetServerId =
+      serverId ||
+      (Array.isArray(state.serverId) ? state.serverId[0] : state.serverId);
     const client = mcpManager.getClient(targetServerId);
 
     if (!client) {
@@ -368,12 +313,12 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
 
     // Get the resource content with fallback URI formats
     let response;
-    if (!resourceUri.includes('://') && !resourceUri.startsWith('/')) {
+    if (!resourceUri.includes("://") && !resourceUri.startsWith("/")) {
       // Try common URI formats for servers that might expect different schemes
       const uriFormats = [
-        resourceUri,                  // original URI first
-        `file://${resourceUri}`,     // file:// with 2 slashes
-        `file:///${resourceUri}`,    // file:// with 3 slashes
+        resourceUri, // original URI first
+        `file://${resourceUri}`, // file:// with 2 slashes
+        `file:///${resourceUri}`, // file:// with 3 slashes
       ];
 
       let lastError;
@@ -393,30 +338,34 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
       // URI already has a scheme, use as-is
       response = await client.getResource(resourceUri);
     }
-    
+
     if (!response.result || !response.result.contents) {
       throw new Error(`No content from MCP resource: ${resourceUri}`);
     }
 
     // Process the resource content
     let content = response.result.contents;
-    let mimeType = 'text/plain';
-    
+    let mimeType = "text/plain";
+
     // Handle different content types according to MCP spec
     if (Array.isArray(content)) {
-      const processedContent = content.map(item => {
-        if (item.type === 'text') {
-          return item.text;
-        } else if (item.type === 'blob') {
-          mimeType = item.mimeType || 'application/octet-stream';
-          return `[Binary content: ${item.mimeType || 'unknown type'}, ${item.blob?.length || 0} bytes]`;
-        }
-        return JSON.stringify(item);
-      }).join('\n\n');
+      const processedContent = content
+        .map((item) => {
+          if (item.type === "text") {
+            return item.text;
+          } else if (item.type === "blob") {
+            mimeType = item.mimeType || "application/octet-stream";
+            return `[Binary content: ${item.mimeType || "unknown type"}, ${
+              item.blob?.length || 0
+            } bytes]`;
+          }
+          return JSON.stringify(item);
+        })
+        .join("\n\n");
       content = processedContent;
-    } else if (typeof content === 'object') {
+    } else if (typeof content === "object") {
       content = JSON.stringify(content, null, 2);
-      mimeType = 'application/json';
+      mimeType = "application/json";
     }
 
     if (currentToaster) {
@@ -462,7 +411,7 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
       resourceContent: {
         content: "",
         uri: resourceUri,
-        mimeType: 'text/plain',
+        mimeType: "text/plain",
         serverId: state.serverId,
         error: error.message,
       },
@@ -480,9 +429,6 @@ const processPromptContext = async (state: typeof MCPAgentState.State) => {
 
   // Skip processing if already done in this conversation (stateful optimization)
   if (state.isPromptProcessed && state.mcpPromptGuidance) {
-    console.log(
-      `📝 [PROMPT PROCESSING] Skipping - already processed in this conversation`
-    );
     return {
       promptEnhancement: {
         systemPromptAddition: state.mcpPromptGuidance,
@@ -494,7 +440,6 @@ const processPromptContext = async (state: typeof MCPAgentState.State) => {
   }
 
   const { promptName } = state.promptContext;
-  console.log(`📝 [PROMPT PROCESSING] Processing MCP prompt: ${promptName}`);
 
   const currentToaster = state.mcpToasterStream;
   if (currentToaster) {
@@ -512,7 +457,6 @@ const processPromptContext = async (state: typeof MCPAgentState.State) => {
     }
 
     // Get prompt definition first to check for arguments
-    // Use mcpManager to get all prompts (including fake test prompts)
     const allPrompts = mcpManager.getAllPrompts();
     const promptDef = allPrompts.find((p) => p.name === promptName);
 
@@ -528,10 +472,6 @@ const processPromptContext = async (state: typeof MCPAgentState.State) => {
       const optionalArgs = promptDef.arguments.filter((arg) => !arg.required);
 
       if (requiredArgs.length > 0 || optionalArgs.length > 0) {
-        console.log(
-          `📝 [PROMPT ARGS] Extracting arguments for prompt: ${promptName}`
-        );
-
         // Use LLM to extract arguments from user prompt
         const argExtractionPrompt = `Extract the following arguments from the user's prompt for the MCP prompt "${promptName}":
 
@@ -560,12 +500,7 @@ If a required argument cannot be extracted, set it to null.`;
 
         try {
           promptArguments = JSON.parse(extractionResponse.content.toString());
-          console.log(`📝 [PROMPT ARGS] Extracted arguments:`, promptArguments);
         } catch (error) {
-          console.warn(
-            `📝 [PROMPT ARGS] Failed to parse extracted arguments:`,
-            error
-          );
           promptArguments = {};
         }
 
@@ -586,16 +521,10 @@ If a required argument cannot be extracted, set it to null.`;
     }
 
     // Get the completed prompt with arguments
-    // Use mcpManager to handle both real and fake test prompts
     const promptResponse = await mcpManager.getPrompt(
       serverIds[0],
       promptName,
       promptArguments
-    );
-
-    console.log(
-      "📝 [PROMPT RESPONSE] Full response:",
-      JSON.stringify(promptResponse, null, 2)
     );
 
     if (!promptResponse.result || !promptResponse.result.messages) {
@@ -606,18 +535,9 @@ If a required argument cannot be extracted, set it to null.`;
     let systemPromptAddition = "";
     let userPromptEnhancement = "";
 
-    console.log(
-      `📝 [PROMPT MESSAGES] Processing ${promptResponse.result.messages.length} messages:`
-    );
-    promptResponse.result.messages.forEach((message, index) => {
-      console.log(
-        `📝 [MESSAGE ${index}] Role: ${message.role}, Content type: ${message.content?.type}`
-      );
+    promptResponse.result.messages.forEach((message) => {
       if (message.role === "system" && message.content.type === "text") {
         systemPromptAddition += message.content.text + "\n";
-        console.log(
-          `📝 [SYSTEM] Added ${message.content.text.length} chars to system prompt`
-        );
       } else if (message.role === "user" && message.content.type === "text") {
         userPromptEnhancement = message.content.text;
       }
@@ -677,21 +597,12 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
     ? (state.serverName as string[])
     : [state.serverName as string];
 
-  console.log(
-    `📋 [MULTI-SERVER PLANNING] Node started - servers: ${serverNames.join(
-      ", "
-    )}, isRetry: ${state.isToRedoBetter}`
-  );
-
   // Use the toaster element from state (more reliable than searching DOM)
   const currentToaster = state.mcpToasterStream;
 
   // Show planning node is active
   if (currentToaster) {
     currentToaster.innerText += `\n📋 Planning multi-server coordination...`;
-    console.log(`📋 [TOASTER] Added multi-server planning message to toaster`);
-  } else {
-    console.warn(`⚠️ [TOASTER] No toaster element found in state for planning`);
   }
 
   // Handle forced planning scenarios (retry or predefined templates)
@@ -705,7 +616,6 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
       );
     }
 
-    console.log(`📋 [PLANNING] Retry plan: ${executionPlan}`);
     return {
       needsPlanning: true,
       executionPlan,
@@ -736,30 +646,16 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
     ]);
 
     const responseText = planningResponse.content.toString();
-    console.log("📋 [PLANNING] Response text:", responseText);
 
     let planningResult: any;
     try {
       // First, try strict JSON parsing
       planningResult = JSON.parse(responseText);
     } catch (jsonError) {
-      console.warn(
-        `⚠️ [PLANNING] JSON parsing failed, attempting emergency parsing:`,
-        jsonError
-      );
-
       // Emergency parsing for malformed JSON
       planningResult = emergencyParsePlanningResponse(responseText);
 
-      if (planningResult) {
-        console.log(
-          `📋 [PLANNING] Emergency parsing succeeded:`,
-          planningResult
-        );
-      } else {
-        console.warn(
-          `⚠️ [PLANNING] Emergency parsing also failed, using fallback plan`
-        );
+      if (!planningResult) {
         // Fallback to basic multi-server template
         planningResult = {
           executionPlan: MULTI_SERVER_PLAN_TEMPLATE.replace(
@@ -787,15 +683,11 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
       );
     }
 
-    console.log(`📋 [PLANNING] Multi-server execution plan: ${executionPlan}`);
-
     return {
       needsPlanning: true,
       executionPlan: executionPlan,
     };
   } catch (error) {
-    console.warn(`⚠️ [PLANNING] Failed to create plan, using fallback:`, error);
-
     // Always provide a fallback plan for multi-server scenarios
     const fallbackPlan = MULTI_SERVER_PLAN_TEMPLATE.replace(
       "<SERVER_NAMES>",
@@ -824,10 +716,6 @@ const assistant = async (state: typeof MCPAgentState.State) => {
 
   // Rebuild system prompt if we have fresh MCP prompt enhancement
   if (state.promptEnhancement?.systemPromptAddition) {
-    console.log(
-      `🔄 [ASSISTANT] Rebuilding system prompt with fresh MCP prompt enhancement`
-    );
-
     // Rebuild system prompt with fresh enhancement
     const serverInfo = buildServerInfo(
       state.serverName as any,
@@ -862,60 +750,9 @@ const assistant = async (state: typeof MCPAgentState.State) => {
     });
 
     currentSystemMsg = new SystemMessage({ content: enhancedSystemPrompt });
-
-    console.log(
-      `📝 [ASSISTANT] Rebuilt system prompt with MCP guidance from "${state.promptEnhancement.promptName}"`
-    );
-  } else if (state.mcpPromptGuidance) {
-    console.log(
-      `📝 [ASSISTANT] Using pre-loaded MCP prompt guidance (${state.mcpPromptGuidance.length} chars)`
-    );
-  } else {
-    console.log(`📝 [ASSISTANT] No MCP prompt guidance available`);
   }
 
-  console.log(
-    `📝 [ASSISTANT] Assistant systemPrompt:`,
-    currentSystemMsg.content
-  );
-
   const messages = [currentSystemMsg, ...state.messages];
-
-  console.log(
-    `🤖 [ASSISTANT] System prompt length: ${currentSystemMsg.content.length} chars`
-  );
-  console.log(
-    `🤖 [ASSISTANT] Tool names:`,
-    state.mcpTools?.map((t) => t.name) || []
-  );
-
-  // Log MessagesAnnotation state to verify it's up-to-date
-  console.log(
-    `📨 [MESSAGES] MessagesAnnotation state (${state.messages.length} messages):`
-  );
-  state.messages.forEach((msg, index) => {
-    const role =
-      msg._getType() === "human"
-        ? "User"
-        : msg._getType() === "ai"
-        ? "Assistant"
-        : msg._getType() === "tool"
-        ? "Tool"
-        : msg._getType() === "system"
-        ? "System"
-        : msg._getType();
-    const content =
-      typeof msg.content === "string"
-        ? msg.content.substring(0, 100)
-        : JSON.stringify(msg.content).substring(0, 100);
-    console.log(
-      `📨 [MESSAGE ${index}] ${role}: ${content}${
-        content.length >= 100 ? "..." : ""
-      }`
-    );
-  });
-
-  console.log("🤖 [ASSISTANT] Full messages being sent to LLM:", messages);
 
   const currentToaster = state.mcpToasterStream;
   if (currentToaster) {
@@ -925,9 +762,6 @@ const assistant = async (state: typeof MCPAgentState.State) => {
   const llmStartTime = Date.now();
   const response = await llm_with_tools.invoke(messages);
   const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
-
-  console.log(`🤖 [LLM RESPONSE] Response type: ${response.constructor.name}`);
-  console.log(`🤖 [LLM CONTENT] Response content:`, response.content);
 
   if ("tool_calls" in response && response.tool_calls) {
     const toolCallNb = response.tool_calls.length;
@@ -941,9 +775,6 @@ const assistant = async (state: typeof MCPAgentState.State) => {
     if (currentToaster) {
       currentToaster.innerText += `\n✅ LLM provided final answer (${llmDuration}s)`;
     }
-    console.log(
-      `🤖 [LLM NO_TOOLS] LLM provided final answer without tools in ${llmDuration}s`
-    );
   }
 
   return {
@@ -971,19 +802,6 @@ const insertResponse = async (state: typeof MCPAgentState.State) => {
         currentToaster.innerText += `\n🔢 Tokens: ${inputTokens} in / ${outputTokens} out`;
       }
     }
-    console.log(`🏁 [MCP AGENT] Total execution time: ${totalDuration}s`);
-
-    // Log token usage if available
-    if (
-      turnTokensUsage &&
-      (turnTokensUsage.input_tokens || turnTokensUsage.output_tokens)
-    ) {
-      const inputTokens = turnTokensUsage.input_tokens || 0;
-      const outputTokens = turnTokensUsage.output_tokens || 0;
-      console.log(
-        `🔢 [MCP AGENT] Tokens used: ${inputTokens} input / ${outputTokens} output`
-      );
-    }
   }
 
   const assistantRole = state.model.id
@@ -992,14 +810,9 @@ const insertResponse = async (state: typeof MCPAgentState.State) => {
 
   // Determine parent block based on conversation mode or retry mode
   let parentUid = state.rootUid;
-  console.log("state.isConversationMode :>> ", state.isConversationMode);
-  console.log("state.targetUid :>> ", state.targetUid);
   if (state.isConversationMode) {
     parentUid = getParentBlock(state.rootUid);
   }
-  // else if (state.isRetry) {
-  //   parentUid = state.targetUid;
-  // }
 
   state.targetUid = await createChildBlock(
     parentUid,
@@ -1011,7 +824,6 @@ const insertResponse = async (state: typeof MCPAgentState.State) => {
     content: lastMessage,
     forceInChildren: true,
   });
-  // }
 
   return {
     targetUid: state.targetUid,
@@ -1052,73 +864,14 @@ const toolsWithCaching = async (state: typeof MCPAgentState.State) => {
   toolMessages.forEach((msg: any) => {
     if (msg.tool_call_id && msg.content) {
       const toolName = msg.name;
-      const isResourceTool = toolName?.startsWith("resource_");
-      const isPromptTool = toolName?.startsWith("prompt_");
-
-      if (isResourceTool || isPromptTool) {
-        // For resources and prompts, check if we already have this content cached
-        // Use tool name + content hash for large content to avoid expensive comparisons
-        const contentStr = msg.content.toString();
-        const isLargeContent = contentStr.length > 10000;
-        const contentKey = isLargeContent
-          ? `${toolName}_${contentStr.length}_${contentStr.substring(0, 100)}`
-          : contentStr;
-
-        const existingCacheKey = Object.keys(updatedCache).find((key) => {
-          const cached = updatedCache[key];
-          if (
-            cached.tool_name !== toolName ||
-            cached.type !== (isResourceTool ? "resource" : "prompt")
-          ) {
-            return false;
-          }
-
-          // For large content, use the content key for fast comparison
-          if (isLargeContent) {
-            const cachedContentStr = cached.content.toString();
-            const cachedContentKey = `${cached.tool_name}_${
-              cachedContentStr.length
-            }_${cachedContentStr.substring(0, 100)}`;
-            return cachedContentKey === contentKey;
-          }
-
-          // For small content, direct comparison is fine
-          return cached.content === msg.content;
-        });
-
-        if (existingCacheKey) {
-          // Resource/prompt already cached - just update timestamp and reference the existing cache
-          updatedCache[existingCacheKey].timestamp = Date.now();
-          updatedCache[existingCacheKey].lastAccessedBy = msg.tool_call_id;
-          console.log(
-            `🔄 [CACHE] Reusing cached ${
-              isResourceTool ? "resource" : "prompt"
-            }: ${toolName}`
-          );
-        } else {
-          // New resource/prompt - cache it
-          updatedCache[msg.tool_call_id] = {
-            content: msg.content,
-            timestamp: Date.now(),
-            tool_name: toolName,
-            type: isResourceTool ? "resource" : "prompt",
-            lastAccessedBy: msg.tool_call_id,
-          };
-          console.log(
-            `💾 [CACHE] Cached new ${
-              isResourceTool ? "resource" : "prompt"
-            }: ${toolName}`
-          );
-        }
-      } else {
-        // Regular tools - cache normally (they may have different results each time)
-        updatedCache[msg.tool_call_id] = {
-          content: msg.content,
-          timestamp: Date.now(),
-          tool_name: toolName,
-          type: "tool",
-        };
-      }
+      
+      // Cache tool results normally
+      updatedCache[msg.tool_call_id] = {
+        content: msg.content,
+        timestamp: Date.now(),
+        tool_name: toolName,
+        type: "tool",
+      };
     }
   });
 
@@ -1146,14 +899,7 @@ export const createMCPGraph = (_tools: any[]) => {
       if (state.resourceContext?.isResourceCall) {
         // Only process if not already done in this conversation
         if (!state.isResourceProcessed) {
-          console.log(
-            `🔄 [GRAPH] Processing MCP resource: ${state.resourceContext.resourceUri}`
-          );
           return "processResourceContext";
-        } else {
-          console.log(
-            `🔄 [GRAPH] MCP resource already processed, skipping to next step`
-          );
         }
       }
 
@@ -1161,14 +907,7 @@ export const createMCPGraph = (_tools: any[]) => {
       if (state.promptContext?.isPromptCall) {
         // Only process if not already done in this conversation
         if (!state.isPromptProcessed) {
-          console.log(
-            `🔄 [GRAPH] Processing MCP prompt: ${state.promptContext.promptName}`
-          );
           return "processPromptContext";
-        } else {
-          console.log(
-            `🔄 [GRAPH] MCP prompt already processed, skipping to next step`
-          );
         }
       }
 
@@ -1178,22 +917,12 @@ export const createMCPGraph = (_tools: any[]) => {
       // 1. Using a specific preferred tool (tool command, not server agent)
       // 2. OR single server (pure ReAct is better for single server)
       if (state.preferredToolName) {
-        console.log(
-          `🔄 [GRAPH] Skipping planning - using specific tool: ${state.preferredToolName}`
-        );
         return "assistant";
       }
 
       if (!isMultiple) {
-        console.log(
-          `🔄 [GRAPH] Skipping planning - single server, using pure ReAct`
-        );
         return "assistant";
       }
-
-      console.log(
-        `🔄 [GRAPH] Multi-server detected - running multi-server planning`
-      );
       return "multiServerPlanning";
     })
     .addConditionalEdges("processResourceContext", (state) => {

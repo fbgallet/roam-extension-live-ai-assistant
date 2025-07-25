@@ -85,20 +85,7 @@ export const invokeMCPAgent = async ({
   promptContext,
   resourceContext,
 }: MCPAgentInvoker) => {
-  console.log("🤖 Invoking MCP Agent with:", {
-    model,
-    style,
-    serverId,
-    serverName,
-    preferredToolName: preferredToolName, // Keep undefined when not set
-    preferredToolDisplay: preferredToolName || "(all tools)", // For logging clarity
-    rootUid,
-    agentData: !!agentData,
-    isRetry: options?.isRetry,
-    hasRetryInstruction: !!options?.retryInstruction,
-  });
 
-  console.log("💾 Agent data received:", agentData);
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
   const spinnerId = displaySpinner(rootUid);
@@ -240,7 +227,6 @@ export const invokeMCPAgent = async ({
       isResourceProcessed: conversationData.isResourceProcessed || false,
     });
 
-    console.log("✅ MCP Agent response:", response);
 
     if (mcpToasterStream) {
       mcpToasterStream.innerText += `\n🎉 MCP Agent completed successfully!`;
@@ -300,7 +286,6 @@ export const invokeMCPAgent = async ({
 
     return response;
   } catch (error) {
-    console.error("❌ Error invoking MCP Agent:", error);
 
     if (mcpToasterStream) {
       mcpToasterStream.innerText += `\n💥 Error: ${error.message}`;
@@ -342,9 +327,6 @@ const buildConversationState = async (
 
   // Summarize every 3 exchanges (6 messages) to avoid summarizing every turn
   if (newExchangesSinceLastSummary >= 3 && newHistory.length > 6) {
-    console.log(
-      `📝 [SUMMARY] Creating conversation summary (${newExchangesSinceLastSummary} exchanges)`
-    );
     try {
       // Show toaster feedback
       if (toasterElement) {
@@ -379,9 +361,6 @@ ${conversationToSummarize}
       ]);
 
       const newSummary = summaryResponse.content.toString();
-      console.log(
-        `📝 [SUMMARY] Created conversation summary (${newSummary.length} chars)`
-      );
 
       // Update toaster feedback
       if (toasterElement) {
@@ -397,7 +376,6 @@ ${conversationToSummarize}
         exchangesSinceLastSummary: 0, // Reset counter after summarization
       };
     } catch (error) {
-      console.warn("Failed to create conversation summary:", error);
 
       // Update toaster with error
       if (toasterElement) {
