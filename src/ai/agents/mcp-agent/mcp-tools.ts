@@ -20,6 +20,38 @@ export const getFilteredMCPTools = (client: any, serverId: string) => {
   });
 };
 
+// Helper function to get MCP resources
+export const getMCPResources = (client: any, serverId: string) => {
+  try {
+    const allResources = client.getResources();
+    const resourcePreferences =
+      mcpManager.extensionStorage?.get("mcpResourcePreferences") || {};
+    return allResources.filter((resource: any) => {
+      const isEnabled = resourcePreferences[serverId]?.[resource.uri] !== false;
+      return isEnabled;
+    });
+  } catch (error) {
+    console.warn(`Server ${serverId} does not support resources:`, error);
+    return [];
+  }
+};
+
+// Helper function to get MCP prompts
+export const getMCPPrompts = (client: any, serverId: string) => {
+  try {
+    const allPrompts = client.getPrompts();
+    const promptPreferences =
+      mcpManager.extensionStorage?.get("mcpPromptPreferences") || {};
+    return allPrompts.filter((prompt: any) => {
+      const isEnabled = promptPreferences[serverId]?.[prompt.name] !== false;
+      return isEnabled;
+    });
+  } catch (error) {
+    console.warn(`Server ${serverId} does not support prompts:`, error);
+    return [];
+  }
+};
+
 // Helper function to create a full LangChain tool from MCP tool
 export const createFullLangChainTool = (
   mcpTool: any,
@@ -223,6 +255,12 @@ export const createFullLangChainTool = (
     }
   );
 };
+
+// MCP Resources are handled as context content, not tools
+// Resource functionality moved to resource context injection system
+
+// MCP Prompts are no longer converted to tools - they enhance the system prompt directly
+// The processPromptContext node in mcp-agent.ts handles prompt processing
 
 // Helper function to create token-efficient tool set
 export const createToolsForLLM = (

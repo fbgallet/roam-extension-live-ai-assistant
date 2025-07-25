@@ -1,5 +1,9 @@
 import { defaultModel } from "../../..";
-import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
+import {
+  LlmInfos,
+  TokensUsage,
+  modelViaLanggraph,
+} from "../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
 import {
   displaySpinner,
@@ -12,7 +16,7 @@ import { mcpManager } from "./mcpManager";
 import { createMCPGraph } from "./mcp-agent";
 import { getFilteredMCPTools, createFullLangChainTool } from "./mcp-tools";
 
-let turnTokensUsage: TokensUsage;
+let turnTokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 }; // Initialize with proper TokensUsage structure
 let mcpToasterStream: HTMLElement | null = null;
 
 interface MCPAgentInvoker {
@@ -32,15 +36,35 @@ interface MCPAgentInvoker {
     serverName: string | string[]; // Support multiple servers
     preferredToolName?: string;
     toolResultsCache?: Record<string, any>;
-    conversationHistory?: string[];
+    conversationHistory?: string[]; // User-visible conversation across executions
+    conversationSummary?: string; // Summary of older conversation parts
+    exchangesSinceLastSummary?: number; // Track exchanges since last summary
     previousResponse?: string;
     isConversationMode?: boolean;
+    // Stateful MCP prompt guidance
+    mcpPromptGuidance?: string;
+    isPromptProcessed?: boolean;
+    // Stateful resource content
+    activeResources?: Record<string, any>;
+    isResourceProcessed?: boolean;
   };
   // Retry options
   options?: {
     retryInstruction?: string;
     isRetry?: boolean;
     isToRedoBetter?: boolean;
+  };
+  // Prompt-specific context
+  promptContext?: {
+    promptName: string;
+    isPromptCall: boolean;
+    arguments?: Record<string, any>;
+  };
+  // Resource-specific context
+  resourceContext?: {
+    resourceUri: string;
+    isResourceCall: boolean;
+    serverId?: string;
   };
 }
 
@@ -58,6 +82,8 @@ export const invokeMCPAgent = async ({
   previousResponse,
   agentData,
   options,
+  promptContext,
+  resourceContext,
 }: MCPAgentInvoker) => {
   console.log("🤖 Invoking MCP Agent with:", {
     model,
@@ -78,14 +104,14 @@ export const invokeMCPAgent = async ({
   const spinnerId = displaySpinner(rootUid);
 
   displayMCPToast("");
-  
+
   // Wait for toaster to be ready before starting agent
-  await new Promise(resolve => {
+  await new Promise((resolve) => {
     setTimeout(() => {
       mcpToasterStream = window.mcpToasterStreamElement as HTMLElement | null;
       if (mcpToasterStream) {
-        const serverDisplay = Array.isArray(serverName) 
-          ? `servers: ${serverName.join(', ')}`
+        const serverDisplay = Array.isArray(serverName)
+          ? `servers: ${serverName.join(", ")}`
           : `server "${serverName}"`;
         mcpToasterStream.innerText += `\n🚀 Starting MCP agent with ${serverDisplay}`;
       }
@@ -97,7 +123,7 @@ export const invokeMCPAgent = async ({
     // Handle single or multiple servers
     const serverIds = Array.isArray(serverId) ? serverId : [serverId];
     const serverNames = Array.isArray(serverName) ? serverName : [serverName];
-    
+
     // Validate all servers are connected
     for (let i = 0; i < serverIds.length; i++) {
       const client = mcpManager.getClient(serverIds[i]);
@@ -109,21 +135,31 @@ export const invokeMCPAgent = async ({
     // Get filtered MCP tools from all servers
     let allMcpToolsList: any[] = [];
     const allLangchainTools: any[] = [];
-    
+
     for (let i = 0; i < serverIds.length; i++) {
       const sId = serverIds[i];
       const sName = serverNames[i];
       const client = mcpManager.getClient(sId);
-      
+
       const mcpToolsList = getFilteredMCPTools(client, sId);
-      
+
       // Namespace tools if multiple servers
-      const namespacedTools = serverIds.length > 1
-        ? mcpToolsList.map((tool: any) => ({ ...tool, name: `${sName}:${tool.name}`, serverId: sId, serverName: sName }))
-        : mcpToolsList.map((tool: any) => ({ ...tool, serverId: sId, serverName: sName }));
-      
+      const namespacedTools =
+        serverIds.length > 1
+          ? mcpToolsList.map((tool: any) => ({
+              ...tool,
+              name: `${sName}:${tool.name}`,
+              serverId: sId,
+              serverName: sName,
+            }))
+          : mcpToolsList.map((tool: any) => ({
+              ...tool,
+              serverId: sId,
+              serverName: sName,
+            }));
+
       allMcpToolsList = [...allMcpToolsList, ...namespacedTools];
-      
+
       // Create LangChain tools for this server
       const serverLangchainTools = mcpToolsList.map((mcpTool: any) =>
         createFullLangChainTool(mcpTool, client, true)
@@ -153,8 +189,14 @@ export const invokeMCPAgent = async ({
       preferredToolName: preferredToolName,
       toolResultsCache: {},
       conversationHistory: [],
+      conversationSummary: undefined,
+      exchangesSinceLastSummary: 0,
       previousResponse: undefined,
       isConversationMode: false,
+      mcpPromptGuidance: undefined,
+      isPromptProcessed: false,
+      activeResources: {},
+      isResourceProcessed: false,
     };
 
     const response = await mcpAgent.invoke({
@@ -174,6 +216,7 @@ export const invokeMCPAgent = async ({
       // Conversation state
       toolResultsCache: conversationData.toolResultsCache || {},
       conversationHistory: conversationData.conversationHistory || [],
+      conversationSummary: conversationData.conversationSummary,
       previousResponse:
         (isRetry && isToRedoBetter) || isConversationMode
           ? conversationData.previousResponse || previousResponse
@@ -185,6 +228,16 @@ export const invokeMCPAgent = async ({
       // Planning state
       executionPlan: undefined,
       needsPlanning: false,
+      // Prompt context
+      promptContext: promptContext,
+      // Resource context
+      resourceContext: resourceContext,
+      // Stateful MCP prompt guidance
+      mcpPromptGuidance: conversationData.mcpPromptGuidance,
+      isPromptProcessed: conversationData.isPromptProcessed || false,
+      // Stateful resource content
+      activeResources: conversationData.activeResources || {},
+      isResourceProcessed: conversationData.isResourceProcessed || false,
     });
 
     console.log("✅ MCP Agent response:", response);
@@ -195,6 +248,17 @@ export const invokeMCPAgent = async ({
 
     // Insert conversation buttons for continued interaction
     if (response && response.targetUid) {
+      // Build conversation state before setTimeout to handle async properly
+      const conversationState = await buildConversationState(
+        conversationData.conversationHistory || [],
+        conversationData.conversationSummary,
+        finalPrompt,
+        response.messages?.at(-1)?.content || "",
+        llmInfos,
+        mcpToasterStream,
+        conversationData.exchangesSinceLastSummary || 0
+      );
+
       setTimeout(() => {
         insertInstantButtons({
           model: llmInfos.id,
@@ -216,12 +280,18 @@ export const invokeMCPAgent = async ({
             preferredToolName:
               conversationData.preferredToolName || preferredToolName,
             toolResultsCache: response.toolResultsCache || {},
-            conversationHistory: [
-              ...(conversationData.conversationHistory || []),
-              response.messages?.at(-1)?.content || "",
-            ],
+            conversationHistory: conversationState.conversationHistory,
+            conversationSummary: conversationState.conversationSummary,
+            exchangesSinceLastSummary:
+              conversationState.exchangesSinceLastSummary || 0,
             previousResponse: response.messages?.at(-1)?.content || "",
             isConversationMode: true,
+            // Persist MCP prompt guidance for future conversation turns
+            mcpPromptGuidance: response.mcpPromptGuidance,
+            isPromptProcessed: response.isPromptProcessed || false,
+            // Persist resource content for future conversation turns
+            activeResources: response.activeResources || {},
+            isResourceProcessed: response.isResourceProcessed || false,
           },
           aiCallback: invokeMCPAgent,
         });
@@ -240,4 +310,116 @@ export const invokeMCPAgent = async ({
   } finally {
     removeSpinner(spinnerId);
   }
+};
+
+// Helper function for conversation state management (summarization + history)
+const buildConversationState = async (
+  currentHistory: string[],
+  currentSummary: string | undefined,
+  newUserPrompt: string,
+  newAssistantResponse: any,
+  llmInfos: any,
+  toasterElement: HTMLElement | null,
+  exchangesSinceLastSummary: number = 0
+) => {
+  // Add new messages to history
+  const assistantContent =
+    typeof newAssistantResponse === "string"
+      ? newAssistantResponse
+      : newAssistantResponse?.toString() || "";
+
+  const newHistory = [
+    ...currentHistory,
+    `User: ${newUserPrompt}`,
+    `Assistant: ${assistantContent}`,
+  ];
+
+  // Increment exchanges counter
+  const newExchangesSinceLastSummary = exchangesSinceLastSummary + 1;
+
+  // Always keep last 6 messages (3 exchanges) for recent conversation
+  const conversationHistory = newHistory.slice(-6);
+
+  // Summarize every 3 exchanges (6 messages) to avoid summarizing every turn
+  if (newExchangesSinceLastSummary >= 3 && newHistory.length > 6) {
+    console.log(
+      `📝 [SUMMARY] Creating conversation summary (${newExchangesSinceLastSummary} exchanges)`
+    );
+    try {
+      // Show toaster feedback
+      if (toasterElement) {
+        toasterElement.innerText += `\n📝 Summarizing conversation...`;
+      }
+
+      // Messages to summarize (everything except last 6)
+      const messagesToSummarize = newHistory.slice(0, -6);
+      const conversationToSummarize = messagesToSummarize.join("\n");
+
+      // Create enhanced summarization prompt
+      const summarizationPrompt = `${
+        currentSummary
+          ? `**Previous Summary:**
+${currentSummary}
+
+**Additional conversation to incorporate:**`
+          : "**Conversation to summarize:**"
+      }
+${conversationToSummarize}
+
+**Instructions:** Provide a comprehensive summary of this conversation that will help maintain context for future exchanges. Your summary should:
+
+1. **ALWAYS start with the original user request/goal** - synthesize what the user initially wanted to accomplish
+2. **Highlight important findings, results, and conclusions** - include discoveries made, problems solved, key insights gained and capture points where consensus was reached or where different viewpoints were established
+3. **Note any ongoing tasks or directions** the conversation is heading`;
+
+      // Use the same LLM to create summary
+      const llm = modelViaLanggraph(llmInfos, turnTokensUsage);
+      const summaryResponse = await llm.invoke([
+        new HumanMessage({ content: summarizationPrompt }),
+      ]);
+
+      const newSummary = summaryResponse.content.toString();
+      console.log(
+        `📝 [SUMMARY] Created conversation summary (${newSummary.length} chars)`
+      );
+
+      // Update toaster feedback
+      if (toasterElement) {
+        toasterElement.innerText = toasterElement.innerText.replace(
+          "📝 Summarizing conversation...",
+          "📝 Conversation summarized"
+        );
+      }
+
+      return {
+        conversationHistory,
+        conversationSummary: newSummary,
+        exchangesSinceLastSummary: 0, // Reset counter after summarization
+      };
+    } catch (error) {
+      console.warn("Failed to create conversation summary:", error);
+
+      // Update toaster with error
+      if (toasterElement) {
+        toasterElement.innerText = toasterElement.innerText.replace(
+          "📝 Summarizing conversation...",
+          "⚠️ Summary failed - continuing without"
+        );
+      }
+
+      // Fallback: keep the current summary if summarization fails, but still reset counter
+      return {
+        conversationHistory,
+        conversationSummary: currentSummary,
+        exchangesSinceLastSummary: 0, // Reset counter even on failure to avoid infinite retry
+      };
+    }
+  }
+
+  // Not enough exchanges to summarize yet
+  return {
+    conversationHistory,
+    conversationSummary: currentSummary,
+    exchangesSinceLastSummary: newExchangesSinceLastSummary, // Keep incrementing counter
+  };
 };
