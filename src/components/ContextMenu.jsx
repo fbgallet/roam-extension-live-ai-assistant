@@ -925,8 +925,13 @@ const StandaloneContextMenu = () => {
                 subCommand = allItems.find((item) => item.id === sub);
               }
 
+              // Skip if subCommand is not found
+              if (!subCommand) {
+                return null;
+              }
+
               // Handle divider items
-              if (subCommand?.isDivider) {
+              if (subCommand.isDivider) {
                 return (
                   <MenuDivider
                     key={subCommand.id}
@@ -941,7 +946,7 @@ const StandaloneContextMenu = () => {
                 );
               }
 
-              return subCommand?.id === 1199 ? (
+              return subCommand.id === 1199 ? (
                 customLggMenuItem(subCommand)
               ) : (
                 <MenuItem
