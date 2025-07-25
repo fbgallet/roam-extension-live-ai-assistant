@@ -154,8 +154,19 @@ const InstantButtons = ({
           serverName: agentData?.serverName,
           preferredToolName: agentData?.preferredToolName,
           agentData: isToRedoBetter
-            ? agentData
-            : { ...agentData, toolResultsCache: {} }, // Clear cache for simple retry
+            ? {
+                ...agentData,
+                // Preserve all conversation state for better retry
+                conversationHistory: agentData?.conversationHistory || [],
+                conversationSummary: agentData?.conversationSummary,
+                toolResultsCache: agentData?.toolResultsCache || {},
+              }
+            : { 
+                ...agentData, 
+                toolResultsCache: {}, // Clear cache for simple retry
+                conversationHistory: agentData?.conversationHistory || [],
+                conversationSummary: agentData?.conversationSummary,
+              },
           options: {
             retryInstruction: isToRedoBetter ? retryInstruction : undefined,
             isRetry: true,
@@ -185,7 +196,14 @@ const InstantButtons = ({
           serverId: agentData.serverId,
           serverName: agentData.serverName,
           preferredToolName: agentData.preferredToolName,
-          agentData: agentData, // Pass conversation state
+          agentData: {
+            ...agentData,
+            // Ensure all new conversation fields are preserved
+            conversationHistory: agentData.conversationHistory || [],
+            conversationSummary: agentData.conversationSummary,
+            toolResultsCache: agentData.toolResultsCache || {},
+            isConversationMode: true,
+          },
         });
       } else {
         console.log("❌ No user prompt found in block", targetUid);
@@ -272,7 +290,13 @@ const InstantButtons = ({
         model,
         isUserResponse: true,
         content,
-        agentData,
+        agentData: {
+          ...agentData,
+          // Ensure conversation state is preserved when asking questions about results
+          conversationHistory: agentData?.conversationHistory || [],
+          conversationSummary: agentData?.conversationSummary,
+          toolResultsCache: agentData?.toolResultsCache || {},
+        },
         aiCallback: invokeAskAgent,
       };
       handleInsertConversationButtons(props);
@@ -283,7 +307,13 @@ const InstantButtons = ({
       rootUid: currentUidBackup,
       target,
       prompt: question,
-      previousAgentState: agentData,
+      previousAgentState: {
+        ...agentData,
+        // Ensure conversation state is preserved for ask agent
+        conversationHistory: agentData?.conversationHistory || [],
+        conversationSummary: agentData?.conversationSummary,
+        toolResultsCache: agentData?.toolResultsCache || {},
+      },
       options: { isPostProcessingNeeded: true },
     });
   };
@@ -293,7 +323,13 @@ const InstantButtons = ({
       model,
       rootUid: currentUid,
       target,
-      previousAgentState: agentData,
+      previousAgentState: {
+        ...agentData,
+        // Ensure conversation state is preserved for search agent
+        conversationHistory: agentData?.conversationHistory || [],
+        conversationSummary: agentData?.conversationSummary,
+        toolResultsCache: agentData?.toolResultsCache || {},
+      },
     });
   };
 
@@ -419,7 +455,14 @@ const InstantButtons = ({
               content,
               roamContext,
               aiCallback,
-              agentData,
+              agentData: {
+                ...agentData,
+                // Preserve all conversation state when creating conversation buttons
+                conversationHistory: agentData?.conversationHistory || [],
+                conversationSummary: agentData?.conversationSummary,
+                toolResultsCache: agentData?.toolResultsCache || {},
+                isConversationMode: true,
+              },
             };
             handleInsertConversationButtons(props);
           }}

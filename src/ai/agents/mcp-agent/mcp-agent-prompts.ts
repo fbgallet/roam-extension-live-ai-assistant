@@ -38,13 +38,8 @@ User request: <USER_PROMPT>`;
 
 export const systemPromptTemplate = `You are an AI assistant with access to MCP (Model Context Protocol) <SERVER_INFO>.
 
-<PREFERRED_TOOL_GUIDANCE>
-
-<CONVERSATION_CONTEXT>
-<CONVERSATION_OPTIMIZATION>
-Instructions for formatting your response:
-${roamBasicsFormat}
-<RESPONSE_STYLE>
+<MCP_PROMPT_GUIDANCE><RESOURCE_CONTENT><PREFERRED_TOOL_GUIDANCE><CONVERSATION_CONTEXT><CONVERSATION_OPTIMIZATION>Instructions for formatting your response:
+${roamBasicsFormat}<RESPONSE_STYLE>
 
 REACT REASONING AND TOOL USAGE:
 Follow the ReAct (Reasoning and Acting) pattern:
@@ -80,6 +75,8 @@ export interface SystemPromptConfig {
   conversationOptimization: string;
   style: string;
   userPrompt: string;
+  mcpPromptGuidance?: string;
+  resourceContent?: string;
 }
 
 export interface PlanningPromptConfig {
@@ -96,7 +93,7 @@ export const buildSystemPrompt = (config: SystemPromptConfig): string => {
     : "";
 
   const multiServerGuidance = config.isMultiple
-    ? "\nMULTI-SERVER COORDINATION:\n- Tools are namespaced by server (e.g., server1:tool_name, server2:tool_name)\n- Consider cross-server workflows and data dependencies\n- Use appropriate servers for their specialized capabilities"
+    ? "\nMULTI-SERVER COORDINATION:\n- Tools are namespaced by server (e.g., server1:tool_name, server2:tool_name)\n- Consider cross-server workflows and data dependencies\n- Use appropriate servers for their specialized capabilities\n"
     : "";
 
   // Token optimization: Skip detailed tool descriptions for assistant execution
@@ -107,20 +104,39 @@ export const buildSystemPrompt = (config: SystemPromptConfig): string => {
     ? config.toolDescriptions // Keep descriptions for multi-server context
     : "MCP tools are available and will be provided with precise schemas when needed.";
 
+  // Add line breaks to content pieces that need spacing
+  const mcpPromptGuidance = config.mcpPromptGuidance
+    ? `MCP PROMPT GUIDANCE:\nThe following guidance from an MCP prompt should influence your conversation behavior and tool usage throughout this interaction:\n${config.mcpPromptGuidance}\n`
+    : "";
+  const resourceContent = config.resourceContent
+    ? `RESOURCE CONTEXT:\nThe following resource content is available as context for this interaction:\n${config.resourceContent}\n`
+    : "";
+  const preferredToolGuidance = config.preferredToolGuidance
+    ? config.preferredToolGuidance + "\n"
+    : "";
+  const conversationContext = config.conversationContext
+    ? config.conversationContext + "\n"
+    : "";
+  const conversationOptimization = config.conversationOptimization
+    ? config.conversationOptimization + "\n"
+    : "";
+  const responseStyle =
+    config.style !== "Normal"
+      ? "\nWrite your response following this style:\n" +
+        stylePrompts[config.style] +
+        "\n"
+      : "";
+
   return systemPromptTemplate
     .replace("<SERVER_INFO>", config.serverInfo)
-    .replace(
-      "<RESPONSE_STYLE>",
-      config.style !== "Normal"
-        ? "\nWrite your response following this style:\n" +
-            stylePrompts[config.style]
-        : ""
-    )
-    .replace("<PREFERRED_TOOL_GUIDANCE>", config.preferredToolGuidance)
+    .replace("<MCP_PROMPT_GUIDANCE>", mcpPromptGuidance)
+    .replace("<RESOURCE_CONTENT>", resourceContent)
+    .replace("<PREFERRED_TOOL_GUIDANCE>", preferredToolGuidance)
+    .replace("<CONVERSATION_CONTEXT>", conversationContext)
+    .replace("<CONVERSATION_OPTIMIZATION>", conversationOptimization)
+    .replace("<RESPONSE_STYLE>", responseStyle)
     .replace("<EXECUTION_PLAN_GUIDANCE>", executionPlanGuidance)
     .replace("<TOOL_DESCRIPTIONS>", toolDescriptions)
-    .replace("<CONVERSATION_CONTEXT>", config.conversationContext)
-    .replace("<CONVERSATION_OPTIMIZATION>", config.conversationOptimization)
     .replace("<MULTI_SERVER_GUIDANCE>", multiServerGuidance)
     .replace("<USER_PROMPT>", config.userPrompt);
 };
@@ -149,19 +165,26 @@ You are coordinating tools across multiple MCP servers.`
 // Conversation context templates
 const CONVERSATION_CONTEXT_TEMPLATE = `
 CONVERSATION CONTEXT:
-Previous response: <PREVIOUS_RESPONSE>
+<CONVERSATION_SUMMARY>Recent conversation:
+<RECENT_CONVERSATION>
 
 Available cached tool results: <CACHED_RESULTS>
 
-This is a follow-up question. Consider the previous context when responding.
+This is a follow-up question in an ongoing conversation. Consider the full conversation context when responding.
 `;
 
 const CONVERSATION_OPTIMIZATION_TEMPLATE = `
 CONVERSATION MODE OPTIMIZATION:
-- In a conversation, if you have sufficient data from previous tool calls (provide above in the prompt), you should answer without making new tool calls
-- Only make new tool calls if: 1) You need fresh/updated data, 2) The user is asking for something not covered by previous results, 3) You need to perform a new action
-- When possible, reference and build upon previous responses and cached tool results
-- Apply response guidance: Concise summaries for actions, comprehensive data for retrievals, thoughtful engagement for conversations
+- You are in a conversation mode - but feel free to use tools when they would be helpful to answer the user's messages
+- Reuse cached tool results when relevant, but don't hesitate to make new tool calls for:
+1) Fresh or updated information
+2) New topics or questions not covered by previous results  
+3) When tools would enhance your response or provide better information
+4) When conversation content suggests actions the MCP server should perform (saving data, triggering workflows, updating records, etc.)
+5) When the user's intent implies interaction with the server's core functionality beyond just answering questions
+- Use tools proactively when they can provide value to the conversation or fulfill the MCP server's intended purpose
+- Think about what actions or data management the MCP server is designed for and use tools accordingly
+- Reference previous conversation context and build upon it naturally
 `;
 
 const RETRY_CONTEXT_TEMPLATE = `
@@ -186,7 +209,21 @@ export const buildConversationContext = (state: any) => {
   let conversationContext = "";
   let conversationOptimization = "";
 
-  if (state.isConversationMode && state.previousResponse) {
+  if (
+    state.isConversationMode &&
+    (state.conversationHistory?.length > 0 || state.previousResponse)
+  ) {
+    // Build conversation summary section
+    const summarySection = state.conversationSummary
+      ? `Conversation summary:\n${state.conversationSummary}\n\n`
+      : "";
+
+    // Show last 4 messages (2 exchanges) for immediate context
+    const recentConversationText =
+      state.conversationHistory?.length > 0
+        ? state.conversationHistory.slice(-4).join("\n")
+        : `Assistant: ${state.previousResponse}`;
+
     // Filter out error responses from cached results
     const validCachedResults = Object.entries(
       state.toolResultsCache || {}
@@ -212,9 +249,11 @@ export const buildConversationContext = (state: any) => {
         : "None";
 
     conversationContext = CONVERSATION_CONTEXT_TEMPLATE.replace(
-      "<PREVIOUS_RESPONSE>",
-      state.previousResponse
-    ).replace("<CACHED_RESULTS>", cachedResultsText);
+      "<CONVERSATION_SUMMARY>",
+      summarySection
+    )
+      .replace("<RECENT_CONVERSATION>", recentConversationText)
+      .replace("<CACHED_RESULTS>", cachedResultsText);
     conversationOptimization = CONVERSATION_OPTIMIZATION_TEMPLATE;
   } else if (state.isRetry && state.isToRedoBetter && state.previousResponse) {
     // For better retry mode, include previous context but with retry-specific optimization
@@ -349,6 +388,41 @@ export const buildToolDescriptions = (
   }
 
   return { toolDescriptions, preferredToolGuidance };
+};
+
+// Resource content helper function
+export const buildResourceContent = (activeResources: Record<string, any>, currentResource?: any): string => {
+  const allResources = { ...activeResources };
+  
+  // Add current resource if provided
+  if (currentResource && currentResource.uri) {
+    allResources[currentResource.uri] = currentResource;
+  }
+
+  const resourceEntries = Object.values(allResources);
+  
+  if (resourceEntries.length === 0) {
+    return "";
+  }
+
+  return resourceEntries.map((resource: any) => {
+    const header = `--- Resource: ${resource.uri} ---`;
+    const mimeInfo = resource.mimeType ? `MIME Type: ${resource.mimeType}\n` : "";
+    
+    if (resource.error) {
+      return `${header}\nError: ${resource.error}`;
+    }
+    
+    // Truncate very large content to prevent token overflow
+    let content = resource.content;
+    const maxLength = 100000; // Approximately 25k tokens for English text
+    
+    if (content && content.length > maxLength) {
+      content = content.substring(0, maxLength) + "\n\n[Content truncated due to length...]";
+    }
+    
+    return `${header}\n${mimeInfo}${content || "No content"}`;
+  }).join("\n\n");
 };
 
 // Execution plan templates

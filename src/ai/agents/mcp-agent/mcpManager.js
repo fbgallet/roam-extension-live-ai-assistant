@@ -131,6 +131,54 @@ class MCPManager {
       }
     }
     
+    // Add test prompt for development - remove in production
+    if (process.env.NODE_ENV !== 'production') {
+      // If we have connected clients, use the first one, otherwise create a fake server entry
+      if (this.clients.size > 0) {
+        const testServerId = Array.from(this.clients.keys())[0];
+        const testClient = this.clients.get(testServerId);
+        
+        allPrompts.push({
+          name: "philosophical-beliefs-exploration",
+          description: "Guide deep exploration of foundational philosophical beliefs and worldview",
+          arguments: [
+            {
+              name: "focus_area",
+              description: "Specific philosophical domain to explore (ethics, metaphysics, epistemology, etc.)",
+              required: false
+            },
+            {
+              name: "depth_level", 
+              description: "Level of philosophical depth (introductory, intermediate, advanced)",
+              required: false
+            }
+          ],
+          serverId: testServerId,
+          serverName: testClient.config.name + " (Test Prompt)"
+        });
+      } else {
+        // No connected servers - create a fake test prompt anyway for testing
+        allPrompts.push({
+          name: "philosophical-beliefs-exploration",
+          description: "Guide deep exploration of foundational philosophical beliefs and worldview",
+          arguments: [
+            {
+              name: "focus_area",
+              description: "Specific philosophical domain to explore (ethics, metaphysics, epistemology, etc.)",
+              required: false
+            },
+            {
+              name: "depth_level", 
+              description: "Level of philosophical depth (introductory, intermediate, advanced)",
+              required: false
+            }
+          ],
+          serverId: "test-server",
+          serverName: "Test Philosophy Server"
+        });
+      }
+    }
+    
     return allPrompts;
   }
 
@@ -153,6 +201,59 @@ class MCPManager {
   }
 
   async getPrompt(serverId, promptName, arguments_) {
+    // Handle test prompt for development
+    if (promptName === "philosophical-beliefs-exploration" && process.env.NODE_ENV !== 'production') {
+      const focusArea = arguments_?.focus_area || "general philosophy";
+      const depthLevel = arguments_?.depth_level || "intermediate";
+      
+      return {
+        result: {
+          description: "Guide deep exploration of foundational philosophical beliefs and worldview",
+          messages: [
+            {
+              role: "system",
+              content: {
+                type: "text",
+                text: `You are an expert philosophical guide helping explore deep foundational beliefs about ${focusArea}. 
+
+PHILOSOPHICAL EXPLORATION FRAMEWORK:
+- Start with fundamental questions about reality, knowledge, and values
+- Guide through ${depthLevel}-level philosophical inquiry
+- Encourage reflection on underlying assumptions and worldview
+- Connect abstract concepts to practical life implications
+- Use Socratic questioning to deepen understanding
+
+EXPLORATION AREAS FOR ${focusArea.toUpperCase()}:
+${focusArea === "ethics" ? 
+  "- What makes actions right or wrong?\n- Are moral truths objective or relative?\n- How should we balance individual rights vs collective good?\n- What role does intention vs consequences play in morality?" :
+focusArea === "metaphysics" ? 
+  "- What is the fundamental nature of reality?\n- Do we have free will or is everything determined?\n- What is the relationship between mind and matter?\n- Is there meaning or purpose built into existence?" :
+focusArea === "epistemology" ?
+  "- How do we acquire genuine knowledge?\n- Can we trust our senses and reason?\n- What is the role of faith, intuition, and experience?\n- How certain can we be about anything?" :
+  "- What gives life meaning and purpose?\n- How should we understand truth and knowledge?\n- What are our moral obligations to others?\n- What is the good life and how should it be lived?"
+}
+
+DEPTH LEVEL: ${depthLevel.toUpperCase()}
+${depthLevel === "introductory" ? "Focus on accessible concepts and real-world examples" :
+  depthLevel === "intermediate" ? "Engage with classical philosophical positions and their implications" :
+  "Explore nuanced arguments, paradoxes, and the interaction between different philosophical domains"
+}
+
+Remember: The goal is not to provide answers but to guide thoughtful exploration of these fundamental questions about existence, knowledge, and values.`
+              }
+            },
+            {
+              role: "user", 
+              content: {
+                type: "text",
+                text: `Please guide me through a philosophical exploration focusing on ${focusArea} at the ${depthLevel} level. Help me examine my foundational beliefs and assumptions through thoughtful questioning and reflection.`
+              }
+            }
+          ]
+        }
+      };
+    }
+    
     const client = this.clients.get(serverId);
     if (!client) {
       throw new Error(`MCP server ${serverId} not connected`);

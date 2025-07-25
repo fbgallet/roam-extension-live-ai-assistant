@@ -77,7 +77,6 @@ import {
 } from "../ai/aiAPIsHub";
 import { tokensLimit } from "../ai/modelsInfo";
 import { mcpManager } from "../ai/agents/mcp-agent/mcpManager";
-import { MCPExecutor } from "../ai/agents/mcp-agent/mcpExecutor";
 import { invokeMCPAgent } from "../ai/agents/mcp-agent/invoke-mcp-agent";
 import { MCPDiagnostics } from "../ai/agents/mcp-agent/mcpDiagnostics";
 import MCPConfigComponent from "./MCPConfigComponent";
@@ -162,6 +161,7 @@ const StandaloneContextMenu = () => {
   const [mcpResources, setMcpResources] = useState([]);
   const [mcpPrompts, setMcpPrompts] = useState([]);
   const [mcpAgents, setMcpAgents] = useState([]);
+  const [mcpSubmenuItems, setMcpSubmenuItems] = useState([]);
   const [isMCPConfigOpen, setIsMCPConfigOpen] = useState(false);
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
@@ -504,28 +504,62 @@ const StandaloneContextMenu = () => {
             preferredToolName: command.preferredToolName, // This guides the agent to use this specific tool
           });
         } else if (command.mcpType === "resource") {
-          await MCPExecutor.executeMCPResource({
+          await invokeMCPAgent({
+            prompt: `${getInstantPrompt(command)}${
+              additionalPrompt ? `\n\n${additionalPrompt}` : ""
+            }`,
+            rootUid: focusedBlockUid.current,
+            model: model || defaultModel,
             serverId: command.serverId,
-            resourceUri: command.mcpData.uri,
-            sourceUid: focusedBlockUid.current,
-            prompt: getInstantPrompt(command),
-            additionalPrompt,
-            instantModel: model || defaultModel,
-            target,
-            roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
-            style,
+            serverName: command.serverName,
+            style: style,
+            isConversationMode: false,
+            isRetry: false,
+            isToRedoBetter: false,
+            resourceContext: {
+              resourceUri: command.mcpData.uri,
+              isResourceCall: true,
+              serverId: command.serverId,
+            },
           });
         } else if (command.mcpType === "prompt") {
-          await MCPExecutor.executeMCPPrompt({
-            serverId: command.serverId,
-            promptName: command.mcpData.name,
-            promptArguments: {},
-            sourceUid: focusedBlockUid.current,
-            additionalPrompt,
-            instantModel: model || defaultModel,
-            target,
-            roamContext: hasTrueBooleanKey(roamContext) ? roamContext : null,
-            style,
+          // Handle MCP prompts through the agent with prompt context
+          let effectiveServerId = command.serverId;
+          let effectiveServerName = command.serverName;
+
+          // For test prompts with fake server, use first available real server or handle specially
+          if (command.serverId === "test-server") {
+            const connectedServers = mcpManager.getConnectedServers();
+            if (connectedServers.length > 0) {
+              effectiveServerId = connectedServers[0].serverId;
+              effectiveServerName = connectedServers[0].name;
+            } else {
+              // No real servers connected - just use a simple agent call without MCP tools
+              alert(
+                "No MCP servers connected. Please configure an MCP server to test prompts."
+              );
+              return;
+            }
+          }
+
+          await invokeMCPAgent({
+            prompt: `${getInstantPrompt(command)}${
+              additionalPrompt ? `\n\n${additionalPrompt}` : ""
+            }`,
+            rootUid: focusedBlockUid.current,
+            model: model || defaultModel,
+            serverId: effectiveServerId,
+            serverName: effectiveServerName,
+            // No preferredToolName for prompts - they should have full tool access
+            style: style,
+            isConversationMode: false,
+            isRetry: false,
+            isToRedoBetter: false,
+            // Add prompt-specific context
+            promptContext: {
+              promptName: command.mcpData.name,
+              isPromptCall: true,
+            },
           });
         }
       } catch (error) {
@@ -753,12 +787,24 @@ const StandaloneContextMenu = () => {
     if (isCompletionOnly && item.isIncompatibleWith?.completion) return false;
     // if any block is focused or selected, and no context is selected
     if (item.id === 102 && !hasTrueBooleanKey(roamContext)) return false;
-    // if (item.prompt === "translate" ||
-    //   item.id === 154 ||
-    //   item.name === "Web search" ||
-    //   item.name.includes(
-    //     "Image generation" || item.category === "QUERY AGENTS"
-    //   ))
+
+    // MCP filtering logic: Handle dual structure based on search vs browse mode
+    if (query) {
+      // SEARCH MODE: Show flat categories (MCP TOOLS, MCP RESOURCES, MCP PROMPTS), hide MCP SERVERS submenu items
+      if (item.category === "MCP SERVERS" && item.isSub) {
+        return false; // Hide submenu items during search
+      }
+    } else {
+      // BROWSE MODE: Show MCP SERVERS with submenus, hide flat categories
+      if (
+        item.category === "MCP TOOLS" ||
+        item.category === "MCP RESOURCES" ||
+        item.category === "MCP PROMPTS"
+      ) {
+        return false; // Hide flat categories during browse
+      }
+    }
+
     if (!query) {
       if (isFirstBlock.current && item.id === 1) return true;
       if (
@@ -797,9 +843,7 @@ const StandaloneContextMenu = () => {
       if (item.id === 0 && !isOutlinerAgent) return true;
       if (item.id === 2 && isOutlinerAgent) return true;
     }
-    // if (query.length === 10 && item.isSub) return false;
     const normalizedQuery = query.toLowerCase();
-    // console.log("normalizedQuery :>> ", normalizedQuery);
     return (
       item.name.toLowerCase().includes(normalizedQuery) ||
       item.category?.toLowerCase().includes(normalizedQuery) ||
@@ -823,11 +867,16 @@ const StandaloneContextMenu = () => {
 
   const renderCommand = (command, { handleClick, modifiers, query }) => {
     if (!command) return;
+
+    // Smart naming: use displayName when filtered (query exists), clean name otherwise
+    const displayText =
+      query && command.displayName ? command.displayName : command.name;
+
     return (
       <MenuItem
         key={command.id}
         icon={command.icon}
-        text={command.name}
+        text={displayText}
         label={command.label}
         active={activeCommand === undefined && modifiers.active}
         aria-haspopup={true}
@@ -859,7 +908,39 @@ const StandaloneContextMenu = () => {
               </MenuItem>
             )}
             {command.submenu.map((sub) => {
-              const subCommand = commands.find((item) => item.id === sub);
+              // For MCP server submenus, search in stored submenu items
+              let subCommand;
+              if (command.category === "MCP SERVERS") {
+                subCommand = mcpSubmenuItems.find((item) => item.id === sub);
+              } else {
+                // For other categories, search in all available commands
+                const allItems = commands
+                  .concat(userCommands)
+                  .concat(liveOutlines)
+                  .concat(templates)
+                  .concat(mcpAgents)
+                  .concat(mcpTools)
+                  .concat(mcpResources)
+                  .concat(mcpPrompts);
+                subCommand = allItems.find((item) => item.id === sub);
+              }
+
+              // Handle divider items
+              if (subCommand?.isDivider) {
+                return (
+                  <MenuDivider
+                    key={subCommand.id}
+                    className="menu-hint"
+                    title={
+                      <>
+                        <Icon icon={subCommand.dividerIcon} />{" "}
+                        {subCommand.dividerTitle}
+                      </>
+                    }
+                  />
+                );
+              }
+
               return subCommand?.id === 1199 ? (
                 customLggMenuItem(subCommand)
               ) : (
@@ -1293,48 +1374,23 @@ const StandaloneContextMenu = () => {
         connectedServers
       );
 
-      const agentCommands = connectedServers.map((server, index) => ({
-        id: 5500 + index,
-        name: `Server: ${server.name}`,
-        category: "MCP AGENTS",
-        keyWords: `mcp agent ${server.name}`,
-        serverName: server.name,
-        serverId: server.serverId,
-        description: `AI agent with access to all tools and resources from ${server.name}`,
-        mcpType: "agent",
-        mcpData: server,
-      }));
-      
-      // Add multi-server command if multiple servers are connected
-      if (connectedServers.length > 1) {
-        const allServerNames = connectedServers.map(s => s.name);
-        const allServerIds = connectedServers.map(s => s.serverId);
-        
-        agentCommands.unshift({
-          id: 5499, // Lower ID to appear first
-          name: `All Servers (${connectedServers.length})`,
-          category: "MCP AGENTS",
-          keyWords: `mcp agent multi server all ${allServerNames.join(' ')}`,
-          serverName: allServerNames,
-          serverId: allServerIds,
-          description: `AI agent with coordinated access to all ${connectedServers.length} connected MCP servers: ${allServerNames.join(', ')}`,
-          mcpType: "agent",
-          mcpData: {
-            isMultiServer: true,
-            servers: connectedServers,
-            serverCount: connectedServers.length
-          },
-        });
-      }
-      
-      setMcpAgents(agentCommands);
-
+      // Get all capabilities from connected servers using mcpManager methods
       const allTools = mcpManager.getAllTools();
+      const allResources = mcpManager.getAllResources();
+      const allPrompts = mcpManager.getAllPrompts();
+
+      // Declare submenu item arrays
+      const allServerSubmenuTools = [];
+      const allServerSubmenuResources = [];
+      const allServerSubmenuPrompts = [];
+
+      // Build flat category commands for type-based access
       const toolCommands = allTools.map((tool, index) => ({
         id: 6000 + index,
-        name: `${tool.serverName}: ${tool.name}`,
+        name: tool.name, // Clean name for submenus
+        displayName: `${tool.serverName}: ${tool.name}`, // Full name for filtered results
         category: "MCP TOOLS",
-        keyWords: `mcp tool ${tool.serverName}`,
+        keyWords: `mcp tool ${tool.serverName} ${tool.name}`,
         serverName: tool.serverName,
         serverId: tool.serverId,
         description: tool.description,
@@ -1342,35 +1398,237 @@ const StandaloneContextMenu = () => {
         mcpData: tool,
         preferredToolName: tool.name,
       }));
-      setMcpTools(toolCommands);
 
-      const allResources = mcpManager.getAllResources();
       const resourceCommands = allResources.map((resource, index) => ({
         id: 7000 + index,
-        name: resource.name || resource.uri,
+        name: resource.name || resource.uri, // Clean name for submenus
+        displayName: `${resource.serverName}: ${resource.name || resource.uri}`, // Full name for filtered results
         category: "MCP RESOURCES",
-        keyWords: `mcp resource ${resource.serverName}`,
+        keyWords: `mcp resource ${resource.serverName} ${
+          resource.name || resource.uri
+        }`,
         serverName: resource.serverName,
         serverId: resource.serverId,
         description: resource.description,
         mcpType: "resource",
         mcpData: resource,
       }));
-      setMcpResources(resourceCommands);
 
-      const allPrompts = mcpManager.getAllPrompts();
       const promptCommands = allPrompts.map((prompt, index) => ({
         id: 8000 + index,
-        name: prompt.name,
+        name: prompt.name, // Clean name for submenus
+        displayName: `${prompt.serverName}: ${prompt.name}`, // Full name for filtered results
         category: "MCP PROMPTS",
-        keyWords: `mcp prompt ${prompt.serverName}`,
+        keyWords: `mcp prompt ${prompt.serverName} ${prompt.name}`,
         serverName: prompt.serverName,
         serverId: prompt.serverId,
         description: prompt.description,
         mcpType: "prompt",
         mcpData: prompt,
       }));
-      setMcpPrompts(promptCommands);
+
+      // Create server commands with submenus for server-based access
+      const serverCommands = connectedServers.map((server, index) => {
+        // Get capabilities for this specific server
+        const serverTools = allTools.filter(
+          (tool) => tool.serverId === server.serverId
+        );
+        const serverResources = allResources.filter(
+          (resource) => resource.serverId === server.serverId
+        );
+        const serverPrompts = allPrompts.filter(
+          (prompt) => prompt.serverId === server.serverId
+        );
+
+        // Create submenu ID arrays with dividers (these will reference the items created below)
+        const toolSubmenuIds = serverTools.map(
+          (_, toolIndex) => 9000 + index * 1000 + toolIndex
+        );
+        const resourceSubmenuIds = serverResources.map(
+          (_, resourceIndex) => 9500 + index * 1000 + resourceIndex
+        );
+        const promptSubmenuIds = serverPrompts.map(
+          (_, promptIndex) => 10000 + index * 1000 + promptIndex
+        );
+
+        // Build submenu with dividers
+        const allSubmenuIds = [];
+
+        // Add Tools section
+        if (serverTools.length > 0) {
+          allSubmenuIds.push(`divider-tools-${index}`);
+          allSubmenuIds.push(...toolSubmenuIds);
+        }
+
+        // Add Resources section
+        if (serverResources.length > 0) {
+          allSubmenuIds.push(`divider-resources-${index}`);
+          allSubmenuIds.push(...resourceSubmenuIds);
+        }
+
+        // Add Prompts section
+        if (serverPrompts.length > 0) {
+          allSubmenuIds.push(`divider-prompts-${index}`);
+          allSubmenuIds.push(...promptSubmenuIds);
+        }
+
+        return {
+          id: 5500 + index,
+          name: `Server: ${server.name}`,
+          category: "MCP SERVERS",
+          keyWords: `mcp server ${server.name}`,
+          serverName: server.name,
+          serverId: server.serverId,
+          description: `AI agent with access to all tools and resources from ${server.name}`,
+          mcpType: "agent",
+          mcpData: server,
+          submenu: allSubmenuIds.length > 0 ? allSubmenuIds : undefined,
+        };
+      });
+
+      // Add multi-server command if multiple servers are connected
+      if (connectedServers.length > 1) {
+        const allServerNames = connectedServers.map((s) => s.name);
+        const allServerIds = connectedServers.map((s) => s.serverId);
+
+        serverCommands.unshift({
+          id: 5499, // Lower ID to appear first
+          name: `All Servers (${connectedServers.length})`,
+          category: "MCP SERVERS",
+          keyWords: `mcp agent multi server all ${allServerNames.join(" ")}`,
+          serverName: allServerNames,
+          serverId: allServerIds,
+          description: `AI agent with coordinated access to all ${
+            connectedServers.length
+          } connected MCP servers: ${allServerNames.join(", ")}`,
+          mcpType: "agent",
+          mcpData: {
+            isMultiServer: true,
+            servers: connectedServers,
+            serverCount: connectedServers.length,
+          },
+        });
+      }
+
+      // Collect all submenu items from all servers (using previously declared arrays)
+
+      connectedServers.forEach((server, index) => {
+        const serverTools = allTools.filter(
+          (tool) => tool.serverId === server.serverId
+        );
+        const serverResources = allResources.filter(
+          (resource) => resource.serverId === server.serverId
+        );
+        const serverPrompts = allPrompts.filter(
+          (prompt) => prompt.serverId === server.serverId
+        );
+
+        serverTools.forEach((tool, toolIndex) => {
+          allServerSubmenuTools.push({
+            id: 9000 + index * 1000 + toolIndex,
+            name: tool.name,
+            displayName: `${tool.name}`,
+            category: "MCP SERVERS",
+            keyWords: `mcp tool ${tool.serverName} ${tool.name}`,
+            serverName: tool.serverName,
+            serverId: tool.serverId,
+            description: tool.description,
+            mcpType: "tool",
+            mcpData: tool,
+            preferredToolName: tool.name,
+            isSub: true,
+          });
+        });
+
+        serverResources.forEach((resource, resourceIndex) => {
+          allServerSubmenuResources.push({
+            id: 9500 + index * 1000 + resourceIndex,
+            name: resource.name || resource.uri,
+            displayName: `${resource.name || resource.uri}`,
+            category: "MCP SERVERS",
+            keyWords: `mcp resource ${resource.serverName} ${
+              resource.name || resource.uri
+            }`,
+            serverName: resource.serverName,
+            serverId: resource.serverId,
+            description: resource.description,
+            mcpType: "resource",
+            mcpData: resource,
+            isSub: true,
+          });
+        });
+
+        serverPrompts.forEach((prompt, promptIndex) => {
+          allServerSubmenuPrompts.push({
+            id: 10000 + index * 1000 + promptIndex,
+            name: prompt.name,
+            displayName: `${prompt.name}`,
+            category: "MCP SERVERS",
+            keyWords: `mcp prompt ${prompt.serverName} ${prompt.name}`,
+            serverName: prompt.serverName,
+            serverId: prompt.serverId,
+            description: prompt.description,
+            mcpType: "prompt",
+            mcpData: prompt,
+            isSub: true,
+          });
+        });
+      });
+
+      // Set the command arrays separately to maintain dual structure
+      setMcpAgents(serverCommands);
+      setMcpTools(toolCommands); // Only flat category tools
+      setMcpResources(resourceCommands); // Only flat category resources
+      setMcpPrompts(promptCommands); // Only flat category prompts
+
+      // Create divider items for submenus
+      const dividerItems = [];
+      connectedServers.forEach((server, index) => {
+        const serverTools = allTools.filter(
+          (tool) => tool.serverId === server.serverId
+        );
+        const serverResources = allResources.filter(
+          (resource) => resource.serverId === server.serverId
+        );
+        const serverPrompts = allPrompts.filter(
+          (prompt) => prompt.serverId === server.serverId
+        );
+
+        if (serverTools.length > 0) {
+          dividerItems.push({
+            id: `divider-tools-${index}`,
+            isDivider: true,
+            dividerTitle: "TOOLS",
+            dividerIcon: "wrench",
+          });
+        }
+
+        if (serverResources.length > 0) {
+          dividerItems.push({
+            id: `divider-resources-${index}`,
+            isDivider: true,
+            dividerTitle: "RESOURCES",
+            dividerIcon: "database",
+          });
+        }
+
+        if (serverPrompts.length > 0) {
+          dividerItems.push({
+            id: `divider-prompts-${index}`,
+            isDivider: true,
+            dividerTitle: "PROMPTS",
+            dividerIcon: "chat",
+          });
+        }
+      });
+
+      // Store all submenu items including dividers for renderCommand access
+      setMcpSubmenuItems([
+        ...dividerItems,
+        ...allServerSubmenuTools,
+        ...allServerSubmenuResources,
+        ...allServerSubmenuPrompts,
+      ]);
     } catch (error) {
       console.error("Error updating MCP items:", error);
     }
