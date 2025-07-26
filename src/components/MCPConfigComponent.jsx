@@ -34,6 +34,8 @@ const MCPConfigComponent = ({ extensionStorage }) => {
   const [discoveryResults, setDiscoveryResults] = useState(null);
   const [expandedServers, setExpandedServers] = useState({});
   const [toolPreferences, setToolPreferences] = useState({});
+  const [expandedResources, setExpandedResources] = useState({});
+  const [expandedPrompts, setExpandedPrompts] = useState({});
 
   useEffect(() => {
     loadServers();
@@ -184,6 +186,20 @@ const MCPConfigComponent = ({ extensionStorage }) => {
     }));
   };
 
+  const toggleResourcesExpanded = (serverId) => {
+    setExpandedResources((prev) => ({
+      ...prev,
+      [serverId]: !prev[serverId],
+    }));
+  };
+
+  const togglePromptsExpanded = (serverId) => {
+    setExpandedPrompts((prev) => ({
+      ...prev,
+      [serverId]: !prev[serverId],
+    }));
+  };
+
   const toggleToolEnabled = async (serverId, toolName, enabled) => {
     const newPreferences = {
       ...toolPreferences,
@@ -205,6 +221,16 @@ const MCPConfigComponent = ({ extensionStorage }) => {
     return client ? client.getTools() : [];
   };
 
+  const getServerResources = (serverId) => {
+    const client = mcpManager.getClient(serverId);
+    return client ? client.getResources() : [];
+  };
+
+  const getServerPrompts = (serverId) => {
+    const client = mcpManager.getClient(serverId);
+    return client ? client.getPrompts() : [];
+  };
+
   const isToolEnabled = (serverId, toolName) => {
     return toolPreferences[serverId]?.[toolName] !== false; // Default to enabled
   };
@@ -220,32 +246,48 @@ const MCPConfigComponent = ({ extensionStorage }) => {
     return { icon: "cross-circle", intent: "danger", text: "Disconnected" };
   };
 
+  const renderCollapsibleSection = (
+    title,
+    count,
+    isExpanded,
+    onToggle,
+    items,
+    renderItem
+  ) => {
+    if (count === 0) return null;
+
+    return (
+      <div className="mcp-collapsible-section">
+        <div className="mcp-collapsible-header" onClick={onToggle}>
+          <Icon icon={isExpanded ? "chevron-down" : "chevron-right"} />
+          <h5 className="mcp-collapsible-title">
+            {title} ({count})
+          </h5>
+        </div>
+        <Collapse isOpen={isExpanded}>
+          <div className="mcp-collapsible-content">{items.map(renderItem)}</div>
+        </Collapse>
+      </div>
+    );
+  };
+
   const renderServerCard = (server) => {
     const status = getConnectionStatus(server);
     const state = connectionStates[server.id];
+    const tools = state?.connected ? getServerTools(server.id) : [];
+    const resources = state?.connected ? getServerResources(server.id) : [];
+    const prompts = state?.connected ? getServerPrompts(server.id) : [];
 
     return (
       <Card
         key={server.id}
         elevation={Elevation.ONE}
-        style={{ marginBottom: "10px" }}
+        className="mcp-server-card"
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                marginBottom: "8px",
-              }}
-            >
-              <h4 style={{ margin: 0, marginRight: "10px" }}>{server.name}</h4>
+        <div className="mcp-server-card-content">
+          <div className="mcp-server-card-main">
+            <div className="mcp-server-title-row">
+              <h4 className="mcp-server-title">{server.name}</h4>
               <Tag intent={status.intent} icon={status.icon}>
                 {status.text}
               </Tag>
@@ -253,113 +295,102 @@ const MCPConfigComponent = ({ extensionStorage }) => {
                 <Tag
                   intent="success"
                   icon="automatic-updates"
-                  style={{ marginLeft: "8px" }}
+                  className="mcp-server-auto-tag"
                 >
                   Auto-discovered
                 </Tag>
               )}
             </div>
 
-            <div
-              style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}
-            >
+            <div className="mcp-server-url">
               <strong>URL:</strong> {server.url}
             </div>
 
             {server.description && (
-              <div
-                style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}
-              >
+              <div className="mcp-server-description">
                 <strong>Description:</strong> {server.description}
               </div>
             )}
 
-            {state?.info && (
-              <div style={{ fontSize: "11px", color: "#888" }}>
-                <strong>Tools:</strong> {state.info.toolsCount} |
-                <strong> Resources:</strong> {state.info.resourcesCount} |
-                <strong> Prompts:</strong> {state.info.promptsCount}
-              </div>
+            {state?.connected && (
+              <>
+                {renderCollapsibleSection(
+                  "Tools",
+                  tools.length,
+                  expandedServers[server.id],
+                  () => toggleServerExpanded(server.id),
+                  tools,
+                  (tool) => (
+                    <div key={tool.name} className="mcp-tool-item">
+                      <div className="mcp-tool-info">
+                        <div className="mcp-tool-name">{tool.name}</div>
+                        {tool.description && (
+                          <div className="mcp-tool-description">
+                            {tool.description}
+                          </div>
+                        )}
+                      </div>
+                      <Switch
+                        checked={isToolEnabled(server.id, tool.name)}
+                        onChange={(e) =>
+                          toggleToolEnabled(
+                            server.id,
+                            tool.name,
+                            e.target.checked
+                          )
+                        }
+                        small
+                      />
+                    </div>
+                  )
+                )}
+              </>
             )}
 
-            {state?.connected && state.info.toolsCount > 0 && (
-              <div style={{ marginTop: "12px" }}>
-                <Button
-                  minimal
-                  small
-                  icon={
-                    expandedServers[server.id]
-                      ? "chevron-down"
-                      : "chevron-right"
-                  }
-                  onClick={() => toggleServerExpanded(server.id)}
-                  style={{ fontSize: "11px", padding: "2px 4px" }}
-                >
-                  {expandedServers[server.id] ? "Hide Tools" : "Show Tools"}
-                </Button>
-
-                <Collapse isOpen={expandedServers[server.id]}>
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      padding: "8px",
-                      backgroundColor: "#f5f5f5",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    {getServerTools(server.id).map((tool) => (
-                      <div
-                        key={tool.name}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          marginBottom: "8px",
-                          padding: "4px 0",
-                        }}
-                      >
-                        <div style={{ flex: 1, marginRight: "8px" }}>
-                          <div
-                            style={{
-                              fontWeight: "bold",
-                              fontSize: "12px",
-                              marginBottom: "2px",
-                            }}
-                          >
-                            {tool.name}
-                          </div>
-                          {tool.description && (
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                color: "#666",
-                                lineHeight: "1.3",
-                              }}
-                            >
-                              {tool.description}
-                            </div>
-                          )}
-                        </div>
-                        <Switch
-                          checked={isToolEnabled(server.id, tool.name)}
-                          onChange={(e) =>
-                            toggleToolEnabled(
-                              server.id,
-                              tool.name,
-                              e.target.checked
-                            )
-                          }
-                          small
-                        />
+            {state?.connected && (
+              <>
+                {renderCollapsibleSection(
+                  "Resources",
+                  resources.length,
+                  expandedResources[server.id],
+                  () => toggleResourcesExpanded(server.id),
+                  resources,
+                  (resource) => (
+                    <div key={resource.uri} className="mcp-resource-item">
+                      <div className="mcp-resource-name">
+                        {resource.name || resource.uri}
                       </div>
-                    ))}
-                  </div>
-                </Collapse>
-              </div>
+                      {resource.description && (
+                        <div className="mcp-resource-description">
+                          {resource.description}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+
+                {renderCollapsibleSection(
+                  "Prompts",
+                  prompts.length,
+                  expandedPrompts[server.id],
+                  () => togglePromptsExpanded(server.id),
+                  prompts,
+                  (prompt) => (
+                    <div key={prompt.name} className="mcp-prompt-item">
+                      <div className="mcp-prompt-name">{prompt.name}</div>
+                      {prompt.description && (
+                        <div className="mcp-prompt-description">
+                          {prompt.description}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
+              </>
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div className="mcp-server-card-actions">
             <Tooltip content="Test connection">
               <Button
                 icon="satellite"
@@ -402,24 +433,10 @@ const MCPConfigComponent = ({ extensionStorage }) => {
   };
 
   return (
-    <div
-      style={{
-        padding: "10px",
-        height: "100%",
-        overflow: "auto",
-        maxHeight: "900px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "15px",
-        }}
-      >
+    <div className="mcp-config-container">
+      <div className="mcp-config-header">
         <h3>MCP Servers</h3>
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div className="mcp-config-header-buttons">
           <Button
             icon="search"
             intent="success"
@@ -439,16 +456,9 @@ const MCPConfigComponent = ({ extensionStorage }) => {
       </div>
 
       {servers.length === 0 ? (
-        <Card
-          elevation={Elevation.ZERO}
-          style={{ textAlign: "center", padding: "20px" }}
-        >
-          <Icon
-            icon="satellite"
-            size={40}
-            style={{ marginBottom: "10px", opacity: 0.5 }}
-          />
-          <p style={{ margin: 0, color: "#666" }}>
+        <Card elevation={Elevation.ZERO} className="mcp-empty-state">
+          <Icon icon="satellite" size={40} className="mcp-empty-state-icon" />
+          <p className="mcp-empty-state-text">
             No MCP servers configured.
             <br />
             Add a server to start using MCP tools.
@@ -462,9 +472,9 @@ const MCPConfigComponent = ({ extensionStorage }) => {
         isOpen={isAddDialogOpen}
         onClose={resetForm}
         title={editingServer ? "Edit MCP Server" : "Add MCP Server"}
-        style={{ width: "500px" }}
+        className="mcp-dialog"
       >
-        <div style={{ padding: "20px" }}>
+        <div className="mcp-dialog-content">
           <FormGroup label="Server Name" labelFor="server-name">
             <InputGroup
               id="server-name"
@@ -525,14 +535,7 @@ const MCPConfigComponent = ({ extensionStorage }) => {
             />
           </FormGroup>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "10px",
-              marginTop: "20px",
-            }}
-          >
+          <div className="mcp-dialog-actions">
             <Button onClick={resetForm}>Cancel</Button>
             <Button
               intent="primary"
