@@ -2159,8 +2159,7 @@ const StandaloneContextMenu = () => {
               setIsMCPConfigOpen(false);
               updateMCPItems();
             }}
-            title="MCP Server Configuration"
-            style={{ width: "800px", maxHeight: "80vh" }}
+            title="MCP Servers Configuration"
             canOutsideClickClose={true}
             canEscapeKeyClose={true}
           >

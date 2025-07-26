@@ -959,3 +959,30 @@
   color: #5c7080;
   margin-top: 2px;
 }
+
+/* MCP Toaster Styles */
+.mcp-toaster {
+  z-index: 10000 !important;
+}
+
+.mcp-toaster .bp3-toast {
+  max-width: 400px;
+  font-size: 13px;
+  z-index: 10001 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.mcp-toaster .bp3-toast.bp3-intent-success {
+  background-color: #0f9960;
+  color: white;
+}
+
+.mcp-toaster .bp3-toast.bp3-intent-danger {
+  background-color: #db3737;
+  color: white;
+}
+
+.mcp-toaster .bp3-toast.bp3-intent-primary {
+  background-color: #137cbd;
+  color: white;
+}

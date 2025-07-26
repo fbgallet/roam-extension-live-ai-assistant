@@ -1116,14 +1116,8 @@ function getPanelConfig() {
       {
         id: "mcpServers",
         name: "MCP Servers",
-        description: "Configure Model Context Protocol servers for external tools and capabilities",
-        action: {
-          type: "custom",
-          component: (props) => React.createElement(MCPConfigComponent, { 
-            extensionStorage: extensionStorage,
-            ...props 
-          }),
-        },
+        description:
+          "Configure MCP servers for external tools and capabilities directly from Context Menu (button on top right)",
       },
     ],
   };
