@@ -12,9 +12,17 @@ import {
   TextArea,
   Tag,
   Collapse,
+  Toaster,
+  Position,
 } from "@blueprintjs/core";
 import { mcpManager } from "../ai/agents/mcp-agent/mcpManager.js";
 import { MCPDiscovery } from "../ai/agents/mcp-agent/mcpDiscovery.js";
+
+// Create toaster instance
+const AppToaster = Toaster.create({
+  className: "mcp-toaster",
+  position: Position.TOP,
+});
 
 const MCPConfigComponent = ({ extensionStorage }) => {
   const [servers, setServers] = useState([]);
@@ -117,12 +125,27 @@ const MCPConfigComponent = ({ extensionStorage }) => {
       const connected = await mcpManager.testConnection(server);
 
       if (connected) {
-        alert(`Connection successful to server ${server.name}`);
+        AppToaster.show({
+          message: `Connection successful to server ${server.name}`,
+          intent: "success",
+          icon: "tick-circle",
+          timeout: 3000,
+        });
       } else {
-        alert(`Connection failed to server ${server.name}`);
+        AppToaster.show({
+          message: `Connection failed to server ${server.name}`,
+          intent: "danger",
+          icon: "cross-circle",
+          timeout: 3000,
+        });
       }
     } catch (error) {
-      alert(`Connection test error: ${error.message}`);
+      AppToaster.show({
+        message: `Connection test error: ${error.message}`,
+        intent: "danger",
+        icon: "error",
+        timeout: 4000,
+      });
     } finally {
       setTestingConnection((prev) => ({ ...prev, [server.id]: false }));
     }
@@ -138,18 +161,34 @@ const MCPConfigComponent = ({ extensionStorage }) => {
 
       if (results.success && results.added > 0) {
         loadServers(); // Refresh the server list
-        alert(
-          `Auto-discovery complete! Found ${results.discovered} servers, added ${results.added} new ones.`
-        );
+        AppToaster.show({
+          message: `Auto-discovery complete! Found ${results.discovered} servers, added ${results.added} new ones.`,
+          intent: "success",
+          icon: "search",
+          timeout: 4000,
+        });
       } else if (results.success && results.added === 0) {
-        alert(
-          `Auto-discovery complete! Found ${results.discovered} servers, but all were already configured.`
-        );
+        AppToaster.show({
+          message: `Auto-discovery complete! Found ${results.discovered} servers, but all were already configured.`,
+          intent: "primary",
+          icon: "info-sign",
+          timeout: 4000,
+        });
       } else {
-        alert(`Auto-discovery failed: ${results.error || "Unknown error"}`);
+        AppToaster.show({
+          message: `Auto-discovery failed: ${results.error || "Unknown error"}`,
+          intent: "danger",
+          icon: "error",
+          timeout: 4000,
+        });
       }
     } catch (error) {
-      alert(`Auto-discovery error: ${error.message}`);
+      AppToaster.show({
+        message: `Auto-discovery error: ${error.message}`,
+        intent: "danger",
+        icon: "error",
+        timeout: 4000,
+      });
       setDiscoveryResults({ success: false, error: error.message });
     } finally {
       setIsDiscovering(false);
