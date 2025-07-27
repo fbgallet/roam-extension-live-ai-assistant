@@ -143,7 +143,7 @@ To define the context, you can either check the corresponding box in the context
 - **Page** (click +`Alt`): the current page or zoom where the focus block or selected blocks are inserted, or by default, the main page zoom (at the center of the display)
 - **LinkedRefs** (click +`Ctrl`): the linked references of the current page
 - **Sidebar** (click +`Shift`): all the content of the sidebar
-- **DNPs** (click +`Ctrl`): a defined range of previous Daily notes (relative to the currently opened or focused DNP)
+- **DNPs** (click +`Ctrl`): a defined range of previous Daily notes (relative to the currently opened or focused DNP, but NOT including today or current day, unless triggered from a not-DNP)
 - **[[page]]** mentions: the content and linked references of the mentioned pages (as [[page]], #tag or atttribute::)
 
 > [!TIP]

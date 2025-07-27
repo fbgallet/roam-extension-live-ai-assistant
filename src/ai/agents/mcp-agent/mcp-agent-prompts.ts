@@ -38,7 +38,7 @@ User request: <USER_PROMPT>`;
 
 export const systemPromptTemplate = `You are an AI assistant with access to MCP (Model Context Protocol) <SERVER_INFO>.
 
-<MCP_PROMPT_GUIDANCE><RESOURCE_CONTENT><PREFERRED_TOOL_GUIDANCE><CONVERSATION_CONTEXT><CONVERSATION_OPTIMIZATION>Instructions for formatting your response:
+<MCP_PROMPT_GUIDANCE><RESOURCE_CONTENT><ROAM_CONTEXT><PREFERRED_TOOL_GUIDANCE><CONVERSATION_CONTEXT><CONVERSATION_OPTIMIZATION>Instructions for formatting your response:
 ${roamBasicsFormat}<RESPONSE_STYLE>
 
 REACT REASONING AND TOOL USAGE:
@@ -77,6 +77,7 @@ export interface SystemPromptConfig {
   userPrompt: string;
   mcpPromptGuidance?: string;
   resourceContent?: string;
+  roamContextContent?: string;
 }
 
 export interface PlanningPromptConfig {
@@ -111,6 +112,9 @@ export const buildSystemPrompt = (config: SystemPromptConfig): string => {
   const resourceContent = config.resourceContent
     ? `RESOURCE CONTEXT:\nThe following resource content is available as context for this interaction:\n${config.resourceContent}\n`
     : "";
+  const roamContext = config.roamContextContent
+    ? `ROAM CONTEXT:\nThe following Roam Research context has been selected as relevant information for this request:\n${config.roamContextContent}\n`
+    : "";
   const preferredToolGuidance = config.preferredToolGuidance
     ? config.preferredToolGuidance + "\n"
     : "";
@@ -131,6 +135,7 @@ export const buildSystemPrompt = (config: SystemPromptConfig): string => {
     .replace("<SERVER_INFO>", config.serverInfo)
     .replace("<MCP_PROMPT_GUIDANCE>", mcpPromptGuidance)
     .replace("<RESOURCE_CONTENT>", resourceContent)
+    .replace("<ROAM_CONTEXT>", roamContext)
     .replace("<PREFERRED_TOOL_GUIDANCE>", preferredToolGuidance)
     .replace("<CONVERSATION_CONTEXT>", conversationContext)
     .replace("<CONVERSATION_OPTIMIZATION>", conversationOptimization)

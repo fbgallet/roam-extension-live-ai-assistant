@@ -469,6 +469,7 @@ export function convertTreeToLinearArray(
   let excludedUids = [];
 
   function traverseArray(tree, leftShift = "", level = 1) {
+    if (!tree || !tree.length) return;
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
     tree.forEach((element) => {
       allBlocksUids.push(element.uid);
@@ -635,17 +636,23 @@ export const getAndNormalizeContext = async ({
     }
     if (roamContext.logPages) {
       let startDate;
-      if (isLogView()) {
-        if (focusedBlock) {
-          startDate = new Date(getPageUidByBlockUid(focusedBlock));
-        }
+      // If focused or opened on a DNP, DNP context begin the PREVIOUS day
+      // If any other page, DNP context include today
+      if (isLogView() && focusedBlock) {
+        startDate = getYesterdayDate(
+          new Date(getPageUidByBlockUid(focusedBlock))
+        );
         highlightHtmlElt({ selector: ".roam-log-container" });
       } else if (await isCurrentPageDNP()) {
-        startDate = new Date(await getMainPageUid());
+        startDate = getYesterdayDate(new Date(await getMainPageUid()));
         highlightHtmlElt({ selector: ".rm-title-display" });
       } else {
         startDate = new Date();
       }
+      let today = new Date();
+      console.log("startDate :>> ", startDate);
+      console.log("today", today);
+
       context += getFlattenedContentFromLog(
         roamContext.logPagesArgument || logPagesNbDefault,
         startDate,
@@ -775,26 +782,6 @@ export const getFlattenedContentFromLog = (
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
       flattenedBlocks += `\n${dayTitle}:\n` + dayContent + "\n\n";
-
-      // using Tokenizer from js-tiktoken is too slow for large context...
-      // if (flattenedBlocks.length > 24000) {
-      //   tokens = tokenizer
-      //     ? tokenizer.encode(flattenedBlocks).length
-      //     : flattenedBlocks.length * 0.75;
-      // }
-      // if (tokens > tokensLimit[model]) {
-      //   console.log(
-      //     "Context truncated to fit model context window. Tokens:",
-      //     tokens
-      //   );
-      //   AppToaster.show({
-      //     message: `The token limit (${tokensLimit[model]}) has been exceeded (more than ${tokens} needed), only ${processedDays} DNPs have been processed to fit ${model} token window.`,
-      //   });
-      //   flattenedBlocks = flattenedBlocks.slice(
-      //     0,
-      //     -(dayContent.length + dayTitle.length + 4)
-      //   );
-      // }
     }
     processedDays++;
     date = getYesterdayDate(date);

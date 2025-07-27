@@ -249,10 +249,7 @@ const MCPConfigComponent = ({ extensionStorage }) => {
     };
     await saveToolPreferences(newPreferences);
 
-    // Trigger ContextMenu update to reflect changes
-    if (window.LiveAI?.updateMCPItems) {
-      window.LiveAI.updateMCPItems();
-    }
+    // ✨ No longer needed - MCP commands generated dynamically in ContextMenu
   };
 
   const getServerTools = (serverId) => {

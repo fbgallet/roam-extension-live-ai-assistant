@@ -63,7 +63,7 @@ import {
   getInputDataFromRoamContext,
 } from "./dataExtraction";
 import { uidRegex } from "../utils/regex";
-import { BUILTIN_STYLES, customStyles } from "../components/ContextMenu";
+import { BUILTIN_STYLES, customStyles } from "../components/contextMenu";
 import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 
@@ -192,6 +192,7 @@ export const aiCompletionRunner = async ({
   const withAssistantRole = target === "new" ? true : false;
 
   // console.log("prompt in aiCompletionRunner :>> ", prompt);
+  console.log("roamContext in aiCompletionRunner :>> ", roamContext);
 
   if (style !== "Normal") {
     let stylePromptText;

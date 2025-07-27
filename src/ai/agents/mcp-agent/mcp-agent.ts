@@ -101,6 +101,8 @@ const MCPAgentState = Annotation.Root({
   // Stateful resource content - persists across conversation turns
   activeResources: Annotation<Record<string, any>>,
   isResourceProcessed: Annotation<boolean>,
+  // Roam context content
+  roamContextContent: Annotation<string | undefined>,
 });
 
 // LLM with bound tools
@@ -177,7 +179,6 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   // Store available tools for dynamic loading
   availableToolsForDynamic = mcpToolsList;
 
-
   // Create tools for LLM - need to handle multiple clients and resources
   const allTools: any[] = [];
 
@@ -235,8 +236,8 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
     userPrompt: state.userPrompt,
     mcpPromptGuidance: state.mcpPromptGuidance, // Include stored MCP guidance
     resourceContent, // Include resource content
+    roamContextContent: state.roamContextContent, // Include Roam context
   });
-
 
   sys_msg = new SystemMessage({ content: systemPrompt });
 
@@ -747,10 +748,13 @@ const assistant = async (state: typeof MCPAgentState.State) => {
       userPrompt: state.userPrompt,
       mcpPromptGuidance: state.promptEnhancement.systemPromptAddition,
       resourceContent, // Include resource content
+      roamContextContent: state.roamContextContent, // Include Roam context
     });
 
     currentSystemMsg = new SystemMessage({ content: enhancedSystemPrompt });
   }
+
+  console.log("currentSystemMsg.content :>> ", currentSystemMsg.content);
 
   const messages = [currentSystemMsg, ...state.messages];
 
@@ -864,7 +868,7 @@ const toolsWithCaching = async (state: typeof MCPAgentState.State) => {
   toolMessages.forEach((msg: any) => {
     if (msg.tool_call_id && msg.content) {
       const toolName = msg.name;
-      
+
       // Cache tool results normally
       updatedCache[msg.tool_call_id] = {
         content: msg.content,
