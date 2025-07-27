@@ -281,6 +281,22 @@ export const StandaloneContextMenu = () => {
           return;
         }
 
+        // Get all tools, prompts, and resources
+        const allTools = mcpManager.getAllTools();
+        const allPrompts = mcpManager.getAllPrompts();
+        const allResources = mcpManager.getAllResources();
+
+        const allMcpCommands = [];
+
+        // Helper function to format command name with server prefix
+        const formatCommandName = (serverName, commandName) => {
+          const truncatedServer = serverName.length > 14 
+            ? serverName.substring(0, 14) + "..." 
+            : serverName;
+          return `${truncatedServer}: ${commandName}`;
+        };
+
+        // Add server agent commands
         const serverCommands = connectedServers.map((server, index) => ({
           id: 5500 + index,
           name: `Server: ${server.name}`,
@@ -316,13 +332,61 @@ export const StandaloneContextMenu = () => {
           });
         }
 
-        setStableMcpCommands(serverCommands);
+        allMcpCommands.push(...serverCommands);
+
+        // Add tool commands
+        const toolCommands = allTools.map((tool, index) => ({
+          id: 5600 + index,
+          name: formatCommandName(tool.serverName, tool.name),
+          category: "MCP TOOLS",
+          keyWords: `mcp tool ${tool.name} ${tool.serverName}`,
+          serverName: tool.serverName,
+          serverId: tool.serverId,
+          description: tool.description || `Tool from ${tool.serverName}`,
+          mcpType: "tool",
+          mcpData: tool,
+          preferredToolName: tool.name, // Add this for tool-specific invocation
+        }));
+
+        allMcpCommands.push(...toolCommands);
+
+        // Add prompt commands
+        const promptCommands = allPrompts.map((prompt, index) => ({
+          id: 5700 + index,
+          name: formatCommandName(prompt.serverName, prompt.name),
+          category: "MCP PROMPTS",
+          keyWords: `mcp prompt ${prompt.name} ${prompt.serverName}`,
+          serverName: prompt.serverName,
+          serverId: prompt.serverId,
+          description: prompt.description || `Prompt from ${prompt.serverName}`,
+          mcpType: "prompt",
+          mcpData: prompt,
+        }));
+
+        allMcpCommands.push(...promptCommands);
+
+        // Add resource commands
+        const resourceCommands = allResources.map((resource, index) => ({
+          id: 5800 + index,
+          name: formatCommandName(resource.serverName, resource.name || resource.uri),
+          category: "MCP RESOURCES",
+          keyWords: `mcp resource ${resource.name || resource.uri} ${resource.serverName}`,
+          serverName: resource.serverName,
+          serverId: resource.serverId,
+          description: resource.description || `Resource from ${resource.serverName}`,
+          mcpType: "resource",
+          mcpData: resource,
+        }));
+
+        allMcpCommands.push(...resourceCommands);
+
+        setStableMcpCommands(allMcpCommands);
 
         setCommands((prev) => {
           const withoutMcp = prev.filter(
-            (cmd) => cmd.id < 5499 || cmd.id > 5600
+            (cmd) => cmd.id < 5499 || cmd.id > 5999
           );
-          return [...withoutMcp, ...serverCommands];
+          return [...withoutMcp, ...allMcpCommands];
         });
       } catch (error) {
         console.error("Error updating stable MCP commands:", error);
