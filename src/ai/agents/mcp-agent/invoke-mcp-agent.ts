@@ -15,6 +15,8 @@ import { HumanMessage } from "@langchain/core/messages";
 import { mcpManager } from "./mcpManager";
 import { createMCPGraph } from "./mcp-agent";
 import { getFilteredMCPTools, createFullLangChainTool } from "./mcp-tools";
+import { getAndNormalizeContext } from "../../dataExtraction";
+import { hasTrueBooleanKey } from "../../../utils/dataProcessing";
 
 let turnTokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 }; // Initialize with proper TokensUsage structure
 let mcpToasterStream: HTMLElement | null = null;
@@ -30,6 +32,7 @@ interface MCPAgentInvoker {
   serverName: string | string[]; // Support multiple servers
   preferredToolName?: string;
   previousResponse?: string;
+  roamContext?: any; // Roam context from ContextMenu
   // Conversation state for continuing conversations
   agentData?: {
     serverId: string | string[]; // Support multiple servers
@@ -47,6 +50,8 @@ interface MCPAgentInvoker {
     // Stateful resource content
     activeResources?: Record<string, any>;
     isResourceProcessed?: boolean;
+    // Stateful roam context
+    roamContext?: any;
   };
   // Retry options
   options?: {
@@ -80,12 +85,13 @@ export const invokeMCPAgent = async ({
   serverName,
   preferredToolName,
   previousResponse,
+  roamContext,
   agentData,
   options,
   promptContext,
   resourceContext,
 }: MCPAgentInvoker) => {
-
+  console.log("🚀 Starting invokeMCPAgent with roamContext:", roamContext);
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
   const spinnerId = displaySpinner(rootUid);
@@ -117,6 +123,28 @@ export const invokeMCPAgent = async ({
       if (!client) {
         throw new Error(`MCP server ${serverNames[i]} not connected`);
       }
+    }
+
+    // Extract Roam context content if provided (use current or persisted from agentData)
+    const effectiveRoamContext = roamContext || agentData?.roamContext;
+    let contextContent = "";
+    if (effectiveRoamContext && hasTrueBooleanKey(effectiveRoamContext)) {
+      console.log("🔍 Extracting Roam context:", effectiveRoamContext);
+      try {
+        contextContent = await getAndNormalizeContext({
+          roamContext: effectiveRoamContext,
+          withHierarchy: true,
+          withUid: true,
+          uidToExclude: null,
+        });
+        console.log("✅ Context extracted successfully, length:", contextContent.length);
+      } catch (error) {
+        console.error("❌ Failed to extract Roam context:", error);
+        // Continue without context rather than failing
+        contextContent = "";
+      }
+    } else {
+      console.log("ℹ️ No Roam context provided or context is empty");
     }
 
     // Get filtered MCP tools from all servers
@@ -225,6 +253,8 @@ export const invokeMCPAgent = async ({
       // Stateful resource content
       activeResources: conversationData.activeResources || {},
       isResourceProcessed: conversationData.isResourceProcessed || false,
+      // Roam context content
+      roamContextContent: contextContent,
     });
 
 
@@ -278,6 +308,8 @@ export const invokeMCPAgent = async ({
             // Persist resource content for future conversation turns
             activeResources: response.activeResources || {},
             isResourceProcessed: response.isResourceProcessed || false,
+            // Persist roam context for future conversation turns
+            roamContext: effectiveRoamContext,
           },
           aiCallback: invokeMCPAgent,
         });

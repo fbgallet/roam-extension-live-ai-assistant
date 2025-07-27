@@ -27,7 +27,7 @@ import {
   cleanupContextMenu,
   customStyleTitles,
   initializeContextMenu,
-} from "./components/ContextMenu";
+} from "./components/contextMenu";
 import { getValidLanguageCode } from "./ai/languagesSupport";
 import {
   getArrayFromList,

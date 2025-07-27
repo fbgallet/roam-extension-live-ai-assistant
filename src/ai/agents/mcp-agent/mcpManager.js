@@ -33,10 +33,7 @@ class MCPManager {
       if (connected) {
         this.clients.set(serverConfig.id, client);
         console.log(`Successfully connected to MCP server: ${serverConfig.name}`);
-        // Notify context menu to update MCP items
-        if (window.LiveAI?.updateMCPItems) {
-          window.LiveAI.updateMCPItems();
-        }
+        // ✨ No longer needed - MCP commands generated dynamically in ContextMenu
         return true;
       }
       
@@ -53,10 +50,7 @@ class MCPManager {
       client.disconnect();
       this.clients.delete(serverId);
       console.log(`Disconnected from MCP server: ${serverId}`);
-      // Notify context menu to update MCP items
-      if (window.LiveAI?.updateMCPItems) {
-        window.LiveAI.updateMCPItems();
-      }
+      // ✨ No longer needed - MCP commands generated dynamically in ContextMenu
     }
   }
 
