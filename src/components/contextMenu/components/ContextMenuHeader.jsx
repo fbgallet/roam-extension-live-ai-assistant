@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Icon, Tooltip, MenuDivider } from "@blueprintjs/core";
 import { displayTokensDialog } from "../../../utils/domElts";
 import { MCPDiagnostics } from "../../../ai/agents/mcp-agent/mcpDiagnostics";
+import AskGraphModeIndicator from "../../AskGraphModeIndicator";
+import { getCurrentAskGraphMode, setSessionAskGraphMode } from "../../../ai/agents/search-agent/ask-your-graph";
 
 const ContextMenuHeader = ({
   defaultModel,
@@ -15,6 +17,19 @@ const ContextMenuHeader = ({
   handleClose,
   inputRef,
 }) => {
+  const [currentMode, setCurrentMode] = useState(() => getCurrentAskGraphMode());
+
+  // Update mode when component mounts or when external changes occur
+  useEffect(() => {
+    setCurrentMode(getCurrentAskGraphMode());
+  }, []);
+
+  const handleModeChange = (newMode) => {
+    console.log("🔄 Mode changed to:", newMode);
+    setSessionAskGraphMode(newMode, true);
+    setCurrentMode(newMode); // Update local state immediately
+  };
+
   return (
     <>
       <div className="aicommands-topbar">
@@ -90,6 +105,15 @@ const ContextMenuHeader = ({
               }}
             />
           </Tooltip>
+          
+          {/* Ask Graph Mode Indicator */}
+          <AskGraphModeIndicator
+            currentMode={currentMode}
+            onModeChange={handleModeChange}
+            showChangeOption={true}
+            iconOnly={true}
+          />
+          
           <Tooltip
             content="Close context menu"
             disabled={window.roamAlphaAPI.platform.isMobile}

@@ -33,6 +33,7 @@ import {
 } from "../index.js";
 import {
   displaySpinner,
+  displayAskGraphModeDialog,
   highlightHtmlElt,
   insertInstantButtons,
   removeSpinner,
@@ -51,7 +52,8 @@ import {
 import {
   invokeAskAgent,
   invokeSearchAgent,
-} from "../ai/agents/search-agent/invoke-search-agent.ts";
+} from "../ai/agents/search-agent/ask-your-graph-invoke.ts";
+import { askYourGraph } from "../ai/agents/search-agent/ask-your-graph.ts";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 
 export let isCanceledStreamGlobal = false;
@@ -161,8 +163,8 @@ const InstantButtons = ({
                 conversationSummary: agentData?.conversationSummary,
                 toolResultsCache: agentData?.toolResultsCache || {},
               }
-            : { 
-                ...agentData, 
+            : {
+                ...agentData,
                 toolResultsCache: {}, // Clear cache for simple retry
                 conversationHistory: agentData?.conversationHistory || [],
                 conversationSummary: agentData?.conversationSummary,
@@ -182,29 +184,54 @@ const InstantButtons = ({
     isConversationToContinue,
   }) => {
     const userPrompt = getBlockContentByUid(targetUid) || "";
+    console.log("🔍 userPrompt in handleConversation:", userPrompt);
+    console.log("🔍 targetUid:", targetUid);
 
-    // Check if this is an agent callback (like MCP agent)
+    // Check if this is an agent callback (like MCP agent or Search agent)
     if (aiCallback && agentData) {
       if (userPrompt) {
-        aiCallback({
-          model: model,
-          prompt: userPrompt,
-          style,
-          rootUid: targetUid,
-          targetUid: undefined, // Let agent create new block
-          target: "new",
-          serverId: agentData.serverId,
-          serverName: agentData.serverName,
-          preferredToolName: agentData.preferredToolName,
-          agentData: {
-            ...agentData,
-            // Ensure all new conversation fields are preserved
-            conversationHistory: agentData.conversationHistory || [],
-            conversationSummary: agentData.conversationSummary,
-            toolResultsCache: agentData.toolResultsCache || {},
-            isConversationMode: true,
-          },
-        });
+        // Check if this is a search/ask agent callback - use askYourGraph
+        if (aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) {
+          callAskYourGraphWithModeHandling({
+            model: model,
+            prompt: userPrompt,
+            rootUid: targetUid,
+            targetUid: undefined, // Let agent create new block
+            target: "new",
+            previousAgentState: {
+              ...agentData,
+              // Let the agent handle conversation history updates
+              conversationHistory: agentData.conversationHistory || [],
+              conversationSummary: agentData.conversationSummary,
+              toolResultsCache: agentData.toolResultsCache || {},
+              previousSearchResults: agentData.previousSearchResults,
+              isConversationMode: true,
+            },
+            bypassDialog: true, // In conversation mode, don't show mode dialog
+          });
+        } else {
+          // For other agents (like MCP), use the original callback
+          aiCallback({
+            model: model,
+            prompt: userPrompt,
+            style,
+            rootUid: targetUid,
+            targetUid: undefined, // Let agent create new block
+            target: "new",
+            serverId: agentData.serverId,
+            serverName: agentData.serverName,
+            preferredToolName: agentData.preferredToolName,
+            previousAgentState: {
+              ...agentData,
+              // Let the agent handle conversation history updates
+              conversationHistory: agentData.conversationHistory || [],
+              conversationSummary: agentData.conversationSummary,
+              toolResultsCache: agentData.toolResultsCache || {},
+              previousSearchResults: agentData.previousSearchResults,
+              isConversationMode: true,
+            },
+          });
+        }
       } else {
         console.log("❌ No user prompt found in block", targetUid);
       }
@@ -251,7 +278,21 @@ const InstantButtons = ({
     let spinnerId;
     setTimeout(() => {
       setIsToUnmount(true);
-      insertInstantButtons({ ...props, targetUid: nextBlock });
+      insertInstantButtons({
+        ...props,
+        targetUid: nextBlock,
+        isUserResponse: true,
+        // Remove the old prompt so it doesn't override the new user input
+        prompt: undefined,
+        // Ensure conversation context is preserved for the new block
+        agentData: {
+          ...props.agentData,
+          conversationHistory: props.agentData?.conversationHistory || [],
+          conversationSummary: props.agentData?.conversationSummary,
+          previousSearchResults: props.agentData?.previousSearchResults,
+          isConversationMode: true,
+        },
+      });
       if (isSuggestionToInsert) spinnerId = displaySpinner(nextBlock);
     }, 100);
     if (isSuggestionToInsert) {
@@ -297,12 +338,12 @@ const InstantButtons = ({
           conversationSummary: agentData?.conversationSummary,
           toolResultsCache: agentData?.toolResultsCache || {},
         },
-        aiCallback: invokeAskAgent,
+        aiCallback: (params) => callAskYourGraphWithModeHandling(params),
       };
       handleInsertConversationButtons(props);
       return;
     }
-    invokeAskAgent({
+    callAskYourGraphWithModeHandling({
       model,
       rootUid: currentUidBackup,
       target,
@@ -319,10 +360,11 @@ const InstantButtons = ({
   };
 
   const handleNextResults = () => {
-    invokeSearchAgent({
+    callAskYourGraphWithModeHandling({
       model,
       rootUid: currentUid,
       target,
+      prompt: "Continue with next results", // Default prompt for next results
       previousAgentState: {
         ...agentData,
         // Ensure conversation state is preserved for search agent
@@ -330,6 +372,7 @@ const InstantButtons = ({
         conversationSummary: agentData?.conversationSummary,
         toolResultsCache: agentData?.toolResultsCache || {},
       },
+      bypassDialog: true, // Don't show mode dialog for continuing results
     });
   };
 
@@ -338,6 +381,52 @@ const InstantButtons = ({
     if (isOutlinerAgent) {
       extensionStorage.set("outlinerRootUid", null);
       toggleOutlinerSelection(targetUid, false);
+    }
+  };
+
+  // Helper function to call askYourGraph with mode escalation handling
+  const callAskYourGraphWithModeHandling = async (params) => {
+    console.log("🐛 DEBUG: Calling askYourGraph with params:", params);
+    try {
+      return await askYourGraph(params);
+    } catch (error) {
+      console.log("🐛 DEBUG: Caught error:", error.message, error);
+      if (error.message === "MODE_ESCALATION_NEEDED") {
+        console.log("🐛 DEBUG: MODE_ESCALATION_NEEDED caught, showing dialog");
+        console.log("🐛 DEBUG: Error data:", {
+          currentMode: error.currentMode,
+          suggestedMode: error.suggestedMode,
+          userQuery: error.userQuery
+        });
+        
+        // Show mode selection dialog using the display function
+        displayAskGraphModeDialog({
+          currentMode: error.currentMode,
+          suggestedMode: error.suggestedMode,
+          userQuery: error.userQuery,
+          onModeSelect: async (selectedMode, rememberChoice) => {
+            console.log("🐛 DEBUG: Mode selected:", selectedMode, "Remember:", rememberChoice);
+            try {
+              // Set session mode if user chose to remember
+              if (rememberChoice) {
+                const { setSessionAskGraphMode } = await import("../ai/agents/search-agent/ask-your-graph.ts");
+                setSessionAskGraphMode(selectedMode, true);
+              }
+              
+              // Call askYourGraph again with the selected mode and bypass dialog
+              await askYourGraph({
+                ...params,
+                requestedMode: selectedMode,
+                bypassDialog: true
+              });
+            } catch (retryError) {
+              console.error("Error with selected mode:", retryError);
+            }
+          }
+        });
+        return null; // Don't proceed, wait for user selection
+      }
+      throw error; // Re-throw other errors
     }
   };
 
@@ -375,7 +464,8 @@ const InstantButtons = ({
   if (isToUnmount) return null;
 
   return isUserResponse ? (
-    aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent ? (
+    (aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) &&
+    !agentData?.isConversationMode ? (
       questionAgentResultsButton()
     ) : (
       <>
@@ -442,7 +532,7 @@ const InstantButtons = ({
           </Tooltip>
         </Button>
       )}
-      {!isOutlinerAgent && aiCallback !== invokeSearchAgent && (
+      {!isOutlinerAgent && (
         <Button
           onClick={(e) => {
             const props = {
@@ -461,6 +551,7 @@ const InstantButtons = ({
                 conversationHistory: agentData?.conversationHistory || [],
                 conversationSummary: agentData?.conversationSummary,
                 toolResultsCache: agentData?.toolResultsCache || {},
+                previousSearchResults: agentData?.previousSearchResults,
                 isConversationMode: true,
               },
             };

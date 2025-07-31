@@ -61,6 +61,8 @@ export const invokeAskAgent = async ({
     message: "",
   });
 
+  console.log("🔍 invokeAskAgent received prompt:", prompt);
+  console.log("🔍 previousAgentState:", previousAgentState?.conversationHistory?.length || 0, "messages");
   // console.log("options :>> ", options);
   // console.log("previousAgentState :>> ", previousAgentState);
 
@@ -80,12 +82,19 @@ export const invokeAskAgent = async ({
   const response = await SearchAgent.invoke({
     model: llmInfos,
     rootUid,
-    userNLQuery: prompt,
     target,
     targetUid,
     isPostProcessingNeeded: onlySearch ? false : undefined,
+    // Spread previousAgentState first, then override with current values
     ...previousAgentState,
     ...options,
+    // Conversation mode support - these should override previousAgentState
+    isConversationMode: previousAgentState?.isConversationMode || false,
+    conversationHistory: previousAgentState?.conversationHistory || [],
+    conversationSummary: previousAgentState?.conversationSummary,
+    previousSearchResults: previousAgentState?.previousSearchResults,
+    // MOST IMPORTANT: userNLQuery should be the current prompt, not from previousAgentState
+    userNLQuery: prompt,
   });
 
   let end = performance.now();
@@ -102,7 +111,7 @@ export const invokeAskAgent = async ({
     setTimeout(() => {
       insertInstantButtons({
         model: llmInfos.id,
-        prompt: response.userNLQuery,
+        prompt: [{ role: "user", content: response.userNLQuery }],
         currentUid: rootUid,
         targetUid: response.shiftDisplay ? rootUid : response.targetUid,
         responseFormat: "text",
@@ -122,6 +131,11 @@ export const invokeAskAgent = async ({
           shiftDisplay:
             response.shiftDisplay < response.filteredBlocks?.length &&
             response.shiftDisplay,
+          // Conversation mode fields
+          conversationHistory: response.conversationHistory || [],
+          conversationSummary: response.conversationSummary,
+          previousSearchResults: response.previousSearchResults,
+          isConversationMode: true, // Enable conversation mode for subsequent interactions
         },
         aiCallback: onlySearch ? invokeSearchAgent : invokeAskAgent,
       });

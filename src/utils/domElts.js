@@ -10,6 +10,8 @@ import {
 import { getSpeechRecognitionAPI } from "../audio/audio";
 import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
+import AskGraphModeDialog from "../components/AskGraphModeDialog";
+import AskGraphFirstTimeDialog from "../components/AskGraphFirstTimeDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
 
@@ -146,6 +148,13 @@ export function removeContainer(position) {
 
 export const displaySpinner = async (targetUid) => {
   // console.log("targetUid :>> ", targetUid);
+  
+  // Safety check: if targetUid is null, undefined, or invalid, return early
+  if (!targetUid || targetUid === "undefined" || targetUid === "null") {
+    console.warn("⚠️ displaySpinner called with invalid targetUid:", targetUid);
+    return null; // Return null instead of intervalId to indicate no spinner was created
+  }
+  
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
@@ -172,7 +181,10 @@ export const displaySpinner = async (targetUid) => {
 };
 
 export const removeSpinner = (intervalId) => {
-  clearInterval(intervalId);
+  // Only clear interval if intervalId is valid
+  if (intervalId) {
+    clearInterval(intervalId);
+  }
   const spinner = document.querySelector(".speech-spinner");
   if (spinner) spinner.remove();
 };
@@ -258,6 +270,85 @@ export const displayTokensDialog = () => {
   }
   ReactDOM.render(
     <TokensDialog isOpen={true} onClose={unmountTokensDialog} />,
+    container
+  );
+};
+
+export const displayAskGraphModeDialog = (dialogData) => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".askgraph-mode-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("askgraph-mode-dialog-container");
+  targetElt.appendChild(container);
+  
+  function unmountAskGraphModeDialog() {
+    const node = document.querySelector(".askgraph-mode-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+  
+  ReactDOM.render(
+    <AskGraphModeDialog
+      isOpen={true}
+      onClose={unmountAskGraphModeDialog}
+      currentMode={dialogData.currentMode}
+      suggestedMode={dialogData.suggestedMode}
+      userQuery={dialogData.userQuery}
+      onModeSelect={(selectedMode, rememberChoice) => {
+        // Close dialog first
+        unmountAskGraphModeDialog();
+        // Then call the callback
+        if (dialogData.onModeSelect) {
+          dialogData.onModeSelect(selectedMode, rememberChoice);
+        }
+      }}
+    />,
+    container
+  );
+};
+
+export const displayAskGraphFirstTimeDialog = (dialogData) => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".askgraph-firsttime-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("askgraph-firsttime-dialog-container");
+  targetElt.appendChild(container);
+  
+  function unmountAskGraphFirstTimeDialog() {
+    const node = document.querySelector(".askgraph-firsttime-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+  
+  ReactDOM.render(
+    <AskGraphFirstTimeDialog
+      isOpen={true}
+      onClose={unmountAskGraphFirstTimeDialog}
+      onModeSelect={(selectedMode) => {
+        // Close dialog first
+        unmountAskGraphFirstTimeDialog();
+        // Then call the callback
+        if (dialogData.onModeSelect) {
+          dialogData.onModeSelect(selectedMode);
+        }
+      }}
+    />,
     container
   );
 };

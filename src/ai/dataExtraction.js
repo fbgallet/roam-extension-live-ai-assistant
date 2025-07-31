@@ -908,7 +908,10 @@ export const getArrayFromList = (list, separator = ",", prefix = "") => {
   return splittedList;
 };
 
-export const getConversationArray = async (parentUid) => {
+export const getConversationArray = async (
+  parentUid,
+  isLastTurnToInclude = false
+) => {
   let tree = getTreeByUid(parentUid);
   if (!tree) return null;
   const isWholePage = tree[0].string ? false : true;
@@ -947,7 +950,7 @@ export const getConversationArray = async (parentUid) => {
       (a, b) => a.order - b.order
     );
     const lastBlockOrder = orderedChildrenTree.length - 1;
-    for (let i = 0; i < lastBlockOrder; i++) {
+    for (let i = 0; i < lastBlockOrder + (isLastTurnToInclude ? 1 : 0); i++) {
       const child = orderedChildrenTree[i];
       let turnFlattenedContent = getFlattenedContentFromTree({
         parentUid: child.uid,

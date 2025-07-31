@@ -74,7 +74,7 @@ The request can be a sentence, a question, or a set of keywords. Here are the sp
 - period of time limitation
 - pages limitation: only on DNP or only on pages matching a given condition in ther title
 
-## Ask to your graph...
+## Ask your graph...
 
 You ask a question or request to process blocks that meet certain criteria (these blocks will not be directly affected, they are only extracted, then their content is processed). The search relies on the Smart Search Agent: its results (up to a maximum of 100, including their direct parent and first child) are provided as context to an LLM for a pre-selection of a maximum of 20 most relevant blocks based on the query. The most relevant blocks (including all their parents and children on 3 levels) then serve as context for processing the initial request.
 

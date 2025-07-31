@@ -641,6 +641,11 @@ export const StandaloneContextMenu = () => {
 
   const filterCommandsInternal = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
+    // Hide "Ask your graph - Last results" if no results are available
+    if (item.id === 93) {
+      const results = window.lastAskYourGraphResults;
+      return results && Array.isArray(results) && results.length > 0;
+    }
     if (
       item.name === "Text to Speech" &&
       !(

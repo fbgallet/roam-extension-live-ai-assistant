@@ -1,10 +1,8 @@
 import { invokeGraphExplorer } from "./agents/graph-explorer-agent/graph-explorer";
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
-import {
-  invokeAskAgent,
-  invokeSearchAgent,
-} from "./agents/search-agent/invoke-search-agent";
+import { askYourGraph } from "./agents/search-agent/ask-your-graph";
+import { openLastAskYourGraphResults } from "../components/FullResultsPopup.tsx";
 import { languages } from "./languagesSupport";
 
 export const CATEGORY_ICON = {
@@ -142,36 +140,88 @@ export const BUILTIN_COMMANDS = [
       style: true,
     },
   },
+  // COMMENTED OUT: Legacy command replaced by new askYourGraph (id: 92)
+  // {
+  //   id: 82,
+  //   name: "Ask your graph (Legacy)",
+  //   callback: invokeSearchAgent,
+  //   category: "QUERY AGENTS",
+  //   target: "new",
+  //   keyWords: "Natural language Agent legacy search",
+  //   isIncompatibleWith: {
+  //     outliner: true,
+  //     style: true,
+  //   },
+  // },
+  // COMMENTED OUT: Direct invoke commands replaced by new askYourGraph (id: 92)
+  // {
+  //   id: 90,
+  //   name: "ReAct Search Agent (Secure)",
+  //   callback: invokeSearchAgentSecure,
+  //   category: "QUERY AGENTS",
+  //   target: "new",
+  //   keyWords: "react search secure reasoning acting logical symbols",
+  //   isIncompatibleWith: {
+  //     outliner: true,
+  //     style: true,
+  //   },
+  // },
+  // {
+  //   id: 91,
+  //   name: "ReAct Search Agent (Full)",
+  //   callback: invokeSearchAgentFull,
+  //   category: "QUERY AGENTS",
+  //   target: "new",
+  //   keyWords: "react search full content reasoning acting logical symbols",
+  //   isIncompatibleWith: {
+  //     outliner: true,
+  //     style: true,
+  //   },
+  // },
   {
-    id: 82,
-    name: "Smart Search Agent",
-    callback: invokeSearchAgent,
+    id: 92,
+    name: "Ask your graph",
+    callback: askYourGraph,
     category: "QUERY AGENTS",
+    isIncompatibleWith: {
+      outliner: true,
+    },
     target: "new",
-    keyWords: "Natural language Agent",
+    keyWords: "Natural language search privacy modes secure balanced full",
+  },
+  {
+    id: 93,
+    name: "Ask your graph: view last results",
+    callback: openLastAskYourGraphResults,
+    category: "QUERY AGENTS",
+    icon: "list-detail-view",
     isIncompatibleWith: {
       outliner: true,
       style: true,
     },
+    keyWords: "view full results popup last search",
   },
-  {
-    id: 83,
-    name: "Ask your graph",
-    callback: invokeAskAgent,
-    category: "QUERY AGENTS",
-    isIncompatibleWith: {
-      outliner: true,
-    },
-    target: "new",
-    keyWords: "Natural language Agent, post-processing",
-  },
-  {
-    id: 84,
-    name: "Graph Explorer",
-    callback: invokeGraphExplorer,
-    category: "QUERY AGENTS",
-    target: "new",
-  },
+  // COMMENTED OUT: Legacy full access command replaced by new askYourGraph (id: 92)
+  // {
+  //   id: 83,
+  //   name: "Ask your graph (Full Access)",
+  //   callback: invokeAskAgent,
+  //   category: "QUERY AGENTS",
+  //   isIncompatibleWith: {
+  //     outliner: true,
+  //   },
+  //   target: "new",
+  //   keyWords: "Natural language search full access legacy",
+  // },
+
+  // WIP - Not ready for the next update
+  // {
+  //   id: 84,
+  //   name: "Graph Explorer",
+  //   callback: invokeGraphExplorer,
+  //   category: "QUERY AGENTS",
+  //   target: "new",
+  // },
 
   // CONTENT ANALYSIS
   {

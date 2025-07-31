@@ -3,29 +3,44 @@ import {
   getFlattenedContentFromTree,
   getResolvedContentFromBlocks,
   concatAdditionalPrompt,
-  getUnionContext
+  getUnionContext,
+  getConversationArray,
 } from "../../../ai/dataExtraction";
 import { completionCommands } from "../../../ai/prompts";
-import { addToConversationHistory, getConversationParamsFromHistory } from "../../..";
-import { getParentBlock, hasBlockChildren } from "../../../utils/roamAPI";
+import {
+  addToConversationHistory,
+  chatRoles,
+  getConversationParamsFromHistory,
+  getInstantAssistantRole,
+} from "../../..";
+import {
+  createChildBlock,
+  getParentBlock,
+  hasBlockChildren,
+} from "../../../utils/roamAPI";
 import { aiCompletionRunner } from "../../../ai/responseInsertion";
 import { textToSpeech } from "../../../ai/aiAPIsHub";
 import { mcpManager } from "../../../ai/agents/mcp-agent/mcpManager";
 import { invokeMCPAgent } from "../../../ai/agents/mcp-agent/invoke-mcp-agent";
-import { 
+import {
   checkOutlineAvailabilityOrOpen,
   insertNewOutline,
-  invokeOutlinerAgent
+  invokeOutlinerAgent,
 } from "../../../ai/agents/outliner-agent/invoke-outliner-agent";
 import { handleOutlineSelection } from "../handlers/outlinerCommandHandler";
-import { extensionStorage, incrementCommandCounter, defaultModel } from "../../..";
+import {
+  extensionStorage,
+  incrementCommandCounter,
+  defaultModel,
+} from "../../..";
 import { hasTrueBooleanKey } from "../../../utils/dataProcessing";
+import { insertInstantButtons, displayAskGraphModeDialog, displayAskGraphFirstTimeDialog } from "../../../utils/domElts";
 
-export const handleClickOnCommand = async ({ 
-  e, 
-  command, 
-  prompt, 
-  model, 
+export const handleClickOnCommand = async ({
+  e,
+  command,
+  prompt,
+  model,
   // Context and state
   roamContextRef,
   focusedBlockUid,
@@ -52,7 +67,7 @@ export const handleClickOnCommand = async ({
   handleClose,
   setRoamContext,
   getInstantPrompt,
-  handleOutlinePrompt
+  handleOutlinePrompt,
 }) => {
   let customContext;
   const capturedRoamContext = { ...roamContextRef.current };
@@ -73,14 +88,97 @@ export const handleClickOnCommand = async ({
   }
   if (command.category === "QUERY AGENTS") {
     if (command.callback) {
-      command.callback({
-        model,
-        target,
-        rootUid: focusedBlockUid.current,
-        targetUid: focusedBlockUid.current,
-        prompt: getInstantPrompt(command),
-        retryInstruction: additionalPrompt,
-      });
+      try {
+        // Ensure we have a valid focused block UID, fall back to current focus if needed
+        let effectiveRootUid = focusedBlockUid.current;
+        if (!effectiveRootUid) {
+          // Try to get current focus as fallback
+          const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
+          effectiveRootUid = focusedBlock?.["block-uid"] || null;
+        }
+        
+        await command.callback({
+          model,
+          target,
+          rootUid: effectiveRootUid,
+          targetUid: effectiveRootUid,
+          prompt: getInstantPrompt(command),
+          retryInstruction: additionalPrompt,
+        });
+      } catch (error) {
+        if (error.message === "MODE_ESCALATION_NEEDED") {
+          
+          // Show mode selection dialog using the display function
+          displayAskGraphModeDialog({
+            currentMode: error.currentMode,
+            suggestedMode: error.suggestedMode,
+            userQuery: error.userQuery,
+            onModeSelect: async (selectedMode, rememberChoice) => {
+              try {
+                // Set session mode if user chose to remember
+                if (rememberChoice) {
+                  const { setSessionAskGraphMode } = await import("../../../ai/agents/search-agent/ask-your-graph.ts");
+                  setSessionAskGraphMode(selectedMode, true);
+                }
+                
+                // Ensure we have a valid focused block UID for retry
+                let effectiveRootUid = focusedBlockUid.current;
+                if (!effectiveRootUid) {
+                  const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
+                  effectiveRootUid = focusedBlock?.["block-uid"] || null;
+                }
+                
+                await command.callback({
+                  model,
+                  target,
+                  rootUid: effectiveRootUid,
+                  targetUid: effectiveRootUid,
+                  prompt: error.userQuery, // Use the original prompt from the error
+                  retryInstruction: additionalPrompt,
+                  requestedMode: selectedMode,
+                  bypassDialog: true,
+                });
+              } catch (retryError) {
+                console.error("Error with selected mode in commandProcessing:", retryError);
+              }
+            }
+          });
+        } else if (error.message === "FIRST_TIME_SETUP_NEEDED") {
+          // Show first time setup dialog
+          displayAskGraphFirstTimeDialog({
+            onModeSelect: async (selectedMode) => {
+              try {
+                // Set the selected mode as default
+                const { setSessionAskGraphMode } = await import("../../../ai/agents/search-agent/ask-your-graph.ts");
+                setSessionAskGraphMode(selectedMode, true);
+                
+                // Ensure we have a valid focused block UID for first time setup
+                let effectiveRootUid = focusedBlockUid.current;
+                if (!effectiveRootUid) {
+                  const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
+                  effectiveRootUid = focusedBlock?.["block-uid"] || null;
+                }
+                
+                await command.callback({
+                  model,
+                  target,
+                  rootUid: effectiveRootUid,
+                  targetUid: effectiveRootUid,
+                  prompt: error.userQuery,
+                  retryInstruction: additionalPrompt,
+                  requestedMode: selectedMode,
+                  bypassDialog: true,
+                });
+              } catch (retryError) {
+                console.error("Error with first time selected mode:", retryError);
+              }
+            }
+          });
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
       return;
     }
   }
@@ -163,8 +261,7 @@ export const handleClickOnCommand = async ({
 
   if (command.category === "AI MODEL") {
     model = command.model;
-    if (isOutlinerAgent && rootUid)
-      command = commands.find((c) => c.id === 21);
+    if (isOutlinerAgent && rootUid) command = commands.find((c) => c.id === 21);
     else if (isInConversation) command = commands.find((c) => c.id === 10);
     else command = commands.find((c) => c.id === 1);
     if (model.includes("-search")) command.includeUids = false;
@@ -172,12 +269,9 @@ export const handleClickOnCommand = async ({
 
   // Handle MCP commands FIRST before other command processing
   if (command.mcpType) {
-    
     // Validate MCP command structure early
     if (!command.serverId || !command.serverName) {
-      alert(
-        "MCP command is corrupted. Please refresh the menu and try again."
-      );
+      alert("MCP command is corrupted. Please refresh the menu and try again.");
       return;
     }
 
@@ -330,6 +424,35 @@ export const handleClickOnCommand = async ({
   }
 
   if (
+    focusedBlockUid.current &&
+    command.id === 10 &&
+    chatRoles.genericAssistantRegex.test(focusedBlockContent.current)
+  ) {
+    const conversationParentUid = getParentBlock(focusedBlockUid.current);
+    let conversationPrompt = await getConversationArray(
+      conversationParentUid,
+      true
+    );
+    const conversationParams = getConversationParamsFromHistory(
+      conversationParentUid
+    );
+    const conversationTargetUid = await createChildBlock(
+      conversationParentUid,
+      chatRoles.user
+    );
+    setTimeout(() => {
+      insertInstantButtons({
+        model,
+        prompt: conversationPrompt,
+        style,
+        targetUid: conversationTargetUid,
+        isUserResponse: true,
+        selectedUids: conversationParams?.selectedUids,
+        command: conversationParams?.command,
+        roamContenxt: conversationParams?.context,
+      });
+    }, 200);
+  } else if (
     command.id === 1 ||
     command.id === 10 ||
     command.id === 100 ||
@@ -363,8 +486,7 @@ export const handleClickOnCommand = async ({
         command.includeUids || target === "replace" || target === "append",
       includeChildren:
         includeChildren ||
-        (isChildrenTreeToInclude &&
-          hasBlockChildren(focusedBlockUid.current)),
+        (isChildrenTreeToInclude && hasBlockChildren(focusedBlockUid.current)),
       withSuggestions: command.withSuggestions,
       target,
       selectedUids: selectedBlocks.current,
@@ -382,7 +504,12 @@ export const handleClickOnCommand = async ({
       forceNotInConversation: isInConversation && command.id === 1,
     });
   } else {
-    if (command.id === 20) handleOutlineSelection(rootUid, setRootUid, updateOutlineSelectionCommand);
+    if (command.id === 20)
+      handleOutlineSelection(
+        rootUid,
+        setRootUid,
+        updateOutlineSelectionCommand
+      );
     else if (command.id === 22) {
       await insertNewOutline(
         focusedBlockUid.current,
@@ -397,14 +524,18 @@ export const handleClickOnCommand = async ({
   }
 };
 
-export const getInstantPrompt = (command, includeAdditionalPrompt = true, params = {}) => {
+export const getInstantPrompt = (
+  command,
+  includeAdditionalPrompt = true,
+  params = {}
+) => {
   const {
     focusedBlockUid,
     focusedBlockContent,
     selectedBlocks,
     selectedTextInBlock,
     isChildrenTreeToInclude,
-    additionalPrompt
+    additionalPrompt,
   } = params;
   let instantPrompt = "";
   if (focusedBlockUid.current) {
@@ -431,13 +562,8 @@ export const getInstantPrompt = (command, includeAdditionalPrompt = true, params
 };
 
 export const handleOutlinePrompt = async (e, prompt, model, params = {}) => {
-  const {
-    rootUid,
-    focusedBlockUid,
-    roamContext,
-    style,
-    getInstantPrompt
-  } = params;
+  const { rootUid, focusedBlockUid, roamContext, style, getInstantPrompt } =
+    params;
   if (rootUid)
     invokeOutlinerAgent({
       e,
