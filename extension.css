@@ -513,7 +513,7 @@
   /* top: -22px; */
   right: 0;
   z-index: 99;
-  opacity: 0;
+  opacity: 0.1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -985,4 +985,593 @@
 .mcp-toaster .bp3-toast.bp3-intent-primary {
   background-color: #137cbd;
   color: white;
+}
+
+/* Ask Graph Dialog Styles */
+
+/* Mode Dialog */
+.laia-askgraph-mode-dialog {
+  width: 500px;
+  max-width: 90vw;
+}
+
+.laia-askgraph-mode-dialog-body {
+  padding: 20px;
+}
+
+.laia-askgraph-user-query {
+  margin-bottom: 15px;
+  padding: 12px;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.laia-askgraph-current-mode {
+  margin-bottom: 20px;
+  color: #5c7080;
+  font-size: 14px;
+}
+
+.laia-askgraph-mode-options {
+  margin-bottom: 25px;
+}
+
+.laia-askgraph-mode-options-title {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.laia-askgraph-mode-option {
+  margin-bottom: 12px;
+}
+
+.laia-askgraph-mode-button {
+  text-align: left;
+  justify-content: flex-start;
+  padding: 12px 16px;
+  border: 1px solid #d3d8de;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.laia-askgraph-mode-button:hover {
+  border-color: #a7b6c2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.laia-askgraph-mode-button-recommended {
+  border-color: #137cbd;
+  border-width: 2px;
+}
+
+.laia-askgraph-mode-icon {
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.laia-askgraph-mode-content {
+  flex: 1;
+}
+
+.laia-askgraph-mode-title {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.laia-askgraph-mode-description {
+  font-size: 12px;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+.laia-askgraph-remember-checkbox {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e1e8ed;
+}
+
+/* First Time Dialog */
+.laia-askgraph-firsttime-dialog-body {
+  padding: 5px;
+}
+
+.laia-askgraph-firsttime-dialog {
+  width: 600px;
+  max-width: 90vw;
+}
+
+.laia-askgraph-firsttime-intro {
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.laia-askgraph-firsttime-radio-group {
+  margin-bottom: 15px;
+}
+
+.laia-askgraph-firsttime-radio-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bp3-control:not(.bp3-align-right).laia-askgraph-firsttime-radio {
+  padding-left: 35px;
+}
+
+.laia-askgraph-firsttime-radio {
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  transition: border-color 0.2s ease;
+}
+
+.laia-askgraph-firsttime-radio:hover {
+  border-color: #a7b6c2;
+}
+
+.laia-askgraph-firsttime-radio .bp3-control-indicator {
+  margin-right: 10px;
+}
+
+.laia-askgraph-firsttime-radio .bp3-control-indicator:checked {
+  border-color: #137cbd;
+}
+
+.laia-askgraph-firsttime-radio label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.laia-askgraph-firsttime-mode-details {
+  padding: 15px;
+  border: 1px solid #d3d8de;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.laia-askgraph-firsttime-mode-title {
+  margin: 0 0 12px 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.laia-askgraph-firsttime-mode-description {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #34495e;
+}
+
+.laia-askgraph-firsttime-pros-cons {
+  display: flex;
+  gap: 24px;
+}
+
+.laia-askgraph-firsttime-pros,
+.laia-askgraph-firsttime-cons {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #e8ebed;
+  border-radius: 6px;
+}
+
+.laia-askgraph-firsttime-pros {
+  border-left: 3px solid #0f9960;
+}
+
+.laia-askgraph-firsttime-cons {
+  border-left: 3px solid #d9822b;
+}
+
+.laia-askgraph-firsttime-pros-title {
+  color: #0f9960;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.laia-askgraph-firsttime-cons-title {
+  color: #d9822b;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.laia-askgraph-firsttime-pros-content,
+.laia-askgraph-firsttime-cons-content {
+  margin: 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  line-height: 1.5;
+  color: #5c7080;
+}
+
+.laia-askgraph-firsttime-note,
+.laia-askgraph-firsttime-privacy {
+  padding: 14px 16px;
+  border: 1px solid #e8ebed;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  line-height: 1.5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.laia-askgraph-firsttime-note {
+  border-left: 4px solid #d9822b;
+}
+
+.laia-askgraph-firsttime-privacy {
+  border-left: 4px solid #137cbd;
+  margin-bottom: 0;
+}
+
+.laia-askgraph-firsttime-note-icon,
+.laia-askgraph-firsttime-privacy-icon {
+  margin-right: 12px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  opacity: 0.8;
+  min-width: 16px;
+}
+
+.laia-askgraph-firsttime-note strong,
+.laia-askgraph-firsttime-privacy strong {
+  margin-right: 4px;
+}
+
+.laia-askgraph-firsttime-dialog-footer {
+  padding: 5px;
+  border-top: 1px solid #e1e8ed;
+}
+
+.laia-askgraph-firsttime-proceed-button {
+  min-width: 200px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Container positioning for dialogs */
+.askgraph-mode-dialog-container,
+.askgraph-firsttime-dialog-container {
+  z-index: 10000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ask Graph Mode Indicator */
+.laia-askgraph-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.laia-askgraph-mode-indicator-icon-only {
+  margin-left: 4px;
+}
+
+.laia-askgraph-mode-button {
+  padding: 2px 6px;
+  min-height: 20px;
+  min-width: auto;
+}
+
+.laia-askgraph-mode-button-icon-only {
+  padding: 2px;
+  min-width: 20px;
+}
+
+.laia-askgraph-mode-span {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.laia-askgraph-mode-span-icon-only {
+  padding: 2px;
+}
+
+.laia-askgraph-mode-icon {
+  margin-right: 3px;
+}
+
+.laia-askgraph-mode-icon-only {
+  margin-right: 0;
+}
+
+.laia-askgraph-mode-text {
+  font-size: 11px;
+}
+
+/* Mode-specific colors - use header icon color for consistency */
+.laia-askgraph-mode-private,
+.laia-askgraph-mode-balanced,
+.laia-askgraph-mode-full,
+.laia-askgraph-mode-default {
+  color: var(--icon-color-top);
+}
+
+/* Icon colors should match other header icons */
+.laia-askgraph-mode-indicator svg path {
+  fill: var(--icon-color-top);
+}
+
+/* Optional: Subtle mode distinction through opacity when needed */
+.laia-askgraph-mode-private {
+  opacity: 0.8;
+}
+
+.laia-askgraph-mode-balanced {
+  opacity: 0.9;
+}
+
+.laia-askgraph-mode-full {
+  opacity: 1;
+}
+
+.laia-askgraph-mode-default {
+  opacity: 0.7;
+}
+
+/* Full Results Popup Styles */
+.full-results-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.full-results-modal {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 85%;
+  max-height: 90%;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.full-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.full-results-title {
+  margin: 0;
+}
+
+.full-results-close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.full-results-result-item {
+  margin-bottom: 8px;
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f9f9f9;
+  display: flex;
+  align-items: flex-start;
+}
+
+.full-results-result-item > .full-results-checkbox {
+  margin-right: 10px;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.full-results-block-container {
+  flex: 1;
+}
+
+.full-results-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.full-results-buttons-container {
+  display: flex;
+  gap: 8px;
+}
+
+.full-results-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.full-results-dropdown-toggle {
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 0 4px 4px 0;
+}
+
+.full-results-dropdown-toggle:hover {
+  background: #0052a3;
+}
+
+.full-results-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #0066cc;
+  color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 150px;
+}
+
+.full-results-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  color: white;
+}
+
+.full-results-dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.full-results-button {
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.full-results-button-primary {
+  background: #0066cc;
+  color: white;
+  border-radius: 4px 0 0 4px;
+}
+
+.full-results-button-primary:hover {
+  background: #0052a3;
+}
+
+.full-results-button-secondary {
+  background: #999;
+  color: white;
+}
+
+.full-results-button-secondary:hover {
+  background: #777;
+}
+
+.full-results-select-all-checkbox {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: #24292e;
+  gap: 6px;
+  margin-top: 6px;
+}
+.full-results-select-all-checkbox > input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Blueprint dropdown popover styling */
+.full-results-dropdown-popover {
+  z-index: 10000 !important;
+}
+
+.full-results-dropdown-popover .bp3-menu {
+  min-width: 150px;
+}
+
+/* Ensure Blueprint popovers appear above modal overlay */
+.bp3-popover2 {
+  z-index: 10000 !important;
+}
+
+.bp3-overlay {
+  z-index: 10000 !important;
+}
+
+/* Simple custom dropdown styling */
+.full-results-simple-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.full-results-simple-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 150px;
+  max-width: 200px;
+}
+
+.full-results-simple-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: #182026;
+  line-height: 1.28571;
+  font-family: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Open Sans", "Helvetica Neue", "Icons16", sans-serif;
+  transition: background-color 0.1s cubic-bezier(0.4, 1, 0.75, 0.9);
+}
+
+.full-results-simple-dropdown-item:hover {
+  background: #f5f8fa;
+  color: #182026;
+}
+
+.full-results-simple-dropdown-item:active {
+  background: #e1e8ed;
+}
+
+.full-results-simple-dropdown-item:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.full-results-simple-dropdown-item:last-child {
+  border-radius: 0 0 4px 4px;
 }

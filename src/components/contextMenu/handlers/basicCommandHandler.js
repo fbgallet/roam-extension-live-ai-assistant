@@ -1,6 +1,18 @@
 import { aiCompletionRunner } from "../../../ai/responseInsertion";
-import { hasBlockChildren } from "../../../utils/roamAPI";
+import {
+  createChildBlock,
+  getParentBlock,
+  hasBlockChildren,
+} from "../../../utils/roamAPI";
 import { hasTrueBooleanKey } from "../../../utils/dataProcessing";
+import { getConversationArray } from "../../../ai/dataExtraction";
+import {
+  chatRoles,
+  getConversationParamsFromHistory,
+  getInstantAssistantRole,
+} from "../../..";
+import InstantButtons from "../../InstantButtons";
+import { insertInstantButtons } from "../../../utils/domElts";
 
 /**
  * Handles basic AI completion commands
@@ -68,11 +80,12 @@ export const handleBasicCommand = async ({
           : command.prompt,
       instantModel: model,
       includeUids:
-        command.includeUids || targetBlock === "replace" || targetBlock === "append",
+        command.includeUids ||
+        targetBlock === "replace" ||
+        targetBlock === "append",
       includeChildren:
         includeChildren ||
-        (isChildrenTreeToInclude &&
-          hasBlockChildren(focusedBlockUid.current)),
+        (isChildrenTreeToInclude && hasBlockChildren(focusedBlockUid.current)),
       withSuggestions: command.withSuggestions,
       target: targetBlock,
       selectedUids: selectedBlocks.current,

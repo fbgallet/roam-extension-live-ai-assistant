@@ -27,6 +27,7 @@ import {
 import { mcpManager } from "./mcpManager";
 import { getFilteredMCPTools, createToolsForLLM } from "./mcp-tools";
 import { chatRoles, getInstantAssistantRole } from "../../..";
+import { parseJSONWithFields, parseJSONResponse } from "../shared/agentsUtils";
 
 const MCPAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -248,34 +249,17 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   };
 };
 
-// Simple emergency parser for minor JSON formatting issues
-const emergencyParsePlanningResponse = (responseText: string) => {
-  try {
-    // Clean up - focus only on removing markdown wrapper
-    let cleanedText = responseText.trim();
-
-    // Remove markdown code blocks if present
-    cleanedText = cleanedText.replace(/^```json\s*\n?/, ""); // Remove opening ```json
-    cleanedText = cleanedText.replace(/\n?\s*```\s*$/, ""); // Remove closing ```
-    cleanedText = cleanedText.replace(/```/g, ""); // Remove any remaining ```
-    cleanedText = cleanedText.trim();
-
-    // Try parsing the cleaned text directly
-    const result = JSON.parse(cleanedText);
-
-    // For multi-server planning, we always expect an execution plan
-    return {
-      needsPlanning: true,
-      executionPlan:
-        result.executionPlan ||
-        result.execution_plan ||
-        result.plan ||
-        undefined,
-      reasoning: result.reasoning || "Emergency parsing applied",
-    };
-  } catch (error) {
-    return null;
-  }
+// Planning response parser using shared utilities
+const parsePlanningResponse = (responseText: string) => {
+  return parseJSONWithFields<{
+    needsPlanning: boolean;
+    executionPlan: string;
+    reasoning: string;
+  }>(responseText, {
+    needsPlanning: ['needsPlanning', 'needs_planning'],
+    executionPlan: ['executionPlan', 'execution_plan', 'plan'],
+    reasoning: ['reasoning', 'reason']
+  });
 };
 
 // MCP Resource processing node - handles resource content retrieval and context injection
@@ -499,11 +483,8 @@ If a required argument cannot be extracted, set it to null.`;
           new HumanMessage({ content: argExtractionPrompt }),
         ]);
 
-        try {
-          promptArguments = JSON.parse(extractionResponse.content.toString());
-        } catch (error) {
-          promptArguments = {};
-        }
+        // Use shared JSON parsing
+        promptArguments = parseJSONResponse(extractionResponse.content.toString()) || {};
 
         // Check if any required arguments are missing
         const missingRequired = requiredArgs.filter(
@@ -648,24 +629,19 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
 
     const responseText = planningResponse.content.toString();
 
-    let planningResult: any;
-    try {
-      // First, try strict JSON parsing
-      planningResult = JSON.parse(responseText);
-    } catch (jsonError) {
-      // Emergency parsing for malformed JSON
-      planningResult = emergencyParsePlanningResponse(responseText);
-
-      if (!planningResult) {
-        // Fallback to basic multi-server template
-        planningResult = {
-          executionPlan: MULTI_SERVER_PLAN_TEMPLATE.replace(
-            "<SERVER_NAMES>",
-            serverNames.join(", ")
-          ),
-          reasoning: "Fallback plan due to parsing failure",
-        };
-      }
+    // Use shared JSON parsing
+    let planningResult = parsePlanningResponse(responseText);
+    
+    if (!planningResult) {
+      // Fallback to basic multi-server template
+      planningResult = {
+        needsPlanning: true,
+        executionPlan: MULTI_SERVER_PLAN_TEMPLATE.replace(
+          "<SERVER_NAMES>",
+          serverNames.join(", ")
+        ),
+        reasoning: "Fallback plan due to parsing failure",
+      };
     }
 
     // Multi-server planning always produces a plan

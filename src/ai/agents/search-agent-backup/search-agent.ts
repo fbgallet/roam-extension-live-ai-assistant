@@ -102,14 +102,118 @@ export const SearchAgentState = Annotation.Root({
   nbOfResultsDisplayed: Annotation<number>,
   retryInstruction: Annotation<string>,
   errorInNode: Annotation<String>,
+  // Conversation mode fields
+  conversationHistory: Annotation<any[]>,
+  conversationSummary: Annotation<string>,
+  isConversationMode: Annotation<boolean>,
+  previousSearchResults: Annotation<any>,
+  conversationAction: Annotation<string>, // 'search', 'ask', 'conversation'
 });
 
 /*********/
 // NODES //
 /*********/
 
+// Helper function to get the current user query (either initial or from conversation)
+const getCurrentUserQuery = (state: typeof SearchAgentState.State): string => {
+  // In conversation mode, userNLQuery should be the current user input
+  // The conversation history gets updated AFTER this function is called
+  console.log("🔄 Using current userNLQuery:", state.userNLQuery);
+  return state.userNLQuery;
+};
+
 const loadModel = async (state: typeof SearchAgentState.State) => {
   llm = modelViaLanggraph(state.model, turnTokensUsage);
+};
+
+const conversationDecision = async (state: typeof SearchAgentState.State) => {
+  // Get the current user query (from conversation or initial)
+  const currentUserQuery = getCurrentUserQuery(state);
+  const currentUserMessage = { role: "user", content: currentUserQuery };
+  
+  // If this is conversation mode, decide what action to take
+  if (state.isConversationMode && state.conversationHistory?.length > 0) {
+    // Update conversation history with current message
+    state.conversationHistory = [...state.conversationHistory, currentUserMessage];
+    
+    // Build structured conversation context
+    const summarySection = state.conversationSummary
+      ? `CONVERSATION SUMMARY:\n${state.conversationSummary}\n\n`
+      : "";
+
+    // Show last 4 messages for immediate context
+    const recentConversationText = state.conversationHistory
+      .slice(-4)
+      .map(msg => `${msg.role}: ${msg.content}`)
+      .join('\n');
+
+    // Build previous search results context (minimal)
+    const previousResults = state.previousSearchResults?.resultCount || 0;
+    const searchResultsContext = previousResults > 0 
+      ? `PREVIOUS SEARCH RESULTS:
+- Query: "${state.previousSearchResults.userNLQuery}"
+- Found: ${previousResults} matching blocks
+- Timestamp: ${new Date(state.previousSearchResults.timestamp).toLocaleString()}`
+      : "No previous search results available";
+    
+    const decisionPrompt = `You are a smart search conversation coordinator. Your job is to decide what action to take for the user's current request in the context of an ongoing conversation about search results.
+
+${summarySection}RECENT CONVERSATION:
+${recentConversationText}
+
+${searchResultsContext}
+
+CURRENT USER REQUEST: "${currentUserQuery}"
+
+AVAILABLE ACTIONS:
+1. "search" - Perform a new search with different/updated criteria
+   Use when: User asks for different topics, new keywords, or requests that would need different search terms
+   
+2. "ask" - Answer question using existing search results  
+   Use when: User asks questions about the current results, wants analysis/summary of existing data
+   
+3. "refine" - Filter or narrow down existing search results
+   Use when: User wants to filter current results by date, relevance, or other criteria
+
+DECISION CRITERIA:
+- If user mentions new topics/keywords different from previous search → "search"
+- If user asks about/refers to current results → "ask"  
+- If user wants to filter/narrow current results → "refine"
+- When in doubt, prefer "search" for new information needs
+
+Respond with exactly one word: search, ask, or refine`;
+
+    try {
+      const messages = [new HumanMessage(decisionPrompt)];
+      const generativeLlm = modelViaLanggraph(state.model, turnTokensUsage, false);
+      const response = await generativeLlm.invoke(messages);
+      
+      const action = response.content.toLowerCase().trim();
+      state.conversationAction = ['search', 'ask', 'refine'].includes(action) ? action : 'search';
+      
+      // If using existing results, restore them
+      if (state.conversationAction === 'ask' && state.previousSearchResults) {
+        state.filteredBlocks = state.previousSearchResults.filteredBlocks;
+        state.matchingBlocks = state.previousSearchResults.matchingBlocks;
+        state.isPostProcessingNeeded = true;
+      }
+      
+      console.log(`Conversation action decided: ${state.conversationAction} for query: "${currentUserQuery}"`);
+      
+    } catch (error) {
+      console.log("Error in conversation decision:", error);
+      state.conversationAction = 'search'; // Default fallback
+    }
+  } else {
+    // First interaction - initialize conversation history
+    state.conversationHistory = [currentUserMessage];
+    state.conversationAction = state.isPostProcessingNeeded === false ? 'search' : 'ask';
+  }
+  
+  return { 
+    conversationAction: state.conversationAction,
+    conversationHistory: state.conversationHistory 
+  };
 };
 
 const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
@@ -122,8 +226,10 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
     getLlmSuitableOptions(state.model, "search_lists")
   );
 
+  const currentUserQuery = getCurrentUserQuery(state);
+  
   let isDirected =
-    state.userNLQuery.includes("<") || state.userNLQuery.includes(">");
+    currentUserQuery.includes("<") || currentUserQuery.includes(">");
 
   let systemPrompt =
     state.isPostProcessingNeeded === false
@@ -154,9 +260,9 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
     new HumanMessage(
-      !state.retryInstruction || state.retryInstruction === state.userNLQuery
-        ? state.userNLQuery
-        : `Here is the initial user request in natural language: ${state.userNLQuery}
+      !state.retryInstruction || state.retryInstruction === currentUserQuery
+        ? currentUserQuery
+        : `Here is the current user request in natural language: ${currentUserQuery}
 
        Notice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
     ),
@@ -185,6 +291,7 @@ const nlQueryInterpreter = async (state: typeof SearchAgentState.State) => {
 const nlQuestionInterpreter = async (state: typeof SearchAgentState.State) => {
   displayAgentStatus(state, "nl-question-interpreter");
 
+  const currentUserQuery = getCurrentUserQuery(state);
   const structuredLlm = llm.withStructuredOutput(
     alternativeSearchListSchema,
     getLlmSuitableOptions(state.model, "alternative_list")
@@ -195,14 +302,12 @@ const nlQuestionInterpreter = async (state: typeof SearchAgentState.State) => {
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
     new HumanMessage(
-      `Here is the initial user request in natural language: ${
-        state.userNLQuery
-      }
+      `Here is the current user request in natural language: ${currentUserQuery}
 Here is the formatted search query generated with keywords from the previous user request: ${
         state.llmResponse.searchList
       }
 ${
-  !state.retryInstruction || state.retryInstruction === state.userNLQuery
+  !state.retryInstruction || state.retryInstruction === currentUserQuery
     ? ""
     : `Notice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
 }`
@@ -233,6 +338,8 @@ ${
 const searchlistConverter = async (state: typeof SearchAgentState.State) => {
   // console.log("state.searchLists :>> ", state.searchLists);
   displayAgentStatus(state, "searchlist-converter");
+  
+  const currentUserQuery = getCurrentUserQuery(state);
 
   const structuredLlm = llm.withStructuredOutput(
     searchFiltersSchema,
@@ -260,8 +367,8 @@ const searchlistConverter = async (state: typeof SearchAgentState.State) => {
         (state.searchLists.length > 1
           ? "\nAlternative search list: " + state.searchLists[1]
           : "\nNo alternative search list: set 'laternativeListFilters' to null (but set it)") +
-        `\n\nInitial user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${state.userNLQuery}` +
-        (state.retryInstruction && state.retryInstruction !== state.userNLQuery
+        `\n\nCurrent user request from which the search list(s) is(are) extracted, provided only as context and for a better indication of the language to use in the semantic variations (e.g. if the user request is in french, write only variations in french): ${currentUserQuery}` +
+        (state.retryInstruction && state.retryInstruction !== currentUserQuery
           ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}`
           : "")
     ),
@@ -687,6 +794,7 @@ const limitAndOrder = async (state: typeof SearchAgentState.State) => {
 const preselection = async (state: typeof SearchAgentState.State) => {
   // console.log("Preselection Node");
   displayAgentStatus(state, "preselection-filter");
+  const currentUserQuery = getCurrentUserQuery(state);
   let flattenedQueryResults = "";
   state.filteredBlocks.forEach((block: any, index: number) => {
     const path = getPathOfBlock(block.uid);
@@ -729,10 +837,10 @@ const preselection = async (state: typeof SearchAgentState.State) => {
   });
   // console.log("sys_msg :>> ", sys_msg);
   let messages = [sys_msg].concat([
-    new HumanMessage(`Here is the user's initial request: ${state.userNLQuery}
+    new HumanMessage(`Here is the user's current request: ${currentUserQuery}
 
 ${
-  state.retryInstruction && state.retryInstruction !== state.userNLQuery
+  state.retryInstruction && state.retryInstruction !== currentUserQuery
     ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}\n`
     : ""
 }
@@ -801,15 +909,24 @@ const postProcessing = async (state: typeof SearchAgentState.State) => {
   flattenedDetailedResults = flattenedDetailedResults.trim();
   console.log("flattenedDetailedResults :>> ", flattenedDetailedResults);
 
+  // Minimal conversation context for post-processing
+  let conversationContext = "";
+  if (state.isConversationMode && state.conversationAction === 'ask') {
+    conversationContext = `\nCONVERSATION CONTEXT:
+This is a follow-up question about previous search results. The user is asking about data that was already retrieved.`;
+  }
+
   const sys_msg = new SystemMessage({
     content: searchtAgentPostProcessingPrompt,
   });
   // console.log("sys_msg :>> ", sys_msg);
+  const currentUserQuery = getCurrentUserQuery(state);
+  
   let messages = [sys_msg].concat([
-    new HumanMessage(`Here is the user's initial request: ${state.userNLQuery}
+    new HumanMessage(`Here is the user's current request: ${currentUserQuery}${conversationContext}
 
 ${
-  state.retryInstruction && state.retryInstruction !== state.userNLQuery
+  state.retryInstruction && state.retryInstruction !== currentUserQuery
     ? `\nNotice that the user is requesting a new and, if possible, better interpretation of its requests. Here is some modification or indication on what to do better or how to proceed to provide a more relevant result: ${state.retryInstruction}\n`
     : ""
 }
@@ -901,11 +1018,34 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
     content: state.stringifiedResultToDisplay.trim(),
     forceInChildren: state.shiftDisplay && true,
   });
+
+  // Save minimal search metadata for conversation mode (avoid data duplication)
+  const searchResults = {
+    userNLQuery: state.userNLQuery,
+    searchLists: state.searchLists,
+    resultCount: state.filteredBlocks?.length || 0,
+    timestamp: Date.now(),
+    // Only store actual results if we're in conversation mode, otherwise just metadata
+    ...(state.isConversationMode && {
+      filteredBlocks: state.filteredBlocks,
+      matchingBlocks: state.matchingBlocks,
+    })
+  };
+
+  // Add assistant response to conversation history
+  const updatedConversationHistory = [
+    ...(state.conversationHistory || []),
+    { role: "assistant", content: state.stringifiedResultToDisplay.trim() }
+  ];
+
   return {
     targetUid: targetUid || state.rootUid,
     stringifiedResultToDisplay: state.stringifiedResultToDisplay.trim(),
     nbOfResultsDisplayed: state.nbOfResultsDisplayed,
     shiftDisplay: !state.isRandom && state.shiftDisplay,
+    previousSearchResults: searchResults,
+    conversationHistory: updatedConversationHistory,
+    conversationSummary: state.conversationSummary,
   };
 };
 
@@ -914,6 +1054,22 @@ const displayResults = async (state: typeof SearchAgentState.State) => {
 /*********/
 
 const turnRouter = (state: typeof SearchAgentState.State) => {
+  // If we have conversation action set, route based on that
+  if (state.conversationAction) {
+    switch (state.conversationAction) {
+      case 'ask':
+        // Go directly to post-processing with existing results
+        return state.filteredBlocks?.length > 0 ? "post-processing" : "output";
+      case 'refine':
+        // Use existing results but refine through preselection
+        return state.filteredBlocks?.length > 0 ? "preselection-filter" : "nl-query-interpreter";
+      case 'search':
+      default:
+        // Proceed with normal search flow
+        break;
+    }
+  }
+
   if (state.filteredBlocks) {
     if (state.isPostProcessingNeeded) {
       if (
@@ -927,6 +1083,18 @@ const turnRouter = (state: typeof SearchAgentState.State) => {
     if (state.isRandom) return "limitAndOrder";
     if (state.shiftDisplay) return "output";
   }
+  return "nl-query-interpreter";
+};
+
+const conversationRouter = (state: typeof SearchAgentState.State) => {
+  // Route based on conversation action
+  if (state.conversationAction === 'ask' && state.filteredBlocks?.length > 0) {
+    return "post-processing";
+  }
+  if (state.conversationAction === 'refine' && state.filteredBlocks?.length > 0) {
+    return "preselection-filter";
+  }
+  // Default to normal search flow
   return "nl-query-interpreter";
 };
 
@@ -984,6 +1152,7 @@ const processOrDisplay = (state: typeof SearchAgentState.State) => {
 const builder = new StateGraph(SearchAgentState);
 builder
   .addNode("loadModel", loadModel)
+  .addNode("conversationDecision", conversationDecision)
   .addNode("nl-query-interpreter", nlQueryInterpreter)
   .addNode("nl-question-interpreter", nlQuestionInterpreter)
   .addNode("searchlist-converter", searchlistConverter)
@@ -996,7 +1165,8 @@ builder
   .addNode("output", displayResults)
 
   .addEdge(START, "loadModel")
-  .addConditionalEdges("loadModel", turnRouter)
+  .addEdge("loadModel", "conversationDecision")
+  .addConditionalEdges("conversationDecision", conversationRouter)
   .addEdge("nl-query-interpreter", "checker")
   .addEdge("nl-question-interpreter", "checker")
   .addEdge("searchlist-converter", "checker")

@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "outDir": "./build/",
     "noImplicitAny": false,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",

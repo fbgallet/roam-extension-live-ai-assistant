@@ -205,6 +205,18 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     },
   });
 
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI: View Last Ask Your Graph Full Results",
+    callback: () => {
+      // Use shared utility function from FullResultsPopup
+      import("../components/FullResultsPopup.tsx").then(({ openLastAskYourGraphResults }) => {
+        openLastAskYourGraphResults();
+      }).catch(() => {
+        alert("Could not load FullResultsPopup functionality");
+      });
+    },
+  });
+
   // Add SmartBlock command
   const speechCmd = {
     text: "LIVEAIVOICE",

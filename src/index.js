@@ -77,6 +77,7 @@ export let maxCapturingDepth = {};
 export let maxUidDepth = {};
 export let exclusionStrings = [];
 export let websearchContext;
+export let askGraphMode;
 // export let defaultTemplate;
 export let streamResponse;
 export let isTitleToAdd;
@@ -241,6 +242,16 @@ export function getConversationParamsFromHistory(uid) {
   return conversationParams;
 }
 
+// Check if first time dialog should be shown
+export function shouldShowFirstTimeDialog() {
+  return extensionStorage.get("askGraphFirstTime") === true;
+}
+
+// Mark first time dialog as shown
+export async function markFirstTimeDialogShown() {
+  await extensionStorage.set("askGraphFirstTime", false);
+}
+
 export async function incrementCommandCounter(commandId) {
   const commandUsage = extensionStorage.get("commandCounter");
   const existingCommand = commandUsage?.counter?.find(
@@ -363,6 +374,33 @@ function getPanelConfig() {
           onChange: (evt) => {
             modelTemperature =
               evt === "models default" ? null : parseFloat(evt);
+          },
+        },
+      },
+      {
+        id: "askGraphMode",
+        name: "Ask Your Graph default mode",
+        description: (
+          <>
+            <span>
+              Default privacy mode for "Ask your graph" Agent searches:
+            </span>
+            <br />
+            <strong>Private:</strong> Only UIDs returned (no personal content
+            processing by LLMs)
+            <br />
+            <strong>Balanced:</strong> Agent tools handle only UIDs + final
+            summary (only matching blocks can be processed)
+            <br />
+            <strong>Full Access:</strong> Complete content access for in-depth
+            analysis
+          </>
+        ),
+        action: {
+          type: "select",
+          items: ["Private", "Balanced", "Full Access"],
+          onChange: (evt) => {
+            askGraphMode = evt;
           },
         },
       },
@@ -1299,6 +1337,20 @@ export default {
     if (extensionAPI.settings.get("webContext") === null)
       await extensionAPI.settings.set("webContext", "medium");
     websearchContext = extensionAPI.settings.get("webContext");
+    if (extensionAPI.settings.get("askGraphMode") === null)
+      await extensionAPI.settings.set("askGraphMode", "Balanced");
+    askGraphMode = extensionAPI.settings.get("askGraphMode");
+
+    // Initialize Ask your graph session
+    const { initializeAskGraphSession } = await import(
+      "./ai/agents/search-agent/ask-your-graph"
+    );
+    initializeAskGraphSession();
+
+    // Check if first time using Ask your graph
+    if (extensionAPI.settings.get("askGraphFirstTime") === null) {
+      await extensionAPI.settings.set("askGraphFirstTime", true);
+    }
 
     // persistant variables for context menu
     if (extensionAPI.settings.get("translationCustomLgg") === null)
@@ -1377,6 +1429,42 @@ export default {
     if (!isComponentAlwaysVisible) toggleComponentVisibility();
 
     window.LiveAI = {};
+
+    // Add ReAct Search Agent testing functions for development
+    if (process.env.NODE_ENV === "development" || true) {
+      // Always available for now
+      try {
+        // Use async import with better error handling
+        import(
+          /* webpackChunkName: "search-agent-tests" */ "./ai/agents/search-agent/tools/simple-test.js"
+        )
+          .then((testModule) => {
+            window.LiveAI.testReactSearch = {
+              testRoamAPI: testModule.testRoamAPIQueries,
+              testTool: testModule.testFindPagesByTitleTool,
+              testAgent: testModule.testReactAgent,
+              runAll: testModule.runAllTests,
+            };
+            console.log(
+              "🔧 ReAct Search Agent tests available: window.LiveAI.testReactSearch.runAll()"
+            );
+          })
+          .catch((err) => {
+            // Silently fail - tests are optional
+            console.debug(
+              "⚠️ ReAct Search Agent tests not available (development feature):",
+              err.message
+            );
+          });
+      } catch (err) {
+        // Silently fail - tests are optional development feature
+        console.debug(
+          "⚠️ ReAct Search Agent tests import failed (development feature):",
+          err.message
+        );
+      }
+    }
+
     initializeContextMenu();
 
     await extensionAPI.settings.panel.create(getPanelConfig());
