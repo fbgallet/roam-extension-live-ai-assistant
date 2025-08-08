@@ -1,8 +1,7 @@
-import { invokeGraphExplorer } from "./agents/graph-explorer-agent/graph-explorer";
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
 import { askYourGraph } from "./agents/search-agent/ask-your-graph";
-import { openLastAskYourGraphResults } from "../components/FullResultsPopup.tsx";
+import { openLastAskYourGraphResults } from "../components/full-results-popup";
 import { languages } from "./languagesSupport";
 
 export const CATEGORY_ICON = {

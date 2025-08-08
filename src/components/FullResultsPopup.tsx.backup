@@ -1,0 +1,897 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { Button, HTMLSelect, InputGroup, Checkbox } from "@blueprintjs/core";
+import { createChildBlock } from "../utils/roamAPI.js";
+
+interface Result {
+  uid?: string;
+  content?: string;
+  text?: string;
+  pageTitle?: string;
+  pageUid?: string;
+  isDaily?: boolean;
+  modified?: Date | string;
+  created?: Date | string;
+  count?: number;
+  [key: string]: any;
+}
+
+// Separate component to handle block/page rendering with hooks
+const BlockRenderer: React.FC<{ result: Result; index?: number }> = ({ result }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (containerRef.current && result.uid) {
+      try {
+        (window as any).roamAlphaAPI.ui.components.renderBlock({
+          uid: result.uid,
+          "zoom-path?": true,
+          el: containerRef.current,
+        });
+      } catch (error) {
+        console.warn("Failed to render block:", error);
+        if (containerRef.current) {
+          containerRef.current.textContent =
+            result.content || result.text || "Unable to render block";
+        }
+      }
+    } else if (containerRef.current) {
+      containerRef.current.textContent =
+        result.content || result.text || JSON.stringify(result);
+    }
+  }, [result]);
+
+  return <div ref={containerRef} style={{ flex: 1 }} />;
+};
+
+interface FullResultsPopupProps {
+  results: Result[];
+  isOpen: boolean;
+  title?: string;
+  targetUid?: string;
+}
+
+const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
+  results,
+  isOpen,
+  title = "Ask your graph: last request full results",
+  targetUid,
+}) => {
+  const [selectedResults, setSelectedResults] = useState<Set<number>>(
+    new Set()
+  );
+  const [dropdownStates, setDropdownStates] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [isClosing, setIsClosing] = useState(false);
+  
+  // Enhanced filtering and sorting state
+  const [searchFilter, setSearchFilter] = useState("");
+  const [pageFilter, setPageFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"relevance" | "date" | "page" | "content">("relevance");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [resultsPerPage, setResultsPerPage] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showMetadata, setShowMetadata] = useState(true);
+  
+  // New view mode for pages vs blocks
+  const [viewMode, setViewMode] = useState<"blocks" | "pages" | "mixed">("mixed");
+  const [pageDisplayMode, setPageDisplayMode] = useState<"metadata" | "embed">("metadata");
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedResults(new Set());
+      setSearchFilter("");
+      setPageFilter("all");
+      setCurrentPage(1);
+      
+      // Auto-detect view mode based on results
+      if (hasBlocks && !hasPages) {
+        setViewMode("blocks");
+      } else if (hasPages && !hasBlocks) {
+        setViewMode("pages");
+      } else {
+        setViewMode("mixed");
+      }
+    }
+  }, [isOpen]);
+
+  // Compute unique pages for filter dropdown and detect result types
+  const { uniquePages, hasBlocks, hasPages } = useMemo(() => {
+    const pages = new Set<string>();
+    let hasBlocks = false;
+    let hasPages = false;
+    
+    results.forEach(result => {
+      if (result.pageTitle) {
+        pages.add(result.pageTitle);
+      }
+      
+      // Detect if this is a block result (has content/text) or page result (has title but no content)
+      if (result.content || result.text) {
+        hasBlocks = true;
+      } else if (result.pageTitle && result.pageUid && !result.content && !result.text) {
+        hasPages = true;
+      }
+    });
+    
+    return {
+      uniquePages: Array.from(pages).sort(),
+      hasBlocks,
+      hasPages
+    };
+  }, [results]);
+
+  // Apply filters and sorting
+  const filteredAndSortedResults = useMemo(() => {
+    let filtered = results.filter(result => {
+      // View mode filter
+      const isBlock = !!(result.content || result.text);
+      const isPage = !!(result.pageTitle && result.pageUid && !result.content && !result.text);
+      
+      if (viewMode === "blocks" && !isBlock) return false;
+      if (viewMode === "pages" && !isPage) return false;
+      // "mixed" shows both
+      
+      // Search filter
+      if (searchFilter) {
+        const searchLower = searchFilter.toLowerCase();
+        const matchesContent = result.content?.toLowerCase().includes(searchLower) ||
+                             result.text?.toLowerCase().includes(searchLower);
+        const matchesPage = result.pageTitle?.toLowerCase().includes(searchLower);
+        if (!matchesContent && !matchesPage) return false;
+      }
+      
+      // Page filter
+      if (pageFilter !== "all" && result.pageTitle !== pageFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+
+    // Sort results
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "date":
+          const dateA = new Date(a.modified || a.created || 0);
+          const dateB = new Date(b.modified || b.created || 0);
+          comparison = dateA.getTime() - dateB.getTime();
+          break;
+        case "page":
+          comparison = (a.pageTitle || "").localeCompare(b.pageTitle || "");
+          break;
+        case "content":
+          // Sort by content length first, then alphabetically
+          // This helps group similar-length results together
+          const contentA = a.content || a.text || "";
+          const contentB = b.content || b.text || "";
+          if (contentA.length !== contentB.length) {
+            comparison = contentA.length - contentB.length;
+          } else {
+            comparison = contentA.localeCompare(contentB);
+          }
+          break;
+        case "relevance":
+        default:
+          // For relevance, maintain original order but can be enhanced with scoring
+          const indexA = results.indexOf(a);
+          const indexB = results.indexOf(b);
+          comparison = indexA - indexB;
+          break;
+      }
+      
+      return sortOrder === "desc" ? -comparison : comparison;
+    });
+
+    return filtered;
+  }, [results, searchFilter, pageFilter, sortBy, sortOrder]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedResults.length / resultsPerPage);
+  const paginatedResults = useMemo(() => {
+    const startIndex = (currentPage - 1) * resultsPerPage;
+    return filteredAndSortedResults.slice(startIndex, startIndex + resultsPerPage);
+  }, [filteredAndSortedResults, currentPage, resultsPerPage]);
+
+  // Update currentPage if it exceeds totalPages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  const handleClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+
+    // Remove the popup container directly
+    setTimeout(() => {
+      const container = document.getElementById("full-results-popup-container");
+      if (container) {
+        document.body.removeChild(container);
+      }
+    }, 100);
+  };
+
+  const handleCheckboxChange = (resultIndex: number) => {
+    if (isClosing) return; // Prevent state updates if closing
+    const newSelected = new Set(selectedResults);
+    // Map paginated index to original results array index
+    const originalIndex = results.indexOf(paginatedResults[resultIndex]);
+    if (newSelected.has(originalIndex)) {
+      newSelected.delete(originalIndex);
+    } else {
+      newSelected.add(originalIndex);
+    }
+    setSelectedResults(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (isClosing) return; // Prevent state updates if closing
+    const currentPageIndices = paginatedResults.map(result => results.indexOf(result));
+    const allCurrentSelected = currentPageIndices.every(idx => selectedResults.has(idx));
+    
+    const newSelected = new Set(selectedResults);
+    if (allCurrentSelected) {
+      // Deselect all current page results
+      currentPageIndices.forEach(idx => newSelected.delete(idx));
+    } else {
+      // Select all current page results
+      currentPageIndices.forEach(idx => newSelected.add(idx));
+    }
+    setSelectedResults(newSelected);
+  };
+
+  const handleSelectAllResults = () => {
+    if (isClosing) return;
+    if (selectedResults.size === filteredAndSortedResults.length) {
+      setSelectedResults(new Set());
+    } else {
+      const allFilteredIndices = filteredAndSortedResults.map(result => results.indexOf(result));
+      setSelectedResults(new Set(allFilteredIndices));
+    }
+  };
+
+  const getSelectedResultsList = () => {
+    return Array.from(selectedResults).map((index) => results[index]);
+  };
+
+  const handleInsertAtDNPEnd = async () => {
+    try {
+      const selectedResultsList = getSelectedResultsList();
+      if (selectedResultsList.length === 0) return;
+
+      // Determine insertion location: targetUid if available, otherwise current DNP
+      let insertionParentUid: string;
+      if (targetUid) {
+        insertionParentUid = targetUid;
+      } else {
+        // Get today's DNP
+        const today = new Date();
+        insertionParentUid = `${String(today.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}-${String(today.getDate()).padStart(2, "0")}-${today.getFullYear()}`;
+      }
+
+      // First, create the "Selected results:" header block using your custom function
+      const headerUid = await createChildBlock(
+        insertionParentUid,
+        "Selected results:",
+        "last"
+      );
+
+      if (headerUid) {
+        // Create all embed blocks under the header
+        for (let idx = 0; idx < selectedResultsList.length; idx++) {
+          const result = selectedResultsList[idx];
+          if (result && result.uid) {
+            const embedText = `{{[[embed-path]]: ((${result.uid}))}}`;
+            await createChildBlock(
+              headerUid,
+              embedText,
+              "last"
+            );
+          }
+        }
+      }
+
+      handleClose();
+    } catch (error) {
+      console.error("Failed to insert results:", error);
+    }
+  };
+
+  const handleInsertInSidebar = () => {
+    try {
+      const selectedResultsList = getSelectedResultsList();
+      if (selectedResultsList.length === 0) return;
+
+      selectedResultsList.forEach((result) => {
+        if (result.uid) {
+          // Open in sidebar
+          (window as any).roamAlphaAPI.ui.rightSidebar.addWindow({
+            window: {
+              type: "block",
+              "block-uid": result.uid,
+            },
+          });
+        }
+      });
+      // Don't close popup for dropdown actions
+    } catch (error) {
+      console.error("Failed to insert in sidebar:", error);
+    }
+  };
+
+  const handleCopyEmbeds = () => {
+    const selectedResultsList = getSelectedResultsList();
+    if (selectedResultsList.length === 0) return;
+
+    const embedTexts = selectedResultsList
+      .filter((result) => result.uid)
+      .map((result) => `{{[[embed-path]]: ((${result.uid}))}}`)
+      .join("\n");
+
+    navigator.clipboard.writeText(embedTexts);
+    handleClose();
+  };
+
+  const handleCopyReferences = () => {
+    const selectedResultsList = getSelectedResultsList();
+    if (selectedResultsList.length === 0) return;
+
+    const references = selectedResultsList
+      .filter((result) => result.uid)
+      .map((result) => `((${result.uid}))`)
+      .join("\n");
+
+    navigator.clipboard.writeText(references);
+    // Don't close popup for dropdown actions
+  };
+
+  // Simple custom dropdown that definitely works
+  const DropdownButton: React.FC<{
+    mainText: string;
+    mainAction: () => void;
+    dropdownOptions: Array<{ text: string; action: () => void }>;
+    disabled?: boolean;
+    dropdownKey: string;
+  }> = ({
+    mainText,
+    mainAction,
+    dropdownOptions,
+    disabled = false,
+    dropdownKey,
+  }) => {
+    const isOpen = dropdownStates[dropdownKey] || false;
+
+    const toggleDropdown = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isClosing) return; // Prevent state updates if closing
+      setDropdownStates((prev) => ({
+        ...prev,
+        [dropdownKey]: !prev[dropdownKey],
+      }));
+    };
+
+    return (
+      <div className="full-results-simple-dropdown">
+        <Button
+          intent="primary"
+          text={mainText}
+          onClick={mainAction}
+          disabled={disabled}
+        />
+        <Button
+          icon="caret-down"
+          intent="primary"
+          disabled={disabled}
+          onClick={toggleDropdown}
+          aria-label="More options"
+        />
+        {isOpen && (
+          <div className="full-results-simple-dropdown-menu">
+            {dropdownOptions.map((option, idx) => (
+              <button
+                key={idx}
+                className="full-results-simple-dropdown-item"
+                onClick={() => {
+                  option.action();
+                  if (!isClosing) {
+                    setDropdownStates((prev) => ({
+                      ...prev,
+                      [dropdownKey]: false,
+                    }));
+                  }
+                }}
+              >
+                {option.text}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Fixed: Move hook outside of conditional rendering to avoid React hooks issue
+  const renderContent = (result: Result, index: number) => {
+    const isPage = !!(result.pageTitle && result.pageUid && !result.content && !result.text);
+    
+    if (isPage && pageDisplayMode === "metadata") {
+      // Simple page metadata view
+      return (
+        <div className="full-results-page-metadata-view">
+          <div className="full-results-page-title">
+            📄 {result.pageTitle}
+            {result.isDaily && " 📅"}
+          </div>
+          {result.count && (
+            <div className="full-results-page-count">
+              Referenced {result.count} times
+            </div>
+          )}
+          {result.pageUid && (
+            <div className="full-results-page-uid">
+              UID: {result.pageUid}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // For blocks or page embeds, use the BlockRenderer component
+    return <BlockRenderer result={result} key={`${result.uid}-${index}`} />;
+  };
+
+  const renderResultMetadata = (result: Result) => {
+    if (!showMetadata) return null;
+    
+    const isPage = !!(result.pageTitle && result.pageUid && !result.content && !result.text);
+    
+    return (
+      <div className="full-results-metadata">
+        <span className={`full-results-type-badge ${isPage ? 'page' : 'block'}`}>
+          {isPage ? '📄 Page' : '📝 Block'}
+        </span>
+        {result.pageTitle && (
+          <span className="full-results-page-info">
+            {result.pageTitle}
+            {result.isDaily && " 📅"}
+          </span>
+        )}
+        {result.modified && (
+          <span className="full-results-date-info">
+            🕒 {new Date(result.modified).toLocaleDateString()}
+          </span>
+        )}
+        {result.count && (
+          <span className="full-results-count-info">
+            🔢 {result.count} refs
+          </span>
+        )}
+        {result.uid && (
+          <span className="full-results-uid-info">
+            🔗 {result.uid.substring(0, 8)}...
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return !isOpen ? null : (
+    <div
+      className="full-results-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
+      <div className="full-results-modal">
+        {/* Header */}
+        <div className="full-results-header">
+          <h3 className="full-results-title">{title}</h3>
+          <button className="full-results-close-button" onClick={handleClose}>
+            ×
+          </button>
+        </div>
+
+        {/* Enhanced Controls */}
+        <div className="full-results-controls">
+          <div className="full-results-search-filters">
+            <InputGroup
+              leftIcon="search"
+              placeholder="Search within results..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="full-results-search-input"
+            />
+            
+            <HTMLSelect
+              value={pageFilter}
+              onChange={(e) => setPageFilter(e.target.value)}
+              className="full-results-page-filter"
+            >
+              <option value="all">All Pages ({uniquePages.length})</option>
+              {uniquePages.map(page => (
+                <option key={page} value={page}>{page}</option>
+              ))}
+            </HTMLSelect>
+          </div>
+          
+          <div className="full-results-sort-controls">
+            <HTMLSelect
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="full-results-sort-select"
+            >
+              <option value="relevance">Sort: Relevance</option>
+              <option value="date">Sort: Date</option>
+              <option value="page">Sort: Page</option>
+              <option value="content">Sort: Content Length</option>
+            </HTMLSelect>
+            
+            <Button
+              icon={sortOrder === "desc" ? "sort-desc" : "sort-asc"}
+              onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+              title={`Sort ${sortOrder === "desc" ? "Descending" : "Ascending"}`}
+            />
+            
+            <Checkbox
+              checked={showMetadata}
+              onChange={() => setShowMetadata(!showMetadata)}
+              label="Metadata"
+              className="full-results-metadata-toggle"
+            />
+            
+            {(hasBlocks || hasPages) && (
+              <HTMLSelect
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as any)}
+                className="full-results-view-mode-select"
+              >
+                {hasBlocks && hasPages && <option value="mixed">All Types</option>}
+                {hasBlocks && <option value="blocks">Blocks Only</option>}
+                {hasPages && <option value="pages">Pages Only</option>}
+              </HTMLSelect>
+            )}
+            
+            {hasPages && viewMode !== "blocks" && (
+              <HTMLSelect
+                value={pageDisplayMode}
+                onChange={(e) => setPageDisplayMode(e.target.value as any)}
+                className="full-results-page-display-select"
+              >
+                <option value="metadata">Page Info</option>
+                <option value="embed">Page Embed</option>
+              </HTMLSelect>
+            )}
+          </div>
+          
+          <div className="full-results-pagination-info">
+            <span>{filteredAndSortedResults.length} of {results.length} results</span>
+            {selectedResults.size > 0 && (
+              <span className="full-results-selection-info">
+                ({selectedResults.size} selected)
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="full-results-list">
+          {paginatedResults && paginatedResults.length > 0 ? (
+            paginatedResults.map((result, index) => {
+              const originalIndex = results.indexOf(result);
+              return (
+                <div key={originalIndex} className="full-results-result-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedResults.has(originalIndex)}
+                    onChange={() => handleCheckboxChange(index)}
+                    className="full-results-checkbox"
+                  />
+                  <div className="full-results-block-container">
+                    {renderResultMetadata(result)}
+                    {renderContent(result, index)}
+                  </div>
+                </div>
+              );
+            })
+          ) : filteredAndSortedResults.length === 0 ? (
+            <div className="full-results-no-results">
+              {searchFilter || pageFilter !== "all" ? "No results match current filters" : "No detailed results available"}
+            </div>
+          ) : (
+            <div className="full-results-no-results">No results on current page</div>
+          )}
+        </div>
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="full-results-pagination">
+            <div className="full-results-pagination-controls">
+              <Button
+                icon="chevron-left"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                title="Previous page"
+              />
+              
+              <span className="full-results-page-info">
+                Page {currentPage} of {totalPages}
+              </span>
+              
+              <Button
+                icon="chevron-right"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                title="Next page"
+              />
+            </div>
+            
+            <div className="full-results-per-page">
+              <label>Per page:</label>
+              <HTMLSelect
+                value={resultsPerPage}
+                onChange={(e) => {
+                  setResultsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </HTMLSelect>
+            </div>
+          </div>
+        )}
+
+        {/* Action Bar */}
+        <div className="full-results-action-bar">
+          <div className="full-results-selection-controls">
+            <label className="full-results-select-all-checkbox">
+              <input
+                type="checkbox"
+                checked={
+                  paginatedResults.length > 0 && 
+                  paginatedResults.every(result => selectedResults.has(results.indexOf(result)))
+                }
+                onChange={handleSelectAll}
+                className="full-results-checkbox"
+              />
+              Page ({paginatedResults.length})
+            </label>
+            
+            <Button
+              text={`All Filtered (${filteredAndSortedResults.length})`}
+              onClick={handleSelectAllResults}
+              small
+              minimal
+              disabled={filteredAndSortedResults.length === 0}
+            />
+            
+            {selectedResults.size > 0 && (
+              <Button
+                text="Clear Selection"
+                onClick={() => setSelectedResults(new Set())}
+                small
+                minimal
+                intent="warning"
+              />
+            )}
+          </div>
+
+          <div className="full-results-buttons-container">
+            <DropdownButton
+              mainText={
+                targetUid ? "Append to last response" : "Append to today's DNP"
+              }
+              mainAction={handleInsertAtDNPEnd}
+              disabled={selectedResults.size === 0}
+              dropdownKey="insert"
+              dropdownOptions={[
+                {
+                  text: "Open in Sidebar",
+                  action: handleInsertInSidebar,
+                },
+              ]}
+            />
+
+            <DropdownButton
+              mainText="Copy Embeds"
+              mainAction={handleCopyEmbeds}
+              disabled={selectedResults.size === 0}
+              dropdownKey="copy"
+              dropdownOptions={[
+                {
+                  text: "Copy References",
+                  action: handleCopyReferences,
+                },
+              ]}
+            />
+
+            <Button
+              text={showChat ? "Hide Chat" : "💬 Chat"}
+              onClick={toggleChat}
+              intent={showChat ? "none" : "primary"}
+              icon={showChat ? "cross" : "chat"}
+              disabled={!canUseChat() && !showChat}
+              title={!canUseChat() ? "Requires Balanced or Full access mode" : "Chat about selected results"}
+            />
+            
+            <Button text="Close" onClick={handleClose} />
+          </div>
+        </div>
+        
+        {/* Chat Panel */}
+        {showChat && (
+          <div className="full-results-chat-panel">
+            <div className="full-results-chat-header">
+              <h4>💬 Chat Assistant</h4>
+              <div className="full-results-chat-info">
+                {selectedResults.size > 0 ? (
+                  <span>Chatting about {selectedResults.size} selected results</span>
+                ) : (
+                  <span>Chatting about {paginatedResults.length} visible results</span>
+                )}
+              </div>
+              {privateMode && (
+                <div className="full-results-chat-warning">
+                  🔒 Limited functionality in Private mode
+                </div>
+              )}
+            </div>
+            
+            <div className="full-results-chat-messages">
+              {chatMessages.length === 0 ? (
+                <div className="full-results-chat-welcome">
+                  <div className="full-results-chat-assistant-avatar">🤖</div>
+                  <div className="full-results-chat-assistant-message">
+                    Hi! I can help you analyze and understand your search results. What would you like to know?
+                    <div className="full-results-chat-suggestions">
+                      <button onClick={() => setChatInput("What are the main themes in these results?")}>Main themes</button>
+                      <button onClick={() => setChatInput("Summarize these results for me")}>Summarize</button>
+                      <button onClick={() => setChatInput("What connections exist between these items?")}>Find connections</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                chatMessages.map((message, index) => (
+                  <div key={index} className={`full-results-chat-message ${message.role}`}>
+                    <div className="full-results-chat-avatar">
+                      {message.role === 'user' ? '👤' : '🤖'}
+                    </div>
+                    <div className="full-results-chat-content">
+                      <div className="full-results-chat-text">{message.content}</div>
+                      <div className="full-results-chat-timestamp">
+                        {message.timestamp.toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              
+              {isTyping && (
+                <div className="full-results-chat-message assistant">
+                  <div className="full-results-chat-avatar">🤖</div>
+                  <div className="full-results-chat-content">
+                    <div className="full-results-chat-typing">Thinking...</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="full-results-chat-input-area">
+              <div className="full-results-chat-mode-toggle">
+                <label>
+                  <input
+                    type="radio"
+                    name="chatMode"
+                    value="simple"
+                    checked={chatMode === "simple"}
+                    onChange={() => setChatMode("simple")}
+                  />
+                  💬 Simple
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="chatMode"
+                    value="agent"
+                    checked={chatMode === "agent"}
+                    onChange={() => setChatMode("agent")}
+                    disabled={privateMode}
+                  />
+                  🔍 Deep Analysis
+                  {privateMode && <span className="disabled-hint">(Full mode only)</span>}
+                </label>
+              </div>
+              
+              <div className="full-results-chat-input-container">
+                <InputGroup
+                  placeholder="Ask me about your results..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleChatSubmit()}
+                  disabled={isTyping}
+                  className="full-results-chat-input"
+                />
+                <Button
+                  icon="send-message"
+                  onClick={handleChatSubmit}
+                  disabled={!chatInput.trim() || isTyping}
+                  intent="primary"
+                  className="full-results-chat-send"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default FullResultsPopup;
+
+// Shared utility function for opening last Ask Your Graph results
+// Used by both command palette and context menu
+export const openLastAskYourGraphResults = () => {
+  const lastResults = (window as any).lastAskYourGraphResults;
+  if (lastResults && lastResults.length > 0) {
+    // Import and use the popup function
+    import("./Toaster.js").then(({ openFullResultsPopup }) => {
+      if (openFullResultsPopup) {
+        const targetUid = (window as any).lastAgentResponseTargetUid || null;
+        openFullResultsPopup(lastResults, targetUid);
+      }
+    }).catch(() => {
+      // Fallback for environments where dynamic import doesn't work
+      if ((window as any).LiveAI && (window as any).LiveAI.openFullResultsPopup) {
+        (window as any).LiveAI.openFullResultsPopup(lastResults);
+      } else {
+        alert(`Found ${lastResults.length} results, but popup functionality is not available. Results are stored in window.lastAskYourGraphResults`);
+      }
+    });
+  } else {
+    console.warn("No Ask Your Graph results available to display");
+  }
+};
+
+// Function to check if results are available (for conditional command display)
+export const hasLastAskYourGraphResults = (): boolean => {
+  const results = (window as any).lastAskYourGraphResults;
+  return results && Array.isArray(results) && results.length > 0;
+};
+
+// Hook for easy usage
+export const useFullResultsPopup = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [results, setResults] = useState<Result[]>([]);
+
+  const openPopup = (resultsData: Result[]) => {
+    setResults(resultsData);
+    setIsOpen(true);
+  };
+
+  const closePopup = () => {
+    setIsOpen(false);
+    setResults([]);
+  };
+
+  return {
+    isOpen,
+    results,
+    openPopup,
+    closePopup,
+    FullResultsPopup: (
+      props: Omit<FullResultsPopupProps, "results" | "isOpen" | "onClose">
+    ) => <FullResultsPopup {...props} results={results} isOpen={isOpen} />,
+  };
+};

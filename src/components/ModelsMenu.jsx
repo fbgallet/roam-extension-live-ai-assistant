@@ -173,7 +173,7 @@ const ModelsMenu = ({
           !isWebSearch ? (
             <>
               <MenuItem
-                icon={defaultModel === "gpt-4.1-nano" && "pin"}
+                icon={defaultModel === "gpt-5-chat-latest" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -182,11 +182,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="gpt-4.1-nano"
-                labelElement="1000k"
+                text="gpt-5-chat-latest"
+                labelElement="400k"
               />
               <MenuItem
-                icon={defaultModel === "gpt-4.1-mini" && "pin"}
+                icon={defaultModel === "gpt-5-nano" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -195,11 +195,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="gpt-4.1-mini"
-                labelElement="1000k"
+                text="gpt-5-nano"
+                labelElement="400k"
               />
               <MenuItem
-                icon={defaultModel === "gpt-4.1" && "pin"}
+                icon={defaultModel === "gpt-5-mini" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -208,12 +208,26 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="gpt-4.1"
-                labelElement="1000k"
+                text="gpt-5-mini"
+                labelElement="400k"
+              />
+              <MenuItem
+                icon={defaultModel === "gpt-5" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="gpt-5"
+                labelElement="400k"
               />
               <MenuItem text="Web Search models">
                 {openAiWebSearchModels()}
               </MenuItem>
+
               <MenuItem text="o3/o4 'reasoning' models">
                 <MenuItem
                   icon={defaultModel === "o4-mini" && "pin"}
@@ -279,7 +293,46 @@ const ModelsMenu = ({
                   }
                 />
               </MenuItem>
-              <MenuItem text="gpt-4o models (deprecated)">
+              <MenuItem text="gpt-4 models (legacy)">
+                <MenuItem
+                  icon={defaultModel === "gpt-4.1-nano" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="gpt-4.1-nano"
+                  labelElement="1000k"
+                />
+                <MenuItem
+                  icon={defaultModel === "gpt-4.1-mini" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="gpt-4.1-mini"
+                  labelElement="1000k"
+                />
+                <MenuItem
+                  icon={defaultModel === "gpt-4.1" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="gpt-4.1"
+                  labelElement="1000k"
+                />
                 <MenuItem
                   icon={defaultModel === "gpt-4o-mini" && "pin"}
                   onClick={(e) => {

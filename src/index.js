@@ -55,6 +55,7 @@ export let speechLanguage;
 export let whisperPrompt;
 export let isTranslateIconDisplayed;
 export let defaultModel;
+export let reasoningEffort;
 export let availableModels = [];
 export let customBaseURL;
 export let customOpenAIOnly;
@@ -334,6 +335,18 @@ function getPanelConfig() {
           items: availableModels,
           onChange: (evt) => {
             setDefaultModel(evt);
+          },
+        },
+      },
+      {
+        id: "reasoningEffort",
+        name: "Reasoning effort",
+        description: "Reasoning effort for OpenAI models:",
+        action: {
+          type: "select",
+          items: ["minimal", "low", "medium", "high"],
+          onChange: (evt) => {
+            reasoningEffort = evt;
           },
         },
       },
@@ -1252,6 +1265,9 @@ export default {
           .replace("Sonnet 3.7", "Sonnet 4")
       );
     defaultModel = extensionAPI.settings.get("defaultModel");
+    if (extensionAPI.settings.get("reasoningEffort") === null)
+      await extensionAPI.settings.set("reasoningEffort", "low");
+    reasoningEffort = extensionAPI.settings.get("reasoningEffort");
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");
     customBaseURL = extensionAPI.settings.get("customBaseUrl");

@@ -1,7 +1,7 @@
 import { Button, Intent, Position, Toaster } from "@blueprintjs/core";
 import ReactDOM from "react-dom";
 import React from "react";
-import FullResultsPopup from "./FullResultsPopup";
+import { FullResultsPopup } from "./full-results-popup";
 
 // Toaster configurations
 const toasterConfigs = {

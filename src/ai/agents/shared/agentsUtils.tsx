@@ -113,7 +113,8 @@ export const completeAgentToaster = (
     if (tokensUsage && (tokensUsage.input_tokens || tokensUsage.output_tokens)) {
       const inputTokens = tokensUsage.input_tokens || 0;
       const outputTokens = tokensUsage.output_tokens || 0;
-      agentToasterStream.innerText += `\n🔢 Tokens: ${inputTokens} in / ${outputTokens} out`;
+      const totalTokens = inputTokens + outputTokens;
+      agentToasterStream.innerText += `\n🔢 Tokens: ${totalTokens} total (${inputTokens} in / ${outputTokens} out)`;
     }
 
     // Replace Stop button with View Full Results button and store results persistently
@@ -430,4 +431,183 @@ export const parseJSONWithFields = <T extends Record<string, any>>(
   }
 
   return result;
+};
+
+/**
+ * Result summarization utilities for token optimization
+ */
+
+// Result summary interface (duplicated here for consistency)
+export interface ResultSummary {
+  id: string;
+  toolName: string;
+  query: string;
+  totalCount: number;
+  resultType: "blocks" | "pages" | "references" | "hierarchy" | "combinations";
+  sampleItems: string[]; // First 3-5 items for context
+  metadata: {
+    wasLimited: boolean;
+    canExpand: boolean;
+    searchTerms: string[];
+    sortedBy?: "creation" | "modification" | "alphabetical" | "random";
+    availableCount: number;
+    // Type-specific info
+    dataType?: "blocks" | "pages"; // For combinations: what the UIDs represent
+    operation?: string; // For combinations: union/intersection/etc
+    formatType?: "string" | "structured"; // For hierarchy: content vs structure
+    hierarchyDepth?: number; // For hierarchy: max depth
+  };
+}
+
+/**
+ * Generate a unique result ID
+ */
+export const generateResultId = (toolName: string, counter: number): string => {
+  return `${toolName}_${counter.toString().padStart(3, '0')}`;
+};
+
+/**
+ * Create a result summary from tool result
+ */
+export const createResultSummary = (
+  toolName: string,
+  resultId: string,
+  userQuery: string,
+  toolResult: any,
+  sortedBy?: string
+): ResultSummary => {
+  const data = toolResult.data || [];
+  const metadata = toolResult.metadata || {};
+  
+  // Determine result type based on tool name and data structure
+  const resultType = determineResultType(toolName, data);
+  
+  // Extract sample items for context
+  const sampleItems = extractSampleItems(data, resultType, 3);
+  
+  return {
+    id: resultId,
+    toolName,
+    query: userQuery,
+    totalCount: data.length || metadata.returnedCount || 0,
+    resultType,
+    sampleItems,
+    metadata: {
+      wasLimited: metadata.wasLimited || false,
+      canExpand: metadata.canExpandResults || false,
+      searchTerms: extractSearchTerms(userQuery),
+      sortedBy: sortedBy as any,
+      availableCount: metadata.totalFound || metadata.availableCount || data.length || 0,
+      // Type-specific metadata
+      ...(resultType === "combinations" && {
+        dataType: (data as any).type,
+        operation: (data as any).operation
+      }),
+      ...(resultType === "hierarchy" && {
+        formatType: (data as any).content ? "string" : "structured",
+        hierarchyDepth: (data as any).stats?.maxDepth
+      })
+    }
+  };
+};
+
+/**
+ * Determine result type from tool name and data
+ */
+const determineResultType = (toolName: string, data: any): ResultSummary["resultType"] => {
+  // Map tool names to result types
+  const toolTypeMap: Record<string, ResultSummary["resultType"]> = {
+    findBlocksByContent: "blocks",
+    findBlocksWithHierarchy: "blocks", 
+    findPagesByTitle: "pages",
+    findPagesByContent: "pages",
+    findPagesSemantically: "pages",
+    extractPageReferences: "references",
+    extractHierarchyContent: "hierarchy",
+    combineResults: "combinations",
+    getNodeDetails: data[0]?.content ? "blocks" : "pages", // Heuristic
+    generateDatomicQuery: data[0]?.uid ? (data[0]?.content ? "blocks" : "pages") : "blocks"
+  };
+  
+  return toolTypeMap[toolName] || "blocks";
+};
+
+/**
+ * Extract sample items for LLM context
+ */
+const extractSampleItems = (data: any[], resultType: ResultSummary["resultType"], count: number): string[] => {
+  if (!Array.isArray(data) || data.length === 0) {
+    return [];
+  }
+  
+  const samples: string[] = [];
+  const sampleData = data.slice(0, count);
+  
+  switch (resultType) {
+    case "blocks":
+      return sampleData.map(item => 
+        item.pageTitle ? `Block in [[${item.pageTitle}]]` : `Block ${item.uid}`
+      );
+      
+    case "pages":
+      return sampleData.map(item => 
+        `[[${item.title}]]`
+      );
+      
+    case "references":
+      return sampleData.map(item => 
+        `[[${item.pageTitle}]] (${item.count} refs)`
+      );
+      
+    case "hierarchy":
+      return sampleData.map(item => 
+        `Hierarchy from ${item.rootUid} (${item.stats?.totalBlocks || 0} blocks)`
+      );
+      
+    case "combinations":
+      // For combinations, data is not an array but a single result object
+      return [`${(data as any).finalCount || data.length} combined ${(data as any).type || 'items'}`];
+      
+    default:
+      return sampleData.map((item, i) => `Item ${i + 1}`);
+  }
+};
+
+/**
+ * Extract search terms from user query (simple heuristic)
+ */
+const extractSearchTerms = (query: string): string[] => {
+  // Simple extraction - look for quoted terms and significant words
+  const quotedTerms = query.match(/"([^"]+)"/g)?.map(t => t.slice(1, -1)) || [];
+  const bracketTerms = query.match(/\[\[([^\]]+)\]\]/g)?.map(t => t.slice(2, -2)) || [];
+  const hashTerms = query.match(/#(\w+)/g)?.map(t => t.slice(1)) || [];
+  
+  return [...new Set([...quotedTerms, ...bracketTerms, ...hashTerms])].slice(0, 5);
+};
+
+/**
+ * Generate compact summary text for LLM context
+ */
+export const generateSummaryText = (summary: ResultSummary, securityMode: "private" | "balanced" | "full"): string => {
+  const { id, toolName, totalCount, resultType, sampleItems, metadata } = summary;
+  
+  switch (securityMode) {
+    case "private":
+      // Minimal info for private mode
+      return `Search ${id}: ${totalCount} ${resultType} found${metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ''}`;
+      
+    case "balanced":
+      // Include samples but not detailed content
+      const sampleText = sampleItems.length > 0 ? `. Samples: ${sampleItems.slice(0, 2).join(', ')}` : '';
+      return `Search ${id}: ${totalCount} ${resultType} found via ${toolName}${sampleText}${metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ''}. Use fromResultId: "${id}" to reference this data in other tools.`;
+      
+    case "full":
+      // Full details with all samples
+      const fullSampleText = sampleItems.length > 0 ? `. Examples: ${sampleItems.join(', ')}` : '';
+      const limitText = metadata.wasLimited ? ` (${metadata.availableCount} total available)` : '';
+      return `Search ${id}: ${totalCount} ${resultType} found via ${toolName}${fullSampleText}${limitText}${metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ''}. Use fromResultId: "${id}" to reference this data in other tools.`;
+      
+    default:
+      return `Search ${id}: ${totalCount} ${resultType}`;
+  }
 };

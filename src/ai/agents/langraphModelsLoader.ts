@@ -5,6 +5,7 @@ import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { updateTokenCounter } from "../modelsInfo";
+import { reasoningEffort } from "../..";
 
 export interface LlmInfos {
   provider: string;
@@ -12,6 +13,7 @@ export interface LlmInfos {
   id: string;
   name: string;
   library: any;
+  thinking?: boolean;
 }
 
 export interface TokensUsage {
@@ -153,7 +155,8 @@ export const getLlmSuitableOptions = (
     temperature !== undefined &&
     !model.id.toLowerCase().includes("o1") &&
     !model.id.toLowerCase().includes("o3") &&
-    !model.id.toLowerCase().includes("o4")
+    !model.id.toLowerCase().includes("o4") &&
+    !model.id.toLowerCase().includes("gpt-5")
   )
     outputOptions.temperature = temperature;
   // There is an issue with json_mode & GPT models in v.0.3 of Langchain OpenAI chat...
@@ -167,7 +170,9 @@ export const getLlmSuitableOptions = (
   ) {
     outputOptions.method = "function_calling";
   }
-
+  if (model.provider === "OpenAI" && model.thinking) {
+    outputOptions["reasoning_effort"] = reasoningEffort;
+  }
   if (isClaudeModel) outputOptions.includeRaw = true;
   return outputOptions;
 };

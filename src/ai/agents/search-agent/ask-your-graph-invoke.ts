@@ -10,7 +10,7 @@ import {
   insertInstantButtons,
 } from "../../../utils/domElts";
 import { ReactSearchAgent } from "./ask-your-graph-agent";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import {
   initializeAgentToaster,
   updateAgentToaster,
@@ -47,7 +47,19 @@ interface SearchAgentInvoker {
     exchangesSinceLastSummary?: number;
     previousResponse?: string;
     isConversationMode?: boolean;
+    // NEW: Support for external result summaries and store
+    resultSummaries?: Record<string, any>;
+    resultStore?: Record<string, any>;
+    nextResultId?: number;
   };
+  // NEW: External context from chat or other components
+  externalContext?: {
+    results?: any[]; // Results from FullResultsPopup or other sources
+    contextType?: "search_results" | "chat_context" | "custom";
+    description?: string; // Description of what these results represent
+  };
+  // NEW: Direct chat mode to bypass RequestAnalyzer
+  isDirectChat?: boolean;
   // Retry options
   options?: {
     retryInstruction?: string;
@@ -66,6 +78,8 @@ const invokeSearchAgentInternal = async ({
   permissions = { contentAccess: false }, // Default to secure mode
   privateMode = false, // Default to non-private mode
   agentData,
+  externalContext,
+  isDirectChat = false,
   options,
 }: SearchAgentInvoker) => {
   const startTime = Date.now();
@@ -113,6 +127,47 @@ const invokeSearchAgentInternal = async ({
       isConversationMode: false,
     };
 
+    // NEW: Process external context and integrate into agent's result management
+    if (externalContext?.results && externalContext.results.length > 0) {
+      console.log(`📥 Integrating external context: ${externalContext.results.length} results from ${externalContext.contextType || 'unknown source'}`);
+      
+      // Create a result entry for external context
+      const externalResultId = "external_context_001";
+      const externalCacheEntry = {
+        toolName: "externalContext",
+        fullResults: {
+          data: externalContext.results,
+          metadata: {
+            totalFound: externalContext.results.length,
+            contextType: externalContext.contextType || "custom",
+            description: externalContext.description || "External context results"
+          }
+        },
+        userQuery: `External context: ${externalContext.description || 'Chat results'}`,
+        timestamp: Date.now(),
+        canExpand: false
+      };
+      
+      // Add to cached results for conversation context
+      if (!conversationData.cachedFullResults) {
+        conversationData.cachedFullResults = {};
+      }
+      conversationData.cachedFullResults[externalResultId] = externalCacheEntry;
+      
+      // Add to result store if supported
+      if (conversationData.resultStore) {
+        conversationData.resultStore[externalResultId] = {
+          data: externalContext.results,
+          purpose: "final" as const,
+          status: "active" as const,
+          toolName: "externalContext",
+          timestamp: Date.now()
+        };
+      }
+      
+      console.log(`📥 External context integrated as ${externalResultId}: ${externalContext.results.length} results`);
+    }
+
     console.log(`🚀 Starting ReAct Search Agent: "${finalPrompt}"`);
     console.log(`🔍 Conversation parameters:`, {
       conversationHistory: conversationData.conversationHistory,
@@ -122,6 +177,7 @@ const invokeSearchAgentInternal = async ({
       isConversationMode: isConversationMode,
       cachedResultsCount: Object.keys(conversationData.cachedFullResults || {}).length,
       toolResultsCacheCount: Object.keys(conversationData.toolResultsCache || {}).length,
+      externalContextResults: externalContext?.results?.length || 0,
     });
 
     // Additional debugging for conversation history content
@@ -140,12 +196,17 @@ const invokeSearchAgentInternal = async ({
       conversationHistory: conversationData.conversationHistory || [],
       conversationSummary: conversationData.conversationSummary,
       isConversationMode,
+      isDirectChat,
       permissions,
       privateMode,
       // Initialize caching (MCP pattern)
       toolResultsCache: conversationData.toolResultsCache || {},
       cachedFullResults: conversationData.cachedFullResults || {},
       hasLimitedResults: conversationData.hasLimitedResults || false,
+      // NEW: Enhanced result management state
+      resultSummaries: conversationData.resultSummaries || {},
+      resultStore: conversationData.resultStore || {},
+      nextResultId: conversationData.nextResultId || 1,
       startTime: Date.now(),
       // Pass abort signal for cancellation
       abortSignal: abortController.signal,
@@ -154,21 +215,45 @@ const invokeSearchAgentInternal = async ({
     // Extract full results for the popup functionality
     const fullResults = [];
     console.log("🔍 [ask-your-graph-invoke] response.cachedFullResults:", response.cachedFullResults);
-    if (response.cachedFullResults) {
+    console.log("🔍 [ask-your-graph-invoke] response.resultStore:", response.resultStore);
+    
+    // NEW: Check the token-optimized resultStore first (preferred)
+    if (response.resultStore) {
+      Object.values(response.resultStore).forEach((resultEntry: any) => {
+        console.log("🔍 [ask-your-graph-invoke] Processing resultStore entry:", resultEntry);
+        
+        // Handle new lifecycle structure: {data: Array, purpose: string, status: string, ...}
+        if (resultEntry && resultEntry.data && Array.isArray(resultEntry.data)) {
+          const validResults = resultEntry.data.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
+          console.log("🔍 [ask-your-graph-invoke] Valid results from new structure:", validResults.length);
+          fullResults.push(...validResults);
+        }
+        // Handle legacy structure: direct array
+        else if (Array.isArray(resultEntry)) {
+          const validResults = resultEntry.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
+          console.log("🔍 [ask-your-graph-invoke] Valid results from legacy structure:", validResults.length);
+          fullResults.push(...validResults);
+        }
+      });
+    }
+    
+    // FALLBACK: Check legacy cachedFullResults for backward compatibility
+    if (response.cachedFullResults && fullResults.length === 0) {
       Object.values(response.cachedFullResults).forEach((toolResults: any) => {
-        console.log("🔍 [ask-your-graph-invoke] Processing toolResults:", toolResults);
+        console.log("🔍 [ask-your-graph-invoke] Processing legacy cachedFullResults:", toolResults);
         if (Array.isArray(toolResults)) {
-          const validResults = toolResults.filter(r => r && r.uid);
+          const validResults = toolResults.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
           console.log("🔍 [ask-your-graph-invoke] Valid results with UIDs:", validResults.length);
           fullResults.push(...validResults);
         } else if (toolResults && toolResults.fullResults && Array.isArray(toolResults.fullResults.data)) {
           // Handle the case where results are nested under fullResults.data
-          const validResults = toolResults.fullResults.data.filter(r => r && r.uid);
+          const validResults = toolResults.fullResults.data.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
           console.log("🔍 [ask-your-graph-invoke] Valid nested results with UIDs:", validResults.length);
           fullResults.push(...validResults);
         }
       });
     }
+    
     console.log("🔍 [ask-your-graph-invoke] Final fullResults count:", fullResults.length);
 
     // Calculate execution time and complete toaster with full results
@@ -250,6 +335,7 @@ interface AgentInvoker {
   options?: any;
   permissions?: { contentAccess: boolean };
   privateMode?: boolean;
+  isDirectChat?: boolean; // For chat mode to bypass RequestAnalyzer
 }
 
 // Main invoke function for backward compatibility with existing system
@@ -264,6 +350,7 @@ export const invokeSearchAgent = async ({
   options,
   permissions,
   privateMode,
+  isDirectChat,
 }: AgentInvoker) => {
   return await invokeSearchAgentInternal({
     model,
@@ -273,6 +360,7 @@ export const invokeSearchAgent = async ({
     prompt,
     permissions: permissions || { contentAccess: false }, // Default to secure mode for backward compatibility
     privateMode: privateMode || false,
+    isDirectChat: isDirectChat || false,
     agentData: previousAgentState,
     options,
   });

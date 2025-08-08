@@ -176,7 +176,7 @@ export const findPagesSemanticallyTool = tool(
   },
   {
     name: "findPagesSemantically",
-    description: "Find pages using semantic search with AI-powered term expansion. Automatically expands search terms to find related concepts.",
+    description: "Find pages using semantic/conceptual search with AI-powered term expansion. Best for exploratory searches when you need to discover related concepts, not exact matches. Automatically generates synonyms, related concepts, or broader terms to find pages the user might not have thought to search for explicitly.",
     schema
   }
 );

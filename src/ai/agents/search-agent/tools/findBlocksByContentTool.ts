@@ -10,6 +10,9 @@ import {
   getBlockParents,
   DatomicQueryBuilder,
   SearchCondition,
+  processEnhancedResults,
+  getEnhancedLimits,
+  fuzzyMatch,
 } from "./searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
@@ -52,8 +55,17 @@ const schema = z.object({
       end: z.union([z.date(), z.string()]).optional(),
     })
     .optional(),
-  sortBy: z.enum(["relevance", "recent", "page_title"]).default("relevance"),
-  limit: z.number().min(1).max(1000).default(100),
+  // Enhanced sorting and sampling options
+  sortBy: z.enum(["relevance", "creation", "modification", "alphabetical", "random"]).default("relevance"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  limit: z.number().min(1).max(50000).default(500), // Increased default and max limits
+  
+  // Random sampling for large datasets
+  randomSample: z.object({
+    enabled: z.boolean().default(false),
+    size: z.number().min(1).max(10000).default(100),
+    seed: z.number().optional().describe("Seed for reproducible random sampling")
+  }).optional(),
   
   // Result modes for controlling data transfer
   resultMode: z.enum(["full", "summary", "uids_only"]).default("summary").describe("full=all data, summary=essential fields only, uids_only=just UIDs and basic metadata"),
@@ -62,11 +74,23 @@ const schema = z.object({
   // Security mode
   secureMode: z.boolean().default(false).describe("If true, excludes full block content from results (UIDs and metadata only)"),
   
+  // Result lifecycle management
+  purpose: z.enum(["final", "intermediate", "replacement", "completion"]).optional()
+    .describe("Purpose: 'final' for user response data, 'intermediate' for exploration, 'replacement' to replace previous results, 'completion' to add to previous results"),
+  replacesResultId: z.string().optional()
+    .describe("If purpose is 'replacement', specify which result ID to replace (e.g., 'findBlocksByContent_001')"),
+  completesResultId: z.string().optional() 
+    .describe("If purpose is 'completion', specify which result ID this completes (e.g., 'findPagesByTitle_002')"),
+  
   // User query exclusion
   userQuery: z.string().optional().describe("The original user query to exclude from results"),
   
   // Page scope limitation
-  limitToPages: z.array(z.string()).optional().describe("Limit search to blocks within specific pages (by exact page title). Use for 'in page [[X]]' queries.")
+  limitToPages: z.array(z.string()).optional().describe("Limit search to blocks within specific pages (by exact page title). Use for 'in page [[X]]' queries."),
+  
+  // Fuzzy matching for typos and approximate matches
+  fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance and approximate matching for search terms"),
+  fuzzyThreshold: z.number().min(0).max(1).default(0.8).describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)")
 });
 
 const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
@@ -83,12 +107,16 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
     includeDaily,
     dailyNotesOnly,
     sortBy,
+    sortOrder,
     limit,
+    randomSample,
     resultMode,
     summaryLimit,
     secureMode,
     userQuery,
     limitToPages,
+    fuzzyMatching,
+    fuzzyThreshold,
   } = input;
 
   // Parse dateRange if provided as strings
@@ -132,30 +160,42 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
 
   console.log(`📊 Found ${searchResults.length} matching blocks`);
 
+  // Step 2.5: Apply fuzzy matching post-processing if enabled
+  let fuzzyFilteredResults = searchResults;
+  if (fuzzyMatching && fuzzyThreshold && conditions.length > 0) {
+    console.log(`🔍 Applying fuzzy matching with threshold ${fuzzyThreshold}`);
+    fuzzyFilteredResults = applyFuzzyFiltering(
+      searchResults,
+      conditions,
+      fuzzyThreshold || 0.8
+    );
+    console.log(`📊 After fuzzy filtering: ${fuzzyFilteredResults.length} blocks`);
+  }
+
   // Step 3: Smart hierarchy enrichment optimization
   let optimizedIncludeChildren = includeChildren;
   let optimizedIncludeParents = includeParents;
   let enrichedResults: any[];
   
   // Optimization: Skip expensive hierarchy enrichment for large result sets unless explicitly needed
-  if (searchResults.length > 100) {
+  if (fuzzyFilteredResults.length > 100) {
     if (includeChildren && !userQuery?.match(/context|hierarchy|structure|children|explore/i)) {
-      console.log(`⚡ Optimization: Skipping children enrichment for ${searchResults.length} results (use includeChildren=false for large analytical queries)`);
+      console.log(`⚡ Optimization: Skipping children enrichment for ${fuzzyFilteredResults.length} results (use includeChildren=false for large analytical queries)`);
       optimizedIncludeChildren = false;
     }
     if (includeParents && !userQuery?.match(/context|hierarchy|structure|parents|explore/i)) {
-      console.log(`⚡ Optimization: Skipping parents enrichment for ${searchResults.length} results`);
+      console.log(`⚡ Optimization: Skipping parents enrichment for ${fuzzyFilteredResults.length} results`);
       optimizedIncludeParents = false;
     }
   }
   
   // Step 3: Only call enrichWithHierarchy if we actually need hierarchy data
   if (optimizedIncludeChildren || optimizedIncludeParents) {
-    console.log(`🔧 About to enrich ${searchResults.length} results with hierarchy context (children: ${optimizedIncludeChildren}, parents: ${optimizedIncludeParents})`);
-    updateAgentToaster(`🔗 Adding context to ${searchResults.length} results...`);
+    console.log(`🔧 About to enrich ${fuzzyFilteredResults.length} results with hierarchy context (children: ${optimizedIncludeChildren}, parents: ${optimizedIncludeParents})`);
+    updateAgentToaster(`🔗 Adding context to ${fuzzyFilteredResults.length} results...`);
     
     enrichedResults = await enrichWithHierarchy(
-      searchResults,
+      fuzzyFilteredResults,
       optimizedIncludeChildren,
       childDepth,
       optimizedIncludeParents,
@@ -165,9 +205,9 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
     console.log(`🔧 Enrichment completed, got ${enrichedResults.length} enriched results`);
   } else {
     // Fast path: Create basic block structure without expensive hierarchy queries
-    console.log(`⚡ Fast path: Creating basic block structure for ${searchResults.length} results without hierarchy enrichment`);
+    console.log(`⚡ Fast path: Creating basic block structure for ${fuzzyFilteredResults.length} results without hierarchy enrichment`);
     
-    enrichedResults = searchResults.map(([uid, content, time, pageTitle, pageUid]) => ({
+    enrichedResults = fuzzyFilteredResults.map(([uid, content, time, pageTitle, pageUid]) => ({
       uid,
       content: secureMode ? undefined : content,
       created: new Date(time),
@@ -204,15 +244,31 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
     }
   }
 
-  // Step 5: Sort results
-  console.log(`🔧 Before sorting: ${filteredResults.length} results`);
-  filteredResults = sortResults(filteredResults, sortBy, conditions);
-  console.log(`🔧 After sorting: ${filteredResults.length} results`);
+  // Step 5: Apply enhanced sorting, sampling, and limiting
+  console.log(`🔧 Before enhanced processing: ${filteredResults.length} results`);
+  
+  // Determine security mode for limits
+  const securityMode = secureMode ? "private" : (resultMode === "full" ? "full" : "balanced");
+  
+  const processedResults = processEnhancedResults(filteredResults, {
+    sortBy: sortBy as any, // Type is already validated by schema
+    sortOrder,
+    limit,
+    randomSample: randomSample ? {
+      enabled: randomSample.enabled || false,
+      size: randomSample.size || 100,
+      seed: randomSample.seed
+    } : undefined,
+    securityMode
+  });
+  
+  let finalResults = processedResults.data;
+  let wasLimited = processedResults.metadata.wasLimited;
+  let originalCount = processedResults.metadata.totalFound;
+  
+  console.log(`🔧 After enhanced processing: ${finalResults.length} results (sorted by ${processedResults.metadata.sortedBy}${processedResults.metadata.sampled ? ', sampled' : ''})`);
 
-  // Step 6: Apply result mode and limiting
-  let finalResults = filteredResults;
-  let wasLimited = false;
-  let originalCount = filteredResults.length;
+  // Step 6: Apply result mode filtering
 
   // Store full results in console for power users, even when truncated for LLM
   if (filteredResults.length > 10) {
@@ -286,13 +342,18 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
   }
   // For "full" mode, return complete results as-is
 
-  // Add metadata about truncation for agent awareness
+  // Add metadata about truncation and processing for agent awareness
   const resultMetadata = {
     resultMode,
     returnedCount: finalResults.length,
     totalFound: originalCount,
     wasLimited,
     canExpandResults: wasLimited && resultMode !== "full",
+    // New enhanced metadata
+    sortedBy: processedResults.metadata.sortedBy,
+    sortOrder,
+    sampled: processedResults.metadata.sampled,
+    availableCount: processedResults.metadata.availableCount,
   };
 
   console.log(`🔧 Final results (${resultMode} mode): ${finalResults.length}/${originalCount} items`, resultMetadata);
@@ -517,64 +578,58 @@ const enrichWithHierarchy = async (
 };
 
 /**
- * Sort results by the specified criteria
+ * Apply fuzzy matching post-processing to search results
+ * This provides an additional layer of fuzzy matching on top of the database search
  */
-const sortResults = (
-  results: any[],
-  sortBy: string,
-  originalConditions: z.infer<typeof contentConditionSchema>[]
+const applyFuzzyFiltering = (
+  searchResults: any[],
+  conditions: z.infer<typeof contentConditionSchema>[],
+  threshold: number
 ): any[] => {
-  return results.sort((a, b) => {
-    switch (sortBy) {
-      case "recent":
-        return b.modified.getTime() - a.modified.getTime();
-
-      case "page_title":
-        return a.pageTitle.localeCompare(b.pageTitle);
-
-      case "relevance":
-      default:
-        // Calculate relevance score based on exact matches to original conditions
-        const scoreA = calculateRelevanceScore(a, originalConditions);
-        const scoreB = calculateRelevanceScore(b, originalConditions);
-
-        if (scoreA !== scoreB) {
-          return scoreB - scoreA; // Higher score first
+  if (!searchResults.length) return searchResults;
+  
+  // Extract text conditions for fuzzy matching
+  const textConditions = conditions.filter(cond => cond.type === "text");
+  if (!textConditions.length) return searchResults;
+  
+  return searchResults.filter(([uid, content, time, pageTitle, pageUid]) => {
+    // Apply fuzzy matching to block content
+    const blockContent = content?.toLowerCase() || "";
+    
+    // Check if all text conditions match (considering AND/OR logic would be complex here, so we use ANY match)
+    return textConditions.some(condition => {
+      const searchTerm = condition.text.toLowerCase();
+      
+      let matches = false;
+      
+      // For exact matches, skip fuzzy logic
+      if (condition.matchType === "exact") {
+        matches = blockContent === searchTerm;
+      } else {
+        // For contains/regex, apply fuzzy matching to improve recall
+        if (blockContent.includes(searchTerm)) {
+          matches = true; // Exact substring match always passes
+        } else {
+          // Apply fuzzy matching to individual words in content
+          const contentWords = blockContent.split(/\s+/);
+          const searchWords = searchTerm.split(/\s+/);
+          
+          // Check if any search word fuzzy matches any content word
+          matches = searchWords.some(searchWord => 
+            contentWords.some(contentWord => 
+              fuzzyMatch(searchWord, contentWord, threshold)
+            )
+          );
         }
-
-        // Tie-breaker: modification time
-        return b.modified.getTime() - a.modified.getTime();
-    }
+      }
+      
+      // Apply negation if specified for this condition
+      return condition.negate ? !matches : matches;
+    });
   });
 };
 
-/**
- * Calculate relevance score for a block result
- */
-const calculateRelevanceScore = (
-  result: any,
-  conditions: z.infer<typeof contentConditionSchema>[]
-): number => {
-  let score = 0;
-  const content = result.content.toLowerCase();
-
-  for (const condition of conditions) {
-    const text = condition.text.toLowerCase();
-    const weight = condition.weight;
-
-    if (condition.matchType === "exact" && content === text) {
-      score += 10 * weight;
-    } else if (content.includes(text)) {
-      // Boost score for exact word matches vs partial matches
-      const exactWordMatch = new RegExp(
-        `\\b${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`
-      ).test(content);
-      score += exactWordMatch ? 5 * weight : 2 * weight;
-    }
-  }
-
-  return score;
-};
+// Old sorting functions removed - now using enhanced processEnhancedResults from searchUtils
 
 export const findBlocksByContentTool = tool(
   async (input) => {
@@ -603,7 +658,7 @@ export const findBlocksByContentTool = tool(
   {
     name: "findBlocksByContent",
     description:
-      "Find blocks by content using direct literal search with multiple conditions and AND/OR logic. Supports text search, page references [[Page]], block references ((uid)), regex patterns. Use semanticExpansion=true only when initial search returns few results or user requests semantic/related search. RESULT MODES: Use resultMode='summary' (default, max 20 results) for analytical queries to prevent token bloat, 'uids_only' for just UIDs when feeding other tools, 'full' only when user explicitly needs comprehensive results. For analytical queries, use includeChildren=false and includeParents=false for performance.",
+      "Find blocks by content using direct literal search with multiple conditions and AND/OR logic. Supports text search, page references [[Page]], block references ((uid)), regex patterns. Use semanticExpansion=true only when initial search returns few results or user requests semantic/related search. ENHANCED FEATURES: Advanced sorting (creation, modification, alphabetical, random), random sampling for large datasets, increased limits up to 50,000 results, fuzzy matching for typo tolerance (fuzzyMatching=true). RESULT MODES: Use resultMode='summary' (default, max 20 results) for analytical queries to prevent token bloat, 'uids_only' for just UIDs when feeding other tools, 'full' only when user explicitly needs comprehensive results. For analytical queries, use includeChildren=false and includeParents=false for performance.",
     schema,
   }
 );

@@ -15,10 +15,13 @@ import {
  */
 
 const schema = z.object({
-  // Input source - either block UIDs or page UIDs/titles
+  // Input source - either direct UIDs/titles OR result references
   blockUids: z.array(z.string()).optional().describe("Array of block UIDs to extract references from"),
   pageUids: z.array(z.string()).optional().describe("Array of page UIDs - will extract references from all blocks in these pages"),
   pageTitles: z.array(z.string()).optional().describe("Array of page titles - will extract references from all blocks in these pages"),
+  
+  // NEW: Reference previous results by ID
+  fromResultId: z.string().optional().describe("Extract references from blocks/pages in a previous search result (e.g., 'findBlocksByContent_001')"),
   
   // Filtering options
   excludePages: z.array(z.string()).default([]).describe("Page titles to exclude from results"),
@@ -29,14 +32,23 @@ const schema = z.object({
   sortBy: z.enum(["count", "alphabetical", "none"]).default("count").describe("How to sort results"),
   limit: z.number().min(1).max(500).default(100).describe("Maximum number of referenced pages to return"),
   minCount: z.number().min(1).default(1).describe("Minimum reference count to include in results"),
+  
+  // Result lifecycle management
+  purpose: z.enum(["final", "intermediate", "replacement", "completion"]).optional()
+    .describe("Purpose: 'final' for user response data, 'intermediate' for exploration, 'replacement' to replace previous results, 'completion' to add to previous results"),
+  replacesResultId: z.string().optional()
+    .describe("If purpose is 'replacement', specify which result ID to replace (e.g., 'extractPageReferences_001')"),
+  completesResultId: z.string().optional() 
+    .describe("If purpose is 'completion', specify which result ID this completes (e.g., 'findBlocksByContent_002')"),
 });
 
-const extractPageReferencesImpl = async (input: z.infer<typeof schema>) => {
+const extractPageReferencesImpl = async (input: z.infer<typeof schema>, state?: any) => {
   console.log(`🔧 extractPageReferencesImpl input:`, input);
   const {
     blockUids,
     pageUids,
     pageTitles,
+    fromResultId,
     excludePages,
     excludeDaily,
     includeCount,
@@ -45,13 +57,117 @@ const extractPageReferencesImpl = async (input: z.infer<typeof schema>) => {
     minCount,
   } = input;
 
+  let finalBlockUids = blockUids || [];
+  let finalPageUids = pageUids || [];
+  let finalPageTitles = pageTitles || [];
+
+  // Handle result ID reference - access previous results from state
+  if (fromResultId && state) {
+    console.log(`🔍 Resolving previous result: ${fromResultId}`);
+    console.log(`🔍 State available:`, !!state);
+    console.log(`🔍 ResultStore available:`, !!state?.resultStore);
+    console.log(`🔍 Available result IDs:`, Object.keys(state?.resultStore || {}));
+    
+    const resultEntry = state.resultStore?.[fromResultId];
+    if (!resultEntry) {
+      throw new Error(`Previous result ${fromResultId} not found. Available results: ${Object.keys(state.resultStore || {}).join(', ')}`);
+    }
+    
+    // Extract data from new or legacy structure
+    const previousResult = resultEntry?.data || resultEntry;
+
+    console.log(`🔍 Found previous result:`, typeof previousResult, Array.isArray(previousResult) ? `${previousResult.length} items` : 'not an array');
+    console.log(`🔍 First few items:`, previousResult?.slice(0, 3));
+    
+    // Ensure previousResult is iterable (array)
+    if (!Array.isArray(previousResult)) {
+      throw new Error(`Previous result ${fromResultId} is not an array. Type: ${typeof previousResult}, Value: ${JSON.stringify(previousResult)}`);
+    }
+    
+    // Extract UIDs and titles from previous result data
+    for (const item of previousResult) {
+      if (item.uid) {
+        // Determine if this is a block or page based on data structure
+        if (item.content !== undefined || item.pageTitle) {
+          // This is a block result
+          finalBlockUids.push(item.uid);
+        } else if (item.title) {
+          // This is a page result with title
+          finalPageTitles.push(item.title);
+        } else {
+          // Fallback: treat as page UID
+          finalPageUids.push(item.uid);
+        }
+      }
+      
+      if (item.pageUid && !finalPageUids.includes(item.pageUid)) {
+        finalPageUids.push(item.pageUid);
+      }
+      
+      if (item.pageTitle && !finalPageTitles.includes(item.pageTitle)) {
+        finalPageTitles.push(item.pageTitle);
+      }
+    }
+    
+    console.log(`🔍 Extracted from previous result: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids, ${finalPageTitles.length} pageTitles`);
+  }
+
+  // FALLBACK: If no explicit input provided, try to auto-detect compatible previous results
+  let fallbackResultId = fromResultId;
+  if (!finalBlockUids.length && !finalPageUids.length && !finalPageTitles.length && !fallbackResultId && state?.resultStore) {
+    console.log(`🔄 No explicit input provided, attempting auto-fallback to recent compatible results`);
+    
+    const compatibleResultId = findMostRecentCompatibleResult(state.resultStore, ['blocks', 'pages']);
+    if (compatibleResultId) {
+      console.log(`🔄 Auto-selected fallback result: ${compatibleResultId}`);
+      fallbackResultId = compatibleResultId;
+      
+      // Process the fallback result  
+      const resultEntry = state.resultStore[compatibleResultId];
+      // Extract data from new or legacy structure
+      const previousResult = resultEntry?.data || resultEntry;
+      if (Array.isArray(previousResult)) {
+        for (const item of previousResult) {
+          if (item.uid) {
+            if (item.content !== undefined || item.pageTitle) {
+              finalBlockUids.push(item.uid);
+            } else if (item.title) {
+              finalPageTitles.push(item.title);
+            } else {
+              finalPageUids.push(item.uid);
+            }
+          }
+          if (item.pageUid && !finalPageUids.includes(item.pageUid)) {
+            finalPageUids.push(item.pageUid);
+          }
+          if (item.pageTitle && !finalPageTitles.includes(item.pageTitle)) {
+            finalPageTitles.push(item.pageTitle);
+          }
+        }
+        console.log(`🔄 Auto-extracted from fallback: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids, ${finalPageTitles.length} pageTitles`);
+      }
+    }
+  }
+
   // Validate input - at least one source must be provided
-  if (!blockUids?.length && !pageUids?.length && !pageTitles?.length) {
-    throw new Error("Must provide at least one of: blockUids, pageUids, or pageTitles");
+  if (!finalBlockUids.length && !finalPageUids.length && !finalPageTitles.length) {
+    if (fallbackResultId) {
+      throw new Error(`No valid UIDs or titles found in previous result ${fallbackResultId}`);
+    } else {
+      const availableResults = Object.keys(state?.resultStore || {});
+      const compatibleResults = availableResults.filter(id => {
+        const result = state.resultStore[id];
+        // Handle both new and legacy structure
+        const data = result?.data || result;
+        return Array.isArray(data) && data.length > 0;
+      });
+      
+      throw new Error(`Must provide at least one of: blockUids, pageUids, pageTitles, or fromResultId. Available result IDs with data: ${compatibleResults.join(', ')}. Use fromResultId: "RESULT_ID" to reference previous search results.`);
+    }
   }
 
   // Step 1: Get all target block UIDs to analyze
-  const targetBlockUids = await getTargetBlockUids(blockUids, pageUids, pageTitles);
+  const targetBlockUids = await getTargetBlockUids(finalBlockUids, finalPageUids, finalPageTitles);
   
   if (targetBlockUids.length === 0) {
     console.log("📊 No target blocks found");
@@ -206,6 +322,40 @@ const extractReferencesFromBlocks = async (blockUids: string[]): Promise<Array<{
 };
 
 /**
+ * Find the most recent compatible result for auto-fallback
+ */
+const findMostRecentCompatibleResult = (
+  resultStore: Record<string, any>,
+  compatibleTypes: string[]
+): string | null => {
+  const resultEntries = Object.entries(resultStore)
+    .filter(([id, result]) => {
+      // Handle both new and legacy structure
+      const data = result?.data || result;
+      
+      // Skip empty results
+      if (!Array.isArray(data) || data.length === 0) {
+        return false;
+      }
+      
+      // Check if result contains blocks or pages
+      const hasBlocks = data.some(item => item.content !== undefined || item.pageTitle);
+      const hasPages = data.some(item => item.title && !item.content);
+      
+      return (compatibleTypes.includes('blocks') && hasBlocks) || 
+             (compatibleTypes.includes('pages') && hasPages);
+    })
+    .sort((a, b) => {
+      // Sort by result ID (higher numbers = more recent)
+      const idA = parseInt(a[0].split('_')[1] || '0');
+      const idB = parseInt(b[0].split('_')[1] || '0');
+      return idB - idA;
+    });
+    
+  return resultEntries[0]?.[0] || null;
+};
+
+/**
  * Process references: deduplicate, count, and filter
  */
 const processAndCountReferences = (
@@ -241,10 +391,12 @@ const processAndCountReferences = (
 };
 
 export const extractPageReferencesTool = tool(
-  async (input) => {
+  async (input, config) => {
     const startTime = performance.now();
     try {
-      const results = await extractPageReferencesImpl(input);
+      // Extract state from config - passed via configurable.state
+      const state = config?.configurable?.state;
+      const results = await extractPageReferencesImpl(input, state);
       return createToolResult(
         true,
         results,
@@ -266,7 +418,7 @@ export const extractPageReferencesTool = tool(
   {
     name: "extractPageReferences",
     description:
-      "Extract and count page references from blocks or pages using database queries. Perfect for analytical tasks after getting search results - can analyze which pages are referenced in specific blocks/pages. Input can be block UIDs, page UIDs, or page titles. Returns deduplicated page references with counts, sorted by frequency or alphabetically. Very fast for large datasets since it uses database-level :block/refs queries.",
+      "Extract and count page references from blocks or pages using database queries. Perfect for analytical tasks after getting search results - can analyze which pages are referenced in specific blocks/pages. Input can be block UIDs, page UIDs, page titles, OR fromResultId to reference a previous search result (e.g., 'findBlocksByContent_001'). If no input is provided, will automatically use the most recent compatible search result as fallback. Returns deduplicated page references with counts, sorted by frequency or alphabetically. Very fast for large datasets since it uses database-level :block/refs queries.",
     schema,
   }
 );

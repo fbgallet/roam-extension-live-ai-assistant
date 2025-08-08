@@ -4,7 +4,7 @@ import {
   START,
   Annotation,
 } from "@langchain/langgraph/web";
-import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import {
   LlmInfos,
@@ -20,6 +20,9 @@ import {
   updateAgentToaster,
   getAgentToasterStream,
   parseJSONWithFields,
+  generateResultId,
+  createResultSummary,
+  generateSummaryText,
 } from "../shared/agentsUtils";
 
 // Import our tools registry
@@ -27,6 +30,39 @@ import {
   getAvailableTools,
   listAvailableToolNames,
 } from "./tools/toolsRegistry";
+
+// Import prompts from separate file
+import {
+  buildSystemPrompt,
+  buildRequestAnalysisPrompt,
+  buildFinalResponseSystemPrompt,
+  buildCacheProcessingPrompt,
+  buildCacheSystemPrompt,
+  extractResultDataForPrompt,
+  ROAM_FORMATTING_INSTRUCTIONS,
+} from "./ask-your-graph-prompts";
+
+// Result summary interface for token optimization
+interface ResultSummary {
+  id: string;
+  toolName: string;
+  query: string;
+  totalCount: number;
+  resultType: "blocks" | "pages" | "references" | "hierarchy" | "combinations";
+  sampleItems: string[]; // First 3-5 items for context
+  metadata: {
+    wasLimited: boolean;
+    canExpand: boolean;
+    searchTerms: string[];
+    sortedBy?: "creation" | "modification" | "alphabetical" | "random";
+    availableCount: number;
+    // Type-specific info
+    dataType?: "blocks" | "pages"; // For combinations: what the UIDs represent
+    operation?: string; // For combinations: union/intersection/etc
+    formatType?: "string" | "structured"; // For hierarchy: content vs structure
+    hierarchyDepth?: number; // For hierarchy: max depth
+  };
+}
 
 const ReactSearchAgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
@@ -39,6 +75,7 @@ const ReactSearchAgentState = Annotation.Root({
   conversationHistory: Annotation<any[]>,
   conversationSummary: Annotation<string | undefined>,
   isConversationMode: Annotation<boolean>,
+  isDirectChat: Annotation<boolean>,
   // Permissions
   permissions: Annotation<{ contentAccess: boolean }>,
   privateMode: Annotation<boolean>, // Strict Private mode - only UIDs, no content processing
@@ -47,7 +84,26 @@ const ReactSearchAgentState = Annotation.Root({
   toolResultsCache: Annotation<Record<string, any>>, // Cache for comprehensive follow-ups
   cachedFullResults: Annotation<Record<string, any>>, // Store full results even when truncated for LLM
   hasLimitedResults: Annotation<boolean>, // Flag to indicate results were truncated
+  // NEW: Token optimization - metadata for LLM, full results for tools
+  resultSummaries: Annotation<Record<string, ResultSummary>>, // Metadata for LLM context
+  resultStore: Annotation<
+    Record<
+      string,
+      {
+        data: any[];
+        purpose: "final" | "intermediate" | "replacement" | "completion";
+        status: "active" | "superseded";
+        replacesResultId?: string;
+        completesResultId?: string;
+        toolName: string;
+        timestamp: number;
+      }
+    >
+  >, // Full results with lifecycle management
+  nextResultId: Annotation<number>, // Counter for generating unique result IDs
   finalAnswer: Annotation<string | undefined>,
+  // Token tracking across entire agent execution
+  totalTokensUsed: Annotation<{ input: number; output: number }>,
   // Request analysis and routing
   routingDecision: Annotation<"use_cache" | "need_new_search">,
   reformulatedQuery: Annotation<string | undefined>,
@@ -75,229 +131,15 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
   return searchTools;
 };
 
-// Shared Roam formatting instructions
-const ROAM_FORMATTING_INSTRUCTIONS = `ROAM-SPECIFIC FORMATTING - MANDATORY:
-- ALWAYS format page names as [[Page Name]] (double brackets) - NEVER use quotes around page names, user they are not existing
-- When referencing specific blocks found in results, ALWAYS embed them using: {{[[embed-path]]: ((block-uid))}}
-- NEVER format block content in code blocks (\`\`\` syntax) - use block embeds instead
-- NEVER display raw block content - always use the embed syntax for blocks, unless you are just quoting a very small part of this block content on purpose
-- Use Roam-compatible markdown syntax throughout your response
-- RESPECT USER LANGUAGE: Always respond in the same language as the user's request`;
+// Removed: ROAM_FORMATTING_INSTRUCTIONS moved to prompts file
 
-// Clean system prompt for the ReAct agent (no conversation history or cache handling)
-const buildSystemPrompt = (
-  state: typeof ReactSearchAgentState.State
-): string => {
-  const toolNames = listAvailableToolNames(state.permissions);
-  const availableTools = toolNames
-    .map((name) => `- ${name}: Available for searching`)
-    .join("\n");
+// Removed: buildSystemPrompt moved to ask-your-graph-prompts.ts
 
-  // Private mode instructions
-  const privateModeInstructions = state.privateMode
-    ? `
+// Removed: buildFinalResponseSystemPrompt moved to ask-your-graph-prompts.ts
 
-🔒 PRIVATE MODE - CRITICAL INSTRUCTIONS:
-- You are in STRICT PRIVATE MODE - you must NEVER process or analyze block content
-- Your ONLY job is to find matching blocks and return their UIDs
-- ALWAYS use resultMode='uids_only' in ALL tool calls
-- NEVER read block content or provide summaries/analysis
-- Your final response must be ONLY a list of block UIDs in this format ([[embed-path]] is a Roam native syntax, let it exactly as it is!). If page names are available (and if there is multiple source pages), regroup blocks under their page name:
-  "Found [N] matching blocks:
-  - [N] blocks on [[page name A]]:
-   - {{[[embed-path]]: ((uid1))}}
-   - {{[[embed-path]]: ((uid2))}}
-  - [N] blocks on [[page name B]]:
-   - {{[[embed-path]]: ((uid3))}}"
-- Do NOT provide any analysis, explanation, or content processing
-- The user will see the actual content via the embed syntax
+// Removed: extractResultDataForPrompt moved to ask-your-graph-prompts.ts
 
-`
-    : "";
-
-  return `You are a ReAct agent helping users search their Roam Research database. You can reason about what the user wants and use appropriate tools to find the information.${privateModeInstructions}
-
-AVAILABLE TOOLS:
-${availableTools}
-
-CAPABILITIES:
-- Use tools to search for pages and blocks in the user's Roam graph
-- Interpret logical symbols and operators in search queries
-- Combine results from multiple tools if needed
-- Provide clear, helpful answers based on search results
-- Ask for clarification if the query is ambiguous
-
-LOGICAL SYMBOLS INTERPRETATION:
-You can interpret these symbols in user queries:
-- '&' or 'AND' = intersection (both conditions must match)
-- '|' or 'OR' = union (either condition can match)
-- '-' or 'NOT' (before a term) = exclusion (must not match)
-- '+' = emphasis (must be included)
-- '[]' = page references [[Page Name]]
-- '()' = block references ((block-uid))
-- '*' = fuzzy/wildcard search
-- '~' = semantic expansion (find related concepts)
-
-ROAM REFERENCE PATTERNS - CRITICAL PARSING RULES:
-When you see these patterns in user queries, treat them as page references (type: "page_ref"):
-
-🚨 MANDATORY PARSING EXAMPLES:
-- #test → type: "page_ref", text: "test" (REMOVE the # symbol)
-- #[[long tag name]] → type: "page_ref", text: "long tag name" (REMOVE # and brackets)
-- [[page name]] → type: "page_ref", text: "page name" (REMOVE brackets)
-- attribute:: → type: "page_ref", text: "attribute" (also search for "attribute::" as text)
-- plain_word → type: "text", text: "plain_word" (regular text search)
-
-⚠️ CRITICAL: ALL # patterns are page references, NOT text searches (unless explicitly requested otherwise by the user or if they are between backticks)
-⚠️ ALWAYS remove # and [] symbols from the text value!
-
-WRONG: #test → type: "page_ref", text: "#test"
-CORRECT: #test → type: "page_ref", text: "test"
-
-PAGE SCOPE vs PAGE REFERENCE DISTINCTION:
-- "in page [[X]], find Y" → Use findBlocksByContent with limitToPages=["X"] and text conditions for Y (search WITHIN page)
-- "find Y that mentions [[X]]" → Use findBlocksByContent with page_ref condition for X (search FOR page references)
-- For complex page-scoped queries → Use generateDatomicQuery with executeQuery=true and limitToPages
-
-INSTRUCTIONS:
-1. Parse the user's query for logical symbols and convert them to appropriate tool parameters
-2. Choose the most appropriate tool(s) to find the information
-3. Use AND/OR logic with multiple conditions when symbols are present
-4. Use semantic expansion when ~ symbol is detected OR when initial searches return few/no results
-5. Use the tools step by step, reasoning about the results
-6. Provide a helpful response based on what you find
-7. If the user query contains guidance from cache analysis, use that guidance to focus your search
-
-SEARCH STRATEGY:
-- ALWAYS start with direct, literal searches (semanticExpansion: false)
-- Only use semantic expansion (semanticExpansion: true) when:
-  * User explicitly uses ~ symbol for semantic search
-  * Initial direct search returns fewer than 3-5 results
-  * User asks for "related" or "similar" content
-- Use findPagesSemantically tool ONLY when user specifically wants semantic/conceptual search
-- For most queries, use findBlocksByContent or findPagesByTitle with semanticExpansion: false
-- Prefer exact matches over expanded terms
-- Try simpler tools before complex ones
-
-COMPLEX OR QUERY FALLBACK STRATEGY:
-When OR queries fail or for very complex multi-condition searches:
-1. Break into multiple simpler searches (without OR)
-2. Use combineResults tool to union/intersection the results
-3. Example: Instead of "A OR B OR C", do three searches then combine
-- Search 1: find blocks with "A" 
-- Search 2: find blocks with "B"
-- Search 3: find blocks with "C" 
-- Use combineResults with operation="union" to merge all results
-
-HIERARCHY OPTIMIZATION:
-- For ANALYTICAL queries (statistics, counts, "most mentioned", "which pages", etc.), set includeChildren=false and includeParents=false to avoid expensive processing
-- For EXPLORATORY queries (user wants to see context, relationships, explore specific blocks), use includeChildren=true
-- When expecting large result sets (>100 blocks), default to includeChildren=false unless user specifically needs context
-- Only include hierarchy when the user actually needs to see the block structure and relationships
-
-ANALYTICAL WORKFLOW:
-- For analytical queries like "most mentioned pages", "page reference counts", etc.:
-  1. First use findBlocksByContent with includeChildren=false, includeParents=false, resultMode='uids_only' to get block UIDs efficiently
-  2. Then use extractPageReferences tool with the block UIDs to get page reference counts efficiently
-  3. This avoids processing thousands of blocks in the LLM context and uses fast database queries instead
-
-RESULT MODE SELECTION - COST PROTECTION:
-- ALWAYS use resultMode='summary' (max 20 results) as DEFAULT to prevent token bloat
-- Use resultMode='uids_only' ONLY when feeding results to other tools (extractPageReferences, etc.) - limited to 100 UIDs
-- Use resultMode='full' ONLY when user explicitly needs comprehensive results - limited to 300 results max
-- CRITICAL: Never allow unlimited results that could cost 120k+ tokens
-
-${ROAM_FORMATTING_INSTRUCTIONS}
-
-Remember:
-- Start with simple, direct searches before trying complex approaches
-- When logical symbols are used, respect the intended logic structure
-- If no results are found, then suggest alternative search strategies or semantic expansion
-- Format all responses in Roam-compatible markdown with proper page and block references
-- Be concise but helpful in your responses
-- When providing summary results (due to limits), offer to provide more comprehensive results if the user wants them`;
-};
-
-// Request analysis system prompt
-const buildRequestAnalysisPrompt = (
-  state: typeof ReactSearchAgentState.State
-): string => {
-  const conversationContext = state.conversationHistory?.length
-    ? state.conversationHistory
-        .slice(-4)
-        .map((msg) => {
-          if (typeof msg === "string") return msg;
-          if (msg.role && msg.content) return `${msg.role}: ${msg.content}`;
-          return String(msg);
-        })
-        .join("\n")
-    : "";
-
-  const cachedResultsMetadata = Object.keys(state.cachedFullResults || {}).map(
-    (key) => {
-      const cached = state.cachedFullResults[key];
-      return `- ${cached.toolName}: ${
-        cached.fullResults?.metadata?.totalFound || "unknown"
-      } results for "${cached.userQuery}"`;
-    }
-  );
-
-  const hasCachedResults = cachedResultsMetadata.length > 0;
-
-  return `You are a request analyzer for a search system. Your job is to:
-
-1. DECIDE if the current user request can be satisfied with cached results from previous searches OR if new searches are needed
-2. REFORMULATE the user request to be completely explicit and context-independent
-3. RESPOND with ONLY valid JSON - no explanations, observations, or additional text
-
-CURRENT REQUEST: "${state.userQuery}"
-
-CONVERSATION HISTORY:
-${conversationContext || "No previous conversation"}
-
-AVAILABLE CACHED RESULTS:
-${
-  hasCachedResults
-    ? cachedResultsMetadata.join("\n")
-    : "No cached results available"
-}
-
-DECISION CRITERIA:
-- Use cached results if: 
-  * User asks for "more details", "comprehensive results", "show more", "deeper analysis"
-  * User asks about a RELATED or MORE SPECIFIC aspect of previously searched topics
-  * The cached results likely contain the information needed (even if more specific)
-- Need new search if: 
-  * Request is about a completely DIFFERENT topic with no overlap to cached results
-  * User asks for entirely new information unrelated to previous searches
-
-IMPORTANT: If the current request is asking for MORE SPECIFIC information about concepts already found in cached results, prefer using cache first. For example:
-- Previous search: "justice AND equality" 
-- Current request: "distributive justice" 
-- Decision: USE_CACHE (distributive justice is a specific type of justice, likely mentioned in justice results)
-
-REFORMULATION RULES:
-- Make the request completely explicit and self-contained
-- Include the original search topic/context if using cached results
-- Preserve the user's language preference
-- Remove vague references like "this", "that", "more details about it"
-
-RESPONSE FORMAT:
-Respond with ONLY a JSON object, no additional text or explanations:
-{
-  "decision": "use_cache" | "need_new_search",
-  "reformulatedQuery": "Complete, explicit version of the request",
-  "originalSearchContext": "Original search topic if using cache, null otherwise",
-  "reasoning": "Brief explanation of your decision"
-}
-
-CRITICAL: Your response must contain ONLY the JSON object above. Do not add any explanatory text, observations, or comments before or after the JSON.
-
-Examples:
-- User: "show me more details" after searching "test" → {"decision": "use_cache", "reformulatedQuery": "Show comprehensive details about test", "originalSearchContext": "test"}
-- User: "what about distribute justice" after searching "justice and equality" → {"decision": "use_cache", "reformulatedQuery": "Find specific information about distributive justice (justice par répartition) from justice and equality results", "originalSearchContext": "justice et égalité"}
-- User: "find information about cats" → {"decision": "need_new_search", "reformulatedQuery": "find information about cats", "originalSearchContext": null}`;
-};
+// Removed: buildRequestAnalysisPrompt moved to ask-your-graph-prompts.ts
 
 // Nodes
 const requestAnalyzer = async (state: typeof ReactSearchAgentState.State) => {
@@ -389,16 +231,97 @@ const requestAnalyzer = async (state: typeof ReactSearchAgentState.State) => {
   }
 };
 
+/**
+ * Build optimized cache results summary using the new summarization system
+ */
+const buildCacheResultsSummary = (
+  state: typeof ReactSearchAgentState.State
+): string => {
+  const summaries: string[] = [];
+
+  // NEW: Use token-optimized result summaries (preferred)
+  if (state.resultSummaries && Object.keys(state.resultSummaries).length > 0) {
+    Object.entries(state.resultSummaries).forEach(([resultId, summary]) => {
+      const resultData = state.resultStore?.[resultId];
+
+      // Only include active results (not superseded ones)
+      if (resultData?.status === "active") {
+        const summaryText = generateSummaryText(summary, "balanced"); // Use balanced mode for cache processing
+        summaries.push(`${resultId}: ${summaryText}`);
+      }
+    });
+  }
+
+  // LEGACY: Fall back to old cachedFullResults for backward compatibility
+  if (summaries.length === 0 && state.cachedFullResults) {
+    Object.entries(state.cachedFullResults).forEach(([cacheId, cached]) => {
+      const results = cached.fullResults;
+      const dataCount = results?.data?.length || 0;
+      const toolName = cached.toolName || "unknown";
+
+      // Create legacy summary (much more compact than full JSON dump)
+      summaries.push(`${cacheId}: ${dataCount} ${toolName} results available`);
+    });
+  }
+
+  return summaries.length > 0
+    ? summaries.join("\n")
+    : "No cached results available";
+};
+
+/**
+ * Generate cache-based response with proper formatting using actual result data
+ */
+const generateCacheBasedResponse = async (
+  state: typeof ReactSearchAgentState.State,
+  cacheProcessorResponse: string
+): Promise<string> => {
+  // If we have new result structure, enhance the response with proper formatting
+  if (state.resultStore && Object.keys(state.resultStore).length > 0) {
+    // Determine security mode
+    const securityMode = state.privateMode
+      ? "private"
+      : state.permissions?.contentAccess
+      ? "full"
+      : "balanced";
+
+    // Build a response using the same system as finalResponseWriter but with cache context
+    const cacheSystemPrompt = buildCacheSystemPrompt(state, cacheProcessorResponse, securityMode);
+
+    try {
+      const llm = modelViaLanggraph(state.model, turnTokensUsage);
+      const response = await llm.invoke([
+        new SystemMessage({ content: cacheSystemPrompt }),
+        new HumanMessage({ content: state.userQuery }),
+      ]);
+
+      return response.content.toString();
+    } catch (error) {
+      console.warn(
+        "Cache-based response generation failed, using original:",
+        error
+      );
+      return cacheProcessorResponse;
+    }
+  }
+
+  // For legacy results or when no new results available, return original response
+  return cacheProcessorResponse;
+};
+
 const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
   console.log(
     `💾 [CacheProcessor] Processing request: "${
       state.reformulatedQuery || state.userQuery
     }"`
   );
+  // Count available results from both new and legacy systems
+  const newResultsCount = Object.keys(state.resultSummaries || {}).length;
+  const legacyResultsCount = Object.keys(state.cachedFullResults || {}).length;
+  const totalResultsCount = newResultsCount + legacyResultsCount;
+
   console.log(
-    `💾 [CacheProcessor] Available cached results: ${
-      Object.keys(state.cachedFullResults || {}).length
-    }`
+    `💾 [CacheProcessor] Available cached results: ${totalResultsCount} (${newResultsCount} new + ${legacyResultsCount} legacy)`
   );
   updateAgentToaster("💾 Processing cached results...");
 
@@ -414,61 +337,7 @@ const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
   }
 
   // Build system prompt for cache processing
-  const cacheProcessingPrompt = `You are processing a user request using cached search results. Your job is to:
-
-1. Analyze the cached search results to answer the user's request
-2. Determine if the cached results are sufficient or if additional searches are needed
-3. Provide a comprehensive response based on the available data
-
-USER REQUEST: "${state.reformulatedQuery || state.userQuery}"
-ORIGINAL SEARCH CONTEXT: "${state.originalSearchContext || "unknown"}"
-
-AVAILABLE CACHED RESULTS:
-${Object.entries(state.cachedFullResults || {})
-  .map(([, cached]) => {
-    const results = cached.fullResults;
-    return `
-Tool: ${cached.toolName}
-Original Query: "${cached.userQuery}"
-Complete Results:
-${JSON.stringify(results, null, 2)}
-`;
-  })
-  .join("\n---\n")}
-
-INSTRUCTIONS:
-1. If the cached results contain sufficient information to answer the user's request completely, provide a comprehensive response
-2. If the cached results are insufficient, provide simple guidance for what additional information is needed
-
-For SUFFICIENT cache, respond directly with your complete answer.
-
-For INSUFFICIENT cache, respond with:
-"INSUFFICIENT_CACHE: [brief explanation]
-
-ADDITIONAL_INFO_NEEDED:
-- [Natural language description of what to search for]
-- [Another thing that needs to be found]
-
-SPECIFIC_TARGETS: [if applicable]
-- Block UIDs: uid1, uid2...
-- Page titles: "Page Name 1", "Page Name 2"...
-"
-
-Example:
-"INSUFFICIENT_CACHE: Need more details about the implementation methods
-
-ADDITIONAL_INFO_NEEDED:
-- Get full content of the implementation blocks mentioned in results
-- Search for examples or usage patterns of these methods
-
-SPECIFIC_TARGETS:
-- Block UIDs: ((abc123)), ((def456))
-- Page titles: "Implementation Guide", "Usage Examples"
-"
-
-${ROAM_FORMATTING_INSTRUCTIONS}
-- If providing comprehensive results, mention these are from previous searches
-- Focus on the user's specific request`;
+  const cacheProcessingPrompt = buildCacheProcessingPrompt(state);
 
   try {
     const cacheProcessingLlm = modelViaLanggraph(state.model, turnTokensUsage);
@@ -478,6 +347,32 @@ ${ROAM_FORMATTING_INSTRUCTIONS}
     ]);
 
     const responseContent = response.content.toString();
+
+    // Handle HYBRID approach (new intelligent conversation mode)
+    if (responseContent.startsWith("HYBRID:")) {
+      console.log(
+        `💾 [CacheProcessor] → Routing to HYBRID APPROACH (cached + new data)`
+      );
+      console.log(
+        `💾 [CacheProcessor] Strategy: ${responseContent.substring(0, 100)}...`
+      );
+
+      // Provide both cached context and guidance for new searches to ReAct assistant
+      const hybridQuery = `${state.reformulatedQuery || state.userQuery}
+
+CONVERSATION CONTEXT - CACHED DATA AVAILABLE:
+${buildCacheResultsSummary(state)}
+
+HYBRID STRATEGY:
+${responseContent}
+
+INSTRUCTIONS: You can use fromResultId parameters to reference cached data and combine it with new targeted searches for a comprehensive response.`;
+
+      return {
+        routingDecision: "need_new_search" as const,
+        messages: [new HumanMessage(hybridQuery)],
+      };
+    }
 
     // Check if cache was insufficient
     if (responseContent.startsWith("INSUFFICIENT_CACHE:")) {
@@ -501,11 +396,19 @@ ${ROAM_FORMATTING_INSTRUCTIONS}
       };
     }
 
-    // Cache was sufficient, prepare final response
+    // Cache was sufficient, prepare final response using actual result data
     console.log(`💾 [CacheProcessor] → FINAL RESPONSE (cache sufficient)`);
+
+    // For cache-sufficient responses, we should generate a proper final answer using our result data
+    // This ensures consistency with the new finalResponseWriter approach
+    const finalResponse = await generateCacheBasedResponse(
+      state,
+      responseContent
+    );
+
     return {
       messages: [...state.messages, response],
-      finalAnswer: responseContent,
+      finalAnswer: finalResponse,
     };
   } catch (error) {
     console.error("Cache processing failed:", error);
@@ -539,6 +442,11 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
     toolResultsCache: state.toolResultsCache || {},
     cachedFullResults: state.cachedFullResults || {},
     hasLimitedResults: state.hasLimitedResults || false,
+    // NEW: Initialize token optimization state
+    resultSummaries: state.resultSummaries || {},
+    resultStore: state.resultStore || {},
+    nextResultId: state.nextResultId || 1,
+    totalTokensUsed: state.totalTokensUsed || { input: 0, output: 0 },
   };
 };
 
@@ -590,6 +498,16 @@ When using findBlocksByContent, always include userQuery parameter set to: "${st
   ]);
 
   const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
+
+  // Track tokens from this assistant call
+  const responseTokens = response.usage_metadata || {};
+  const updatedTotalTokens = {
+    input:
+      (state.totalTokensUsed?.input || 0) + (responseTokens.input_tokens || 0),
+    output:
+      (state.totalTokensUsed?.output || 0) +
+      (responseTokens.output_tokens || 0),
+  };
 
   if (response.tool_calls && response.tool_calls.length > 0) {
     // Generate user-friendly explanations for tool calls
@@ -676,6 +594,7 @@ When using findBlocksByContent, always include userQuery parameter set to: "${st
 
   return {
     messages: [...state.messages, response],
+    totalTokensUsed: updatedTotalTokens,
   };
 };
 
@@ -707,8 +626,11 @@ const toolsWithResults = async (state: typeof ReactSearchAgentState.State) => {
       }
     });
 
-    // Race between tool execution and abort signal
-    const result = await Promise.race([toolNode.invoke(state), abortPromise]);
+    // Race between tool execution and abort signal - with custom state passing
+    const result = await Promise.race([
+      toolNode.invoke(state, { configurable: { state } }),
+      abortPromise,
+    ]);
 
     // Track tool results for potential reuse (following MCP agent pattern)
     const toolMessages = result.messages.filter(
@@ -740,18 +662,34 @@ const toolsWithResults = async (state: typeof ReactSearchAgentState.State) => {
       `✅ Found ${totalResults} ${resultText} (${toolDuration}s)`
     );
 
+    // Enhanced result processing with summarization (keeping message chain intact)
     const updatedResults = { ...state.toolResults };
     const updatedCache = { ...state.toolResultsCache };
     const updatedFullResults = { ...state.cachedFullResults };
+    const updatedResultSummaries = { ...state.resultSummaries };
+    const updatedResultStore = { ...state.resultStore };
+    let nextResultId = state.nextResultId || 1;
     let hasLimitedResults = state.hasLimitedResults;
 
-    // Process each tool result
+    // Determine security mode for summarization
+    const securityMode = state.privateMode
+      ? "private"
+      : state.permissions?.contentAccess
+      ? "full"
+      : "balanced";
+
+    // Track token savings
+    let totalOriginalSize = 0;
+    let totalCompressedSize = 0;
+    let optimizedMessages = 0;
+
+    // Process each tool result (keep existing caching, add summarization)
     toolMessages.forEach((msg: any) => {
       if (msg.tool_call_id && msg.content) {
         try {
           const parsed = JSON.parse(msg.content);
 
-          // Store in regular results
+          // Store in regular results (backward compatibility)
           updatedResults[msg.tool_call_id] = {
             content: msg.content,
             timestamp: Date.now(),
@@ -789,6 +727,74 @@ const toolsWithResults = async (state: typeof ReactSearchAgentState.State) => {
             if (parsed.metadata?.wasLimited) {
               hasLimitedResults = true;
             }
+
+            // NEW: Generate result summary and store full results separately
+            const resultId = generateResultId(msg.name, nextResultId++);
+
+            // Create result summary for LLM context
+            const summary = createResultSummary(
+              msg.name,
+              resultId,
+              state.userQuery,
+              parsed,
+              parsed.metadata?.sortedBy
+            );
+
+            // Store summary for LLM context
+            updatedResultSummaries[resultId] = summary;
+
+            // Store full results for tool access (extract data array from tool result)
+            const resultData = parsed.data || parsed.results || parsed;
+            updatedResultStore[resultId] = resultData;
+            console.log(
+              `📊 [Token Optimization] Stored result ${resultId}: ${
+                Array.isArray(resultData)
+                  ? resultData.length
+                  : typeof resultData
+              } items`
+            );
+
+            // Generate compact summary text for LLM
+            const summaryText = generateSummaryText(summary, securityMode);
+
+            console.log(
+              `📊 [Token Optimization] Created summary ${resultId}: ${summaryText}`
+            );
+
+            // PHASE 3B: Replace message content with summary for token optimization
+            const originalSize = msg.content.length;
+            msg.content = JSON.stringify({
+              success: true,
+              summary: summaryText,
+              resultId: resultId,
+              toolName: msg.name,
+              metadata: {
+                totalCount: summary.totalCount,
+                resultType: summary.resultType,
+                availableForTools: true,
+                originalSize: originalSize,
+                compressedSize: -1, // Will be calculated below
+              },
+            });
+
+            const compressedSize = msg.content.length;
+            const tokenSavings = Math.round(
+              (1 - compressedSize / originalSize) * 100
+            );
+
+            // Update the compressed size in the content
+            const updatedContent = JSON.parse(msg.content);
+            updatedContent.metadata.compressedSize = compressedSize;
+            msg.content = JSON.stringify(updatedContent);
+
+            // Track cumulative savings
+            totalOriginalSize += originalSize;
+            totalCompressedSize += compressedSize;
+            optimizedMessages++;
+
+            console.log(
+              `💰 [Token Savings] ${msg.name}: ${originalSize} → ${compressedSize} bytes (${tokenSavings}% reduction)`
+            );
           }
         } catch (e) {
           // Store raw content even if not JSON
@@ -801,12 +807,29 @@ const toolsWithResults = async (state: typeof ReactSearchAgentState.State) => {
       }
     });
 
+    // Display cumulative token savings in toaster
+    if (optimizedMessages > 0) {
+      const totalSavings = Math.round(
+        (1 - totalCompressedSize / totalOriginalSize) * 100
+      );
+      const savedBytes = totalOriginalSize - totalCompressedSize;
+      updateAgentToaster(
+        `💰 Token optimization: ${savedBytes} bytes saved (${totalSavings}% reduction)`
+      );
+    }
+
     return {
       ...result,
       toolResults: updatedResults,
       toolResultsCache: updatedCache,
       cachedFullResults: updatedFullResults,
       hasLimitedResults,
+      // NEW: Token optimization state
+      resultSummaries: updatedResultSummaries,
+      resultStore: updatedResultStore,
+      nextResultId,
+      // Pass through total tokens
+      totalTokensUsed: state.totalTokensUsed,
     };
   } catch (error) {
     console.error("🔧 Tool execution error:", error);
@@ -815,8 +838,126 @@ const toolsWithResults = async (state: typeof ReactSearchAgentState.State) => {
   }
 };
 
+const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
+  // Check for cancellation
+  if (state.abortSignal?.aborted) {
+    throw new Error("Operation cancelled by user");
+  }
+
+  // Update toaster based on mode
+  if (state.isDirectChat) {
+    updateAgentToaster("💬 Generating chat response...");
+  } else {
+    updateAgentToaster("✍️ Crafting final response...");
+  }
+
+  // Determine security mode for data access strategy
+  const securityMode = state.privateMode
+    ? "private"
+    : state.permissions?.contentAccess
+    ? "full"
+    : "balanced";
+
+  // Build system prompt with access to actual result data via state
+  const responseSystemPrompt = buildFinalResponseSystemPrompt(
+    state,
+    securityMode
+  );
+  console.log(
+    `🎯 [FinalResponseWriter] System prompt length: ${responseSystemPrompt.length} chars`
+  );
+  console.log(
+    `🎯 [FinalResponseWriter] System prompt preview:`,
+    responseSystemPrompt.substring(0, 500) + "..."
+  );
+  const sys_msg = new SystemMessage({ content: responseSystemPrompt });
+
+  // Build conversation messages for direct chat mode
+  const messages = [sys_msg];
+  
+  if (state.isDirectChat && state.conversationHistory && state.conversationHistory.length > 0) {
+    // Include recent conversation history as actual messages for better context
+    const recentHistory = state.conversationHistory.slice(-6); // Last 3 exchanges (6 messages)
+    for (const msg of recentHistory) {
+      if (msg.role === 'user') {
+        messages.push(new HumanMessage({ content: msg.content }));
+      } else if (msg.role === 'assistant') {
+        messages.push(new AIMessage({ content: msg.content })); // Use AIMessage for assistant responses
+      }
+    }
+  }
+  
+  // Add current user message
+  const userMessage = new HumanMessage({ content: state.userQuery });
+  messages.push(userMessage);
+
+  console.log(`🎯 [ResponseWriter] Total messages: ${messages.length}${state.isDirectChat ? ' (including conversation history)' : ''}`);
+  console.log(
+    `🎯 [ResponseWriter] System message length: ${sys_msg.content.length}`
+  );
+  if (state.isDirectChat && state.conversationHistory?.length > 0) {
+    console.log(`💬 [DirectChat] Including ${state.conversationHistory.length} previous conversation messages`);
+  }
+
+  // Use LLM without tools for pure response generation
+  const llmStartTime = Date.now();
+
+  // Create abort promise
+  const abortPromise = new Promise((_, reject) => {
+    if (state.abortSignal) {
+      const abortHandler = () =>
+        reject(new Error("Operation cancelled by user"));
+      state.abortSignal.addEventListener("abort", abortHandler, { once: true });
+    }
+  });
+
+  // Generate final response
+  const response = await Promise.race([
+    llm.invoke(messages), // Note: no tools binding for pure response
+    abortPromise,
+  ]);
+
+  const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
+  updateAgentToaster(`✅ Response generated (${llmDuration}s)`);
+
+  console.log(`🎯 [FinalResponseWriter] Generated response in ${llmDuration}s`);
+  console.log(`🎯 [FinalResponseWriter] Response content:`, response.content);
+  console.log(
+    `🎯 [FinalResponseWriter] Response type:`,
+    typeof response.content
+  );
+  console.log(
+    `🎯 [FinalResponseWriter] Response length:`,
+    response.content?.length || 0
+  );
+
+  // Track tokens from final response generation
+  const responseTokens = response.usage_metadata || {};
+  const updatedTotalTokens = {
+    input:
+      (state.totalTokensUsed?.input || 0) + (responseTokens.input_tokens || 0),
+    output:
+      (state.totalTokensUsed?.output || 0) +
+      (responseTokens.output_tokens || 0),
+  };
+
+  // Ensure finalAnswer is a string
+  const finalAnswerContent =
+    typeof response.content === "string"
+      ? response.content
+      : response.content?.toString() || "";
+
+  return {
+    messages: [...state.messages, response],
+    finalAnswer: finalAnswerContent,
+    totalTokensUsed: updatedTotalTokens,
+  };
+};
+
 const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
-  const lastMessage: string = state.messages.at(-1).content.toString();
+  // Use finalAnswer from finalResponseWriter, fallback to last message if needed
+  const lastMessage: string =
+    state.finalAnswer || state.messages.at(-1).content.toString();
 
   updateAgentToaster("📝 Preparing your results...");
 
@@ -824,6 +965,18 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   if (state.startTime) {
     const totalDuration = ((Date.now() - state.startTime) / 1000).toFixed(1);
     console.log(`⏱️ Total ReAct search time: ${totalDuration}s`);
+  }
+
+  // Display total tokens used in toaster
+  if (
+    state.totalTokensUsed &&
+    (state.totalTokensUsed.input > 0 || state.totalTokensUsed.output > 0)
+  ) {
+    const totalTokens =
+      state.totalTokensUsed.input + state.totalTokensUsed.output;
+    updateAgentToaster(
+      `🔢 Total tokens: ${totalTokens} (${state.totalTokensUsed.input} in / ${state.totalTokensUsed.output} out)`
+    );
   }
 
   const assistantRole = state.model.id
@@ -848,6 +1001,10 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     toolResultsCache: state.toolResultsCache,
     cachedFullResults: state.cachedFullResults,
     hasLimitedResults: state.hasLimitedResults,
+    // NEW: Return token optimization state for conversation continuity
+    resultSummaries: state.resultSummaries,
+    resultStore: state.resultStore,
+    nextResultId: state.nextResultId,
   };
 };
 
@@ -861,9 +1018,25 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     Array.isArray(lastMessage.tool_calls) &&
     lastMessage.tool_calls?.length
   ) {
+    console.log(
+      `🔀 [Graph] Assistant → TOOLS (${lastMessage.tool_calls.length} tool calls)`
+    );
     return "tools";
   }
-  return "insertResponse";
+  console.log(`🔀 [Graph] Assistant → RESPONSE_WRITER (no tool calls)`);
+  return "responseWriter";
+};
+
+// Routing logic after loading model - check for direct chat mode
+const routeAfterLoadModel = (state: typeof ReactSearchAgentState.State) => {
+  if (state.isDirectChat) {
+    console.log(`🔀 [Graph] LoadModel → RESPONSE_WRITER (direct chat mode)`);
+    return "responseWriter";
+  }
+  console.log(
+    `🔀 [Graph] LoadModel → REQUEST_ANALYZER (agent processing mode)`
+  );
+  return "requestAnalyzer";
 };
 
 // Routing logic for request analysis
@@ -886,6 +1059,155 @@ const routeAfterCache = (state: typeof ReactSearchAgentState.State) => {
   return "insertResponse";
 };
 
+// Custom tools node with intelligent result lifecycle management
+const toolsWithResultLifecycle = async (
+  state: typeof ReactSearchAgentState.State
+) => {
+  // Create the standard ToolNode for execution
+  const toolNode = new ToolNode(searchTools);
+
+  // Execute tools normally
+  const result = await toolNode.invoke(state, {
+    configurable: { state },
+  });
+
+  // Process tool results with lifecycle management
+  const updatedResultStore = processToolResultsWithLifecycle(
+    state,
+    result.messages
+  );
+
+  return {
+    ...result,
+    resultStore: updatedResultStore,
+    nextResultId:
+      (state.nextResultId || 1) +
+      result.messages.filter((m) => !m.tool_calls && m.content).length,
+  };
+};
+
+// Process tool results with intelligent lifecycle management
+const processToolResultsWithLifecycle = (
+  state: typeof ReactSearchAgentState.State,
+  toolMessages: any[]
+): Record<string, any> => {
+  const updatedResultStore = { ...state.resultStore };
+
+  // Process each tool message
+  for (const message of toolMessages) {
+    if (message.tool_calls) {
+      // This is a tool call message, skip
+      continue;
+    }
+
+    // This is a tool result message
+    if (message.content && typeof message.content === "string") {
+      try {
+        const toolResult = JSON.parse(message.content);
+        if (toolResult.success && toolResult.data) {
+          // Extract lifecycle parameters from the tool call
+          const toolCall = findCorrespondingToolCall(
+            state.messages,
+            message.name
+          );
+          const lifecycleParams = extractLifecycleParams(toolCall);
+
+          // Generate result ID
+          const resultId = `${message.name}_${String(
+            state.nextResultId || 1
+          ).padStart(3, "0")}`;
+
+          // Handle lifecycle management
+          handleResultLifecycle(
+            updatedResultStore,
+            resultId,
+            toolResult.data,
+            message.name,
+            lifecycleParams
+          );
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to process tool result for ${message.name}:`,
+          error
+        );
+      }
+    }
+  }
+
+  return updatedResultStore;
+};
+
+// Find the tool call that corresponds to this result
+const findCorrespondingToolCall = (messages: any[], toolName: string): any => {
+  // Look for the most recent tool call with this name
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.tool_calls) {
+      const toolCall = msg.tool_calls.find((tc: any) => tc.name === toolName);
+      if (toolCall) return toolCall;
+    }
+  }
+  return null;
+};
+
+// Extract lifecycle parameters from tool call
+const extractLifecycleParams = (toolCall: any) => {
+  if (!toolCall?.args) return {};
+
+  return {
+    purpose: toolCall.args.purpose || "final", // Default to final if not specified
+    replacesResultId: toolCall.args.replacesResultId,
+    completesResultId: toolCall.args.completesResultId,
+  };
+};
+
+// Handle result lifecycle management
+const handleResultLifecycle = (
+  resultStore: Record<string, any>,
+  resultId: string,
+  data: any[],
+  toolName: string,
+  lifecycleParams: any
+) => {
+  const { purpose, replacesResultId, completesResultId } = lifecycleParams;
+
+  // Handle replacement logic
+  if (purpose === "replacement" && replacesResultId) {
+    if (resultStore[replacesResultId]) {
+      resultStore[replacesResultId].status = "superseded";
+      console.log(
+        `🔄 [ResultLifecycle] ${replacesResultId} marked as superseded by ${resultId}`
+      );
+    }
+  }
+
+  // Handle completion logic - mark both results as final
+  if (purpose === "completion" && completesResultId) {
+    if (resultStore[completesResultId]) {
+      resultStore[completesResultId].purpose = "final";
+      console.log(
+        `🔄 [ResultLifecycle] ${completesResultId} marked as final (completed by ${resultId})`
+      );
+    }
+  }
+
+  // Store the new result
+  resultStore[resultId] = {
+    data,
+    purpose: purpose === "completion" ? "final" : purpose,
+    status: "active",
+    replacesResultId,
+    completesResultId,
+    toolName,
+    timestamp: Date.now(),
+  };
+
+  console.log(
+    `🔄 [ResultLifecycle] Stored ${resultId}: ${data.length} items, purpose: ${purpose}, status: active`
+  );
+};
+
 // Build the ReAct Search Agent graph
 const builder = new StateGraph(ReactSearchAgentState);
 builder
@@ -893,15 +1215,17 @@ builder
   .addNode("requestAnalyzer", requestAnalyzer)
   .addNode("cacheProcessor", cacheProcessor)
   .addNode("assistant", assistant)
-  .addNode("tools", toolsWithResults)
+  .addNode("tools", toolsWithResultLifecycle)
+  .addNode("responseWriter", responseWriter)
   .addNode("insertResponse", insertResponse)
 
   .addEdge(START, "loadModel")
-  .addEdge("loadModel", "requestAnalyzer")
+  .addConditionalEdges("loadModel", routeAfterLoadModel)
   .addConditionalEdges("requestAnalyzer", routeAfterAnalysis)
   .addConditionalEdges("cacheProcessor", routeAfterCache)
   .addConditionalEdges("assistant", shouldContinue)
   .addEdge("tools", "assistant")
+  .addEdge("responseWriter", "insertResponse")
   .addEdge("insertResponse", "__end__");
 
 export const ReactSearchAgent = builder.compile();
