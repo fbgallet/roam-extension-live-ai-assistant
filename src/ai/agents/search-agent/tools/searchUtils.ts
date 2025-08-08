@@ -368,7 +368,42 @@ export const filterByDateRange = <
 };
 
 /**
- * Create standardized tool execution result
+ * Generate intelligent search guidance based on tool results
+ */
+const generateSearchGuidance = (data?: any, metadata?: any, toolName?: string) => {
+  if (!data || !Array.isArray(data)) return null;
+  
+  const resultCount = data.length;
+  const suggestions: string[] = [];
+  
+  if (resultCount === 0) {
+    suggestions.push("try_semantic_expansion", "broaden_search_terms", "check_spelling");
+  } else if (resultCount < 3) {
+    suggestions.push("consider_semantic_expansion", "try_related_concepts");
+  } else if (resultCount > 50 && toolName === "findBlocksByContent") {
+    suggestions.push("consider_extractPageReferences_for_analysis");
+  } else if (resultCount > 20 && (toolName === "findPagesByContent" || toolName === "findPagesByTitle")) {
+    suggestions.push("results_look_comprehensive");
+  }
+  
+  // Add tool-specific suggestions based on current tool
+  if (toolName === "findBlocksByContent" && resultCount > 5) {
+    suggestions.push("try_combineResults_for_complex_queries");
+  } else if (toolName === "findPagesByTitle" && resultCount < 5) {
+    suggestions.push("try_findPagesSemantically_for_discovery");
+  }
+  
+  return {
+    resultQuality: resultCount === 0 ? "no_results" : 
+                   resultCount < 3 ? "sparse" : 
+                   resultCount < 20 ? "good" : "abundant",
+    nextSuggestions: suggestions,
+    expandable: metadata?.wasLimited || false
+  };
+};
+
+/**
+ * Create standardized tool execution result with enhanced guidance
  */
 export const createToolResult = (
   success: boolean,
@@ -378,13 +413,16 @@ export const createToolResult = (
   startTime?: number,
   metadata?: any
 ) => {
+  // Generate intelligent search guidance
+  const searchGuidance = success ? generateSearchGuidance(data, metadata, toolName) : null;
+  
   const result = {
     success,
     data,
     error,
     toolName,
     executionTime: startTime ? performance.now() - startTime : 0,
-    ...(metadata && { metadata }),
+    ...(metadata && { metadata: { ...metadata, searchGuidance } }),
   };
   
   console.log(`🔧 ${toolName} result:`, {
@@ -392,7 +430,8 @@ export const createToolResult = (
     dataType: data ? typeof data : 'none',
     dataSize: Array.isArray(data) ? data.length : data ? 1 : 0,
     error: error || 'none',
-    executionTime: result.executionTime
+    executionTime: result.executionTime,
+    guidance: searchGuidance?.resultQuality || 'none'
   });
   
   // Return JSON string for LangGraph ToolNode compatibility
@@ -516,4 +555,274 @@ export const getBlockParents = async (
     console.warn(`Failed to get parents for block ${childUid}:`, error);
     return [];
   }
+};
+
+/**
+ * Fuzzy string matching utilities for typo tolerance
+ */
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+const levenshteinDistance = (str1: string, str2: string): number => {
+  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(0));
+  
+  for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+  for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+  
+  for (let j = 1; j <= str2.length; j++) {
+    for (let i = 1; i <= str1.length; i++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,     // insertion
+        matrix[j - 1][i] + 1,     // deletion
+        matrix[j - 1][i - 1] + cost // substitution
+      );
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+};
+
+/**
+ * Check if two strings match within a fuzzy threshold
+ */
+export const fuzzyMatch = (text1: string, text2: string, threshold: number = 0.8): boolean => {
+  const str1 = text1.toLowerCase().trim();
+  const str2 = text2.toLowerCase().trim();
+  
+  // Quick exact match check
+  if (str1 === str2) return true;
+  
+  // Calculate similarity based on Levenshtein distance
+  const distance = levenshteinDistance(str1, str2);
+  const maxLength = Math.max(str1.length, str2.length);
+  
+  // Handle edge case of empty strings
+  if (maxLength === 0) return true;
+  
+  const similarity = 1 - (distance / maxLength);
+  return similarity >= threshold;
+};
+
+/**
+ * Find fuzzy matches in an array of strings
+ */
+export const findFuzzyMatches = (
+  searchTerm: string, 
+  candidates: string[], 
+  threshold: number = 0.8,
+  maxResults: number = 10
+): { text: string; score: number }[] => {
+  const matches: { text: string; score: number }[] = [];
+  
+  for (const candidate of candidates) {
+    const str1 = searchTerm.toLowerCase().trim();
+    const str2 = candidate.toLowerCase().trim();
+    
+    if (str1 === str2) {
+      matches.push({ text: candidate, score: 1.0 });
+      continue;
+    }
+    
+    const distance = levenshteinDistance(str1, str2);
+    const maxLength = Math.max(str1.length, str2.length);
+    
+    if (maxLength === 0) continue;
+    
+    const score = 1 - (distance / maxLength);
+    if (score >= threshold) {
+      matches.push({ text: candidate, score });
+    }
+  }
+  
+  // Sort by score (highest first) and limit results
+  return matches
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxResults);
+};
+
+/**
+ * Enhanced result processing utilities for token optimization
+ */
+
+// Seeded random number generator for reproducible sampling
+export const createSeededRandom = (seed: number) => {
+  let state = seed;
+  return () => {
+    state = ((state * 1664525) + 1013904223) % 0x100000000;
+    return state / 0x100000000;
+  };
+};
+
+/**
+ * Random sampling utility with optional seeding
+ */
+export const sampleResults = <T>(
+  results: T[],
+  sampleSize: number,
+  seed?: number
+): T[] => {
+  if (results.length <= sampleSize) return results;
+  
+  // Use seeded random for reproducible results
+  const rng = seed ? createSeededRandom(seed) : Math.random;
+  return results
+    .map(item => ({ item, sort: rng() }))
+    .sort((a, b) => a.sort - b.sort)
+    .slice(0, sampleSize)
+    .map(({ item }) => item);
+};
+
+/**
+ * Universal sorting utility for blocks and pages
+ */
+export const sortResults = <T extends any>(
+  results: T[],
+  sortBy: "creation" | "modification" | "alphabetical" | "relevance" | "random",
+  sortOrder: "asc" | "desc" = "desc",
+  seed?: number
+): T[] => {
+  if (sortBy === "random") {
+    return sampleResults(results, results.length, seed);
+  }
+  
+  return results.sort((a: any, b: any) => {
+    let comparison = 0;
+    
+    switch (sortBy) {
+      case "creation":
+        const aCreated = a.created || new Date(0);
+        const bCreated = b.created || new Date(0);
+        comparison = aCreated.getTime() - bCreated.getTime();
+        break;
+        
+      case "modification":
+        const aModified = a.modified || a.created || new Date(0);
+        const bModified = b.modified || b.created || new Date(0);
+        comparison = aModified.getTime() - bModified.getTime();
+        break;
+        
+      case "alphabetical":
+        const aText = a.title || a.content || a.pageTitle || "";
+        const bText = b.title || b.content || b.pageTitle || "";
+        comparison = aText.localeCompare(bText);
+        break;
+        
+      case "relevance":
+        const aScore = a.relevanceScore || a.matchedConditions?.length || 0;
+        const bScore = b.relevanceScore || b.matchedConditions?.length || 0;
+        comparison = bScore - aScore; // Higher relevance first
+        break;
+        
+      default:
+        comparison = 0;
+    }
+    
+    return sortOrder === "desc" ? -comparison : comparison;
+  });
+};
+
+/**
+ * Apply enhanced limits based on security mode
+ */
+export const getEnhancedLimits = (securityMode: "private" | "balanced" | "full") => {
+  switch (securityMode) {
+    case "private":
+      return {
+        maxResults: 50000,    // 10x increase from 5000
+        defaultLimit: 1000,   // 10x increase from 100
+        summaryLimit: 100     // For LLM context
+      };
+    case "balanced":
+      return {
+        maxResults: 10000,    // 10x increase from 1000
+        defaultLimit: 500,    // 5x increase from 100
+        summaryLimit: 50      // For LLM context
+      };
+    case "full":
+      return {
+        maxResults: 3000,     // 10x increase from 300
+        defaultLimit: 300,    // Same as before
+        summaryLimit: 20      // For LLM context
+      };
+    default:
+      return {
+        maxResults: 1000,
+        defaultLimit: 100,
+        summaryLimit: 20
+      };
+  }
+};
+
+/**
+ * Process results with enhanced sorting, sampling, and limits
+ */
+export const processEnhancedResults = <T>(
+  results: T[],
+  options: {
+    sortBy?: "creation" | "modification" | "alphabetical" | "relevance" | "random";
+    sortOrder?: "asc" | "desc";
+    limit?: number;
+    randomSample?: {
+      enabled: boolean;
+      size: number;
+      seed?: number;
+    };
+    securityMode?: "private" | "balanced" | "full";
+  } = {}
+): {
+  data: T[];
+  metadata: {
+    totalFound: number;
+    returnedCount: number;
+    wasLimited: boolean;
+    sortedBy?: string;
+    sampled?: boolean;
+    availableCount: number;
+  };
+} => {
+  const {
+    sortBy = "relevance",
+    sortOrder = "desc",
+    limit,
+    randomSample,
+    securityMode = "balanced"
+  } = options;
+  
+  let processedResults = [...results];
+  const totalFound = results.length;
+  
+  // Apply sorting
+  if (sortBy !== "random" || !randomSample?.enabled) {
+    processedResults = sortResults(processedResults, sortBy, sortOrder, randomSample?.seed);
+  }
+  
+  // Apply random sampling if requested
+  let wasRandomSampled = false;
+  if (randomSample?.enabled && randomSample.size < processedResults.length) {
+    processedResults = sampleResults(processedResults, randomSample.size, randomSample.seed);
+    wasRandomSampled = true;
+  }
+  
+  // Apply final limit
+  const enhancedLimits = getEnhancedLimits(securityMode);
+  const finalLimit = limit || enhancedLimits.defaultLimit;
+  const wasLimited = processedResults.length > finalLimit;
+  
+  if (wasLimited) {
+    processedResults = processedResults.slice(0, finalLimit);
+  }
+  
+  return {
+    data: processedResults,
+    metadata: {
+      totalFound,
+      returnedCount: processedResults.length,
+      wasLimited: wasLimited || wasRandomSampled,
+      sortedBy: sortBy,
+      sampled: wasRandomSampled,
+      availableCount: totalFound
+    }
+  };
 };

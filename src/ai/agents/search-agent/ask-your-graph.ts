@@ -181,15 +181,44 @@ export async function askYourGraph(params: AskYourGraphParams) {
   }
 }
 
-// Helper function to format private mode responses with result limiting
-function formatPrivateModeResponse(response: string): string {
-  if (!response) return response;
+// Helper function to format private mode responses with proper page/block formatting
+function formatPrivateModeResponse(response: string | any): string {
+  // Ensure response is a string
+  const responseStr = typeof response === 'string' 
+    ? response 
+    : response?.toString() || '';
+    
+  if (!responseStr) return responseStr;
 
-  // Extract UIDs and convert to embed syntax
+  // Try to detect if this is a page search result by looking for page-specific keywords
+  const isPageSearch = /pages?.*found|page.*results|page.*matching/i.test(responseStr);
+  
+  if (isPageSearch) {
+    // For page results, extract page titles instead of UIDs
+    const pageTitleRegex = /\[\[([^\]]+)\]\]/g;
+    const pageMatches = responseStr.match(pageTitleRegex) || [];
+    
+    if (pageMatches.length > 0) {
+      const maxDisplayResults = 20;
+      const displayPages = pageMatches.slice(0, maxDisplayResults);
+      const hasMoreResults = pageMatches.length > maxDisplayResults;
+      
+      const formattedPages = displayPages.join("\n- ");
+      let result = `Found ${pageMatches.length} matching pages:\n\n- ${formattedPages}`;
+      
+      if (hasMoreResults) {
+        result += `\n\n---\n**Note**: Showing first ${maxDisplayResults} of ${pageMatches.length} pages. Click the **"View Full Results"** button to see all results.`;
+      }
+      
+      return result;
+    }
+  }
+  
+  // For block results, extract UIDs and convert to embed syntax
   const uidRegex = /\b[a-zA-Z0-9_-]{9}\b/g;
-  const uids = response.match(uidRegex) || [];
+  const uids = responseStr.match(uidRegex) || [];
 
-  if (uids.length === 0) return response;
+  if (uids.length === 0) return responseStr;
 
   // In private mode, limit to 20 results for display
   const maxDisplayResults = 20;
@@ -201,7 +230,7 @@ function formatPrivateModeResponse(response: string): string {
     .map((uid: string) => `{{[[embed-path]]: ((${uid}))}}`)
     .join("\n\n");
 
-  let result = `Found ${uids.length} matching items:\n\n${embeds}`;
+  let result = `Found ${uids.length} matching blocks:\n\n${embeds}`;
   
   // Add info about full results button if there are more results
   if (hasMoreResults) {

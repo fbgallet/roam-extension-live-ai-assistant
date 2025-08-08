@@ -31,6 +31,10 @@ const schema = z.object({
     })
     .optional(),
   limit: z.number().min(1).max(1000).default(100),
+  
+  // Fuzzy matching for typos and approximate matches  
+  fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance for page title matching"),
+  fuzzyThreshold: z.number().min(0).max(1).default(0.8).describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)"),
 });
 
 const findPagesByTitleImpl = async (input: z.infer<typeof schema>) => {

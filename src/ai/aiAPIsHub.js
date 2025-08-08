@@ -33,6 +33,7 @@ import {
   customBaseURL,
   openAiCustomModels,
   customOpenaiLibrary,
+  reasoningEffort,
 } from "..";
 import {
   insertInstantButtons,
@@ -407,7 +408,10 @@ export function modelAccordingToProvider(model) {
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
-    if (model.startsWith("o")) {
+    if (
+      model.startsWith("o") ||
+      (model.includes("gpt-5") && model !== "gpt-5-chat-latest")
+    ) {
       llm.thinking = true;
     }
     if (model.includes("search")) {
@@ -788,6 +792,16 @@ export async function openaiCompletion({
           : { type: responseFormat };
       isToStream && (options["stream_options"] = { include_usage: true });
     }
+    if (
+      model.includes("o3") ||
+      model.includes("o4") ||
+      (model.includes("gpt-5") && model !== "gpt-5-chat-latest")
+    ) {
+      console.log("HERE", reasoningEffort);
+
+      if (withPdf) options["reasoning"] = { effort: reasoningEffort };
+      else options["reasoning_effort"] = reasoningEffort;
+    }
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
     if (
@@ -805,6 +819,8 @@ export async function openaiCompletion({
         return_citations: true,
       };
     }
+
+    console.log("options :>> ", options);
 
     if (!isSafari && model !== "o3-pro" && !withPdf) {
       const timeoutPromise = new Promise((_, reject) => {
@@ -882,7 +898,7 @@ export async function openaiCompletion({
           streamElt.innerHTML += chunkStr;
           if (streamData?.delta?.annotations)
             annotations = streamData.delta.annotations;
-          if (chunk.usag || chunk.response?.usage) {
+          if (chunk.usage || chunk.response?.usage) {
             usage = chunk.usage || chunk.response?.usage;
             if (chunk.citations) console.log(chunk.citations);
           }
@@ -1085,6 +1101,7 @@ const isModelSupportingImage = (model) => {
   if (
     model.includes("gpt-4o") ||
     model.includes("gpt-4.1") ||
+    model.includes("gpt-5") ||
     model.includes("vision") ||
     model === "o4-mini" ||
     model === "o3"
@@ -1110,7 +1127,9 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
   for (let i = 1; i < messages.length; i++) {
     pdfLinkRegex.lastIndex = 0;
     const matchingPdfInPrompt = Array.from(
-      messages[i].content?.matchAll(pdfLinkRegex)
+      (typeof messages[i].content === "string"
+        ? messages[i].content?.matchAll(pdfLinkRegex)
+        : []) || []
     );
 
     if (matchingPdfInPrompt.length) {
@@ -1143,7 +1162,7 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
     }
   }
 
-  if (content && content.length) {
+  if (content && typeof content === "string" && content.length) {
     pdfLinkRegex.lastIndex = 0;
     const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
     for (let i = 0; i < matchingPdfInContext.length; i++) {

@@ -8,6 +8,8 @@ import {
   generateSemanticExpansions,
   DatomicQueryBuilder,
   SearchCondition,
+  processEnhancedResults,
+  getEnhancedLimits,
 } from './searchUtils';
 import { dnpUidRegex } from '../../../../utils/regex.js';
 
@@ -53,8 +55,17 @@ const schema = z.object({
     start: z.union([z.date(), z.string()]).optional(),
     end: z.union([z.date(), z.string()]).optional()
   }).optional(),
-  sortBy: z.enum(["relevance", "recent", "page_title", "block_count", "total_blocks"]).default("relevance"),
-  limit: z.number().min(1).max(200).default(50),
+  // Enhanced sorting and sampling options
+  sortBy: z.enum(["relevance", "creation", "modification", "alphabetical", "random", "block_count", "total_blocks"]).default("relevance"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  limit: z.number().min(1).max(10000).default(200), // Increased limits
+  
+  // Random sampling for large datasets
+  randomSample: z.object({
+    enabled: z.boolean().default(false),
+    size: z.number().min(1).max(5000).default(100),
+    seed: z.number().optional().describe("Seed for reproducible random sampling")
+  }).optional(),
   
   // Security mode
   secureMode: z.boolean().default(false).describe("If true, excludes block content from results (UIDs and metadata only)")
