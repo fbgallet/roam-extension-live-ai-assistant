@@ -4,7 +4,7 @@ import {
   START,
   Annotation,
 } from "@langchain/langgraph/web";
-import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import {
   LlmInfos,
@@ -38,8 +38,6 @@ import {
   buildFinalResponseSystemPrompt,
   buildCacheProcessingPrompt,
   buildCacheSystemPrompt,
-  extractResultDataForPrompt,
-  ROAM_FORMATTING_INSTRUCTIONS,
 } from "./ask-your-graph-prompts";
 
 // Result summary interface for token optimization
@@ -97,6 +95,7 @@ const ReactSearchAgentState = Annotation.Root({
         completesResultId?: string;
         toolName: string;
         timestamp: number;
+        metadata?: any; // Tool metadata for access in directFormat
       }
     >
   >, // Full results with lifecycle management
@@ -457,24 +456,84 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   }
 
   // Tools are already filtered by permissions in loadModel
-  const llm_with_tools = llm.bindTools(state.searchTools);
+  // Create state-aware tool wrappers that auto-inject agent state
+  const stateAwareTools = state.searchTools.map(tool => {
+    if (tool.name === 'findBlocksByContent') {
+      return {
+        ...tool,
+        func: async (llmInput: any) => {
+          // Inject agent state into tool parameters
+          const enrichedInput = {
+            ...llmInput,
+            resultMode: state.privateMode ? "uids_only" : "summary",
+            secureMode: state.privateMode || false,
+            userQuery: state.userQuery || "",
+          };
+          return tool.func(enrichedInput);
+        }
+      };
+    }
+    // Tools with minimal schemas don't need state injection (they handle it internally)
+    return tool;
+  });
+  
+  const llm_with_tools = llm.bindTools(stateAwareTools);
 
-  // Build clean system prompt
+  // Use simplified full system prompt (no streamlined version)
+  console.log(`🎯 [Assistant] Using simplified system prompt`);
   const systemPrompt = buildSystemPrompt(state);
-
-  // Add user query exclusion instruction
   const contextInstructions = `
 
 CRITICAL INSTRUCTION: 
 When using findBlocksByContent, always include userQuery parameter set to: "${state.userQuery}" to exclude the user's request block from results.`;
 
-  // Combine system prompt with context instructions
   const combinedSystemPrompt = systemPrompt + contextInstructions;
   const sys_msg = new SystemMessage({ content: combinedSystemPrompt });
 
   updateAgentToaster("🤖 Understanding your request...");
 
-  const messages = [sys_msg, ...state.messages];
+  // OPTIMIZATION: Replace verbose tool results with concise summaries to reduce token usage  
+  const optimizedMessages = state.messages.map(msg => {
+    // Check if this is a tool result message with verbose content (check for tool_call_id which indicates ToolMessage)
+    if (msg.content && typeof msg.content === 'string' && msg.name && (msg as any).tool_call_id) {
+      try {
+        const parsed = JSON.parse(msg.content);
+        // If it's a successful tool result with data array (verbose)
+        if (parsed.success && parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+          // Create a concise summary instead of full results (no specific result ID needed here)
+          const summary = {
+            success: true,
+            summary: `Found ${parsed.metadata?.totalFound || parsed.data.length} results${parsed.metadata?.wasLimited ? ` (showing ${parsed.data.length})` : ''} from ${msg.name}.`,
+            count: {
+              total: parsed.metadata?.totalFound || parsed.data.length,
+              returned: parsed.data.length
+            },
+            metadata: {
+              searchGuidance: parsed.metadata?.searchGuidance
+            }
+          };
+          
+          const summaryContent = JSON.stringify(summary);
+          console.log(`🎯 [Assistant] Replaced verbose tool result (${msg.content.length} chars) with summary (${summaryContent.length} chars)`);
+          
+          // Create a new ToolMessage with the summary content
+          return new ToolMessage({
+            content: summaryContent,
+            tool_call_id: (msg as any).tool_call_id,
+            name: msg.name
+          });
+        }
+      } catch (e) {
+        // If parsing fails, return original message
+      }
+    }
+    return msg;
+  });
+
+  const messages = [sys_msg, ...optimizedMessages];
+  
+  console.log(`🎯 [Assistant] System prompt length: ${combinedSystemPrompt.length} chars`);
+  console.log(`🎯 [Assistant] Total messages: ${messages.length}`);
   const llmStartTime = Date.now();
 
   // Check for cancellation before LLM call
@@ -1008,6 +1067,87 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   };
 };
 
+// Direct result formatting for simple private mode cases (no LLM needed)
+const directFormat = async (state: typeof ReactSearchAgentState.State) => {
+  console.log(`🎯 [DirectFormat] Formatting results without LLM for private mode`);
+  updateAgentToaster("📝 Formatting results...");
+  
+  if (!state.resultStore || Object.keys(state.resultStore).length === 0) {
+    return {
+      ...state,
+      finalAnswer: "No results found.",
+    };
+  }
+  
+  // Get final/active results from resultStore
+  const relevantEntries = Object.entries(state.resultStore).filter(([, result]) => {
+    return (
+      (result?.purpose === "final" || result?.purpose === "completion") &&
+      result?.status === "active"
+    );
+  });
+  
+  if (relevantEntries.length === 0) {
+    return {
+      ...state,
+      finalAnswer: "No results found.",
+    };
+  }
+  
+  // Format results directly without LLM
+  let formattedResults: string[] = [];
+  let totalCount = 0;
+  let displayCount = 0;
+  let hasPages = false;
+  let hasBlocks = false;
+  
+  for (const [, result] of relevantEntries) {
+    const data = result?.data || [];
+    if (!Array.isArray(data) || data.length === 0) continue;
+    
+    totalCount += result?.metadata?.totalFound || data.length;
+    displayCount += data.length;
+    
+    // Distinguish between pages and blocks for proper formatting
+    const formattedItems = data.map(item => {
+      // Check if this is a page: has title but no content, or explicitly marked as page
+      const isPage = (!!item.title && !item.content) || item.isPage;
+      
+      if (isPage) {
+        hasPages = true;
+        // Use page title for pages
+        const pageTitle = item.pageTitle || item.title;
+        return `- [[${pageTitle}]]`;
+      } else {
+        hasBlocks = true;
+        // Use embed syntax for blocks
+        return `- {{[[embed-path]]: ((${item.uid}))}}`;
+      }
+    });
+    
+    formattedResults.push(formattedItems.join("\n"));
+  }
+  
+  // Create final formatted response with appropriate labeling
+  let resultType = "results";
+  if (hasPages && !hasBlocks) {
+    resultType = "pages";
+  } else if (hasBlocks && !hasPages) {
+    resultType = "blocks";  
+  }
+  
+  const resultText = displayCount === totalCount 
+    ? `Found ${totalCount} matching ${resultType}:\n${formattedResults.join("\n")}`
+    : `Found ${totalCount} matching ${resultType} [showing first ${displayCount}]:\n${formattedResults.join("\n")}`;
+    
+  console.log(`🎯 [DirectFormat] Generated direct response: ${resultText.length} chars, hasPages: ${hasPages}, hasBlocks: ${hasBlocks}`);
+  
+  return {
+    ...state,
+    finalAnswer: resultText,
+  };
+};
+
 // Edges
 const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   const { messages } = state;
@@ -1023,18 +1163,55 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     );
     return "tools";
   }
-  console.log(`🔀 [Graph] Assistant → RESPONSE_WRITER (no tool calls)`);
+  
+  // Check if we have sufficient results to proceed with response
+  const hasSufficientResults = state.resultStore && 
+    Object.keys(state.resultStore).length > 0;
+  
+  // OPTIMIZATION: For simple private mode cases with results, skip LLM and format directly
+  const canSkipResponseWriter = state.privateMode && 
+    !state.isConversationMode &&
+    hasSufficientResults &&
+    !state.userQuery?.includes("analysis") && // Don't skip for analysis requests
+    !state.userQuery?.includes("explain") &&
+    !state.userQuery?.includes("summary");
+  
+  if (canSkipResponseWriter) {
+    console.log(`🔀 [Graph] Assistant → DIRECT_FORMAT (private mode optimization)`);
+    return "directFormat";
+  }
+  
+  // If we have results but can't use direct format, go to response writer
+  if (hasSufficientResults) {
+    console.log(`🔀 [Graph] Assistant → RESPONSE_WRITER (results available)`);
+  } else {
+    console.log(`🔀 [Graph] Assistant → RESPONSE_WRITER (no tool calls)`);
+  }
+  
   return "responseWriter";
 };
 
-// Routing logic after loading model - check for direct chat mode
+// Routing logic after loading model - check for optimizations
 const routeAfterLoadModel = (state: typeof ReactSearchAgentState.State) => {
   if (state.isDirectChat) {
     console.log(`🔀 [Graph] LoadModel → RESPONSE_WRITER (direct chat mode)`);
     return "responseWriter";
   }
+  
+  // OPTIMIZATION: Skip RequestAnalyzer for simple direct queries
+  // When there's no conversation context and no cached results, go directly to assistant
+  const hasConversationContext = state.isConversationMode && (
+    state.conversationHistory?.length > 0 || 
+    Object.keys(state.cachedFullResults || {}).length > 0
+  );
+  
+  if (!hasConversationContext) {
+    console.log(`🔀 [Graph] LoadModel → ASSISTANT (simple query optimization)`);
+    return "assistant";
+  }
+  
   console.log(
-    `🔀 [Graph] LoadModel → REQUEST_ANALYZER (agent processing mode)`
+    `🔀 [Graph] LoadModel → REQUEST_ANALYZER (complex query with context)`
   );
   return "requestAnalyzer";
 };
@@ -1086,6 +1263,72 @@ const toolsWithResultLifecycle = async (
   };
 };
 
+// Smart routing after tool execution - skip assistant when results are sufficient
+const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
+  // Check if we have sufficient results to skip assistant evaluation
+  const hasResults = state.resultStore && Object.keys(state.resultStore).length > 0;
+  
+  if (hasResults) {
+    // Get the most recent result
+    const resultEntries = Object.entries(state.resultStore);
+    const latestResult = resultEntries[resultEntries.length - 1]?.[1];
+    
+    // Detect if query requires multi-step analysis beyond simple block retrieval
+    const requiresAnalysis = detectAnalyticalQuery(state.userQuery || "");
+    
+    const canSkipAssistant = 
+      // Has sufficient data (>=20 results)
+      (latestResult?.data?.length >= 20) &&
+      // Tool purpose is final (not intermediate exploration) 
+      (latestResult?.purpose === "final") &&
+      // Not in conversation mode (no user refinement expected)
+      (!state.isConversationMode) &&
+      // Private mode (simple formatting)
+      (state.privateMode) &&
+      // Query doesn't require multi-step analysis
+      (!requiresAnalysis);
+    
+    if (canSkipAssistant) {
+      console.log(`🔀 [Graph] TOOLS → DIRECT_FORMAT (sufficient results: ${latestResult.data.length}, purpose: ${latestResult.purpose})`);
+      return "directFormat";
+    } else if (requiresAnalysis) {
+      console.log(`🔀 [Graph] TOOLS → ASSISTANT (query requires analysis: "${state.userQuery}")`);
+      return "assistant";
+    }
+  }
+  
+  console.log(`🔀 [Graph] TOOLS → ASSISTANT (evaluation needed)`);
+  return "assistant";
+};
+
+// Detect queries that require multi-step analysis beyond simple block retrieval
+const detectAnalyticalQuery = (userQuery: string): boolean => {
+  const query = userQuery.toLowerCase();
+  
+  // Patterns that require analysis/counting/ranking of search results
+  const analyticalPatterns = [
+    // Most/least patterns
+    /\b(most|least|top|bottom|highest|lowest|best|worst)\b/,
+    // Counting patterns  
+    /\b(count|number of|how many|combien)\b/,
+    // Ranking/ordering patterns
+    /\b(rank|order|sort|classify|organize|organise)\b/,
+    // Analysis patterns
+    /\b(analy[sz]e|analy[sz]is|examine|compare|contrast)\b/,
+    // Reference analysis patterns
+    /\b(mentioned|referenced|cited|linked|connected)\b.*\b(most|count|analy|rank)\b/,
+    /\b(most|count|analy|rank)\b.*\b(mentioned|referenced|cited|linked|connected)\b/,
+    // Aggregation patterns
+    /\b(total|sum|aggregate|combine|merge)\b/,
+    // Pattern detection (French support)
+    /\b(plus|moins|le plus|la plus|combien|analyser)\b/,
+    // Questions requiring synthesis
+    /\b(what are the|which are the|quels sont|quelles sont)\b/
+  ];
+  
+  return analyticalPatterns.some(pattern => pattern.test(query));
+};
+
 // Process tool results with intelligent lifecycle management
 const processToolResultsWithLifecycle = (
   state: typeof ReactSearchAgentState.State,
@@ -1123,7 +1366,8 @@ const processToolResultsWithLifecycle = (
             resultId,
             toolResult.data,
             message.name,
-            lifecycleParams
+            lifecycleParams,
+            toolResult.metadata
           );
         }
       } catch (error) {
@@ -1168,7 +1412,8 @@ const handleResultLifecycle = (
   resultId: string,
   data: any[],
   toolName: string,
-  lifecycleParams: any
+  lifecycleParams: any,
+  metadata?: any
 ) => {
   const { purpose, replacesResultId, completesResultId } = lifecycleParams;
 
@@ -1201,6 +1446,7 @@ const handleResultLifecycle = (
     completesResultId,
     toolName,
     timestamp: Date.now(),
+    metadata, // Include metadata for access in directFormat
   };
 
   console.log(
@@ -1217,6 +1463,7 @@ builder
   .addNode("assistant", assistant)
   .addNode("tools", toolsWithResultLifecycle)
   .addNode("responseWriter", responseWriter)
+  .addNode("directFormat", directFormat)
   .addNode("insertResponse", insertResponse)
 
   .addEdge(START, "loadModel")
@@ -1224,8 +1471,9 @@ builder
   .addConditionalEdges("requestAnalyzer", routeAfterAnalysis)
   .addConditionalEdges("cacheProcessor", routeAfterCache)
   .addConditionalEdges("assistant", shouldContinue)
-  .addEdge("tools", "assistant")
+  .addConditionalEdges("tools", routeAfterTools)
   .addEdge("responseWriter", "insertResponse")
+  .addEdge("directFormat", "insertResponse")
   .addEdge("insertResponse", "__end__");
 
 export const ReactSearchAgent = builder.compile();

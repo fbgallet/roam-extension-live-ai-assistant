@@ -467,10 +467,12 @@ export async function claudeCompletion({
   responseFormat,
   targetUid,
   isButtonToInsert = true,
+  thinking,
   tools,
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
+    console.log("model from claudeCompletion :>> ", model);
     try {
       let messages =
         command === "Web search"
@@ -494,7 +496,7 @@ export async function claudeCompletion({
       const options = {
         max_tokens:
           model.includes("3-5") || model.includes("3.5") ? 8192 : 4096,
-        model: model.replace("+thinking", ""),
+        model: thinking ? model.replace("+thinking", "") : model,
         messages,
       };
       // console.log("command :>> ", command);
@@ -519,12 +521,19 @@ export async function claudeCompletion({
           ? 32000
           : 64000;
         // options.betas = ["output-128k-2025-02-19"];
-        if (model.includes("+thinking")) {
-          options.thinking = {
-            type: "enabled",
-            budget_tokens: 6500, // limit to 0.10$ by request
-          };
-        }
+      }
+      if (thinking) {
+        options.thinking = {
+          type: "enabled",
+          budget_tokens:
+            reasoningEffort === "minimal"
+              ? 1024
+              : reasoningEffort === "low"
+              ? 2500
+              : reasoningEffort === "medium"
+              ? 4096
+              : 8000,
+        };
       }
       const usage = {
         input_tokens: 0,
@@ -534,6 +543,7 @@ export async function claudeCompletion({
       if (modelTemperature !== null) options.temperature = modelTemperature;
       if (streamResponse && responseFormat === "text") options.stream = true;
 
+      console.log("options :>> ", options);
       // No data is stored on the server or displayed in any log
       // const { data } = await axios.post(
       //   "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
@@ -560,7 +570,8 @@ export async function claudeCompletion({
         headers: {
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
-          "anthropic-beta": "output-128k-2025-02-19",
+          "anthropic-beta":
+            "output-128k-2025-02-19,token-efficient-tools-2025-02-19",
           "content-type": "application/json",
           "anthropic-dangerous-direct-browser-access": "true",
         },
@@ -588,7 +599,7 @@ export async function claudeCompletion({
           });
         const streamElt = insertParagraphForStream(targetUid);
         let thinkingToasterStream;
-        if (model.includes("+thinking")) {
+        if (thinking) {
           thinkingToasterStream = displayThinkingToast(
             "Sonnet 4 Extended Thinking process:"
           );
@@ -818,6 +829,10 @@ export async function openaiCompletion({
         mode: command === "Web search" ? "on" : "auto",
         return_citations: true,
       };
+      if (model.includes("grok-3-mini") && !model.includes("high")) {
+        options["reasoning_effort"] =
+          reasoningEffort === "high" ? "high" : "low";
+      }
     }
 
     console.log("options :>> ", options);

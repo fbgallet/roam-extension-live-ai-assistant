@@ -36,7 +36,10 @@ export class DatomicQueryBuilder {
   private conditions: SearchCondition[] = [];
   private combineLogic: "AND" | "OR" = "AND";
 
-  constructor(conditions: SearchCondition[], combineLogic: "AND" | "OR" = "AND") {
+  constructor(
+    conditions: SearchCondition[],
+    combineLogic: "AND" | "OR" = "AND"
+  ) {
     this.conditions = conditions;
     this.combineLogic = combineLogic;
   }
@@ -45,9 +48,9 @@ export class DatomicQueryBuilder {
    * Build condition clauses with proper OR structure and regex optimization
    * Returns: { patternDefinitions: string, conditionClauses: string }
    */
-  buildConditionClauses(contentVariable: string = "?content"): { 
-    patternDefinitions: string; 
-    conditionClauses: string; 
+  buildConditionClauses(contentVariable: string = "?content"): {
+    patternDefinitions: string;
+    conditionClauses: string;
   } {
     if (this.combineLogic === "AND" || this.conditions.length === 1) {
       // For AND logic, combine both patterns and matches
@@ -60,22 +63,40 @@ export class DatomicQueryBuilder {
       return { patternDefinitions: "", conditionClauses: combined };
     } else {
       // For OR logic, check if we can optimize with regex
-      const textConditions = this.conditions.filter(c => c.type === "text" && c.matchType !== "exact");
-      const pageRefConditions = this.conditions.filter(c => c.type === "page_ref");
-      const otherConditions = this.conditions.filter(c => 
-        c.type !== "text" && c.type !== "page_ref" || (c.type === "text" && c.matchType === "exact")
+      const textConditions = this.conditions.filter(
+        (c) => c.type === "text" && c.matchType !== "exact"
+      );
+      const pageRefConditions = this.conditions.filter(
+        (c) => c.type === "page_ref"
+      );
+      const otherConditions = this.conditions.filter(
+        (c) =>
+          (c.type !== "text" && c.type !== "page_ref") ||
+          (c.type === "text" && c.matchType === "exact")
       );
 
-      if (textConditions.length > 1 && otherConditions.length === 0 && pageRefConditions.length === 0) {
+      if (
+        textConditions.length > 1 &&
+        otherConditions.length === 0 &&
+        pageRefConditions.length === 0
+      ) {
         // Pure text OR - optimize with single regex pattern
         return this.buildOptimizedTextOr(textConditions, contentVariable);
-      } else if (pageRefConditions.length > 1 && otherConditions.length === 0 && textConditions.length === 0) {
+      } else if (
+        pageRefConditions.length > 1 &&
+        otherConditions.length === 0 &&
+        textConditions.length === 0
+      ) {
         // Pure page_ref OR - can potentially optimize, but for now use standard OR
         // TODO: Implement page_ref regex optimization in future
         return this.buildStandardOr(contentVariable);
       } else if (textConditions.length > 1) {
         // Mixed conditions - optimize text part, keep others separate
-        return this.buildMixedConditions(textConditions, otherConditions.concat(pageRefConditions), contentVariable);
+        return this.buildMixedConditions(
+          textConditions,
+          otherConditions.concat(pageRefConditions),
+          contentVariable
+        );
       } else {
         // Standard OR logic for non-optimizable conditions
         return this.buildStandardOr(contentVariable);
@@ -86,29 +107,38 @@ export class DatomicQueryBuilder {
   /**
    * Build optimized OR for pure text conditions using single regex
    */
-  private buildOptimizedTextOr(textConditions: SearchCondition[], contentVariable: string): {
+  private buildOptimizedTextOr(
+    textConditions: SearchCondition[],
+    contentVariable: string
+  ): {
     patternDefinitions: string;
     conditionClauses: string;
   } {
     // Combine all text patterns into single regex with | (OR)
-    const patterns = textConditions.map(cond => {
-      const cleanText = cond.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape regex chars
+    const patterns = textConditions.map((cond) => {
+      const cleanText = cond.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // Escape regex chars
       return cond.matchType === "regex" ? cond.text : `.*${cleanText}.*`;
     });
 
-    const combinedPattern = `(?i)(${patterns.join('|')})`;
+    const combinedPattern = `(?i)(${patterns.join("|")})`;
     const patternDefinitions = `\n                [(re-pattern "${combinedPattern}") ?combined-pattern]`;
     const conditionClauses = `\n                [(re-find ?combined-pattern ${contentVariable})]`;
 
-    console.log(`🚀 Optimized ${textConditions.length} text OR conditions into single regex: ${combinedPattern}`);
-    
+    console.log(
+      `🚀 Optimized ${textConditions.length} text OR conditions into single regex: ${combinedPattern}`
+    );
+
     return { patternDefinitions, conditionClauses };
   }
 
   /**
    * Build mixed conditions (optimized text OR + other conditions)
    */
-  private buildMixedConditions(textConditions: SearchCondition[], otherConditions: SearchCondition[], contentVariable: string): {
+  private buildMixedConditions(
+    textConditions: SearchCondition[],
+    otherConditions: SearchCondition[],
+    contentVariable: string
+  ): {
     patternDefinitions: string;
     conditionClauses: string;
   } {
@@ -117,24 +147,33 @@ export class DatomicQueryBuilder {
 
     // Add optimized text OR as one clause
     if (textConditions.length > 1) {
-      const patterns = textConditions.map(cond => {
-        const cleanText = cond.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patterns = textConditions.map((cond) => {
+        const cleanText = cond.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         return cond.matchType === "regex" ? cond.text : `.*${cleanText}.*`;
       });
-      const combinedPattern = `(?i)(${patterns.join('|')})`;
+      const combinedPattern = `(?i)(${patterns.join("|")})`;
       patternDefinitions += `\n                [(re-pattern "${combinedPattern}") ?combined-pattern]`;
-      orClauses.push(`\n                  [(re-find ?combined-pattern ${contentVariable})]`);
+      orClauses.push(
+        `\n                  [(re-find ?combined-pattern ${contentVariable})]`
+      );
     }
 
     // Add other conditions
     for (let i = 0; i < otherConditions.length; i++) {
       const condition = otherConditions[i];
       const adjustedIndex = i + 1000; // Avoid conflicts with combined pattern
-      patternDefinitions += this.buildPatternDefinition(condition, adjustedIndex);
-      orClauses.push(this.buildMatchClause(condition, adjustedIndex, contentVariable, true));
+      patternDefinitions += this.buildPatternDefinition(
+        condition,
+        adjustedIndex
+      );
+      orClauses.push(
+        this.buildMatchClause(condition, adjustedIndex, contentVariable, true)
+      );
     }
 
-    const conditionClauses = `\n                (or${orClauses.join('')}\n                )`;
+    const conditionClauses = `\n                (or${orClauses.join(
+      ""
+    )}\n                )`;
     return { patternDefinitions, conditionClauses };
   }
 
@@ -151,17 +190,24 @@ export class DatomicQueryBuilder {
     for (let i = 0; i < this.conditions.length; i++) {
       const condition = this.conditions[i];
       patternDefinitions += this.buildPatternDefinition(condition, i);
-      orClauses.push(this.buildMatchClause(condition, i, contentVariable, true));
+      orClauses.push(
+        this.buildMatchClause(condition, i, contentVariable, true)
+      );
     }
 
-    const conditionClauses = `\n                (or${orClauses.join('')}\n                )`;
+    const conditionClauses = `\n                (or${orClauses.join(
+      ""
+    )}\n                )`;
     return { patternDefinitions, conditionClauses };
   }
 
   /**
    * Build pattern definitions (re-pattern clauses) that need to be outside OR
    */
-  private buildPatternDefinition(condition: SearchCondition, index: number): string {
+  private buildPatternDefinition(
+    condition: SearchCondition,
+    index: number
+  ): string {
     switch (condition.type) {
       case "regex":
         return `\n                [(re-pattern "${condition.text}") ?pattern${index}]`;
@@ -170,7 +216,7 @@ export class DatomicQueryBuilder {
         if (condition.matchType === "regex") {
           return `\n                [(re-pattern "${condition.text}") ?pattern${index}]`;
         } else if (condition.matchType === "contains") {
-          const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, '');
+          const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
           if (cleanText === condition.text) {
             return `\n                [(re-pattern "(?i).*${condition.text}.*") ?pattern${index}]`;
           }
@@ -186,8 +232,8 @@ export class DatomicQueryBuilder {
    * Build the matching clause (for use inside or outside OR)
    */
   private buildMatchClause(
-    condition: SearchCondition, 
-    index: number, 
+    condition: SearchCondition,
+    index: number,
     contentVariable: string,
     isInOr: boolean = false
   ): string {
@@ -215,7 +261,7 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
         } else if (condition.matchType === "regex") {
           clause = `\n${indent}[(re-find ?pattern${index} ${contentVariable})]`;
         } else {
-          const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, '');
+          const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
           if (cleanText === condition.text) {
             clause = `\n${indent}[(re-find ?pattern${index} ${contentVariable})]`;
           } else {
@@ -246,13 +292,16 @@ export const executeDatomicQuery = async (
     if (params.length > 0) {
       console.log("🔍 Query params:", params);
     }
-    
+
     if (typeof window === "undefined" || !window.roamAlphaAPI) {
       throw new Error("Roam API not available");
     }
 
     const result = window.roamAlphaAPI.q(query, ...params);
-    console.log("🔍 Query result:", result ? result.length + " results" : "No results");
+    console.log(
+      "🔍 Query result:",
+      result ? result.length + " results" : "No results"
+    );
     return result || [];
   } catch (error) {
     console.error("🔍 Datomic query error:", error);
@@ -296,13 +345,16 @@ export const generateSemanticExpansions = async (
 
   const prompt = `${strategyPrompts[strategy]}
 
+IMPORTANT: Respond in the SAME LANGUAGE as the input term "${text}". If the input is in English, respond in English and so on for any other language.
+
 Requirements:
 - Return only the terms themselves, one per line
 - No explanations, numbers, or bullet points
 - Focus on terms that would likely appear in page titles or content
-- Avoid very generic terms like "thing", "stuff", "item"
+- Avoid very generic terms (like "thing", "item" or equivalent in other languages)
 - Consider both single words and short phrases (2-4 words max)
 - Terms should be relevant for knowledge management and note-taking
+- CRITICAL: Do NOT include terms that contain the original word "${text}" - provide genuinely different alternatives
 
 Example for "machine learning":
 neural networks
@@ -328,8 +380,18 @@ predictive modeling`;
       .filter(
         (line) => line.length > 0 && !line.match(/^\d+\./) && line.length < 50
       )
+      .filter((term) => {
+        // Filter out terms that contain the original search word to avoid redundancy
+        const originalLower = text.toLowerCase();
+        const termLower = term.toLowerCase();
+        return !termLower.includes(originalLower);
+      })
       .slice(0, maxExpansions);
 
+    console.log(
+      `🔍 Generated ${terms.length} semantic expansions for "${text}":`,
+      terms
+    );
     return terms;
   } catch (error) {
     console.error("Failed to generate semantic expansions:", error);
@@ -370,35 +432,51 @@ export const filterByDateRange = <
 /**
  * Generate intelligent search guidance based on tool results
  */
-const generateSearchGuidance = (data?: any, metadata?: any, toolName?: string) => {
+const generateSearchGuidance = (
+  data?: any,
+  metadata?: any,
+  toolName?: string
+) => {
   if (!data || !Array.isArray(data)) return null;
-  
+
   const resultCount = data.length;
   const suggestions: string[] = [];
-  
+
   if (resultCount === 0) {
-    suggestions.push("try_semantic_expansion", "broaden_search_terms", "check_spelling");
+    suggestions.push(
+      "try_semantic_expansion",
+      "broaden_search_terms",
+      "check_spelling"
+    );
   } else if (resultCount < 3) {
     suggestions.push("consider_semantic_expansion", "try_related_concepts");
   } else if (resultCount > 50 && toolName === "findBlocksByContent") {
     suggestions.push("consider_extractPageReferences_for_analysis");
-  } else if (resultCount > 20 && (toolName === "findPagesByContent" || toolName === "findPagesByTitle")) {
+  } else if (
+    resultCount > 20 &&
+    (toolName === "findPagesByContent" || toolName === "findPagesByTitle")
+  ) {
     suggestions.push("results_look_comprehensive");
   }
-  
+
   // Add tool-specific suggestions based on current tool
   if (toolName === "findBlocksByContent" && resultCount > 5) {
     suggestions.push("try_combineResults_for_complex_queries");
   } else if (toolName === "findPagesByTitle" && resultCount < 5) {
     suggestions.push("try_findPagesSemantically_for_discovery");
   }
-  
+
   return {
-    resultQuality: resultCount === 0 ? "no_results" : 
-                   resultCount < 3 ? "sparse" : 
-                   resultCount < 20 ? "good" : "abundant",
+    resultQuality:
+      resultCount === 0
+        ? "no_results"
+        : resultCount < 3
+        ? "sparse"
+        : resultCount < 20
+        ? "good"
+        : "abundant",
     nextSuggestions: suggestions,
-    expandable: metadata?.wasLimited || false
+    expandable: metadata?.wasLimited || false,
   };
 };
 
@@ -414,8 +492,10 @@ export const createToolResult = (
   metadata?: any
 ) => {
   // Generate intelligent search guidance
-  const searchGuidance = success ? generateSearchGuidance(data, metadata, toolName) : null;
-  
+  const searchGuidance = success
+    ? generateSearchGuidance(data, metadata, toolName)
+    : null;
+
   const result = {
     success,
     data,
@@ -424,16 +504,16 @@ export const createToolResult = (
     executionTime: startTime ? performance.now() - startTime : 0,
     ...(metadata && { metadata: { ...metadata, searchGuidance } }),
   };
-  
+
   console.log(`🔧 ${toolName} result:`, {
     success,
-    dataType: data ? typeof data : 'none',
+    dataType: data ? typeof data : "none",
     dataSize: Array.isArray(data) ? data.length : data ? 1 : 0,
-    error: error || 'none',
+    error: error || "none",
     executionTime: result.executionTime,
-    guidance: searchGuidance?.resultQuality || 'none'
+    guidance: searchGuidance?.resultQuality || "none",
   });
-  
+
   // Return JSON string for LangGraph ToolNode compatibility
   try {
     return JSON.stringify(result, null, 2);
@@ -443,7 +523,7 @@ export const createToolResult = (
       success: false,
       error: `Serialization failed: ${jsonError.message}`,
       toolName,
-      executionTime: result.executionTime
+      executionTime: result.executionTime,
     });
   }
 };
@@ -486,20 +566,26 @@ export const getBlockChildren = async (
     // If we need more depth, recursively get grandchildren
     if (maxDepth > 1) {
       for (const child of children) {
-        const grandchildren = await getBlockChildren(child[0], maxDepth - 1, secureMode);
+        const grandchildren = await getBlockChildren(
+          child[0],
+          maxDepth - 1,
+          secureMode
+        );
         child.push(grandchildren);
       }
     }
 
-    return children.map(([uid, content, order, pageTitle, pageUid, grandchildren]) => ({
-      uid,
-      content: secureMode ? undefined : content,
-      order,
-      pageTitle,
-      pageUid,
-      isDaily: isDailyNote(pageUid),
-      children: grandchildren || [],
-    }));
+    return children.map(
+      ([uid, content, order, pageTitle, pageUid, grandchildren]) => ({
+        uid,
+        content: secureMode ? undefined : content,
+        order,
+        pageTitle,
+        pageUid,
+        isDaily: isDailyNote(pageUid),
+        children: grandchildren || [],
+      })
+    );
   } catch (error) {
     console.warn(`Failed to get children for block ${parentUid}:`, error);
     return [];
@@ -531,7 +617,11 @@ export const getBlockParents = async (
 
     // If we need more depth, recursively get grandparents
     if (maxDepth > 1 && parents.length > 0) {
-      const grandparents = await getBlockParents(parents[0][0], maxDepth - 1, secureMode);
+      const grandparents = await getBlockParents(
+        parents[0][0],
+        maxDepth - 1,
+        secureMode
+      );
       return [
         ...grandparents,
         ...parents.map(([uid, content, pageTitle, pageUid]) => ({
@@ -565,43 +655,49 @@ export const getBlockParents = async (
  * Calculate Levenshtein distance between two strings
  */
 const levenshteinDistance = (str1: string, str2: string): number => {
-  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(0));
-  
+  const matrix = Array(str2.length + 1)
+    .fill(null)
+    .map(() => Array(str1.length + 1).fill(0));
+
   for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
   for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
-  
+
   for (let j = 1; j <= str2.length; j++) {
     for (let i = 1; i <= str1.length; i++) {
       const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
       matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1,     // insertion
-        matrix[j - 1][i] + 1,     // deletion
+        matrix[j][i - 1] + 1, // insertion
+        matrix[j - 1][i] + 1, // deletion
         matrix[j - 1][i - 1] + cost // substitution
       );
     }
   }
-  
+
   return matrix[str2.length][str1.length];
 };
 
 /**
  * Check if two strings match within a fuzzy threshold
  */
-export const fuzzyMatch = (text1: string, text2: string, threshold: number = 0.8): boolean => {
+export const fuzzyMatch = (
+  text1: string,
+  text2: string,
+  threshold: number = 0.8
+): boolean => {
   const str1 = text1.toLowerCase().trim();
   const str2 = text2.toLowerCase().trim();
-  
+
   // Quick exact match check
   if (str1 === str2) return true;
-  
+
   // Calculate similarity based on Levenshtein distance
   const distance = levenshteinDistance(str1, str2);
   const maxLength = Math.max(str1.length, str2.length);
-  
+
   // Handle edge case of empty strings
   if (maxLength === 0) return true;
-  
-  const similarity = 1 - (distance / maxLength);
+
+  const similarity = 1 - distance / maxLength;
   return similarity >= threshold;
 };
 
@@ -609,37 +705,35 @@ export const fuzzyMatch = (text1: string, text2: string, threshold: number = 0.8
  * Find fuzzy matches in an array of strings
  */
 export const findFuzzyMatches = (
-  searchTerm: string, 
-  candidates: string[], 
+  searchTerm: string,
+  candidates: string[],
   threshold: number = 0.8,
   maxResults: number = 10
 ): { text: string; score: number }[] => {
   const matches: { text: string; score: number }[] = [];
-  
+
   for (const candidate of candidates) {
     const str1 = searchTerm.toLowerCase().trim();
     const str2 = candidate.toLowerCase().trim();
-    
+
     if (str1 === str2) {
       matches.push({ text: candidate, score: 1.0 });
       continue;
     }
-    
+
     const distance = levenshteinDistance(str1, str2);
     const maxLength = Math.max(str1.length, str2.length);
-    
+
     if (maxLength === 0) continue;
-    
-    const score = 1 - (distance / maxLength);
+
+    const score = 1 - distance / maxLength;
     if (score >= threshold) {
       matches.push({ text: candidate, score });
     }
   }
-  
+
   // Sort by score (highest first) and limit results
-  return matches
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxResults);
+  return matches.sort((a, b) => b.score - a.score).slice(0, maxResults);
 };
 
 /**
@@ -650,7 +744,7 @@ export const findFuzzyMatches = (
 export const createSeededRandom = (seed: number) => {
   let state = seed;
   return () => {
-    state = ((state * 1664525) + 1013904223) % 0x100000000;
+    state = (state * 1664525 + 1013904223) % 0x100000000;
     return state / 0x100000000;
   };
 };
@@ -664,11 +758,11 @@ export const sampleResults = <T>(
   seed?: number
 ): T[] => {
   if (results.length <= sampleSize) return results;
-  
+
   // Use seeded random for reproducible results
   const rng = seed ? createSeededRandom(seed) : Math.random;
   return results
-    .map(item => ({ item, sort: rng() }))
+    .map((item) => ({ item, sort: rng() }))
     .sort((a, b) => a.sort - b.sort)
     .slice(0, sampleSize)
     .map(({ item }) => item);
@@ -686,39 +780,39 @@ export const sortResults = <T extends any>(
   if (sortBy === "random") {
     return sampleResults(results, results.length, seed);
   }
-  
+
   return results.sort((a: any, b: any) => {
     let comparison = 0;
-    
+
     switch (sortBy) {
       case "creation":
         const aCreated = a.created || new Date(0);
         const bCreated = b.created || new Date(0);
         comparison = aCreated.getTime() - bCreated.getTime();
         break;
-        
+
       case "modification":
         const aModified = a.modified || a.created || new Date(0);
         const bModified = b.modified || b.created || new Date(0);
         comparison = aModified.getTime() - bModified.getTime();
         break;
-        
+
       case "alphabetical":
         const aText = a.title || a.content || a.pageTitle || "";
         const bText = b.title || b.content || b.pageTitle || "";
         comparison = aText.localeCompare(bText);
         break;
-        
+
       case "relevance":
         const aScore = a.relevanceScore || a.matchedConditions?.length || 0;
         const bScore = b.relevanceScore || b.matchedConditions?.length || 0;
         comparison = bScore - aScore; // Higher relevance first
         break;
-        
+
       default:
         comparison = 0;
     }
-    
+
     return sortOrder === "desc" ? -comparison : comparison;
   });
 };
@@ -726,31 +820,33 @@ export const sortResults = <T extends any>(
 /**
  * Apply enhanced limits based on security mode
  */
-export const getEnhancedLimits = (securityMode: "private" | "balanced" | "full") => {
+export const getEnhancedLimits = (
+  securityMode: "private" | "balanced" | "full"
+) => {
   switch (securityMode) {
     case "private":
       return {
-        maxResults: 50000,    // 10x increase from 5000
-        defaultLimit: 1000,   // 10x increase from 100
-        summaryLimit: 100     // For LLM context
+        maxResults: 50000, // 10x increase from 5000
+        defaultLimit: 1000, // 10x increase from 100
+        summaryLimit: 100, // For LLM context
       };
     case "balanced":
       return {
-        maxResults: 10000,    // 10x increase from 1000
-        defaultLimit: 500,    // 5x increase from 100
-        summaryLimit: 50      // For LLM context
+        maxResults: 10000, // 10x increase from 1000
+        defaultLimit: 500, // 5x increase from 100
+        summaryLimit: 50, // For LLM context
       };
     case "full":
       return {
-        maxResults: 3000,     // 10x increase from 300
-        defaultLimit: 300,    // Same as before
-        summaryLimit: 20      // For LLM context
+        maxResults: 3000, // 10x increase from 300
+        defaultLimit: 300, // Same as before
+        summaryLimit: 20, // For LLM context
       };
     default:
       return {
         maxResults: 1000,
         defaultLimit: 100,
-        summaryLimit: 20
+        summaryLimit: 20,
       };
   }
 };
@@ -761,7 +857,12 @@ export const getEnhancedLimits = (securityMode: "private" | "balanced" | "full")
 export const processEnhancedResults = <T>(
   results: T[],
   options: {
-    sortBy?: "creation" | "modification" | "alphabetical" | "relevance" | "random";
+    sortBy?:
+      | "creation"
+      | "modification"
+      | "alphabetical"
+      | "relevance"
+      | "random";
     sortOrder?: "asc" | "desc";
     limit?: number;
     randomSample?: {
@@ -787,33 +888,42 @@ export const processEnhancedResults = <T>(
     sortOrder = "desc",
     limit,
     randomSample,
-    securityMode = "balanced"
+    securityMode = "balanced",
   } = options;
-  
+
   let processedResults = [...results];
   const totalFound = results.length;
-  
+
   // Apply sorting
   if (sortBy !== "random" || !randomSample?.enabled) {
-    processedResults = sortResults(processedResults, sortBy, sortOrder, randomSample?.seed);
+    processedResults = sortResults(
+      processedResults,
+      sortBy,
+      sortOrder,
+      randomSample?.seed
+    );
   }
-  
+
   // Apply random sampling if requested
   let wasRandomSampled = false;
   if (randomSample?.enabled && randomSample.size < processedResults.length) {
-    processedResults = sampleResults(processedResults, randomSample.size, randomSample.seed);
+    processedResults = sampleResults(
+      processedResults,
+      randomSample.size,
+      randomSample.seed
+    );
     wasRandomSampled = true;
   }
-  
+
   // Apply final limit
   const enhancedLimits = getEnhancedLimits(securityMode);
   const finalLimit = limit || enhancedLimits.defaultLimit;
   const wasLimited = processedResults.length > finalLimit;
-  
+
   if (wasLimited) {
     processedResults = processedResults.slice(0, finalLimit);
   }
-  
+
   return {
     data: processedResults,
     metadata: {
@@ -822,7 +932,7 @@ export const processEnhancedResults = <T>(
       wasLimited: wasLimited || wasRandomSampled,
       sortedBy: sortBy,
       sampled: wasRandomSampled,
-      availableCount: totalFound
-    }
+      availableCount: totalFound,
+    },
   };
 };

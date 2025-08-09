@@ -37,6 +37,21 @@ const schema = z.object({
   fuzzyThreshold: z.number().min(0).max(1).default(0.8).describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)"),
 });
 
+// Minimal LLM-facing schema
+const llmFacingSchema = z.object({
+  conditions: z.array(z.object({
+    text: z.string().min(1, "Page title to search for"),
+    matchType: z.enum(["exact", "contains", "regex"]).default("contains").describe("exact=exact title match, contains=partial title match, regex=pattern matching"),
+    negate: z.boolean().default(false).describe("Exclude pages matching this condition")
+  })).min(1, "At least one search condition required"),
+  combineConditions: z.enum(["AND", "OR"]).default("AND").describe("AND=all conditions must match, OR=any condition matches"),
+  includeDaily: z.boolean().default(false).describe("Include Daily Note Pages in results"),
+  dateRange: z.object({
+    start: z.string().optional().describe("Start date (YYYY-MM-DD)"),
+    end: z.string().optional().describe("End date (YYYY-MM-DD)")
+  }).optional().describe("Limit to pages created within date range")
+});
+
 const findPagesByTitleImpl = async (input: z.infer<typeof schema>) => {
   const { conditions, combineConditions, includeDaily, dateRange, limit } = input;
 
@@ -157,10 +172,24 @@ const findPagesByTitleImpl = async (input: z.infer<typeof schema>) => {
 };
 
 export const findPagesByTitleTool = tool(
-  async (input) => {
+  async (llmInput) => {
     const startTime = performance.now();
     try {
-      const results = await findPagesByTitleImpl(input);
+      // Auto-enrich with internal parameters
+      const enrichedInput = {
+        ...llmInput,
+        // Add default values for parameters hidden from LLM
+        limit: 100,
+        fuzzyMatching: false,
+        fuzzyThreshold: 0.8,
+        // Add weight defaults
+        conditions: llmInput.conditions.map((cond: any) => ({
+          ...cond,
+          weight: 1.0
+        }))
+      };
+      
+      const results = await findPagesByTitleImpl(enrichedInput);
       return createToolResult(
         true,
         results,
@@ -181,8 +210,7 @@ export const findPagesByTitleTool = tool(
   },
   {
     name: "findPagesByTitle",
-    description:
-      "Find pages by title using multiple conditions with AND/OR logic. Supports exact, contains, or regex matching, condition weights, negation, DNP filtering and date ranges.",
-    schema,
+    description: "Find pages by title using exact, partial, or regex matching. Supports AND/OR logic and date ranges.",
+    schema: llmFacingSchema, // Use minimal schema
   }
 );

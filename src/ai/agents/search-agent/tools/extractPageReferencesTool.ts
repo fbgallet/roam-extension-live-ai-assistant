@@ -42,6 +42,16 @@ const schema = z.object({
     .describe("If purpose is 'completion', specify which result ID this completes (e.g., 'findBlocksByContent_002')"),
 });
 
+// Minimal LLM-facing schema - only essential parameters  
+const llmFacingSchema = z.object({
+  blockUids: z.array(z.string()).optional().describe("Block UIDs to analyze"),
+  pageUids: z.array(z.string()).optional().describe("Page UIDs to analyze"),
+  pageTitles: z.array(z.string()).optional().describe("Page titles to analyze"),
+  fromResultId: z.string().optional().describe("Extract from previous search result (e.g., 'findBlocksByContent_001')"),
+  excludePages: z.array(z.string()).optional().describe("Page titles to exclude"),
+  excludeDaily: z.boolean().default(false).describe("Exclude daily note pages")
+});
+
 const extractPageReferencesImpl = async (input: z.infer<typeof schema>, state?: any) => {
   console.log(`🔧 extractPageReferencesImpl input:`, input);
   const {
@@ -70,7 +80,10 @@ const extractPageReferencesImpl = async (input: z.infer<typeof schema>, state?: 
     
     const resultEntry = state.resultStore?.[fromResultId];
     if (!resultEntry) {
-      throw new Error(`Previous result ${fromResultId} not found. Available results: ${Object.keys(state.resultStore || {}).join(', ')}`);
+      const availableResults = Object.keys(state.resultStore || {});
+      // Try to suggest a similar result ID
+      const suggestedResult = availableResults.find(id => id.includes(fromResultId.split('_')[0])) || availableResults[availableResults.length - 1];
+      throw new Error(`Previous result ${fromResultId} not found. Available results: ${availableResults.join(', ')}. Did you mean: ${suggestedResult}?`);
     }
     
     // Extract data from new or legacy structure
@@ -391,12 +404,24 @@ const processAndCountReferences = (
 };
 
 export const extractPageReferencesTool = tool(
-  async (input, config) => {
+  async (llmInput, config) => {
     const startTime = performance.now();
     try {
+      // Auto-enrich with internal parameters
+      const enrichedInput = {
+        ...llmInput,
+        // Add default values for parameters hidden from LLM
+        includeCount: true,
+        sortBy: "count" as const,
+        limit: 100,
+        minCount: 1,
+        excludePages: llmInput.excludePages || [],
+        purpose: (llmInput as any).purpose || "final" as const // Preserve LLM's intent, default to final
+      };
+      
       // Extract state from config - passed via configurable.state
       const state = config?.configurable?.state;
-      const results = await extractPageReferencesImpl(input, state);
+      const results = await extractPageReferencesImpl(enrichedInput, state);
       return createToolResult(
         true,
         results,
@@ -417,8 +442,7 @@ export const extractPageReferencesTool = tool(
   },
   {
     name: "extractPageReferences",
-    description:
-      "Extract and count page references from blocks or pages using database queries. Perfect for analytical tasks after getting search results - can analyze which pages are referenced in specific blocks/pages. Input can be block UIDs, page UIDs, page titles, OR fromResultId to reference a previous search result (e.g., 'findBlocksByContent_001'). If no input is provided, will automatically use the most recent compatible search result as fallback. Returns deduplicated page references with counts, sorted by frequency or alphabetically. Very fast for large datasets since it uses database-level :block/refs queries.",
-    schema,
+    description: "Extract and count page references from blocks or pages. Perfect for analytical tasks after search results.",
+    schema: llmFacingSchema, // Use minimal schema
   }
 );

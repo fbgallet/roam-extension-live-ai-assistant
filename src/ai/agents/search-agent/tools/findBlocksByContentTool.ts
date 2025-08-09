@@ -93,6 +93,21 @@ const schema = z.object({
   fuzzyThreshold: z.number().min(0).max(1).default(0.8).describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)")
 });
 
+// Minimal LLM-facing schema - only essential user-controllable parameters
+const llmFacingSchema = z.object({
+  conditions: z.array(z.object({
+    text: z.string().min(1, "Search text is required"),
+    type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text").describe("text=content search, page_ref=[[page]] reference, regex=pattern matching"),
+    matchType: z.enum(["exact", "contains", "regex"]).default("contains").describe("contains=phrase within block, exact=entire block matches"),
+    negate: z.boolean().default(false).describe("Exclude blocks matching this condition")
+  })).min(1, "At least one search condition required"),
+  combineConditions: z.enum(["AND", "OR"]).default("AND").describe("AND=all conditions must match, OR=any condition matches"),
+  includeChildren: z.boolean().default(false).describe("Include child blocks in results (use sparingly for performance)"),
+  includeParents: z.boolean().default(false).describe("Include parent blocks for context"),
+  limitToPages: z.array(z.string()).optional().describe("Search only within these specific pages (by exact title)"),
+  fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance and approximate matching")
+});
+
 const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
   console.log(`🔧 findBlocksByContentImpl input:`, input);
   const {
@@ -235,13 +250,27 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
   // Step 4.5: Exclude user query block from results
   if (userQuery) {
     const beforeUserQueryFilter = filteredResults.length;
+    console.log(`🔧 Attempting to exclude user query: "${userQuery}"`);
     filteredResults = filteredResults.filter(result => {
-      // Exclude blocks whose content exactly matches the user query
-      return result.content !== userQuery;
+      // More flexible exclusion - check for exact match OR if the block contains the query and is similar length
+      const exactMatch = result.content === userQuery;
+      const containsAndSimilar = result.content && result.content.includes(userQuery) && 
+                                Math.abs(result.content.length - userQuery.length) < 50;
+      const shouldExclude = exactMatch || containsAndSimilar;
+      
+      if (shouldExclude) {
+        console.log(`🔧 Excluding block ${result.uid}: "${result.content?.substring(0, 100)}..."`);
+      }
+      
+      return !shouldExclude;
     });
     if (beforeUserQueryFilter !== filteredResults.length) {
-      console.log(`🔧 Excluded user query block, ${beforeUserQueryFilter} -> ${filteredResults.length} results`);
+      console.log(`🔧 Excluded user query block(s), ${beforeUserQueryFilter} -> ${filteredResults.length} results`);
+    } else {
+      console.log(`🔧 No user query blocks found to exclude`);
     }
+  } else {
+    console.log(`🔧 No userQuery provided for exclusion`);
   }
 
   // Step 5: Apply enhanced sorting, sampling, and limiting
@@ -294,9 +323,9 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
     updateAgentToaster(`⚡ Showing top ${summaryLimit} of ${finalResults.length} results`);
     finalResults = finalResults.slice(0, summaryLimit);
     wasLimited = true;
-  } else if (resultMode === "uids_only" && finalResults.length > 100) {
-    // Force UIDs mode to max 100 results to prevent token bloat
-    console.log(`⚡ UIDs mode: Limiting ${finalResults.length} results to 100 to prevent bloat`);
+  } else if (resultMode === "uids_only" && securityMode === "full" && finalResults.length > 100) {
+    // Only limit UIDs mode in full access mode where content goes to LLM
+    console.log(`⚡ UIDs mode (full access): Limiting ${finalResults.length} results to 100 to prevent bloat`);
     updateAgentToaster(`⚡ Limiting to 100 of ${finalResults.length} results for analysis`);
     finalResults = finalResults.slice(0, 100);
     wasLimited = true;
@@ -631,11 +660,35 @@ const applyFuzzyFiltering = (
 
 // Old sorting functions removed - now using enhanced processEnhancedResults from searchUtils
 
+// LLM-facing tool with minimal schema and auto-enrichment  
 export const findBlocksByContentTool = tool(
-  async (input) => {
+  async (llmInput) => {
     const startTime = performance.now();
     try {
-      const { results, metadata } = await findBlocksByContentImpl(input);
+      // Auto-enrich with internal parameters (will be set by agent state)
+      const enrichedInput = {
+        ...llmInput,
+        // These will be injected by the agent wrapper - preserve if already set
+        resultMode: (llmInput as any).resultMode || "summary" as const,
+        secureMode: (llmInput as any).secureMode || false,
+        purpose: (llmInput as any).purpose || "final" as const, // Preserve LLM's intent, default to final
+        userQuery: (llmInput as any).userQuery || "", // Preserve from state wrapper
+        sortBy: "relevance" as const,
+        sortOrder: "desc" as const,
+        limit: 500,
+        summaryLimit: 20,
+        maxExpansions: 3,
+        expansionStrategy: "related_concepts" as const,
+        childDepth: 2,
+        parentDepth: 1,
+        includeDaily: true,
+        dailyNotesOnly: false,
+        dateRange: undefined, // Only set if explicitly provided by LLM
+        randomSample: { enabled: false, size: 100 },
+        fuzzyThreshold: 0.8
+      };
+
+      const { results, metadata } = await findBlocksByContentImpl(enrichedInput);
       return createToolResult(
         true,
         results,
@@ -657,8 +710,7 @@ export const findBlocksByContentTool = tool(
   },
   {
     name: "findBlocksByContent",
-    description:
-      "Find blocks by content using direct literal search with multiple conditions and AND/OR logic. Supports text search, page references [[Page]], block references ((uid)), regex patterns. Use semanticExpansion=true only when initial search returns few results or user requests semantic/related search. ENHANCED FEATURES: Advanced sorting (creation, modification, alphabetical, random), random sampling for large datasets, increased limits up to 50,000 results, fuzzy matching for typo tolerance (fuzzyMatching=true). RESULT MODES: Use resultMode='summary' (default, max 20 results) for analytical queries to prevent token bloat, 'uids_only' for just UIDs when feeding other tools, 'full' only when user explicitly needs comprehensive results. For analytical queries, use includeChildren=false and includeParents=false for performance.",
-    schema,
+    description: "Find blocks by content, page references, or regex patterns. Supports AND/OR logic, date ranges, and hierarchical context.",
+    schema: llmFacingSchema, // Use minimal schema
   }
 );

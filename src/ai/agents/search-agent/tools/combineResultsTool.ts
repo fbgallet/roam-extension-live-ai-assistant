@@ -39,6 +39,16 @@ const schema = z.object({
   limit: z.number().min(1).max(10000).default(1000).describe("Maximum number of results to return")
 });
 
+// Minimal LLM-facing schema - only essential parameters
+const llmFacingSchema = z.object({
+  resultSets: z.array(z.object({
+    name: z.string().describe("Name identifier for this result set"),
+    uids: z.array(z.string()).describe("Array of UIDs from previous search results"),
+    type: z.enum(["pages", "blocks"]).describe("Type of entities (pages or blocks)")
+  })).min(2, "At least two result sets required"),
+  operation: z.enum(["union", "intersection", "difference", "symmetric_difference"]).default("union").describe("union=A+B, intersection=A∩B, difference=A-B")
+});
+
 interface CombinedResult {
   uids: string[];
   type: "pages" | "blocks";
@@ -311,10 +321,29 @@ export const createResultSet = (
 });
 
 export const combineResultsTool = tool(
-  async (input) => {
+  async (llmInput) => {
     const startTime = performance.now();
     try {
-      const results = await combineResultsImpl(input);
+      // Auto-enrich with internal parameters
+      const enrichedInput = {
+        ...llmInput,
+        // Add default values for parameters hidden from LLM
+        deduplicateWithin: true,
+        deduplicateAcross: true,
+        preserveOrder: false,
+        orderBy: "first_appearance" as const,
+        minAppearances: 1,
+        includeStats: true,
+        includeSourceInfo: false,
+        limit: 1000,
+        // Auto-enrich resultSets with metadata if missing
+        resultSets: llmInput.resultSets.map((rs: any) => ({
+          ...rs,
+          metadata: rs.metadata || {}
+        }))
+      };
+      
+      const results = await combineResultsImpl(enrichedInput);
       return createToolResult(true, results, undefined, "combineResults", startTime);
     } catch (error) {
       console.error('CombineResults tool error:', error);
@@ -323,7 +352,7 @@ export const combineResultsTool = tool(
   },
   {
     name: "combineResults",
-    description: "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference). Supports intelligent merging, frequency filtering, and comprehensive statistics.",
-    schema
+    description: "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference).",
+    schema: llmFacingSchema, // Use minimal schema
   }
 );

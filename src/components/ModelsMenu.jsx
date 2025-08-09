@@ -433,7 +433,7 @@ const ModelsMenu = ({
                 labelElement="200k"
               />
               <MenuItem
-                icon={defaultModel === "Claude Opus 4" && "pin"}
+                icon={defaultModel === "Claude Opus 4.1" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -442,7 +442,7 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="Claude Opus 4"
+                text="Claude Opus 4.1"
                 labelElement="200k"
               />
               <MenuItem text="Claude older models">
