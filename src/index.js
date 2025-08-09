@@ -341,7 +341,8 @@ function getPanelConfig() {
       {
         id: "reasoningEffort",
         name: "Reasoning effort",
-        description: "Reasoning effort for OpenAI models:",
+        description:
+          "Reasoning effort for OpenAI/Anthropic/Grok thinking models (higher is tokens and time consuming):",
         action: {
           type: "select",
           items: ["minimal", "low", "medium", "high"],

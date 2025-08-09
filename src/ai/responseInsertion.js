@@ -122,6 +122,7 @@ export async function aiCompletion({
     responseFormat,
     targetUid,
     isButtonToInsert,
+    thinking: llm.thinking,
   };
 
   if (

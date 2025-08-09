@@ -469,13 +469,13 @@ const sortHierarchyResults = (results: any[], sortBy: string, originalConditions
  */
 const calculateHierarchyRelevanceScore = (result: any, conditions: any[]): number => {
   let score = 0;
-  const content = result.content.toLowerCase();
+  const content = (result.content || '').toLowerCase();
 
   // Score based on main content
   for (const condition of conditions) {
-    if (condition.type === 'text') {
+    if (condition.type === 'text' && condition.text) {
       const text = condition.text.toLowerCase();
-      const weight = condition.weight;
+      const weight = condition.weight || 1;
 
       if (condition.matchType === 'exact' && content === text) {
         score += 10 * weight;
@@ -487,10 +487,10 @@ const calculateHierarchyRelevanceScore = (result: any, conditions: any[]): numbe
   }
 
   // Bonus for hierarchy depth (more context = higher relevance)
-  score += result.hierarchyDepth * 0.5;
+  score += (result.hierarchyDepth || 0) * 0.5;
 
   // Bonus for having both children and parents
-  if (result.children.length > 0 && result.parents.length > 0) {
+  if ((result.children || []).length > 0 && (result.parents || []).length > 0) {
     score += 1;
   }
 
