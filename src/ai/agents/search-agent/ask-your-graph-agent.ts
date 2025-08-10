@@ -12,7 +12,7 @@ import {
   TokensUsage,
 } from "../langraphModelsLoader";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
-import { createChildBlock } from "../../../utils/roamAPI";
+import { createChildBlock, normalizePageTitle } from "../../../utils/roamAPI";
 import { insertStructuredAIResponse } from "../../responseInsertion";
 import { chatRoles, getInstantAssistantRole, defaultModel } from "../../..";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
@@ -31,10 +31,17 @@ import {
   listAvailableToolNames,
 } from "./tools/toolsRegistry";
 
+// Import search utilities
+import {
+  deduplicateResultsByUid,
+  sanitizePageReferences,
+} from "./tools/searchUtils";
+
 // Import prompts from separate file
 import {
   buildSystemPrompt,
   buildRequestAnalysisPrompt,
+  buildEnhancedAnalyzerPrompt,
   buildFinalResponseSystemPrompt,
   buildCacheProcessingPrompt,
   buildCacheSystemPrompt,
@@ -104,9 +111,60 @@ const ReactSearchAgentState = Annotation.Root({
   // Token tracking across entire agent execution
   totalTokensUsed: Annotation<{ input: number; output: number }>,
   // Request analysis and routing
-  routingDecision: Annotation<"use_cache" | "need_new_search">,
+  routingDecision: Annotation<"use_cache" | "need_new_search" | "analyze_complexity">,
   reformulatedQuery: Annotation<string | undefined>,
   originalSearchContext: Annotation<string | undefined>,
+  // Enhanced complexity analysis
+  queryComplexity: Annotation<"simple" | "logical" | "multi-step">,
+  userIntent: Annotation<string | undefined>,
+  parsedComponents: Annotation<{
+    // For simple queries (backwards compatible)
+    searchTerms?: string[];
+    logicalOperators?: string[];
+    pageReferences?: Array<{ type: string; text: string }>;
+    exclusions?: string[];
+    
+    // For complex logical queries - structured sub-queries
+    subQueries?: Array<{
+      id: string;
+      conditions: Array<{
+        type: "text" | "page_ref" | "block_ref" | "regex";
+        text: string;
+        matchType?: "exact" | "contains" | "regex";
+        negate?: boolean;
+        semanticExpansion?: boolean;
+      }>;
+      combineConditions: "AND" | "OR";
+      purpose: "intermediate" | "final";
+      toolName: "findBlocksByContent" | "findPagesByContent" | "findPagesByTitle";
+    }>;
+    
+    // Operations to combine sub-queries
+    combinations?: Array<{
+      operation: "union" | "intersection" | "difference";
+      inputQueries: string[]; // References to subQuery IDs
+      outputId: string;
+    }>;
+    
+    constraints?: {
+      limitToPages?: string[];
+      dateRange?: {
+        start?: Date;
+        end?: Date;
+        strategy?: "explicit" | "relative" | "vague" | "recent_sort";
+        description?: string;
+      };
+      maxResults?: number;
+      userLimit?: number;
+      randomSample?: boolean;
+      sortBy?: "creation" | "modification" | "alphabetical" | "relevance" | "random";
+    };
+  }>,
+  strategicGuidance: Annotation<{
+    approach?: "single_search" | "multiple_searches_with_union" | "multi_step_workflow";
+    reasoning?: string;
+    recommendedSteps?: string[];
+  }>,
   // Timing and cancellation
   startTime: Annotation<number>,
   abortSignal: Annotation<AbortSignal | undefined>,
@@ -140,33 +198,127 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
 
 // Removed: buildRequestAnalysisPrompt moved to ask-your-graph-prompts.ts
 
-// Nodes
-const requestAnalyzer = async (state: typeof ReactSearchAgentState.State) => {
-  console.log(`🧠 [RequestAnalyzer] Analyzing request: "${state.userQuery}"`);
+// Conversation router node for intelligent routing decisions
+const conversationRouter = async (state: typeof ReactSearchAgentState.State) => {
+  console.log(`🔀 [ConversationRouter] Analyzing routing for: "${state.userQuery}"`);
+  
+  const hasCachedResults = Object.keys(state.cachedFullResults || {}).length > 0 || 
+                           Object.keys(state.resultSummaries || {}).length > 0;
+  const hasConversationHistory = state.conversationHistory?.length > 0;
+  
   console.log(
-    `🧠 [RequestAnalyzer] Conversation mode: ${
-      state.isConversationMode
-    }, Cached results: ${Object.keys(state.cachedFullResults || {}).length}`
+    `🔀 [ConversationRouter] Context - Conversation: ${hasConversationHistory}, Cached: ${hasCachedResults}`
   );
 
-  // Skip analysis if not in conversation mode or no cached results
-  if (
-    !state.isConversationMode ||
-    !Object.keys(state.cachedFullResults || {}).length
-  ) {
-    console.log(
-      `🧠 [RequestAnalyzer] → Routing to NEW SEARCH (no conversation or cache)`
-    );
+  // Pattern matching for simple conversational requests
+  const query = state.userQuery.toLowerCase().trim();
+  
+  // Simple follow-up patterns
+  const simpleFollowUpPatterns = [
+    /^(show|give|get|display)\s+(me\s+)?(more|additional|extra|full)/,
+    /^(more|additional|extra|full|complete)\s+(details|info|information|results)/,
+    /^(expand|elaborate|explain)\s+(on\s+)?(this|that|these|those)/,
+    /^(what|tell me|show me)\s+(about|more about|details about)/,
+    /^(also|and)\s+/,
+    /^(how about|what about)/,
+    /^(can you|could you)\s+(show|find|get|give)/,
+  ];
+
+  // Cache-suitable patterns (asking for more of same topic)
+  const cacheSuitablePatterns = [
+    /\b(more|additional|extra|other|related|similar)\b/,
+    /\b(also|and|plus|furthermore)\b/,
+    /\b(expand|elaborate|details|comprehensive)\b/,
+    /\b(what about|how about)\b/,
+  ];
+
+  // Complex analysis indicators
+  const complexAnalysisPatterns = [
+    /\b(most|least|top|bottom|highest|lowest|best|worst)\b/,
+    /\b(count|number of|how many|combien)\b/,
+    /\b(analy[sz]e|analy[sz]is|examine|compare|contrast)\b/,
+    /\b(rank|order|sort|classify)\b/,
+    /\b(mentioned|referenced|cited|linked).*\b(most|count)\b/,
+    /\b(or|and not|but not)\b.*\b(or|and not|but not)\b/, // Multiple logical operators
+    /\[\[.*?\]\].*\b(or|and)\b.*\[\[.*?\]\]/, // Multiple page references with logic
+  ];
+
+  const isSimpleFollowUp = simpleFollowUpPatterns.some(pattern => pattern.test(query));
+  const isCacheSuitable = cacheSuitablePatterns.some(pattern => pattern.test(query));
+  const needsComplexAnalysis = complexAnalysisPatterns.some(pattern => pattern.test(query));
+
+  // Decision logic
+  if (!state.isConversationMode || !hasConversationHistory) {
+    // Fresh request without conversation context - always analyze complexity
+    console.log(`🔀 [ConversationRouter] → COMPLEXITY_ANALYZER (fresh request)`);
     return {
-      routingDecision: "need_new_search" as const,
-      reformulatedQuery: state.userQuery,
-      originalSearchContext: undefined,
+      routingDecision: "analyze_complexity" as const
     };
   }
 
-  updateAgentToaster("🧠 Analyzing your request...");
+  if (isSimpleFollowUp && hasCachedResults) {
+    // Simple follow-up with available cache - use existing cache logic
+    console.log(`🔀 [ConversationRouter] → CACHE_PROCESSOR (simple follow-up)`);
+    return {
+      routingDecision: "use_cache" as const,
+      reformulatedQuery: state.userQuery,
+      originalSearchContext: "previous conversation results"
+    };
+  }
 
-  const analysisPrompt = buildRequestAnalysisPrompt(state);
+  if (isCacheSuitable && hasCachedResults && !needsComplexAnalysis) {
+    // Cache might be suitable and no complex analysis needed
+    console.log(`🔀 [ConversationRouter] → CACHE_PROCESSOR (cache suitable)`);
+    return {
+      routingDecision: "use_cache" as const,
+      reformulatedQuery: state.userQuery,
+      originalSearchContext: "related to previous search results"
+    };
+  }
+
+  if (needsComplexAnalysis) {
+    // Complex query that definitely needs full analysis
+    console.log(`🔀 [ConversationRouter] → COMPLEXITY_ANALYZER (complex analysis needed)`);
+    return {
+      routingDecision: "analyze_complexity" as const
+    };
+  }
+
+  // Default: new search without complex analysis for simple conversational queries
+  console.log(`🔀 [ConversationRouter] → ASSISTANT (simple conversational query)`);
+  return {
+    routingDecision: "need_new_search" as const,
+    reformulatedQuery: state.userQuery,
+    // Provide minimal guidance for simple queries
+    queryComplexity: "simple" as const,
+    userIntent: state.userQuery,
+    parsedComponents: { searchTerms: state.userQuery.split(/\s+/).filter(term => term.length > 2) },
+    strategicGuidance: {
+      approach: "single_search" as const,
+      reasoning: "Simple conversational request",
+      recommendedSteps: ["Execute direct search based on user query"]
+    }
+  };
+};
+
+// Enhanced complexity analyzer node
+const complexityAnalyzer = async (state: typeof ReactSearchAgentState.State) => {
+  console.log(`🧠 [ComplexityAnalyzer] Analyzing request: "${state.userQuery}"`);
+  
+  const hasCachedResults = Object.keys(state.cachedFullResults || {}).length > 0 || 
+                           Object.keys(state.resultSummaries || {}).length > 0;
+  
+  console.log(
+    `🧠 [ComplexityAnalyzer] Conversation mode: ${state.isConversationMode}, Cached results: ${hasCachedResults}`
+  );
+
+  updateAgentToaster("🧠 Analyzing request complexity...");
+
+  const analysisPrompt = buildEnhancedAnalyzerPrompt({
+    ...state,
+    permissions: state.permissions,
+    privateMode: state.privateMode
+  });
   const analysisLlm = modelViaLanggraph(state.model, turnTokensUsage);
 
   try {
@@ -177,55 +329,151 @@ const requestAnalyzer = async (state: typeof ReactSearchAgentState.State) => {
 
     const responseContent = response.content.toString();
 
-    // Use shared JSON parsing with field mappings
+    // Parse the enhanced analyzer response
     const analysis = parseJSONWithFields<{
-      decision: "use_cache" | "need_new_search";
-      reformulatedQuery: string;
-      originalSearchContext: string | null;
-      reasoning: string;
+      routingDecision: "use_cache" | "need_new_search" | "analyze_complexity";
+      reformulatedQuery?: string;
+      originalSearchContext?: string;
+      complexity?: "simple" | "logical" | "multi-step";
+      userIntent?: string;
+      userSummary?: string;
+      parsedComponents?: {
+        searchTerms?: string[];
+        logicalOperators?: string[];
+        pageReferences?: Array<{ type: string; text: string }>;
+        exclusions?: string[];
+        constraints?: {
+          limitToPages?: string[];
+          dateRange?: {
+            start?: Date;
+            end?: Date;
+            strategy?: string;
+            description?: string;
+          };
+          maxResults?: number;
+          userLimit?: number;
+          randomSample?: boolean;
+          sortBy?: string;
+        };
+      };
+      suggestedStrategy?: {
+        approach?: "single_search" | "multiple_searches_with_union" | "multi_step_workflow";
+        reasoning?: string;
+        recommendedSteps?: string[];
+      };
     }>(responseContent, {
-      decision: ["decision"],
+      routingDecision: ["routingDecision", "decision"],
       reformulatedQuery: ["reformulatedQuery", "reformulated_query", "query"],
-      originalSearchContext: [
-        "originalSearchContext",
-        "original_search_context",
-        "context",
-      ],
-      reasoning: ["reasoning", "reason"],
+      originalSearchContext: ["originalSearchContext", "original_search_context", "context"],
+      complexity: ["complexity"],
+      userIntent: ["userIntent", "user_intent"],
+      userSummary: ["userSummary", "user_summary"],
+      parsedComponents: ["parsedComponents", "parsed_components"],
+      suggestedStrategy: ["suggestedStrategy", "suggested_strategy"],
     });
 
     if (!analysis) {
-      console.warn(
-        "Failed to parse analysis response, defaulting to new search"
-      );
+      console.warn("Failed to parse analyzer response, using fallback");
       return {
         routingDecision: "need_new_search" as const,
         reformulatedQuery: state.userQuery,
-        originalSearchContext: undefined,
+        queryComplexity: "simple" as const,
+        userIntent: state.userQuery,
+        parsedComponents: { searchTerms: [state.userQuery] },
+        strategicGuidance: {
+          approach: "single_search" as const,
+          reasoning: "Fallback to simple search due to analysis failure",
+          recommendedSteps: ["Search for user query terms"],
+          }
       };
     }
 
+    // Handle conversation mode routing
+    if (analysis.routingDecision === "use_cache") {
+      console.log(`🧠 [ComplexityAnalyzer] → Routing to CACHE PROCESSOR`);
+      return {
+        routingDecision: "use_cache" as const,
+        reformulatedQuery: analysis.reformulatedQuery || state.userQuery,
+        originalSearchContext: analysis.originalSearchContext,
+      };
+    }
+
+    // Handle complexity analysis for new searches
     console.log(
-      `🧠 [RequestAnalyzer] Decision: ${analysis.decision}, Reformulated: "${analysis.reformulatedQuery}"`
+      `🧠 [ComplexityAnalyzer] Complexity: ${analysis.complexity}, Approach: ${analysis.suggestedStrategy?.approach}`
     );
     console.log(
-      `🧠 [RequestAnalyzer] → Routing to ${
-        analysis.decision === "use_cache" ? "CACHE PROCESSOR" : "NEW SEARCH"
-      }`
+      `🧠 [ComplexityAnalyzer] → Routing to ASSISTANT with strategic guidance`
     );
 
+    // Show user-friendly analysis summary in toaster
+    const userSummary = analysis.userSummary || `🔍 ${analysis.complexity || "simple"} search planned`;
+    updateAgentToaster(userSummary);
+
+    // Enhanced date parsing for the constraints
+    let enhancedParsedComponents = analysis.parsedComponents || { searchTerms: [state.userQuery] };
+    
+    // FIRST: Sanitize page references to fix LLM parsing errors
+    enhancedParsedComponents = sanitizePageReferences(enhancedParsedComponents);
+    
+    // Apply smart date range parsing if not already provided by LLM
+    console.log(`🔍 [DateParsing] Current constraints:`, enhancedParsedComponents.constraints);
+    if (!enhancedParsedComponents.constraints?.dateRange) {
+      const { limit } = extractUserRequestInfo(state.userQuery);
+      const dateParseResult = parseSmartDateRange(state.userQuery, limit || undefined);
+      
+      console.log(`🔍 [DateParsing] Query: "${state.userQuery}", Limit: ${limit}, ParseResult:`, dateParseResult);
+      
+      if (dateParseResult) {
+        console.log(`🧠 [ComplexityAnalyzer] Detected date constraint: ${dateParseResult.description}`);
+        
+        if (!enhancedParsedComponents.constraints) {
+          enhancedParsedComponents.constraints = {};
+        }
+        
+        if (dateParseResult.strategy === "recent_sort") {
+          // Use recency sorting instead of date filtering
+          enhancedParsedComponents.constraints.sortBy = "modification";
+          console.log(`🧠 [ComplexityAnalyzer] Using recency sort for: ${dateParseResult.description}`);
+        } else {
+          // Use date range filtering
+          enhancedParsedComponents.constraints.dateRange = {
+            start: dateParseResult.start,
+            end: dateParseResult.end,
+            strategy: dateParseResult.strategy,
+            description: dateParseResult.description
+          };
+          console.log(`🧠 [ComplexityAnalyzer] Using date range filter: ${dateParseResult.description}`);
+        }
+      }
+    }
+
     return {
-      routingDecision: analysis.decision as "use_cache" | "need_new_search",
+      routingDecision: "need_new_search" as const,
       reformulatedQuery: analysis.reformulatedQuery || state.userQuery,
-      originalSearchContext: analysis.originalSearchContext,
+      queryComplexity: analysis.complexity || "simple",
+      userIntent: analysis.userIntent || state.userQuery,
+      parsedComponents: enhancedParsedComponents,
+      strategicGuidance: {
+        approach: analysis.suggestedStrategy?.approach || "single_search",
+        reasoning: analysis.suggestedStrategy?.reasoning || "Direct search approach",
+        recommendedSteps: analysis.suggestedStrategy?.recommendedSteps || ["Search for user query"],
+      }
     };
   } catch (error) {
-    console.error("Request analysis failed:", error);
-    // Fallback to new search on error
+    console.error("Complexity analysis failed:", error);
+    // Fallback with basic complexity analysis
     return {
       routingDecision: "need_new_search" as const,
       reformulatedQuery: state.userQuery,
-      originalSearchContext: undefined,
+      queryComplexity: "simple" as const,
+      userIntent: state.userQuery,
+      parsedComponents: { searchTerms: [state.userQuery] },
+      strategicGuidance: {
+        approach: "single_search" as const,
+        reasoning: "Fallback due to analysis error",
+        recommendedSteps: ["Execute basic search"],
+      }
     };
   }
 };
@@ -479,9 +727,17 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   
   const llm_with_tools = llm.bindTools(stateAwareTools);
 
-  // Use simplified full system prompt (no streamlined version)
-  console.log(`🎯 [Assistant] Using simplified system prompt`);
-  const systemPrompt = buildSystemPrompt(state);
+  // Use enhanced system prompt with strategic guidance
+  console.log(`🎯 [Assistant] Using enhanced system prompt with strategic guidance`);
+  const systemPrompt = buildSystemPrompt({
+    permissions: state.permissions,
+    privateMode: state.privateMode,
+    isConversationMode: state.isConversationMode,
+    queryComplexity: state.queryComplexity,
+    userIntent: state.userIntent,
+    parsedComponents: state.parsedComponents,
+    strategicGuidance: state.strategicGuidance
+  });
   const contextInstructions = `
 
 CRITICAL INSTRUCTION: 
@@ -580,71 +836,109 @@ When using findBlocksByContent, always include userQuery parameter set to: "${st
           if (args.conditions && Array.isArray(args.conditions)) {
             const searchTerms = args.conditions.map((c: any) => {
               if (c.type === "page_ref") {
-                // For display, show page_ref as [[text]] (the text should already be clean without # or [])
                 return `[[${c.text}]]`;
               }
-              if (c.type === "text") return `"${c.text}"`;
               return `"${c.text}"`;
-            });
-            const combineLogic =
-              args.combineConditions === "OR" ? " OR " : " AND ";
-            return `searching for ${searchTerms.join(combineLogic)} in blocks`;
+            }).slice(0, 3); // Limit to 3 terms for brevity
+            
+            const combineLogic = args.combineConditions === "OR" ? " OR " : " AND ";
+            const termDisplay = searchTerms.join(combineLogic);
+            const limitText = args.conditions.length > 3 ? "..." : "";
+            const scopeText = args.limitToPages?.length ? ` in [[${args.limitToPages[0]}]]${args.limitToPages.length > 1 ? '...' : ''}` : '';
+            
+            return `${termDisplay}${limitText}${scopeText}`;
           }
-          const searchText =
-            args.conditions?.find((c: any) => c.type === "text")?.text ||
-            args.conditions?.find((c: any) => c.type === "page_ref")
-              ?.pageTitle ||
-            "content";
-          return `searching for "${searchText}" in blocks`;
+          const searchText = args.conditions?.find((c: any) => c.type === "text")?.text || "content";
+          return `"${searchText}" in blocks`;
 
         case "findPagesByContent":
           if (args.conditions && Array.isArray(args.conditions)) {
             const searchTerms = args.conditions.map((c: any) => {
-              if (c.type === "page_ref") {
-                // For display, show page_ref as [[text]] (the text should already be clean without # or [])
-                return `[[${c.text}]]`;
-              }
-              if (c.type === "text") return `"${c.text}"`;
+              if (c.type === "page_ref") return `[[${c.text}]]`;
               return `"${c.text}"`;
-            });
-            const combineLogic =
-              args.combineConditions === "OR" ? " OR " : " AND ";
-            return `searching pages containing ${searchTerms.join(
-              combineLogic
-            )}`;
+            }).slice(0, 3);
+            const combineLogic = args.combineConditions === "OR" ? " OR " : " AND ";
+            const limitText = args.conditions.length > 3 ? "..." : "";
+            return `pages with ${searchTerms.join(combineLogic)}${limitText}`;
           }
           const pageSearchText = args.searchText || args.query || "content";
-          return `searching pages containing "${pageSearchText}"`;
+          return `pages with "${pageSearchText}"`;
 
         case "findPagesByTitle":
-          return `looking for pages titled "${
-            args.pageTitle || args.searchText || "pages"
-          }"`;
+          const titleText = args.pageTitle || args.searchText || "page";
+          return `pages titled "${titleText}"`;
 
         case "findPagesSemantically":
-          return `finding pages related to "${args.query || "concept"}"`;
+          return `related to "${args.query || "concept"}"`;
 
         case "extractPageReferences":
-          const blockCount = Array.isArray(args.blockUids)
-            ? args.blockUids.length
-            : "some";
-          return `analyzing ${blockCount} blocks for page references`;
+          const blockCount = Array.isArray(args.blockUids) ? args.blockUids.length : "results";
+          return `analyzing ${blockCount} blocks → finding referenced pages`;
 
-        case "getPageContent":
-          return `retrieving content from "${args.pageTitle || "page"}"`;
+        case "combineResults":
+          const operation = args.operation || "union";
+          const resultCount = Array.isArray(args.resultIds) ? args.resultIds.length : "multiple";
+          const opText = operation === "union" ? "combining" : operation === "intersection" ? "finding common" : "processing";
+          return `${opText} ${resultCount} search results`;
 
-        case "getBlockContent":
-          return `getting block content and context`;
+        case "getNodeDetails":
+          const nodeType = args.pageTitle ? "page" : "block";
+          const nodeName = args.pageTitle || `block ${args.blockUid || ""}`;
+          return `reading ${nodeType} details: ${nodeName}`;
+
+        case "findBlocksWithHierarchy":
+          const hierarchyQuery = args.conditions?.find((c: any) => c.type === "text")?.text || "blocks";
+          return `"${hierarchyQuery}" with context hierarchy`;
+
+        case "extractHierarchyContent":
+          const hierarchyCount = Array.isArray(args.blockUids) ? args.blockUids.length : "results";
+          return `extracting hierarchy from ${hierarchyCount} blocks`;
+
+        case "executeDatomicQuery":
+          if (args.query) {
+            // User-provided query
+            const queryPreview = args.query.length > 50 ? args.query.substring(0, 47) + "..." : args.query;
+            return `executing custom Datalog: ${queryPreview}`;
+          } else if (args.variables) {
+            // Parameterized query
+            const varCount = Object.keys(args.variables).length;
+            const queryHint = args.description || "parameterized query";
+            return `executing query with ${varCount} variables: ${queryHint}`;
+          } else {
+            // Auto-generated query
+            const queryHint = args.description || args.criteria || "advanced database search";
+            return `generating & executing query: ${queryHint}`;
+          }
 
         default:
-          return `using ${toolName.replace(/([A-Z])/g, " $1").toLowerCase()}`;
+          return `${toolName.replace(/([A-Z])/g, " $1").toLowerCase().replace(/^find/, "finding").replace(/^get/, "getting").replace(/^execute/, "executing").replace(/^extract/, "extracting")}`;
       }
     });
 
-    const explanation =
-      toolExplanations.length === 1
-        ? toolExplanations[0]
-        : `${toolExplanations.length} searches: ${toolExplanations.join(", ")}`;
+    // Build user-friendly explanation for multiple tools
+    let explanation;
+    if (toolExplanations.length === 1) {
+      explanation = toolExplanations[0];
+    } else if (toolExplanations.length <= 3) {
+      // Show all tools when there are few
+      explanation = toolExplanations.join(" + ");
+    } else {
+      // Group similar tools for better readability
+      const searchCount = toolExplanations.filter(exp => 
+        exp.includes('"') || exp.includes('[[') || exp.includes('pages') || exp.includes('blocks')
+      ).length;
+      const analysisCount = toolExplanations.filter(exp => 
+        exp.includes('analyzing') || exp.includes('→') || exp.includes('combining')
+      ).length;
+      
+      if (searchCount > 0 && analysisCount > 0) {
+        explanation = `${searchCount} searches + ${analysisCount} analysis steps`;
+      } else if (searchCount > 1) {
+        explanation = `${searchCount} parallel searches`;
+      } else {
+        explanation = `${toolExplanations.length} operations: ${toolExplanations.slice(0, 2).join(", ")}...`;
+      }
+    }
 
     updateAgentToaster(`🔍 ${explanation} (${llmDuration}s)`);
   } else {
@@ -1067,6 +1361,279 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   };
 };
 
+// Extract user-requested limit and sampling preferences from query
+const extractUserRequestInfo = (userQuery: string): { limit: number | null; isRandom: boolean } => {
+  const query = userQuery.toLowerCase();
+  
+  // Pattern 1: "N results", "N random results", "N pages", "N blocks"
+  const numberResultsMatch = query.match(/(\d+)\s+(random\s+)?(results?|pages?|blocks?)/);
+  if (numberResultsMatch) {
+    const num = parseInt(numberResultsMatch[1], 10);
+    const isRandom = !!numberResultsMatch[2]; // Check if "random" was captured
+    if (num > 0 && num <= 500) {
+      return { limit: num, isRandom };
+    }
+  }
+  
+  // Pattern 2: "first N", "top N", "show me N" - these are NOT random
+  const firstNMatch = query.match(/(first|top|show me)\s+(\d+)/);
+  if (firstNMatch) {
+    const num = parseInt(firstNMatch[2], 10);
+    if (num > 0 && num <= 500) {
+      return { limit: num, isRandom: false };
+    }
+  }
+  
+  // Pattern 3: "limit to N", "max N", "up to N" - these are NOT random
+  const limitMatch = query.match(/(limit to|max|up to)\s+(\d+)/);
+  if (limitMatch) {
+    const num = parseInt(limitMatch[2], 10);
+    if (num > 0 && num <= 500) {
+      return { limit: num, isRandom: false };
+    }
+  }
+  
+  // Pattern 4: "random N", "N random", "some random results"
+  const randomOnlyMatch = query.match(/(random\s+(\d+)|(\d+)\s+random|some\s+random|a\s+few\s+random)/);
+  if (randomOnlyMatch) {
+    const num = randomOnlyMatch[2] || randomOnlyMatch[3];
+    return { 
+      limit: num ? parseInt(num, 10) : null, 
+      isRandom: true 
+    };
+  }
+  
+  return { limit: null, isRandom: false };
+};
+
+// Legacy function for backwards compatibility
+const extractUserRequestedLimit = (userQuery: string): number | null => {
+  return extractUserRequestInfo(userQuery).limit;
+};
+
+// Enhanced date parsing system for time-based queries
+interface DateRangeResult {
+  start?: Date;
+  end?: Date;
+  strategy: "explicit" | "relative" | "vague" | "recent_sort";
+  description: string;
+}
+
+const parseSmartDateRange = (userQuery: string, requestedLimit?: number): DateRangeResult | null => {
+  const query = userQuery.toLowerCase();
+  const now = new Date();
+  
+  // CASE 1: Explicit date intervals
+  // "from 2024-01-01 to 2024-12-31", "between January 1 and March 15"
+  const explicitDatePatterns = [
+    // ISO dates: "from 2024-01-01 to 2024-12-31"
+    /from\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})/,
+    // Natural language: "between January 1 and March 15", "from Jan 1 to Mar 15"
+    /between\s+((?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:,?\s+\d{4})?)\s+and\s+((?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:,?\s+\d{4})?)/,
+    // "from January 1 to March 15"
+    /from\s+((?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:,?\s+\d{4})?)\s+to\s+((?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:,?\s+\d{4})?)/
+  ];
+
+  for (const pattern of explicitDatePatterns) {
+    const match = query.match(pattern);
+    if (match) {
+      const startStr = match[1];
+      const endStr = match[2]; 
+      try {
+        const startDate = new Date(startStr);
+        const endDate = new Date(endStr);
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+          return {
+            start: startDate,
+            end: endDate,
+            strategy: "explicit",
+            description: `From ${startDate.toDateString()} to ${endDate.toDateString()}`
+          };
+        }
+      } catch (e) {
+        console.warn("Failed to parse explicit dates:", startStr, endStr);
+      }
+    }
+  }
+
+  // CASE 2: Relative intervals with calculations
+  // "since 1 month", "in the last 2 weeks", "during the past year"
+  
+  // Helper function to convert word numbers to digits
+  const parseNumberWord = (word: string): number | null => {
+    const numberWords: { [key: string]: number } = {
+      'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+      'a': 1, 'an': 1
+    };
+    return numberWords[word.toLowerCase()] || null;
+  };
+  
+  const relativePatterns: Array<{ pattern: RegExp; offsetFromNow: boolean; useWordNumbers?: boolean }> = [
+    // "since N days/weeks/months/years ago" - with digits
+    { pattern: /since\s+(\d+)\s+(days?|weeks?|months?|years?)\s+ago/, offsetFromNow: true },
+    { pattern: /since\s+(\d+)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true },
+    // "since one week", "since a month" - with words
+    { pattern: /since\s+(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true, useWordNumbers: true },
+    // "in the last N days/weeks/months/years"  
+    { pattern: /in\s+the\s+last\s+(\d+)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true },
+    { pattern: /in\s+the\s+last\s+(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true, useWordNumbers: true },
+    { pattern: /during\s+the\s+past\s+(\d+)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true },
+    { pattern: /over\s+the\s+past\s+(\d+)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true },
+    // "last N days/weeks/months/years"
+    { pattern: /last\s+(\d+)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true },
+    { pattern: /last\s+(one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+(days?|weeks?|months?|years?)/, offsetFromNow: true, useWordNumbers: true }
+  ];
+
+  for (const { pattern, offsetFromNow, useWordNumbers } of relativePatterns) {
+    const match = query.match(pattern);
+    if (match) {
+      let amount: number;
+      if (useWordNumbers) {
+        amount = parseNumberWord(match[1]) || 1;
+      } else {
+        amount = parseInt(match[1], 10);
+      }
+      const unit = match[2].replace(/s$/, ''); // Remove plural
+      
+      console.log(`🔍 [DateParser] Matched: "${match[0]}", amount: ${amount}, unit: ${unit}`);
+      
+      const startDate = new Date(now);
+      switch (unit) {
+        case 'day':
+          startDate.setDate(now.getDate() - amount);
+          break;
+        case 'week':
+          startDate.setDate(now.getDate() - (amount * 7));
+          break;
+        case 'month':
+          startDate.setMonth(now.getMonth() - amount);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - amount);
+          break;
+      }
+      
+      return {
+        start: startDate,
+        end: now,
+        strategy: "relative",
+        description: `Since ${amount} ${unit}${amount > 1 ? 's' : ''} ago (${startDate.toDateString()} to ${now.toDateString()})`
+      };
+    }
+  }
+
+  // CASE 3: Calendar-based relative dates (more complex)
+  // "last month", "this year", "previous week"
+  const calendarPatterns = [
+    { pattern: /last\s+month/, calc: () => getLastMonth(now) },
+    { pattern: /previous\s+month/, calc: () => getLastMonth(now) },
+    { pattern: /this\s+month/, calc: () => getCurrentMonth(now) },
+    { pattern: /last\s+week/, calc: () => getLastWeek(now) },
+    { pattern: /previous\s+week/, calc: () => getLastWeek(now) },
+    { pattern: /this\s+week/, calc: () => getCurrentWeek(now) },
+    { pattern: /this\s+year/, calc: () => getCurrentYear(now) },
+    { pattern: /last\s+year/, calc: () => getLastYear(now) },
+    { pattern: /previous\s+year/, calc: () => getLastYear(now) }
+  ];
+
+  for (const { pattern, calc } of calendarPatterns) {
+    if (pattern.test(query)) {
+      const range = calc();
+      return {
+        start: range.start,
+        end: range.end,
+        strategy: "relative",
+        description: `${pattern.source.replace(/\\s\+/g, ' ').replace(/[\\]/g, '')} (${range.start.toDateString()} to ${range.end.toDateString()})`
+      };
+    }
+  }
+
+  // CASE 4: Vague terms - decide between date filter or recency sort
+  // "recent", "latest", "newest" with or without specific count
+  const vaguePatterns = [
+    { pattern: /\b(recent|latest|newest|new)\b/, defaultDays: 15 },
+    { pattern: /\b(last|previous)\b/, defaultDays: 30 }
+  ];
+
+  for (const { pattern, defaultDays } of vaguePatterns) {
+    if (pattern.test(query)) {
+      // If user specified a number of results, use recency sorting instead of date filter
+      if (requestedLimit && requestedLimit > 0) {
+        return {
+          strategy: "recent_sort",
+          description: `Sort by modification date to get ${requestedLimit} most recent results`
+        };
+      } else {
+        // No specific count - use arbitrary time window
+        const startDate = new Date(now);
+        startDate.setDate(now.getDate() - defaultDays);
+        return {
+          start: startDate,
+          end: now,
+          strategy: "vague",
+          description: `Recent items from last ${defaultDays} days (${startDate.toDateString()} to ${now.toDateString()})`
+        };
+      }
+    }
+  }
+
+  return null; // No date-related terms found
+};
+
+// Helper functions for calendar-based date calculations
+const getLastMonth = (now: Date) => {
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  return { start, end };
+};
+
+const getCurrentMonth = (now: Date) => {
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+};
+
+const getLastWeek = (now: Date) => {
+  const today = new Date(now);
+  const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const startOfThisWeek = new Date(today);
+  startOfThisWeek.setDate(today.getDate() - dayOfWeek);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+  
+  const start = new Date(startOfThisWeek);
+  start.setDate(startOfThisWeek.getDate() - 7);
+  const end = new Date(startOfThisWeek);
+  end.setMilliseconds(-1); // End of previous week
+  
+  return { start, end };
+};
+
+const getCurrentWeek = (now: Date) => {
+  const today = new Date(now);
+  const dayOfWeek = today.getDay();
+  const start = new Date(today);
+  start.setDate(today.getDate() - dayOfWeek);
+  start.setHours(0, 0, 0, 0);
+  
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  
+  return { start, end };
+};
+
+const getCurrentYear = (now: Date) => {
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+  return { start, end };
+};
+
+const getLastYear = (now: Date) => {
+  const start = new Date(now.getFullYear() - 1, 0, 1);
+  const end = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+  return { start, end };
+};
+
 // Direct result formatting for simple private mode cases (no LLM needed)
 const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   console.log(`🎯 [DirectFormat] Formatting results without LLM for private mode`);
@@ -1078,6 +1645,12 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
       finalAnswer: "No results found.",
     };
   }
+  
+  // Extract user-requested limit and random preference from query
+  const { limit: userRequestedLimit, isRandom } = extractUserRequestInfo(state.userQuery || "");
+  const displayLimit = userRequestedLimit || 20; // Default to 20 if no specific limit requested
+  
+  console.log(`🎯 [DirectFormat] User requested limit: ${userRequestedLimit}, isRandom: ${isRandom}, using display limit: ${displayLimit}`);
   
   // Get final/active results from resultStore
   const relevantEntries = Object.entries(state.resultStore).filter(([, result]) => {
@@ -1094,10 +1667,8 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
     };
   }
   
-  // Format results directly without LLM
-  let formattedResults: string[] = [];
-  let totalCount = 0;
-  let displayCount = 0;
+  // Collect all results and deduplicate by UID
+  let allResults: any[] = [];
   let hasPages = false;
   let hasBlocks = false;
   
@@ -1105,28 +1676,52 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
     const data = result?.data || [];
     if (!Array.isArray(data) || data.length === 0) continue;
     
-    totalCount += result?.metadata?.totalFound || data.length;
-    displayCount += data.length;
-    
-    // Distinguish between pages and blocks for proper formatting
-    const formattedItems = data.map(item => {
-      // Check if this is a page: has title but no content, or explicitly marked as page
-      const isPage = (!!item.title && !item.content) || item.isPage;
-      
-      if (isPage) {
-        hasPages = true;
-        // Use page title for pages
-        const pageTitle = item.pageTitle || item.title;
-        return `- [[${pageTitle}]]`;
-      } else {
-        hasBlocks = true;
-        // Use embed syntax for blocks
-        return `- {{[[embed-path]]: ((${item.uid}))}}`;
-      }
-    });
-    
-    formattedResults.push(formattedItems.join("\n"));
+    allResults.push(...data);
   }
+  
+  // Deduplicate by UID (essential when multiple tool calls return overlapping results)
+  const deduplicatedResults = deduplicateResultsByUid(allResults, "DirectFormat");
+  
+  // CRITICAL: Use deduplicated count for accurate display
+  const totalCount = deduplicatedResults.length;
+  
+  // Apply random sampling or sequential limit to deduplicated results
+  let limitedResults: any[];
+  if (isRandom && totalCount > displayLimit) {
+    // Apply random sampling using Fisher-Yates shuffle algorithm
+    const shuffled = [...deduplicatedResults];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    limitedResults = shuffled.slice(0, displayLimit);
+    console.log(`🎯 [DirectFormat] Applied random sampling: ${displayLimit} from ${totalCount} results`);
+  } else {
+    // Sequential limit (first N results)
+    limitedResults = deduplicatedResults.slice(0, displayLimit);
+    console.log(`🎯 [DirectFormat] Applied sequential limit: ${displayLimit} from ${totalCount} results`);
+  }
+  
+  const displayCount = limitedResults.length;
+  
+  // Format the deduplicated and limited results
+  const formattedItems = limitedResults.map(item => {
+    // Check if this is a page: has title but no content, or explicitly marked as page
+    const isPage = (!!item.title && !item.content) || item.isPage;
+    
+    if (isPage) {
+      hasPages = true;
+      // Use page title for pages
+      const pageTitle = item.pageTitle || item.title;
+      return `- [[${pageTitle}]]`;
+    } else {
+      hasBlocks = true;
+      // Use embed syntax for blocks
+      return `- {{[[embed-path]]: ((${item.uid}))}}`;
+    }
+  });
+  
+  const formattedResults = [formattedItems.join("\n")];
   
   // Create final formatted response with appropriate labeling
   let resultType = "results";
@@ -1136,9 +1731,23 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
     resultType = "blocks";  
   }
   
-  const resultText = displayCount === totalCount 
-    ? `Found ${totalCount} matching ${resultType}:\n${formattedResults.join("\n")}`
-    : `Found ${totalCount} matching ${resultType} [showing first ${displayCount}]:\n${formattedResults.join("\n")}`;
+  let resultText;
+  if (displayCount === totalCount) {
+    resultText = `Found ${totalCount} matching ${resultType}:\n${formattedResults.join("\n")}`;
+  } else {
+    const samplingLabel = isRandom ? 
+      (userRequestedLimit ? `${displayCount} random` : `${displayCount} random`) :
+      (userRequestedLimit ? `first ${displayCount}` : `first ${displayCount}`);
+    resultText = `Found ${totalCount} matching ${resultType} [showing ${samplingLabel}]:\n${formattedResults.join("\n")}`;
+    
+    // Add Full Results note only when there are more results than displayed
+    if (totalCount > displayCount) {
+      const actionText = isRandom ? 
+        "Click the **\"View Full Results\"** button to see all results or get a different random sample." :
+        "Click the **\"View Full Results\"** button to see all results with selection options.";
+      resultText += `\n\n---\n**Note**: ${actionText}`;
+    }
+  }
     
   console.log(`🎯 [DirectFormat] Generated direct response: ${resultText.length} chars, hasPages: ${hasPages}, hasBlocks: ${hasBlocks}`);
   
@@ -1191,36 +1800,38 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   return "responseWriter";
 };
 
-// Routing logic after loading model - check for optimizations
+// Routing logic after loading model - use conversation router for intelligent routing
 const routeAfterLoadModel = (state: typeof ReactSearchAgentState.State) => {
   if (state.isDirectChat) {
     console.log(`🔀 [Graph] LoadModel → RESPONSE_WRITER (direct chat mode)`);
     return "responseWriter";
   }
   
-  // OPTIMIZATION: Skip RequestAnalyzer for simple direct queries
-  // When there's no conversation context and no cached results, go directly to assistant
-  const hasConversationContext = state.isConversationMode && (
-    state.conversationHistory?.length > 0 || 
-    Object.keys(state.cachedFullResults || {}).length > 0
-  );
-  
-  if (!hasConversationContext) {
-    console.log(`🔀 [Graph] LoadModel → ASSISTANT (simple query optimization)`);
-    return "assistant";
-  }
-  
-  console.log(
-    `🔀 [Graph] LoadModel → REQUEST_ANALYZER (complex query with context)`
-  );
-  return "requestAnalyzer";
+  // Use conversation router for intelligent routing decisions
+  console.log(`🔀 [Graph] LoadModel → CONVERSATION_ROUTER (intelligent routing)`);
+  return "conversationRouter";
 };
 
-// Routing logic for request analysis
-const routeAfterAnalysis = (state: typeof ReactSearchAgentState.State) => {
+// Routing logic after conversation router
+const routeAfterConversationRouter = (state: typeof ReactSearchAgentState.State) => {
+  if (state.routingDecision === "use_cache") {
+    console.log(`🔀 [Graph] ConversationRouter → CACHE_PROCESSOR`);
+    return "cacheProcessor";
+  }
+  if (state.routingDecision === "analyze_complexity") {
+    console.log(`🔀 [Graph] ConversationRouter → COMPLEXITY_ANALYZER`);
+    return "complexityAnalyzer";
+  }
+  // Default: need_new_search
+  console.log(`🔀 [Graph] ConversationRouter → ASSISTANT`);
+  return "assistant";
+};
+
+// Routing logic for complexity analysis
+const routeAfterComplexityAnalysis = (state: typeof ReactSearchAgentState.State) => {
   const route =
     state.routingDecision === "use_cache" ? "cacheProcessor" : "assistant";
-  console.log(`🔀 [Graph] RequestAnalyzer → ${route.toUpperCase()}`);
+  console.log(`🔀 [Graph] ComplexityAnalyzer → ${route.toUpperCase()}`);
   return route;
 };
 
@@ -1458,7 +2069,8 @@ const handleResultLifecycle = (
 const builder = new StateGraph(ReactSearchAgentState);
 builder
   .addNode("loadModel", loadModel)
-  .addNode("requestAnalyzer", requestAnalyzer)
+  .addNode("conversationRouter", conversationRouter)
+  .addNode("complexityAnalyzer", complexityAnalyzer)
   .addNode("cacheProcessor", cacheProcessor)
   .addNode("assistant", assistant)
   .addNode("tools", toolsWithResultLifecycle)
@@ -1468,7 +2080,8 @@ builder
 
   .addEdge(START, "loadModel")
   .addConditionalEdges("loadModel", routeAfterLoadModel)
-  .addConditionalEdges("requestAnalyzer", routeAfterAnalysis)
+  .addConditionalEdges("conversationRouter", routeAfterConversationRouter)
+  .addConditionalEdges("complexityAnalyzer", routeAfterComplexityAnalysis)
   .addConditionalEdges("cacheProcessor", routeAfterCache)
   .addConditionalEdges("assistant", shouldContinue)
   .addConditionalEdges("tools", routeAfterTools)

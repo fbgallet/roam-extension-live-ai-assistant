@@ -10,6 +10,7 @@ import {
   SearchCondition,
   processEnhancedResults,
   getEnhancedLimits,
+  extractUidsFromResults,
 } from './searchUtils';
 import { dnpUidRegex } from '../../../../utils/regex.js';
 
@@ -68,10 +69,14 @@ const schema = z.object({
   }).optional(),
   
   // Security mode
-  secureMode: z.boolean().default(false).describe("If true, excludes block content from results (UIDs and metadata only)")
+  secureMode: z.boolean().default(false).describe("If true, excludes block content from results (UIDs and metadata only)"),
+  
+  // UID-based filtering for optimization
+  fromResultId: z.string().optional().describe("Limit search to pages from previous result (e.g., 'findBlocksByContent_001')"),
+  limitToPageUids: z.array(z.string()).optional().describe("Limit search to specific page UIDs")
 });
 
-const findPagesByContentImpl = async (input: z.infer<typeof schema>) => {
+const findPagesByContentImpl = async (input: z.infer<typeof schema>, state?: any) => {
   const {
     conditions,
     combineConditions,
@@ -89,10 +94,20 @@ const findPagesByContentImpl = async (input: z.infer<typeof schema>) => {
     dateRange,
     sortBy,
     limit,
-    secureMode
+    secureMode,
+    fromResultId,
+    limitToPageUids
   } = input;
 
   console.log(`🔍 FindPagesByContent: Analyzing pages with ${conditions.length} content conditions`);
+
+  // UID-based filtering for optimization
+  const { pageUids: finalPageUids } = extractUidsFromResults(
+    fromResultId,
+    undefined, // No block UIDs for page content search
+    limitToPageUids,
+    state
+  );
 
   // Step 1: Expand conditions with semantic terms
   const expandedConditions = await expandConditions(
@@ -105,7 +120,8 @@ const findPagesByContentImpl = async (input: z.infer<typeof schema>) => {
   const matchingBlocks = await findMatchingBlocks(
     expandedConditions,
     combineConditions,
-    includeDaily
+    includeDaily,
+    finalPageUids.length > 0 ? finalPageUids : undefined
   );
 
   console.log(`📊 Found ${matchingBlocks.length} matching blocks across pages`);
@@ -193,7 +209,8 @@ const expandConditions = async (
 const findMatchingBlocks = async (
   conditions: any[],
   combineLogic: "AND" | "OR",
-  includeDaily: boolean
+  includeDaily: boolean,
+  limitToPageUids?: string[]
 ): Promise<any[]> => {
   let query = `[:find ?uid ?content ?time ?page-title ?page-uid ?page-created ?page-modified
                 :where 
@@ -205,6 +222,17 @@ const findMatchingBlocks = async (
                 [?page :create/time ?page-created]
                 [?page :edit/time ?page-modified]
                 [?b :edit/time ?time]`;
+
+  // Add UID-based filtering for optimization
+  if (limitToPageUids && limitToPageUids.length > 0) {
+    console.log(`⚡ Optimizing: Filtering to blocks within ${limitToPageUids.length} specific page UIDs`);
+    if (limitToPageUids.length === 1) {
+      query += `\n                [?page :block/uid "${limitToPageUids[0]}"]`;
+    } else {
+      const uidsSet = limitToPageUids.map(uid => `"${uid}"`).join(' ');
+      query += `\n                [(contains? #{${uidsSet}} ?page-uid)]`;
+    }
+  }
 
   if (!includeDaily) {
     query += `\n                [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?dnp-pattern]
@@ -371,7 +399,9 @@ const enrichPageResults = async (
       created: pageData.pageCreated,
       modified: pageData.pageModified,
       isDaily: pageData.isDaily,
-      totalBlocks: pageData.totalBlocks
+      totalBlocks: pageData.totalBlocks,
+      // Explicit type flag
+      isPage: true
     };
 
     if (includeBlockCount) {
@@ -491,10 +521,12 @@ const sortPageResults = (results: any[], sortBy: string, originalConditions: any
 };
 
 export const findPagesByContentTool = tool(
-  async (input) => {
+  async (input, config) => {
     const startTime = performance.now();
     try {
-      const results = await findPagesByContentImpl(input);
+      // Extract state from config
+      const state = config?.configurable?.state;
+      const results = await findPagesByContentImpl(input, state);
       return createToolResult(true, results, undefined, "findPagesByContent", startTime);
     } catch (error) {
       console.error('FindPagesByContent tool error:', error);

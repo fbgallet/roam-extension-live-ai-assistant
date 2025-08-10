@@ -142,7 +142,9 @@ const findPagesByTitleImpl = async (input: z.infer<typeof schema>) => {
       modified: new Date(modified),
       isDaily: isDailyNote(uid),
       relevanceScore,
-      matchedConditions: conditions.map(c => c.text)
+      matchedConditions: conditions.map(c => c.text),
+      // Explicit type flag
+      isPage: true
     };
   });
 

@@ -53,6 +53,21 @@ export const buildSystemPrompt = (state: {
   permissions: { contentAccess: boolean };
   privateMode?: boolean;
   isConversationMode?: boolean;
+  // Strategic guidance from complexity analyzer
+  queryComplexity?: "simple" | "logical" | "multi-step";
+  userIntent?: string;
+  parsedComponents?: {
+    searchTerms?: string[];
+    logicalOperators?: string[];
+    pageReferences?: Array<{ type: string; text: string }>;
+    exclusions?: string[];
+    constraints?: any;
+  };
+  strategicGuidance?: {
+    approach?: string;
+    reasoning?: string;
+    recommendedSteps?: string[];
+  };
 }): string => {
   const toolNames = listAvailableToolNames(state.permissions);
   const agentIntro = buildAgentIntro(state.isConversationMode || false);
@@ -60,75 +75,95 @@ export const buildSystemPrompt = (state: {
     state.privateMode || false
   );
 
+  // Build strategic guidance section if available
+  const strategicGuidanceSection = state.strategicGuidance
+    ? `
+
+## STRATEGIC GUIDANCE (From Complexity Analyzer)
+
+**User Intent:** ${state.userIntent || "Not specified"}
+**Query Complexity:** ${state.queryComplexity || "Not specified"}
+**Suggested Approach:** ${state.strategicGuidance.approach || "Not specified"}
+
+**Reasoning:** ${state.strategicGuidance.reasoning || "No reasoning provided"}
+
+**Recommended Execution Steps:**
+${
+  state.strategicGuidance.recommendedSteps
+    ?.map((step) => `- ${step}`)
+    .join("\n") || "- No steps provided"
+}
+
+**Parsed Components:**
+- Search Terms: ${state.parsedComponents?.searchTerms?.join(", ") || "None"}
+- Logical Operators: ${
+        state.parsedComponents?.logicalOperators?.join(", ") || "None"
+      }  
+- Page References: ${
+        state.parsedComponents?.pageReferences
+          ?.map((ref) => `[[${ref.text}]]`)
+          .join(", ") || "None"
+      }
+- Exclusions: ${state.parsedComponents?.exclusions?.join(", ") || "None"}
+- Random Sampling: ${
+        state.parsedComponents?.constraints?.randomSample ? "Yes" : "No"
+      }
+- Sort Order: ${state.parsedComponents?.constraints?.sortBy || "Default"}
+- User Limit: ${state.parsedComponents?.constraints?.userLimit || "None"}
+- Date Range: ${
+        state.parsedComponents?.constraints?.dateRange?.description || "None"
+      }
+
+**IMPORTANT:** These are strategic suggestions to guide your approach. You have full autonomy to:
+- Adapt the approach based on actual tool results
+- Skip steps if a single search yields sufficient results
+- Add additional searches if needed
+- Use different tools if more appropriate`
+    : "";
+
   return `${agentIntro}${privateModeInstructions}
 
 ## AVAILABLE TOOLS
 ${toolNames.map((name) => `- ${name}`).join("\n")}
+${strategicGuidanceSection}
 
-## QUERY UNDERSTANDING & PARSING
+## TOOL USAGE GUIDELINES
 
-**Symbol Interpretation:**
-- "exact phrase" → matchType: "contains" (searches within blocks)
-- /regex/ → type: "regex"
-- '|' or 'OR' → disjunction (one condition at least must match)
-- '&' or 'AND' → intersection (both conditions must match)
-- '-' or 'NOT' → exclusion (negate: true)
-- '~', e.g.: '~term' or 'term~' → semantic expansion to true (semanticExpansion: true, and don't forget to remove ~symbol: "term~" becomes text: "term")
-- '*' → fuzzy matching or wildcard
-- "in page [[X]]" → limitToPages=["X"]
-
-**Roam Reference Parsing (CRITICAL):**
-- #test → type: "page_ref", text: "test" (REMOVE # symbol)
-- #[[long tag]] → type: "page_ref", text: "long tag" (REMOVE # and brackets)
-- [[page name]] → type: "page_ref", text: "page name" (REMOVE brackets)
-- attribute:: → type: "page_ref", text: "attribute"
-
-**Page Scope vs Reference:**
-- "in page [[X]], find Y" → limitToPages=["X"] + text conditions for Y
-- "find Y that mentions [[X]]" → page_ref condition for X
-
-## SEARCH STRATEGY
-
-**Progressive Approach:**
-1. Start with user's literal query, parse symbols carefully
-2. If results < 3, consider semantic expansion or fuzzy matching
-3. For complex OR queries: separate searches + combineResults
-4. Use metadata.searchGuidance from tool results for next steps
-
-**Tool Selection & Multi-Step Planning:**
-- findBlocksByContent: Text/content searches (most common) - use purpose="intermediate" if analysis follows
-- findPagesByTitle: Page name searches - use purpose="intermediate" if analysis follows  
+**Tool Selection:**
+- findBlocksByContent: Text/content searches (most common)
+- findPagesByTitle: Page name searches  
 - combineResults: Complex OR logic, deduplication
-- extractPageReferences: **ESSENTIAL for queries about "most mentioned", "most referenced", "analyze references"** - always use purpose="final" 
-- findPagesSemantically: When user query is conceptual/vague
-
-**Multi-Step Query Patterns examples:**
-- "A OR [[B]]OR C" → for complexe disjunction that can't be resolve in simple regex like /A|B|C/, use multiple tool calls and combineResults with operation="union"
-- "most mentioned/referenced page in X" → findBlocksByContent(purpose="intermediate") → extractPageReferences(purpose="final")
-- "analyze references in X" → search(purpose="intermediate") → extractPageReferences(purpose="final")
-- "count/rank pages in X" → search(purpose="intermediate") → analysis tool(purpose="final")
+- extractPageReferences: For "most mentioned/referenced" queries
+- findPagesSemantically: When query is conceptual/vague
 
 **Result Modes:**
 - summary (default): Max 20 results, prevents token bloat
 - uids_only: For feeding to other tools like extractPageReferences
 - full: Only when comprehensive content explicitly needed
 
-## PERFORMANCE & OPTIMIZATION
+**Random Sampling:**
+- When user requests "random results": Use sortBy="random" in tool calls
+- For specific counts: "5 random blocks" → limit=5, sortBy="random"
+- Random sampling applied both at tool level and in final result formatting
 
-**Large Result Sets (>100):**
-- Default: includeChildren=false, includeParents=false
-- Only add hierarchy when user needs context/exploration
+**Date Constraints:**
+- When dateRange provided: Pass directly to tool's dateRange parameter
+- When sortBy="modification" from recent queries: Use for recency sorting instead of date filtering
+- Both dateRange and sortBy can be used together for time-scoped recency sorting
 
-**Result Lifecycle - CRITICAL for Multi-Step Queries:**
+**Result Purpose (CRITICAL):**
 - purpose: "final" → include in user response (default for simple queries)
 - purpose: "intermediate" → exploration only, won't appear in response (USE for multi-step workflows)
-- IMPORTANT: For queries requiring analysis/counting/ranking of search results, use purpose="intermediate" for initial searches, then use extractPageReferences or other analysis tools with purpose="final"
-- Example: "most mentioned page" = findBlocksByContent(purpose="intermediate") → extractPageReferences(purpose="final")
-- Use replacesResultId/completesResultId for iterative refinement
+- For multi-step queries: initial searches use purpose="intermediate", final analysis uses purpose="final"
 
-**Cached Data Integration:**
-- When you see cached results, reference by ID (e.g., fromResultId: "findBlocksByContent_001")
-- Never create fake UIDs - always use real data from results
+**Performance Optimization:**
+- Large result sets: includeChildren=false, includeParents=false by default
+- **UID Scoping (MAJOR performance boost):**
+  * fromResultId: "findBlocksByContent_001" → limit search to previous result UIDs (dramatically faster)
+  * limitToBlockUids: ["uid1", "uid2"] → search only specific blocks (user-provided)
+  * limitToPageUids: ["pageUid1", "pageUid2"] → search only blocks within specific pages
+- **Iterative refinement:** Use fromResultId when narrowing/refining previous searches
+- **User UID lists:** If user provides page titles, use findPagesByTitleTool first to get UIDs, then use limitToPageUids
 
 ## OUTPUT & FORMATTING
 
@@ -137,10 +172,9 @@ ${ROAM_FORMATTING_INSTRUCTIONS}
 ## CRITICAL RULES
 - Always include userQuery parameter to exclude user's query from results
 - Use real UIDs from results, never create fake ones like "((b1))"
-- For OR queries: separate searches + combineResults with operation="union"
-- Parse symbols and convert to appropriate tool parameters
+- Execute your best judgment while considering the strategic guidance above
 - Be concise but helpful - ask for clarification if query is ambiguous
-- If no results, suggest alternative strategies (semantic expansion, fuzzy matching)`;
+- If no results, try the suggested fallback strategies`;
 };
 
 // Request analysis system prompt
@@ -672,4 +706,444 @@ export const extractResultDataForPrompt = (
   }
 
   return formattedResults.join("\n\n");
+};
+
+// Build available tools section based on permissions
+const buildAvailableToolsSection = (
+  hasContentAccess: boolean,
+  isPrivateMode: boolean
+): string => {
+  const coreTools = `**Core Search Tools:**
+- findBlocksByContent: Search text, content (via regex) or page reference within blocks
+- findBlocksWithHierarchy: Search blocks matching conditions in them and in their parents or children
+- findPagesByTitle: Search pages by content in their title
+- findPagesByContent: Search pages whose content matches some criteria
+- findPagesSemantically: AI-powered semantic search in page titles
+
+**Analysis Tools:**
+- extractPageReferences: get and count page mentionned in blocks (essential for "most mentioned/referenced" queries)`;
+
+  const contentTools =
+    hasContentAccess && !isPrivateMode
+      ? `
+- getNodeDetails: Retrieve detailed information for pages or blocks (content, metadata, properties)
+- extractHierarchyContent: Extract and format hierarchical block structures (children or parents)`
+      : "";
+
+  const advancedTools = `
+
+**Advanced Query Tools:**
+- executeDatomicQuery: Execute Datalog queries against Roam database (supports user-provided queries, auto-generated from criteria, or parameterized queries with variables from previous results)
+
+**Utility Tools:**
+- combineResults: Merge/deduplicate multiple search results (essential for OR logic)`;
+
+  return `## AVAILABLE TOOLS (Brief Descriptions)
+
+${coreTools}${contentTools}${advancedTools}
+
+${
+  !hasContentAccess || isPrivateMode
+    ? `**NOTE:** Content extraction tools (getNodeDetails, extractHierarchyContent) are ${
+        isPrivateMode
+          ? "disabled in private mode"
+          : "restricted - limited access"
+      }. Focus on search and reference analysis tools.`
+    : ""
+}`;
+};
+
+// Enhanced complexity analyzer prompt
+export const buildEnhancedAnalyzerPrompt = (state: {
+  userQuery: string;
+  conversationHistory?: any[];
+  cachedFullResults?: Record<string, any>;
+  resultSummaries?: Record<string, any>;
+  isConversationMode?: boolean;
+  permissions?: { contentAccess: boolean };
+  privateMode?: boolean;
+}): string => {
+  const conversationContext = state.conversationHistory?.length
+    ? state.conversationHistory
+        .slice(-4)
+        .map((msg) => {
+          if (typeof msg === "string") return msg;
+          if (msg.role && msg.content) return `${msg.role}: ${msg.content}`;
+          return String(msg);
+        })
+        .join("\n")
+    : "";
+
+  const hasConversationContext =
+    state.isConversationMode && conversationContext;
+  const hasCachedResults =
+    Object.keys(state.cachedFullResults || {}).length > 0 ||
+    Object.keys(state.resultSummaries || {}).length > 0;
+
+  // Determine which tools are available based on permissions
+  const hasContentAccess = state.permissions?.contentAccess || false;
+  const isPrivateMode = state.privateMode || false;
+
+  return `You are a request complexity analyzer for a Roam Research search system (the user typically searches for blocks and/or pages that meet certain conditions, or requests specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. Pages contain a hierarchical set of blocks, with each block potentially having children or parents that constitute its context, and each block can reference pages or other blocks). Your job is to:
+
+1. **ANALYZE** the user's request complexity and parse natural language into structured components
+2. **PROVIDE** strategic guidance for the ReAct agent to execute the request efficiently  
+3. **HANDLE** conversation routing if in conversation mode with cached results
+4. **RESPOND** with ONLY valid JSON - no explanations or additional text
+
+CURRENT REQUEST: "${state.userQuery}"
+
+${
+  hasConversationContext
+    ? `CONVERSATION HISTORY:
+${conversationContext}
+`
+    : ""
+}
+
+${
+  hasCachedResults
+    ? `CACHED RESULTS AVAILABLE: Yes (conversation mode)`
+    : "CACHED RESULTS AVAILABLE: None"
+}
+
+${buildAvailableToolsSection(hasContentAccess, isPrivateMode)}
+
+## SYMBOL INTERPRETATION & PARSING
+
+**Critical Symbols to Parse:**
+- "exact phrase" → matchType: "contains" 
+- /regex/ → type: "regex"
+- '|' or 'OR' → separate searches + union (use combineResults)
+- '&' or 'AND' → intersection (if complex) or single search (if simple)
+- '-' or 'NOT' → exclusion (negate: true)
+- '~term' or 'term~' → semantic expansion (semanticExpansion: true, remove ~)
+- '*' → fuzzy matching/wildcard
+- "in page [[X]]" → limitToPages=["X"]
+
+**Roam Reference Parsing (CRITICAL - Fix LLM Errors):**
+- #test → type: "page_ref", text: "test" (REMOVE # symbol)
+- #[[long tag]] → type: "page_ref", text: "long tag" (REMOVE # and ALL brackets)  
+- [[page name]] → type: "page_ref", text: "page name" (REMOVE ALL brackets)
+- attribute:: → type: "page_ref", text: "attribute"
+
+⚠️ **CRITICAL PAGE REFERENCE RULES:**
+- The database stores page titles WITHOUT brackets: "test", not "[[test]]"
+- Correct: [?ref-page :node/title "test"] ✅ (will find the page)
+
+⚠️ **DO NOT CONFUSE PAGE SCOPE AND REFERENCE (CRITICAL):**
+A page reference can be used as search condition OR as scope limitation, but NEVER both simultaneously:
+
+**Use pageReferences for content filtering:**
+- "blocks about [[test]]" → pageReferences: [{"type": "page_ref", "text": "test"}]
+- "All #important blocks" → pageReferences: [{"type": "page_ref", "text": "important"}] (NOT limitToPages!)
+- "blocks mentioning [[project]]" → pageReferences: [{"type": "page_ref", "text": "project"}]
+
+**Use limitToPages ONLY for spatial scope:**
+- "blocks IN page [[X]]" → constraints.limitToPages: ["X"] (NOT pageReferences!)
+- "within [[Y]] page" → constraints.limitToPages: ["Y"]
+- "inside the [[Z]] page" → constraints.limitToPages: ["Z"]
+
+🚫 **NEVER ADD THE SAME PAGE TO BOTH pageReferences AND limitToPages**
+
+**Random Sampling Detection:**
+- "5 random results" → constraints.userLimit: 5, randomSample: true, sortBy: "random"
+- "some random blocks" → randomSample: true, sortBy: "random"
+- "random sample of pages" → randomSample: true, sortBy: "random"
+- "first 10" → userLimit: 10, randomSample: false (sequential, not random)
+
+**Date Range Parsing:**
+- **Explicit**: "from 2024-01-01 to 2024-03-15" → dateRange: {start: Date, end: Date}
+- **Relative**: "since 2 months ago", "in the last 30 days" → calculate from current date
+- **Calendar**: "last month", "this year", "previous week" → precise calendar boundaries
+- **Vague + Count**: "10 recent blocks" → sortBy: "modification" (no date filter)
+- **Vague Alone**: "recent blocks" → dateRange: last 15 days (arbitrary window)
+
+## QUERY COMPLEXITY CLASSIFICATION
+
+**Simple**: Direct searches, basic AND/OR/NOT logic within same tool/filter
+- "find blocks about justice but not 'law'"
+- "blocks about justice or equality" (simple search convertible in justice|equality regex)
+- "blocks containing justice AND equality" (same search conditions)
+- "pages titled project management"
+
+**Logical**: Complex combination logical OR/AND/NOT operations, requiring separate searches
+- "Blocks mentioning 'law' OR [[justice]]" (different search condition: text and page_ref)
+- "justice in page [[A]] OR equality in page [[B]]" (multiple separate searches needed)
+- "blocks about (AI OR machine learning) AND blocks about LLM in [[Research]]"
+
+**Multi-step**: Sequential operations, analysis of search results, or complex database queries
+- "most mentioned pages in justice blocks" (search → extractPageReferences)
+- "count references to equality" (search → count analysis)
+- "blocks created last week with specific properties" (executeDatomicQuery with date/attribute criteria)
+- "run my custom datalog query with results from previous search" (executeDatomicQuery with parameterized query)
+
+## PERFORMANCE OPTIMIZATION OPPORTUNITIES
+
+**UID-Based Optimization - Consider When:**
+- User mentions specific pages for scoping searches
+- Multi-step workflows that could reuse previous results  
+- Large result sets being further refined or analyzed
+- Cross-tool operations (search → details, search → references)
+
+## OUTPUT FORMAT
+
+${
+  hasCachedResults
+    ? `### For Conversation Mode with Cached Results:
+If user request can be satisfied with cached results, respond with:
+{
+  "routingDecision": "use_cache",
+  "reformulatedQuery": "Complete, explicit version of the request",
+  "originalSearchContext": "Original search topic from cache"
+}
+
+If new searches needed, continue with complexity analysis below.
+
+### For New Search Analysis:`
+    : "### Response Format:"
+}
+
+{
+  "routingDecision": "${
+    hasCachedResults ? '"need_new_search"' : '"analyze_complexity"'
+  }",
+  "complexity": "simple" | "logical" | "multi-step",
+  "userIntent": "Clear restatement of what user wants to accomplish",
+  "userSummary": "Brief user-friendly explanation of how the request was interpreted and what approach will be used",
+  "parsedComponents": {
+    // For simple queries (backwards compatible)
+    "searchTerms": ["term1", "term2"],
+    "logicalOperators": ["OR", "AND", "NOT"],
+    "pageReferences": [{"type": "page_ref", "text": "cleaned_text"}],
+    "exclusions": ["exclude1"],
+    
+    // For complex logical queries - structured sub-queries
+    "subQueries": [
+      {
+        "id": "query_1",
+        "conditions": [{"type": "text", "text": "justice", "matchType": "contains"}],
+        "combineConditions": "AND",
+        "purpose": "intermediate",
+        "toolName": "findBlocksByContent"
+      },
+      {
+        "id": "query_2", 
+        "conditions": [{"type": "page_ref", "text": "equality", "negate": false}],
+        "combineConditions": "AND",
+        "purpose": "intermediate", 
+        "toolName": "findBlocksByContent"
+      }
+    ],
+    
+    // Operations to combine sub-queries
+    "combinations": [
+      {
+        "operation": "union",
+        "inputQueries": ["query_1", "query_2"],
+        "outputId": "final_result"
+      }
+    ],
+    
+    "constraints": {
+      "limitToPages": ["page1"],
+      "dateRange": {
+        "start": "2024-07-01T00:00:00.000Z",
+        "end": "2024-08-01T00:00:00.000Z", 
+        "strategy": "relative",
+        "description": "Last month (July 2024)"
+      },
+      "maxResults": 50,
+      "userLimit": 10,
+      "randomSample": true,
+      "sortBy": "random"
+    }
+  },
+  "suggestedStrategy": {
+    "approach": "single_search" | "multiple_searches_with_union" | "multi_step_workflow",
+    "reasoning": "Why this approach is recommended",
+    "recommendedSteps": [
+      "Step 1: Search for 'term1' (purpose: intermediate)",
+      "Step 2: Search for 'term2' (purpose: intermediate)", 
+      "Step 3: Combine with union operation (purpose: final)"
+    ]
+  }
+}
+
+## CRITICAL RULES
+- Respond with ONLY the JSON object above
+- No explanatory text, observations, or comments
+- Parse ALL symbols and references completely
+- Provide clear strategic guidance while preserving ReAct autonomy
+- For multi-step queries, suggest purpose="intermediate" for initial searches
+- Parse date expressions and provide proper dateRange objects with start/end Date values
+- For "recent" + specific count: use sortBy="modification", not dateRange
+- For vague time terms without count: use dateRange with appropriate window
+- 🚨 **PAGE REFERENCES**: ALWAYS remove [[ ]] brackets from page_ref text fields
+- 🚨 **DATALOG COMPATIBILITY**: Page titles in database have NO brackets: "test", not "[[test]]"
+
+## EXAMPLES
+
+**Simple Query**: "find blocks about machine learning"
+{
+  "complexity": "simple", 
+  "approach": "single_search",
+  "userSummary": "🔍 Searching for blocks about machine learning",
+  "recommendedSteps": ["Use findBlocksByContent with text conditions"]
+}
+
+**Random Query**: "5 random blocks about AI"
+{
+  "complexity": "simple",
+  "approach": "single_search", 
+  "userSummary": "🔍 Finding 5 random AI blocks",
+  "parsedComponents": {
+    "searchTerms": ["AI"],
+    "constraints": {
+      "userLimit": 5,
+      "randomSample": true,
+      "sortBy": "random"
+    }
+  },
+  "recommendedSteps": ["Use findBlocksByContent with sortBy='random' and limit=5"]
+}
+
+**Page Reference Query**: "blocks mentioning [[test]] since one week"
+{
+  "complexity": "simple",
+  "approach": "single_search",
+  "userSummary": "🔍 Finding blocks referencing test page from last week",
+  "parsedComponents": {
+    "pageReferences": [{"type": "page_ref", "text": "test"}],
+    "constraints": {
+      "dateRange": {
+        "start": "2024-08-03T00:00:00.000Z",
+        "end": "2024-08-10T23:59:59.999Z",
+        "strategy": "relative",
+        "description": "Since 1 week ago"
+      }
+    }
+  },
+  "recommendedSteps": ["Use findBlocksByContent with page_ref condition for 'test' and dateRange"]
+}
+
+**CRITICAL EXAMPLE - Tag Query**: "All #important blocks since one month"
+{
+  "complexity": "simple",
+  "approach": "single_search", 
+  "userSummary": "🔍 Finding blocks tagged #important from the last month",
+  "parsedComponents": {
+    "pageReferences": [{"type": "page_ref", "text": "important"}],
+    "constraints": {
+      "dateRange": {
+        "start": "2024-07-10T00:00:00.000Z",
+        "end": "2024-08-10T23:59:59.999Z", 
+        "strategy": "relative",
+        "description": "Since 1 month ago"
+      }
+    }
+  },
+  "recommendedSteps": ["Use findBlocksByContent with page_ref condition for 'important' and dateRange"]
+}
+
+**Date Range Query**: "blocks about projects since last month"
+{
+  "complexity": "simple",
+  "approach": "single_search",
+  "userSummary": "🔍 Finding project blocks from last month",
+  "parsedComponents": {
+    "searchTerms": ["projects"],
+    "constraints": {
+      "dateRange": {
+        "start": "2024-07-01T00:00:00.000Z",
+        "end": "2024-07-31T23:59:59.999Z",
+        "strategy": "relative", 
+        "description": "Last month (July 2024)"
+      }
+    }
+  },
+  "recommendedSteps": ["Use findBlocksByContent with dateRange filter"]
+}
+
+**Recent Sorting Query**: "10 recent notes about meetings"
+{
+  "complexity": "simple",
+  "approach": "single_search",
+  "userSummary": "🔍 Finding 10 most recent meeting notes",
+  "parsedComponents": {
+    "searchTerms": ["meetings", "notes"],
+    "constraints": {
+      "userLimit": 10,
+      "sortBy": "modification"
+    }
+  },
+  "recommendedSteps": ["Use findBlocksByContent with sortBy='modification' and limit=10"]
+}
+
+**Logical Query**: "blocks about (justice OR equality) but NOT in page [[philosophy]]"  
+{
+  "complexity": "logical", 
+  "approach": "multiple_searches_with_union",
+  "userSummary": "🔍 Multi-part search: justice OR equality, excluding [[philosophy]]",
+  "parsedComponents": {
+    "subQueries": [
+      {
+        "id": "query_1",
+        "conditions": [{"type": "text", "text": "justice", "matchType": "contains"}],
+        "combineConditions": "AND", 
+        "purpose": "intermediate",
+        "toolName": "findBlocksByContent"
+      },
+      {
+        "id": "query_2",
+        "conditions": [{"type": "text", "text": "equality", "matchType": "contains"}],
+        "combineConditions": "AND",
+        "purpose": "intermediate", 
+        "toolName": "findBlocksByContent"
+      }
+    ],
+    "combinations": [
+      {
+        "operation": "union",
+        "inputQueries": ["query_1", "query_2"], 
+        "outputId": "combined_result"
+      }
+    ],
+    "constraints": {
+      "exclusions": [{"type": "page_ref", "text": "philosophy", "negate": true}]
+    }
+  },
+  "recommendedSteps": [
+    "Execute query_1: Search 'justice' blocks (purpose: intermediate)",
+    "Execute query_2: Search 'equality' blocks (purpose: intermediate)", 
+    "Use combineResults with union operation (purpose: final)",
+    "Apply NOT [[philosophy]] exclusion during combination"
+  ]
+}
+
+**Multi-step Query**: "most mentioned pages in AI research blocks"
+{
+  "complexity": "multi-step", 
+  "approach": "multi_step_workflow",
+  "userSummary": "🔍 Analyzing AI research → finding most referenced pages",
+  "recommendedSteps": [
+    "Search AI research with findBlocksByContent, resultMode='uids_only' (purpose: intermediate)",
+    "Use extractPageReferences to analyze page mentions (purpose: final)"
+  ]
+}
+
+**User Query**: "run this datalog: [:find ?e :where [?e :block/string ?s] [(clojure.string/includes? ?s \"important\")]]"
+{
+  "complexity": "simple",
+  "approach": "single_search", 
+  "userSummary": "🔍 Executing user-provided Datalog query",
+  "recommendedSteps": ["Use executeDatomicQuery with user-provided query string"]
+}
+
+**USER SUMMARY GUIDELINES:**
+- Keep it brief (under 60 characters)
+- Use 🔍 emoji prefix for searches
+- Mention key search terms or logical operations
+- Explain the approach in user-friendly terms
+- For multi-step: use → to show the workflow`;
 };

@@ -5,7 +5,7 @@ import { findBlocksWithHierarchyTool } from './findBlocksWithHierarchyTool';
 import { findPagesByContentTool } from './findPagesByContentTool';
 import { extractHierarchyContentTool } from './extractHierarchyContentTool';
 import { combineResultsTool } from './combineResultsTool';
-import { generateDatomicQueryTool } from './generateDatomicQueryTool';
+import { executeDatomicQueryTool } from './executeDatomicQueryTool';
 import { extractPageReferencesTool } from './extractPageReferencesTool';
 import { getNodeDetailsTool } from './getNodeDetailsTool';
 
@@ -64,10 +64,10 @@ export const SEARCH_TOOLS: Record<string, ToolInfo> = {
     description: "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference) - ESSENTIAL for complex OR queries by running separate searches then combining"
   },
   
-  generateDatomicQuery: {
-    tool: generateDatomicQueryTool,
-    securityLevel: "secure",
-    description: "Generate optimized Datomic queries for complex search scenarios with performance analysis"
+  executeDatomicQuery: {
+    tool: executeDatomicQueryTool,
+    securityLevel: "secure", 
+    description: "Execute Datalog queries against Roam database - supports user-provided queries, auto-generation from criteria, and parameterized queries with variables"
   },
   
   extractPageReferences: {

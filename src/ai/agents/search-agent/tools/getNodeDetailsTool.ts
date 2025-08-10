@@ -4,6 +4,7 @@ import {
   executeDatomicQuery,
   isDailyNote,
   createToolResult,
+  extractUidsFromResults,
 } from "./searchUtils";
 
 /**
@@ -18,6 +19,7 @@ const schema = z.object({
   // Input - what to fetch details for
   blockUids: z.array(z.string()).optional().describe("Array of block UIDs to get details for"),
   pageUids: z.array(z.string()).optional().describe("Array of page UIDs to get details for"),
+  fromResultId: z.string().optional().describe("Get details for blocks/pages from previous result (e.g., 'findBlocksByContent_001')"),
   
   // What details to include
   includeContent: z.boolean().default(true).describe("Include full block content (secure mode: false)"),
@@ -26,30 +28,42 @@ const schema = z.object({
   
   // Limiting
   limit: z.number().min(1).max(100).default(50).describe("Maximum number of nodes to fetch details for"),
-});
+}).refine(
+  (data) => data.blockUids?.length > 0 || data.pageUids?.length > 0 || data.fromResultId,
+  { message: "Either blockUids, pageUids, or fromResultId must be provided" }
+);
 
-const getNodeDetailsImpl = async (input: z.infer<typeof schema>) => {
+const getNodeDetailsImpl = async (input: z.infer<typeof schema>, state?: any) => {
   console.log(`🔧 getNodeDetailsImpl input:`, input);
   const {
     blockUids,
     pageUids,
+    fromResultId,
     includeContent,
     includeMetadata,
     includeHierarchy,
     limit,
   } = input;
 
-  // Validate input
-  if (!blockUids?.length && !pageUids?.length) {
-    throw new Error("Must provide at least one of: blockUids or pageUids");
+  // Extract UIDs from previous results and user input
+  const { blockUids: finalBlockUids, pageUids: finalPageUids } = extractUidsFromResults(
+    fromResultId,
+    blockUids,
+    pageUids,
+    state
+  );
+
+  // Validate we have something to work with
+  if (!finalBlockUids.length && !finalPageUids.length) {
+    throw new Error("Must provide at least one of: blockUids, pageUids, or fromResultId with valid results");
   }
 
   let allResults: any[] = [];
 
   // Fetch block details
-  if (blockUids?.length) {
+  if (finalBlockUids.length) {
     const blockDetails = await fetchBlockDetails(
-      blockUids.slice(0, limit),
+      finalBlockUids.slice(0, limit),
       includeContent,
       includeMetadata,
       includeHierarchy
@@ -58,10 +72,10 @@ const getNodeDetailsImpl = async (input: z.infer<typeof schema>) => {
   }
 
   // Fetch page details
-  if (pageUids?.length && allResults.length < limit) {
+  if (finalPageUids.length && allResults.length < limit) {
     const remainingLimit = limit - allResults.length;
     const pageDetails = await fetchPageDetails(
-      pageUids.slice(0, remainingLimit),
+      finalPageUids.slice(0, remainingLimit),
       includeMetadata
     );
     allResults.push(...pageDetails);
@@ -122,6 +136,8 @@ const fetchBlockDetails = async (
     const blockDetail: any = {
       type: 'block',
       uid: result[index++],
+      // Explicit type flag (isPage: false means it's a block)
+      isPage: false
     };
 
     if (includeContent) {
@@ -183,6 +199,8 @@ const fetchPageDetails = async (
       type: 'page',
       pageUid: result[index++],
       pageTitle: result[index++],
+      // Explicit type flag
+      isPage: true
     };
 
     if (includeMetadata) {
@@ -197,10 +215,12 @@ const fetchPageDetails = async (
 };
 
 export const getNodeDetailsTool = tool(
-  async (input) => {
+  async (input, config) => {
     const startTime = performance.now();
     try {
-      const results = await getNodeDetailsImpl(input);
+      // Extract state from config
+      const state = config?.configurable?.state;
+      const results = await getNodeDetailsImpl(input, state);
       return createToolResult(
         true,
         results,

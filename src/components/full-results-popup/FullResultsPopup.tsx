@@ -101,7 +101,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
       // Create blocks with appropriate references
       for (const result of selectedResultsList) {
-        const isPage = result.uid && !result.pageUid;
+        // Use explicit isPage flag when available, fallback to legacy detection, default to block
+        const isPage = result.isPage !== undefined ? result.isPage : 
+                       (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
         let insertText;
         
         if (isPage) {
@@ -151,7 +153,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
     const embeds = selectedResultsList
       .map((result) => {
-        const isPage = result.uid && !result.pageUid;
+        // Use explicit isPage flag when available, fallback to legacy detection, default to block
+        const isPage = result.isPage !== undefined ? result.isPage : 
+                       (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
         
         if (isPage) {
           // For page results, use page embed syntax
@@ -176,7 +180,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
     const references = selectedResultsList
       .map((result) => {
-        const isPage = result.uid && !result.pageUid;
+        // Use explicit isPage flag when available, fallback to legacy detection, default to block
+        const isPage = result.isPage !== undefined ? result.isPage : 
+                       (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
         
         if (isPage) {
           // For page results, use page reference
