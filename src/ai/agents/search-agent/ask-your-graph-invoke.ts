@@ -22,6 +22,9 @@ import {
   validatePermissions,
 } from "../shared/agentsUtils";
 import {
+  deduplicateResultsByUid,
+} from "./tools/searchUtils";
+import {
   clearAgentController,
   markAgentAsStopped
 } from "../../../components/Toaster.js";
@@ -213,7 +216,7 @@ const invokeSearchAgentInternal = async ({
     });
 
     // Extract full results for the popup functionality
-    const fullResults = [];
+    const allFullResults = [];
     console.log("🔍 [ask-your-graph-invoke] response.cachedFullResults:", response.cachedFullResults);
     console.log("🔍 [ask-your-graph-invoke] response.resultStore:", response.resultStore);
     
@@ -226,35 +229,39 @@ const invokeSearchAgentInternal = async ({
         if (resultEntry && resultEntry.data && Array.isArray(resultEntry.data)) {
           const validResults = resultEntry.data.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
           console.log("🔍 [ask-your-graph-invoke] Valid results from new structure:", validResults.length);
-          fullResults.push(...validResults);
+          allFullResults.push(...validResults);
         }
         // Handle legacy structure: direct array
         else if (Array.isArray(resultEntry)) {
           const validResults = resultEntry.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
           console.log("🔍 [ask-your-graph-invoke] Valid results from legacy structure:", validResults.length);
-          fullResults.push(...validResults);
+          allFullResults.push(...validResults);
         }
       });
     }
     
     // FALLBACK: Check legacy cachedFullResults for backward compatibility
-    if (response.cachedFullResults && fullResults.length === 0) {
+    if (response.cachedFullResults && allFullResults.length === 0) {
       Object.values(response.cachedFullResults).forEach((toolResults: any) => {
         console.log("🔍 [ask-your-graph-invoke] Processing legacy cachedFullResults:", toolResults);
         if (Array.isArray(toolResults)) {
           const validResults = toolResults.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
           console.log("🔍 [ask-your-graph-invoke] Valid results with UIDs:", validResults.length);
-          fullResults.push(...validResults);
+          allFullResults.push(...validResults);
         } else if (toolResults && toolResults.fullResults && Array.isArray(toolResults.fullResults.data)) {
           // Handle the case where results are nested under fullResults.data
           const validResults = toolResults.fullResults.data.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
           console.log("🔍 [ask-your-graph-invoke] Valid nested results with UIDs:", validResults.length);
-          fullResults.push(...validResults);
+          allFullResults.push(...validResults);
         }
       });
     }
     
-    console.log("🔍 [ask-your-graph-invoke] Final fullResults count:", fullResults.length);
+    // CRITICAL: Deduplicate full results by UID to prevent duplicate entries in popup
+    const fullResults = deduplicateResultsByUid(allFullResults, "ask-your-graph-invoke");
+    
+    console.log("🔍 [ask-your-graph-invoke] Full results before deduplication:", allFullResults.length);
+    console.log("🔍 [ask-your-graph-invoke] Full results after deduplication:", fullResults.length);
 
     // Calculate execution time and complete toaster with full results
     const executionTime = formatExecutionTime(startTime);

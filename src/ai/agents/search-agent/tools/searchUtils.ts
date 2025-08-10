@@ -1,4 +1,5 @@
 import { dnpUidRegex } from "../../../../utils/regex.js";
+import { normalizePageTitle } from "../../../../utils/roamAPI.js";
 import { modelViaLanggraph } from "../../langraphModelsLoader";
 import { HumanMessage } from "@langchain/core/messages";
 import { modelAccordingToProvider } from "../../../aiAPIsHub";
@@ -481,6 +482,34 @@ const generateSearchGuidance = (
 };
 
 /**
+ * Deduplicate search results by UID to prevent duplicate entries
+ * Essential for handling multiple tool calls that return overlapping results
+ */
+export const deduplicateResultsByUid = (results: any[], debugContext = "unknown"): any[] => {
+  if (!Array.isArray(results)) return results;
+  
+  const seenUids = new Set<string>();
+  const deduplicated = results.filter(result => {
+    const uid = result?.uid || result?.pageUid;
+    if (!uid) return true; // Keep items without UIDs
+    
+    if (seenUids.has(uid)) {
+      console.log(`🔄 [${debugContext}] Deduplicating duplicate UID: ${uid}`);
+      return false; // Skip duplicate
+    }
+    
+    seenUids.add(uid);
+    return true;
+  });
+  
+  if (deduplicated.length !== results.length) {
+    console.log(`🔄 [${debugContext}] Deduplicated ${results.length} results to ${deduplicated.length} unique items`);
+  }
+  
+  return deduplicated;
+};
+
+/**
  * Create standardized tool execution result with enhanced guidance
  */
 export const createToolResult = (
@@ -935,4 +964,122 @@ export const processEnhancedResults = <T>(
       availableCount: totalFound,
     },
   };
+};
+
+/**
+ * Extract UIDs from previous results and user-provided arrays
+ * Centralized utility to prevent code duplication across tools
+ */
+export const extractUidsFromResults = (
+  fromResultId: string | undefined,
+  limitToBlockUids: string[] | undefined,
+  limitToPageUids: string[] | undefined,
+  state: any
+): { blockUids: string[], pageUids: string[] } => {
+  let finalBlockUids = limitToBlockUids || [];
+  let finalPageUids = limitToPageUids || [];
+  
+  // Extract UIDs from previous results if fromResultId is provided
+  if (fromResultId && state?.resultStore) {
+    console.log(`🔍 Extracting UIDs from previous result: ${fromResultId}`);
+    const resultEntry = state.resultStore[fromResultId];
+    if (!resultEntry) {
+      const availableResults = Object.keys(state.resultStore || {});
+      throw new Error(`Previous result ${fromResultId} not found. Available results: ${availableResults.join(', ')}`);
+    }
+    
+    const previousResult = resultEntry?.data || resultEntry;
+    if (Array.isArray(previousResult)) {
+      for (const item of previousResult) {
+        if (item.uid) {
+          if (item.content !== undefined || item.pageTitle) {
+            // This is a block result
+            finalBlockUids.push(item.uid);
+          } else if (item.title || item.isPage) {
+            // This is a page result - convert to page UID for filtering
+            finalPageUids.push(item.uid);
+          }
+        }
+        if (item.pageUid && !finalPageUids.includes(item.pageUid)) {
+          finalPageUids.push(item.pageUid);
+        }
+      }
+      console.log(`🔍 Extracted from previous result: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids`);
+    }
+  }
+  
+  // Add user-provided UIDs
+  if (limitToBlockUids) {
+    console.log(`🔍 Added ${limitToBlockUids.length} user-provided block UIDs`);
+  }
+  if (limitToPageUids) {
+    console.log(`🔍 Added ${limitToPageUids.length} user-provided page UIDs`);
+  }
+  
+  // Remove duplicates
+  finalBlockUids = [...new Set(finalBlockUids)];
+  finalPageUids = [...new Set(finalPageUids)];
+
+  return { blockUids: finalBlockUids, pageUids: finalPageUids };
+};
+
+/**
+ * Sanitize page references to fix LLM parsing errors
+ * LLMs sometimes add extra [[ ]] brackets or fail to remove them
+ * Also fixes double interpretation (page_ref + limitToPages for same page)
+ */
+export const sanitizePageReferences = (parsedComponents: any): any => {
+  if (!parsedComponents) return parsedComponents;
+  
+  const sanitized = { ...parsedComponents };
+  
+  // Fix page references
+  if (sanitized.pageReferences?.length > 0) {
+    sanitized.pageReferences = sanitized.pageReferences.map((ref: any) => ({
+      ...ref,
+      text: normalizePageTitle(ref.text)
+    }));
+  }
+  
+  // Fix limitToPages in constraints
+  if (sanitized.constraints?.limitToPages?.length > 0) {
+    sanitized.constraints.limitToPages = sanitized.constraints.limitToPages.map(
+      (page: string) => normalizePageTitle(page)
+    );
+  }
+  
+  // Fix sub-queries page_ref conditions
+  if (sanitized.subQueries?.length > 0) {
+    sanitized.subQueries = sanitized.subQueries.map((query: any) => ({
+      ...query,
+      conditions: query.conditions?.map((condition: any) => 
+        condition.type === 'page_ref' 
+          ? { ...condition, text: normalizePageTitle(condition.text) }
+          : condition
+      ) || []
+    }));
+  }
+  
+  // CRITICAL FIX: Prevent double interpretation
+  // If we have pageReferences, remove them from limitToPages to avoid double constraint
+  if (sanitized.pageReferences?.length > 0 && sanitized.constraints?.limitToPages?.length > 0) {
+    const referencedPages = sanitized.pageReferences.map((ref: any) => ref.text.toLowerCase());
+    const originalLimitCount = sanitized.constraints.limitToPages.length;
+    
+    sanitized.constraints.limitToPages = sanitized.constraints.limitToPages.filter(
+      (page: string) => !referencedPages.includes(page.toLowerCase())
+    );
+    
+    const removedCount = originalLimitCount - sanitized.constraints.limitToPages.length;
+    if (removedCount > 0) {
+      console.log(`🧹 [PageRefSanitizer] Removed ${removedCount} duplicate pages from limitToPages to prevent double interpretation`);
+      
+      // If no pages left in limitToPages, remove the constraint entirely
+      if (sanitized.constraints.limitToPages.length === 0) {
+        delete sanitized.constraints.limitToPages;
+      }
+    }
+  }
+  
+  return sanitized;
 };

@@ -55,7 +55,9 @@ export const ResultContent: React.FC<ResultContentProps> = ({
   showPaths = false,
   searchFilter = ""
 }) => {
-  const isPage = result.uid && !result.pageUid;
+  // Use explicit isPage flag when available, fallback to legacy detection, default to block
+  const isPage = result.isPage !== undefined ? result.isPage : 
+                 (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
   
   if (isPage && pageDisplayMode === "metadata") {
     // Simple page title view - just show the title cleanly
@@ -97,7 +99,9 @@ export const ResultMetadata: React.FC<ResultMetadataProps> = ({
   
   if (!showMetadata) return null;
   
-  const isPage = result.uid && !result.pageUid;
+  // Use explicit isPage flag when available, fallback to legacy detection, default to block
+  const isPage = result.isPage !== undefined ? result.isPage : 
+                 (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
   
   return (
     <div className="full-results-metadata">

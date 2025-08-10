@@ -526,7 +526,7 @@ const determineResultType = (toolName: string, data: any): ResultSummary["result
     extractHierarchyContent: "hierarchy",
     combineResults: "combinations",
     getNodeDetails: data[0]?.content ? "blocks" : "pages", // Heuristic
-    generateDatomicQuery: data[0]?.uid ? (data[0]?.content ? "blocks" : "pages") : "blocks"
+    executeDatomicQuery: data[0]?.uid ? (data[0]?.content ? "blocks" : "pages") : "blocks"
   };
   
   return toolTypeMap[toolName] || "blocks";

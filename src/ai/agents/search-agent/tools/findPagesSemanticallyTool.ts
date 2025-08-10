@@ -160,6 +160,8 @@ const filterPagesByTerm = (allPages: any[], searchTerm: string, matchedTerm: str
       isDaily: isDailyNote(uid),
       matchedTerm,
       expansionUsed: [], // Will be populated later
+      // Explicit type flag
+      isPage: true
     }));
 };
 

@@ -396,7 +396,9 @@ const processAndCountReferences = (
         pageUid: ref.pageUid,
         count: 1,
         isDaily,
-      });
+        // Explicit type flag
+        isPage: true
+      } as any);
     }
   }
 

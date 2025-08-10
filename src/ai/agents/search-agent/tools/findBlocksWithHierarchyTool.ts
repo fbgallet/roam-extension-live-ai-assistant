@@ -10,6 +10,7 @@ import {
   getBlockParents,
   DatomicQueryBuilder,
   SearchCondition,
+  extractUidsFromResults,
 } from './searchUtils';
 import { dnpUidRegex } from '../../../../utils/regex.js';
 
@@ -63,10 +64,15 @@ const schema = z.object({
   limit: z.number().min(1).max(500).default(50),
   
   // Security mode
-  secureMode: z.boolean().default(false).describe("If true, excludes full block content from results (UIDs and metadata only)")
+  secureMode: z.boolean().default(false).describe("If true, excludes full block content from results (UIDs and metadata only)"),
+  
+  // UID-based filtering for optimization
+  fromResultId: z.string().optional().describe("Limit search to blocks/pages from previous result (e.g., 'findBlocksByContent_001')"),
+  limitToBlockUids: z.array(z.string()).optional().describe("Limit search to specific block UIDs"),
+  limitToPageUids: z.array(z.string()).optional().describe("Limit search to blocks within specific page UIDs")
 });
 
-const findBlocksWithHierarchyImpl = async (input: z.infer<typeof schema>) => {
+const findBlocksWithHierarchyImpl = async (input: z.infer<typeof schema>, state?: any) => {
   const {
     contentConditions,
     hierarchyConditions,
@@ -82,10 +88,21 @@ const findBlocksWithHierarchyImpl = async (input: z.infer<typeof schema>) => {
     dateRange,
     sortBy,
     limit,
-    secureMode
+    secureMode,
+    fromResultId,
+    limitToBlockUids,
+    limitToPageUids
   } = input;
 
   console.log(`🔍 FindBlocksWithHierarchy: ${contentConditions.length} content conditions, ${hierarchyConditions?.length || 0} hierarchy conditions`);
+
+  // UID-based filtering for optimization
+  const { blockUids: finalBlockUids, pageUids: finalPageUids } = extractUidsFromResults(
+    fromResultId,
+    limitToBlockUids,
+    limitToPageUids,
+    state
+  );
 
   // Step 1: Process content conditions with semantic expansion
   const expandedContentConditions = await expandConditions(
@@ -98,7 +115,9 @@ const findBlocksWithHierarchyImpl = async (input: z.infer<typeof schema>) => {
   const contentMatches = await searchBlocksWithConditions(
     expandedContentConditions,
     combineConditions,
-    includeDaily
+    includeDaily,
+    finalBlockUids.length > 0 ? finalBlockUids : undefined,
+    finalPageUids.length > 0 ? finalPageUids : undefined
   );
 
   console.log(`📊 Found ${contentMatches.length} blocks matching content conditions`);
@@ -187,7 +206,9 @@ const expandConditions = async (
 const searchBlocksWithConditions = async (
   conditions: any[],
   combineLogic: "AND" | "OR",
-  includeDaily: boolean
+  includeDaily: boolean,
+  limitToBlockUids?: string[],
+  limitToPageUids?: string[]
 ): Promise<any[]> => {
   let query = `[:find ?uid ?content ?time ?page-title ?page-uid
                 :where 
@@ -197,6 +218,27 @@ const searchBlocksWithConditions = async (
                 [?page :node/title ?page-title]
                 [?page :block/uid ?page-uid]
                 [?b :edit/time ?time]`;
+
+  // Add UID-based filtering for optimization
+  if (limitToBlockUids && limitToBlockUids.length > 0) {
+    console.log(`⚡ Optimizing: Filtering to ${limitToBlockUids.length} specific block UIDs`);
+    if (limitToBlockUids.length === 1) {
+      query += `\n                [?b :block/uid "${limitToBlockUids[0]}"]`;
+    } else {
+      const uidsSet = limitToBlockUids.map(uid => `"${uid}"`).join(' ');
+      query += `\n                [(contains? #{${uidsSet}} ?uid)]`;
+    }
+  }
+  
+  if (limitToPageUids && limitToPageUids.length > 0) {
+    console.log(`⚡ Optimizing: Filtering to blocks within ${limitToPageUids.length} specific page UIDs`);
+    if (limitToPageUids.length === 1) {
+      query += `\n                [?page :block/uid "${limitToPageUids[0]}"]`;
+    } else {
+      const uidsSet = limitToPageUids.map(uid => `"${uid}"`).join(' ');
+      query += `\n                [(contains? #{${uidsSet}} ?page-uid)]`;
+    }
+  }
 
   if (!includeDaily) {
     query += `\n                [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?dnp-pattern]
@@ -400,7 +442,9 @@ const enrichWithFullHierarchy = async (
       isDaily: isDailyNote(pageUid),
       children: [],
       parents: [],
-      hierarchyDepth: 0
+      hierarchyDepth: 0,
+      // Explicit type flag (isPage: false means it's a block)
+      isPage: false
     };
 
     // Get full hierarchy context
@@ -498,10 +542,12 @@ const calculateHierarchyRelevanceScore = (result: any, conditions: any[]): numbe
 };
 
 export const findBlocksWithHierarchyTool = tool(
-  async (input) => {
+  async (input, config) => {
     const startTime = performance.now();
     try {
-      const results = await findBlocksWithHierarchyImpl(input);
+      // Extract state from config
+      const state = config?.configurable?.state;
+      const results = await findBlocksWithHierarchyImpl(input, state);
       return createToolResult(true, results, undefined, "findBlocksWithHierarchy", startTime);
     } catch (error) {
       console.error('FindBlocksWithHierarchy tool error:', error);

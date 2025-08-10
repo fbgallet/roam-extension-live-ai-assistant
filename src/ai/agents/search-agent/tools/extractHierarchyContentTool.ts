@@ -3,7 +3,8 @@ import { z } from "zod";
 import { 
   executeDatomicQuery, 
   createToolResult, 
-  truncateContent
+  truncateContent,
+  extractUidsFromResults
 } from './searchUtils';
 
 /**
@@ -34,7 +35,8 @@ const formatOptionsSchema = z.object({
 });
 
 const schema = z.object({
-  blockUids: z.array(z.string().min(9).max(9)).min(1, "At least one block UID is required").describe("Array of block UIDs to extract content from"),
+  blockUids: z.array(z.string().min(9).max(9)).optional().describe("Array of block UIDs to extract content from"),
+  fromResultId: z.string().optional().describe("Extract content from block UIDs in previous result (e.g., 'findBlocksByContent_001')"),
   extractOptions: extractOptionsSchema.default({}),
   formatOptions: formatOptionsSchema.default({}),
   
@@ -46,7 +48,10 @@ const schema = z.object({
   // Reference handling
   resolveReferences: z.boolean().default(false).describe("Resolve page/block references to their content"),
   maxReferenceDepth: z.number().min(0).max(3).default(1).describe("Max depth for reference resolution")
-});
+}).refine(
+  (data) => data.blockUids?.length > 0 || data.fromResultId,
+  { message: "Either blockUids array or fromResultId must be provided" }
+);
 
 interface BlockNode {
   uid: string;
@@ -73,9 +78,10 @@ interface HierarchyContent {
   };
 }
 
-const extractHierarchyContentImpl = async (input: z.infer<typeof schema>): Promise<HierarchyContent[]> => {
+const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?: any): Promise<HierarchyContent[]> => {
   const {
     blockUids,
+    fromResultId,
     extractOptions,
     formatOptions,
     excludeEmpty,
@@ -85,12 +91,20 @@ const extractHierarchyContentImpl = async (input: z.infer<typeof schema>): Promi
     maxReferenceDepth
   } = input;
 
-  console.log(`🔍 ExtractHierarchyContent: Processing ${blockUids.length} block UIDs`);
+  // Extract block UIDs from previous results and user input
+  const { blockUids: finalBlockUids } = extractUidsFromResults(
+    fromResultId,
+    blockUids,
+    undefined, // No page UIDs for this tool
+    state
+  );
+
+  console.log(`🔍 ExtractHierarchyContent: Processing ${finalBlockUids.length} block UIDs`);
 
   const results: HierarchyContent[] = [];
   const processedPages = new Set<string>();
 
-  for (const rootUid of blockUids) {
+  for (const rootUid of finalBlockUids) {
     try {
       // Get the root block info
       const rootBlock = await getBlockInfo(rootUid);
@@ -194,7 +208,7 @@ const buildHierarchyStructure = async (
   if (!rootInfo) return structure;
 
   // Create the root node
-  const rootNode: BlockNode = {
+  const rootNode = {
     uid: rootUid,
     content: rootInfo.content,
     level: currentLevel,
@@ -203,8 +217,10 @@ const buildHierarchyStructure = async (
     modified: rootInfo.modified,
     page: rootInfo.pageTitle,
     pageUid: rootInfo.pageUid,
-    references: extractReferencesFromContent(rootInfo.content)
-  };
+    references: extractReferencesFromContent(rootInfo.content),
+    // Explicit type flag (isPage: false means it's a block)
+    isPage: false
+  } as any;
 
   // Add parent context if requested
   if (includeParents && currentLevel === 0) {
@@ -212,13 +228,16 @@ const buildHierarchyStructure = async (
     // Add parents as context at the beginning
     for (let i = parents.length - 1; i >= 0; i--) {
       const parent = parents[i];
-      const parentNode: BlockNode = {
+      const parentNode = {
         uid: parent.uid,
         content: `[Parent] ${truncateContent(parent.content, extractOptions.truncateLength)}`,
         level: currentLevel - (i + 1),
         children: [],
-        references: extractReferencesFromContent(parent.content)
-      };
+        references: extractReferencesFromContent(parent.content),
+        // Explicit type flags
+        isBlock: true,
+        isPage: false
+      } as any;
       structure.push(parentNode);
     }
   }
@@ -482,10 +501,12 @@ const calculateHierarchyStats = (structure: BlockNode[], extractOptions: any) =>
 };
 
 export const extractHierarchyContentTool = tool(
-  async (input) => {
+  async (input, config) => {
     const startTime = performance.now();
     try {
-      const results = await extractHierarchyContentImpl(input);
+      // Extract state from config
+      const state = config?.configurable?.state;
+      const results = await extractHierarchyContentImpl(input, state);
       return createToolResult(true, results, undefined, "extractHierarchyContent", startTime);
     } catch (error) {
       console.error('ExtractHierarchyContent tool error:', error);

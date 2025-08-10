@@ -13,9 +13,44 @@ import {
   processEnhancedResults,
   getEnhancedLimits,
   fuzzyMatch,
+  extractUidsFromResults,
 } from "./searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
+
+// Extract user-requested limit from query (e.g., "2 random results", "first 5 pages", "show me 10 blocks")
+const extractUserRequestedLimit = (userQuery: string): number | null => {
+  const query = userQuery.toLowerCase();
+  
+  // Pattern 1: "N results", "N random results", "N pages", "N blocks"
+  const numberResultsMatch = query.match(/(\d+)\s+(random\s+)?(results?|pages?|blocks?)/);
+  if (numberResultsMatch) {
+    const num = parseInt(numberResultsMatch[1], 10);
+    if (num > 0 && num <= 500) { // Reasonable bounds
+      return num;
+    }
+  }
+  
+  // Pattern 2: "first N", "top N", "show me N"
+  const firstNMatch = query.match(/(first|top|show me)\s+(\d+)/);
+  if (firstNMatch) {
+    const num = parseInt(firstNMatch[2], 10);
+    if (num > 0 && num <= 500) {
+      return num;
+    }
+  }
+  
+  // Pattern 3: "limit to N", "max N", "up to N"
+  const limitMatch = query.match(/(limit to|max|up to)\s+(\d+)/);
+  if (limitMatch) {
+    const num = parseInt(limitMatch[2], 10);
+    if (num > 0 && num <= 500) {
+      return num;
+    }
+  }
+  
+  return null; // No specific limit found
+};
 
 /**
  * Find blocks by content conditions with semantic expansion and hierarchy support
@@ -88,6 +123,11 @@ const schema = z.object({
   // Page scope limitation
   limitToPages: z.array(z.string()).optional().describe("Limit search to blocks within specific pages (by exact page title). Use for 'in page [[X]]' queries."),
   
+  // UID-based filtering for optimization
+  fromResultId: z.string().optional().describe("Limit search to blocks/pages from previous result (e.g., 'findBlocksByContent_001'). Dramatically improves performance for large databases."),
+  limitToBlockUids: z.array(z.string()).optional().describe("Limit search to specific block UIDs (user-provided list)"),
+  limitToPageUids: z.array(z.string()).optional().describe("Limit search to blocks within specific page UIDs"),
+  
   // Fuzzy matching for typos and approximate matches
   fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance and approximate matching for search terms"),
   fuzzyThreshold: z.number().min(0).max(1).default(0.8).describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)")
@@ -105,10 +145,13 @@ const llmFacingSchema = z.object({
   includeChildren: z.boolean().default(false).describe("Include child blocks in results (use sparingly for performance)"),
   includeParents: z.boolean().default(false).describe("Include parent blocks for context"),
   limitToPages: z.array(z.string()).optional().describe("Search only within these specific pages (by exact title)"),
+  fromResultId: z.string().optional().describe("Limit to results from previous search (e.g., 'findBlocksByContent_001') - major performance boost"),
+  limitToBlockUids: z.array(z.string()).optional().describe("Limit to specific block UIDs"),
+  limitToPageUids: z.array(z.string()).optional().describe("Limit to blocks within specific page UIDs"),
   fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance and approximate matching")
 });
 
-const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
+const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: any) => {
   console.log(`🔧 findBlocksByContentImpl input:`, input);
   const {
     conditions,
@@ -130,6 +173,9 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
     secureMode,
     userQuery,
     limitToPages,
+    fromResultId,
+    limitToBlockUids,
+    limitToPageUids,
     fuzzyMatching,
     fuzzyThreshold,
   } = input;
@@ -146,6 +192,14 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
   } else {
     console.log(`🔧 No valid dateRange provided, parsedDateRange remains undefined`);
   }
+
+  // UID-based filtering for optimization
+  const { blockUids: finalBlockUids, pageUids: finalPageUids } = extractUidsFromResults(
+    fromResultId,
+    limitToBlockUids,
+    limitToPageUids,
+    state
+  );
 
   // Step 1: Process conditions with semantic expansion if needed
   const expandedConditions = await expandConditions(
@@ -170,7 +224,9 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
     combineConditions,
     includeDaily,
     dailyNotesOnly,
-    limitToPages
+    limitToPages,
+    finalBlockUids.length > 0 ? finalBlockUids : undefined,
+    finalPageUids.length > 0 ? finalPageUids : undefined
   );
 
   console.log(`📊 Found ${searchResults.length} matching blocks`);
@@ -232,6 +288,8 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
       isDaily: isDailyNote(pageUid),
       children: [],
       parents: [],
+      // Explicit type flag (isPage: false means it's a block)
+      isPage: false
     }));
     console.log(`⚡ Fast path completed for ${enrichedResults.length} results`);
   }
@@ -318,10 +376,25 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>) => {
   // Apply smart limiting based on result mode  
   // CRITICAL SAFEGUARDS: Always enforce limits to prevent 120k+ token costs
   console.log(`🔧 Limiting check: mode=${resultMode}, results=${finalResults.length}, limit=${limit}, summaryLimit=${summaryLimit}`);
-  if (resultMode === "summary" && finalResults.length > summaryLimit) {
-    console.log(`⚡ Summary mode: Limiting ${finalResults.length} results to ${summaryLimit} to prevent token bloat`);
-    updateAgentToaster(`⚡ Showing top ${summaryLimit} of ${finalResults.length} results`);
-    finalResults = finalResults.slice(0, summaryLimit);
+  
+  // Extract user-requested limit from query before applying tool defaults
+  const userRequestedLimit = extractUserRequestedLimit(userQuery || "");
+  
+  // CRITICAL DISTINCTION: 
+  // - User-requested limits: Always respected (user asked for specific number)
+  // - Summary mode limits: Only for LLM processing, not for Full Results storage
+  // - Full Results should get up to 500 results, display gets limited later
+  
+  if (userRequestedLimit) {
+    // User specifically requested a certain number - respect it completely
+    console.log(`🔧 User requested ${userRequestedLimit} results - applying strict limit`);
+    finalResults = finalResults.slice(0, userRequestedLimit);
+    wasLimited = finalResults.length < originalCount;
+  } else if (resultMode === "summary" && finalResults.length > 500) {
+    // Summary mode: Allow up to 500 for Full Results popup, but warn about costs
+    console.log(`⚡ Summary mode: Limiting ${finalResults.length} results to 500 for storage (Full Results popup support)`);
+    updateAgentToaster(`⚡ Limiting to 500 of ${finalResults.length} results (max for popup)`);
+    finalResults = finalResults.slice(0, 500);
     wasLimited = true;
   } else if (resultMode === "uids_only" && securityMode === "full" && finalResults.length > 100) {
     // Only limit UIDs mode in full access mode where content goes to LLM
@@ -440,7 +513,9 @@ const searchBlocksWithConditions = async (
   combineLogic: "AND" | "OR",
   includeDaily: boolean,
   dailyNotesOnly: boolean = false,
-  limitToPages?: string[]
+  limitToPages?: string[],
+  limitToBlockUids?: string[],
+  limitToPageUids?: string[]
 ): Promise<any[]> => {
   // Build base query for all blocks
   let query = `[:find ?uid ?content ?time ?page-title ?page-uid
@@ -459,6 +534,27 @@ const searchBlocksWithConditions = async (
     } else {
       const orClauses = limitToPages.map(page => `[?page :node/title "${page}"]`);
       query += `\n                (or ${orClauses.join(' ')})`;
+    }
+  }
+
+  // Add UID-based filtering for optimization
+  if (limitToBlockUids && limitToBlockUids.length > 0) {
+    console.log(`⚡ Optimizing: Filtering to ${limitToBlockUids.length} specific block UIDs`);
+    if (limitToBlockUids.length === 1) {
+      query += `\n                [?b :block/uid "${limitToBlockUids[0]}"]`;
+    } else {
+      const uidsSet = limitToBlockUids.map(uid => `"${uid}"`).join(' ');
+      query += `\n                [(contains? #{${uidsSet}} ?uid)]`;
+    }
+  }
+  
+  if (limitToPageUids && limitToPageUids.length > 0) {
+    console.log(`⚡ Optimizing: Filtering to blocks within ${limitToPageUids.length} specific page UIDs`);
+    if (limitToPageUids.length === 1) {
+      query += `\n                [?page :block/uid "${limitToPageUids[0]}"]`;
+    } else {
+      const uidsSet = limitToPageUids.map(uid => `"${uid}"`).join(' ');
+      query += `\n                [(contains? #{${uidsSet}} ?page-uid)]`;
     }
   }
 
@@ -586,6 +682,8 @@ const enrichWithHierarchy = async (
       isDaily: isDailyNote(pageUid),
       children: [],
       parents: [],
+      // Explicit type flag (isPage: false means it's a block)
+      isPage: false
     };
 
     // Get children if requested
@@ -662,7 +760,7 @@ const applyFuzzyFiltering = (
 
 // LLM-facing tool with minimal schema and auto-enrichment  
 export const findBlocksByContentTool = tool(
-  async (llmInput) => {
+  async (llmInput, config) => {
     const startTime = performance.now();
     try {
       // Auto-enrich with internal parameters (will be set by agent state)
@@ -688,7 +786,9 @@ export const findBlocksByContentTool = tool(
         fuzzyThreshold: 0.8
       };
 
-      const { results, metadata } = await findBlocksByContentImpl(enrichedInput);
+      // Extract state from config
+      const state = config?.configurable?.state;
+      const { results, metadata } = await findBlocksByContentImpl(enrichedInput, state);
       return createToolResult(
         true,
         results,
