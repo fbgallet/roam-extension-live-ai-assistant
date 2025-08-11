@@ -211,11 +211,15 @@ export class DatomicQueryBuilder {
   ): string {
     switch (condition.type) {
       case "regex":
-        return `\n                [(re-pattern "${condition.text}") ?pattern${index}]`;
+        const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
+        const regexWithFlags = sanitizedRegex.isCaseInsensitive ? sanitizedRegex.pattern : `(?i)${sanitizedRegex.pattern}`;
+        return `\n                [(re-pattern "${regexWithFlags}") ?pattern${index}]`;
 
       case "text":
         if (condition.matchType === "regex") {
-          return `\n                [(re-pattern "${condition.text}") ?pattern${index}]`;
+          const sanitizedTextRegex = sanitizeRegexForDatomic(condition.text);
+          const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive ? sanitizedTextRegex.pattern : `(?i)${sanitizedTextRegex.pattern}`;
+          return `\n                [(re-pattern "${textRegexWithFlags}") ?pattern${index}]`;
         } else if (condition.matchType === "contains") {
           const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
           if (cleanText === condition.text) {
@@ -1082,4 +1086,51 @@ export const sanitizePageReferences = (parsedComponents: any): any => {
   }
   
   return sanitized;
+};
+
+/**
+ * Sanitize regex patterns for Datomic compatibility
+ * Handles JavaScript /pattern/flags format and ensures proper escaping for Datomic
+ */
+export const sanitizeRegexForDatomic = (pattern: string): { pattern: string; isCaseInsensitive: boolean } => {
+  let sanitizedPattern = pattern.trim();
+  let isCaseInsensitive = false;
+  
+  // Handle JavaScript /pattern/flags format
+  const jsRegexMatch = sanitizedPattern.match(/^\/(.+)\/([gimuy]*)$/);
+  if (jsRegexMatch) {
+    sanitizedPattern = jsRegexMatch[1];
+    const flags = jsRegexMatch[2];
+    isCaseInsensitive = flags.includes('i');
+    console.log(`🧹 Converted JavaScript regex /${jsRegexMatch[1]}/${flags} to Datomic format`);
+  }
+  
+  // Check if pattern already has (?i) flag
+  if (sanitizedPattern.startsWith('(?i)')) {
+    isCaseInsensitive = true;
+  }
+  
+  // Double-escape single backslashes for Datomic
+  // This handles \s -> \\s, \b -> \\b, etc.
+  const originalPattern = sanitizedPattern;
+  
+  // Replace single backslashes with double backslashes, but don't touch already double-escaped ones
+  // First, temporarily replace existing double backslashes with a placeholder
+  const placeholder = "___DOUBLE_BACKSLASH___";
+  sanitizedPattern = sanitizedPattern.replace(/\\\\/g, placeholder);
+  
+  // Now double-escape remaining single backslashes
+  sanitizedPattern = sanitizedPattern.replace(/\\/g, '\\\\');
+  
+  // Restore the original double backslashes
+  sanitizedPattern = sanitizedPattern.replace(new RegExp(placeholder, 'g'), '\\\\\\\\');
+  
+  if (originalPattern !== sanitizedPattern) {
+    console.log(`🧹 Double-escaped backslashes for Datomic: ${originalPattern} -> ${sanitizedPattern}`);
+  }
+  
+  return {
+    pattern: sanitizedPattern,
+    isCaseInsensitive
+  };
 };

@@ -14,6 +14,7 @@ import {
   getEnhancedLimits,
   fuzzyMatch,
   extractUidsFromResults,
+  sanitizeRegexForDatomic,
 } from "./searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
@@ -622,7 +623,9 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
       break;
 
     case "regex":
-      clause = `\n${indent}[(re-pattern "${condition.text}") ?pattern${index}]
+      const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
+      const regexWithFlags = sanitizedRegex.isCaseInsensitive ? sanitizedRegex.pattern : `(?i)${sanitizedRegex.pattern}`;
+      clause = `\n${indent}[(re-pattern "${regexWithFlags}") ?pattern${index}]
 ${indent}[(re-find ?pattern${index} ?content)]`;
       break;
 
@@ -631,7 +634,9 @@ ${indent}[(re-find ?pattern${index} ?content)]`;
       if (condition.matchType === "exact") {
         clause = `\n${indent}[(= ?content "${condition.text}")]`;
       } else if (condition.matchType === "regex") {
-        clause = `\n${indent}[(re-pattern "${condition.text}") ?pattern${index}]
+        const sanitizedTextRegex = sanitizeRegexForDatomic(condition.text);
+        const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive ? sanitizedTextRegex.pattern : `(?i)${sanitizedTextRegex.pattern}`;
+        clause = `\n${indent}[(re-pattern "${textRegexWithFlags}") ?pattern${index}]
 ${indent}[(re-find ?pattern${index} ?content)]`;
       } else {
         // Use case-insensitive regex without problematic escape characters

@@ -290,9 +290,10 @@ export const StandaloneContextMenu = () => {
 
         // Helper function to format command name with server prefix
         const formatCommandName = (serverName, commandName) => {
-          const truncatedServer = serverName.length > 14 
-            ? serverName.substring(0, 14) + "..." 
-            : serverName;
+          const truncatedServer =
+            serverName.length > 14
+              ? serverName.substring(0, 14) + "..."
+              : serverName;
           return `${truncatedServer}: ${commandName}`;
         };
 
@@ -368,12 +369,18 @@ export const StandaloneContextMenu = () => {
         // Add resource commands
         const resourceCommands = allResources.map((resource, index) => ({
           id: 5800 + index,
-          name: formatCommandName(resource.serverName, resource.name || resource.uri),
+          name: formatCommandName(
+            resource.serverName,
+            resource.name || resource.uri
+          ),
           category: "MCP RESOURCES",
-          keyWords: `mcp resource ${resource.name || resource.uri} ${resource.serverName}`,
+          keyWords: `mcp resource ${resource.name || resource.uri} ${
+            resource.serverName
+          }`,
           serverName: resource.serverName,
           serverId: resource.serverId,
-          description: resource.description || `Resource from ${resource.serverName}`,
+          description:
+            resource.description || `Resource from ${resource.serverName}`,
           mcpType: "resource",
           mcpData: resource,
         }));
@@ -642,7 +649,7 @@ export const StandaloneContextMenu = () => {
   const filterCommandsInternal = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
     // Hide "Ask your graph - Last results" if no results are available
-    if (item.id === 93) {
+    if (!query && item.id === 93) {
       const results = window.lastAskYourGraphResults;
       return results && Array.isArray(results) && results.length > 0;
     }
@@ -716,22 +723,25 @@ export const StandaloneContextMenu = () => {
   };
 
   const insertModelsMenu = (callback, command) => {
-    const shouldShow = (displayModelsMenu ||
-      command.id === 1 ||
-      command.id === 100 ||
-      command.id === 101 ||
-      command.id === 102 ||
-      command.id === 102 ||
-      command.name === "Web search") &&
+    const shouldShow =
+      (displayModelsMenu ||
+        command.id === 1 ||
+        command.id === 100 ||
+        command.id === 101 ||
+        command.id === 102 ||
+        command.id === 102 ||
+        command.name === "Web search") &&
       command.name !== "Text to Speech" &&
       !command.name.includes("Image generation");
-      
+
     if (shouldShow) {
       if (!ModelsMenu) {
         console.error("❌ ModelsMenu is undefined!");
         return <div>ModelsMenu is undefined!</div>;
       }
-      return <ModelsMenu callback={callback} command={command} setModel={setModel} />;
+      return (
+        <ModelsMenu callback={callback} command={command} setModel={setModel} />
+      );
     }
     return null;
   };
@@ -1360,7 +1370,7 @@ export function initializeContextMenu() {
   const menuContainer = document.createElement("div");
   menuContainer.id = "context-menu-container";
   document.body.appendChild(menuContainer);
-  
+
   ReactDOM.render(<StandaloneContextMenu />, menuContainer);
 }
 // Fonction de nettoyage si nécessaire
