@@ -13,6 +13,11 @@ const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply 
 - 'attribute::': 'ref:attribute' (reference TO)
 - '((uid))': 'bref:uid' (direct block reference)
 
+**ATTRIBUTE BLOCKS**: For attribute-value searches (e.g., "author set to Victor Hugo", "books with status completed"):
+- Convert to regex patterns: 'regex:/^attribute::.*value.*/i'
+- Examples: "author:: Victor Hugo" → 'regex:/^author::.*victor hugo.*/i'
+- This matches blocks starting with the attribute key followed by any content containing the value
+
 **IMPORTANT**: Do NOT add 'ref:' prefix to plain text terms like "Machine Learning" - only when they appear as [[Machine Learning]] or #tag format. Plain text should remain as content search terms.`;
 
 // Shared symbolic query language definition
@@ -31,17 +36,25 @@ We have defined a formal language to express search queries in a precise and una
 - '~' semantic expansion (e.g., 'car~' includes 'vehicle', 'automobile', 'auto')
 
 ### Reference Operators:
-- 'ref:title' references TO [[pages]], #tags, attributes:: or title explicitly mentioned as page, where page title is parsed without Roam syntax (e.g., ref:page title)
-- 'bref:uid' block references by UID
+- 'ref:title' page reference, parsed from Roam syntax '[[title]]', '#title' or 'title::', or title explicitly mentioned as page (e.g., ref:meeting - IMPORTANT: parsed without Roam syntax)
+- 'bref:uid' block reference by UID
+
+### Attribute Search Strategy:
+For attribute searches in blocks, convert to regex patterns:
+- "author set to Victor Hugo" → 'regex:/^author::.*victor hugo.*/i' 
+- "status completed or done" → 'regex:/^status::.*(completed|done).*/i'
+The pattern '^attribute::.*value.*' matches blocks starting with 'attribute::' followed by any text containing the value (case insensitive).
+For attribute in page searches, see below, operators are defined precisely.
 
 ### Page Operators (when searching for pages):
 - 'page:()' always use it to wrap page-level queries (block-level is default, but 'block:() can also be used when both are needed)
 - 'title:pattern' page titles matching pattern (contains text or match /regex/)
+- 'attr:key:type:value' attribute-value(s) used as metadata about page type and content (type can be text, ref or regex)
+- 'attr:key:type:(A + B - C)' complex attribute queries with logical operators (+ for AND, | for OR, - for NOT)
 - 'content:pattern' page content matching pattern (text or /regex/ or mention a reference)
-- 'attr:value' page containing attribute-value pair (e.g., attr:completed, attr:ref:to read)
 
 ### Scope Operators:
-- 'in:scope' search WITHIN specific page scope (e.g., in:work, in:dnp, in:attr:value)
+- 'in:scope' search WITHIN specific page scope (e.g., in:work, in:dnp, in:attr:title:value)
 
 ### Hierarchical Operators:
 (in the following operators, A and B are just placeholder for any pattern, text or regex or page ref or logic combinatio of them)
@@ -879,7 +892,13 @@ ${ROAM_REFERENCES_PARSING}
 - "Find productivity #tips or similar concepts" → 'productivity~ + #tips|#tip'
 - "Blocks containing words starting with 'work'" → 'work*'
 - "Pages matching /lib.*/i in their title" → 'page:(title:regex:/lib.*/i)
-- "Pages with attribute 'status' set to #completed" → 'page:(attr:ref:completed)
+- "Pages with attribute 'status' set to #completed or #archived" → 'page:(attr:status:ref:(completed | archived))
+- "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
+- "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
+- "Blocks with 'type' attribute set to [[book]] and #toRead in 'status'" → 'regex:/^type::.*book.*/i + regex:/^status::.*toread.*/i'
+- "Find books by Victor Hugo" → 'regex:/^author::.*victor hugo.*/i'
+- "Pages with status completed or done" → 'regex:/^status::.*(completed|done).*/i'
+- "All content with 'priority' set to 'high'" → 'regex:/^priority::.*high.*/i'
 - "Machine Learning => Deep Learning" → 'Machine Learning => Deep Learning' (keep plain text as-is for content search since there is not page ref syntax or mention)
 
 ## SPECIAL CASE - DIRECT DATOMIC QUERIES:

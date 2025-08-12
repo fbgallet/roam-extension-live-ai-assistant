@@ -153,7 +153,6 @@ const llmFacingSchema = z.object({
 });
 
 const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: any) => {
-  console.log(`🔧 findBlocksByContentImpl input:`, input);
   const {
     conditions,
     combineConditions,
@@ -183,15 +182,11 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
 
   // Parse dateRange if provided as strings
   let parsedDateRange;
-  console.log(`🔧 input.dateRange:`, input.dateRange);
   if (input.dateRange && (input.dateRange.start || input.dateRange.end)) {
     parsedDateRange = {
       start: typeof input.dateRange.start === 'string' ? new Date(input.dateRange.start) : input.dateRange.start,
       end: typeof input.dateRange.end === 'string' ? new Date(input.dateRange.end) : input.dateRange.end,
     };
-    console.log(`🔧 parsedDateRange created:`, parsedDateRange);
-  } else {
-    console.log(`🔧 No valid dateRange provided, parsedDateRange remains undefined`);
   }
 
   // UID-based filtering for optimization
@@ -214,10 +209,6 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     updateAgentToaster(`🔍 Expanding search with related terms...`);
   }
 
-  console.log(
-    `🔍 Searching with ${expandedConditions.length} total conditions (${conditions.length} original + expansions)`
-  );
-
   // Step 2: Build and execute search query
   
   const searchResults = await searchBlocksWithConditions(
@@ -230,18 +221,15 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     finalPageUids.length > 0 ? finalPageUids : undefined
   );
 
-  console.log(`📊 Found ${searchResults.length} matching blocks`);
 
   // Step 2.5: Apply fuzzy matching post-processing if enabled
   let fuzzyFilteredResults = searchResults;
   if (fuzzyMatching && fuzzyThreshold && conditions.length > 0) {
-    console.log(`🔍 Applying fuzzy matching with threshold ${fuzzyThreshold}`);
     fuzzyFilteredResults = applyFuzzyFiltering(
       searchResults,
       conditions,
       fuzzyThreshold || 0.8
     );
-    console.log(`📊 After fuzzy filtering: ${fuzzyFilteredResults.length} blocks`);
   }
 
   // Step 3: Smart hierarchy enrichment optimization
@@ -252,18 +240,15 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
   // Optimization: Skip expensive hierarchy enrichment for large result sets unless explicitly needed
   if (fuzzyFilteredResults.length > 100) {
     if (includeChildren && !userQuery?.match(/context|hierarchy|structure|children|explore/i)) {
-      console.log(`⚡ Optimization: Skipping children enrichment for ${fuzzyFilteredResults.length} results (use includeChildren=false for large analytical queries)`);
       optimizedIncludeChildren = false;
     }
     if (includeParents && !userQuery?.match(/context|hierarchy|structure|parents|explore/i)) {
-      console.log(`⚡ Optimization: Skipping parents enrichment for ${fuzzyFilteredResults.length} results`);
       optimizedIncludeParents = false;
     }
   }
   
   // Step 3: Only call enrichWithHierarchy if we actually need hierarchy data
   if (optimizedIncludeChildren || optimizedIncludeParents) {
-    console.log(`🔧 About to enrich ${fuzzyFilteredResults.length} results with hierarchy context (children: ${optimizedIncludeChildren}, parents: ${optimizedIncludeParents})`);
     updateAgentToaster(`🔗 Adding context to ${fuzzyFilteredResults.length} results...`);
     
     enrichedResults = await enrichWithHierarchy(
@@ -274,11 +259,8 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
       parentDepth,
       secureMode
     );
-    console.log(`🔧 Enrichment completed, got ${enrichedResults.length} enriched results`);
   } else {
     // Fast path: Create basic block structure without expensive hierarchy queries
-    console.log(`⚡ Fast path: Creating basic block structure for ${fuzzyFilteredResults.length} results without hierarchy enrichment`);
-    
     enrichedResults = fuzzyFilteredResults.map(([uid, content, time, pageTitle, pageUid]) => ({
       uid,
       content: secureMode ? undefined : content,
@@ -292,24 +274,16 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
       // Explicit type flag (isPage: false means it's a block)
       isPage: false
     }));
-    console.log(`⚡ Fast path completed for ${enrichedResults.length} results`);
   }
 
   // Step 4: Apply date range filtering for DNPs if specified
   let filteredResults = enrichedResults;
-  console.log(`🔧 About to apply date filtering. parsedDateRange:`, parsedDateRange, `includeDaily:`, includeDaily);
   if (parsedDateRange && includeDaily) {
-    console.log(`🔧 Applying date range filter to ${enrichedResults.length} results`);
     filteredResults = filterByDateRange(filteredResults, parsedDateRange);
-    console.log(`🔧 After date filtering: ${filteredResults.length} results`);
-  } else {
-    console.log(`🔧 Skipping date filtering`);
   }
 
   // Step 4.5: Exclude user query block from results
   if (userQuery) {
-    const beforeUserQueryFilter = filteredResults.length;
-    console.log(`🔧 Attempting to exclude user query: "${userQuery}"`);
     filteredResults = filteredResults.filter(result => {
       // More flexible exclusion - check for exact match OR if the block contains the query and is similar length
       const exactMatch = result.content === userQuery;
@@ -317,24 +291,11 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
                                 Math.abs(result.content.length - userQuery.length) < 50;
       const shouldExclude = exactMatch || containsAndSimilar;
       
-      if (shouldExclude) {
-        console.log(`🔧 Excluding block ${result.uid}: "${result.content?.substring(0, 100)}..."`);
-      }
-      
       return !shouldExclude;
     });
-    if (beforeUserQueryFilter !== filteredResults.length) {
-      console.log(`🔧 Excluded user query block(s), ${beforeUserQueryFilter} -> ${filteredResults.length} results`);
-    } else {
-      console.log(`🔧 No user query blocks found to exclude`);
-    }
-  } else {
-    console.log(`🔧 No userQuery provided for exclusion`);
   }
 
   // Step 5: Apply enhanced sorting, sampling, and limiting
-  console.log(`🔧 Before enhanced processing: ${filteredResults.length} results`);
-  
   // Determine security mode for limits
   const securityMode = secureMode ? "private" : (resultMode === "full" ? "full" : "balanced");
   
@@ -353,30 +314,11 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
   let finalResults = processedResults.data;
   let wasLimited = processedResults.metadata.wasLimited;
   let originalCount = processedResults.metadata.totalFound;
-  
-  console.log(`🔧 After enhanced processing: ${finalResults.length} results (sorted by ${processedResults.metadata.sortedBy}${processedResults.metadata.sampled ? ', sampled' : ''})`);
 
   // Step 6: Apply result mode filtering
 
-  // Store full results in console for power users, even when truncated for LLM
-  if (filteredResults.length > 10) {
-    console.log(`📊 FULL RESULTS FOR CONSOLE (${filteredResults.length} items):`, {
-      totalCount: filteredResults.length,
-      results: filteredResults.map(r => ({
-        uid: r.uid,
-        content: r.content?.substring(0, 200) + (r.content?.length > 200 ? "..." : ""),
-        pageTitle: r.pageTitle,
-        pageUid: r.pageUid,
-        modified: r.modified,
-      })),
-      truncatedForLLM: resultMode !== "full",
-      resultMode,
-    });
-  }
-
   // Apply smart limiting based on result mode  
   // CRITICAL SAFEGUARDS: Always enforce limits to prevent 120k+ token costs
-  console.log(`🔧 Limiting check: mode=${resultMode}, results=${finalResults.length}, limit=${limit}, summaryLimit=${summaryLimit}`);
   
   // Extract user-requested limit from query before applying tool defaults
   const userRequestedLimit = extractUserRequestedLimit(userQuery || "");
@@ -388,24 +330,20 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
   
   if (userRequestedLimit) {
     // User specifically requested a certain number - respect it completely
-    console.log(`🔧 User requested ${userRequestedLimit} results - applying strict limit`);
     finalResults = finalResults.slice(0, userRequestedLimit);
     wasLimited = finalResults.length < originalCount;
   } else if (resultMode === "summary" && finalResults.length > 500) {
     // Summary mode: Allow up to 500 for Full Results popup, but warn about costs
-    console.log(`⚡ Summary mode: Limiting ${finalResults.length} results to 500 for storage (Full Results popup support)`);
     updateAgentToaster(`⚡ Limiting to 500 of ${finalResults.length} results (max for popup)`);
     finalResults = finalResults.slice(0, 500);
     wasLimited = true;
   } else if (resultMode === "uids_only" && securityMode === "full" && finalResults.length > 100) {
     // Only limit UIDs mode in full access mode where content goes to LLM
-    console.log(`⚡ UIDs mode (full access): Limiting ${finalResults.length} results to 100 to prevent bloat`);
     updateAgentToaster(`⚡ Limiting to 100 of ${finalResults.length} results for analysis`);
     finalResults = finalResults.slice(0, 100);
     wasLimited = true;
   } else if (resultMode === "full" && finalResults.length > 300) {
     // EMERGENCY SAFEGUARD: Full mode should NEVER return unlimited results
-    console.log(`🚨 EMERGENCY LIMIT: Full mode limiting ${finalResults.length} results to 300 to prevent massive token cost`);
     updateAgentToaster(`🚨 Showing first 300 of ${finalResults.length} results (maximum allowed)`);
     finalResults = finalResults.slice(0, 300);
     wasLimited = true;
@@ -417,13 +355,11 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
   
   // FINAL SAFEGUARD: Any result set > 200 should be marked as limited for caching
   if (finalResults.length > 200 && !wasLimited) {
-    console.log(`🚨 FINAL SAFEGUARD: Marking ${finalResults.length} results as limited for caching`);
     wasLimited = true;
   }
 
   // Format results based on result mode
   if (resultMode === "uids_only") {
-    console.log(`⚡ UIDs only mode: Returning minimal data for ${finalResults.length} results`);
     finalResults = finalResults.map(result => ({
       uid: result.uid,
       pageTitle: result.pageTitle,
@@ -432,7 +368,6 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
       modified: result.modified,
     }));
   } else if (resultMode === "summary") {
-    console.log(`⚡ Summary mode: Returning essential data for ${finalResults.length} results`);
     finalResults = finalResults.map(result => ({
       uid: result.uid,
       content: secureMode ? undefined : (result.content?.length > 100 ? result.content.substring(0, 100) + "..." : result.content),
@@ -459,7 +394,6 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     availableCount: processedResults.metadata.availableCount,
   };
 
-  console.log(`🔧 Final results (${resultMode} mode): ${finalResults.length}/${originalCount} items`, resultMetadata);
   
   return {
     results: finalResults,
@@ -540,7 +474,6 @@ const searchBlocksWithConditions = async (
 
   // Add UID-based filtering for optimization
   if (limitToBlockUids && limitToBlockUids.length > 0) {
-    console.log(`⚡ Optimizing: Filtering to ${limitToBlockUids.length} specific block UIDs`);
     if (limitToBlockUids.length === 1) {
       query += `\n                [?b :block/uid "${limitToBlockUids[0]}"]`;
     } else {

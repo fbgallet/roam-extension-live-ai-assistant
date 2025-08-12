@@ -1761,6 +1761,7 @@ const processToolResultsWithLifecycle = (
     // This is a tool result message
     if (message.content && typeof message.content === "string") {
       try {
+        // Try to parse as JSON first
         const toolResult = JSON.parse(message.content);
         if (toolResult.success && toolResult.data) {
           // Extract lifecycle parameters from the tool call
@@ -1785,11 +1786,20 @@ const processToolResultsWithLifecycle = (
             toolResult.metadata
           );
         }
-      } catch (error) {
-        console.warn(
-          `Failed to process tool result for ${message.name}:`,
-          error
-        );
+      } catch (jsonError) {
+        // If JSON parsing fails, check if it's a plain error message
+        if (message.content.startsWith("Error:") || message.content.includes("failed")) {
+          console.warn(
+            `Tool ${message.name} returned error: ${message.content}`
+          );
+          // Don't try to store failed results in result store
+        } else {
+          console.warn(
+            `Failed to process tool result for ${message.name}:`,
+            jsonError,
+            `Content was: ${message.content.substring(0, 200)}...`
+          );
+        }
       }
     }
   }
