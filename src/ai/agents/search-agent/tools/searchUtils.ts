@@ -27,6 +27,7 @@ export interface SearchCondition {
   semanticExpansion?: boolean;
   weight?: number;
   negate?: boolean;
+  regexFlags?: string;
 }
 
 /**
@@ -212,7 +213,13 @@ export class DatomicQueryBuilder {
     switch (condition.type) {
       case "regex":
         const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
-        const regexWithFlags = sanitizedRegex.isCaseInsensitive ? sanitizedRegex.pattern : `(?i)${sanitizedRegex.pattern}`;
+        // Use custom flags if provided, otherwise fall back to case-insensitive default
+        let regexWithFlags;
+        if (condition.regexFlags !== undefined) {
+          regexWithFlags = condition.regexFlags ? `(?${condition.regexFlags})${sanitizedRegex.pattern}` : sanitizedRegex.pattern;
+        } else {
+          regexWithFlags = sanitizedRegex.isCaseInsensitive ? sanitizedRegex.pattern : `(?i)${sanitizedRegex.pattern}`;
+        }
         return `\n                [(re-pattern "${regexWithFlags}") ?pattern${index}]`;
 
       case "text":
@@ -707,6 +714,418 @@ const levenshteinDistance = (str1: string, str2: string): number => {
   }
 
   return matrix[str2.length][str1.length];
+};
+
+/**
+ * OPTIMIZED: Get children blocks for multiple parents in batches (much faster than one-by-one)
+ * This replaces the recursive approach with batched queries for better performance
+ */
+export const getBatchBlockChildren = async (
+  parentUids: string[],
+  maxDepth: number,
+  secureMode: boolean = false
+): Promise<{ [parentUid: string]: any[] }> => {
+  console.log(`🚀 getBatchBlockChildren: Processing ${parentUids.length} parents, depth ${maxDepth}`);
+  
+  if (maxDepth <= 0 || parentUids.length === 0) {
+    return {};
+  }
+
+  // Build batch query for all parent UIDs at once
+  const uidsSet = parentUids.map(uid => `"${uid}"`).join(' ');
+  const query = `[:find ?parent-uid ?uid ?content ?order ?page-title ?page-uid
+                 :where 
+                 [?parent :block/uid ?parent-uid]
+                 [(contains? #{${uidsSet}} ?parent-uid)]
+                 [?parent :block/children ?child]
+                 [?child :block/uid ?uid]
+                 [?child :block/string ?content]
+                 [?child :block/order ?order]
+                 [?child :block/page ?page]
+                 [?page :node/title ?page-title]
+                 [?page :block/uid ?page-uid]]`;
+
+  try {
+    const allChildren = await executeDatomicQuery(query);
+    console.log(`🚀 getBatchBlockChildren: Found ${allChildren.length} direct children`);
+
+    // Group children by parent UID
+    const childrenByParent: { [parentUid: string]: any[] } = {};
+    
+    // Initialize empty arrays for all parents
+    parentUids.forEach(parentUid => {
+      childrenByParent[parentUid] = [];
+    });
+    
+    // Sort and group results
+    allChildren
+      .sort((a, b) => a[3] - b[3]) // Sort by order
+      .forEach(([parentUid, uid, content, order, pageTitle, pageUid]) => {
+        childrenByParent[parentUid].push({
+          uid,
+          content: secureMode ? undefined : content,
+          order,
+          pageTitle,
+          pageUid,
+          isDaily: isDailyNote(pageUid),
+          children: [], // Will be populated in next recursion
+        });
+      });
+
+    // If we need more depth, recursively get grandchildren in batches
+    if (maxDepth > 1) {
+      console.log(`🚀 getBatchBlockChildren: Getting grandchildren (depth ${maxDepth - 1})`);
+      
+      // Collect all child UIDs for next batch
+      const allChildUids: string[] = [];
+      Object.values(childrenByParent).forEach(children => {
+        children.forEach(child => {
+          allChildUids.push(child.uid);
+        });
+      });
+      
+      if (allChildUids.length > 0) {
+        // Batch query for grandchildren
+        const grandchildrenByParent = await getBatchBlockChildren(
+          allChildUids,
+          maxDepth - 1,
+          secureMode
+        );
+        
+        // Attach grandchildren to their parents
+        Object.values(childrenByParent).forEach(children => {
+          children.forEach(child => {
+            child.children = grandchildrenByParent[child.uid] || [];
+          });
+        });
+      }
+    }
+
+    console.log(`🚀 getBatchBlockChildren: Completed, processed ${Object.keys(childrenByParent).length} parents`);
+    return childrenByParent;
+  } catch (error) {
+    console.warn(`Failed to get batch children for parents:`, error);
+    // Return empty arrays for all parents
+    const emptyResult: { [parentUid: string]: any[] } = {};
+    parentUids.forEach(parentUid => {
+      emptyResult[parentUid] = [];
+    });
+    return emptyResult;
+  }
+};
+
+/**
+ * OPTIMIZED: Get parent blocks for multiple children in batches
+ */
+export const getBatchBlockParents = async (
+  childUids: string[],
+  maxDepth: number,
+  secureMode: boolean = false
+): Promise<{ [childUid: string]: any[] }> => {
+  console.log(`🚀 getBatchBlockParents: Processing ${childUids.length} children, depth ${maxDepth}`);
+  
+  if (maxDepth <= 0 || childUids.length === 0) {
+    return {};
+  }
+
+  // Build batch query for all child UIDs at once
+  const uidsSet = childUids.map(uid => `"${uid}"`).join(' ');
+  const query = `[:find ?child-uid ?uid ?content ?page-title ?page-uid
+                 :where 
+                 [?child :block/uid ?child-uid]
+                 [(contains? #{${uidsSet}} ?child-uid)]
+                 [?parent :block/children ?child]
+                 [?parent :block/uid ?uid]
+                 [?parent :block/string ?content]
+                 [?parent :block/page ?page]
+                 [?page :node/title ?page-title]
+                 [?page :block/uid ?page-uid]]`;
+
+  try {
+    const allParents = await executeDatomicQuery(query);
+    console.log(`🚀 getBatchBlockParents: Found ${allParents.length} direct parents`);
+
+    // Group parents by child UID
+    const parentsByChild: { [childUid: string]: any[] } = {};
+    
+    // Initialize empty arrays for all children
+    childUids.forEach(childUid => {
+      parentsByChild[childUid] = [];
+    });
+    
+    // Group results (no sorting needed for parents)
+    allParents.forEach(([childUid, uid, content, pageTitle, pageUid]) => {
+      parentsByChild[childUid].push({
+        uid,
+        content: secureMode ? undefined : truncateContent(content, 50),
+        pageTitle,
+        pageUid,
+        isDaily: isDailyNote(pageUid),
+      });
+    });
+
+    // If we need more depth, recursively get grandparents in batches
+    if (maxDepth > 1) {
+      console.log(`🚀 getBatchBlockParents: Getting grandparents (depth ${maxDepth - 1})`);
+      
+      // Collect all direct parent UIDs for next batch
+      const allParentUids: string[] = [];
+      Object.values(parentsByChild).forEach(parents => {
+        parents.forEach(parent => {
+          allParentUids.push(parent.uid);
+        });
+      });
+      
+      if (allParentUids.length > 0) {
+        // Remove duplicates
+        const uniqueParentUids = [...new Set(allParentUids)];
+        
+        // Batch query for grandparents (only need one representative per child)
+        const grandparentsByParent = await getBatchBlockParents(
+          uniqueParentUids,
+          maxDepth - 1,
+          secureMode
+        );
+        
+        // Prepend grandparents to each child's parent list
+        Object.keys(parentsByChild).forEach(childUid => {
+          const directParents = parentsByChild[childUid];
+          if (directParents.length > 0) {
+            // Get grandparents through first direct parent
+            const grandparents = grandparentsByParent[directParents[0].uid] || [];
+            parentsByChild[childUid] = [...grandparents, ...directParents];
+          }
+        });
+      }
+    }
+
+    console.log(`🚀 getBatchBlockParents: Completed, processed ${Object.keys(parentsByChild).length} children`);
+    return parentsByChild;
+  } catch (error) {
+    console.warn(`Failed to get batch parents for children:`, error);
+    // Return empty arrays for all children
+    const emptyResult: { [childUid: string]: any[] } = {};
+    childUids.forEach(childUid => {
+      emptyResult[childUid] = [];
+    });
+    return emptyResult;
+  }
+};
+
+/**
+ * OPTIMIZED: Get ALL descendants for multiple parents in ONE flattened batch query
+ * This is the most efficient approach - single query gets all levels at once
+ */
+export const getFlattenedDescendants = async (
+  parentUids: string[],
+  maxDepth: number,
+  secureMode: boolean = false
+): Promise<{ [parentUid: string]: any[] }> => {
+  
+  if (maxDepth <= 0 || parentUids.length === 0) {
+    return {};
+  }
+
+  // Build single batch query for ALL descendants at ALL levels
+  const uidsSet = parentUids.map(uid => `"${uid}"`).join(' ');
+  
+  // Use recursive Datomic query to get all levels in one shot
+  let query;
+  if (maxDepth === 1) {
+    // Simple case: only direct children
+    query = `[:find ?parent-uid ?uid ?content ?page-title ?page-uid
+             :where 
+             [?parent :block/uid ?parent-uid]
+             [(contains? #{${uidsSet}} ?parent-uid)]
+             [?parent :block/children ?child]
+             [?child :block/uid ?uid]
+             [?child :block/string ?content]
+             [?child :block/page ?page]
+             [?page :node/title ?page-title]
+             [?page :block/uid ?page-uid]]`;
+  } else {
+    // Complex case: get descendants up to maxDepth levels using or-join
+    const orClauses = [];
+    
+    // Level 1: direct children
+    orClauses.push(`(and [?parent :block/children ?descendant] [(ground 1) ?level])`);
+    
+    // Level 2: grandchildren  
+    if (maxDepth >= 2) {
+      orClauses.push(`(and [?parent :block/children ?child1] 
+                           [?child1 :block/children ?descendant] 
+                           [(ground 2) ?level])`);
+    }
+    
+    // Level 3: great-grandchildren
+    if (maxDepth >= 3) {
+      orClauses.push(`(and [?parent :block/children ?child1]
+                           [?child1 :block/children ?child2] 
+                           [?child2 :block/children ?descendant] 
+                           [(ground 3) ?level])`);
+    }
+    
+    // Additional levels if needed (up to maxDepth)
+    for (let level = 4; level <= maxDepth; level++) {
+      const childVars = Array.from({length: level - 1}, (_, i) => `?child${i + 1}`).join(' ');
+      const childClauses = [];
+      
+      // Build chain: parent -> child1 -> child2 -> ... -> descendant
+      childClauses.push(`[?parent :block/children ?child1]`);
+      for (let i = 2; i < level; i++) {
+        childClauses.push(`[?child${i-1} :block/children ?child${i}]`);
+      }
+      childClauses.push(`[?child${level-1} :block/children ?descendant]`);
+      
+      orClauses.push(`(and ${childClauses.join(' ')} [(ground ${level}) ?level])`);
+    }
+    
+    query = `[:find ?parent-uid ?uid ?content ?page-title ?page-uid ?level
+             :where 
+             [?parent :block/uid ?parent-uid]
+             [(contains? #{${uidsSet}} ?parent-uid)]
+             (or-join [?parent ?descendant ?level]
+               ${orClauses.join('\n               ')})
+             [?descendant :block/uid ?uid]
+             [?descendant :block/string ?content]
+             [?descendant :block/page ?page]
+             [?page :node/title ?page-title]
+             [?page :block/uid ?page-uid]]`;
+  }
+
+  try {
+    const startTime = performance.now();
+    const allDescendants = await executeDatomicQuery(query);
+
+    // Group descendants by parent UID (flattened - all levels together)
+    const descendantsByParent: { [parentUid: string]: any[] } = {};
+    
+    // Initialize empty arrays for all parents
+    parentUids.forEach(parentUid => {
+      descendantsByParent[parentUid] = [];
+    });
+    
+    // Process results - all descendants flattened together
+    allDescendants.forEach(result => {
+      const [parentUid, uid, content, pageTitle, pageUid, level] = result;
+      
+      descendantsByParent[parentUid].push({
+        uid,
+        content: secureMode ? undefined : content,
+        pageTitle,
+        pageUid,
+        isDaily: isDailyNote(pageUid),
+        level: level || 1, // Track which level this descendant is at
+      });
+    });
+
+
+    return descendantsByParent;
+  } catch (error) {
+    console.warn(`Failed to get flattened descendants for parents:`, error);
+    // Return empty arrays for all parents
+    const emptyResult: { [parentUid: string]: any[] } = {};
+    parentUids.forEach(parentUid => {
+      emptyResult[parentUid] = [];
+    });
+    return emptyResult;
+  }
+};
+
+/**
+ * OPTIMIZED: Get ALL ancestors for multiple children in ONE flattened batch query
+ */
+export const getFlattenedAncestors = async (
+  childUids: string[],
+  maxDepth: number,
+  secureMode: boolean = false
+): Promise<{ [childUid: string]: any[] }> => {
+  
+  if (maxDepth <= 0 || childUids.length === 0) {
+    return {};
+  }
+
+  // Build single batch query for ALL ancestors at ALL levels
+  const uidsSet = childUids.map(uid => `"${uid}"`).join(' ');
+  
+  // Use recursive query for ancestors
+  let query;
+  if (maxDepth === 1) {
+    query = `[:find ?child-uid ?uid ?content ?page-title ?page-uid
+             :where 
+             [?child :block/uid ?child-uid]
+             [(contains? #{${uidsSet}} ?child-uid)]
+             [?parent :block/children ?child]
+             [?parent :block/uid ?uid]
+             [?parent :block/string ?content]
+             [?parent :block/page ?page]
+             [?page :node/title ?page-title]
+             [?page :block/uid ?page-uid]]`;
+  } else {
+    const orClauses = [];
+    
+    // Level 1: direct parents
+    orClauses.push(`(and [?ancestor :block/children ?child] [(ground 1) ?level])`);
+    
+    // Level 2: grandparents
+    if (maxDepth >= 2) {
+      orClauses.push(`(and [?ancestor :block/children ?parent1]
+                           [?parent1 :block/children ?child] 
+                           [(ground 2) ?level])`);
+    }
+    
+    // Level 3: great-grandparents
+    if (maxDepth >= 3) {
+      orClauses.push(`(and [?ancestor :block/children ?parent1]
+                           [?parent1 :block/children ?parent2]
+                           [?parent2 :block/children ?child] 
+                           [(ground 3) ?level])`);
+    }
+    
+    query = `[:find ?child-uid ?uid ?content ?page-title ?page-uid ?level
+             :where 
+             [?child :block/uid ?child-uid]
+             [(contains? #{${uidsSet}} ?child-uid)]
+             (or-join [?child ?ancestor ?level]
+               ${orClauses.join('\n               ')})
+             [?ancestor :block/uid ?uid]
+             [?ancestor :block/string ?content]
+             [?ancestor :block/page ?page]
+             [?page :node/title ?page-title]
+             [?page :block/uid ?page-uid]]`;
+  }
+
+  try {
+    const allAncestors = await executeDatomicQuery(query);
+    console.log(`🚀 getFlattenedAncestors: Single query found ${allAncestors.length} total ancestors`);
+
+    // Group ancestors by child UID (flattened)
+    const ancestorsByChild: { [childUid: string]: any[] } = {};
+    
+    childUids.forEach(childUid => {
+      ancestorsByChild[childUid] = [];
+    });
+    
+    allAncestors.forEach(([childUid, uid, content, pageTitle, pageUid, level]) => {
+      ancestorsByChild[childUid].push({
+        uid,
+        content: secureMode ? undefined : truncateContent(content, 50),
+        pageTitle,
+        pageUid,
+        isDaily: isDailyNote(pageUid),
+        level: level || 1,
+      });
+    });
+
+    return ancestorsByChild;
+  } catch (error) {
+    console.warn(`Failed to get flattened ancestors:`, error);
+    const emptyResult: { [childUid: string]: any[] } = {};
+    childUids.forEach(childUid => {
+      emptyResult[childUid] = [];
+    });
+    return emptyResult;
+  }
 };
 
 /**

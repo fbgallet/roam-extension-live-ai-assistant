@@ -7,11 +7,13 @@ import { listAvailableToolNames } from "./tools/toolsRegistry";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
-const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: extract only the title, neither [[ ]] or #)
-- '[[Page Name]]': 'ref:Page Name' (references TO) or 'in:Page Name' (content WITHIN)
+const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply ref: prefix when EXPLICITLY formatted as references)
+- '[[page title]]': 'ref:page title' (references TO) or 'in:page title' (content WITHIN)
 - '#tag' or '#[[long tag]]': 'ref:tag' (references TO)
 - 'attribute::': 'ref:attribute' (reference TO)
-- '((uid))': 'bref:uid' (direct block reference)`;
+- '((uid))': 'bref:uid' (direct block reference)
+
+**IMPORTANT**: Do NOT add 'ref:' prefix to plain text terms like "Machine Learning" - only when they appear as [[Machine Learning]] or #tag format. Plain text should remain as content search terms.`;
 
 // Shared symbolic query language definition
 export const SYMBOLIC_QUERY_LANGUAGE = `## SYMBOLIC QUERY LANGUAGE
@@ -19,38 +21,42 @@ export const SYMBOLIC_QUERY_LANGUAGE = `## SYMBOLIC QUERY LANGUAGE
 We have defined a formal language to express search queries in a precise and unambiguous way, using symbolic operators to combine search conditions (text, /regex/[i] or page reference). By default the search targets blocks that meet conditions, but if the search targets pages it must be wrapped in the 'page:(...query...)' operator.
 
 ### Logic Operators:
-- '+' = AND (conjunction)
-- '|' = OR (disjunction) 
-- '-' = NOT (exclusion)
+- '+' AND (conjunction)
+- '|' OR (disjunction) 
+- '-' NOT (exclusion)
 
 ### Search Expansion Operators:
-- 'regex:/.../[i]' = regex pattern (e.g.: regex:/words?|terms?/)
-- '*' = fuzzy search/wildcard (e.g., 'wor*' matches 'work', 'world', 'word')
-- '~' = semantic expansion (e.g., 'car~' includes 'vehicle', 'automobile', 'auto')
-
-### Hierarchical Operators:
-- '>' = direct parent (parent > child)
-- '>>' = ancestors (ancestor >> descendant)
-- '<' = direct child (child < parent)
-- '<<' = descendants (descendant << ancestor)
+- 'regex:/regex/[i]' regex pattern (e.g.: regex:/words?|terms?/)
+- '*' fuzzy search/wildcard (e.g., 'wor*' matches 'work', 'world', 'word')
+- '~' semantic expansion (e.g., 'car~' includes 'vehicle', 'automobile', 'auto')
 
 ### Reference Operators:
-- 'ref:name' = references TO pages, tags, or attributes (e.g., ref:Project A)
-- 'bref:uid' = block references by UID
+- 'ref:title' references TO [[pages]], #tags, attributes:: or title explicitly mentioned as page, where page title is parsed without Roam syntax (e.g., ref:page title)
+- 'bref:uid' block references by UID
 
 ### Page Operators (when searching for pages):
-- 'page:()' = always use it to wrap page-level queries (block-level is default, but 'block:() can also be used when both are needed)
-- 'title:pattern' = page titles matching pattern (contains text or match /regex/)
-- 'content:pattern' = page content matching pattern (text or /regex/ or mention a reference)
-- 'attr:value' = page containing attribute-value pair (e.g., attr:completed, attr:ref:to read)
+- 'page:()' always use it to wrap page-level queries (block-level is default, but 'block:() can also be used when both are needed)
+- 'title:pattern' page titles matching pattern (contains text or match /regex/)
+- 'content:pattern' page content matching pattern (text or /regex/ or mention a reference)
+- 'attr:value' page containing attribute-value pair (e.g., attr:completed, attr:ref:to read)
 
 ### Scope Operators:
-- 'in:scope' = search WITHIN specific page scope (e.g., in:work, in:dnp, in:attr:value)
+- 'in:scope' search WITHIN specific page scope (e.g., in:work, in:dnp, in:attr:value)
+
+### Hierarchical Operators:
+(in the following operators, A and B are just placeholder for any pattern, text or regex or page ref or logic combinatio of them)
+- 'A > B' direct child, match block A with a direct child B
+- 'A >> B' deep descendants hierarchy (A has B in one if its descendants)
+- 'A < B' direct parent hierarchy
+- 'A << B' deep ancestors hierarchy
+- 'A => B', '<=', '=>>' or '<<=' flexible hierarchy, blocks with A AND B are also matching
+- 'A <=> B' bidirectional direct hierarchy: A > B OR B > A
+- 'A <<=>> B' bidirectional deep hierarchy
 
 ### Advanced Operators:
-- '(...)' = use parentheses to group similar conditions and reduce ambiguity (e.g., ref:(Projet A|MissionB))
-- '→' = sequential/temporal relationships (when complex queries have to be sequenced in multiple simpler queries)
-- 'analyze:type' = analysis requests (connections, patterns, summary, count)`;
+- '(...)' use parentheses to group similar conditions and reduce ambiguity (e.g., ref:(Projet A|MissionB))
+- '→' sequential/temporal relationships (when complex queries have to be sequenced in multiple simpler queries)
+- 'analyze:type' analysis requests (connections, patterns, summary, count)`;
 
 // Shared Roam formatting instructions
 export const ROAM_FORMATTING_INSTRUCTIONS = `ROAM-SPECIFIC FORMATTING - MANDATORY:
@@ -118,7 +124,7 @@ export const buildSystemPrompt = (state: {
   userIntent?: string;
   userQuery?: string;
   formalQuery?: string;
-  searchStrategy?: "direct" | "expanded" | "semantic";
+  searchStrategy?: "direct" | "expanded" | "semantic" | "hierarchical";
   analysisType?: "count" | "compare" | "connections" | "summary";
   language?: string;
   datomicQuery?: string;
@@ -132,7 +138,8 @@ export const buildSystemPrompt = (state: {
     state.queryComplexity === "simple" &&
     !state.analysisType &&
     !state.datomicQuery &&
-    !state.formalQuery?.includes("→");
+    !state.formalQuery?.includes("→") &&
+    state.searchStrategy !== "hierarchical"; // Always use complex prompt for hierarchical
 
   if (isSimpleQuery) {
     return buildSimpleQueryPrompt(state);
@@ -218,6 +225,9 @@ IMPORTANT: fuzzy and semantic expansion have to be done in ${
 - 'recipe + sugar*' → findBlocksByContent with fuzzy "sugar" matching
 - 'ref:meeting + in:Project A' → Find [[meeting]] references within [[Project A]] page using findBlocksByContent with pageLimitation
 - 'page:(title:AI~) → analyze:connections' → Find pages about AI or relative concepts using findPagesSemantically, then use extractPageReferences to analyze the connections between their references
+- 'Machine Learning > Deep Learning' → findBlocksWithHierarchy with hierarchicalExpression="Machine Learning > Deep Learning"
+- '"AI" => "neural networks"' → findBlocksWithHierarchy with hierarchicalExpression="AI => neural networks"
+- 'ref:project <=> task' → findBlocksWithHierarchy with hierarchicalExpression="ref:project <=> task"
 
 ## EXECUTION STRATEGY
 ${
@@ -861,14 +871,16 @@ ${ROAM_REFERENCES_PARSING}
 
 ### Intent Parser Examples:
 - "Car prices but not motorcycles" → 'car + price - motorcycle'
-- "[[books]] I want #[[to read]]" → 'ref:book + ref:to read' (it works also with 'ref:(book + to read) )
-- "Find my #recipe with sugar or vanilla (in children)" → 'ref:recipe >> sugar|vanilla'
-- "Tasks to do with 'important' tag under [[budget planning]]" → 'ref:important + ref:TODO << ref:budget planning'
+- "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (it works also with 'ref:(book + to read) )
+- "Find my #recipe with sugar or vanilla (in descendants)" → 'ref:recipe >> sugar|vanilla'
+- "important tasks to do with 'important' tag under [[budget planning]]" → '(ref:TODO + important) << ref:budget planning'
+- "[[book]] notes tagged with "justice" in main block or in descendants" → 'ref:book =>> justice'
 - "Blocks about AI in my [[work]] page" → 'in:work + AI~'
 - "Find productivity #tips or similar concepts" → 'productivity~ + #tips|#tip'
 - "Blocks containing words starting with 'work'" → 'work*'
 - "Pages matching /lib.*/i in their title" → 'page:(title:regex:/lib.*/i)
 - "Pages with attribute 'status' set to #completed" → 'page:(attr:ref:completed)
+- "Machine Learning => Deep Learning" → 'Machine Learning => Deep Learning' (keep plain text as-is for content search since there is not page ref syntax or mention)
 
 ## SPECIAL CASE - DIRECT DATOMIC QUERIES:
 If the user provides a Datomic query (starts with patterns like \`[:find\`, \`[:find ?e\`, etc.), respond with:
@@ -897,6 +909,18 @@ If the user provides a Datomic query (starts with patterns like \`[:find\`, \`[:
 - Example: "productivity tips" might need expansion to "productive|efficiency|workflow|optimize"
 - Consider synonyms, abbreviations, related concepts
 
+### Search Strategy Selection:
+- "direct": Simple keyword/reference searches
+- "expanded": When fuzzy or wildcard matching needed
+- "semantic": When AI-powered semantic understanding required
+- "hierarchical": When query contains hierarchical operators (>, =>, <=>, <<=>>)
+
+**CRITICAL: Set searchStrategy to "hierarchical" if the query contains:**
+- Hierarchical operators: >, =>, <=>, <<=>> 
+- Parent-child relationship expressions
+- Phrases like "X has Y in children", "X contains Y", "Y under X"
+- Examples: "Machine Learning > Deep Learning", "AI => neural networks", "project <=> task"
+
 ## YOUR TASK
 
 Parse this user request: "${state.userQuery}"
@@ -911,9 +935,9 @@ Respond with only valid JSON, no explanations or any additional comment.
     "timeRange": null | {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"},
     "maxResults": null | number,
     "requireRandom": false | true,
-    "depthLimit": 2
+    "depthLimit": null
   },
-  "searchStrategy": "direct" | "expanded" | "semantic",
+  "searchStrategy": "direct" | "expanded" | "semantic" | "hierarchical",
   "analysisType": null | "count" | "compare" | "connections" | "summary",
   "language": "detected language of user request (e.g., 'en', 'fr', 'es')",
   "confidence": 0.1-1.0

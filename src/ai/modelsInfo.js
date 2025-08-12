@@ -54,7 +54,7 @@ export const tokensLimit = {
   "gpt-5": 400000,
   "gpt-5-chat-latest": 400000,
   "gpt-5-mini": 400000,
-  "gpt-5-mini": 400000,
+  "gpt-5-nano": 400000,
   "gpt-4.1-nano": 1047576,
   "gpt-4.1-mini": 1047576,
   "gpt-4.1": 1047576,

@@ -780,7 +780,7 @@ function getPanelConfig() {
         id: "chatRoles",
         name: "Chat roles",
         description:
-          "Roles name inserted before your prompt and AI assistant answer, separated by a coma. Use <model> as placeholder for AI model name:",
+          "Roles name inserted before your prompt and AI assistant answer, separated by a comma. Use <model> as placeholder for AI model name:",
         action: {
           type: "input",
           onChange: (evt) => {
@@ -981,7 +981,7 @@ function getPanelConfig() {
         name: "Custom OpenAI models",
         className: "liveai-settings-largeinput",
         description:
-          "List of models, separated by a command (e.g.: o1-preview):",
+          "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
         action: {
           type: "input",
           onChange: (evt) => {
