@@ -134,7 +134,7 @@ export class DatomicQueryBuilder {
   }
 
   /**
-   * Build mixed conditions (optimized text OR + other conditions)
+   * Build mixed conditions (optimized text OR + other conditions) with consistent variable naming
    */
   private buildMixedConditions(
     textConditions: SearchCondition[],
@@ -145,6 +145,7 @@ export class DatomicQueryBuilder {
     conditionClauses: string;
   } {
     let patternDefinitions = "";
+    let conditionClauses = "";
     let orClauses: string[] = [];
 
     // Add optimized text OR as one clause
@@ -160,9 +161,36 @@ export class DatomicQueryBuilder {
       );
     }
 
-    // Add other conditions
-    for (let i = 0; i < otherConditions.length; i++) {
-      const condition = otherConditions[i];
+    // Group other conditions by type to use consistent variable names
+    const pageRefConditions = otherConditions.filter(c => c.type === "page_ref");
+    const blockRefConditions = otherConditions.filter(c => c.type === "block_ref");
+    const remainingConditions = otherConditions.filter(c => c.type !== "page_ref" && c.type !== "block_ref");
+
+    // Handle page references with consistent variable naming
+    if (pageRefConditions.length > 0) {
+      // Add the common block reference constraint outside the OR
+      conditionClauses += `\n                [?b :block/refs ?ref-page]`;
+      
+      // Add page title constraints inside the OR
+      for (const condition of pageRefConditions) {
+        orClauses.push(this.buildPageRefClause(condition, contentVariable));
+      }
+    }
+
+    // Handle block references with consistent variable naming  
+    if (blockRefConditions.length > 0) {
+      // Add the common block reference constraint outside the OR
+      conditionClauses += `\n                [?b :block/refs ?ref-block]`;
+      
+      // Add block UID constraints inside the OR
+      for (const condition of blockRefConditions) {
+        orClauses.push(this.buildBlockRefClause(condition, contentVariable));
+      }
+    }
+
+    // Handle remaining conditions with individual indices
+    for (let i = 0; i < remainingConditions.length; i++) {
+      const condition = remainingConditions[i];
       const adjustedIndex = i + 1000; // Avoid conflicts with combined pattern
       patternDefinitions += this.buildPatternDefinition(
         condition,
@@ -173,33 +201,73 @@ export class DatomicQueryBuilder {
       );
     }
 
-    const conditionClauses = `\n                (or${orClauses.join(
-      ""
-    )}\n                )`;
+    // Add the OR clause if we have any conditions
+    if (orClauses.length > 0) {
+      conditionClauses += `\n                (or${orClauses.join(
+        ""
+      )}\n                )`;
+    }
+
     return { patternDefinitions, conditionClauses };
   }
 
   /**
-   * Build standard OR clause (fallback)
+   * Build standard OR clause with consistent variable naming
    */
   private buildStandardOr(contentVariable: string): {
     patternDefinitions: string;
     conditionClauses: string;
   } {
     let patternDefinitions = "";
+    let conditionClauses = "";
     let orClauses: string[] = [];
 
-    for (let i = 0; i < this.conditions.length; i++) {
-      const condition = this.conditions[i];
-      patternDefinitions += this.buildPatternDefinition(condition, i);
+    // Group conditions by type to use consistent variable names
+    const pageRefConditions = this.conditions.filter(c => c.type === "page_ref");
+    const blockRefConditions = this.conditions.filter(c => c.type === "block_ref");
+    const otherConditions = this.conditions.filter(c => c.type !== "page_ref" && c.type !== "block_ref");
+
+    // Handle page references with consistent variable naming
+    if (pageRefConditions.length > 0) {
+      // Add the common block reference constraint outside the OR
+      conditionClauses += `\n                [?b :block/refs ?ref-page]`;
+      
+      // Add page title constraints inside the OR
+      for (let i = 0; i < pageRefConditions.length; i++) {
+        const condition = pageRefConditions[i];
+        orClauses.push(this.buildPageRefClause(condition, contentVariable));
+      }
+    }
+
+    // Handle block references with consistent variable naming  
+    if (blockRefConditions.length > 0) {
+      // Add the common block reference constraint outside the OR
+      conditionClauses += `\n                [?b :block/refs ?ref-block]`;
+      
+      // Add block UID constraints inside the OR
+      for (let i = 0; i < blockRefConditions.length; i++) {
+        const condition = blockRefConditions[i];
+        orClauses.push(this.buildBlockRefClause(condition, contentVariable));
+      }
+    }
+
+    // Handle other conditions with individual indices
+    for (let i = 0; i < otherConditions.length; i++) {
+      const condition = otherConditions[i];
+      const adjustedIndex = i + 2000; // High index to avoid conflicts
+      patternDefinitions += this.buildPatternDefinition(condition, adjustedIndex);
       orClauses.push(
-        this.buildMatchClause(condition, i, contentVariable, true)
+        this.buildMatchClause(condition, adjustedIndex, contentVariable, true)
       );
     }
 
-    const conditionClauses = `\n                (or${orClauses.join(
-      ""
-    )}\n                )`;
+    // Add the OR clause if we have any conditions
+    if (orClauses.length > 0) {
+      conditionClauses += `\n                (or${orClauses.join(
+        ""
+      )}\n                )`;
+    }
+
     return { patternDefinitions, conditionClauses };
   }
 
@@ -281,7 +349,42 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
           }
         }
         break;
+
     }
+
+    // Apply negation if needed
+    if (condition.negate) {
+      clause = `\n${indent}(not ${clause.trim()})`;
+    }
+
+    return clause;
+  }
+
+  /**
+   * Build page reference clause with consistent variable naming for OR queries
+   */
+  private buildPageRefClause(condition: SearchCondition, _contentVariable: string): string {
+    const indent = "                  ";
+    // For OR context, only include the page title constraint
+    // The block reference constraint will be added outside the OR
+    let clause = `\n${indent}[?ref-page :node/title "${condition.text}"]`;
+
+    // Apply negation if needed
+    if (condition.negate) {
+      clause = `\n${indent}(not ${clause.trim()})`;
+    }
+
+    return clause;
+  }
+
+  /**
+   * Build block reference clause with consistent variable naming for OR queries
+   */
+  private buildBlockRefClause(condition: SearchCondition, _contentVariable: string): string {
+    const indent = "                  ";
+    // For OR context, only include the block UID constraint
+    // The block reference constraint will be added outside the OR
+    let clause = `\n${indent}[?ref-block :block/uid "${condition.text}"]`;
 
     // Apply negation if needed
     if (condition.negate) {
