@@ -123,7 +123,9 @@ const ReactSearchAgentState = Annotation.Root({
   userIntent: Annotation<string | undefined>,
   // New symbolic query fields
   formalQuery: Annotation<string | undefined>,
-  searchStrategy: Annotation<"direct" | "expanded" | "semantic" | undefined>,
+  searchStrategy: Annotation<
+    "direct" | "expanded" | "semantic" | "hierarchical" | undefined
+  >,
   analysisType: Annotation<
     "count" | "compare" | "connections" | "summary" | undefined
   >,
@@ -300,7 +302,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         requireRandom?: boolean;
         depthLimit?: number;
       };
-      searchStrategy: "direct" | "expanded" | "semantic";
+      searchStrategy: "direct" | "expanded" | "semantic" | "hierarchical";
       analysisType?: "count" | "compare" | "connections" | "summary";
       language: string;
       confidence: number;
@@ -345,7 +347,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     }
 
     // Show user-friendly summary in toaster
-    updateAgentToaster(`🔍 Formalised query: ${analysis.formalQuery}`);
+    updateAgentToaster(`🔍 Symbolic query: ${analysis.formalQuery}`);
     updateAgentToaster(`🔍 ${analysis.searchStrategy} search strategy planned`);
 
     return {
@@ -682,7 +684,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     datomicQuery: state.datomicQuery,
     strategicGuidance: state.strategicGuidance,
   });
-  console.log("Assistant systemPrompt :>> ", systemPrompt);
+  // console.log("Assistant systemPrompt :>> ", systemPrompt);
   const contextInstructions = `
 
 CRITICAL INSTRUCTION: 
@@ -1650,8 +1652,8 @@ const routeAfterCache = (state: typeof ReactSearchAgentState.State) => {
 const toolsWithResultLifecycle = async (
   state: typeof ReactSearchAgentState.State
 ) => {
-  // Create the standard ToolNode for execution
-  const toolNode = new ToolNode(searchTools);
+  // Create the standard ToolNode for execution using state-aware tools
+  const toolNode = new ToolNode(state.searchTools);
 
   // Execute tools normally
   const result = await toolNode.invoke(state, {
