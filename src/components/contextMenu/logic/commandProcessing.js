@@ -34,7 +34,11 @@ import {
   defaultModel,
 } from "../../..";
 import { hasTrueBooleanKey } from "../../../utils/dataProcessing";
-import { insertInstantButtons, displayAskGraphModeDialog, displayAskGraphFirstTimeDialog } from "../../../utils/domElts";
+import {
+  insertInstantButtons,
+  displayAskGraphModeDialog,
+  displayAskGraphFirstTimeDialog,
+} from "../../../utils/domElts";
 
 export const handleClickOnCommand = async ({
   e,
@@ -96,7 +100,7 @@ export const handleClickOnCommand = async ({
           const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
           effectiveRootUid = focusedBlock?.["block-uid"] || null;
         }
-        
+
         await command.callback({
           model,
           target,
@@ -107,7 +111,6 @@ export const handleClickOnCommand = async ({
         });
       } catch (error) {
         if (error.message === "MODE_ESCALATION_NEEDED") {
-          
           // Show mode selection dialog using the display function
           displayAskGraphModeDialog({
             currentMode: error.currentMode,
@@ -117,17 +120,19 @@ export const handleClickOnCommand = async ({
               try {
                 // Set session mode if user chose to remember
                 if (rememberChoice) {
-                  const { setSessionAskGraphMode } = await import("../../../ai/agents/search-agent/ask-your-graph.ts");
+                  const { setSessionAskGraphMode } = await import(
+                    "../../../ai/agents/search-agent/ask-your-graph.ts"
+                  );
                   setSessionAskGraphMode(selectedMode, true);
                 }
-                
+
                 // Ensure we have a valid focused block UID for retry
                 let effectiveRootUid = focusedBlockUid.current;
                 if (!effectiveRootUid) {
                   const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
                   effectiveRootUid = focusedBlock?.["block-uid"] || null;
                 }
-                
+
                 await command.callback({
                   model,
                   target,
@@ -139,9 +144,12 @@ export const handleClickOnCommand = async ({
                   bypassDialog: true,
                 });
               } catch (retryError) {
-                console.error("Error with selected mode in commandProcessing:", retryError);
+                console.error(
+                  "Error with selected mode in commandProcessing:",
+                  retryError
+                );
               }
-            }
+            },
           });
         } else if (error.message === "FIRST_TIME_SETUP_NEEDED") {
           // Show first time setup dialog
@@ -149,16 +157,18 @@ export const handleClickOnCommand = async ({
             onModeSelect: async (selectedMode) => {
               try {
                 // Set the selected mode as default
-                const { setSessionAskGraphMode } = await import("../../../ai/agents/search-agent/ask-your-graph.ts");
+                const { setSessionAskGraphMode } = await import(
+                  "../../../ai/agents/search-agent/ask-your-graph.ts"
+                );
                 setSessionAskGraphMode(selectedMode, true);
-                
+
                 // Ensure we have a valid focused block UID for first time setup
                 let effectiveRootUid = focusedBlockUid.current;
                 if (!effectiveRootUid) {
                   const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
                   effectiveRootUid = focusedBlock?.["block-uid"] || null;
                 }
-                
+
                 await command.callback({
                   model,
                   target,
@@ -170,9 +180,12 @@ export const handleClickOnCommand = async ({
                   bypassDialog: true,
                 });
               } catch (retryError) {
-                console.error("Error with first time selected mode:", retryError);
+                console.error(
+                  "Error with first time selected mode:",
+                  retryError
+                );
               }
-            }
+            },
           });
         } else {
           // Re-throw other errors
@@ -545,6 +558,7 @@ export const getInstantPrompt = (
         maxCapturing: 99,
         maxUid: 0,
         withDash: true,
+        isParentToIgnore: false,
       });
     else
       instantPrompt =

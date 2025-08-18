@@ -5,12 +5,9 @@ import {
   Popover,
   MenuDivider,
   Icon,
-  Checkbox,
   Dialog,
-  NumericInput,
 } from "@blueprintjs/core";
-import { Select } from "@blueprintjs/select";
-import React, { useCallback, useEffect, useRef, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import ReactDOM from "react-dom";
 import {
   availableModels,
@@ -19,11 +16,7 @@ import {
   menuModifierKey,
 } from "../..";
 import ModelsMenu from "../ModelsMenu";
-import {
-  highlightHtmlElt,
-  setAsOutline,
-  toggleOutlinerSelection,
-} from "../../utils/domElts";
+import { highlightHtmlElt, toggleOutlinerSelection } from "../../utils/domElts";
 import { CATEGORY_ICON } from "../../ai/prebuildCommands";
 import { languages } from "../../ai/languagesSupport";
 import {
@@ -587,6 +580,7 @@ export const StandaloneContextMenu = () => {
       prompt,
       model: cmdModel,
       // Context and state
+      isChildrenTreeToInclude,
       roamContextRef,
       focusedBlockUid,
       focusedBlockContent,

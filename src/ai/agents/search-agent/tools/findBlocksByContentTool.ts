@@ -6,6 +6,7 @@ import {
   filterByDateRange,
   createToolResult,
   generateSemanticExpansions,
+  generateFuzzyRegex,
   getBlockChildren,
   getBlockParents,
   DatomicQueryBuilder,
@@ -15,6 +16,7 @@ import {
   fuzzyMatch,
   extractUidsFromResults,
   sanitizeRegexForDatomic,
+  parseSemanticExpansion,
 } from "./searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
@@ -22,16 +24,19 @@ import { updateAgentToaster } from "../../shared/agentsUtils";
 // Extract user-requested limit from query (e.g., "2 random results", "first 5 pages", "show me 10 blocks")
 const extractUserRequestedLimit = (userQuery: string): number | null => {
   const query = userQuery.toLowerCase();
-  
+
   // Pattern 1: "N results", "N random results", "N pages", "N blocks"
-  const numberResultsMatch = query.match(/(\d+)\s+(random\s+)?(results?|pages?|blocks?)/);
+  const numberResultsMatch = query.match(
+    /(\d+)\s+(random\s+)?(results?|pages?|blocks?)/
+  );
   if (numberResultsMatch) {
     const num = parseInt(numberResultsMatch[1], 10);
-    if (num > 0 && num <= 500) { // Reasonable bounds
+    if (num > 0 && num <= 500) {
+      // Reasonable bounds
       return num;
     }
   }
-  
+
   // Pattern 2: "first N", "top N", "show me N"
   const firstNMatch = query.match(/(first|top|show me)\s+(\d+)/);
   if (firstNMatch) {
@@ -40,7 +45,7 @@ const extractUserRequestedLimit = (userQuery: string): number | null => {
       return num;
     }
   }
-  
+
   // Pattern 3: "limit to N", "max N", "up to N"
   const limitMatch = query.match(/(limit to|max|up to)\s+(\d+)/);
   if (limitMatch) {
@@ -49,23 +54,37 @@ const extractUserRequestedLimit = (userQuery: string): number | null => {
       return num;
     }
   }
-  
+
   return null; // No specific limit found
 };
 
 /**
  * Find blocks by content conditions with semantic expansion and hierarchy support
  * Security Level: Flexible (secure mode = UIDs/metadata only, content mode = includes full content)
- * 
+ *
  * This tool searches for blocks by content conditions with support for semantic expansion
  * and hierarchy context. Use secureMode=true to exclude full block content from results.
  */
 
 const contentConditionSchema = z.object({
-  type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text"),
+  type: z
+    .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+    .default("text"),
   text: z.string().min(1, "Search text is required"),
   matchType: z.enum(["exact", "contains", "regex"]).default("contains"),
-  semanticExpansion: z.boolean().default(false).describe("Only use when few results or user requests semantic search"),
+  semanticExpansion: z
+    .enum([
+      "fuzzy",
+      "synonyms",
+      "related_concepts",
+      "broader_terms",
+      "custom",
+      "all",
+    ])
+    .optional()
+    .describe(
+      "Semantic expansion strategy to apply, depending on '*'=fuzzy or '~'='synonym' or globalSemanticHint value if not undefined. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
+    ),
   weight: z.number().min(0).max(10).default(1.0),
   negate: z.boolean().default(false),
 });
@@ -75,16 +94,25 @@ const schema = z.object({
     .array(contentConditionSchema)
     .min(1, "At least one condition is required"),
   combineConditions: z.enum(["AND", "OR"]).default("AND"),
-  maxExpansions: z.number().min(1).max(10).default(3),
-  expansionStrategy: z
-    .enum(["synonyms", "related_concepts", "broader_terms"])
-    .default("related_concepts"),
-  includeChildren: z.boolean().default(false).describe("Include child blocks (expensive for large result sets - only use when exploring specific blocks)"),
+  includeChildren: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Include child blocks (expensive for large result sets - only use when exploring specific blocks)"
+    ),
   childDepth: z.number().min(1).max(5).default(2),
-  includeParents: z.boolean().default(false).describe("Include parent blocks (expensive - only use when exploring specific blocks)"),
+  includeParents: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Include parent blocks (expensive - only use when exploring specific blocks)"
+    ),
   parentDepth: z.number().min(1).max(3).default(1),
   includeDaily: z.boolean().default(true),
-  dailyNotesOnly: z.boolean().default(false).describe("Search ONLY in daily notes (overrides includeDaily when true)"),
+  dailyNotesOnly: z
+    .boolean()
+    .default(false)
+    .describe("Search ONLY in daily notes (overrides includeDaily when true)"),
   dateRange: z
     .object({
       start: z.union([z.date(), z.string()]).optional(),
@@ -92,72 +120,207 @@ const schema = z.object({
     })
     .optional(),
   // Enhanced sorting and sampling options
-  sortBy: z.enum(["relevance", "creation", "modification", "alphabetical", "random"]).default("relevance"),
+  sortBy: z
+    .enum(["relevance", "creation", "modification", "alphabetical", "random"])
+    .default("relevance"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   limit: z.number().min(1).max(50000).default(500), // Increased default and max limits
-  
+
   // Random sampling for large datasets
-  randomSample: z.object({
-    enabled: z.boolean().default(false),
-    size: z.number().min(1).max(10000).default(100),
-    seed: z.number().optional().describe("Seed for reproducible random sampling")
-  }).optional(),
-  
+  randomSample: z
+    .object({
+      enabled: z.boolean().default(false),
+      size: z.number().min(1).max(10000).default(100),
+      seed: z
+        .number()
+        .optional()
+        .describe("Seed for reproducible random sampling"),
+    })
+    .optional(),
+
   // Result modes for controlling data transfer
-  resultMode: z.enum(["full", "summary", "uids_only"]).default("summary").describe("full=all data, summary=essential fields only, uids_only=just UIDs and basic metadata"),
-  summaryLimit: z.number().min(1).max(50).default(20).describe("Maximum results to return in summary mode to prevent token bloat"),
-  
+  resultMode: z
+    .enum(["full", "summary", "uids_only"])
+    .default("summary")
+    .describe(
+      "full=all data, summary=essential fields only, uids_only=just UIDs and basic metadata"
+    ),
+  summaryLimit: z
+    .number()
+    .min(1)
+    .max(50)
+    .default(20)
+    .describe(
+      "Maximum results to return in summary mode to prevent token bloat"
+    ),
+
   // Security mode
-  secureMode: z.boolean().default(false).describe("If true, excludes full block content from results (UIDs and metadata only)"),
-  
+  secureMode: z
+    .boolean()
+    .default(false)
+    .describe(
+      "If true, excludes full block content from results (UIDs and metadata only)"
+    ),
+
   // Result lifecycle management
-  purpose: z.enum(["final", "intermediate", "replacement", "completion"]).optional()
-    .describe("Purpose: 'final' for user response data, 'intermediate' for exploration, 'replacement' to replace previous results, 'completion' to add to previous results"),
-  replacesResultId: z.string().optional()
-    .describe("If purpose is 'replacement', specify which result ID to replace (e.g., 'findBlocksByContent_001')"),
-  completesResultId: z.string().optional() 
-    .describe("If purpose is 'completion', specify which result ID this completes (e.g., 'findPagesByTitle_002')"),
-  
-  // User query exclusion
-  userQuery: z.string().optional().describe("The original user query to exclude from results"),
-  
+  purpose: z
+    .enum(["final", "intermediate", "replacement", "completion"])
+    .optional()
+    .describe(
+      "Purpose: 'final' for user response data, 'intermediate' for exploration, 'replacement' to replace previous results, 'completion' to add to previous results"
+    ),
+  replacesResultId: z
+    .string()
+    .optional()
+    .describe(
+      "If purpose is 'replacement', specify which result ID to replace (e.g., 'findBlocksByContent_001')"
+    ),
+  completesResultId: z
+    .string()
+    .optional()
+    .describe(
+      "If purpose is 'completion', specify which result ID this completes (e.g., 'findPagesByTitle_002')"
+    ),
+
+  // Block UID exclusion (replaces userQuery-based exclusion)
+  excludeBlockUid: z
+    .string()
+    .optional()
+    .describe(
+      "Block UID to exclude from results (typically the user's query block)"
+    ),
+  userQuery: z
+    .string()
+    .optional()
+    .describe("The original user query text (for context, not for exclusion)"),
+
   // Page scope limitation
-  limitToPages: z.array(z.string()).optional().describe("Limit search to blocks within specific pages (by exact page title). Use for 'in page [[X]]' queries."),
-  
+  limitToPages: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Limit search to blocks within specific pages (by exact page title). Use for 'in page [[X]]' queries."
+    ),
+
   // UID-based filtering for optimization
-  fromResultId: z.string().optional().describe("Limit search to blocks/pages from previous result (e.g., 'findBlocksByContent_001'). Dramatically improves performance for large databases."),
-  limitToBlockUids: z.array(z.string()).optional().describe("Limit search to specific block UIDs (user-provided list)"),
-  limitToPageUids: z.array(z.string()).optional().describe("Limit search to blocks within specific page UIDs"),
-  
+  fromResultId: z
+    .string()
+    .optional()
+    .describe(
+      "Limit search to blocks/pages from previous result (e.g., 'findBlocksByContent_001'). Dramatically improves performance for large databases."
+    ),
+  limitToBlockUids: z
+    .array(z.string())
+    .optional()
+    .describe("Limit search to specific block UIDs (user-provided list)"),
+  limitToPageUids: z
+    .array(z.string())
+    .optional()
+    .describe("Limit search to blocks within specific page UIDs"),
+
   // Fuzzy matching for typos and approximate matches
-  fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance and approximate matching for search terms"),
-  fuzzyThreshold: z.number().min(0).max(1).default(0.8).describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)")
+  fuzzyMatching: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Enable typo tolerance and approximate matching for search terms"
+    ),
+  fuzzyThreshold: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.8)
+    .describe("Similarity threshold for fuzzy matches (0=exact, 1=very loose)"),
+
+  // Expansion level for ranking (injected by agent state wrapper)
+  expansionLevel: z
+    .number()
+    .optional()
+    .describe(
+      "Current expansion level for ranking (0=exact, 1-3=expansion levels)"
+    ),
 });
 
 // Minimal LLM-facing schema - only essential user-controllable parameters
 const llmFacingSchema = z.object({
-  conditions: z.array(z.object({
-    text: z.string().min(1, "Search text is required"),
-    type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text").describe("text=content search, page_ref=[[page]] reference, regex=pattern matching"),
-    matchType: z.enum(["exact", "contains", "regex"]).default("contains").describe("contains=phrase within block, exact=entire block matches"),
-    negate: z.boolean().default(false).describe("Exclude blocks matching this condition")
-  })).min(1, "At least one search condition required"),
-  combineConditions: z.enum(["AND", "OR"]).default("AND").describe("AND=all conditions must match, OR=any condition matches"),
-  includeChildren: z.boolean().default(false).describe("Include child blocks in results (use sparingly for performance)"),
-  includeParents: z.boolean().default(false).describe("Include parent blocks for context"),
-  limitToPages: z.array(z.string()).optional().describe("Search only within these specific pages (by exact title)"),
-  fromResultId: z.string().optional().describe("Limit to results from previous search (e.g., 'findBlocksByContent_001') - major performance boost"),
-  limitToBlockUids: z.array(z.string()).optional().describe("Limit to specific block UIDs"),
-  limitToPageUids: z.array(z.string()).optional().describe("Limit to blocks within specific page UIDs"),
-  fuzzyMatching: z.boolean().default(false).describe("Enable typo tolerance and approximate matching")
+  conditions: z
+    .array(
+      z.object({
+        text: z.string().min(1, "Search text is required"),
+        type: z
+          .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+          .default("text")
+          .describe(
+            "text=content search, page_ref=[[page]] reference, regex=pattern matching"
+          ),
+        matchType: z
+          .enum(["exact", "contains", "regex"])
+          .default("contains")
+          .describe("contains=phrase within block, exact=entire block matches"),
+        negate: z
+          .boolean()
+          .default(false)
+          .describe("Exclude blocks matching this condition"),
+      })
+    )
+    .min(1, "At least one search condition required"),
+  combineConditions: z
+    .enum(["AND", "OR"])
+    .default("AND")
+    .describe("AND=all conditions must match, OR=any condition matches"),
+  includeChildren: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Include child blocks in results (use sparingly for performance)"
+    ),
+  includeParents: z
+    .boolean()
+    .default(false)
+    .describe("Include parent blocks for context"),
+  limitToPages: z
+    .array(z.string())
+    .optional()
+    .describe("Search only within these specific pages (by exact title)"),
+  fromResultId: z
+    .string()
+    .optional()
+    .describe(
+      "Limit to results from previous search (e.g., 'findBlocksByContent_001') - major performance boost"
+    ),
+  limitToBlockUids: z
+    .array(z.string())
+    .optional()
+    .describe("Limit to specific block UIDs"),
+  limitToPageUids: z
+    .array(z.string())
+    .optional()
+    .describe("Limit to blocks within specific page UIDs"),
+  fuzzyMatching: z
+    .boolean()
+    .default(false)
+    .describe("Enable typo tolerance and approximate matching"),
+
+  // Internal parameters injected by agent state wrapper (LLM should not set these)
+  resultMode: z.enum(["full", "summary", "uids_only"]).optional(),
+  secureMode: z.boolean().optional(),
+  userQuery: z.string().optional(),
+  excludeBlockUid: z.string().optional(),
+  expansionLevel: z
+    .number()
+    .optional()
+    .describe(
+      "Current expansion level for ranking (0=exact, 1-3=expansion levels)"
+    ),
 });
 
-const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: any) => {
+const findBlocksByContentImpl = async (
+  input: z.infer<typeof schema>,
+  state?: any
+) => {
   const {
     conditions,
     combineConditions,
-    maxExpansions,
-    expansionStrategy,
     includeChildren,
     childDepth,
     includeParents,
@@ -172,37 +335,42 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     summaryLimit,
     secureMode,
     userQuery,
+    excludeBlockUid,
     limitToPages,
     fromResultId,
     limitToBlockUids,
     limitToPageUids,
     fuzzyMatching,
     fuzzyThreshold,
+    expansionLevel,
   } = input;
 
   // Parse dateRange if provided as strings
   let parsedDateRange;
   if (input.dateRange && (input.dateRange.start || input.dateRange.end)) {
     parsedDateRange = {
-      start: typeof input.dateRange.start === 'string' ? new Date(input.dateRange.start) : input.dateRange.start,
-      end: typeof input.dateRange.end === 'string' ? new Date(input.dateRange.end) : input.dateRange.end,
+      start:
+        typeof input.dateRange.start === "string"
+          ? new Date(input.dateRange.start)
+          : input.dateRange.start,
+      end:
+        typeof input.dateRange.end === "string"
+          ? new Date(input.dateRange.end)
+          : input.dateRange.end,
     };
   }
 
   // UID-based filtering for optimization
-  const { blockUids: finalBlockUids, pageUids: finalPageUids } = extractUidsFromResults(
-    fromResultId,
-    limitToBlockUids,
-    limitToPageUids,
-    state
-  );
+  const { blockUids: finalBlockUids, pageUids: finalPageUids } =
+    extractUidsFromResults(
+      fromResultId,
+      limitToBlockUids,
+      limitToPageUids,
+      state
+    );
 
   // Step 1: Process conditions with semantic expansion if needed
-  const expandedConditions = await expandConditions(
-    conditions,
-    expansionStrategy,
-    maxExpansions
-  );
+  const expandedConditions = await expandConditions(conditions, state);
 
   const hasExpansions = expandedConditions.length > conditions.length;
   if (hasExpansions) {
@@ -210,7 +378,18 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
   }
 
   // Step 2: Build and execute search query
-  
+
+  console.log(
+    `🔍 [DEBUG] Expanded conditions for Datomic:`,
+    expandedConditions.map((c) => ({
+      type: c.type,
+      text: c.text,
+      matchType: c.matchType,
+      semanticExpansion: c.semanticExpansion,
+      negate: c.negate,
+    }))
+  );
+
   const searchResults = await searchBlocksWithConditions(
     expandedConditions,
     combineConditions,
@@ -220,7 +399,6 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     finalBlockUids.length > 0 ? finalBlockUids : undefined,
     finalPageUids.length > 0 ? finalPageUids : undefined
   );
-
 
   // Step 2.5: Apply fuzzy matching post-processing if enabled
   let fuzzyFilteredResults = searchResults;
@@ -236,44 +414,57 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
   let optimizedIncludeChildren = includeChildren;
   let optimizedIncludeParents = includeParents;
   let enrichedResults: any[];
-  
+
   // Optimization: Skip expensive hierarchy enrichment for large result sets unless explicitly needed
   if (fuzzyFilteredResults.length > 100) {
-    if (includeChildren && !userQuery?.match(/context|hierarchy|structure|children|explore/i)) {
+    if (
+      includeChildren &&
+      !userQuery?.match(/context|hierarchy|structure|children|explore/i)
+    ) {
       optimizedIncludeChildren = false;
     }
-    if (includeParents && !userQuery?.match(/context|hierarchy|structure|parents|explore/i)) {
+    if (
+      includeParents &&
+      !userQuery?.match(/context|hierarchy|structure|parents|explore/i)
+    ) {
       optimizedIncludeParents = false;
     }
   }
-  
+
   // Step 3: Only call enrichWithHierarchy if we actually need hierarchy data
   if (optimizedIncludeChildren || optimizedIncludeParents) {
-    updateAgentToaster(`🔗 Adding context to ${fuzzyFilteredResults.length} results...`);
-    
+    updateAgentToaster(
+      `🔗 Adding context to ${fuzzyFilteredResults.length} results...`
+    );
+
     enrichedResults = await enrichWithHierarchy(
       fuzzyFilteredResults,
       optimizedIncludeChildren,
       childDepth,
       optimizedIncludeParents,
       parentDepth,
-      secureMode
+      secureMode,
+      expansionLevel || 0
     );
   } else {
     // Fast path: Create basic block structure without expensive hierarchy queries
-    enrichedResults = fuzzyFilteredResults.map(([uid, content, time, pageTitle, pageUid]) => ({
-      uid,
-      content: secureMode ? undefined : content,
-      created: new Date(time),
-      modified: new Date(time),
-      pageTitle,
-      pageUid,
-      isDaily: isDailyNote(pageUid),
-      children: [],
-      parents: [],
-      // Explicit type flag (isPage: false means it's a block)
-      isPage: false
-    }));
+    enrichedResults = fuzzyFilteredResults.map(
+      ([uid, content, time, pageTitle, pageUid]) => ({
+        uid,
+        content: secureMode ? undefined : content,
+        created: new Date(time),
+        modified: new Date(time),
+        pageTitle,
+        pageUid,
+        isDaily: isDailyNote(pageUid),
+        children: [],
+        parents: [],
+        // Explicit type flag (isPage: false means it's a block)
+        isPage: false,
+        // Add expansion level for ranking
+        expansionLevel: expansionLevel || 0,
+      })
+    );
   }
 
   // Step 4: Apply date range filtering for DNPs if specified
@@ -282,77 +473,91 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     filteredResults = filterByDateRange(filteredResults, parsedDateRange);
   }
 
-  // Step 4.5: Exclude user query block from results
-  if (userQuery) {
-    filteredResults = filteredResults.filter(result => {
-      // More flexible exclusion - check for exact match OR if the block contains the query and is similar length
-      const exactMatch = result.content === userQuery;
-      const containsAndSimilar = result.content && result.content.includes(userQuery) && 
-                                Math.abs(result.content.length - userQuery.length) < 50;
-      const shouldExclude = exactMatch || containsAndSimilar;
-      
-      return !shouldExclude;
-    });
+  // Step 4.5: Exclude user query block from results by UID
+  if (excludeBlockUid) {
+    const originalCount = filteredResults.length;
+    filteredResults = filteredResults.filter(
+      (result) => result.uid !== excludeBlockUid
+    );
+    const excludedCount = originalCount - filteredResults.length;
   }
 
   // Step 5: Apply enhanced sorting, sampling, and limiting
   // Determine security mode for limits
-  const securityMode = secureMode ? "private" : (resultMode === "full" ? "full" : "balanced");
-  
+  const securityMode = secureMode
+    ? "private"
+    : resultMode === "full"
+    ? "full"
+    : "balanced";
+
   const processedResults = processEnhancedResults(filteredResults, {
     sortBy: sortBy as any, // Type is already validated by schema
     sortOrder,
     limit,
-    randomSample: randomSample ? {
-      enabled: randomSample.enabled || false,
-      size: randomSample.size || 100,
-      seed: randomSample.seed
-    } : undefined,
-    securityMode
+    randomSample: randomSample
+      ? {
+          enabled: randomSample.enabled || false,
+          size: randomSample.size || 100,
+          seed: randomSample.seed,
+        }
+      : undefined,
+    securityMode,
   });
-  
+
   let finalResults = processedResults.data;
   let wasLimited = processedResults.metadata.wasLimited;
   let originalCount = processedResults.metadata.totalFound;
 
   // Step 6: Apply result mode filtering
 
-  // Apply smart limiting based on result mode  
+  // Apply smart limiting based on result mode
   // CRITICAL SAFEGUARDS: Always enforce limits to prevent 120k+ token costs
-  
+
   // Extract user-requested limit from query before applying tool defaults
   const userRequestedLimit = extractUserRequestedLimit(userQuery || "");
-  
-  // CRITICAL DISTINCTION: 
+
+  // CRITICAL DISTINCTION:
   // - User-requested limits: Always respected (user asked for specific number)
   // - Summary mode limits: Only for LLM processing, not for Full Results storage
   // - Full Results should get up to 500 results, display gets limited later
-  
+
   if (userRequestedLimit) {
     // User specifically requested a certain number - respect it completely
     finalResults = finalResults.slice(0, userRequestedLimit);
     wasLimited = finalResults.length < originalCount;
   } else if (resultMode === "summary" && finalResults.length > 500) {
     // Summary mode: Allow up to 500 for Full Results popup, but warn about costs
-    updateAgentToaster(`⚡ Limiting to 500 of ${finalResults.length} results (max for popup)`);
+    updateAgentToaster(
+      `⚡ Limiting to 500 of ${finalResults.length} results (max for popup)`
+    );
     finalResults = finalResults.slice(0, 500);
     wasLimited = true;
-  } else if (resultMode === "uids_only" && securityMode === "full" && finalResults.length > 100) {
+  } else if (
+    resultMode === "uids_only" &&
+    securityMode === "full" &&
+    finalResults.length > 100
+  ) {
     // Only limit UIDs mode in full access mode where content goes to LLM
-    updateAgentToaster(`⚡ Limiting to 100 of ${finalResults.length} results for analysis`);
+    updateAgentToaster(
+      `⚡ Limiting to 100 of ${finalResults.length} results for analysis`
+    );
     finalResults = finalResults.slice(0, 100);
     wasLimited = true;
   } else if (resultMode === "full" && finalResults.length > 300) {
     // EMERGENCY SAFEGUARD: Full mode should NEVER return unlimited results
-    updateAgentToaster(`🚨 Showing first 300 of ${finalResults.length} results (maximum allowed)`);
+    updateAgentToaster(
+      `🚨 Showing first 300 of ${finalResults.length} results (maximum allowed)`
+    );
     finalResults = finalResults.slice(0, 300);
     wasLimited = true;
   } else if (finalResults.length > limit) {
-    updateAgentToaster(`⚡ Showing top ${limit} of ${finalResults.length} results`);
+    updateAgentToaster(
+      `⚡ Showing top ${limit} of ${finalResults.length} results`
+    );
     finalResults = finalResults.slice(0, limit);
     wasLimited = true;
   }
-  
+
   // FINAL SAFEGUARD: Any result set > 200 should be marked as limited for caching
   if (finalResults.length > 200 && !wasLimited) {
     wasLimited = true;
@@ -360,7 +565,7 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
 
   // Format results based on result mode
   if (resultMode === "uids_only") {
-    finalResults = finalResults.map(result => ({
+    finalResults = finalResults.map((result) => ({
       uid: result.uid,
       pageTitle: result.pageTitle,
       pageUid: result.pageUid,
@@ -368,9 +573,13 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
       modified: result.modified,
     }));
   } else if (resultMode === "summary") {
-    finalResults = finalResults.map(result => ({
+    finalResults = finalResults.map((result) => ({
       uid: result.uid,
-      content: secureMode ? undefined : (result.content?.length > 100 ? result.content.substring(0, 100) + "..." : result.content),
+      content: secureMode
+        ? undefined
+        : result.content?.length > 100
+        ? result.content.substring(0, 100) + "..."
+        : result.content,
       pageTitle: result.pageTitle,
       pageUid: result.pageUid,
       isDaily: result.isDaily,
@@ -394,45 +603,240 @@ const findBlocksByContentImpl = async (input: z.infer<typeof schema>, state?: an
     availableCount: processedResults.metadata.availableCount,
   };
 
-  
   return {
     results: finalResults,
     metadata: resultMetadata,
   };
 };
 
+/**
+ * Create regex pattern for page references that matches Roam syntax but not plain text
+ * Supports: [[title]], #title, title:: but NOT plain "title"
+ */
+const createPageRefRegexPattern = (pageTitle: string): string => {
+  // Escape special regex characters in the page title
+  const escapedTitle = pageTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Optimized pattern: [[title]], #title, or title::
+  return `(?:\\[\\[${escapedTitle}\\]\\]|#${escapedTitle}(?!\\w)|${escapedTitle}::)`;
+};
+
+/**
+ * Create optimized regex pattern for multiple page reference variations
+ * Creates a single efficient OR pattern instead of multiple separate patterns
+ */
+const createMultiPageRefRegexPattern = (pageNames: string[]): string => {
+  if (pageNames.length === 0) return "";
+  if (pageNames.length === 1) return createPageRefRegexPattern(pageNames[0]);
+
+  // Escape and prepare all page names
+  const escapedNames = pageNames.map((name) =>
+    name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  );
+
+  // Create alternation of just the terms
+  const termAlternation = escapedNames.join("|");
+
+  // Single optimized pattern: factors out common Roam syntax structures
+  return `(?:\\[\\[(?:${termAlternation})\\]\\]|#(?:${termAlternation})(?!\\w)|(?:${termAlternation})::)`;
+};
 
 /**
  * Expand search conditions with semantic terms using LLM
+ * Only expands when explicitly requested
  */
 const expandConditions = async (
   conditions: z.infer<typeof contentConditionSchema>[],
-  strategy: string,
-  maxExpansions: number
+  state?: any
 ): Promise<z.infer<typeof contentConditionSchema>[]> => {
   const expandedConditions = [...conditions];
+  const expansionLevel = state?.expansionLevel || 0;
+
+  // Check if semantic expansion is needed - either globally or per-condition
+  const hasGlobalExpansion = state?.isExpansionGlobal === true;
+
+  // Check if any condition has symbols that require expansion
+  const hasSymbolExpansion = conditions.some(
+    (c) => c.text.endsWith("*") || c.text.endsWith("~")
+  );
+
+  if (!hasGlobalExpansion && !hasSymbolExpansion) {
+    console.log(
+      `⏭️ [ContentTool] Skipping semantic expansion (no global flag or symbols)`
+    );
+    return expandedConditions;
+  }
+
+  console.log(
+    `🧠 [ContentTool] Applying semantic expansion at level ${expansionLevel}`
+  );
 
   for (const condition of conditions) {
-    if (condition.semanticExpansion) {
+    // Skip regex conditions - user wants exact results for regex
+    if (condition.type === "regex") {
+      continue;
+    }
+
+    // Parse semantic expansion from condition text using our new parser
+    const { cleanText, expansionType } = parseSemanticExpansion(
+      condition.text,
+      state?.semanticExpansion
+    );
+
+    console.log(`🔍 [DEBUG] Conditions received:`, condition);
+
+    // Determine final expansion strategy: per-condition > global
+    let effectiveExpansionStrategy = expansionType;
+    if (!effectiveExpansionStrategy && hasGlobalExpansion) {
+      effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
+    }
+
+    console.log("🔍 [DEBUG] expansionType :>> ", expansionType);
+
+    // Handle text conditions with semantic expansion
+    if (effectiveExpansionStrategy && condition.type === "text") {
       try {
+        const customStrategy =
+          effectiveExpansionStrategy === "custom"
+            ? state?.customSemanticExpansion
+            : undefined;
+
+        // BACKUP: Old fuzzy regex approach using generateFuzzyRegex (kept for reference)
+        // Now using unified generateSemanticExpansions for all strategies including fuzzy
+
+        // Use generateSemanticExpansions for all expansion strategies (including fuzzy)
         const expansionTerms = await generateSemanticExpansions(
-          condition.text,
-          strategy as any,
-          maxExpansions
+          cleanText, // Use clean text for expansion
+          effectiveExpansionStrategy as
+            | "fuzzy"
+            | "synonyms"
+            | "related_concepts"
+            | "broader_terms"
+            | "custom"
+            | "all",
+          state?.userQuery,
+          state?.model,
+          state?.language,
+          customStrategy,
+          "text" // Allow regex patterns for text content search
         );
 
-        // Add expanded conditions
-        for (const term of expansionTerms) {
-          expandedConditions.push({
-            text: term,
-            matchType: condition.matchType,
-            semanticExpansion: false, // Don't expand expansions
-            weight: condition.weight * 0.8, // Lower weight for expansions
-            negate: condition.negate,
+        // Show semantic variations to user
+        if (expansionTerms.length > 0) {
+          updateAgentToaster(
+            `🔍 Semantic expansion: "${cleanText}" → ${expansionTerms.join(
+              ", "
+            )}`
+          );
+        }
+
+        // Create language-agnostic disjunctive regex with smart word boundaries
+        if (expansionTerms.length > 0) {
+          const smartPatterns = [cleanText, ...expansionTerms].map((term) => {
+            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+            // Multi-word terms: preserve spaces, add boundaries
+            if (term.includes(" ")) {
+              const spacedPattern = escapedTerm.replace(/\s+/g, "\\s+");
+              return `\\b${spacedPattern}\\b`;
+            }
+
+            // Single words: use word boundaries for short terms to avoid false positives
+            if (term.length <= 3) {
+              return `\\b${escapedTerm}\\b`;
+            } else {
+              // Longer terms: no boundaries to catch morphological variations (plurals, etc.)
+              return escapedTerm;
+            }
           });
+
+          const disjunctivePattern = `(?:${smartPatterns.join("|")})`;
+
+          // Replace original condition with expanded regex
+          condition.type = "regex";
+          condition.text = disjunctivePattern;
+          condition.matchType = "regex";
+          condition.semanticExpansion = undefined;
+          condition.weight = condition.weight * 0.7;
+        } else {
+          // Fallback: just update with clean text
+          condition.text = cleanText;
         }
       } catch (error) {
         console.warn(`Failed to expand condition "${condition.text}":`, error);
+        // Fallback: just update with clean text
+        condition.text = cleanText;
+      }
+    } else {
+      // No expansion needed, just update with clean text (remove symbols)
+      condition.text = cleanText;
+    }
+
+    // Handle page_ref conditions with semantic expansion
+    if (condition.type === "page_ref" && effectiveExpansionStrategy) {
+      try {
+        const customStrategy =
+          effectiveExpansionStrategy === "custom"
+            ? state?.customSemanticExpansion
+            : undefined;
+
+        // For all page_ref expansions (including fuzzy), use generateSemanticExpansions
+        const expansionTerms = await generateSemanticExpansions(
+          cleanText, // Use clean text for expansion
+          effectiveExpansionStrategy as
+            | "synonyms"
+            | "related_concepts"
+            | "broader_terms"
+            | "custom"
+            | "all",
+          state?.userQuery,
+          state?.model,
+          state?.language,
+          customStrategy,
+          "page_ref" // Generate simple text variations for page references
+        );
+
+        console.log(
+          `🔗 Expanding page reference "${condition.text}" with ${expansionTerms.length} semantic variations`
+        );
+
+        // Show semantic variations to user
+        if (expansionTerms.length > 0) {
+          updateAgentToaster(
+            `🔗 Page reference expansion: "${cleanText}" → ${expansionTerms.join(
+              ", "
+            )}`
+          );
+        }
+
+        if (expansionTerms.length > 0) {
+          // Create page reference syntax pattern (line 634 style)
+          const optimizedRegexPattern =
+            createMultiPageRefRegexPattern(expansionTerms);
+
+          // Replace original page_ref condition with expanded regex
+          condition.type = "regex";
+          condition.text = optimizedRegexPattern;
+          condition.matchType = "regex";
+          condition.semanticExpansion = undefined;
+          condition.weight = condition.weight * 0.7;
+
+          console.log(
+            `  ✅ Created optimized pattern for ${
+              expansionTerms.length
+            } expansion terms: ${expansionTerms.join(", ")}`
+          );
+        } else {
+          // Fallback: just update with clean text
+          condition.text = cleanText;
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to expand page_ref condition "${condition.text}":`,
+          error
+        );
+        // Fallback: just update with clean text
+        condition.text = cleanText;
       }
     }
   }
@@ -467,8 +871,10 @@ const searchBlocksWithConditions = async (
     if (limitToPages.length === 1) {
       query += `\n                [?page :node/title "${limitToPages[0]}"]`;
     } else {
-      const orClauses = limitToPages.map(page => `[?page :node/title "${page}"]`);
-      query += `\n                (or ${orClauses.join(' ')})`;
+      const orClauses = limitToPages.map(
+        (page) => `[?page :node/title "${page}"]`
+      );
+      query += `\n                (or ${orClauses.join(" ")})`;
     }
   }
 
@@ -477,17 +883,19 @@ const searchBlocksWithConditions = async (
     if (limitToBlockUids.length === 1) {
       query += `\n                [?b :block/uid "${limitToBlockUids[0]}"]`;
     } else {
-      const uidsSet = limitToBlockUids.map(uid => `"${uid}"`).join(' ');
+      const uidsSet = limitToBlockUids.map((uid) => `"${uid}"`).join(" ");
       query += `\n                [(contains? #{${uidsSet}} ?uid)]`;
     }
   }
-  
+
   if (limitToPageUids && limitToPageUids.length > 0) {
-    console.log(`⚡ Optimizing: Filtering to blocks within ${limitToPageUids.length} specific page UIDs`);
+    console.log(
+      `⚡ Optimizing: Filtering to blocks within ${limitToPageUids.length} specific page UIDs`
+    );
     if (limitToPageUids.length === 1) {
       query += `\n                [?page :block/uid "${limitToPageUids[0]}"]`;
     } else {
-      const uidsSet = limitToPageUids.map(uid => `"${uid}"`).join(' ');
+      const uidsSet = limitToPageUids.map((uid) => `"${uid}"`).join(" ");
       query += `\n                [(contains? #{${uidsSet}} ?page-uid)]`;
     }
   }
@@ -510,7 +918,7 @@ const searchBlocksWithConditions = async (
   }
 
   // Add condition matching using shared query builder
-  const searchConditions: SearchCondition[] = conditions.map(cond => ({
+  const searchConditions: SearchCondition[] = conditions.map((cond) => ({
     type: cond.type as any,
     text: cond.text,
     matchType: cond.matchType as any,
@@ -520,8 +928,9 @@ const searchBlocksWithConditions = async (
   }));
 
   const queryBuilder = new DatomicQueryBuilder(searchConditions, combineLogic);
-  const { patternDefinitions, conditionClauses } = queryBuilder.buildConditionClauses("?content");
-  
+  const { patternDefinitions, conditionClauses } =
+    queryBuilder.buildConditionClauses("?content");
+
   query += patternDefinitions;
   query += conditionClauses;
 
@@ -557,7 +966,9 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
 
     case "regex":
       const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
-      const regexWithFlags = sanitizedRegex.isCaseInsensitive ? sanitizedRegex.pattern : `(?i)${sanitizedRegex.pattern}`;
+      const regexWithFlags = sanitizedRegex.isCaseInsensitive
+        ? sanitizedRegex.pattern
+        : `(?i)${sanitizedRegex.pattern}`;
       clause = `\n${indent}[(re-pattern "${regexWithFlags}") ?pattern${index}]
 ${indent}[(re-find ?pattern${index} ?content)]`;
       break;
@@ -568,13 +979,15 @@ ${indent}[(re-find ?pattern${index} ?content)]`;
         clause = `\n${indent}[(= ?content "${condition.text}")]`;
       } else if (condition.matchType === "regex") {
         const sanitizedTextRegex = sanitizeRegexForDatomic(condition.text);
-        const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive ? sanitizedTextRegex.pattern : `(?i)${sanitizedTextRegex.pattern}`;
+        const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive
+          ? sanitizedTextRegex.pattern
+          : `(?i)${sanitizedTextRegex.pattern}`;
         clause = `\n${indent}[(re-pattern "${textRegexWithFlags}") ?pattern${index}]
 ${indent}[(re-find ?pattern${index} ?content)]`;
       } else {
         // Use case-insensitive regex without problematic escape characters
         // Remove any special regex characters to prevent escape issues
-        const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, '');
+        const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
         if (cleanText === condition.text) {
           // No special characters, can use regex safely
           clause = `\n${indent}[(re-pattern "(?i).*${condition.text}.*") ?pattern${index}]
@@ -604,7 +1017,8 @@ const enrichWithHierarchy = async (
   childDepth: number,
   includeParents: boolean,
   parentDepth: number,
-  secureMode: boolean = false
+  secureMode: boolean = false,
+  expansionLevel: number = 0
 ): Promise<any[]> => {
   console.log(`🔧 enrichWithHierarchy: Processing ${results.length} results`);
   const enrichedResults: any[] = [];
@@ -621,12 +1035,18 @@ const enrichWithHierarchy = async (
       children: [],
       parents: [],
       // Explicit type flag (isPage: false means it's a block)
-      isPage: false
+      isPage: false,
+      // Add expansion level for ranking
+      expansionLevel: expansionLevel,
     };
 
     // Get children if requested
     if (includeChildren) {
-      blockResult.children = await getBlockChildren(uid, childDepth, secureMode);
+      blockResult.children = await getBlockChildren(
+        uid,
+        childDepth,
+        secureMode
+      );
     }
 
     // Get parents if requested
@@ -635,10 +1055,14 @@ const enrichWithHierarchy = async (
     }
 
     enrichedResults.push(blockResult);
-    console.log(`🔧 enrichWithHierarchy: Added block ${uid}, total: ${enrichedResults.length}`);
+    console.log(
+      `🔧 enrichWithHierarchy: Added block ${uid}, total: ${enrichedResults.length}`
+    );
   }
 
-  console.log(`🔧 enrichWithHierarchy: Returning ${enrichedResults.length} enriched results`);
+  console.log(
+    `🔧 enrichWithHierarchy: Returning ${enrichedResults.length} enriched results`
+  );
   return enrichedResults;
 };
 
@@ -652,21 +1076,21 @@ const applyFuzzyFiltering = (
   threshold: number
 ): any[] => {
   if (!searchResults.length) return searchResults;
-  
+
   // Extract text conditions for fuzzy matching
-  const textConditions = conditions.filter(cond => cond.type === "text");
+  const textConditions = conditions.filter((cond) => cond.type === "text");
   if (!textConditions.length) return searchResults;
-  
+
   return searchResults.filter(([uid, content, time, pageTitle, pageUid]) => {
     // Apply fuzzy matching to block content
     const blockContent = content?.toLowerCase() || "";
-    
+
     // Check if all text conditions match (considering AND/OR logic would be complex here, so we use ANY match)
-    return textConditions.some(condition => {
+    return textConditions.some((condition) => {
       const searchTerm = condition.text.toLowerCase();
-      
+
       let matches = false;
-      
+
       // For exact matches, skip fuzzy logic
       if (condition.matchType === "exact") {
         matches = blockContent === searchTerm;
@@ -678,16 +1102,16 @@ const applyFuzzyFiltering = (
           // Apply fuzzy matching to individual words in content
           const contentWords = blockContent.split(/\s+/);
           const searchWords = searchTerm.split(/\s+/);
-          
+
           // Check if any search word fuzzy matches any content word
-          matches = searchWords.some(searchWord => 
-            contentWords.some(contentWord => 
+          matches = searchWords.some((searchWord) =>
+            contentWords.some((contentWord) =>
               fuzzyMatch(searchWord, contentWord, threshold)
             )
           );
         }
       }
-      
+
       // Apply negation if specified for this condition
       return condition.negate ? !matches : matches;
     });
@@ -696,37 +1120,40 @@ const applyFuzzyFiltering = (
 
 // Old sorting functions removed - now using enhanced processEnhancedResults from searchUtils
 
-// LLM-facing tool with minimal schema and auto-enrichment  
+// LLM-facing tool with minimal schema and auto-enrichment
 export const findBlocksByContentTool = tool(
   async (llmInput, config) => {
     const startTime = performance.now();
     try {
-      // Auto-enrich with internal parameters (will be set by agent state)
+      // Auto-enrich with internal parameters (wrapper should inject these, but provide defaults)
       const enrichedInput = {
         ...llmInput,
-        // These will be injected by the agent wrapper - preserve if already set
-        resultMode: (llmInput as any).resultMode || "summary" as const,
-        secureMode: (llmInput as any).secureMode || false,
-        purpose: (llmInput as any).purpose || "final" as const, // Preserve LLM's intent, default to final
-        userQuery: (llmInput as any).userQuery || "", // Preserve from state wrapper
+        // Defaults for parameters not set by wrapper
+        resultMode: llmInput.resultMode || ("summary" as const),
+        secureMode: llmInput.secureMode || false,
+        userQuery: llmInput.userQuery || "",
+        excludeBlockUid: llmInput.excludeBlockUid || "",
+        // Internal defaults not exposed to LLM
+        purpose: "final" as const,
         sortBy: "relevance" as const,
         sortOrder: "desc" as const,
         limit: 500,
         summaryLimit: 20,
-        maxExpansions: 3,
-        expansionStrategy: "related_concepts" as const,
         childDepth: 2,
         parentDepth: 1,
         includeDaily: true,
         dailyNotesOnly: false,
-        dateRange: undefined, // Only set if explicitly provided by LLM
+        dateRange: undefined,
         randomSample: { enabled: false, size: 100 },
-        fuzzyThreshold: 0.8
+        fuzzyThreshold: 0.8,
       };
 
       // Extract state from config
       const state = config?.configurable?.state;
-      const { results, metadata } = await findBlocksByContentImpl(enrichedInput, state);
+      const { results, metadata } = await findBlocksByContentImpl(
+        enrichedInput,
+        state
+      );
       return createToolResult(
         true,
         results,
@@ -748,7 +1175,8 @@ export const findBlocksByContentTool = tool(
   },
   {
     name: "findBlocksByContent",
-    description: "Find blocks by content, page references, or regex patterns. Supports AND/OR logic, date ranges, and hierarchical context.",
+    description:
+      "Find blocks by content, page references, or regex patterns. Supports AND/OR logic, date ranges, and hierarchical context.",
     schema: llmFacingSchema, // Use minimal schema
   }
 );

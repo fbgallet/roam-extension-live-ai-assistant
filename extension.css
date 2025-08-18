@@ -46,6 +46,7 @@
   font-size: 13px;
   padding: 5px;
 }
+.search-agent-toaster .bp3-toast,
 .thinking-toaster .bp3-toast,
 .mcp-toaster .bp3-toast {
   resize: both;
@@ -53,16 +54,92 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Special overflow handling for search-agent-toaster to allow dropdown to escape */
+.search-agent-toaster .bp3-toast {
+  overflow: visible;
+}
+
+/* But keep the message area scrollable */
+.search-agent-toaster .bp3-toast .bp3-toast-message {
+  overflow-y: auto;
+}
+.search-agent-toaster .bp3-toast .bp3-button-group,
 .thinking-toaster .bp3-toast .bp3-button-group,
 .mcp-toaster .bp3-toast .bp3-button-group {
   display: none;
 }
+.search-agent-toaster .bp3-toast .buttons,
 .thinking-toaster .bp3-toast .buttons,
 .mcp-toaster .bp3-toast .buttons {
   min-height: fit-content;
   align-self: flex-end;
   background: inherit;
+  /* Allow expansion dropdown to overflow the toaster boundaries */
+  overflow: visible;
+  position: relative;
+  z-index: 10000;
 }
+
+/* Expansion dropdown specific styles to ensure it appears above toaster boundaries */
+.search-agent-toaster .bp3-toast .buttons > div[style*="position: relative"] {
+  overflow: visible !important;
+}
+
+.search-agent-toaster .bp3-toast .buttons div[style*="position: absolute"] {
+  z-index: 10001 !important;
+}
+
+/* Expansion Dropdown Styles */
+.expansion-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.expansion-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 250px;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.expansion-dropdown-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.expansion-dropdown-option:last-child {
+  border-bottom: none;
+}
+
+.expansion-dropdown-option:hover {
+  background-color: rgba(217, 130, 43, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.expansion-dropdown-option-emoji {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.expansion-dropdown-option-label {
+  flex: 1;
+}
+
 .search-agent-toaster .bp3-toast .bp3-toast-message,
 .thinking-toaster .bp3-toast .bp3-toast-message,
 .mcp-toaster .bp3-toast .bp3-toast-message {
@@ -83,13 +160,9 @@
 }
 .search-agent-toaster .bp3-toast .bp3-toast-message {
   margin-top: 5px;
-  margin-right: -20px;
 }
 .laia-progressbar {
   margin-bottom: 20px;
-}
-.search-agent-toaster .bp3-button {
-  transform: translateX(10px) translateY(-10px);
 }
 
 .speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {

@@ -55,7 +55,11 @@ import {
   instructionsOnTemplateProcessing,
 } from "./prompts";
 import { BUILTIN_COMMANDS } from "./prebuildCommands";
-import { hasTrueBooleanKey, removeDuplicates } from "../utils/dataProcessing";
+import {
+  fileToBase64,
+  hasTrueBooleanKey,
+  removeDuplicates,
+} from "../utils/dataProcessing";
 import { AppToaster } from "../components/Toaster";
 import { tokensLimit } from "./modelsInfo";
 // import { tokenizer } from "./aiAPIsHub";
@@ -116,7 +120,7 @@ export const getInputDataFromRoamContext = async (
       if (!sourceUid) {
         let topLevelUidInView =
           await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-        // if in Daily log, not in zoom or page
+        // if in Daily logn, not in zoom or page
         if (!topLevelUidInView) {
           topLevelUidInView = window.roamAlphaAPI.util.dateToPageUid(
             new Date()
@@ -135,6 +139,7 @@ export const getInputDataFromRoamContext = async (
         withDash: true,
         isParentToIgnore,
       });
+      console.log("currentBlockContent :>> ", currentBlockContent);
     }
   }
 
@@ -1160,4 +1165,46 @@ export const concatAdditionalPrompt = (prompt, additionalPrompt) => {
   return prompt
     ? prompt + "\n\nIMPORTANT additional instructions:\n" + additionalPrompt
     : additionalPrompt;
+};
+
+export const getFormatedPdfRole = async (
+  externalUrl,
+  firebaseUrl,
+  isAnthropicModel
+) => {
+  // pdf in encrypted graphs have to be decrypted and sent as file to API
+  let file, pdfData64;
+  if (firebaseUrl && firebaseUrl.includes(".pdf.enc?")) {
+    file = await roamAlphaAPI.file.get({ url: firebaseUrl });
+    pdfData64 = await fileToBase64(file);
+  }
+
+  let pdfRole;
+  if (isAnthropicModel) {
+    pdfRole = {
+      type: "document",
+      source: file
+        ? {
+            type: "base64",
+            media_type: "application/pdf",
+            data: pdfData64.split(",", 2)[1],
+          }
+        : {
+            type: "url",
+            url: externalUrl || firebaseUrl,
+          },
+    };
+  } else {
+    pdfRole = file
+      ? {
+          type: "input_file",
+          filename: file.name,
+          file_data: pdfData64,
+        }
+      : {
+          type: "input_file",
+          file_url: externalUrl || firebaseUrl,
+        };
+  }
+  return pdfRole;
 };

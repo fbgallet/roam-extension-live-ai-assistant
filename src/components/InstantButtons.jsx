@@ -461,6 +461,107 @@ const InstantButtons = ({
     );
   };
 
+  const handleExpansionRetry = (expansionType) => {
+    const retryPrompts = {
+      semantic: "Try similar and related concepts",
+      hierarchical: "Search with hierarchical context and relationships", 
+      expansion: "Expand search with broader and deeper strategies",
+      fuzzy: "Try fuzzy matching and variations"
+    };
+
+    callAskYourGraphWithModeHandling({
+      model,
+      rootUid: currentUid,
+      target,
+      prompt: retryPrompts[expansionType],
+      previousAgentState: {
+        ...agentData,
+        conversationHistory: agentData?.conversationHistory || [],
+        conversationSummary: agentData?.conversationSummary,
+        toolResultsCache: agentData?.toolResultsCache || {},
+      },
+      bypassDialog: true,
+    });
+  };
+
+  const renderExpansionButtons = () => {
+    const expansion = agentData?.expansionState;
+    if (!expansion || !expansion.canExpand) return null;
+
+    // Don't show expansion buttons if there were tool errors (only show for 0 successful results)
+    if (expansion.hasErrors && expansion.lastResultCount === 0) return null;
+
+    const buttons = [];
+
+    // "Search Deeper" for few results (0-2 successful results, no errors)
+    if (expansion.lastResultCount < 3 && !expansion.hasErrors) {
+      buttons.push(
+        <Button
+          key="search-deeper"
+          onClick={() => handleExpansionRetry("expansion")}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({ callback: () => handleExpansionRetry("expansion") }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
+          }}
+        >
+          <Tooltip content="Search with progressive expansion strategies" hoverOpenDelay="500">
+            <Icon icon="zoom-in" />
+          </Tooltip>
+        </Button>
+      );
+    }
+
+    // "Try Related Terms" for semantic expansion (low successful results, no errors)
+    if (expansion.lastResultCount < 10 && !expansion.hasErrors) {
+      buttons.push(
+        <Button
+          key="try-semantic"
+          onClick={() => handleExpansionRetry("semantic")}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({ callback: () => handleExpansionRetry("semantic") }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
+          }}
+        >
+          <Tooltip content="Search for related concepts and synonyms" hoverOpenDelay="500">
+            <Icon icon="graph" />
+          </Tooltip>
+        </Button>
+      );
+    }
+
+    // "Search Context" for hierarchical expansion (logical complexity, no errors)
+    if (expansion.queryComplexity === "logical" && expansion.searchStrategy !== "hierarchical" && !expansion.hasErrors) {
+      buttons.push(
+        <Button
+          key="search-context"
+          onClick={() => handleExpansionRetry("hierarchical")}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            ContextMenu.show(
+              ModelsMenu({ callback: () => handleExpansionRetry("hierarchical") }),
+              { left: e.clientX, top: e.clientY },
+              null
+            );
+          }}
+        >
+          <Tooltip content="Search with hierarchical context and relationships" hoverOpenDelay="500">
+            <Icon icon="diagram-tree" />
+          </Tooltip>
+        </Button>
+      );
+    }
+
+    return buttons;
+  };
+
   if (isToUnmount) return null;
 
   return isUserResponse ? (
@@ -632,6 +733,9 @@ const InstantButtons = ({
             </Tooltip>
           </Button>
         )}
+      {/* Smart expansion buttons for search agents */}
+      {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) && 
+        renderExpansionButtons()}
       {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) &&
         questionAgentResultsButton()}
       {!(isOutlinerAgent && !treeSnapshot) && (

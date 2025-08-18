@@ -18,16 +18,56 @@ declare global {
  */
 
 /**
+ * Parse semantic expansion from condition text based on suffix symbols
+ * @param text - The condition text (e.g., "pend*", "car~", "hello")
+ * @param globalSemanticExpansion - The global semantic expansion strategy (excluding "fuzzy")
+ * @returns Object with cleanText and expansionType
+ */
+export function parseSemanticExpansion(
+  text: string,
+  globalSemanticExpansion?: string
+): { cleanText: string; expansionType: string | null } {
+  // Check for '*' suffix (fuzzy expansion)
+  if (text.endsWith("*")) {
+    return {
+      cleanText: text.replace(/\*+$/, ""), // Remove trailing *
+      expansionType: "fuzzy",
+    };
+  }
+
+  // Check for '~' suffix (use global semantic expansion, but not fuzzy)
+  if (text.endsWith("~")) {
+    return {
+      cleanText: text.replace(/~+$/, ""), // Remove trailing ~
+      expansionType: globalSemanticExpansion || "synonyms", // Default to synonyms if no global strategy
+    };
+  }
+
+  // No suffix - no semantic expansion for this condition
+  return {
+    cleanText: text,
+    expansionType: null,
+  };
+}
+
+/**
  * Shared condition types for consistent handling across tools
  */
 export interface SearchCondition {
-  type: "text" | "page_ref" | "block_ref" | "regex";
+  type: "text" | "page_ref" | "block_ref" | "regex" | "page_ref_or";
   text: string;
   matchType?: "exact" | "contains" | "regex";
-  semanticExpansion?: boolean;
+  semanticExpansion?:
+    | "fuzzy"
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "custom"
+    | "all";
   weight?: number;
   negate?: boolean;
   regexFlags?: string;
+  pageNames?: string[]; // For page_ref_or type - array of page names
 }
 
 /**
@@ -162,26 +202,32 @@ export class DatomicQueryBuilder {
     }
 
     // Group other conditions by type to use consistent variable names
-    const pageRefConditions = otherConditions.filter(c => c.type === "page_ref");
-    const blockRefConditions = otherConditions.filter(c => c.type === "block_ref");
-    const remainingConditions = otherConditions.filter(c => c.type !== "page_ref" && c.type !== "block_ref");
+    const pageRefConditions = otherConditions.filter(
+      (c) => c.type === "page_ref"
+    );
+    const blockRefConditions = otherConditions.filter(
+      (c) => c.type === "block_ref"
+    );
+    const remainingConditions = otherConditions.filter(
+      (c) => c.type !== "page_ref" && c.type !== "block_ref"
+    );
 
     // Handle page references with consistent variable naming
     if (pageRefConditions.length > 0) {
       // Add the common block reference constraint outside the OR
       conditionClauses += `\n                [?b :block/refs ?ref-page]`;
-      
+
       // Add page title constraints inside the OR
       for (const condition of pageRefConditions) {
         orClauses.push(this.buildPageRefClause(condition, contentVariable));
       }
     }
 
-    // Handle block references with consistent variable naming  
+    // Handle block references with consistent variable naming
     if (blockRefConditions.length > 0) {
       // Add the common block reference constraint outside the OR
       conditionClauses += `\n                [?b :block/refs ?ref-block]`;
-      
+
       // Add block UID constraints inside the OR
       for (const condition of blockRefConditions) {
         orClauses.push(this.buildBlockRefClause(condition, contentVariable));
@@ -223,15 +269,21 @@ export class DatomicQueryBuilder {
     let orClauses: string[] = [];
 
     // Group conditions by type to use consistent variable names
-    const pageRefConditions = this.conditions.filter(c => c.type === "page_ref");
-    const blockRefConditions = this.conditions.filter(c => c.type === "block_ref");
-    const otherConditions = this.conditions.filter(c => c.type !== "page_ref" && c.type !== "block_ref");
+    const pageRefConditions = this.conditions.filter(
+      (c) => c.type === "page_ref"
+    );
+    const blockRefConditions = this.conditions.filter(
+      (c) => c.type === "block_ref"
+    );
+    const otherConditions = this.conditions.filter(
+      (c) => c.type !== "page_ref" && c.type !== "block_ref"
+    );
 
     // Handle page references with consistent variable naming
     if (pageRefConditions.length > 0) {
       // Add the common block reference constraint outside the OR
       conditionClauses += `\n                [?b :block/refs ?ref-page]`;
-      
+
       // Add page title constraints inside the OR
       for (let i = 0; i < pageRefConditions.length; i++) {
         const condition = pageRefConditions[i];
@@ -239,11 +291,11 @@ export class DatomicQueryBuilder {
       }
     }
 
-    // Handle block references with consistent variable naming  
+    // Handle block references with consistent variable naming
     if (blockRefConditions.length > 0) {
       // Add the common block reference constraint outside the OR
       conditionClauses += `\n                [?b :block/refs ?ref-block]`;
-      
+
       // Add block UID constraints inside the OR
       for (let i = 0; i < blockRefConditions.length; i++) {
         const condition = blockRefConditions[i];
@@ -255,7 +307,10 @@ export class DatomicQueryBuilder {
     for (let i = 0; i < otherConditions.length; i++) {
       const condition = otherConditions[i];
       const adjustedIndex = i + 2000; // High index to avoid conflicts
-      patternDefinitions += this.buildPatternDefinition(condition, adjustedIndex);
+      patternDefinitions += this.buildPatternDefinition(
+        condition,
+        adjustedIndex
+      );
       orClauses.push(
         this.buildMatchClause(condition, adjustedIndex, contentVariable, true)
       );
@@ -279,21 +334,30 @@ export class DatomicQueryBuilder {
     index: number
   ): string {
     switch (condition.type) {
+      case "page_ref_or":
+        // No pattern definition needed for page reference OR - handled directly in match clause
+        return "";
       case "regex":
         const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
         // Use custom flags if provided, otherwise fall back to case-insensitive default
         let regexWithFlags;
         if (condition.regexFlags !== undefined) {
-          regexWithFlags = condition.regexFlags ? `(?${condition.regexFlags})${sanitizedRegex.pattern}` : sanitizedRegex.pattern;
+          regexWithFlags = condition.regexFlags
+            ? `(?${condition.regexFlags})${sanitizedRegex.pattern}`
+            : sanitizedRegex.pattern;
         } else {
-          regexWithFlags = sanitizedRegex.isCaseInsensitive ? sanitizedRegex.pattern : `(?i)${sanitizedRegex.pattern}`;
+          regexWithFlags = sanitizedRegex.isCaseInsensitive
+            ? sanitizedRegex.pattern
+            : `(?i)${sanitizedRegex.pattern}`;
         }
         return `\n                [(re-pattern "${regexWithFlags}") ?pattern${index}]`;
 
       case "text":
         if (condition.matchType === "regex") {
           const sanitizedTextRegex = sanitizeRegexForDatomic(condition.text);
-          const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive ? sanitizedTextRegex.pattern : `(?i)${sanitizedTextRegex.pattern}`;
+          const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive
+            ? sanitizedTextRegex.pattern
+            : `(?i)${sanitizedTextRegex.pattern}`;
           return `\n                [(re-pattern "${textRegexWithFlags}") ?pattern${index}]`;
         } else if (condition.matchType === "contains") {
           const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
@@ -325,6 +389,20 @@ export class DatomicQueryBuilder {
         clause = `\n${indent}[?ref-page${index} :node/title "${condition.text}"]
 ${indent}[?b :block/refs ?ref-page${index}]`;
         break;
+      case "page_ref_or":
+        // Handle OR of multiple page references
+        const pageNames =
+          (condition as any).pageNames || condition.text.split("|");
+        const orClauses = pageNames
+          .map(
+            (pageName: string, i: number) =>
+              `\n${indent}  [?ref-page${index}-${i} :node/title "${pageName.trim()}"]
+${indent}  [?b :block/refs ?ref-page${index}-${i}]`
+          )
+          .join("");
+        clause = `\n${indent}(or${orClauses}
+${indent})`;
+        break;
 
       case "block_ref":
         clause = `\n${indent}[?ref-block${index} :block/uid "${condition.text}"]
@@ -349,7 +427,6 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
           }
         }
         break;
-
     }
 
     // Apply negation if needed
@@ -363,7 +440,10 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
   /**
    * Build page reference clause with consistent variable naming for OR queries
    */
-  private buildPageRefClause(condition: SearchCondition, _contentVariable: string): string {
+  private buildPageRefClause(
+    condition: SearchCondition,
+    _contentVariable: string
+  ): string {
     const indent = "                  ";
     // For OR context, only include the page title constraint
     // The block reference constraint will be added outside the OR
@@ -380,7 +460,10 @@ ${indent}[?b :block/refs ?ref-block${index}]`;
   /**
    * Build block reference clause with consistent variable naming for OR queries
    */
-  private buildBlockRefClause(condition: SearchCondition, _contentVariable: string): string {
+  private buildBlockRefClause(
+    condition: SearchCondition,
+    _contentVariable: string
+  ): string {
     const indent = "                  ";
     // For OR context, only include the block UID constraint
     // The block reference constraint will be added outside the OR
@@ -449,59 +532,418 @@ export const parseDNPDate = (uid: string): Date | null => {
  */
 export const generateSemanticExpansions = async (
   text: string,
-  strategy: "synonyms" | "related_concepts" | "broader_terms",
-  maxExpansions: number
+  strategy:
+    | "fuzzy"
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "custom"
+    | "all",
+  originalQuery?: string,
+  modelInfo?: any, // Pass model from execution context instead of using defaultModel
+  userLanguage?: string, // User's language for language-aware expansion
+  customStrategy?: string, // Custom strategy description from expansionGuidance
+  mode: "text" | "page_ref" = "text" // text=allow regex patterns, page_ref=simple text only
 ): Promise<string[]> => {
-  const strategyPrompts = {
-    synonyms: `Generate ${maxExpansions} synonyms and alternative terms for: "${text}". Focus on words that mean the same thing.`,
-    related_concepts: `Generate ${maxExpansions} related concepts and terms that are conceptually connected to: "${text}". Include related ideas and associated concepts.`,
-    broader_terms: `Generate ${maxExpansions} broader, more general terms that encompass: "${text}". Think of categories or higher-level concepts.`,
+  let nbOfVariations =
+    strategy === "all"
+      ? "3-5"
+      : strategy !== "custom"
+      ? "5-8"
+      : "as many as needed";
+  const contextualInfo =
+    originalQuery && originalQuery !== text
+      ? `\n\nContext: This term appears in the user query: "${originalQuery}". Consider this context when generating expansions.`
+      : "";
+
+  const languageInfo = userLanguage
+    ? `\n\nLanguage: The user is working in ${userLanguage}. Generate terms appropriate for this language and consider language-specific morphological patterns.`
+    : "";
+
+  // Shared requirements for all prompts to avoid duplication
+  const buildCommonRequirements = (
+    text: string,
+    nbOfVariations: string,
+    mode: "text" | "page_ref",
+    isAllStrategy: boolean = false,
+    currentStrategy?: string,
+    previousTerms?: string[]
+  ) => {
+    const modeGuidance =
+      mode === "text"
+        ? `
+If relevant for some variation, you can use regex patterns to match most common and meaningful morphological variations:
+- Examples: analyz(?:e|es|ed|ing), categor(?:y|ies), manage(?:s|d|ment)`
+        : `
+If some variations have distinct morphological variaton (plural, verbal...), generate also the most common with simple text only (no regex patterns):
+- Examples: For "analyze" → analysis, analyzing, analyzer`;
+
+    const strategyText = isAllStrategy ? ` for ${currentStrategy} expansion` : "";
+    const originalTermText = isAllStrategy 
+      ? `- Do NOT include the original term "${text}" or any previously found variations`
+      : `- Prioritize terms that would help find related content in a knowledge base`;
+
+    return `IMPORTANT: Respond in the SAME LANGUAGE as the input term "${text}".
+Requirements:
+- Generate if possible ${nbOfVariations} high-quality, relevant terms${strategyText}
+- Return only the terms themselves, one per line  
+- No explanations, numbers, or bullet points
+- PRIORITIZE simple words over phrases - single words are preferred
+- Focus on terms likely to appear in page titles or block content
+- Avoid very generic terms (like "thing", "item", "stuff")
+- Terms should be relevant for knowledge management and note-taking
+${originalTermText}${modeGuidance}${
+      previousTerms
+        ? "\n- Generate completely NEW terms that complement but do not repeat the previous variations"
+        : ""
+    }`;
   };
+
+  const strategyPrompts = {
+    synonyms:
+      mode === "text"
+        ? `Generate synonyms and alternative terms for: "${text}". Focus on words that mean the same thing or are used interchangeably.
+
+Examples for "analyze":
+exampl(?:e|es|ed|ing)
+study
+review
+investigat(?:e|es|ed|ing)
+assess
+
+Examples for "task":
+job
+assignment
+work
+duty${contextualInfo}${languageInfo}`
+        : `Generate synonyms and alternative terms for: "${text}" that could be page titles.
+
+Examples for "analyze":
+analysis
+analyzing
+examination
+study
+review
+investigation
+assessment
+
+Examples for "task":
+tasks
+job
+jobs
+assignment
+assignments
+work
+duty${contextualInfo}${languageInfo}`,
+
+    related_concepts:
+      mode === "text"
+        ? `Generate closely related concepts for: "${text}". Include associated ideas and terms commonly found together.
+
+Examples for "project":
+planning
+manag(?:e|es|ed|ing|ement)
+timeline
+milestone
+deliverable
+team
+
+Examples for "write":
+writ(?:e|es|ing|ten)
+document
+draft
+content
+publish${contextualInfo}${languageInfo}`
+        : `Generate closely related concepts for: "${text}" that could be page titles.
+
+Examples for "project":
+projects
+planning
+management
+managing
+timeline
+milestones
+deliverables
+team
+
+Examples for "write":
+writing
+written
+writer
+document
+documents
+draft
+drafts
+content
+publishing${contextualInfo}${languageInfo}`,
+
+    broader_terms:
+      mode === "text"
+        ? `Generate broader, more general terms that encompass: "${text}". Think of parent categories and umbrella terms.
+
+Examples for "meeting":
+meet(?:s|ing|ings)
+event
+gathering
+session
+discussion
+
+Examples for "car":
+vehicl(?:e|es)
+transport(?:ation)?
+automobile${contextualInfo}${languageInfo}`
+        : `Generate broader, more general terms that encompass: "${text}" that could be page titles.
+
+Examples for "meeting":
+meetings
+event
+events
+gathering
+gatherings
+session
+sessions
+discussions
+
+Examples for "car":
+cars
+vehicle
+vehicles
+transportation
+automobile
+automobiles${contextualInfo}${languageInfo}`,
+
+    fuzzy:
+      mode === "text"
+        ? `Generate fuzzy variations for: "${text}". Include morphological variations, common typos, alternative spellings, and word completion for partial words.
+
+Examples for "pend" (incomplete word):
+pending
+pend(?:s|ing|ed)?
+pendin
+pendng
+pening
+
+Examples for "analyze" (complete word):
+analyz(?:e|es|ed|ing|sis)
+analize
+analise
+analisys${contextualInfo}${languageInfo}`
+        : `Generate fuzzy variations for: "${text}" that could be actual page titles. Include word completion for partial words.
+
+Examples for "pend" (incomplete word):
+pending
+pended
+pends
+pendin
+pendng
+pening
+
+Examples for "analyze" (complete word):
+analysis
+analyzing
+analyzed
+analize
+analise${contextualInfo}${languageInfo}`,
+
+    custom: customStrategy
+      ? `Apply the following custom strategy to generate semantic variations for: "${text}"
+
+Strategy: ${customStrategy}
+
+Generate variations based on this specific strategy. Each variation should be on a separate line.${contextualInfo}${languageInfo}`
+      : `Generate variations for: "${text}" using a custom approach.${contextualInfo}${languageInfo}`,
+    all: `This is handled by chained expansion - not used directly`,
+  };
+
+  // Handle "all" strategy by chaining fuzzy -> synonyms -> related_concepts with context awareness
+  if (strategy === "all") {
+    const chainedStrategies = ["fuzzy", "synonyms", "related_concepts"];
+    const allExpansions: string[] = [];
+
+    for (let i = 0; i < chainedStrategies.length; i++) {
+      const currentStrategy = chainedStrategies[i] as any;
+      const previousTerms =
+        allExpansions.length > 0
+          ? `\n\nPrevious variations already found: ${allExpansions.join(
+              ", "
+            )}\nDo NOT repeat these terms. Generate NEW variations that are different and complementary.`
+          : "";
+
+      // Build context-aware prompt for current strategy
+      const contextualPrompt =
+        strategyPrompts[currentStrategy as keyof typeof strategyPrompts] +
+        previousTerms;
+
+      try {
+        const commonRequirements = buildCommonRequirements(
+          text,
+          nbOfVariations,
+          mode,
+          true, // isAllStrategy
+          currentStrategy,
+          allExpansions.length > 0 ? allExpansions : undefined
+        );
+
+        const prompt = `${contextualPrompt}
+
+${commonRequirements}`;
+
+        // Use provided model or fall back to defaultModel
+        let processedModel = modelInfo;
+        if (!processedModel) {
+          if (!defaultModel) {
+            console.warn(
+              `Semantic expansion skipped for "${text}": no model available`
+            );
+            continue;
+          }
+          processedModel = defaultModel;
+        }
+
+        // Process the model to ensure it has the correct structure
+        // If processedModel is an LlmInfos object, pass the name field
+        const modelName =
+          typeof processedModel === "string"
+            ? processedModel
+            : processedModel?.name || processedModel?.id;
+        const modelForLanggraph = modelAccordingToProvider(modelName);
+        if (!modelForLanggraph || !modelForLanggraph.id) {
+          console.warn(
+            `${currentStrategy} expansion skipped for "${text}": invalid model structure`
+          );
+          continue;
+        }
+
+        const llm = modelViaLanggraph(
+          modelForLanggraph,
+          { input_tokens: 0, output_tokens: 0 },
+          false
+        );
+        const response = await llm.invoke([new HumanMessage(prompt)]);
+
+        console.log("response :>> ", response);
+
+        const expansions = response.content
+          .toString()
+          .split("\n")
+          .map((line: any) => line.trim())
+          .filter((line: any) => line && !line.match(/^\d+\.?\s*/))
+          .map((term: any) => term.replace(/^[•\-\*]\s*/, "").trim())
+          .filter(
+            (term: any) =>
+              term &&
+              term.toLowerCase() !== text.toLowerCase() &&
+              !allExpansions.some(
+                (existing) => existing.toLowerCase() === term.toLowerCase()
+              )
+          );
+
+        allExpansions.push(...expansions);
+        console.log(
+          `🔍 ${currentStrategy} expansion for "${text}": ${expansions.join(
+            ", "
+          )}`
+        );
+      } catch (error) {
+        console.warn(
+          `Failed ${currentStrategy} expansion for "${text}":`,
+          error
+        );
+      }
+    }
+
+    console.log(
+      `🔍 Generated ${
+        allExpansions.length
+      } total chained expansions for "${text}": ${allExpansions.join(", ")}`
+    );
+    return allExpansions;
+  }
+
+  // - CRITICAL: Do NOT include terms that contain the original word "${text}" - provide genuinely different alternatives
+
+  const commonRequirements = buildCommonRequirements(
+    text,
+    nbOfVariations,
+    mode,
+    false, // isAllStrategy
+    undefined,
+    undefined
+  );
 
   const prompt = `${strategyPrompts[strategy]}
 
-IMPORTANT: Respond in the SAME LANGUAGE as the input term "${text}". If the input is in English, respond in English and so on for any other language.
+${commonRequirements}`;
 
-Requirements:
-- Return only the terms themselves, one per line
-- No explanations, numbers, or bullet points
-- Focus on terms that would likely appear in page titles or content
-- Avoid very generic terms (like "thing", "item" or equivalent in other languages)
-- Consider both single words and short phrases (2-4 words max)
-- Terms should be relevant for knowledge management and note-taking
-- CRITICAL: Do NOT include terms that contain the original word "${text}" - provide genuinely different alternatives
-
-Example for "machine learning":
-neural networks
-artificial intelligence
-data science
-algorithms
-predictive modeling`;
+  console.log(`🔍 [${strategy}] Prompt for "${text}":`, prompt);
 
   try {
-    const modelInfo = modelAccordingToProvider(defaultModel);
+    // Use provided model or fall back to defaultModel if not provided
+    let processedModel = modelInfo;
+    if (!processedModel) {
+      if (!defaultModel) {
+        console.warn(
+          `Semantic expansion skipped for "${text}": no model available`
+        );
+        return [];
+      }
+      processedModel = defaultModel;
+    }
+
+    // Process the model to ensure it has the correct structure
+    // If processedModel is an LlmInfos object, pass the name field
+    const modelName =
+      typeof processedModel === "string"
+        ? processedModel
+        : processedModel?.name || processedModel?.id;
+    const modelForLanggraph = modelAccordingToProvider(modelName);
+    if (!modelForLanggraph || !modelForLanggraph.id) {
+      console.warn(
+        `Semantic expansion skipped for "${text}": invalid model structure`
+      );
+      return [];
+    }
+
     const llm = modelViaLanggraph(
-      modelInfo,
+      modelForLanggraph,
       { input_tokens: 0, output_tokens: 0 },
       false
     );
 
     const response = await llm.invoke([new HumanMessage(prompt)]);
 
-    const terms = response.content
+    console.log(
+      `🔍 [${strategy}] Raw LLM response for "${text}":`,
+      response.content.toString()
+    );
+
+    const lines = response.content
       .toString()
       .split("\n")
-      .map((line) => line.trim())
-      .filter(
-        (line) => line.length > 0 && !line.match(/^\d+\./) && line.length < 50
-      )
-      .filter((term) => {
-        // Filter out terms that contain the original search word to avoid redundancy
-        const originalLower = text.toLowerCase();
-        const termLower = term.toLowerCase();
-        return !termLower.includes(originalLower);
-      })
-      .slice(0, maxExpansions);
+      .map((line) => line.trim());
+    console.log(`🔍 [${strategy}] Split lines:`, lines);
+
+    const filteredLines = lines.filter(
+      (line) => line.length > 0 && !line.match(/^\d+\./) && line.length < 50
+    );
+    console.log(`🔍 [${strategy}] After basic filtering:`, filteredLines);
+
+    const terms = filteredLines.filter((term) => {
+      // For fuzzy and custom strategies, keep all variations
+      if (strategy === "fuzzy" || strategy === "custom") {
+        return true;
+      }
+
+      // For other strategies, only filter out exact matches (not partial matches)
+      // This allows "analysis" for "analyze" but filters out exact "analyze" repetitions
+      const originalLower = text.toLowerCase();
+      const termLower = term.toLowerCase();
+      const shouldKeep = termLower !== originalLower; // Exact match only, not includes
+      if (!shouldKeep) {
+        console.log(`🔍 [${strategy}] Filtered out exact match "${term}"`);
+      }
+      return shouldKeep;
+    }); // Return all generated terms without artificial limitation
 
     console.log(
       `🔍 Generated ${terms.length} semantic expansions for "${text}":`,
@@ -511,6 +953,127 @@ predictive modeling`;
   } catch (error) {
     console.error("Failed to generate semantic expansions:", error);
     throw new Error(`Semantic expansion failed: ${error.message}`);
+  }
+};
+
+/**
+ * Generate fuzzy regex pattern for typo-tolerant matching
+ * Creates compact regex patterns based on word roots and common variations
+ * More efficient than expanding to multiple search terms
+ */
+export const generateFuzzyRegex = async (
+  text: string,
+  originalQuery?: string,
+  modelInfo?: any,
+  userLanguage?: string // User's language for language-aware fuzzy patterns
+): Promise<string> => {
+  const contextualInfo =
+    originalQuery && originalQuery !== text
+      ? `\n\nContext: This term appears in the user query: "${originalQuery}".`
+      : "";
+
+  const languageInfo = userLanguage
+    ? `\n\nLanguage: The user is working in ${userLanguage}. Consider language-specific morphological patterns, common typos, and character substitutions for this language.`
+    : "";
+
+  const prompt = `Generate a compact regex pattern for fuzzy matching of: "${text}". 
+Create a pattern that catches morphological variations (plural, verb, adjective, etc.), common typos, and alternative spellings.
+
+${contextualInfo}${languageInfo}
+
+CRITICAL: Respond with ONLY the regex pattern - NO explanations, NO comments, NO additional text. Just the pattern itself (without delimiters). The pattern will be used as (?i)pattern.
+
+Requirements:
+- Use word boundaries and partial matching (.*word.* patterns)
+- Focus on the word root when possible
+- Include common character substitutions for typos
+- Keep pattern concise but comprehensive
+- Pattern should match the original word and its variations
+- For SHORT TERMS (1-3 chars): Be restrictive to avoid false positives - use strict word boundaries and minimal variations
+- KEEP STRUCTURE SIMPLE: Avoid nested alternatives (|) within groups - use flat patterns only
+
+Examples:
+- For "analytic": "analy[st]?[izt]?[cs]?[ae]?[l]?" (catches analytic, analysis, analyzing, analyst, analytical)
+- For "manage": "manag[eming]?[ement]?[r]?" (catches manage, managing, management, manager)
+- For "write" with alternatives: "(\\bwrit[eimg]?[ens]?\\b|\\btyp[eimg]?[ens]?\\b|\\bauthor[s]?\\b)"
+- For "go" (short term): "\\bgo[nes]?\\b" (strict boundaries, only basic variations like "go", "goes", "gone" - avoid matching "logo", "argo", etc.)
+- For "organization": "organi[sz]?[ae]?tion[al]?" (catches organization, organisation, organizational)
+
+Generate pattern for "${text}":`;
+
+  try {
+    if (!modelInfo) {
+      console.warn(
+        `Fuzzy regex generation skipped for "${text}": no model available`
+      );
+      // Fallback: simple pattern
+      return `.*${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+    }
+
+    // Use provided model or fall back to defaultModel if not provided
+    let processedModel = modelInfo;
+    if (!processedModel) {
+      if (!defaultModel) {
+        console.warn(
+          `Fuzzy regex generation skipped for "${text}": no model available`
+        );
+        return `.*${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+      }
+      processedModel = defaultModel;
+    }
+
+    // Process the model to ensure it has the correct structure
+    // If processedModel is an LlmInfos object, pass the name field
+    const modelName =
+      typeof processedModel === "string"
+        ? processedModel
+        : processedModel?.name || processedModel?.id;
+    const modelForLanggraph = modelAccordingToProvider(modelName);
+    if (!modelForLanggraph || !modelForLanggraph.id) {
+      console.warn(
+        `Fuzzy regex generation skipped for "${text}": invalid model structure`
+      );
+      return `.*${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+    }
+
+    const llm = modelViaLanggraph(
+      modelForLanggraph,
+      { input_tokens: 0, output_tokens: 0 },
+      false
+    );
+    const response = await llm.invoke([new HumanMessage(prompt)]);
+
+    let pattern = response.content.toString().trim();
+
+    // Clean up the pattern (remove any surrounding quotes or extra whitespace)
+    pattern = pattern.replace(/^["'`]|["'`]$/g, "").trim();
+
+    // Fix word boundaries for problematic patterns like: \bterm1|term2|term3\b
+    // This specifically targets the pattern where \b is only at start and end
+    const problematicPattern = /^\\b([^\\]+(?:\|[^\\]+)+)\\b$/;
+    const match = pattern.match(problematicPattern);
+
+    if (match && pattern.includes("|")) {
+      // Only fix if it's the exact problematic pattern: \b...alternatives...\b
+      const alternatives = match[1].split("|").map((alt) => alt.trim());
+      const boundedAlternatives = alternatives.map((alt) => `\\b${alt}\\b`);
+      pattern = `(${boundedAlternatives.join("|")})`;
+    }
+
+    // Validate that it's a reasonable pattern
+    if (pattern.length < 3 || pattern.length > 200) {
+      console.warn(
+        `Generated pattern seems invalid: ${pattern}, using fallback`
+      );
+      return `.*${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+    }
+
+    console.log(`🔍 Generated fuzzy regex for "${text}": ${pattern}`);
+    return pattern;
+  } catch (error) {
+    console.error("Failed to generate fuzzy regex:", error);
+    // Fallback to simple escaped pattern
+    return `.*${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
   }
 };
 
@@ -599,27 +1162,32 @@ const generateSearchGuidance = (
  * Deduplicate search results by UID to prevent duplicate entries
  * Essential for handling multiple tool calls that return overlapping results
  */
-export const deduplicateResultsByUid = (results: any[], debugContext = "unknown"): any[] => {
+export const deduplicateResultsByUid = (
+  results: any[],
+  debugContext = "unknown"
+): any[] => {
   if (!Array.isArray(results)) return results;
-  
+
   const seenUids = new Set<string>();
-  const deduplicated = results.filter(result => {
+  const deduplicated = results.filter((result) => {
     const uid = result?.uid || result?.pageUid;
     if (!uid) return true; // Keep items without UIDs
-    
+
     if (seenUids.has(uid)) {
       console.log(`🔄 [${debugContext}] Deduplicating duplicate UID: ${uid}`);
       return false; // Skip duplicate
     }
-    
+
     seenUids.add(uid);
     return true;
   });
-  
+
   if (deduplicated.length !== results.length) {
-    console.log(`🔄 [${debugContext}] Deduplicated ${results.length} results to ${deduplicated.length} unique items`);
+    console.log(
+      `🔄 [${debugContext}] Deduplicated ${results.length} results to ${deduplicated.length} unique items`
+    );
   }
-  
+
   return deduplicated;
 };
 
@@ -828,14 +1396,16 @@ export const getBatchBlockChildren = async (
   maxDepth: number,
   secureMode: boolean = false
 ): Promise<{ [parentUid: string]: any[] }> => {
-  console.log(`🚀 getBatchBlockChildren: Processing ${parentUids.length} parents, depth ${maxDepth}`);
-  
+  console.log(
+    `🚀 getBatchBlockChildren: Processing ${parentUids.length} parents, depth ${maxDepth}`
+  );
+
   if (maxDepth <= 0 || parentUids.length === 0) {
     return {};
   }
 
   // Build batch query for all parent UIDs at once
-  const uidsSet = parentUids.map(uid => `"${uid}"`).join(' ');
+  const uidsSet = parentUids.map((uid) => `"${uid}"`).join(" ");
   const query = `[:find ?parent-uid ?uid ?content ?order ?page-title ?page-uid
                  :where 
                  [?parent :block/uid ?parent-uid]
@@ -850,16 +1420,18 @@ export const getBatchBlockChildren = async (
 
   try {
     const allChildren = await executeDatomicQuery(query);
-    console.log(`🚀 getBatchBlockChildren: Found ${allChildren.length} direct children`);
+    console.log(
+      `🚀 getBatchBlockChildren: Found ${allChildren.length} direct children`
+    );
 
     // Group children by parent UID
     const childrenByParent: { [parentUid: string]: any[] } = {};
-    
+
     // Initialize empty arrays for all parents
-    parentUids.forEach(parentUid => {
+    parentUids.forEach((parentUid) => {
       childrenByParent[parentUid] = [];
     });
-    
+
     // Sort and group results
     allChildren
       .sort((a, b) => a[3] - b[3]) // Sort by order
@@ -877,16 +1449,20 @@ export const getBatchBlockChildren = async (
 
     // If we need more depth, recursively get grandchildren in batches
     if (maxDepth > 1) {
-      console.log(`🚀 getBatchBlockChildren: Getting grandchildren (depth ${maxDepth - 1})`);
-      
+      console.log(
+        `🚀 getBatchBlockChildren: Getting grandchildren (depth ${
+          maxDepth - 1
+        })`
+      );
+
       // Collect all child UIDs for next batch
       const allChildUids: string[] = [];
-      Object.values(childrenByParent).forEach(children => {
-        children.forEach(child => {
+      Object.values(childrenByParent).forEach((children) => {
+        children.forEach((child) => {
           allChildUids.push(child.uid);
         });
       });
-      
+
       if (allChildUids.length > 0) {
         // Batch query for grandchildren
         const grandchildrenByParent = await getBatchBlockChildren(
@@ -894,23 +1470,27 @@ export const getBatchBlockChildren = async (
           maxDepth - 1,
           secureMode
         );
-        
+
         // Attach grandchildren to their parents
-        Object.values(childrenByParent).forEach(children => {
-          children.forEach(child => {
+        Object.values(childrenByParent).forEach((children) => {
+          children.forEach((child) => {
             child.children = grandchildrenByParent[child.uid] || [];
           });
         });
       }
     }
 
-    console.log(`🚀 getBatchBlockChildren: Completed, processed ${Object.keys(childrenByParent).length} parents`);
+    console.log(
+      `🚀 getBatchBlockChildren: Completed, processed ${
+        Object.keys(childrenByParent).length
+      } parents`
+    );
     return childrenByParent;
   } catch (error) {
     console.warn(`Failed to get batch children for parents:`, error);
     // Return empty arrays for all parents
     const emptyResult: { [parentUid: string]: any[] } = {};
-    parentUids.forEach(parentUid => {
+    parentUids.forEach((parentUid) => {
       emptyResult[parentUid] = [];
     });
     return emptyResult;
@@ -925,14 +1505,16 @@ export const getBatchBlockParents = async (
   maxDepth: number,
   secureMode: boolean = false
 ): Promise<{ [childUid: string]: any[] }> => {
-  console.log(`🚀 getBatchBlockParents: Processing ${childUids.length} children, depth ${maxDepth}`);
-  
+  console.log(
+    `🚀 getBatchBlockParents: Processing ${childUids.length} children, depth ${maxDepth}`
+  );
+
   if (maxDepth <= 0 || childUids.length === 0) {
     return {};
   }
 
   // Build batch query for all child UIDs at once
-  const uidsSet = childUids.map(uid => `"${uid}"`).join(' ');
+  const uidsSet = childUids.map((uid) => `"${uid}"`).join(" ");
   const query = `[:find ?child-uid ?uid ?content ?page-title ?page-uid
                  :where 
                  [?child :block/uid ?child-uid]
@@ -946,16 +1528,18 @@ export const getBatchBlockParents = async (
 
   try {
     const allParents = await executeDatomicQuery(query);
-    console.log(`🚀 getBatchBlockParents: Found ${allParents.length} direct parents`);
+    console.log(
+      `🚀 getBatchBlockParents: Found ${allParents.length} direct parents`
+    );
 
     // Group parents by child UID
     const parentsByChild: { [childUid: string]: any[] } = {};
-    
+
     // Initialize empty arrays for all children
-    childUids.forEach(childUid => {
+    childUids.forEach((childUid) => {
       parentsByChild[childUid] = [];
     });
-    
+
     // Group results (no sorting needed for parents)
     allParents.forEach(([childUid, uid, content, pageTitle, pageUid]) => {
       parentsByChild[childUid].push({
@@ -969,46 +1553,53 @@ export const getBatchBlockParents = async (
 
     // If we need more depth, recursively get grandparents in batches
     if (maxDepth > 1) {
-      console.log(`🚀 getBatchBlockParents: Getting grandparents (depth ${maxDepth - 1})`);
-      
+      console.log(
+        `🚀 getBatchBlockParents: Getting grandparents (depth ${maxDepth - 1})`
+      );
+
       // Collect all direct parent UIDs for next batch
       const allParentUids: string[] = [];
-      Object.values(parentsByChild).forEach(parents => {
-        parents.forEach(parent => {
+      Object.values(parentsByChild).forEach((parents) => {
+        parents.forEach((parent) => {
           allParentUids.push(parent.uid);
         });
       });
-      
+
       if (allParentUids.length > 0) {
         // Remove duplicates
         const uniqueParentUids = [...new Set(allParentUids)];
-        
+
         // Batch query for grandparents (only need one representative per child)
         const grandparentsByParent = await getBatchBlockParents(
           uniqueParentUids,
           maxDepth - 1,
           secureMode
         );
-        
+
         // Prepend grandparents to each child's parent list
-        Object.keys(parentsByChild).forEach(childUid => {
+        Object.keys(parentsByChild).forEach((childUid) => {
           const directParents = parentsByChild[childUid];
           if (directParents.length > 0) {
             // Get grandparents through first direct parent
-            const grandparents = grandparentsByParent[directParents[0].uid] || [];
+            const grandparents =
+              grandparentsByParent[directParents[0].uid] || [];
             parentsByChild[childUid] = [...grandparents, ...directParents];
           }
         });
       }
     }
 
-    console.log(`🚀 getBatchBlockParents: Completed, processed ${Object.keys(parentsByChild).length} children`);
+    console.log(
+      `🚀 getBatchBlockParents: Completed, processed ${
+        Object.keys(parentsByChild).length
+      } children`
+    );
     return parentsByChild;
   } catch (error) {
     console.warn(`Failed to get batch parents for children:`, error);
     // Return empty arrays for all children
     const emptyResult: { [childUid: string]: any[] } = {};
-    childUids.forEach(childUid => {
+    childUids.forEach((childUid) => {
       emptyResult[childUid] = [];
     });
     return emptyResult;
@@ -1024,14 +1615,13 @@ export const getFlattenedDescendants = async (
   maxDepth: number,
   secureMode: boolean = false
 ): Promise<{ [parentUid: string]: any[] }> => {
-  
   if (maxDepth <= 0 || parentUids.length === 0) {
     return {};
   }
 
   // Build single batch query for ALL descendants at ALL levels
-  const uidsSet = parentUids.map(uid => `"${uid}"`).join(' ');
-  
+  const uidsSet = parentUids.map((uid) => `"${uid}"`).join(" ");
+
   // Use recursive Datomic query to get all levels in one shot
   let query;
   if (maxDepth === 1) {
@@ -1049,17 +1639,19 @@ export const getFlattenedDescendants = async (
   } else {
     // Complex case: get descendants up to maxDepth levels using or-join
     const orClauses = [];
-    
+
     // Level 1: direct children
-    orClauses.push(`(and [?parent :block/children ?descendant] [(ground 1) ?level])`);
-    
-    // Level 2: grandchildren  
+    orClauses.push(
+      `(and [?parent :block/children ?descendant] [(ground 1) ?level])`
+    );
+
+    // Level 2: grandchildren
     if (maxDepth >= 2) {
       orClauses.push(`(and [?parent :block/children ?child1] 
                            [?child1 :block/children ?descendant] 
                            [(ground 2) ?level])`);
     }
-    
+
     // Level 3: great-grandchildren
     if (maxDepth >= 3) {
       orClauses.push(`(and [?parent :block/children ?child1]
@@ -1067,28 +1659,33 @@ export const getFlattenedDescendants = async (
                            [?child2 :block/children ?descendant] 
                            [(ground 3) ?level])`);
     }
-    
+
     // Additional levels if needed (up to maxDepth)
     for (let level = 4; level <= maxDepth; level++) {
-      const childVars = Array.from({length: level - 1}, (_, i) => `?child${i + 1}`).join(' ');
+      const childVars = Array.from(
+        { length: level - 1 },
+        (_, i) => `?child${i + 1}`
+      ).join(" ");
       const childClauses = [];
-      
+
       // Build chain: parent -> child1 -> child2 -> ... -> descendant
       childClauses.push(`[?parent :block/children ?child1]`);
       for (let i = 2; i < level; i++) {
-        childClauses.push(`[?child${i-1} :block/children ?child${i}]`);
+        childClauses.push(`[?child${i - 1} :block/children ?child${i}]`);
       }
-      childClauses.push(`[?child${level-1} :block/children ?descendant]`);
-      
-      orClauses.push(`(and ${childClauses.join(' ')} [(ground ${level}) ?level])`);
+      childClauses.push(`[?child${level - 1} :block/children ?descendant]`);
+
+      orClauses.push(
+        `(and ${childClauses.join(" ")} [(ground ${level}) ?level])`
+      );
     }
-    
+
     query = `[:find ?parent-uid ?uid ?content ?page-title ?page-uid ?level
              :where 
              [?parent :block/uid ?parent-uid]
              [(contains? #{${uidsSet}} ?parent-uid)]
              (or-join [?parent ?descendant ?level]
-               ${orClauses.join('\n               ')})
+               ${orClauses.join("\n               ")})
              [?descendant :block/uid ?uid]
              [?descendant :block/string ?content]
              [?descendant :block/page ?page]
@@ -1102,16 +1699,16 @@ export const getFlattenedDescendants = async (
 
     // Group descendants by parent UID (flattened - all levels together)
     const descendantsByParent: { [parentUid: string]: any[] } = {};
-    
+
     // Initialize empty arrays for all parents
-    parentUids.forEach(parentUid => {
+    parentUids.forEach((parentUid) => {
       descendantsByParent[parentUid] = [];
     });
-    
+
     // Process results - all descendants flattened together
-    allDescendants.forEach(result => {
+    allDescendants.forEach((result) => {
       const [parentUid, uid, content, pageTitle, pageUid, level] = result;
-      
+
       descendantsByParent[parentUid].push({
         uid,
         content: secureMode ? undefined : content,
@@ -1122,13 +1719,12 @@ export const getFlattenedDescendants = async (
       });
     });
 
-
     return descendantsByParent;
   } catch (error) {
     console.warn(`Failed to get flattened descendants for parents:`, error);
     // Return empty arrays for all parents
     const emptyResult: { [parentUid: string]: any[] } = {};
-    parentUids.forEach(parentUid => {
+    parentUids.forEach((parentUid) => {
       emptyResult[parentUid] = [];
     });
     return emptyResult;
@@ -1143,14 +1739,13 @@ export const getFlattenedAncestors = async (
   maxDepth: number,
   secureMode: boolean = false
 ): Promise<{ [childUid: string]: any[] }> => {
-  
   if (maxDepth <= 0 || childUids.length === 0) {
     return {};
   }
 
   // Build single batch query for ALL ancestors at ALL levels
-  const uidsSet = childUids.map(uid => `"${uid}"`).join(' ');
-  
+  const uidsSet = childUids.map((uid) => `"${uid}"`).join(" ");
+
   // Use recursive query for ancestors
   let query;
   if (maxDepth === 1) {
@@ -1166,17 +1761,19 @@ export const getFlattenedAncestors = async (
              [?page :block/uid ?page-uid]]`;
   } else {
     const orClauses = [];
-    
+
     // Level 1: direct parents
-    orClauses.push(`(and [?ancestor :block/children ?child] [(ground 1) ?level])`);
-    
+    orClauses.push(
+      `(and [?ancestor :block/children ?child] [(ground 1) ?level])`
+    );
+
     // Level 2: grandparents
     if (maxDepth >= 2) {
       orClauses.push(`(and [?ancestor :block/children ?parent1]
                            [?parent1 :block/children ?child] 
                            [(ground 2) ?level])`);
     }
-    
+
     // Level 3: great-grandparents
     if (maxDepth >= 3) {
       orClauses.push(`(and [?ancestor :block/children ?parent1]
@@ -1184,13 +1781,13 @@ export const getFlattenedAncestors = async (
                            [?parent2 :block/children ?child] 
                            [(ground 3) ?level])`);
     }
-    
+
     query = `[:find ?child-uid ?uid ?content ?page-title ?page-uid ?level
              :where 
              [?child :block/uid ?child-uid]
              [(contains? #{${uidsSet}} ?child-uid)]
              (or-join [?child ?ancestor ?level]
-               ${orClauses.join('\n               ')})
+               ${orClauses.join("\n               ")})
              [?ancestor :block/uid ?uid]
              [?ancestor :block/string ?content]
              [?ancestor :block/page ?page]
@@ -1200,31 +1797,35 @@ export const getFlattenedAncestors = async (
 
   try {
     const allAncestors = await executeDatomicQuery(query);
-    console.log(`🚀 getFlattenedAncestors: Single query found ${allAncestors.length} total ancestors`);
+    console.log(
+      `🚀 getFlattenedAncestors: Single query found ${allAncestors.length} total ancestors`
+    );
 
     // Group ancestors by child UID (flattened)
     const ancestorsByChild: { [childUid: string]: any[] } = {};
-    
-    childUids.forEach(childUid => {
+
+    childUids.forEach((childUid) => {
       ancestorsByChild[childUid] = [];
     });
-    
-    allAncestors.forEach(([childUid, uid, content, pageTitle, pageUid, level]) => {
-      ancestorsByChild[childUid].push({
-        uid,
-        content: secureMode ? undefined : truncateContent(content, 50),
-        pageTitle,
-        pageUid,
-        isDaily: isDailyNote(pageUid),
-        level: level || 1,
-      });
-    });
+
+    allAncestors.forEach(
+      ([childUid, uid, content, pageTitle, pageUid, level]) => {
+        ancestorsByChild[childUid].push({
+          uid,
+          content: secureMode ? undefined : truncateContent(content, 50),
+          pageTitle,
+          pageUid,
+          isDaily: isDailyNote(pageUid),
+          level: level || 1,
+        });
+      }
+    );
 
     return ancestorsByChild;
   } catch (error) {
     console.warn(`Failed to get flattened ancestors:`, error);
     const emptyResult: { [childUid: string]: any[] } = {};
-    childUids.forEach(childUid => {
+    childUids.forEach((childUid) => {
       emptyResult[childUid] = [];
     });
     return emptyResult;
@@ -1324,6 +1925,30 @@ export const sampleResults = <T>(
 };
 
 /**
+ * Calculate expansion-aware relevance score
+ * Higher scores = better relevance (exact matches ranked highest)
+ */
+const calculateExpansionAwareRelevance = (result: any): number => {
+  // Get base relevance score from existing algorithms
+  const baseScore =
+    result.relevanceScore || result.matchedConditions?.length || 0;
+
+  // Expansion level bonuses (0 = exact match, higher = more expansion needed)
+  const expansionLevel = result.expansionLevel || 0;
+  const expansionBonus = {
+    0: 100, // Exact match - highest priority
+    1: 75, // Hierarchical expansion - high priority
+    2: 50, // Fuzzy + semantic expansion - medium priority
+    3: 25, // Multi-tool expansion - lower priority
+  };
+
+  // Calculate final score: base algorithm score + expansion bonus
+  const finalScore = baseScore + (expansionBonus[expansionLevel] || 0);
+
+  return finalScore;
+};
+
+/**
  * Universal sorting utility for blocks and pages
  */
 export const sortResults = <T extends any>(
@@ -1359,8 +1984,8 @@ export const sortResults = <T extends any>(
         break;
 
       case "relevance":
-        const aScore = a.relevanceScore || a.matchedConditions?.length || 0;
-        const bScore = b.relevanceScore || b.matchedConditions?.length || 0;
+        const aScore = calculateExpansionAwareRelevance(a);
+        const bScore = calculateExpansionAwareRelevance(b);
         comparison = bScore - aScore; // Higher relevance first
         break;
 
@@ -1501,19 +2126,23 @@ export const extractUidsFromResults = (
   limitToBlockUids: string[] | undefined,
   limitToPageUids: string[] | undefined,
   state: any
-): { blockUids: string[], pageUids: string[] } => {
+): { blockUids: string[]; pageUids: string[] } => {
   let finalBlockUids = limitToBlockUids || [];
   let finalPageUids = limitToPageUids || [];
-  
+
   // Extract UIDs from previous results if fromResultId is provided
   if (fromResultId && state?.resultStore) {
     console.log(`🔍 Extracting UIDs from previous result: ${fromResultId}`);
     const resultEntry = state.resultStore[fromResultId];
     if (!resultEntry) {
       const availableResults = Object.keys(state.resultStore || {});
-      throw new Error(`Previous result ${fromResultId} not found. Available results: ${availableResults.join(', ')}`);
+      throw new Error(
+        `Previous result ${fromResultId} not found. Available results: ${availableResults.join(
+          ", "
+        )}`
+      );
     }
-    
+
     const previousResult = resultEntry?.data || resultEntry;
     if (Array.isArray(previousResult)) {
       for (const item of previousResult) {
@@ -1530,10 +2159,12 @@ export const extractUidsFromResults = (
           finalPageUids.push(item.pageUid);
         }
       }
-      console.log(`🔍 Extracted from previous result: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids`);
+      console.log(
+        `🔍 Extracted from previous result: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids`
+      );
     }
   }
-  
+
   // Add user-provided UIDs
   if (limitToBlockUids) {
     console.log(`🔍 Added ${limitToBlockUids.length} user-provided block UIDs`);
@@ -1541,7 +2172,7 @@ export const extractUidsFromResults = (
   if (limitToPageUids) {
     console.log(`🔍 Added ${limitToPageUids.length} user-provided page UIDs`);
   }
-  
+
   // Remove duplicates
   finalBlockUids = [...new Set(finalBlockUids)];
   finalPageUids = [...new Set(finalPageUids)];
@@ -1556,57 +2187,67 @@ export const extractUidsFromResults = (
  */
 export const sanitizePageReferences = (parsedComponents: any): any => {
   if (!parsedComponents) return parsedComponents;
-  
+
   const sanitized = { ...parsedComponents };
-  
+
   // Fix page references
   if (sanitized.pageReferences?.length > 0) {
     sanitized.pageReferences = sanitized.pageReferences.map((ref: any) => ({
       ...ref,
-      text: normalizePageTitle(ref.text)
+      text: normalizePageTitle(ref.text),
     }));
   }
-  
+
   // Fix limitToPages in constraints
   if (sanitized.constraints?.limitToPages?.length > 0) {
     sanitized.constraints.limitToPages = sanitized.constraints.limitToPages.map(
       (page: string) => normalizePageTitle(page)
     );
   }
-  
+
   // Fix sub-queries page_ref conditions
   if (sanitized.subQueries?.length > 0) {
     sanitized.subQueries = sanitized.subQueries.map((query: any) => ({
       ...query,
-      conditions: query.conditions?.map((condition: any) => 
-        condition.type === 'page_ref' 
-          ? { ...condition, text: normalizePageTitle(condition.text) }
-          : condition
-      ) || []
+      conditions:
+        query.conditions?.map((condition: any) =>
+          condition.type === "page_ref"
+            ? { ...condition, text: normalizePageTitle(condition.text) }
+            : condition
+        ) || [],
     }));
   }
-  
+
   // CRITICAL FIX: Prevent double interpretation
   // If we have pageReferences, remove them from limitToPages to avoid double constraint
-  if (sanitized.pageReferences?.length > 0 && sanitized.constraints?.limitToPages?.length > 0) {
-    const referencedPages = sanitized.pageReferences.map((ref: any) => ref.text.toLowerCase());
-    const originalLimitCount = sanitized.constraints.limitToPages.length;
-    
-    sanitized.constraints.limitToPages = sanitized.constraints.limitToPages.filter(
-      (page: string) => !referencedPages.includes(page.toLowerCase())
+  if (
+    sanitized.pageReferences?.length > 0 &&
+    sanitized.constraints?.limitToPages?.length > 0
+  ) {
+    const referencedPages = sanitized.pageReferences.map((ref: any) =>
+      ref.text.toLowerCase()
     );
-    
-    const removedCount = originalLimitCount - sanitized.constraints.limitToPages.length;
+    const originalLimitCount = sanitized.constraints.limitToPages.length;
+
+    sanitized.constraints.limitToPages =
+      sanitized.constraints.limitToPages.filter(
+        (page: string) => !referencedPages.includes(page.toLowerCase())
+      );
+
+    const removedCount =
+      originalLimitCount - sanitized.constraints.limitToPages.length;
     if (removedCount > 0) {
-      console.log(`🧹 [PageRefSanitizer] Removed ${removedCount} duplicate pages from limitToPages to prevent double interpretation`);
-      
+      console.log(
+        `🧹 [PageRefSanitizer] Removed ${removedCount} duplicate pages from limitToPages to prevent double interpretation`
+      );
+
       // If no pages left in limitToPages, remove the constraint entirely
       if (sanitized.constraints.limitToPages.length === 0) {
         delete sanitized.constraints.limitToPages;
       }
     }
   }
-  
+
   return sanitized;
 };
 
@@ -1614,45 +2255,54 @@ export const sanitizePageReferences = (parsedComponents: any): any => {
  * Sanitize regex patterns for Datomic compatibility
  * Handles JavaScript /pattern/flags format and ensures proper escaping for Datomic
  */
-export const sanitizeRegexForDatomic = (pattern: string): { pattern: string; isCaseInsensitive: boolean } => {
+export const sanitizeRegexForDatomic = (
+  pattern: string
+): { pattern: string; isCaseInsensitive: boolean } => {
   let sanitizedPattern = pattern.trim();
   let isCaseInsensitive = false;
-  
+
   // Handle JavaScript /pattern/flags format
   const jsRegexMatch = sanitizedPattern.match(/^\/(.+)\/([gimuy]*)$/);
   if (jsRegexMatch) {
     sanitizedPattern = jsRegexMatch[1];
     const flags = jsRegexMatch[2];
-    isCaseInsensitive = flags.includes('i');
-    console.log(`🧹 Converted JavaScript regex /${jsRegexMatch[1]}/${flags} to Datomic format`);
+    isCaseInsensitive = flags.includes("i");
+    console.log(
+      `🧹 Converted JavaScript regex /${jsRegexMatch[1]}/${flags} to Datomic format`
+    );
   }
-  
+
   // Check if pattern already has (?i) flag
-  if (sanitizedPattern.startsWith('(?i)')) {
+  if (sanitizedPattern.startsWith("(?i)")) {
     isCaseInsensitive = true;
   }
-  
+
   // Double-escape single backslashes for Datomic
   // This handles \s -> \\s, \b -> \\b, etc.
   const originalPattern = sanitizedPattern;
-  
+
   // Replace single backslashes with double backslashes, but don't touch already double-escaped ones
   // First, temporarily replace existing double backslashes with a placeholder
   const placeholder = "___DOUBLE_BACKSLASH___";
   sanitizedPattern = sanitizedPattern.replace(/\\\\/g, placeholder);
-  
+
   // Now double-escape remaining single backslashes
-  sanitizedPattern = sanitizedPattern.replace(/\\/g, '\\\\');
-  
+  sanitizedPattern = sanitizedPattern.replace(/\\/g, "\\\\");
+
   // Restore the original double backslashes
-  sanitizedPattern = sanitizedPattern.replace(new RegExp(placeholder, 'g'), '\\\\\\\\');
-  
+  sanitizedPattern = sanitizedPattern.replace(
+    new RegExp(placeholder, "g"),
+    "\\\\\\\\"
+  );
+
   if (originalPattern !== sanitizedPattern) {
-    console.log(`🧹 Double-escaped backslashes for Datomic: ${originalPattern} -> ${sanitizedPattern}`);
+    console.log(
+      `🧹 Double-escaped backslashes for Datomic: ${originalPattern} -> ${sanitizedPattern}`
+    );
   }
-  
+
   return {
     pattern: sanitizedPattern,
-    isCaseInsensitive
+    isCaseInsensitive,
   };
 };

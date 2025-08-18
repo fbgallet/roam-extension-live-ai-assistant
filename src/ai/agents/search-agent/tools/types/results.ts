@@ -1,5 +1,7 @@
-// Common types for ReAct Search Agent Tools
-// Based on react-agent-guidelines.md specification
+/**
+ * Result types for search operations
+ * Shared across all search tools for consistent result structures
+ */
 
 export interface DateRange {
   start: Date;
@@ -46,20 +48,7 @@ export interface BlockResult {
   children: any[]; // Child blocks with hierarchy
   parents: any[]; // Parent blocks with context
   matchedConditions?: string[]; // Which conditions/expansions matched
-}
-
-export interface ContentCondition {
-  text: string; // The search text
-  matchType?: "exact" | "contains" | "regex"; // How to match the text (default: "contains")
-  semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "custom" | "all"; // Semantic expansion strategy for this condition
-  weight?: number; // Relevance weight for this condition (default: 1.0)
-  negate?: boolean; // NOT condition (default: false)
-}
-
-export interface HierarchyCondition {
-  direction: "descendants" | "ancestors";
-  levels: number | "all"; // 1, 2, 3... or 'all'
-  conditions: ContentCondition[]; // Conditions to match in hierarchy
+  expansionLevel?: number; // For ranking expanded results
 }
 
 export interface BlockNode {
@@ -93,14 +82,6 @@ export interface DatomicQueryResult {
   parameters?: Record<string, any>; // Query parameters
 }
 
-// Base tool interface
-export interface SearchTool {
-  name: string;
-  description: string;
-  securityLevel: "secure" | "content";
-  execute(params: any): Promise<any>;
-}
-
 // Tool execution result
 export interface ToolExecutionResult {
   success: boolean;
@@ -109,6 +90,15 @@ export interface ToolExecutionResult {
   toolName: string;
   executionTime: number;
   tokensUsed?: number;
+  metadata?: {
+    totalFound?: number;
+    returnedCount?: number;
+    wasLimited?: boolean;
+    sortedBy?: string;
+    sampled?: boolean;
+    availableCount?: number;
+    searchGuidance?: any;
+  };
 }
 
 // ReAct agent state
@@ -122,4 +112,11 @@ export interface ReActState {
   permissions: {
     contentAccess: boolean;
   };
+  // Semantic expansion state
+  isExpansionGlobal?: boolean;
+  semanticExpansion?: string;
+  customSemanticExpansion?: string;
+  model?: any;
+  language?: string;
+  expansionLevel?: number;
 }

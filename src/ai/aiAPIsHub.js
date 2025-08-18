@@ -50,7 +50,10 @@ import {
 } from "./modelsInfo";
 import { pdfLinkRegex, roamImageRegex } from "../utils/regex";
 import { AppToaster, displayThinkingToast } from "../components/Toaster";
-import { getResolvedContentFromBlocks } from "./dataExtraction";
+import {
+  getFormatedPdfRole,
+  getResolvedContentFromBlocks,
+} from "./dataExtraction";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -1155,31 +1158,26 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
         },
       ];
     }
+
     for (let j = 0; j < matchingPdfInPrompt.length; j++) {
       messages[i].content[0].text = messages[i].content[0].text
         .replace(matchingPdfInPrompt[j][0], "")
         .trim();
-      messages[i].content.push(
+
+      const pdfRole = await getFormatedPdfRole(
+        matchingPdfInPrompt[j][1],
+        matchingPdfInPrompt[j][2],
         isAnthropicModel
-          ? {
-              type: "document",
-              source: {
-                type: "url",
-                url: matchingPdfInPrompt[j][1] || matchingPdfInPrompt[j][2],
-              },
-            }
-          : {
-              type: "input_file",
-              url_property:
-                matchingPdfInPrompt[j][1] || matchingPdfInPrompt[j][2],
-            }
       );
+
+      messages[i].content.push(pdfRole);
     }
   }
 
   if (content && typeof content === "string" && content.length) {
     pdfLinkRegex.lastIndex = 0;
     const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
+
     for (let i = 0; i < matchingPdfInContext.length; i++) {
       if (i === 0)
         messages.splice(1, 0, {
@@ -1191,23 +1189,15 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
             },
           ],
         });
-      messages[1].content.push(
+      const pdfRole = await getFormatedPdfRole(
+        matchingPdfInContext[i][1],
+        matchingPdfInContext[i][2],
         isAnthropicModel
-          ? {
-              type: "document",
-              source: {
-                type: "url",
-                url: matchingPdfInContext[i][1] || matchingPdfInContext[i][2],
-              },
-            }
-          : {
-              type: "input_file",
-              file_url:
-                matchingPdfInContext[i][1] || matchingPdfInContext[i][2],
-            }
       );
+      messages[1].content.push(pdfRole);
     }
   }
+
   return messages;
 };
 
