@@ -7,7 +7,7 @@ import {
   modelViaLanggraph,
 } from "../langraphModelsLoader";
 import { HumanMessage } from "@langchain/core/messages";
-import { 
+import {
   displayMCPToast,
   setAgentController,
   clearAgentController,
@@ -15,7 +15,8 @@ import {
   clearAgentFullResults,
   markAgentAsStopped,
   openFullResultsPopup,
-  addButtonsToToaster
+  addButtonsToToaster,
+  ensureToaster,
 } from "../../../components/Toaster.js";
 
 /**
@@ -43,20 +44,35 @@ export const initializeAgentToaster = (
   // Clear any previous full results
   clearAgentFullResults();
 
-  // Use the same toaster system as MCP agent with stop button enabled
-  // For search agents, never show copy button since they have full results popup
-  displayMCPToast("", {
-    showStopButton: !!abortController,
-    showFullResultsButton: agentType === "search" ? true : false
+  // Use proper search agent toaster with stop button enabled
+  agentToasterInstance = ensureToaster("AgentToaster");
+
+  const toastId = agentToasterInstance.show({
+    message: "",
+    timeout: 0,
+    isCloseButtonShown: false,
   });
 
-  // Wait for toaster to be ready
+  // Wait for toaster to be ready and add initial buttons
   setTimeout(() => {
-    agentToasterStream = (window as any).mcpToasterStreamElement as HTMLElement | null;
+    agentToasterStream = document.querySelector(
+      ".search-agent-toaster .bp3-toast-message"
+    );
     if (agentToasterStream) {
       const typeDisplay = agentType === "search" ? "Search Agent" : agentType;
       const serverDisplay = serverInfo ? ` with ${serverInfo}` : "";
       agentToasterStream.innerText = `🚀 Starting ${typeDisplay}${serverDisplay}`;
+
+      // Add initial buttons (stop + full results)
+      addButtonsToToaster(
+        toastId,
+        ".search-agent-toaster",
+        agentToasterInstance,
+        {
+          showStopButton: !!abortController,
+          showFullResultsButton: agentType === "search" ? true : false,
+        }
+      );
     }
   }, 100);
 
@@ -64,24 +80,138 @@ export const initializeAgentToaster = (
 };
 
 /**
- * Update agent toaster with progress message
+ * Update agent toaster with progress message and optional expansion button
  */
-export const updateAgentToaster = (message: string): void => {
+export const updateAgentToaster = (
+  message: string,
+  options?: {
+    showExpansionButton?: boolean;
+    expansionOptions?: string;
+    showFullResultsButton?: boolean;
+  }
+): void => {
   if (agentToasterStream) {
     agentToasterStream.innerText += `\n${message}`;
+
+    // If expansion options are provided, update buttons to include expansion
+    if (options?.showExpansionButton && options?.expansionOptions) {
+      // Find the toaster element and update buttons
+      const toasterElement = agentToasterStream.closest(".bp3-toast");
+      if (toasterElement) {
+        // Remove existing buttons
+        const existingButtons = toasterElement.querySelector(".buttons");
+        if (existingButtons) {
+          existingButtons.remove();
+        }
+
+        // Add new buttons including expansion
+        setTimeout(() => {
+          addButtonsToToaster(
+            null,
+            ".search-agent-toaster",
+            agentToasterInstance,
+            {
+              showExpansionButton: true,
+              expansionOptions: options.expansionOptions,
+              showStopButton: true, // Keep stop button during expansion
+              showFullResultsButton: options.showFullResultsButton || false, // Enable full results button if requested
+            }
+          );
+        }, 50); // Small delay to ensure DOM is ready
+      }
+    }
   }
 };
 
 /**
  * Replace last toaster message (useful for updating status)
  */
-export const replaceLastToasterMessage = (oldMessage: string, newMessage: string): void => {
+export const replaceLastToasterMessage = (
+  oldMessage: string,
+  newMessage: string
+): void => {
   if (agentToasterStream) {
     agentToasterStream.innerText = agentToasterStream.innerText.replace(
       oldMessage,
       newMessage
     );
   }
+};
+
+/**
+ * Generate intelligent post-completion expansion options based on search history
+ */
+const getPostCompletionExpansionOptions = (): string => {
+  // Get expansion history from global state
+  const expansionHistory = (window as any).searchExpansionHistory || {};
+  const lastQuery = (window as any).lastSearchQuery || "";
+  const queryKey = lastQuery.toLowerCase().trim();
+  const previousExpansions = expansionHistory[queryKey] || [];
+
+  console.log("🔧 [Post-Completion] Generating expansion options:", {
+    lastQuery,
+    queryKey,
+    previousExpansions,
+    historyExists: Object.keys(expansionHistory).length > 0,
+  });
+
+  // Default options if no previous expansions - use new strategy system
+  const defaultOptions = `• 🤖 Auto (let the agent test progressive strategy)
+• ⚡ All at once (fuzzy + synonyms + related concepts)
+• 🔍 Fuzzy matching (typos, morphological variations)
+• 📝 Synonyms and alternative terms
+• 🧠 Related concepts and associated terms
+• 🔄 Try other search strategies (combine different approaches)`;
+
+  // If no previous expansions, show default
+  if (previousExpansions.length === 0) {
+    return defaultOptions;
+  }
+
+  // Build context-aware options based on what hasn't been tried
+  const triedStrategies = new Set(
+    previousExpansions.map((exp: any) => exp.strategy)
+  );
+  const availableOptions = [];
+
+  // Add automatic progression option first
+  if (!triedStrategies.has("automatic")) {
+    availableOptions.push(
+      "🤖 Automatic until results (level-to-level progression through Assistant)"
+    );
+  }
+
+  // Add all-at-once option
+  if (!triedStrategies.has("all")) {
+    availableOptions.push(
+      "⚡ All semantic expansions at once (fuzzy + synonyms + related concepts)"
+    );
+  }
+
+  // Add individual strategy options based on what hasn't been tried
+  if (!triedStrategies.has("fuzzy")) {
+    availableOptions.push(
+      "🔍 Fuzzy matching (typos, morphological variations)"
+    );
+  }
+  if (!triedStrategies.has("synonyms")) {
+    availableOptions.push("📝 Synonyms and alternative terms");
+  }
+  if (!triedStrategies.has("related_concepts")) {
+    availableOptions.push("🧠 Related concepts and associated terms");
+  }
+  if (!triedStrategies.has("broader_terms")) {
+    availableOptions.push("🌐 Broader terms and categories");
+  }
+
+  // Always offer multi-strategy as a final option
+  availableOptions.push(
+    "🔄 Try other search strategies (combine different approaches)"
+  );
+
+  return availableOptions.length > 0
+    ? "• " + availableOptions.join("\n• ")
+    : defaultOptions;
 };
 
 /**
@@ -105,12 +235,17 @@ export const completeAgentToaster = (
   if (agentToasterStream) {
     const typeDisplay = agentType === "search" ? "Search Agent" : agentType;
     agentToasterStream.innerText += `\n🎉 ${typeDisplay} completed successfully!`;
-    
+
     if (executionTime) {
-      agentToasterStream.innerText += `\n🏁 Total time: ${executionTime.toFixed(1)}s`;
+      agentToasterStream.innerText += `\n🏁 Total time: ${executionTime.toFixed(
+        1
+      )}s`;
     }
-    
-    if (tokensUsage && (tokensUsage.input_tokens || tokensUsage.output_tokens)) {
+
+    if (
+      tokensUsage &&
+      (tokensUsage.input_tokens || tokensUsage.output_tokens)
+    ) {
       const inputTokens = tokensUsage.input_tokens || 0;
       const outputTokens = tokensUsage.output_tokens || 0;
       const totalTokens = inputTokens + outputTokens;
@@ -125,30 +260,166 @@ export const completeAgentToaster = (
       if (targetUid) {
         (window as any).lastAgentResponseTargetUid = targetUid;
       }
-      
+
       setTimeout(() => {
-        // Find and remove existing buttons
-        const toasterElt = document.querySelector(".mcp-toaster .bp3-toast");
+        // Find and remove existing buttons from search-agent-toaster (not MCP toaster)
+        const toasterElt = document.querySelector(
+          ".search-agent-toaster .bp3-toast"
+        );
         if (toasterElt) {
           const existingButtons = toasterElt.querySelector(".buttons");
           if (existingButtons) {
             existingButtons.remove();
           }
-          
-          // Use the standard addButtonsToToaster function
+
+          // Generate intelligent expansion options based on what hasn't been tried
+          const expansionOptions = getPostCompletionExpansionOptions();
+
+          // Use the standard addButtonsToToaster function with correct toaster
           // showFullResultsButton: true will exclude copy button and include full results button
           addButtonsToToaster(
             "completion-toast",
-            ".mcp-toaster", 
-            null, // We don't need the toaster instance for clearing
+            ".search-agent-toaster",
+            agentToasterInstance, // Use the correct search agent toaster instance
             {
               showStopButton: false,
-              showFullResultsButton: true
+              showFullResultsButton: true,
+              showExpansionButton: true,
+              expansionOptions: expansionOptions,
             }
           );
+
+          // Set up expansion handling for post-completion expansion
+          setTimeout(() => {
+            setupPostCompletionExpansionHandler();
+          }, 300);
         }
       }, 200);
     }
+  }
+};
+
+/**
+ * Set up expansion handling for post-completion expansion buttons
+ * This handles expansion events after the agent has already completed
+ */
+const setupPostCompletionExpansionHandler = (): void => {
+  // Clean up any existing expansion listeners first
+  if (typeof window !== "undefined") {
+    // Remove any existing listeners
+    const allEventListeners = (window as any)._expansionListeners || [];
+    allEventListeners.forEach((listener: any) => {
+      try {
+        window.removeEventListener("agentExpansion", listener);
+      } catch (e) {
+        // Ignore errors from removing non-existent listeners
+      }
+    });
+
+    // Create new expansion handler for post-completion
+    const postCompletionExpansionHandler = async (event: CustomEvent) => {
+      try {
+        const { action, label, emoji } = event.detail;
+        console.log(
+          `🚀 [Post-Completion Expansion] User selected: ${emoji} ${label}`
+        );
+
+        // Update toaster to show expansion is starting
+        updateAgentToaster(
+          `\n🚀 ${label}... Re-running search with expansion.`
+        );
+
+        // Import the necessary functions
+        const invokeModule = await import(
+          "../search-agent/ask-your-graph-invoke"
+        );
+        const { invokeSearchAgent } = invokeModule;
+        const invokeExpandedSearchDirect =
+          invokeModule.invokeExpandedSearchDirect;
+
+        // Get the last search parameters from the global state if available
+        const lastQuery =
+          (window as any).lastSearchQuery || "Please provide your search query";
+        const lastRootUid =
+          (window as any).lastSearchRootUid ||
+          (window as any).roamAlphaAPI?.ui?.getFocusedBlock()?.["block-uid"];
+        const lastParams = (window as any).lastSearchParams || {};
+
+        if (!lastRootUid) {
+          updateAgentToaster(
+            `\n❌ Cannot determine where to insert results. Please focus on a block and try again.`
+          );
+          return;
+        }
+
+        if (!lastQuery || lastQuery === "Please provide your search query") {
+          updateAgentToaster(
+            `\n❌ No previous search query found. Please run a search first.`
+          );
+          return;
+        }
+
+        // Check expansion history for this query
+        const expansionHistory = (window as any).searchExpansionHistory || {};
+        const queryKey = lastQuery.toLowerCase().trim();
+        const previousExpansions = expansionHistory[queryKey] || [];
+
+        // Check if this specific expansion has been tried before
+        const isRepeatExpansion = previousExpansions.some(
+          (exp: any) => exp.strategy === action || exp.label === label
+        );
+
+        if (isRepeatExpansion) {
+          updateAgentToaster(
+            `\n🔄 This expansion strategy has been tried before. Offering deeper alternatives...`
+          );
+
+          // Offer deeper expansion options
+          setTimeout(() => {
+            updateAgentToaster(``, {
+              showExpansionButton: true,
+              expansionOptions: `• 🚀 Multi-strategy deep search (combine all approaches)
+• 🧠 AI-powered comprehensive analysis  
+• 🌐 Cross-reference exploration (tags, links, mentions)`,
+            });
+          }, 1000);
+          return;
+        }
+
+        // Record this expansion attempt
+        if (!expansionHistory[queryKey]) {
+          expansionHistory[queryKey] = [];
+        }
+        expansionHistory[queryKey].push({
+          strategy: action,
+          label: label,
+          timestamp: Date.now(),
+          level: previousExpansions.length + 1,
+        });
+        (window as any).searchExpansionHistory = expansionHistory;
+
+        // Use direct assistant bypass for expansion
+        await invokeExpandedSearchDirect({
+          query: lastQuery,
+          expansionStrategy: action,
+          expansionLabel: label,
+          expansionLevel: previousExpansions.length + 1,
+          rootUid: lastRootUid,
+          searchParams: lastParams,
+        });
+      } catch (error) {
+        console.error("Error in post-completion expansion:", error);
+        updateAgentToaster(`\n❌ Error applying expansion: ${error.message}`);
+      }
+    };
+
+    // Track and add the new listener
+    (window as any)._expansionListeners = [postCompletionExpansionHandler];
+    window.addEventListener("agentExpansion", postCompletionExpansionHandler);
+
+    console.log(
+      "🔧 [Post-Completion] Expansion handler set up for completed search"
+    );
   }
 };
 
@@ -158,7 +429,7 @@ export const completeAgentToaster = (
 export const errorAgentToaster = (error: Error): void => {
   // Clear the agent controller since processing failed
   clearAgentController();
-  
+
   if (agentToasterStream) {
     agentToasterStream.innerText += `\n💥 Error: ${error.message}`;
   }
@@ -215,12 +486,16 @@ export const buildAgentConversationState = async (
 
         // Create context-aware summarization prompt
         const contextPrompts = {
-          search: "this search conversation that will help maintain context for future searches. Your summary should:\n\n1. **ALWAYS start with the original search request/goal** - what the user was trying to find or understand\n2. **Highlight important search findings and patterns** - key results discovered, successful search strategies, important pages/blocks found\n3. **Note search preferences and optimizations** - result modes used, any performance optimizations applied, user preferences for data display\n4. **Capture ongoing search directions** - areas still being explored, follow-up searches planned",
+          search:
+            "this search conversation that will help maintain context for future searches. Your summary should:\n\n1. **ALWAYS start with the original search request/goal** - what the user was trying to find or understand\n2. **Highlight important search findings and patterns** - key results discovered, successful search strategies, important pages/blocks found\n3. **Note search preferences and optimizations** - result modes used, any performance optimizations applied, user preferences for data display\n4. **Capture ongoing search directions** - areas still being explored, follow-up searches planned",
           mcp: "this MCP conversation that will help maintain context for future tool interactions. Your summary should:\n\n1. **ALWAYS start with the original user request/goal** - synthesize what the user initially wanted to accomplish\n2. **Highlight important findings, results, and conclusions** - include discoveries made, problems solved, key insights gained\n3. **Note tool usage patterns and preferences** - which tools were most effective, any optimizations applied\n4. **Capture ongoing tasks or directions** the conversation is heading",
-          default: "this conversation that will help maintain context for future interactions. Your summary should:\n\n1. **ALWAYS start with the original user request/goal**\n2. **Highlight important findings and conclusions**\n3. **Note any ongoing tasks or directions**"
+          default:
+            "this conversation that will help maintain context for future interactions. Your summary should:\n\n1. **ALWAYS start with the original user request/goal**\n2. **Highlight important findings and conclusions**\n3. **Note any ongoing tasks or directions**",
         };
 
-        const contextPrompt = contextPrompts[agentType as keyof typeof contextPrompts] || contextPrompts.default;
+        const contextPrompt =
+          contextPrompts[agentType as keyof typeof contextPrompts] ||
+          contextPrompts.default;
 
         const summarizationPrompt = `${
           currentSummary
@@ -303,13 +578,13 @@ export const validateAgentState = (
   requiredFields: string[],
   state: Record<string, any>
 ): { isValid: boolean; missingFields: string[] } => {
-  const missingFields = requiredFields.filter(field => 
-    state[field] === undefined || state[field] === null
+  const missingFields = requiredFields.filter(
+    (field) => state[field] === undefined || state[field] === null
   );
-  
+
   return {
     isValid: missingFields.length === 0,
-    missingFields
+    missingFields,
   };
 };
 
@@ -324,7 +599,11 @@ export const handleRetryLogic = (
     isToRedoBetter?: boolean;
   }
 ): string => {
-  if (options?.retryInstruction && options?.isRetry && options?.isToRedoBetter) {
+  if (
+    options?.retryInstruction &&
+    options?.isRetry &&
+    options?.isToRedoBetter
+  ) {
     return `${originalPrompt}\n\nPlease improve the response considering: ${options.retryInstruction}`;
   }
   return originalPrompt;
@@ -347,7 +626,7 @@ export const validatePermissions = (
  * Robust JSON parsing for LLM responses (especially helpful for Anthropic models)
  * Handles common formatting issues and provides fallback options
  */
-export const parseJSONResponse = <T = any>(
+export const parseJSONResponse = <T = any,>(
   responseText: string,
   fallbackValue?: T
 ): T | null => {
@@ -370,30 +649,30 @@ export const parseJSONResponse = <T = any>(
     }
 
     // Additional cleanup: if we have extra text after JSON, extract just the JSON part
-    if (cleanedText.includes('}')) {
-      const lines = cleanedText.split('\n');
+    if (cleanedText.includes("}")) {
+      const lines = cleanedText.split("\n");
       let jsonLines = [];
       let braceCount = 0;
       let insideJson = false;
-      
+
       for (const line of lines) {
-        if (line.trim().startsWith('{')) {
+        if (line.trim().startsWith("{")) {
           insideJson = true;
         }
-        
+
         if (insideJson) {
           jsonLines.push(line);
           braceCount += (line.match(/\{/g) || []).length;
           braceCount -= (line.match(/\}/g) || []).length;
-          
+
           if (braceCount === 0) {
             break; // Found complete JSON object
           }
         }
       }
-      
+
       if (jsonLines.length > 0) {
-        cleanedText = jsonLines.join('\n');
+        cleanedText = jsonLines.join("\n");
       }
     }
 
@@ -415,12 +694,12 @@ export const parseJSONWithFields = <T extends Record<string, any>>(
   fieldMappings: Record<keyof T, string[]>
 ): T | null => {
   const parsed = parseJSONResponse(responseText);
-  if (!parsed || typeof parsed !== 'object') {
+  if (!parsed || typeof parsed !== "object") {
     return null;
   }
 
   const result = {} as T;
-  
+
   for (const [targetField, possibleFields] of Object.entries(fieldMappings)) {
     for (const field of possibleFields) {
       if (parsed[field] !== undefined) {
@@ -463,7 +742,7 @@ export interface ResultSummary {
  * Generate a unique result ID
  */
 export const generateResultId = (toolName: string, counter: number): string => {
-  return `${toolName}_${counter.toString().padStart(3, '0')}`;
+  return `${toolName}_${counter.toString().padStart(3, "0")}`;
 };
 
 /**
@@ -478,13 +757,13 @@ export const createResultSummary = (
 ): ResultSummary => {
   const data = toolResult.data || [];
   const metadata = toolResult.metadata || {};
-  
+
   // Determine result type based on tool name and data structure
   const resultType = determineResultType(toolName, data);
-  
+
   // Extract sample items for context
   const sampleItems = extractSampleItems(data, resultType, 3);
-  
+
   return {
     id: resultId,
     toolName,
@@ -497,28 +776,32 @@ export const createResultSummary = (
       canExpand: metadata.canExpandResults || false,
       searchTerms: extractSearchTerms(userQuery),
       sortedBy: sortedBy as any,
-      availableCount: metadata.totalFound || metadata.availableCount || data.length || 0,
+      availableCount:
+        metadata.totalFound || metadata.availableCount || data.length || 0,
       // Type-specific metadata
       ...(resultType === "combinations" && {
         dataType: (data as any).type,
-        operation: (data as any).operation
+        operation: (data as any).operation,
       }),
       ...(resultType === "hierarchy" && {
         formatType: (data as any).content ? "string" : "structured",
-        hierarchyDepth: (data as any).stats?.maxDepth
-      })
-    }
+        hierarchyDepth: (data as any).stats?.maxDepth,
+      }),
+    },
   };
 };
 
 /**
  * Determine result type from tool name and data
  */
-const determineResultType = (toolName: string, data: any): ResultSummary["resultType"] => {
+const determineResultType = (
+  toolName: string,
+  data: any
+): ResultSummary["resultType"] => {
   // Map tool names to result types
   const toolTypeMap: Record<string, ResultSummary["resultType"]> = {
     findBlocksByContent: "blocks",
-    findBlocksWithHierarchy: "blocks", 
+    findBlocksWithHierarchy: "blocks",
     findPagesByTitle: "pages",
     findPagesByContent: "pages",
     findPagesSemantically: "pages",
@@ -526,48 +809,61 @@ const determineResultType = (toolName: string, data: any): ResultSummary["result
     extractHierarchyContent: "hierarchy",
     combineResults: "combinations",
     getNodeDetails: data[0]?.content ? "blocks" : "pages", // Heuristic
-    executeDatomicQuery: data[0]?.uid ? (data[0]?.content ? "blocks" : "pages") : "blocks"
+    executeDatomicQuery: data[0]?.uid
+      ? data[0]?.content
+        ? "blocks"
+        : "pages"
+      : "blocks",
   };
-  
+
   return toolTypeMap[toolName] || "blocks";
 };
 
 /**
  * Extract sample items for LLM context
  */
-const extractSampleItems = (data: any[], resultType: ResultSummary["resultType"], count: number): string[] => {
+const extractSampleItems = (
+  data: any[],
+  resultType: ResultSummary["resultType"],
+  count: number
+): string[] => {
   if (!Array.isArray(data) || data.length === 0) {
     return [];
   }
-  
+
   const samples: string[] = [];
   const sampleData = data.slice(0, count);
-  
+
   switch (resultType) {
     case "blocks":
-      return sampleData.map(item => 
+      return sampleData.map((item) =>
         item.pageTitle ? `Block in [[${item.pageTitle}]]` : `Block ${item.uid}`
       );
-      
+
     case "pages":
-      return sampleData.map(item => 
-        `[[${item.title}]]`
-      );
-      
+      return sampleData.map((item) => `[[${item.title}]]`);
+
     case "references":
-      return sampleData.map(item => 
-        `[[${item.pageTitle}]] (${item.count} refs)`
+      return sampleData.map(
+        (item) => `[[${item.pageTitle}]] (${item.count} refs)`
       );
-      
+
     case "hierarchy":
-      return sampleData.map(item => 
-        `Hierarchy from ${item.rootUid} (${item.stats?.totalBlocks || 0} blocks)`
+      return sampleData.map(
+        (item) =>
+          `Hierarchy from ${item.rootUid} (${
+            item.stats?.totalBlocks || 0
+          } blocks)`
       );
-      
+
     case "combinations":
       // For combinations, data is not an array but a single result object
-      return [`${(data as any).finalCount || data.length} combined ${(data as any).type || 'items'}`];
-      
+      return [
+        `${(data as any).finalCount || data.length} combined ${
+          (data as any).type || "items"
+        }`,
+      ];
+
     default:
       return sampleData.map((item, i) => `Item ${i + 1}`);
   }
@@ -578,35 +874,56 @@ const extractSampleItems = (data: any[], resultType: ResultSummary["resultType"]
  */
 const extractSearchTerms = (query: string): string[] => {
   // Simple extraction - look for quoted terms and significant words
-  const quotedTerms = query.match(/"([^"]+)"/g)?.map(t => t.slice(1, -1)) || [];
-  const bracketTerms = query.match(/\[\[([^\]]+)\]\]/g)?.map(t => t.slice(2, -2)) || [];
-  const hashTerms = query.match(/#(\w+)/g)?.map(t => t.slice(1)) || [];
-  
-  return [...new Set([...quotedTerms, ...bracketTerms, ...hashTerms])].slice(0, 5);
+  const quotedTerms =
+    query.match(/"([^"]+)"/g)?.map((t) => t.slice(1, -1)) || [];
+  const bracketTerms =
+    query.match(/\[\[([^\]]+)\]\]/g)?.map((t) => t.slice(2, -2)) || [];
+  const hashTerms = query.match(/#(\w+)/g)?.map((t) => t.slice(1)) || [];
+
+  return [...new Set([...quotedTerms, ...bracketTerms, ...hashTerms])].slice(
+    0,
+    5
+  );
 };
 
 /**
  * Generate compact summary text for LLM context
  */
-export const generateSummaryText = (summary: ResultSummary, securityMode: "private" | "balanced" | "full"): string => {
-  const { id, toolName, totalCount, resultType, sampleItems, metadata } = summary;
-  
+export const generateSummaryText = (
+  summary: ResultSummary,
+  securityMode: "private" | "balanced" | "full"
+): string => {
+  const { id, toolName, totalCount, resultType, sampleItems, metadata } =
+    summary;
+
   switch (securityMode) {
     case "private":
       // Minimal info for private mode
-      return `Search ${id}: ${totalCount} ${resultType} found${metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ''}`;
-      
+      return `Search ${id}: ${totalCount} ${resultType} found${
+        metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ""
+      }`;
+
     case "balanced":
       // Include samples but not detailed content
-      const sampleText = sampleItems.length > 0 ? `. Samples: ${sampleItems.slice(0, 2).join(', ')}` : '';
-      return `Search ${id}: ${totalCount} ${resultType} found via ${toolName}${sampleText}${metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ''}. Use fromResultId: "${id}" to reference this data in other tools.`;
-      
+      const sampleText =
+        sampleItems.length > 0
+          ? `. Samples: ${sampleItems.slice(0, 2).join(", ")}`
+          : "";
+      return `Search ${id}: ${totalCount} ${resultType} found via ${toolName}${sampleText}${
+        metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ""
+      }. Use fromResultId: "${id}" to reference this data in other tools.`;
+
     case "full":
       // Full details with all samples
-      const fullSampleText = sampleItems.length > 0 ? `. Examples: ${sampleItems.join(', ')}` : '';
-      const limitText = metadata.wasLimited ? ` (${metadata.availableCount} total available)` : '';
-      return `Search ${id}: ${totalCount} ${resultType} found via ${toolName}${fullSampleText}${limitText}${metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ''}. Use fromResultId: "${id}" to reference this data in other tools.`;
-      
+      const fullSampleText =
+        sampleItems.length > 0 ? `. Examples: ${sampleItems.join(", ")}` : "";
+      const limitText = metadata.wasLimited
+        ? ` (${metadata.availableCount} total available)`
+        : "";
+      return `Search ${id}: ${totalCount} ${resultType} found via ${toolName}${fullSampleText}${limitText}${
+        metadata.sortedBy ? ` (sorted by ${metadata.sortedBy})` : ""
+      }. Use fromResultId: "${id}" to reference this data in other tools.`;
+
     default:
       return `Search ${id}: ${totalCount} ${resultType}`;
   }

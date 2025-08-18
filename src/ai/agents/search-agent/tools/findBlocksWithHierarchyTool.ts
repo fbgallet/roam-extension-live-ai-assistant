@@ -11,19 +11,22 @@ import {
   filterByDateRange,
   createToolResult,
   generateSemanticExpansions,
-  getBlockChildren,
-  getBlockParents,
-  getBatchBlockChildren,
-  getBatchBlockParents,
+  parseSemanticExpansion,
   getFlattenedDescendants,
   getFlattenedAncestors,
   DatomicQueryBuilder,
   SearchCondition,
   extractUidsFromResults,
-  sanitizeRegexForDatomic,
   deduplicateResultsByUid,
 } from "./searchUtils";
+import type {
+  SearchCondition as StructuredSearchCondition,
+  CompoundCondition,
+  HierarchyCondition,
+  StructuredHierarchyQuery,
+} from "./types/index";
 import { findBlocksByContentTool } from "./findBlocksByContentTool";
+import { findPagesByTitleTool } from "./findPagesByTitleTool";
 import { combineResultsTool } from "./combineResultsTool";
 import { updateAgentToaster } from "../../shared/agentsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
@@ -58,13 +61,24 @@ const hierarchyConditionSchema = z.object({
 });
 
 const contentConditionSchema = z.object({
-  type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text"),
+  type: z
+    .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+    .default("text"),
   text: z.string().min(1, "Search text is required"),
   matchType: z.enum(["exact", "contains", "regex"]).default("contains"),
   semanticExpansion: z
-    .boolean()
-    .default(false)
-    .describe("Only use when few results or user requests semantic search"),
+    .enum([
+      "fuzzy",
+      "synonyms",
+      "related_concepts",
+      "broader_terms",
+      "custom",
+      "all",
+    ])
+    .optional()
+    .describe(
+      "Semantic expansion strategy to apply. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
+    ),
   weight: z.number().min(0).max(10).default(1.0),
   negate: z.boolean().default(false),
 });
@@ -79,8 +93,13 @@ interface HierarchicalExpression {
     | "deep_strict_hierarchy"
     | "flexible_hierarchy"
     | "bidirectional"
-    | "deep_bidirectional";
-  operator: ">" | ">>" | "=>" | "<=>" | "<<=>>";
+    | "deep_bidirectional"
+    | "strict_hierarchy_left"
+    | "deep_strict_hierarchy_left"
+    | "flexible_hierarchy_left"
+    | "flexible_hierarchy_right"
+    | "deep_flexible_hierarchy";
+  operator: ">" | ">>" | "=>" | "<=>" | "<<=>>" | "<" | "<<" | "<=" | "=>>" | "<<=";
   leftOperand: SearchTerm | CompoundExpression;
   rightOperand: SearchTerm | CompoundExpression;
   maxDepth?: number;
@@ -112,10 +131,6 @@ const schema = z.object({
   hierarchyConditions: z.array(hierarchyConditionSchema).optional(),
   combineConditions: z.enum(["AND", "OR"]).default("AND"),
   combineHierarchy: z.enum(["AND", "OR"]).default("OR"),
-  maxExpansions: z.number().min(1).max(10).default(3),
-  expansionStrategy: z
-    .enum(["synonyms", "related_concepts", "broader_terms"])
-    .default("related_concepts"),
   includeChildren: z.boolean().default(false),
   childDepth: z.number().min(1).max(5).default(1),
   includeParents: z.boolean().default(false),
@@ -173,7 +188,209 @@ const schema = z.object({
     .array(z.string())
     .optional()
     .describe("Limit search to blocks within specific page UIDs"),
+
+  // Block UID exclusion
+  excludeBlockUid: z
+    .string()
+    .optional()
+    .describe(
+      "Block UID to exclude from results (typically the user's query block)"
+    ),
+
+  // New structured condition support (future enhancement)
+  // Note: These are optional and not currently exposed to LLM - for internal use only
+  structuredHierarchyCondition: z.any().optional(),
+  structuredSearchConditions: z.any().optional(),
 });
+
+/**
+ * Convert hierarchicalExpression string to structured HierarchyCondition
+ * This provides backward compatibility while enabling the new structured approach
+ */
+const convertHierarchicalExpressionToStructured = (
+  expression: string
+): HierarchyCondition | null => {
+  try {
+    const parsed = parseHierarchicalExpression(expression);
+    console.log(`🔍 [DEBUG] parseHierarchicalExpression result for "${expression}":`, parsed);
+    
+    if (!parsed || parsed.type === "term" || parsed.type === "compound") {
+      console.log(`🚫 [DEBUG] Conversion failed - parsed type: ${parsed?.type || 'null'}`);
+      return null;
+    }
+
+    const hierarchicalParsed = parsed as HierarchicalExpression;
+
+    // Convert old operator format to new operator format
+    const operatorMap: Record<string, HierarchyCondition["operator"]> = {
+      ">": ">",
+      "<": "<",
+      ">>": ">>",
+      "<<": "<<",
+      "=>": "=>",
+      "<=": "<=",
+      "=>>": "=>>",
+      "<<=": "<<=",
+      "<=>": "<=>",
+      "<<=>>": "<<=>>",
+    };
+
+    const newOperator = operatorMap[hierarchicalParsed.operator];
+    if (!newOperator) {
+      console.warn(`Unknown operator: ${hierarchicalParsed.operator}`);
+      return null;
+    }
+
+    return {
+      operator: newOperator,
+      leftCondition: convertParsedExpressionToSearchCondition(
+        hierarchicalParsed.leftOperand
+      ),
+      rightCondition: convertParsedExpressionToSearchCondition(
+        hierarchicalParsed.rightOperand
+      ),
+      maxDepth: hierarchicalParsed.maxDepth,
+    };
+  } catch (error) {
+    console.error("Failed to convert hierarchical expression:", error);
+    return null;
+  }
+};
+
+/**
+ * Convert ParsedExpression (old format) to SearchCondition or CompoundCondition (new format)
+ */
+const convertParsedExpressionToSearchCondition = (
+  expression: SearchTerm | CompoundExpression
+): StructuredSearchCondition | CompoundCondition => {
+  if (expression.type === "term") {
+    return {
+      type:
+        expression.searchType === "page_ref"
+          ? "page_ref"
+          : expression.searchType === "regex"
+          ? "regex"
+          : "text",
+      text: expression.text,
+      matchType: expression.searchType === "regex" ? "regex" : "contains",
+      weight: 1.0,
+      negate: false,
+    };
+  } else if (expression.type === "compound") {
+    return {
+      operator: expression.operator,
+      conditions: expression.operands.map(
+        convertParsedExpressionToSearchCondition
+      ),
+    };
+  }
+
+  throw new Error(`Unsupported expression type: ${(expression as any).type}`);
+};
+
+/**
+ * Apply semantic expansion to structured search conditions
+ */
+const expandStructuredConditions = async (
+  conditions: (StructuredSearchCondition | CompoundCondition)[],
+  state?: any
+): Promise<(StructuredSearchCondition | CompoundCondition)[]> => {
+  const expandedConditions: (StructuredSearchCondition | CompoundCondition)[] =
+    [];
+
+  for (const condition of conditions) {
+    if ("operator" in condition) {
+      // CompoundCondition - recursively expand nested conditions
+      expandedConditions.push({
+        operator: condition.operator,
+        conditions: await expandStructuredConditions(
+          condition.conditions,
+          state
+        ),
+      });
+    } else {
+      // SearchCondition - apply semantic expansion
+      const expandedCondition = await expandSingleCondition(condition, state);
+      expandedConditions.push(...expandedCondition);
+    }
+  }
+
+  return expandedConditions;
+};
+
+/**
+ * Apply semantic expansion to a single SearchCondition
+ */
+const expandSingleCondition = async (
+  condition: StructuredSearchCondition,
+  state?: any
+): Promise<StructuredSearchCondition[]> => {
+  // Check if semantic expansion is needed - either globally or per-condition
+  const hasGlobalExpansion = state?.isExpansionGlobal === true;
+
+  // Parse semantic expansion from condition text using parseSemanticExpansion
+  const { cleanText, expansionType } = parseSemanticExpansion(
+    condition.text,
+    state?.semanticExpansion
+  );
+
+  // Determine final expansion strategy: per-condition > global
+  let effectiveExpansionStrategy = expansionType || condition.semanticExpansion;
+  if (!effectiveExpansionStrategy && hasGlobalExpansion) {
+    effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
+  }
+
+  // Start with the cleaned condition
+  const expandedConditions: StructuredSearchCondition[] = [
+    {
+      ...condition,
+      text: cleanText,
+      semanticExpansion: undefined, // Remove expansion flag from final condition
+    },
+  ];
+
+  // Apply semantic expansion if needed
+  if (effectiveExpansionStrategy && condition.type !== "regex") {
+    try {
+      const customStrategy =
+        effectiveExpansionStrategy === "custom"
+          ? state?.customSemanticExpansion
+          : undefined;
+
+      // Determine the mode based on condition type
+      const expansionMode = condition.type === "page_ref" ? "page_ref" : "text";
+
+      // Use generateSemanticExpansions
+      const expansionTerms = await generateSemanticExpansions(
+        cleanText,
+        effectiveExpansionStrategy as any,
+        state?.userQuery,
+        state?.model,
+        state?.language,
+        customStrategy,
+        expansionMode
+      );
+
+      console.log(
+        `🔍 Expanding condition "${cleanText}" (${condition.type}) with ${expansionTerms.length} semantic variations`
+      );
+
+      // Add expanded terms as additional conditions
+      for (const term of expansionTerms) {
+        expandedConditions.push({
+          ...condition,
+          text: term,
+          semanticExpansion: undefined,
+          weight: (condition.weight || 1.0) * 0.8, // Reduce weight for expanded terms
+        });
+      }
+    } catch (error) {
+      console.warn(`Failed to expand condition "${condition.text}":`, error);
+    }
+  }
+
+  return expandedConditions;
+};
 
 /**
  * Parse hierarchical expressions like "A => B", "A <=> (B + C)", etc.
@@ -198,9 +415,24 @@ const parseHierarchicalExpression = (
         operator: "<=>" as const,
       },
       {
+        pattern: /<<=/, 
+        type: "deep_flexible_hierarchy" as const,
+        operator: "<<=" as const,
+      },
+      {
+        pattern: /=>>/,
+        type: "flexible_hierarchy_right" as const,
+        operator: "=>>" as const,
+      },
+      {
         pattern: />>/,
         type: "deep_strict_hierarchy" as const,
         operator: ">>" as const,
+      },
+      {
+        pattern: /<</,
+        type: "deep_strict_hierarchy_left" as const,
+        operator: "<<" as const,
       },
       {
         pattern: /=>/,
@@ -208,9 +440,19 @@ const parseHierarchicalExpression = (
         operator: "=>" as const,
       },
       {
+        pattern: /<=/,
+        type: "flexible_hierarchy_left" as const,
+        operator: "<=" as const,
+      },
+      {
         pattern: />/,
         type: "strict_hierarchy" as const,
         operator: ">" as const,
+      },
+      {
+        pattern: /</,
+        type: "strict_hierarchy_left" as const,
+        operator: "<" as const,
       },
     ];
 
@@ -319,6 +561,50 @@ const parseOperand = (operand: string): SearchTerm | CompoundExpression => {
     }
   }
 
+  // Handle text:(term1 | term2 | term3) syntax for text content search
+  if (cleanText.startsWith("text:")) {
+    const textContent = cleanText.slice(5).trim();
+
+    // Handle text:(term1 | term2 | term3) and text:(term1 + term2 + term3) syntax
+    if (textContent.startsWith("(") && textContent.endsWith(")")) {
+      const innerTerms = textContent.slice(1, -1).trim();
+
+      // Check for OR logic first
+      const orTerms = innerTerms.split(/\s*\|\s*/);
+      if (orTerms.length > 1) {
+        return {
+          type: "compound",
+          operator: "OR",
+          operands: orTerms.map((term) => ({
+            type: "term",
+            text: term.trim(),
+            searchType: "text",
+          })),
+        };
+      }
+
+      // Check for AND logic
+      const andTerms = innerTerms.split(/\s*\+\s*/);
+      if (andTerms.length > 1) {
+        return {
+          type: "compound",
+          operator: "AND",
+          operands: andTerms.map((term) => ({
+            type: "term",
+            text: term.trim(),
+            searchType: "text",
+          })),
+        };
+      }
+    }
+
+    return {
+      type: "term",
+      text: textContent,
+      searchType: "text",
+    };
+  }
+
   return {
     type: "term",
     text: cleanText,
@@ -327,10 +613,17 @@ const parseOperand = (operand: string): SearchTerm | CompoundExpression => {
 };
 
 /**
- * Extract search conditions from parsed expressions
+ * Extract search conditions from parsed expressions with compound structure preservation
  */
 const extractSearchConditions = (
-  expression: SearchTerm | CompoundExpression
+  expression: SearchTerm | CompoundExpression,
+  globalSemanticExpansion?:
+    | "fuzzy"
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "custom"
+    | "all"
 ): SearchCondition[] => {
   if (expression.type === "term") {
     const searchType = expression.searchType || "text";
@@ -340,7 +633,11 @@ const extractSearchConditions = (
       type: searchType,
       text: expression.text,
       matchType,
-      semanticExpansion: false,
+      semanticExpansion:
+        globalSemanticExpansion &&
+        (searchType === "page_ref" || searchType === "text")
+          ? globalSemanticExpansion
+          : undefined,
       weight: 1.0,
       negate: false,
     };
@@ -354,8 +651,34 @@ const extractSearchConditions = (
   }
 
   if (expression.type === "compound") {
+    // For page reference OR compounds, create a special combined condition
+    if (
+      expression.operator === "OR" &&
+      expression.operands.every(
+        (op) => op.type === "term" && op.searchType === "page_ref"
+      )
+    ) {
+      // Create a single condition that represents the OR of page references
+      const pageNames = expression.operands.map(
+        (op) => (op as SearchTerm).text
+      );
+
+      return [
+        {
+          type: "page_ref_or",
+          text: pageNames.join("|"), // Store as pipe-separated for Datomic OR handling
+          matchType: "contains",
+          semanticExpansion: undefined,
+          weight: 1.0,
+          negate: false,
+          pageNames: pageNames, // Store original array for proper query building
+        } as any,
+      ]; // Cast to any since we're extending the SearchCondition type
+    }
+
+    // For other compounds, flatten as before
     return expression.operands.flatMap((operand) =>
-      extractSearchConditions(operand)
+      extractSearchConditions(operand, globalSemanticExpansion)
     );
   }
 
@@ -383,20 +706,173 @@ const formatExpressionForDisplay = (
   if (expression.type === "term") {
     return expression.text;
   }
-  
+
   if (expression.type === "compound") {
     const operator = expression.operator === "OR" ? " | " : " + ";
     return expression.operands
-      .map(operand => {
+      .map((operand) => {
         const formatted = formatExpressionForDisplay(operand);
         // Add parentheses for nested compound expressions
         return operand.type === "compound" ? `(${formatted})` : formatted;
       })
       .join(operator);
   }
-  
+
   return String(expression);
 };
+
+/**
+ * Process structured hierarchy query with semantic expansion support
+ */
+const processStructuredHierarchyQuery = async (
+  query: StructuredHierarchyQuery,
+  options: {
+    maxHierarchyDepth: number;
+    strategyCombination: "union" | "intersection";
+    includeChildren?: boolean;
+    childDepth?: number;
+    includeParents?: boolean;
+    parentDepth?: number;
+    includeDaily: boolean;
+    dateRange?: any;
+    sortBy: string;
+    limit: number;
+    secureMode: boolean;
+    fromResultId?: string;
+    limitToBlockUids?: string[];
+    limitToPageUids?: string[];
+    excludeBlockUid?: string;
+  },
+  state?: any
+): Promise<any[]> => {
+  console.log(
+    "🚀 Processing structured hierarchy query with semantic expansion"
+  );
+
+  // Apply semantic expansion to hierarchy condition if present
+  if (query.hierarchyCondition) {
+    const expandedLeftConditions = await expandStructuredConditions(
+      [query.hierarchyCondition.leftCondition],
+      state
+    );
+    const expandedRightConditions = await expandStructuredConditions(
+      [query.hierarchyCondition.rightCondition],
+      state
+    );
+
+    // For now, use the first expanded condition (could be enhanced to handle multiple)
+    query.hierarchyCondition.leftCondition = expandedLeftConditions[0];
+    query.hierarchyCondition.rightCondition = expandedRightConditions[0];
+  }
+
+  // Apply semantic expansion to additional search conditions if present
+  if (query.searchConditions && query.searchConditions.length > 0) {
+    const expandedSearchConditions = await expandStructuredConditions(
+      query.searchConditions,
+      state
+    );
+    query.searchConditions = expandedSearchConditions.filter(
+      (cond): cond is StructuredSearchCondition => !("operator" in cond)
+    );
+  }
+
+  // Convert back to legacy format for now (to reuse existing processing logic)
+  // This is a temporary approach - ideally we'd implement native structured processing
+  if (query.hierarchyCondition) {
+    const legacyExpression = convertStructuredToLegacyExpression(
+      query.hierarchyCondition
+    );
+
+    return await processHierarchicalExpression(
+      legacyExpression,
+      options,
+      state
+    );
+  }
+
+  // If no hierarchy condition, fall back to regular content search
+  if (query.searchConditions && query.searchConditions.length > 0) {
+    // Convert structured conditions to legacy format and use existing logic
+    const legacyConditions = query.searchConditions.map(
+      convertStructuredToLegacyCondition
+    );
+
+    // Use findBlocksByContentTool for pure content search
+    const result: any = await findBlocksByContentTool.invoke({
+      conditions: legacyConditions,
+      combineConditions: query.combineConditions || "AND",
+      includeChildren: options.includeChildren,
+      includeParents: options.includeParents,
+      limit: options.limit,
+      secureMode: options.secureMode,
+      fromResultId: options.fromResultId,
+      limitToBlockUids: options.limitToBlockUids,
+      limitToPageUids: options.limitToPageUids,
+    });
+
+    // Parse the result if it's a string
+    if (typeof result === "string") {
+      try {
+        const parsed = JSON.parse(result);
+        return parsed.success ? parsed.data : [];
+      } catch (e) {
+        console.error("Failed to parse findBlocksByContent result:", e);
+        return [];
+      }
+    }
+
+    // Handle object result
+    if (result && typeof result === "object") {
+      return result.data || [];
+    }
+
+    return [];
+  }
+
+  return [];
+};
+
+/**
+ * Convert structured HierarchyCondition back to legacy expression string
+ * This is a temporary bridge function
+ */
+const convertStructuredToLegacyExpression = (
+  condition: HierarchyCondition
+): string => {
+  const leftExpr = convertConditionToString(condition.leftCondition);
+  const rightExpr = convertConditionToString(condition.rightCondition);
+  return `${leftExpr} ${condition.operator} ${rightExpr}`;
+};
+
+/**
+ * Convert SearchCondition or CompoundCondition to string representation
+ */
+const convertConditionToString = (
+  condition: StructuredSearchCondition | CompoundCondition
+): string => {
+  if ("operator" in condition) {
+    // CompoundCondition
+    const operatorSymbol = condition.operator === "AND" ? " + " : " | ";
+    const conditionStrings = condition.conditions.map(convertConditionToString);
+    return `(${conditionStrings.join(operatorSymbol)})`;
+  } else {
+    // SearchCondition
+    return condition.text;
+  }
+};
+
+/**
+ * Convert structured SearchCondition to legacy condition format
+ */
+const convertStructuredToLegacyCondition = (
+  condition: StructuredSearchCondition
+) => ({
+  type: condition.type,
+  text: condition.text,
+  matchType: condition.matchType,
+  weight: condition.weight,
+  negate: condition.negate,
+});
 
 const findBlocksWithHierarchyImpl = async (
   input: z.infer<typeof schema>,
@@ -407,8 +883,6 @@ const findBlocksWithHierarchyImpl = async (
     hierarchyConditions,
     combineConditions,
     combineHierarchy,
-    maxExpansions,
-    expansionStrategy,
     includeChildren,
     childDepth,
     includeParents,
@@ -424,7 +898,53 @@ const findBlocksWithHierarchyImpl = async (
     hierarchicalExpression,
     maxHierarchyDepth,
     strategyCombination,
+    structuredHierarchyCondition,
+    structuredSearchConditions,
   } = input;
+
+  // Debug logging for hierarchyConditions parameter
+  console.log(`🔍 [DEBUG] findBlocksWithHierarchy called with hierarchyConditions:`, {
+    hierarchyConditions,
+    hierarchyConditionsCount: hierarchyConditions?.length || 0,
+    hierarchyConditionsDetails: hierarchyConditions?.map((hc, i) => ({
+      index: i,
+      direction: hc.direction,
+      levels: hc.levels,
+      conditionsCount: hc.conditions?.length || 0,
+      conditions: hc.conditions?.map(c => ({ text: c.text, type: c.type, matchType: c.matchType }))
+    }))
+  });
+
+  // Handle new structured format if provided
+  if (structuredHierarchyCondition || structuredSearchConditions) {
+    console.log("🚀 Processing structured hierarchy condition");
+    return await processStructuredHierarchyQuery(
+      {
+        hierarchyCondition: structuredHierarchyCondition as HierarchyCondition,
+        searchConditions:
+          structuredSearchConditions as StructuredSearchCondition[],
+        combineConditions,
+      },
+      {
+        maxHierarchyDepth,
+        strategyCombination,
+            includeChildren,
+        childDepth,
+        includeParents,
+        parentDepth,
+        includeDaily,
+        dateRange,
+        sortBy,
+        limit,
+        secureMode,
+        fromResultId,
+        limitToBlockUids,
+        limitToPageUids,
+        excludeBlockUid: input.excludeBlockUid,
+      },
+      state
+    );
+  }
 
   console.log(
     `🔍 FindBlocksWithHierarchy: ${
@@ -440,30 +960,80 @@ const findBlocksWithHierarchyImpl = async (
   // Handle hierarchical expressions if provided
   if (hierarchicalExpression) {
     console.log(
-      `🚀 Processing hierarchical expression: "${hierarchicalExpression}"`
+      `🚀 Processing hierarchical expression: "${hierarchicalExpression}" with semantic expansion`
     );
-    return await processHierarchicalExpression(
-      hierarchicalExpression,
-      {
-        maxHierarchyDepth,
-        strategyCombination,
-        maxExpansions,
-        expansionStrategy,
-        includeChildren,
-        childDepth,
-        includeParents,
-        parentDepth,
-        includeDaily,
-        dateRange,
-        sortBy,
-        limit,
-        secureMode,
-        fromResultId,
-        limitToBlockUids,
-        limitToPageUids,
-      },
-      state
+
+    // Convert to structured format for semantic expansion support
+    const structuredCondition = convertHierarchicalExpressionToStructured(
+      hierarchicalExpression
     );
+
+    console.log(`🔍 [DEBUG] Converted hierarchical expression to structured:`, {
+      originalExpression: hierarchicalExpression,
+      structuredCondition: structuredCondition ? {
+        operator: structuredCondition.operator,
+        leftCondition: structuredCondition.leftCondition,
+        rightCondition: structuredCondition.rightCondition,
+        maxDepth: structuredCondition.maxDepth
+      } : null
+    });
+
+    if (structuredCondition) {
+      console.log(
+        "🔄 Converted to structured format, applying semantic expansion"
+      );
+      return await processStructuredHierarchyQuery(
+        {
+          hierarchyCondition: structuredCondition,
+          searchConditions: [],
+          combineConditions: "AND",
+        },
+        {
+          maxHierarchyDepth,
+          strategyCombination,
+                includeChildren,
+          childDepth,
+          includeParents,
+          parentDepth,
+          includeDaily,
+          dateRange,
+          sortBy,
+          limit,
+          secureMode,
+          fromResultId,
+          limitToBlockUids,
+          limitToPageUids,
+          excludeBlockUid: input.excludeBlockUid,
+        },
+        state
+      );
+    } else {
+      // Fallback to original processing if conversion fails
+      console.log(
+        "⚠️ Failed to convert to structured format, using legacy processing"
+      );
+      return await processHierarchicalExpression(
+        hierarchicalExpression,
+        {
+          maxHierarchyDepth,
+          strategyCombination,
+                includeChildren,
+          childDepth,
+          includeParents,
+          parentDepth,
+          includeDaily,
+          dateRange,
+          sortBy,
+          limit,
+          secureMode,
+          fromResultId,
+          limitToBlockUids,
+          limitToPageUids,
+          excludeBlockUid: input.excludeBlockUid,
+        },
+        state
+      );
+    }
   }
 
   // UID-based filtering for optimization
@@ -478,8 +1048,7 @@ const findBlocksWithHierarchyImpl = async (
   // Step 1: Process content conditions with semantic expansion
   const expandedContentConditions = await expandConditions(
     contentConditions,
-    expansionStrategy,
-    maxExpansions
+    state
   );
 
   // Step 2: Find blocks matching content conditions
@@ -519,9 +1088,13 @@ const findBlocksWithHierarchyImpl = async (
       parentDepth,
       secureMode
     );
-    console.log(`🔧 Enriched ${hierarchyFilteredBlocks.length} blocks with hierarchical context`);
+    console.log(
+      `🔧 Enriched ${hierarchyFilteredBlocks.length} blocks with hierarchical context`
+    );
   } else {
-    console.log(`⚡ Skipping enrichment (not explicitly requested) - performance optimized`);
+    console.log(
+      `⚡ Skipping enrichment (not explicitly requested) - performance optimized`
+    );
   }
 
   // Step 5: Apply date range filtering
@@ -538,6 +1111,20 @@ const findBlocksWithHierarchyImpl = async (
           : dateRange.end,
     };
     filteredResults = filterByDateRange(enrichedResults, parsedDateRange);
+  }
+
+  // Step 5.5: Exclude user query block from results by UID
+  if (input.excludeBlockUid) {
+    const originalCount = filteredResults.length;
+    filteredResults = filteredResults.filter(
+      (result) => result.uid !== input.excludeBlockUid
+    );
+    const excludedCount = originalCount - filteredResults.length;
+    if (excludedCount > 0) {
+      console.log(
+        `🚫 [Hierarchy] Excluded ${excludedCount} user query block(s) (UID: ${input.excludeBlockUid})`
+      );
+    }
   }
 
   // Step 6: Sort results
@@ -563,8 +1150,6 @@ const processHierarchicalExpression = async (
   options: {
     maxHierarchyDepth: number;
     strategyCombination: "union" | "intersection";
-    maxExpansions?: number;
-    expansionStrategy?: string;
     includeChildren?: boolean;
     childDepth?: number;
     includeParents?: boolean;
@@ -577,6 +1162,7 @@ const processHierarchicalExpression = async (
     fromResultId?: string;
     limitToBlockUids?: string[];
     limitToPageUids?: string[];
+    excludeBlockUid?: string;
   },
   state?: any
 ): Promise<any[]> => {
@@ -596,7 +1182,7 @@ const processHierarchicalExpression = async (
           type: "text",
           text: parsedExpression.text,
           matchType: "contains",
-          semanticExpansion: false,
+          semanticExpansion: undefined,
           weight: 1.0,
           negate: false,
         },
@@ -614,9 +1200,18 @@ const processHierarchicalExpression = async (
     parsedExpression.type === "deep_strict_hierarchy" ||
     parsedExpression.type === "flexible_hierarchy" ||
     parsedExpression.type === "bidirectional" ||
-    parsedExpression.type === "deep_bidirectional"
+    parsedExpression.type === "deep_bidirectional" ||
+    parsedExpression.type === "strict_hierarchy_left" ||
+    parsedExpression.type === "deep_strict_hierarchy_left" ||
+    parsedExpression.type === "flexible_hierarchy_left" ||
+    parsedExpression.type === "flexible_hierarchy_right" ||
+    parsedExpression.type === "deep_flexible_hierarchy"
   ) {
     return await processHierarchicalQuery(parsedExpression, options, state);
+  }
+
+  if (parsedExpression.type === "compound") {
+    return await processCompoundQuery(parsedExpression, options, state);
   }
 
   throw new Error(`Unsupported expression type: ${parsedExpression.type}`);
@@ -630,8 +1225,17 @@ const processHierarchicalQuery = async (
   options: any,
   state?: any
 ): Promise<any[]> => {
-  const leftConditions = extractSearchConditions(expr.leftOperand);
-  const rightConditions = extractSearchConditions(expr.rightOperand);
+  const expansionLevel = state?.expansionLevel || 0;
+  const globalSemanticExpansion =
+    options.semanticExpansion || expansionLevel >= 2;
+  const leftConditions = extractSearchConditions(
+    expr.leftOperand,
+    globalSemanticExpansion
+  );
+  const rightConditions = extractSearchConditions(
+    expr.rightOperand,
+    globalSemanticExpansion
+  );
   const leftCombineLogic = getCombineLogic(expr.leftOperand);
   const rightCombineLogic = getCombineLogic(expr.rightOperand);
 
@@ -642,8 +1246,8 @@ const processHierarchicalQuery = async (
   );
 
   // Show concise search info (no extra queries for performance)
-  const leftTerms = formatExpressionForDisplay(expr.leftOperand);
-  const rightTerms = formatExpressionForDisplay(expr.rightOperand);
+  // const leftTerms = formatExpressionForDisplay(expr.leftOperand);
+  // const rightTerms = formatExpressionForDisplay(expr.rightOperand);
 
   // updateAgentToaster(`🔍 Searching: ${leftTerms} ${expr.operator} ${rightTerms}`);
 
@@ -710,6 +1314,66 @@ const processHierarchicalQuery = async (
       );
       break;
 
+    case "<":
+      // Inverse strict hierarchy: A < B (A child, B parent) - return child blocks
+      resultSets = await executeInverseStrictHierarchySearch(
+        leftConditions,  // A (child condition to return)
+        rightConditions, // B (parent condition to filter)
+        leftCombineLogic,
+        rightCombineLogic,
+        options,
+        state
+      );
+      break;
+
+    case "<<":
+      // Inverse deep strict hierarchy: A << B (A descendant, B ancestor) - swap the conditions
+      resultSets = await executeDeepStrictHierarchySearch(
+        rightConditions, // B becomes ancestor
+        leftConditions,  // A becomes descendant
+        rightCombineLogic,
+        leftCombineLogic,
+        options,
+        state
+      );
+      break;
+
+    case "<=":
+      // Inverse flexible hierarchy: A <= B (same block OR A child of B) - swap the conditions
+      resultSets = await executeFlexibleHierarchySearch(
+        rightConditions, // B becomes parent
+        leftConditions,  // A becomes child
+        rightCombineLogic,
+        leftCombineLogic,
+        options,
+        state
+      );
+      break;
+
+    case "=>>":
+      // Right flexible hierarchy: A =>> B (A ancestor, B descendant with flexibility)
+      resultSets = await executeFlexibleHierarchySearch(
+        leftConditions,
+        rightConditions,
+        leftCombineLogic,
+        rightCombineLogic,
+        options,
+        state
+      );
+      break;
+
+    case "<<=":
+      // Left deep flexible hierarchy: A <<= B (A descendant, B ancestor with flexibility) - swap the conditions
+      resultSets = await executeFlexibleHierarchySearch(
+        rightConditions, // B becomes ancestor
+        leftConditions,  // A becomes descendant
+        rightCombineLogic,
+        leftCombineLogic,
+        options,
+        state
+      );
+      break;
+
     default:
       throw new Error(`Unsupported hierarchical operator: ${expr.operator}`);
   }
@@ -731,6 +1395,111 @@ const processHierarchicalQuery = async (
 
   // Apply final sorting and limiting
   return applyFinalProcessing(combinedResults, options);
+};
+
+/**
+ * Process compound queries (AND/OR operations) with proper structure preservation
+ * This handles queries like "(A | A') + (B | B')" correctly by preserving grouping
+ */
+const processCompoundQuery = async (
+  expr: CompoundExpression,
+  options: any,
+  state?: any
+): Promise<any[]> => {
+  console.log(
+    `🔍 Processing compound ${expr.operator} query with ${expr.operands.length} operands`
+  );
+
+  // Check if this is a mixed structure that needs special handling
+  const hasNestedCompounds = expr.operands.some((op) => op.type === "compound");
+
+  if (hasNestedCompounds && expr.operator === "AND") {
+    // Handle complex structures like (A | A') + (B | B')
+    console.log(`🧩 Processing nested compound structure with AND operator`);
+
+    const groupResults: any[] = [];
+
+    // Process each operand group separately
+    for (const operand of expr.operands) {
+      if (operand.type === "compound") {
+        // Process nested compound (like A | A')
+        const groupConditions = extractSearchConditions(operand);
+        const groupLogic = getCombineLogic(operand);
+
+        console.log(
+          `  📁 Processing ${operand.operator} group with ${groupConditions.length} conditions`
+        );
+
+        const groupResult = await executeContentSearch(
+          groupConditions,
+          groupLogic,
+          options,
+          state
+        );
+
+        groupResults.push(groupResult.results || []);
+      } else {
+        // Process single term
+        const termConditions = extractSearchConditions(operand);
+        const termResult = await executeContentSearch(
+          termConditions,
+          "AND",
+          options,
+          state
+        );
+
+        groupResults.push(termResult.results || []);
+      }
+    }
+
+    // Intersect all group results (AND operation between groups)
+    if (groupResults.length === 0) return [];
+    if (groupResults.length === 1) return groupResults[0];
+
+    console.log(`🔗 Intersecting ${groupResults.length} result groups`);
+
+    // Find UIDs that appear in ALL groups
+    const allUIDs = groupResults.map(
+      (group) => new Set(group.map((item: any) => item.uid || item[0]))
+    );
+    const intersection = allUIDs[0];
+
+    for (let i = 1; i < allUIDs.length; i++) {
+      for (const uid of intersection) {
+        if (!allUIDs[i].has(uid)) {
+          intersection.delete(uid);
+        }
+      }
+    }
+
+    console.log(`📊 Intersection found ${intersection.size} common results`);
+
+    // Return results from first group that match intersection
+    return groupResults[0].filter((item: any) =>
+      intersection.has(item.uid || item[0])
+    );
+  } else {
+    // Simple compound - use flat processing
+    const globalSemanticExpansion = options.semanticExpansion;
+    const allConditions = extractSearchConditions(
+      expr,
+      globalSemanticExpansion
+    );
+    const combineLogic = getCombineLogic(expr);
+
+    console.log(
+      `🔍 Simple compound query: ${allConditions.length} conditions with ${combineLogic} logic`
+    );
+
+    const searchResult = await executeContentSearch(
+      allConditions,
+      combineLogic,
+      options,
+      state
+    );
+
+    return searchResult.results || [];
+  }
 };
 
 /**
@@ -762,6 +1531,7 @@ const executeContentSearch = async (
       fromResultId: options.fromResultId,
       limitToBlockUids: options.limitToBlockUids,
       limitToPageUids: options.limitToPageUids,
+      excludeBlockUid: options.excludeBlockUid,
     };
 
     // Call the tool with minimal context to avoid serialization issues
@@ -809,15 +1579,21 @@ const executeStrictHierarchySearch = async (
   console.log(`🏗️ Executing strict hierarchy search`);
 
   // Show search terms without extra queries (for performance)
-  const leftTermText = leftConditions.map(c => c.text).join(leftCombineLogic === "OR" ? " | " : " + ");
-  const rightTermText = rightConditions.map(c => c.text).join(rightCombineLogic === "OR" ? " | " : " + ");
+  // const leftTermText = leftConditions
+  //   .map((c) => c.text)
+  //   .join(leftCombineLogic === "OR" ? " | " : " + ");
+  // const rightTermText = rightConditions
+  //   .map((c) => c.text)
+  //   .join(rightCombineLogic === "OR" ? " | " : " + ");
 
   // Use direct content-filtered hierarchy search (like deep search does)
-  console.log(`🔍 Building single Datomic query for parent→child with content filtering`);
-  
+  console.log(
+    `🔍 Building single Datomic query for parent→child with content filtering`
+  );
+
   const results = await executeDirectHierarchySearch(
     leftConditions,
-    leftCombineLogic, 
+    leftCombineLogic,
     rightConditions,
     rightCombineLogic,
     options,
@@ -834,6 +1610,163 @@ const executeStrictHierarchySearch = async (
 };
 
 /**
+ * Execute inverse strict hierarchy search: A < B (A child, B parent) - returns child blocks
+ * Just swap the roles in the existing direct hierarchy search but return child blocks
+ */
+const executeInverseStrictHierarchySearch = async (
+  childConditions: SearchCondition[], // Conditions for blocks to return (children)
+  parentConditions: SearchCondition[], // Conditions for parent blocks (filter)
+  childCombineLogic: "AND" | "OR",
+  parentCombineLogic: "AND" | "OR",
+  options: any,
+  state?: any
+): Promise<any[]> => {
+  console.log(`🏗️ Executing inverse strict hierarchy search (returning children)`);
+
+  // Call executeDirectHierarchySearch but we need to extract child blocks from the query results
+  // This is much simpler than my previous overcomplicated approach
+  const hierarchyResults = await executeDirectHierarchySearchAndReturnChildren(
+    parentConditions, // Parent conditions (for filtering)
+    parentCombineLogic,
+    childConditions, // Child conditions (for results)
+    childCombineLogic,
+    options,
+    state
+  );
+  
+  if (hierarchyResults.length > 0) {
+    updateAgentToaster(
+      `🏗️ Child←parent search: ${hierarchyResults.length} hierarchy relationships found`
+    );
+  }
+
+  return [hierarchyResults]; // Return as array of result sets
+};
+
+/**
+ * Execute the same direct hierarchy search as executeDirectHierarchySearch but return child blocks instead of parent blocks
+ * This is a minimal modification - same efficient Datomic query, just different result mapping
+ */
+const executeDirectHierarchySearchAndReturnChildren = async (
+  parentConditions: SearchCondition[],
+  parentCombineLogic: "AND" | "OR",
+  childConditions: SearchCondition[],
+  childCombineLogic: "AND" | "OR",
+  options: any,
+  state?: any
+): Promise<any[]> => {
+  // Apply semantic expansion (same as original)
+  const shouldExpand =
+    parentConditions.some((c) => c.semanticExpansion) ||
+    childConditions.some((c) => c.semanticExpansion);
+  const expandedParentConditions = shouldExpand
+    ? await expandConditions(parentConditions, state)
+    : parentConditions;
+  const expandedChildConditions = shouldExpand
+    ? await expandConditions(childConditions, state)
+    : childConditions;
+
+  // Build the exact same Datomic query as executeDirectHierarchySearch
+  let query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
+                       ?child-uid ?child-content ?child-page-title ?child-page-uid
+                :where
+                ;; Parent block structure
+                [?parent :block/uid ?parent-uid]
+                [?parent :block/string ?parent-content]
+                [?parent :block/page ?parent-page]
+                [?parent-page :node/title ?parent-page-title]
+                [?parent-page :block/uid ?parent-page-uid]
+                
+                ;; Child block structure  
+                [?child :block/uid ?child-uid]
+                [?child :block/string ?child-content]
+                [?child :block/page ?child-page]
+                [?child-page :node/title ?child-page-title]
+                [?child-page :block/uid ?child-page-uid]
+                
+                ;; Hierarchy relationship (parent -> child)
+                [?parent :block/children ?child]`;
+
+  // Add parent content filtering (same as original)
+  const parentQueryBuilder = new DatomicQueryBuilder(
+    expandedParentConditions,
+    parentCombineLogic
+  );
+  const {
+    patternDefinitions: parentPatterns,
+    conditionClauses: parentClauses,
+  } = parentQueryBuilder.buildConditionClauses("?parent-content");
+  query += parentPatterns;
+  query += parentClauses;
+
+  // Add child content filtering (same as original)
+  const childQueryBuilder = new DatomicQueryBuilder(
+    expandedChildConditions,
+    childCombineLogic
+  );
+  const {
+    patternDefinitions: childPatterns,
+    conditionClauses: childClauses,
+  } = childQueryBuilder.buildConditionClauses("?child-content");
+
+  // Fix pattern variable conflicts by replacing pattern indices in child patterns
+  const offsetChildPatterns = childPatterns.replace(
+    /\?pattern(\d+)/g,
+    (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
+  );
+  const offsetChildClauses = childClauses.replace(
+    /\?pattern(\d+)/g,
+    (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
+  );
+  
+  query += offsetChildPatterns;
+  query += offsetChildClauses;
+
+  // Exclude specific block if provided (same as original)
+  if (options.excludeBlockUid) {
+    query += `\n                [(not= ?child-uid "${options.excludeBlockUid}")]`;
+  }
+
+  query += `]`;
+
+  const hierarchyResults = await executeDatomicQuery(query);
+
+  // Transform results to return CHILD blocks instead of parent blocks (only difference from original)
+  const childBlocks = hierarchyResults.map(
+    ([
+      parentUid,
+      parentContent,
+      parentPageTitle,
+      parentPageUid,
+      childUid,
+      childContent,
+      childPageTitle,
+      childPageUid,
+    ]) => ({
+      uid: childUid, // Return child UID instead of parent UID
+      content: childContent, // Return child content instead of parent content
+      pageTitle: childPageTitle,
+      pageUid: childPageUid,
+      created: new Date(),
+      modified: new Date(),
+      isDaily: false,
+      children: [],
+      parents: [],
+      isPage: false,
+      // Add hierarchy context for debugging
+      parentInfo: {
+        uid: parentUid,
+        content: parentContent,
+        pageTitle: parentPageTitle,
+        pageUid: parentPageUid,
+      }
+    })
+  );
+
+  return childBlocks;
+};
+
+/**
  * Execute deep strict hierarchy search: A >> B (A ancestor, B descendant, any depth)
  */
 const executeDeepStrictHierarchySearch = async (
@@ -847,8 +1780,12 @@ const executeDeepStrictHierarchySearch = async (
   console.log(`🌳 Executing deep strict hierarchy search (>> operator)`);
 
   // Show search terms without extra queries (for performance)
-  const leftTermText = leftConditions.map(c => c.text).join(leftCombineLogic === "OR" ? " | " : " + ");
-  const rightTermText = rightConditions.map(c => c.text).join(rightCombineLogic === "OR" ? " | " : " + ");
+  // const leftTermText = leftConditions
+  //   .map((c) => c.text)
+  //   .join(leftCombineLogic === "OR" ? " | " : " + ");
+  // const rightTermText = rightConditions
+  //   .map((c) => c.text)
+  //   .join(rightCombineLogic === "OR" ? " | " : " + ");
 
   // Use deep hierarchy search functionality with maxHierarchyDepth
   const results = await searchBlocksWithHierarchicalConditions(
@@ -897,8 +1834,12 @@ const executeFlexibleHierarchySearch = async (
   );
 
   // Show search terms (will get counts from searches that already happen)
-  const leftTermText = leftConditions.map(c => c.text).join(leftCombineLogic === "OR" ? " | " : " + ");
-  const rightTermText = rightConditions.map(c => c.text).join(rightCombineLogic === "OR" ? " | " : " + ");
+  const leftTermText = leftConditions
+    .map((c) => c.text)
+    .join(leftCombineLogic === "OR" ? " | " : " + ");
+  const rightTermText = rightConditions
+    .map((c) => c.text)
+    .join(rightCombineLogic === "OR" ? " | " : " + ");
 
   const allResults = new Map<string, any>(); // uid -> result object
 
@@ -1028,8 +1969,12 @@ const executeBidirectionalSearch = async (
   );
 
   // Show search terms and get real counts from individual searches
-  const leftTermText = leftConditions.map(c => c.text).join(leftCombineLogic === "OR" ? " | " : " + ");
-  const rightTermText = rightConditions.map(c => c.text).join(rightCombineLogic === "OR" ? " | " : " + ");
+  const leftTermText = leftConditions
+    .map((c) => c.text)
+    .join(leftCombineLogic === "OR" ? " | " : " + ");
+  const rightTermText = rightConditions
+    .map((c) => c.text)
+    .join(rightCombineLogic === "OR" ? " | " : " + ");
 
   // Get real individual counts in parallel
   const [leftSearch, rightSearch] = await Promise.all([
@@ -1070,7 +2015,11 @@ const executeBidirectionalSearch = async (
       parentList.add(result.uid);
 
       // Track child UIDs containing B
-      const matchingChildUids = extractChildUids(result, rightConditions, rightCombineLogic);
+      const matchingChildUids = extractChildUids(
+        result,
+        rightConditions,
+        rightCombineLogic
+      );
       matchingChildUids.forEach((childUid) => child1List.add(childUid));
 
       console.log(
@@ -1120,7 +2069,11 @@ const executeBidirectionalSearch = async (
     }
 
     // Check if any children of this B-block are in parentList
-    const matchingChildUids = extractChildUids(bBlock, leftConditions, leftCombineLogic);
+    const matchingChildUids = extractChildUids(
+      bBlock,
+      leftConditions,
+      leftCombineLogic
+    );
     let foundReplacement = false;
 
     matchingChildUids.forEach((aChildUid) => {
@@ -1184,8 +2137,12 @@ const executeDeepBidirectionalSearch = async (
   );
 
   // Show search terms and get real counts from individual searches
-  const leftTermText = leftConditions.map(c => c.text).join(leftCombineLogic === "OR" ? " | " : " + ");
-  const rightTermText = rightConditions.map(c => c.text).join(rightCombineLogic === "OR" ? " | " : " + ");
+  const leftTermText = leftConditions
+    .map((c) => c.text)
+    .join(leftCombineLogic === "OR" ? " | " : " + ");
+  const rightTermText = rightConditions
+    .map((c) => c.text)
+    .join(rightCombineLogic === "OR" ? " | " : " + ");
 
   // Get real individual counts in parallel (these searches will be needed anyway)
   const [leftSearch, rightSearch] = await Promise.all([
@@ -1250,7 +2207,11 @@ const executeDeepBidirectionalSearch = async (
       ancestorList.add(result.uid);
 
       // Track descendant UIDs containing B (recursive through all levels)
-      const matchingDescendantUids = extractChildUids(result, rightConditions, rightCombineLogic);
+      const matchingDescendantUids = extractChildUids(
+        result,
+        rightConditions,
+        rightCombineLogic
+      );
       matchingDescendantUids.forEach((descendantUid) =>
         descendantList.add(descendantUid)
       );
@@ -1304,7 +2265,11 @@ const executeDeepBidirectionalSearch = async (
     }
 
     // Check if any descendants of this B-ancestor are in ancestorList
-    const matchingDescendantUids = extractChildUids(bAncestor, leftConditions, leftCombineLogic);
+    const matchingDescendantUids = extractChildUids(
+      bAncestor,
+      leftConditions,
+      leftCombineLogic
+    );
     let foundReplacement = false;
 
     matchingDescendantUids.forEach((aDescendantUid) => {
@@ -1367,14 +2332,18 @@ const executeDirectHierarchySearch = async (
   options: any,
   state?: any
 ): Promise<any[]> => {
-
-  // Apply semantic expansion if requested
-  const shouldExpand = parentConditions.some(c => c.semanticExpansion) || childConditions.some(c => c.semanticExpansion);
-  const expandedParentConditions = shouldExpand 
-    ? await expandConditions(parentConditions, options.expansionStrategy || "related_concepts", options.maxExpansions || 3)
+  // Apply semantic expansion if requested and at appropriate level
+  const shouldExpand =
+    parentConditions.some((c) => c.semanticExpansion) ||
+    childConditions.some((c) => c.semanticExpansion);
+  const expandedParentConditions = shouldExpand
+    ? await expandConditions(
+        parentConditions,
+        state
+      )
     : parentConditions;
   const expandedChildConditions = shouldExpand
-    ? await expandConditions(childConditions, options.expansionStrategy || "related_concepts", options.maxExpansions || 3)  
+    ? await expandConditions(childConditions, state)
     : childConditions;
 
   // Build single Datomic query with parent and child content filtering
@@ -1399,68 +2368,100 @@ const executeDirectHierarchySearch = async (
                 [?parent :block/children ?child]`;
 
   // Add parent content filtering using DatomicQueryBuilder
-  const parentQueryBuilder = new DatomicQueryBuilder(expandedParentConditions, parentCombineLogic);
-  const { patternDefinitions: parentPatterns, conditionClauses: parentClauses } = 
-    parentQueryBuilder.buildConditionClauses("?parent-content");
+  const parentQueryBuilder = new DatomicQueryBuilder(
+    expandedParentConditions,
+    parentCombineLogic
+  );
+  const {
+    patternDefinitions: parentPatterns,
+    conditionClauses: parentClauses,
+  } = parentQueryBuilder.buildConditionClauses("?parent-content");
   query += parentPatterns;
   query += parentClauses;
 
-  // Add child content filtering using DatomicQueryBuilder  
-  const childQueryBuilder = new DatomicQueryBuilder(expandedChildConditions, childCombineLogic);
-  const { patternDefinitions: childPatterns, conditionClauses: childClauses } = 
+  // Add child content filtering using DatomicQueryBuilder
+  const childQueryBuilder = new DatomicQueryBuilder(
+    expandedChildConditions,
+    childCombineLogic
+  );
+  const { patternDefinitions: childPatterns, conditionClauses: childClauses } =
     childQueryBuilder.buildConditionClauses("?child-content");
-  
+
   // Fix pattern variable conflicts by replacing pattern indices in child patterns
-  const offsetChildPatterns = childPatterns.replace(/\?pattern(\d+)/g, (match, num) => 
-    `?pattern${parseInt(num) + expandedParentConditions.length}`);
-  const offsetChildClauses = childClauses.replace(/\?pattern(\d+)/g, (match, num) => 
-    `?pattern${parseInt(num) + expandedParentConditions.length}`);
-    
+  const offsetChildPatterns = childPatterns.replace(
+    /\?pattern(\d+)/g,
+    (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
+  );
+  const offsetChildClauses = childClauses.replace(
+    /\?pattern(\d+)/g,
+    (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
+  );
+
   query += offsetChildPatterns;
   query += offsetChildClauses;
+
+  // Add exclusion logic for user query block
+  if (options.excludeBlockUid) {
+    query += `\n                ;; Exclude user query block from both parent and child results
+                [(not= ?parent-uid "${options.excludeBlockUid}")]
+                [(not= ?child-uid "${options.excludeBlockUid}")]`;
+  }
 
   query += `]`;
 
   const hierarchyResults = await executeDatomicQuery(query);
 
   // Transform results to expected format (return parent blocks with child info)
-  const parentBlocks = hierarchyResults.map(([
-    parentUid, parentContent, parentPageTitle, parentPageUid,
-    childUid, childContent, childPageTitle, childPageUid
-  ]) => ({
-    uid: parentUid,
-    content: parentContent,
-    pageTitle: parentPageTitle,
-    pageUid: parentPageUid,
-    created: new Date(), // We don't get timestamps from this query, use current time
-    modified: new Date(),
-    isDaily: false, // TODO: Could be enhanced to check DNP pattern
-    children: [],
-    parents: [],
-    isPage: false,
-    // Add hierarchy context
-    childUid,
-    childContent,
-    childPageTitle,
-    childPageUid,
-    hierarchyRelationship: "direct_parent"
-  }));
+  const parentBlocks = hierarchyResults.map(
+    ([
+      parentUid,
+      parentContent,
+      parentPageTitle,
+      parentPageUid,
+      childUid,
+      childContent,
+      childPageTitle,
+      childPageUid,
+    ]) => ({
+      uid: parentUid,
+      content: parentContent,
+      pageTitle: parentPageTitle,
+      pageUid: parentPageUid,
+      created: new Date(), // We don't get timestamps from this query, use current time
+      modified: new Date(),
+      isDaily: false, // TODO: Could be enhanced to check DNP pattern
+      children: [],
+      parents: [],
+      isPage: false,
+      // Add hierarchy context
+      childUid,
+      childContent,
+      childPageTitle,
+      childPageUid,
+      hierarchyRelationship: "direct_parent",
+    })
+  );
 
   // Apply hierarchy enrichment if requested
   // Note: Direct hierarchy search already provides the direct parent-child relationship,
   // so additional enrichment may not be necessary for most use cases
-  if ((options.includeChildren === true && options.childDepth > 1) || 
-      (options.includeParents === true && options.parentDepth > 1)) {
+  if (
+    (options.includeChildren === true && options.childDepth > 1) ||
+    (options.includeParents === true && options.parentDepth > 1)
+  ) {
     try {
       // Convert to format expected by enrichWithFullHierarchy (array format)
-      const arrayFormat = parentBlocks.map(block => [
-        block.uid, block.content, block.pageTitle, block.pageUid
+      const arrayFormat = parentBlocks.map((block) => [
+        block.uid,
+        block.content,
+        block.pageTitle,
+        block.pageUid,
       ]);
       const enrichedResults = await enrichWithFullHierarchy(
         arrayFormat,
         options.includeChildren === true,
         options.childDepth || 3,
-        options.includeParents === true, 
+        options.includeParents === true,
         options.parentDepth || 2
       );
       return enrichedResults;
@@ -1489,14 +2490,13 @@ const searchBlocksWithHierarchicalConditions = async (
       type: cond.type as any,
       text: cond.text,
       matchType: cond.matchType as any,
-      semanticExpansion: cond.semanticExpansion || false,
+      semanticExpansion: cond.semanticExpansion,
       weight: cond.weight || 1,
       negate: cond.negate || false,
     })),
     hierarchyConditions,
     combineConditions,
     combineHierarchy,
-    maxExpansions: options.maxExpansions || 3,
     expansionStrategy: options.expansionStrategy || "related_concepts",
     includeChildren: options.includeChildren === true,
     childDepth: options.childDepth || 3,
@@ -1510,6 +2510,7 @@ const searchBlocksWithHierarchicalConditions = async (
     fromResultId: options.fromResultId,
     limitToBlockUids: options.limitToBlockUids,
     limitToPageUids: options.limitToPageUids,
+    excludeBlockUid: options.excludeBlockUid,
   };
 
   // Extract UIDs for this call
@@ -1523,9 +2524,7 @@ const searchBlocksWithHierarchicalConditions = async (
 
   // Call the original implementation logic
   const expandedContentConditions = await expandConditions(
-    input.contentConditions,
-    input.expansionStrategy,
-    input.maxExpansions
+    input.contentConditions
   );
 
   const contentMatches = await searchBlocksWithConditions(
@@ -1694,9 +2693,10 @@ const containsConditions = (
   const content = block.content.toLowerCase();
 
   // Use appropriate logic based on combineLogic parameter
-  const checkFunction = combineLogic === "OR" ? conditions.some : conditions.every;
-  
-  return checkFunction.call(conditions, (condition) => {
+  const checkFunction =
+    combineLogic === "OR" ? conditions.some : conditions.every;
+
+  return checkFunction.call(conditions, (condition: SearchCondition) => {
     const searchTerm = condition.text.toLowerCase();
 
     switch (condition.type) {
@@ -1769,63 +2769,356 @@ const extractChildUids = (
   return matchingChildUids;
 };
 
+// /**
+//  * Build parent-child relationship mapping from results
+//  */
+// const buildParentChildMapping = (results: any[]): Map<string, string[]> => {
+//   const parentToChildren = new Map<string, string[]>();
+//
+//   for (const result of results) {
+//     if (result.children && result.children.length > 0) {
+//       const childUids: string[] = [];
+//
+//       const collectChildUids = (children: any[]) => {
+//         for (const child of children) {
+//           childUids.push(child.uid);
+//           if (child.children && child.children.length > 0) {
+//             collectChildUids(child.children);
+//           }
+//         }
+//       };
+//
+//       collectChildUids(result.children);
+//       parentToChildren.set(result.uid, childUids);
+//     }
+//   }
+//
+//   return parentToChildren;
+// };
+
 /**
- * Build parent-child relationship mapping from results
+ * Create regex pattern for page references that matches Roam syntax but not plain text
+ * Supports: [[title]], #title, title:: but NOT plain "title"
  */
-const buildParentChildMapping = (results: any[]): Map<string, string[]> => {
-  const parentToChildren = new Map<string, string[]>();
+// const createPageRefRegexPattern = (pageTitle: string): string => {
+//   // Escape special regex characters in the page title
+//   const escapedTitle = pageTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  for (const result of results) {
-    if (result.children && result.children.length > 0) {
-      const childUids: string[] = [];
+//   // Optimized pattern: [[title]], #title, or title::
+//   return `(?:\\[\\[${escapedTitle}\\]\\]|#${escapedTitle}(?!\\w)|${escapedTitle}::)`;
+// };
 
-      const collectChildUids = (children: any[]) => {
-        for (const child of children) {
-          childUids.push(child.uid);
-          if (child.children && child.children.length > 0) {
-            collectChildUids(child.children);
-          }
-        }
-      };
+// /**
+//  * Create optimized regex pattern for multiple page reference variations
+//  * Creates a single efficient OR pattern instead of multiple separate patterns
+//  */
+// const createMultiPageRefRegexPattern = (pageNames: string[]): string => {
+//   if (pageNames.length === 0) return "";
+//   if (pageNames.length === 1) return createPageRefRegexPattern(pageNames[0]);
+//
+//   // Escape and prepare all page names
+//   const escapedNames = pageNames.map((name) =>
+//     name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+//   );
+//
+//   // Create alternation of just the terms
+//   const termAlternation = escapedNames.join("|");
+//
+//   // Single optimized pattern: factors out common Roam syntax structures
+//   return `(?:\\[\\[(?:${termAlternation})\\]\\]|#(?:${termAlternation})(?!\\w)|(?:${termAlternation})::)`;
+// };
 
-      collectChildUids(result.children);
-      parentToChildren.set(result.uid, childUids);
-    }
-  }
+/**
+ * Check for existing similar pages using findPagesByTitleTool
+ * Returns existing page titles that match the search pattern
+ */
+// const findExistingSimilarPages = async (
+//   pageTitle: string
+// ): Promise<string[]> => {
+//   try {
+//     // Use more precise patterns to avoid overly broad matches
+//     const patterns = [
+//       `^${pageTitle}$`, // Exact match (case-insensitive handled by tool)
+//       `^${pageTitle}\\W.*`, // Word boundary: "pend " or "pend-" etc.
+//       `^${pageTitle}[A-Z].*`, // CamelCase: "pendingSomething"
+//       `.*\\W${pageTitle}$`, // End with word: "something-pend"
+//       `.*\\W${pageTitle}\\W.*`, // Word in middle: "my-pend-list"
+//     ];
 
-  return parentToChildren;
-};
+//     console.log(
+//       `🔍 Checking for existing pages similar to "${pageTitle}" with refined patterns`
+//     );
+
+//     const allFoundPages = [];
+
+//     // Try each pattern to get comprehensive but precise results
+//     for (const pattern of patterns) {
+//       try {
+//         const result = await findPagesByTitleTool.invoke({
+//           conditions: [
+//             {
+//               text: pattern,
+//               matchType: "regex" as const,
+//               negate: false,
+//             },
+//           ],
+//           combineConditions: "AND" as const,
+//           includeDaily: false,
+//           limit: 5, // Smaller limit per pattern
+//         });
+
+//         const parsedResult =
+//           typeof result === "string" ? JSON.parse(result) : result;
+//         const existingPages = parsedResult.success
+//           ? parsedResult.data || []
+//           : [];
+
+//         const pageNames = existingPages
+//           .map((page: any) => page.title || page.name || page)
+//           .filter((name: any) => typeof name === "string");
+
+//         allFoundPages.push(...pageNames);
+//       } catch (patternError) {
+//         console.warn(`Pattern ${pattern} failed:`, patternError);
+//       }
+//     }
+
+//     // Remove duplicates and filter with LLM relevance check
+//     const uniquePages = [...new Set(allFoundPages)];
+//     console.log(`📋 Found ${uniquePages.length} candidate pages:`, uniquePages);
+
+//     if (uniquePages.length > 1) {
+//       // Use LLM to filter relevant pages
+//       const relevantPages = await filterRelevantPages(pageTitle, uniquePages);
+//       console.log(
+//         `🎯 Filtered to ${relevantPages.length} relevant pages:`,
+//         relevantPages
+//       );
+//       return relevantPages;
+//     }
+
+//     return uniquePages;
+//   } catch (error) {
+//     console.warn(`Failed to find existing pages for "${pageTitle}":`, error);
+//     return [];
+//   }
+// };
+
+/**
+ * Use LLM to filter pages that are actually relevant to the search term
+ */
+// const filterRelevantPages = async (
+//   searchTerm: string,
+//   candidatePages: string[]
+// ): Promise<string[]> => {
+//   try {
+//     const prompt = `Given the search term "${searchTerm}", which of these page titles are semantically related and would be relevant for a search?
+//
+// Page titles: ${candidatePages.join(", ")}
+//
+// Return only the relevant page titles, one per line. Consider:
+// - Semantic similarity (not just string matching)
+// - Whether the page would contain content related to "${searchTerm}"
+// - Exclude pages that just happen to contain the letters but are unrelated concepts
+//
+// For example:
+// - "pending" is relevant to "pend" (related concept)
+// - "testNotPending" is NOT relevant to "pend" (contains letters but opposite meaning)
+// - "expenditure" is NOT relevant to "pend" (contains letters but unrelated concept)`;
+//
+//     const llm = await import("../../langraphModelsLoader").then(
+//       (m) => m.modelViaLanggraph
+//     );
+//     const modelInfo = await import("../../../..").then((m) => m.defaultModel);
+//     const HumanMessage = await import("@langchain/core/messages").then(
+//       (m) => m.HumanMessage
+//     );
+//
+//     const model = llm(modelInfo, { input_tokens: 0, output_tokens: 0 }, false);
+//
+//     const response = await model.invoke([new HumanMessage(prompt)]);
+//     const relevantPages = response.content
+//       .toString()
+//       .split("\n")
+//       .map((line: string) => line.trim())
+//       .filter((line: string) => line.length > 0 && candidatePages.includes(line));
+//
+//     return relevantPages.length > 0 ? relevantPages : [searchTerm]; // Fallback to original term
+//   } catch (error) {
+//     console.warn(`LLM relevance filtering failed for "${searchTerm}":`, error);
+//     return candidatePages; // Fallback to all candidates
+//   }
+// };
 
 /**
  * Expand content conditions with semantic terms
+ * Only expands when explicitly requested (expansion level 2+)
  */
 const expandConditions = async (
   conditions: any[],
-  strategy: string,
-  maxExpansions: number
+  state?: any
 ): Promise<any[]> => {
-  const expandedConditions = [...conditions];
+  const expandedConditions = [];
+  const expansionLevel = state?.expansionLevel || 0;
+
+  console.log(`🔍 [DEBUG] expandConditions called with:`, {
+    expansionLevel,
+    conditionsCount: conditions.length,
+    conditionsWithSemantic: conditions.filter(
+      (c) => c.semanticExpansion === true
+    ).length,
+    conditions: conditions.map((c) => ({
+      type: c.type,
+      text: c.text,
+      semanticExpansion: c.semanticExpansion,
+    })),
+  });
+
+  // Check if any conditions request semantic expansion
+  const hasSemanticRequest = conditions.some(
+    (c) => c.semanticExpansion === true
+  );
+
+  // Only apply semantic expansion if:
+  // 1. Conditions explicitly request it, OR
+  // 2. We're at expansion level 2+ (automatic expansion)
+  if (expansionLevel < 2 && !hasSemanticRequest) {
+    console.log(
+      `⏭️ Skipping semantic expansion (level ${expansionLevel} < 2, no explicit request)`
+    );
+    return conditions; // Return original conditions, not empty array
+  }
+
+  if (hasSemanticRequest && expansionLevel < 2) {
+    console.log(
+      `🧠 Applying user-requested semantic expansion at level ${expansionLevel}`
+    );
+  } else {
+    console.log(
+      `🧠 Applying automatic semantic expansion at level ${expansionLevel}`
+    );
+  }
+
+  // Group conditions that need expansion to avoid duplicate toaster messages
+  const conditionsToExpand = conditions.filter(
+    (c) =>
+      (c.semanticExpansion && c.type === "text") ||
+      (c.type === "page_ref" && c.semanticExpansion)
+  );
+
+  if (conditionsToExpand.length > 0) {
+    updateAgentToaster(`🔍 Expanding search with related terms...`);
+  }
 
   for (const condition of conditions) {
+    let conditionWasExpanded = false;
+
+    // Handle text conditions with semantic expansion
     if (condition.semanticExpansion && condition.type === "text") {
       try {
         const expansionTerms = await generateSemanticExpansions(
           condition.text,
-          strategy as any,
-          maxExpansions
+          condition.semanticExpansion, // Use strategy directly from condition
+          state?.userQuery, // Pass original query for better context
+          state?.modelInfo, // Pass model from execution context
+          state?.language, // Pass user language for language-aware expansion
+          undefined // No custom strategy here - would come from state.expansionGuidance if needed
         );
 
-        for (const term of expansionTerms) {
-          expandedConditions.push({
-            ...condition,
-            text: term,
-            semanticExpansion: false,
-            weight: condition.weight * 0.8,
-          });
+        if (expansionTerms.length > 0) {
+          // Add original term + expansions as separate conditions
+          expandedConditions.push(condition); // Keep original
+          for (const term of expansionTerms) {
+            expandedConditions.push({
+              ...condition,
+              text: term,
+              semanticExpansion: undefined,
+              weight: condition.weight * 0.8,
+            });
+          }
+          conditionWasExpanded = true;
         }
       } catch (error) {
         console.warn(`Failed to expand condition "${condition.text}":`, error);
       }
+    }
+
+    // Handle page_ref conditions with smart expansion using findPagesByTitleTool
+    if (condition.type === "page_ref" && condition.semanticExpansion) {
+      try {
+        console.log(
+          `🔗 Smart expansion for page reference "${condition.text}" using findPagesByTitleTool`
+        );
+
+        // Use the smart expansion feature of findPagesByTitleTool
+        const result = await findPagesByTitleTool.invoke({
+          conditions: [
+            {
+              text: condition.text,
+              matchType: "exact",
+              negate: false,
+            },
+          ],
+          combineConditions: "OR",
+          includeDaily: false,
+          smartExpansion: true,
+          expansionInstruction: state?.userQuery
+            ? `Find pages related to "${condition.text}" in context: ${state.userQuery}`
+            : undefined,
+        });
+
+        const parsedResult =
+          typeof result === "string" ? JSON.parse(result) : result;
+        const expandedPages = parsedResult.success
+          ? parsedResult.data || []
+          : [];
+
+        if (expandedPages.length > 0) {
+          const pageNames = expandedPages
+            .map((page: any) => page.title)
+            .filter((name: any) => typeof name === "string");
+
+          if (pageNames.length === 1) {
+            // Single page - use simple page_ref condition
+            expandedConditions.push({
+              type: "page_ref",
+              text: pageNames[0],
+              matchType: "exact",
+              semanticExpansion: undefined,
+              weight: condition.weight,
+              negate: condition.negate || false,
+            });
+          } else if (pageNames.length > 1) {
+            // Multiple pages - use page_ref_or condition for optimal Datomic query
+            expandedConditions.push({
+              type: "page_ref_or",
+              text: pageNames.join("|"),
+              matchType: "exact",
+              semanticExpansion: undefined,
+              weight: condition.weight,
+              negate: condition.negate || false,
+              pageNames: pageNames,
+            } as any);
+          }
+
+          console.log(
+            `  ✅ Smart expansion found ${
+              pageNames.length
+            } existing pages: ${pageNames.join(", ")}`
+          );
+          conditionWasExpanded = true;
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to expand page_ref condition "${condition.text}":`,
+          error
+        );
+      }
+    }
+
+    // If condition wasn't expanded, keep the original
+    if (!conditionWasExpanded) {
+      expandedConditions.push(condition);
     }
   }
 
@@ -1922,69 +3215,69 @@ const searchBlocksWithConditions = async (
 /**
  * Build condition clause for content matching
  */
-const buildConditionClause = (
-  condition: any,
-  index: number,
-  isInOr: boolean = false
-): string => {
-  const indent = isInOr ? "                  " : "                ";
-  let clause = "";
+// const buildConditionClause = (
+//   condition: any,
+//   index: number,
+//   isInOr: boolean = false
+// ): string => {
+//   const indent = isInOr ? "                  " : "                ";
+//   let clause = "";
 
-  switch (condition.type) {
-    case "page_ref":
-      // Use proper Roam :block/refs attribute instead of regex
-      clause = `\n${indent}[?ref-page${index} :node/title "${condition.text}"]
-${indent}[?b :block/refs ?ref-page${index}]`;
-      break;
+//   switch (condition.type) {
+//     case "page_ref":
+//       // Use proper Roam :block/refs attribute instead of regex
+//       clause = `\n${indent}[?ref-page${index} :node/title "${condition.text}"]
+// ${indent}[?b :block/refs ?ref-page${index}]`;
+//       break;
 
-    case "block_ref":
-      // Use proper Roam :block/refs attribute for block references
-      clause = `\n${indent}[?ref-block${index} :block/uid "${condition.text}"]
-${indent}[?b :block/refs ?ref-block${index}]`;
-      break;
+//     case "block_ref":
+//       // Use proper Roam :block/refs attribute for block references
+//       clause = `\n${indent}[?ref-block${index} :block/uid "${condition.text}"]
+// ${indent}[?b :block/refs ?ref-block${index}]`;
+//       break;
 
-    case "regex":
-      const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
-      const regexWithFlags = sanitizedRegex.isCaseInsensitive
-        ? sanitizedRegex.pattern
-        : `(?i)${sanitizedRegex.pattern}`;
-      clause = `\n${indent}[(re-pattern "${regexWithFlags}") ?pattern${index}]
-${indent}[(re-find ?pattern${index} ?content)]`;
-      break;
+//     case "regex":
+//       const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
+//       const regexWithFlags = sanitizedRegex.isCaseInsensitive
+//         ? sanitizedRegex.pattern
+//         : `(?i)${sanitizedRegex.pattern}`;
+//       clause = `\n${indent}[(re-pattern "${regexWithFlags}") ?pattern${index}]
+// ${indent}[(re-find ?pattern${index} ?content)]`;
+//       break;
 
-    case "text":
-    default:
-      if (condition.matchType === "exact") {
-        clause = `\n${indent}[(= ?content "${condition.text}")]`;
-      } else if (condition.matchType === "regex") {
-        const sanitizedTextRegex = sanitizeRegexForDatomic(condition.text);
-        const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive
-          ? sanitizedTextRegex.pattern
-          : `(?i)${sanitizedTextRegex.pattern}`;
-        clause = `\n${indent}[(re-pattern "${textRegexWithFlags}") ?pattern${index}]
-${indent}[(re-find ?pattern${index} ?content)]`;
-      } else {
-        // Use case-insensitive regex without problematic escape characters
-        // Remove any special regex characters to prevent escape issues
-        const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
-        if (cleanText === condition.text) {
-          // No special characters, can use regex safely
-          clause = `\n${indent}[(re-pattern "(?i).*${condition.text}.*") ?pattern${index}]
-${indent}[(re-find ?pattern${index} ?content)]`;
-        } else {
-          // Has special characters, use case-sensitive includes as fallback
-          clause = `\n${indent}[(clojure.string/includes? ?content "${condition.text}")]`;
-        }
-      }
-      break;
-  }
+//     case "text":
+//     default:
+//       if (condition.matchType === "exact") {
+//         clause = `\n${indent}[(= ?content "${condition.text}")]`;
+//       } else if (condition.matchType === "regex") {
+//         const sanitizedTextRegex = sanitizeRegexForDatomic(condition.text);
+//         const textRegexWithFlags = sanitizedTextRegex.isCaseInsensitive
+//           ? sanitizedTextRegex.pattern
+//           : `(?i)${sanitizedTextRegex.pattern}`;
+//         clause = `\n${indent}[(re-pattern "${textRegexWithFlags}") ?pattern${index}]
+// ${indent}[(re-find ?pattern${index} ?content)]`;
+//       } else {
+//         // Use case-insensitive regex without problematic escape characters
+//         // Remove any special regex characters to prevent escape issues
+//         const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "");
+//         if (cleanText === condition.text) {
+//           // No special characters, can use regex safely
+//           clause = `\n${indent}[(re-pattern "(?i).*${condition.text}.*") ?pattern${index}]
+// ${indent}[(re-find ?pattern${index} ?content)]`;
+//         } else {
+//           // Has special characters, use case-sensitive includes as fallback
+//           clause = `\n${indent}[(clojure.string/includes? ?content "${condition.text}")]`;
+//         }
+//       }
+//       break;
+//   }
 
-  if (condition.negate) {
-    clause = `\n${indent}(not ${clause.trim()})`;
-  }
+//   if (condition.negate) {
+//     clause = `\n${indent}(not ${clause.trim()})`;
+//   }
 
-  return clause;
-};
+//   return clause;
+// };
 
 /**
  * Apply hierarchy conditions to filter blocks
@@ -2050,7 +3343,7 @@ const applyHierarchyFilters = async (
   const filteredBlocks = [];
 
   for (const block of blocks) {
-    const [uid, content, time, pageTitle, pageUid] = block;
+    const [uid] = block;
 
     let hierarchyMatches = [];
 
@@ -2071,10 +3364,10 @@ const applyHierarchyFilters = async (
 
       const hierarchyMatch = hierarchyBlocks.some((hierarchyBlock) => {
         const blockContent = hierarchyBlock.content || "";
-        const conditionResults = conditions.map((condition) => {
+        const conditionResults = conditions.map((condition: SearchCondition) => {
           return matchesCondition(blockContent, condition);
         });
-        return conditionResults.every((r) => r);
+        return conditionResults.every((r: boolean) => r);
       });
 
       hierarchyMatches.push(hierarchyMatch);
@@ -2309,20 +3602,22 @@ const calculateHierarchyRelevanceScore = (
 export const findBlocksWithHierarchyTool = tool(
   async (input, config) => {
     const startTime = performance.now();
-    // Extract state from config  
+    // Extract state from config
     const state = config?.configurable?.state;
     const isPrivateMode = state?.privateMode || input.secureMode;
-    
+
     // Override enrichment parameters in private mode for performance and privacy
-    const finalInput = isPrivateMode ? {
-      ...input,
-      includeChildren: false,
-      includeParents: false,
-      childDepth: 1,
-      parentDepth: 1,
-      secureMode: true
-    } : input;
-    
+    const finalInput = isPrivateMode
+      ? {
+          ...input,
+          includeChildren: false,
+          includeParents: false,
+          childDepth: 1,
+          parentDepth: 1,
+          secureMode: true,
+        }
+      : input;
+
     try {
       const results = await findBlocksWithHierarchyImpl(finalInput, state);
       return createToolResult(

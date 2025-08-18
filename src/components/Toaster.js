@@ -15,9 +15,10 @@ const toasterConfigs = {
   },
   AgentToaster: {
     className: "search-agent-toaster",
-    position: Position.TOP,
+    position: Position.TOP_RIGHT,
     intent: Intent.NONE,
-    icon: "form",
+    isCloseButtonShown: false,
+    canEscapeKeyClear: true,
     maxToasts: 1,
   },
   ThinkingToaster: {
@@ -44,24 +45,29 @@ const createOrRecreateToaster = (name) => {
 };
 
 // Initialize toasters
-export let AppToaster = createOrRecreateToaster('AppToaster');
-export let AgentToaster = createOrRecreateToaster('AgentToaster');
-export let ThinkingToaster = createOrRecreateToaster('ThinkingToaster');
-export let MCPToaster = createOrRecreateToaster('MCPToaster');
+export let AppToaster = createOrRecreateToaster("AppToaster");
+export let AgentToaster = createOrRecreateToaster("AgentToaster");
+export let ThinkingToaster = createOrRecreateToaster("ThinkingToaster");
+export let MCPToaster = createOrRecreateToaster("MCPToaster");
 
 // Function to ensure toaster is functional, recreate if needed
 export const ensureToaster = (name) => {
-  const currentToaster = { AppToaster, AgentToaster, ThinkingToaster, MCPToaster }[name];
+  const currentToaster = {
+    AppToaster,
+    AgentToaster,
+    ThinkingToaster,
+    MCPToaster,
+  }[name];
   try {
     currentToaster.getToasts();
     return currentToaster;
   } catch (error) {
     // Recreate and update the export
     const newToaster = createOrRecreateToaster(name);
-    if (name === 'MCPToaster') MCPToaster = newToaster;
-    else if (name === 'ThinkingToaster') ThinkingToaster = newToaster;
-    else if (name === 'AgentToaster') AgentToaster = newToaster;
-    else if (name === 'AppToaster') AppToaster = newToaster;
+    if (name === "MCPToaster") MCPToaster = newToaster;
+    else if (name === "ThinkingToaster") ThinkingToaster = newToaster;
+    else if (name === "AgentToaster") AgentToaster = newToaster;
+    else if (name === "AppToaster") AppToaster = newToaster;
     return newToaster;
   }
 };
@@ -141,6 +147,113 @@ export const markAgentAsStopped = () => {
   isAgentStopped = true;
 };
 
+// React component for expansion dropdown
+const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const dropdownRef = React.useRef(null);
+  const buttonRef = React.useRef(null);
+
+  // Parse expansion options from text format to structured data
+  const parseExpansionOptions = (optionsText) => {
+    return optionsText
+      .split("\n")
+      .filter((line) => line.trim().startsWith("•"))
+      .map((line) => {
+        const text = line.replace("•", "").trim();
+        const emoji = text.match(/^(\p{Emoji})/u)?.[1] || "🔍";
+        const label = text.replace(/^(\p{Emoji})\s*/u, "");
+        return { emoji, label, action: text };
+      });
+  };
+
+  const options = parseExpansionOptions(expansionOptions);
+
+  const handleOptionClick = (option) => {
+    // Trigger expansion by dispatching a custom event that the agent can listen to
+    const expansionEvent = new CustomEvent("agentExpansion", {
+      detail: {
+        action: option.action,
+        label: option.label,
+        emoji: option.emoji,
+      },
+    });
+    window.dispatchEvent(expansionEvent);
+
+    // Update toaster message to show selected expansion
+    const msgElt = toasterElt.querySelector(".bp3-toast-message");
+    if (msgElt) {
+      msgElt.innerText += `\n🚀 ${option.label}...`;
+    }
+
+    setIsOpen(false);
+  };
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if click is inside the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(event.target)) {
+        return; // Click is inside dropdown, don't close
+      }
+
+      // Check if click is on the expansion button (look for button with "Expand Search" text)
+      const expandButton = event.target.closest("button");
+      if (
+        expandButton &&
+        expandButton.textContent &&
+        expandButton.textContent.includes("Expand Search")
+      ) {
+        return; // Click is on the expansion button, don't close (let button handle it)
+      }
+
+      // Click is outside both dropdown and button, close dropdown
+      setIsOpen(false);
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  return (
+    <div
+      key="expansion"
+      className="expansion-dropdown-container"
+    >
+      <Button
+        ref={buttonRef}
+        text="Expand Search"
+        rightIcon={isOpen ? "chevron-up" : "chevron-down"}
+        {...buttonProps}
+        intent="warning"
+        onClick={() => setIsOpen(!isOpen)}
+      />
+
+      {isOpen && (
+        <div
+          ref={dropdownRef}
+          className="expansion-dropdown-menu"
+        >
+          {options.map((option, index) => (
+            <div
+              key={index}
+              className="expansion-dropdown-option"
+              onClick={() => handleOptionClick(option)}
+            >
+              <span className="expansion-dropdown-option-emoji">
+                {option.emoji}
+              </span>
+              <span className="expansion-dropdown-option-label">{option.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const addButtonsToToaster = (
   _toastId,
   toasterSelector,
@@ -157,8 +270,9 @@ export const addButtonsToToaster = (
 
   const buttons = [];
 
-  // Add copy button for non-agent toasters (or agents without full results)
-  if (!options.showFullResultsButton) {
+  // Add copy button for non-agent toasters (but never for search agent)
+  const isSearchAgentToaster = toasterSelector === ".search-agent-toaster";
+  if (!options.showFullResultsButton && !isSearchAgentToaster) {
     buttons.push(
       <Button
         key="copy"
@@ -225,10 +339,20 @@ export const addButtonsToToaster = (
     );
   }
 
+  // Add expansion dropdown button (available when expansion options are provided)
+  if (options.showExpansionButton && options.expansionOptions) {
+    const expansionButton = React.createElement(ExpansionDropdown, {
+      expansionOptions: options.expansionOptions,
+      buttonProps: props,
+      toasterElt: toasterElt,
+    });
+    buttons.push(expansionButton);
+  }
+
   // Add view full results button (available after completion)
   if (options.showFullResultsButton && currentFullResults) {
     const targetUid = window.lastAgentResponseTargetUid || null;
-    
+
     buttons.push(
       <Button
         key="results"
@@ -251,11 +375,17 @@ export const addButtonsToToaster = (
           toasterInstance.clear();
         } else {
           // Determine toaster name from selector and ensure it works
-          const toasterName = toasterSelector === ".mcp-toaster" ? "MCPToaster" :
-                             toasterSelector === ".thinking-toaster" ? "ThinkingToaster" :
-                             toasterSelector === ".search-agent-toaster" ? "AgentToaster" :
-                             toasterSelector === ".color-toaster" ? "AppToaster" : null;
-          
+          const toasterName =
+            toasterSelector === ".mcp-toaster"
+              ? "MCPToaster"
+              : toasterSelector === ".thinking-toaster"
+              ? "ThinkingToaster"
+              : toasterSelector === ".search-agent-toaster"
+              ? "AgentToaster"
+              : toasterSelector === ".color-toaster"
+              ? "AppToaster"
+              : null;
+
           if (toasterName) {
             ensureToaster(toasterName).clear();
           }

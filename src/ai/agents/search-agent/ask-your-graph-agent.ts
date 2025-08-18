@@ -56,7 +56,7 @@ interface ResultSummary {
   query: string;
   totalCount: number;
   resultType: "blocks" | "pages" | "references" | "hierarchy" | "combinations";
-  sampleItems: string[]; // First 3-5 items for context
+  sampleItems: string[]; // First 5 items for context
   metadata: {
     wasLimited: boolean;
     canExpand: boolean;
@@ -105,6 +105,7 @@ const ReactSearchAgentState = Annotation.Root({
         toolName: string;
         timestamp: number;
         metadata?: any; // Tool metadata for access in directFormat
+        error?: string; // Track tool errors vs successful results with 0 data
       }
     >
   >, // Full results with lifecycle management
@@ -124,7 +125,7 @@ const ReactSearchAgentState = Annotation.Root({
   // New symbolic query fields
   formalQuery: Annotation<string | undefined>,
   searchStrategy: Annotation<
-    "direct" | "expanded" | "semantic" | "hierarchical" | undefined
+    "direct" | "hierarchical" | undefined
   >,
   analysisType: Annotation<
     "count" | "compare" | "connections" | "summary" | undefined
@@ -132,6 +133,26 @@ const ReactSearchAgentState = Annotation.Root({
   language: Annotation<string | undefined>,
   confidence: Annotation<number | undefined>,
   datomicQuery: Annotation<string | undefined>,
+  // Semantic expansion: simplified boolean flag + strategy
+  isExpansionGlobal: Annotation<boolean | undefined>,
+  semanticExpansion: Annotation<
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "all"
+    | "custom"
+    | undefined
+  >,
+  customSemanticExpansion: Annotation<string | undefined>,
+  searchDetails: Annotation<
+    | {
+        timeRange?: { start: string; end: string };
+        maxResults?: number;
+        requireRandom?: boolean;
+        depthLimit?: number;
+      }
+    | undefined
+  >,
   strategicGuidance: Annotation<{
     approach?:
       | "single_search"
@@ -139,6 +160,26 @@ const ReactSearchAgentState = Annotation.Root({
       | "multi_step_workflow";
     recommendedSteps?: string[];
   }>,
+  // Expansion tracking
+  expansionGuidance: Annotation<string | undefined>,
+  expansionState: Annotation<
+    | {
+        canExpand?: boolean;
+        lastResultCount?: number;
+        searchStrategy?: string;
+        queryComplexity?: string;
+        expansionApplied?: boolean;
+        hasErrors?: boolean;
+        // Semantic expansion history tracking
+        appliedSemanticStrategies?: Array<
+          "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "custom"
+        >;
+      }
+    | undefined
+  >,
+  expansionLevel: Annotation<number>, // Track current expansion level (0-6)
+  expansionConsent: Annotation<boolean>, // User consent for expensive expansions (level 4+)
+  zeroResultsAttempts: Annotation<number>, // Track consecutive zero result attempts (max 5)
   // Timing and cancellation
   startTime: Annotation<number>,
   abortSignal: Annotation<AbortSignal | undefined>,
@@ -160,6 +201,45 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
   );
 
   return searchTools;
+};
+
+/**
+ * Build specific retry guidance based on retry type
+ */
+const buildRetryGuidance = (
+  retryType: string,
+  hasCachedResults: boolean
+): string => {
+  const baseGuidance = hasCachedResults
+    ? "Previous search results are available in cache. "
+    : "No previous results cached. ";
+
+  switch (retryType) {
+    case "semantic":
+      return (
+        baseGuidance +
+        "Apply semantic expansion: use related concepts, synonyms, and findPagesSemantically for page references."
+      );
+
+    case "hierarchical":
+      return (
+        baseGuidance +
+        "Apply hierarchical expansion: convert flat searches to hierarchical (A + B → A <=> B), use deep hierarchy (>> instead of >), try bidirectional relationships."
+      );
+
+    case "expansion":
+      return (
+        baseGuidance +
+        "Apply progressive expansion: fuzzy matching, semantic variations, scope broadening. Try Levels 4-6 strategies progressively."
+      );
+
+    case "basic":
+    default:
+      return (
+        baseGuidance +
+        "Apply basic retry with fuzzy matching and basic expansions."
+      );
+  }
 };
 
 // Conversation router node for intelligent routing decisions
@@ -208,6 +288,29 @@ const conversationRouter = async (
     /\[\[.*?\]\].*\b(or|and)\b.*\[\[.*?\]\]/, // Multiple page references with logic
   ];
 
+  // Retry patterns (language-agnostic through LLM detection later)
+  const retryPatterns = {
+    basic:
+      /\b(retry|try again|search again|再試|再次|essayer|encore|probar|otra vez)\b/i,
+    expansion:
+      /\b(expand|broader|more results|deeper|plus|más|plus de|再多|扩展|étendre|ampliar)\b/i,
+    semantic:
+      /\b(similar|related|semantic|concepts|alternatives|相似|相关|概念|similaire|lié|concepto|relacionado)\b/i,
+    hierarchical:
+      /\b(context|hierarchy|parents|children|deep|上下文|层次|父|子|深度|contexte|hiérarchie|contexto|jerarquía)\b/i,
+  };
+
+  // Detect retry type from user query
+  const detectRetryType = (query: string): string | null => {
+    if (retryPatterns.semantic.test(query)) return "semantic";
+    if (retryPatterns.hierarchical.test(query)) return "hierarchical";
+    if (retryPatterns.expansion.test(query)) return "expansion";
+    if (retryPatterns.basic.test(query)) return "basic";
+    return null;
+  };
+
+  const retryType = detectRetryType(query);
+
   const isSimpleFollowUp = simpleFollowUpPatterns.some((pattern) =>
     pattern.test(query)
   );
@@ -217,6 +320,21 @@ const conversationRouter = async (
   const needsComplexAnalysis = complexAnalysisPatterns.some((pattern) =>
     pattern.test(query)
   );
+
+  // Handle retry requests first (highest priority)
+  if (retryType && hasConversationHistory) {
+    console.log(
+      `🔄 [ConversationRouter] Retry detected: ${retryType} expansion requested`
+    );
+
+    const expansionGuidance = buildRetryGuidance(retryType, hasCachedResults);
+
+    return {
+      routingDecision: "analyze_complexity" as const, // Use intent parser to apply specific expansion
+      reformulatedQuery: state.userQuery,
+      expansionGuidance: expansionGuidance,
+    };
+  }
 
   // Decision logic
   if (!state.isConversationMode || !hasConversationHistory) {
@@ -302,8 +420,17 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         requireRandom?: boolean;
         depthLimit?: number;
       };
-      searchStrategy: "direct" | "expanded" | "semantic" | "hierarchical";
+      searchStrategy: "direct" | "hierarchical";
       analysisType?: "count" | "compare" | "connections" | "summary";
+      expansionGuidance?: string;
+      isExpansionGlobal?: boolean;
+      semanticExpansion?: 
+        | "synonyms"
+        | "related_concepts"
+        | "broader_terms"
+        | "all"
+        | "custom";
+      customSemanticExpansion?: string;
       language: string;
       confidence: number;
     }>(responseContent, {
@@ -314,6 +441,10 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       constraints: ["constraints"],
       searchStrategy: ["searchStrategy"],
       analysisType: ["analysisType"],
+      expansionGuidance: ["expansionGuidance"],
+      isExpansionGlobal: ["isExpansionGlobal"],
+      semanticExpansion: ["semanticExpansion"],
+      customSemanticExpansion: ["customSemanticExpansion"],
       language: ["language"],
       confidence: ["confidence"],
     });
@@ -346,13 +477,28 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       };
     }
 
+    // Log semantic expansion detection
+    if (analysis.isExpansionGlobal) {
+      console.log(
+        `🎯 [IntentParser] Global semantic expansion detected: ${analysis.semanticExpansion || "synonyms"}`
+      );
+    }
+
+    // Expansion guidance is now handled in ReAct Assistant prompt when needed
+    const expansionGuidanceForLLM = "";
+
     // Show user-friendly summary in toaster
     updateAgentToaster(`🔍 Symbolic query: ${analysis.formalQuery}`);
     updateAgentToaster(`🔍 ${analysis.searchStrategy} search strategy planned`);
+    if (analysis.isExpansionGlobal) {
+      updateAgentToaster(
+        `🧠 Global semantic expansion: ${analysis.semanticExpansion || "synonyms"}`
+      );
+    }
 
     return {
       routingDecision: "need_new_search" as const,
-      formalQuery: analysis.formalQuery,
+      formalQuery: analysis.formalQuery, // Keep original, let LLM apply expansions
       userIntent: analysis.userIntent,
       queryComplexity: determineComplexity(analysis.formalQuery),
       strategicGuidance: {
@@ -364,6 +510,11 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       },
       searchStrategy: analysis.searchStrategy,
       analysisType: analysis.analysisType,
+      searchDetails: analysis.constraints,
+      expansionGuidance: expansionGuidanceForLLM || analysis.expansionGuidance, // Use generated guidance
+      isExpansionGlobal: analysis.isExpansionGlobal,
+      semanticExpansion: analysis.semanticExpansion,
+      customSemanticExpansion: analysis.customSemanticExpansion,
       language: analysis.language,
       confidence: analysis.confidence,
     };
@@ -387,7 +538,123 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
   }
 };
 
-// Helper functions for symbolic query processing
+// Helper functions for symbolic query processing and expansion
+
+/**
+ * Get user-friendly description of expansion strategy for toaster
+ * Simplified 3-level system aligned with Roam usage patterns
+ */
+const getExpansionStrategyDescription = (
+  level: number,
+  intent: string
+): string => {
+  const strategies = {
+    1: "Hierarchical expansion (bidirectional relationships, deep hierarchy)",
+    2: "Fuzzy + semantic expansion (typos, synonyms, related concepts)",
+    3: "Multi-tool strategy (alternative approaches, broader scope)",
+  };
+
+  const baseStrategy = strategies[level] || "Advanced expansion";
+
+  if (intent === "semantic") {
+    return `${baseStrategy} + enhanced AI semantic understanding`;
+  } else if (intent === "hierarchical") {
+    return `${baseStrategy} + deeper hierarchy analysis`;
+  }
+
+  return baseStrategy;
+};
+
+// Generate simple, consistent expansion options with contextual logic
+const getContextualExpansionOptions = (
+  userQuery: string,
+  formalQuery?: string,
+  appliedSemanticStrategies?: Array<
+    "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "custom"
+  >
+): string => {
+  // Use formal query for analysis if available, fallback to user query
+  const queryToAnalyze = formalQuery || userQuery;
+
+  // Detect if this is primarily a page search
+  const isPageSearch =
+    queryToAnalyze.includes("page:(") ||
+    userQuery.toLowerCase().includes("page") ||
+    userQuery.toLowerCase().includes("title");
+
+  // Detect if query has multiple conditions using symbolic operators
+  const hasMultipleConditions =
+    queryToAnalyze.includes("+") || // AND operator
+    queryToAnalyze.includes("|") || // OR operator
+    queryToAnalyze.includes("-"); // NOT operator
+
+  const options = [];
+  const appliedStrategies = appliedSemanticStrategies || [];
+
+  // Define all semantic strategies with their info
+  const semanticStrategies = {
+    fuzzy: {
+      emoji: "🔍",
+      label: "Fuzzy matching (typos, morphological variations)",
+    },
+    synonyms: { emoji: "📝", label: "Synonyms and alternative terms" },
+    related_concepts: {
+      emoji: "🧠",
+      label: "Related concepts and associated terms",
+    },
+    broader_terms: {
+      emoji: "🔺",
+      label: "Broader categories and umbrella terms",
+    },
+  };
+
+  // First option: "Automatic until results" (normal level-to-level progression)
+  options.push("🤖 Auto (let the agent test progressive strategy)");
+
+  // Second option: "All semantic expansions at once" (only if no semantic expansion has been processed)
+  const hasProcessedSemanticExpansion = appliedStrategies.some((strategy) =>
+    ["fuzzy", "synonyms", "related_concepts", "broader_terms"].includes(
+      strategy
+    )
+  );
+
+  if (!hasProcessedSemanticExpansion) {
+    options.push("⚡ All at once (fuzzy + synonyms + related concepts)");
+  }
+
+  // Add individual semantic strategies that haven't been processed yet
+  const availableStrategies = Object.keys(semanticStrategies).filter(
+    (strategy) => !appliedStrategies.includes(strategy as any)
+  );
+
+  // Don't display "broader_terms" if "related_concepts" has not been processed
+  if (!appliedStrategies.includes("related_concepts")) {
+    const broaderIndex = availableStrategies.indexOf("broader_terms");
+    if (broaderIndex > -1) {
+      availableStrategies.splice(broaderIndex, 1);
+    }
+  }
+
+  // Add available semantic strategies
+  for (const strategy of availableStrategies) {
+    const info =
+      semanticStrategies[strategy as keyof typeof semanticStrategies];
+    options.push(`${info.emoji} ${info.label}`);
+  }
+
+  // Add hierarchy option for block searches with multiple conditions
+  if (!isPageSearch && hasMultipleConditions) {
+    options.push(
+      "🏗️ Deepen hierarchy search (explore parent/child relationships)"
+    );
+  }
+
+  // Always offer multi-strategy as final fallback
+  options.push("🔄 Try other search strategies (combine different approaches)");
+
+  // Format as bullet points
+  return options.map((option) => `• ${option}`).join("\n");
+};
 
 const determineComplexity = (
   formalQuery: string
@@ -611,6 +878,8 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
 const loadModel = async (state: typeof ReactSearchAgentState.State) => {
   const startTime = state.startTime || Date.now();
 
+  console.log("state.rootUid :>> ", state.rootUid);
+
   // Initialize LLM
   llm = modelViaLanggraph(state.model, turnTokensUsage);
 
@@ -635,6 +904,9 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
     resultStore: state.resultStore || {},
     nextResultId: state.nextResultId || 1,
     totalTokensUsed: state.totalTokensUsed || { input: 0, output: 0 },
+    // Initialize expansion tracking (Level 0 = initial search, Level 1+ = expansions)
+    expansionLevel: state.expansionLevel || 0,
+    expansionConsent: state.expansionConsent || false,
   };
 };
 
@@ -645,30 +917,116 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   }
 
   // Tools are already filtered by permissions in loadModel
-  // Create state-aware tool wrappers that auto-inject agent state
-  const stateAwareTools = state.searchTools.map((tool) => {
-    if (tool.name === "findBlocksByContent") {
-      return {
-        ...tool,
-        func: async (llmInput: any) => {
-          // Inject agent state into tool parameters
-          const enrichedInput = {
-            ...llmInput,
-            resultMode: state.privateMode ? "uids_only" : "summary",
-            secureMode: state.privateMode || false,
-            userQuery: state.userQuery || "",
-          };
-          return tool.func(enrichedInput);
-        },
-      };
+  // Note: State-aware tool wrappers are now handled in toolsWithResults for proper execution
+  const llm_with_tools = llm.bindTools(state.searchTools);
+
+  // Check if we need to add expansion strategies to the system prompt
+  let shouldAddExpansionStrategies = false;
+
+  // Check if user requested exact matches (skip expansion)
+  const requestsExactMatch =
+    state.userQuery?.toLowerCase().includes("exact") || false;
+
+  // Only check final results for expansion decision
+  const finalResults = Object.values(state.resultStore || {}).filter(
+    (result) => result?.purpose === "final" && result?.status === "active"
+  );
+
+  // Separate errors from successful searches and count total results
+  const successfulResults = finalResults.filter((result) => !result.error);
+  const totalResultCount = successfulResults.reduce((sum, result) => {
+    if (Array.isArray(result.data)) return sum + result.data.length;
+    // Handle nested data structures from tool responses
+    if (result.data && typeof result.data === "object") {
+      if ((result.data as any).results?.length > 0)
+        return sum + (result.data as any).results.length;
+      if ((result.data as any).pages?.length > 0)
+        return sum + (result.data as any).pages.length;
+      if ((result.data as any).content && (result.data as any).content.trim())
+        return sum + 1;
     }
-    // Tools with minimal schemas don't need state injection (they handle it internally)
-    return tool;
-  });
+    return sum;
+  }, 0);
 
-  const llm_with_tools = llm.bindTools(stateAwareTools);
+  const hasLowResults = successfulResults.length > 0 && totalResultCount < 100;
+  const hasNoResults = successfulResults.length === 0 || totalResultCount === 0;
 
-  // Use enhanced system prompt with symbolic query support
+  // CRITICAL: Only evaluate expansion if tools have already been executed
+  // Don't trigger expansion on the first assistant call when no tools have run yet
+  const hasToolsBeenExecuted = finalResults.length > 0;
+
+  // Add expansion strategies for:
+  // 1. Successful searches with <100 results, OR
+  // 2. No results found (most important case for expansion)
+  // NOTE: searchStrategy should NOT block expansion - user should always have expansion options when results are insufficient
+  // CRITICAL: Maximum expansion level is 4 to prevent infinite loops
+  if (
+    hasToolsBeenExecuted &&
+    (hasLowResults || hasNoResults) &&
+    !requestsExactMatch &&
+    (state.expansionLevel || 0) < 4 // Maximum expansion level is 4
+  ) {
+    const currentExpansionLevel = state.expansionLevel || 0;
+    console.log(
+      `🔍 [Assistant] Detected ${totalResultCount} final results ${
+        hasNoResults ? "(zero results)" : "(low results <100)"
+      }, adding expansion strategies (level ${currentExpansionLevel + 1})`
+    );
+
+    shouldAddExpansionStrategies = true;
+
+    // Show specific expansion strategy being applied
+    const expansionStrategy = getExpansionStrategyDescription(
+      currentExpansionLevel + 1,
+      state.searchStrategy || "direct"
+    );
+    updateAgentToaster(
+      `🔧 Level ${currentExpansionLevel + 1}: ${expansionStrategy}`
+    );
+
+    // Update expansion state for UI buttons
+    // Determine which semantic strategy is being applied based on expansion level
+    const currentLevel = state.expansionLevel || 0;
+    const appliedStrategies =
+      state.expansionState?.appliedSemanticStrategies || [];
+
+    // Map expansion level to semantic strategy (progression order)
+    const levelToStrategyMap = {
+      1: "fuzzy" as const,
+      2: "synonyms" as const,
+      3: "related_concepts" as const,
+      // Level 4+ uses different tool strategies, not semantic expansion
+    };
+
+    const currentStrategy =
+      levelToStrategyMap[currentLevel as keyof typeof levelToStrategyMap];
+    const updatedStrategies =
+      currentStrategy && !appliedStrategies.includes(currentStrategy)
+        ? [...appliedStrategies, currentStrategy]
+        : appliedStrategies;
+
+    state.expansionState = {
+      canExpand: true,
+      lastResultCount: totalResultCount,
+      searchStrategy: state.searchStrategy || "basic",
+      queryComplexity: state.queryComplexity || "simple",
+      appliedSemanticStrategies: updatedStrategies,
+    };
+  } else if (
+    hasToolsBeenExecuted &&
+    (hasLowResults || hasNoResults) &&
+    !requestsExactMatch &&
+    (state.expansionLevel || 0) >= 4 // Maximum level reached
+  ) {
+    console.log(
+      `🛑 [Assistant] Maximum expansion level (4) reached with ${totalResultCount} results. No further expansion available.`
+    );
+    updateAgentToaster(
+      `🛑 Maximum expansion level reached. Consider rephrasing your query or using different search terms.`
+    );
+  }
+
+  // Use enhanced system prompt with symbolic query support and expansion strategies
   const systemPrompt = buildSystemPrompt({
     permissions: state.permissions,
     privateMode: state.privateMode,
@@ -678,17 +1036,25 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     userQuery: state.userQuery,
     // New symbolic query fields
     formalQuery: state.formalQuery,
-    searchStrategy: state.searchStrategy,
     analysisType: state.analysisType,
     language: state.language,
     datomicQuery: state.datomicQuery,
     strategicGuidance: state.strategicGuidance,
+    searchDetails: state.searchDetails,
+    // Expansion support
+    searchStrategy: state.searchStrategy,
+    isExpansionGlobal: state.isExpansionGlobal,
+    semanticExpansion: state.semanticExpansion,
+    shouldAddExpansionStrategies: shouldAddExpansionStrategies,
+    currentExpansionLevel: shouldAddExpansionStrategies
+      ? (state.expansionLevel || 0) + 1 // If expansion is active, tell assistant the NEXT level
+      : state.expansionLevel || 0, // Otherwise, use current level
   });
   // console.log("Assistant systemPrompt :>> ", systemPrompt);
   const contextInstructions = `
 
 CRITICAL INSTRUCTION: 
-When using findBlocksByContent, always include userQuery parameter set to: "${state.userQuery}" to exclude the user's request block from results.`;
+When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, always include excludeBlockUid parameter set to: "${state.rootUid}" to exclude the user's request block from results.`;
 
   const combinedSystemPrompt = systemPrompt + contextInstructions;
   const sys_msg = new SystemMessage({ content: combinedSystemPrompt });
@@ -756,6 +1122,25 @@ When using findBlocksByContent, always include userQuery parameter set to: "${st
   console.log(
     `🎯 [Assistant] System prompt length: ${combinedSystemPrompt.length} chars`
   );
+
+  // CLEAR EXPANSION LEVEL LOGGING
+  const currentLevel = state.expansionLevel || 0;
+  const nextLevel = shouldAddExpansionStrategies
+    ? currentLevel + 1
+    : currentLevel;
+  console.log(
+    `🔍 [EXPANSION] ASSISTANT CALLED AT LEVEL ${nextLevel} (currentLevel=${currentLevel}, shouldAddExpansionStrategies=${shouldAddExpansionStrategies})`
+  );
+
+  if (shouldAddExpansionStrategies) {
+    console.log(
+      `🧠 [EXPANSION] Level ${nextLevel} expansion strategies INCLUDED in system prompt for query: "${state.userQuery}"`
+    );
+  } else {
+    console.log(
+      `🚫 [EXPANSION] NO expansion strategies in system prompt (level ${currentLevel})`
+    );
+  }
   const llmStartTime = Date.now();
 
   // Check for cancellation before LLM call
@@ -960,230 +1345,14 @@ When using findBlocksByContent, always include userQuery parameter set to: "${st
   return {
     messages: [...state.messages, response],
     totalTokensUsed: updatedTotalTokens,
+    // Increment expansion level if expansion strategies were added this round
+    expansionLevel: shouldAddExpansionStrategies
+      ? (state.expansionLevel || 0) + 1
+      : state.expansionLevel || 0,
   };
 };
 
-const toolsWithResults = async (state: typeof ReactSearchAgentState.State) => {
-  // Check for cancellation
-  if (state.abortSignal?.aborted) {
-    throw new Error("Operation cancelled by user");
-  }
-
-  // Don't overwrite the LLM-generated tool explanation from assistant function
-  const toolNode = new ToolNode(state.searchTools);
-
-  try {
-    const toolStartTime = Date.now();
-
-    // Check for cancellation before tool execution
-    if (state.abortSignal?.aborted) {
-      throw new Error("Operation cancelled by user");
-    }
-
-    // Create abort promise for tool execution
-    const abortPromise = new Promise((_, reject) => {
-      if (state.abortSignal) {
-        const abortHandler = () =>
-          reject(new Error("Operation cancelled by user"));
-        state.abortSignal.addEventListener("abort", abortHandler, {
-          once: true,
-        });
-      }
-    });
-
-    // Race between tool execution and abort signal - with custom state passing
-    const result = await Promise.race([
-      toolNode.invoke(state, { configurable: { state } }),
-      abortPromise,
-    ]);
-
-    // Track tool results for potential reuse (following MCP agent pattern)
-    const toolMessages = result.messages.filter(
-      (msg: any) => msg._getType() === "tool"
-    );
-
-    const toolDuration = ((Date.now() - toolStartTime) / 1000).toFixed(1);
-
-    // Count actual results from tool responses, not just tool calls
-    let totalResults = 0;
-    toolMessages.forEach((msg: any) => {
-      try {
-        const parsed = JSON.parse(msg.content);
-
-        if (parsed.data && Array.isArray(parsed.data)) {
-          totalResults += parsed.data.length;
-        } else if (parsed.metadata?.returnedCount) {
-          totalResults += parsed.metadata.returnedCount;
-        } else if (parsed.success && parsed.data) {
-          totalResults += 1; // Single result
-        }
-      } catch (e) {
-        totalResults += 1; // Fallback for non-JSON content
-      }
-    });
-
-    const resultText = totalResults === 1 ? "result" : "results";
-    updateAgentToaster(
-      `✅ Found ${totalResults} ${resultText} (${toolDuration}s)`
-    );
-
-    // Enhanced result processing with summarization (keeping message chain intact)
-    const updatedResults = { ...state.toolResults };
-    const updatedCache = { ...state.toolResultsCache };
-    const updatedFullResults = { ...state.cachedFullResults };
-    const updatedResultSummaries = { ...state.resultSummaries };
-    const updatedResultStore = { ...state.resultStore };
-    let nextResultId = state.nextResultId || 1;
-    let hasLimitedResults = state.hasLimitedResults;
-
-    // Determine security mode for summarization
-    const securityMode = state.privateMode
-      ? "private"
-      : state.permissions?.contentAccess
-      ? "full"
-      : "balanced";
-
-    // Track token savings
-    let totalOriginalSize = 0;
-    let totalCompressedSize = 0;
-    let optimizedMessages = 0;
-
-    // Process each tool result (keep existing caching, add summarization)
-    toolMessages.forEach((msg: any) => {
-      if (msg.tool_call_id && msg.content) {
-        try {
-          const parsed = JSON.parse(msg.content);
-
-          // Store in regular results (backward compatibility)
-          updatedResults[msg.tool_call_id] = {
-            content: msg.content,
-            timestamp: Date.now(),
-            tool_name: msg.name,
-          };
-
-          // Cache results for comprehensive follow-ups (MCP pattern)
-          updatedCache[msg.tool_call_id] = {
-            content: msg.content,
-            timestamp: Date.now(),
-            tool_name: msg.name,
-            type: "tool",
-          };
-
-          // Cache all results for potential follow-ups (not just limited ones)
-          if (
-            parsed.data &&
-            Array.isArray(parsed.data) &&
-            parsed.data.length > 0
-          ) {
-            const totalFound =
-              parsed.metadata?.totalFound || parsed.data.length;
-            console.log(
-              `💾 [Caching] Storing ${totalFound} results for follow-up (tool: ${msg.name})`
-            );
-            updatedFullResults[`${msg.name}_${Date.now()}`] = {
-              toolName: msg.name,
-              fullResults: parsed,
-              userQuery: state.userQuery,
-              timestamp: Date.now(),
-              canExpand: parsed.metadata?.canExpandResults || false,
-            };
-
-            // Mark as limited only if explicitly limited
-            if (parsed.metadata?.wasLimited) {
-              hasLimitedResults = true;
-            }
-
-            // NEW: Generate result summary and store full results separately
-            const resultId = generateResultId(msg.name, nextResultId++);
-
-            // Create result summary for LLM context
-            const summary = createResultSummary(
-              msg.name,
-              resultId,
-              state.userQuery,
-              parsed,
-              parsed.metadata?.sortedBy
-            );
-
-            // Store summary for LLM context
-            updatedResultSummaries[resultId] = summary;
-
-            // Store full results for tool access (extract data array from tool result)
-            const resultData = parsed.data || parsed.results || parsed;
-            updatedResultStore[resultId] = resultData;
-            console.log(
-              `📊 [Token Optimization] Stored result ${resultId}: ${
-                Array.isArray(resultData)
-                  ? resultData.length
-                  : typeof resultData
-              } items`
-            );
-
-            // Generate compact summary text for LLM
-            const summaryText = generateSummaryText(summary, securityMode);
-
-            console.log(
-              `📊 [Token Optimization] Created summary ${resultId}: ${summaryText}`
-            );
-
-            // PHASE 3B: Replace message content with summary for token optimization
-            const originalSize = msg.content.length;
-            msg.content = JSON.stringify({
-              success: true,
-              summary: summaryText,
-              resultId: resultId,
-              toolName: msg.name,
-              metadata: {
-                totalCount: summary.totalCount,
-                resultType: summary.resultType,
-                availableForTools: true,
-                originalSize: originalSize,
-                compressedSize: -1, // Will be calculated below
-              },
-            });
-
-            const compressedSize = msg.content.length;
-
-            // Update the compressed size in the content
-            const updatedContent = JSON.parse(msg.content);
-            updatedContent.metadata.compressedSize = compressedSize;
-            msg.content = JSON.stringify(updatedContent);
-
-            // Track cumulative savings
-            totalOriginalSize += originalSize;
-            totalCompressedSize += compressedSize;
-            optimizedMessages++;
-          }
-        } catch (e) {
-          // Store raw content even if not JSON
-          updatedResults[msg.tool_call_id] = {
-            content: msg.content,
-            timestamp: Date.now(),
-            tool_name: msg.name,
-          };
-        }
-      }
-    });
-
-    return {
-      ...result,
-      toolResults: updatedResults,
-      toolResultsCache: updatedCache,
-      cachedFullResults: updatedFullResults,
-      hasLimitedResults,
-      // NEW: Token optimization state
-      resultSummaries: updatedResultSummaries,
-      resultStore: updatedResultStore,
-      nextResultId,
-      // Pass through total tokens
-      totalTokensUsed: state.totalTokensUsed,
-    };
-  } catch (error) {
-    console.error("🔧 Tool execution error:", error);
-    updateAgentToaster("❌ Search failed - please try again");
-    throw error;
-  }
-};
+// toolsWithResults function removed - using toolsWithResultLifecycle instead
 
 const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   // Check for cancellation
@@ -1341,6 +1510,24 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
   console.log("✅ ReAct Search Agent completed");
 
+  // Calculate result stats for smart button logic - only count final results with actual data
+  const finalResults = Object.values(state.resultStore || {}).filter(
+    (result) => result?.purpose === "final" && result?.status === "active"
+  );
+
+  // Only count results from successful searches (no errors)
+  const successfulResults = finalResults.filter((result) => !result.error);
+  const totalFinalResults = successfulResults.reduce(
+    (sum, result) =>
+      sum + (Array.isArray(result?.data) ? result.data.length : 0),
+    0
+  );
+
+  // Check if expansion was applied during this session
+  const expansionApplied =
+    state.expansionGuidance?.includes("zero_results") ||
+    state.expansionGuidance?.includes("Progressive expansion needed");
+
   return {
     targetUid,
     finalAnswer: lastMessage,
@@ -1352,6 +1539,20 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     resultSummaries: state.resultSummaries,
     resultStore: state.resultStore,
     nextResultId: state.nextResultId,
+    // Enhanced expansion metadata for smart buttons - focus on successful final results only
+    expansionState: {
+      lastResultCount: totalFinalResults, // Only count successful final results (no errors)
+      searchStrategy: state.searchStrategy,
+      canExpand:
+        state.searchStrategy !== "direct" &&
+        totalFinalResults < 50 &&
+        !expansionApplied,
+      queryComplexity: state.queryComplexity,
+      expansionApplied: expansionApplied, // Track if we already tried expansion
+      hasErrors: finalResults.some((result) => result.error), // Track if there were tool errors
+      appliedSemanticStrategies:
+        state.expansionState?.appliedSemanticStrategies || [], // Preserve semantic expansion history
+    },
   };
 };
 
@@ -1468,47 +1669,85 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   // CRITICAL: Use deduplicated count for accurate display
   const totalCount = deduplicatedResults.length;
 
-  // Apply random sampling or sequential limit to deduplicated results
-  let limitedResults: any[];
-  if (isRandom && totalCount > displayLimit) {
-    // Apply random sampling using Fisher-Yates shuffle algorithm
-    const shuffled = [...deduplicatedResults];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  // Group results by expansion level for ranking-aware display
+  const resultsByLevel = {
+    0: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 0), // Exact matches
+    1: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 1), // Hierarchical
+    2: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 2), // Fuzzy + Semantic
+    3: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 3), // Multi-tool
+  };
+
+  const levelLabels = {
+    0: "Exact matches",
+    1: "Hierarchical expansion",
+    2: "Fuzzy + semantic expansion",
+    3: "Multi-tool expansion",
+  };
+
+  // Apply sampling/limiting across all levels proportionally
+  let limitedResults: any[] = [];
+  let displayCount = 0;
+  const formattedSections: string[] = [];
+
+  for (let level = 0; level <= 3; level++) {
+    const levelResults = resultsByLevel[level];
+    if (levelResults.length === 0) continue;
+
+    // Calculate how many results to show from this level
+    let levelLimit = levelResults.length;
+    if (!isRandom && displayCount + levelResults.length > displayLimit) {
+      levelLimit = Math.max(1, displayLimit - displayCount); // At least show 1 from each level
     }
-    limitedResults = shuffled.slice(0, displayLimit);
-    console.log(
-      `🎯 [DirectFormat] Applied random sampling: ${displayLimit} from ${totalCount} results`
-    );
-  } else {
-    // Sequential limit (first N results)
-    limitedResults = deduplicatedResults.slice(0, displayLimit);
-    console.log(
-      `🎯 [DirectFormat] Applied sequential limit: ${displayLimit} from ${totalCount} results`
-    );
+
+    let levelLimitedResults = levelResults.slice(0, levelLimit);
+
+    // Apply random sampling within level if requested
+    if (isRandom && levelResults.length > levelLimit) {
+      const shuffled = [...levelResults];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      levelLimitedResults = shuffled.slice(0, levelLimit);
+    }
+
+    limitedResults.push(...levelLimitedResults);
+    displayCount += levelLimitedResults.length;
+
+    // Format results for this expansion level
+    const levelFormattedItems = levelLimitedResults.map((item) => {
+      // Check if this is a page: has title but no content, or explicitly marked as page
+      const isPage = (!!item.title && !item.content) || item.isPage;
+
+      if (isPage) {
+        hasPages = true;
+        // Use page title for pages
+        const pageTitle = item.pageTitle || item.title;
+        return `- [[${pageTitle}]]`;
+      } else {
+        hasBlocks = true;
+        // Use embed syntax for blocks
+        return `- {{[[embed-path]]: ((${item.uid}))}}`;
+      }
+    });
+
+    // Add section header only if there are multiple expansion levels present
+    const hasMultipleLevels =
+      Object.values(resultsByLevel).filter((arr) => arr.length > 0).length > 1;
+    if (hasMultipleLevels && levelFormattedItems.length > 0) {
+      const sectionHeader = `**${levelLabels[level]} (${levelResults.length})**:`;
+      formattedSections.push(
+        `${sectionHeader}\n${levelFormattedItems.join("\n")}`
+      );
+    } else if (levelFormattedItems.length > 0) {
+      formattedSections.push(levelFormattedItems.join("\n"));
+    }
+
+    // Stop if we've reached the display limit
+    if (displayCount >= displayLimit) break;
   }
 
-  const displayCount = limitedResults.length;
-
-  // Format the deduplicated and limited results
-  const formattedItems = limitedResults.map((item) => {
-    // Check if this is a page: has title but no content, or explicitly marked as page
-    const isPage = (!!item.title && !item.content) || item.isPage;
-
-    if (isPage) {
-      hasPages = true;
-      // Use page title for pages
-      const pageTitle = item.pageTitle || item.title;
-      return `- [[${pageTitle}]]`;
-    } else {
-      hasBlocks = true;
-      // Use embed syntax for blocks
-      return `- {{[[embed-path]]: ((${item.uid}))}}`;
-    }
-  });
-
-  const formattedResults = [formattedItems.join("\n")];
+  const formattedResults = formattedSections;
 
   // Create final formatted response with appropriate labeling
   let resultType = "results";
@@ -1521,7 +1760,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   let resultText;
   if (displayCount === totalCount) {
     resultText = `Found ${totalCount} matching ${resultType}:\n${formattedResults.join(
-      "\n"
+      "\n\n"
     )}`;
   } else {
     const samplingLabel = isRandom
@@ -1532,7 +1771,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
       ? `first ${displayCount}`
       : `first ${displayCount}`;
     resultText = `Found ${totalCount} matching ${resultType} [showing ${samplingLabel}]:\n${formattedResults.join(
-      "\n"
+      "\n\n"
     )}`;
 
     // Add Full Results note only when there are more results than displayed
@@ -1544,13 +1783,106 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
     }
   }
 
+  // Log expansion level distribution for debugging
+  const levelCounts = Object.entries(resultsByLevel)
+    .map(([level, results]) => `L${level}: ${results.length}`)
+    .filter((_, i) => resultsByLevel[i].length > 0);
+
   console.log(
-    `🎯 [DirectFormat] Generated direct response: ${resultText.length} chars, hasPages: ${hasPages}, hasBlocks: ${hasBlocks}`
+    `🎯 [DirectFormat] Generated direct response: ${
+      resultText.length
+    } chars, hasPages: ${hasPages}, hasBlocks: ${hasBlocks}, expansion levels: [${levelCounts.join(
+      ", "
+    )}]`
   );
 
   return {
     ...state,
     finalAnswer: resultText,
+  };
+};
+
+/**
+ * Show current results first, then offer expansion options
+ * This gives users visibility into what was found before deciding on expansion
+ */
+const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
+  console.log(
+    "🎯 [ShowResultsThenExpand] Showing current results before expansion options"
+  );
+
+  // Get current results from the state
+  const finalResults = state.resultStore
+    ? Object.values(state.resultStore)
+    : [];
+  const allResults = finalResults.flatMap((entry: any) =>
+    Array.isArray(entry.data) ? entry.data : []
+  );
+
+  const resultCount = allResults.length;
+  const currentExpansionLevel = state.expansionLevel || 0;
+
+  // In secure mode or when results are limited, show them first
+  let resultsSummary = "";
+  if (state.permissions?.contentAccess === false || resultCount <= 5) {
+    // Secure mode: show UIDs/titles (not token consuming)
+    if (resultCount > 0) {
+      const titles = allResults
+        .map((r) => r.title || r.pageTitle || `Block ${r.uid}`)
+        .slice(0, 5);
+      resultsSummary = `\n\n📋 Current results (${resultCount}):\n${titles
+        .map((t) => `• ${t}`)
+        .join("\n")}`;
+      if (resultCount > 5) {
+        resultsSummary += `\n• ... and ${resultCount - 5} more`;
+      }
+    } else {
+      resultsSummary = "\n\n📋 No results found yet.";
+    }
+  } else {
+    // Balanced/Full mode: just show count to avoid token consumption
+    resultsSummary =
+      resultCount > 0
+        ? `\n\n📋 Found ${resultCount} results (click "View Full Results" to see them)`
+        : "\n\n📋 No results found yet.";
+  }
+
+  // Show context-aware expansion options with buttons
+  const expansionOptions = getContextualExpansionOptions(
+    state.userQuery,
+    state.formalQuery,
+    state.expansionState?.appliedSemanticStrategies
+  );
+
+  const message =
+    resultCount === 0
+      ? `⚠️ No results found. Try expansion strategies:`
+      : `⚠️ Found ${resultCount} results. Try expansion for better coverage:`;
+
+  console.log(`🎯 [TOASTER DEBUG] Calling updateAgentToaster with:`, {
+    message: message + resultsSummary,
+    showExpansionButton: true,
+    expansionOptions: expansionOptions,
+    expansionOptionsArray: expansionOptions.split("\n"),
+  });
+
+  updateAgentToaster(message + resultsSummary, {
+    showExpansionButton: true,
+    expansionOptions: expansionOptions,
+    showFullResultsButton: resultCount > 0, // Enable full results button if we have results
+  });
+
+  // INTERRUPT: Stop execution and wait for human input
+  // Make sure full results are available for popup during interrupt
+
+  // Store the current state and return a special marker to indicate interrupt
+  // The graph execution will pause here until user provides expansion consent
+  return {
+    ...state,
+    // Mark that we're waiting for expansion consent
+    pendingExpansion: true,
+    expansionMessage: message + resultsSummary,
+    expansionOptions: expansionOptions,
   };
 };
 
@@ -1570,9 +1902,19 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     return "tools";
   }
 
-  // Check if we have sufficient results to proceed with response
-  const hasSufficientResults =
-    state.resultStore && Object.keys(state.resultStore).length > 0;
+  // Check if we have sufficient final results to proceed with response
+  const finalResults = Object.values(state.resultStore || {}).filter(
+    (result) => result?.purpose === "final" && result?.status === "active"
+  );
+  const totalFinalResults = finalResults.reduce(
+    (sum, result) =>
+      sum + (Array.isArray(result?.data) ? result.data.length : 0),
+    0
+  );
+
+  const hasSufficientResults = totalFinalResults > 0;
+  const hasZeroFinalResults =
+    finalResults.length > 0 && totalFinalResults === 0;
 
   // OPTIMIZATION: For simple private mode cases with results, skip LLM and format directly
   const canSkipResponseWriter =
@@ -1590,11 +1932,101 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     return "directFormat";
   }
 
+  // Check if we need expansion due to zero final results from successful searches (not errors)
+  if (finalResults.length > 0 && state.searchStrategy !== "direct") {
+    // Check successful results vs those with errors
+    const successfulResults = finalResults.filter((result) => !result.error);
+    const hasZeroSuccessfulResults =
+      successfulResults.length > 0 &&
+      successfulResults.every((result) => {
+        // Check if successful result has zero actual data
+        if (Array.isArray(result?.data) && result.data.length === 0)
+          return true;
+        if (result?.data?.length === 0) return true;
+        return false;
+      });
+
+    const hasExpansionGuidance =
+      state.expansionGuidance?.includes("zero_results") ||
+      state.expansionGuidance?.includes("Progressive expansion needed");
+
+    // Safety check: track zero results attempts to prevent infinite loops
+    const maxZeroAttempts = 5;
+
+    if (hasZeroSuccessfulResults && !hasExpansionGuidance) {
+      // Increment counter only for final purpose results with zero data
+      const finalPurposeResults = successfulResults.filter(
+        (result) => result.purpose === "final"
+      );
+      if (finalPurposeResults.length > 0) {
+        state.zeroResultsAttempts = (state.zeroResultsAttempts || 0) + 1;
+        console.log(
+          `📊 [Graph] Incrementing zero results counter for final purpose results: ${state.zeroResultsAttempts}`
+        );
+      }
+
+      // Check if we've hit the safety limit (use updated counter)
+      const updatedZeroAttempts = state.zeroResultsAttempts || 0;
+      if (updatedZeroAttempts >= maxZeroAttempts) {
+        console.log(
+          `🛑 [Graph] Maximum zero results attempts reached (${maxZeroAttempts}). Stopping automatic expansion.`
+        );
+        // Go to showResultsThenExpand to give user manual control
+        return "showResultsThenExpand";
+      }
+
+      // Check expansion level limits for automatic progression
+      const currentLevel = state.expansionLevel || 0;
+      if (currentLevel >= 4) {
+        console.log(
+          `🔄 [Graph] Level 4 reached with zero results. Prompting assistant to try different tool strategies.`
+        );
+
+        // Add strategic guidance to prompt assistant to change approach
+        state.expansionGuidance = `zero_results_level_4_strategy_change: You have reached maximum expansion level (4) with zero results. 
+CRITICAL: You MUST now try completely different tool strategies and sequences. Consider:
+
+🔧 DIFFERENT TOOL COMBINATIONS:
+- Try findPagesByContent instead of findBlocksByContent (or vice versa)
+- Use extractHierarchyContent for broader context discovery
+- Combine multiple tools with different search patterns
+- Use extractPageReferences to find related content
+
+🎯 ALTERNATIVE SEARCH APPROACHES:
+- Break down complex queries into simpler parts
+- Search for synonyms or related concepts  
+- Use broader or narrower search terms
+- Try different search operators (AND, OR, NOT)
+
+🧠 STRATEGIC THINKING:
+- Reflect on why previous searches failed
+- Question if the content exists in this format
+- Consider if the user query needs reinterpretation
+- Try searching for metadata, tags, or references instead of direct content
+
+You MUST change your tool strategy - don't repeat the same approach that gave zero results.`;
+
+        return "assistant";
+      }
+
+      console.log(
+        `🔀 [Graph] Assistant → CONTINUE WITH EXPANSION (0 results, attempt ${state.zeroResultsAttempts}/${maxZeroAttempts}, level ${currentLevel})`
+      );
+
+      // Continue with automatic expansion
+      return "assistant";
+    }
+  }
+
   // If we have results but can't use direct format, go to response writer
   if (hasSufficientResults) {
-    console.log(`🔀 [Graph] Assistant → RESPONSE_WRITER (results available)`);
+    console.log(
+      `🔀 [Graph] Assistant → RESPONSE_WRITER (${totalFinalResults} final results available)`
+    );
   } else {
-    console.log(`🔀 [Graph] Assistant → RESPONSE_WRITER (no tool calls)`);
+    console.log(
+      `🔀 [Graph] Assistant → RESPONSE_WRITER (no final results or tool calls)`
+    );
   }
 
   return "responseWriter";
@@ -1652,8 +2084,57 @@ const routeAfterCache = (state: typeof ReactSearchAgentState.State) => {
 const toolsWithResultLifecycle = async (
   state: typeof ReactSearchAgentState.State
 ) => {
+  // Create state-aware tool wrappers that auto-inject agent state
+  const stateAwareTools = state.searchTools.map((tool) => {
+    if (tool.name === "findBlocksByContent") {
+      return {
+        ...tool,
+        invoke: async (llmInput: any, config?: any) => {
+          const enrichedInput = {
+            ...llmInput,
+            resultMode: state.privateMode ? "uids_only" : "summary",
+            secureMode: state.privateMode || false,
+            userQuery: state.userQuery || "",
+            excludeBlockUid: state.rootUid || "",
+            expansionLevel: state.expansionLevel || 0, // Track expansion level for ranking
+          };
+          return tool.invoke(enrichedInput, config);
+        },
+      };
+    }
+    if (tool.name === "findBlocksWithHierarchy") {
+      return {
+        ...tool,
+        invoke: async (llmInput: any, config?: any) => {
+          const enrichedInput = {
+            ...llmInput,
+            secureMode: state.privateMode || false,
+            excludeBlockUid: state.rootUid || "",
+            expansionLevel: state.expansionLevel || 0,
+          };
+          return tool.invoke(enrichedInput, config);
+        },
+      };
+    }
+    if (tool.name === "findPagesByContent") {
+      return {
+        ...tool,
+        invoke: async (llmInput: any, config?: any) => {
+          const enrichedInput = {
+            ...llmInput,
+            secureMode: state.privateMode || false,
+            excludeBlockUid: state.rootUid || "",
+            expansionLevel: state.expansionLevel || 0,
+          };
+          return tool.invoke(enrichedInput, config);
+        },
+      };
+    }
+    return tool;
+  });
+
   // Create the standard ToolNode for execution using state-aware tools
-  const toolNode = new ToolNode(state.searchTools);
+  const toolNode = new ToolNode(stateAwareTools);
 
   // Execute tools normally
   const result = await toolNode.invoke(state, {
@@ -1677,12 +2158,16 @@ const toolsWithResultLifecycle = async (
 
 // Smart routing after tool execution - skip assistant when results are sufficient
 const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
-  // Check if we have sufficient results to skip assistant evaluation
+  // Check if we have actual result data (not just result store entries)
   const hasResults =
-    state.resultStore && Object.keys(state.resultStore).length > 0;
+    state.resultStore &&
+    Object.values(state.resultStore).some(
+      (result) =>
+        result?.data && Array.isArray(result.data) && result.data.length > 0
+    );
 
   if (hasResults) {
-    // Get the most recent result
+    // Get the most recent result with actual data
     const resultEntries = Object.entries(state.resultStore);
     const latestResult = resultEntries[resultEntries.length - 1]?.[1];
 
@@ -1712,6 +2197,48 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       return "assistant";
     }
   }
+
+  // No results found - check expansion level and user consent
+  const currentExpansionLevel = state.expansionLevel || 0;
+  const maxExpansionLevel = 3; // Simplified 3-level system
+
+  // If we've reached max expansion levels, route to directFormat in private mode
+  if (currentExpansionLevel >= maxExpansionLevel) {
+    if (state.privateMode) {
+      console.log(
+        `🔀 [Graph] TOOLS → DIRECT_FORMAT (max expansion reached, private mode)`
+      );
+      return "directFormat";
+    } else {
+      console.log(
+        `🔀 [Graph] TOOLS → RESPONSE_WRITER (max expansion reached, public mode)`
+      );
+      return "responseWriter";
+    }
+  }
+
+  // Show expansion options for ANY level when no results found (user should always have control)
+  if (!state.expansionConsent) {
+    console.log(
+      `🔀 [Graph] TOOLS → SHOW_RESULTS_THEN_EXPAND (showing current results before expansion options for level ${
+        currentExpansionLevel + 1
+      })`
+    );
+
+    // First, route to show current results, then interrupt for expansion
+    return "showResultsThenExpand";
+  }
+
+  // If we have expansion consent, continue with expanded search
+  console.log(
+    `🔀 [Graph] TOOLS → ASSISTANT (expansion consent granted, level ${currentExpansionLevel}, strategy: ${
+      state.expansionState?.searchStrategy || state.searchStrategy || "default"
+    })`
+  );
+
+  // IMPORTANT: Reset expansion consent so it doesn't persist indefinitely
+  // This prevents infinite loops where every subsequent call has expansion consent
+  state.expansionConsent = false;
 
   return "assistant";
 };
@@ -1763,20 +2290,21 @@ const processToolResultsWithLifecycle = (
       try {
         // Try to parse as JSON first
         const toolResult = JSON.parse(message.content);
+
+        // Extract lifecycle parameters from the tool call
+        const toolCall = findCorrespondingToolCall(
+          state.messages,
+          message.name
+        );
+        const lifecycleParams = extractLifecycleParams(toolCall);
+
+        // Generate result ID
+        const resultId = `${message.name}_${String(
+          state.nextResultId || 1
+        ).padStart(3, "0")}`;
+
         if (toolResult.success && toolResult.data) {
-          // Extract lifecycle parameters from the tool call
-          const toolCall = findCorrespondingToolCall(
-            state.messages,
-            message.name
-          );
-          const lifecycleParams = extractLifecycleParams(toolCall);
-
-          // Generate result ID
-          const resultId = `${message.name}_${String(
-            state.nextResultId || 1
-          ).padStart(3, "0")}`;
-
-          // Handle lifecycle management
+          // Handle successful results
           handleResultLifecycle(
             updatedResultStore,
             resultId,
@@ -1785,10 +2313,24 @@ const processToolResultsWithLifecycle = (
             lifecycleParams,
             toolResult.metadata
           );
+        } else if (!toolResult.success || toolResult.error) {
+          // Handle tool errors - store as empty data with error flag
+          handleResultLifecycle(
+            updatedResultStore,
+            resultId,
+            [],
+            message.name,
+            lifecycleParams,
+            toolResult.metadata,
+            toolResult.error || "Tool execution failed"
+          );
         }
       } catch (jsonError) {
         // If JSON parsing fails, check if it's a plain error message
-        if (message.content.startsWith("Error:") || message.content.includes("failed")) {
+        if (
+          message.content.startsWith("Error:") ||
+          message.content.includes("failed")
+        ) {
           console.warn(
             `Tool ${message.name} returned error: ${message.content}`
           );
@@ -1838,7 +2380,8 @@ const handleResultLifecycle = (
   data: any[],
   toolName: string,
   lifecycleParams: any,
-  metadata?: any
+  metadata?: any,
+  error?: string
 ) => {
   const { purpose, replacesResultId, completesResultId } = lifecycleParams;
 
@@ -1872,14 +2415,17 @@ const handleResultLifecycle = (
     toolName,
     timestamp: Date.now(),
     metadata, // Include metadata for access in directFormat
+    error, // Track if this result had errors
   };
 
   console.log(
-    `🔄 [ResultLifecycle] Stored ${resultId}: ${data.length} items, purpose: ${purpose}, status: active`
+    `🔄 [ResultLifecycle] Stored ${resultId}: ${
+      data.length
+    } items, purpose: ${purpose}, status: active${error ? ", with error" : ""}`
   );
 };
 
-// Build the ReAct Search Agent graph
+// Build the ReAct Search Agent graph with human-in-the-loop support
 const builder = new StateGraph(ReactSearchAgentState);
 builder
   .addNode("loadModel", loadModel)
@@ -1890,6 +2436,7 @@ builder
   .addNode("tools", toolsWithResultLifecycle)
   .addNode("responseWriter", responseWriter)
   .addNode("directFormat", directFormat)
+  .addNode("showResultsThenExpand", showResultsThenExpand)
   .addNode("insertResponse", insertResponse)
 
   .addEdge(START, "loadModel")
@@ -1903,6 +2450,24 @@ builder
   .addEdge("directFormat", "insertResponse")
   .addEdge("insertResponse", "__end__");
 
-export const ReactSearchAgent = builder.compile();
+// Note: Expansion event handling is now managed in ask-your-graph-invoke.ts
+// using promise-based interrupts for better control flow
+
+export const ReactSearchAgent = builder.compile({
+  // Configure human-in-the-loop interrupts
+  interruptBefore: [], // We handle interrupts via "__interrupt__" return value
+  // Note: We use "__interrupt__" return from conditional edges instead of interruptBefore
+  // This gives us more granular control over when to interrupt
+});
+
+// Store agent state globally for expansion handling
+declare global {
+  interface Window {
+    currentSearchAgentState?: any;
+    currentSearchAgentExecution?: {
+      continueWithExpansion?: () => void;
+    };
+  }
+}
 
 // This file contains only the core ReAct agent implementation

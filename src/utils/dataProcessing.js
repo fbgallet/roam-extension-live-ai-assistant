@@ -79,3 +79,14 @@ export function hasTrueBooleanKey(obj) {
     (key) => typeof obj[key] === "boolean" && obj[key]
   );
 }
+
+export const fileToBase64 = async (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(reader.result);
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};

@@ -10,6 +10,7 @@ import {
   SearchCondition,
   extractUidsFromResults,
   sanitizeRegexForDatomic,
+  parseSemanticExpansion,
 } from "./searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { findBlocksByContentTool } from "./findBlocksByContentTool";
@@ -24,36 +25,131 @@ import { findBlocksByContentTool } from "./findBlocksByContentTool";
  */
 
 const contentConditionSchema = z.object({
-  type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text").describe("text=content search, page_ref=[[page]] reference, regex=pattern matching"),
+  type: z
+    .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+    .default("text")
+    .describe(
+      "text=content search, page_ref=[[page]] reference, regex=pattern matching"
+    ),
   text: z
     .string()
     .min(1, "Search text is required")
-    .describe("Search text, page name, or regex pattern. For attributes use format: attr:key:type:value or attr:key:type:(A + B - C)"),
-  matchType: z.enum(["exact", "contains", "regex"]).default("contains").describe("contains=phrase within content, exact=entire content matches"),
+    .describe(
+      "Search text, page name, or regex pattern. For attributes use format: attr:key:type:value or attr:key:type:(A + B - C)"
+    ),
+  matchType: z
+    .enum(["exact", "contains", "regex"])
+    .default("contains")
+    .describe("contains=phrase within content, exact=entire content matches"),
   semanticExpansion: z
+    .enum([
+      "fuzzy",
+      "synonyms",
+      "related_concepts",
+      "broader_terms",
+      "custom",
+      "all",
+    ])
+    .optional()
+    .describe(
+      "Semantic expansion strategy to apply. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
+    ),
+  weight: z.number().min(0).max(10).default(1.0),
+  negate: z
     .boolean()
     .default(false)
-    .describe("Only use when few results or user requests semantic search"),
-  weight: z.number().min(0).max(10).default(1.0),
-  negate: z.boolean().default(false).describe("Exclude content matching this condition"),
+    .describe("Exclude content matching this condition"),
 });
 
 // Minimal LLM-facing schema - only essential user-controllable parameters
 const llmFacingSchema = z.object({
-  conditions: z.array(z.object({
-    text: z.string().min(1, "Search text is required").describe("Search text, page name, or regex pattern. For attributes use format: attr:key:type:value"),
-    type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text").describe("text=content search, page_ref=[[page]] reference, regex=pattern matching"),
-    matchType: z.enum(["exact", "contains", "regex"]).default("contains").describe("contains=phrase within content, exact=entire content matches"),
-    negate: z.boolean().default(false).describe("Exclude content matching this condition")
-  })).min(1, "At least one search condition required"),
-  combineConditions: z.enum(["AND", "OR"]).default("AND").describe("AND=all conditions must match, OR=any condition matches"),
-  minBlockCount: z.number().min(1).default(1).describe("Minimum blocks that must match per page"),
-  maxBlockCount: z.number().optional().describe("Maximum blocks that can match per page"),
-  includeBlockSamples: z.boolean().default(true).describe("Include sample matching blocks in results"),
-  maxSamples: z.number().min(1).max(20).default(5).describe("Max sample blocks per page"),
-  sortBy: z.enum(["relevance", "creation", "modification", "alphabetical", "block_count", "total_blocks"]).default("relevance").describe("Sort pages by this criteria"),
-  limit: z.number().min(1).max(1000).default(200).describe("Maximum pages to return"),
-  fromResultId: z.string().optional().describe("Limit to pages from previous result (e.g., 'findPagesByTitle_001') - major performance boost")
+  conditions: z
+    .array(
+      z.object({
+        text: z
+          .string()
+          .min(1, "Search text is required")
+          .describe(
+            "Search text, page name, or regex pattern. For attributes use format: attr:key:type:value"
+          ),
+        type: z
+          .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+          .default("text")
+          .describe(
+            "text=content search, page_ref=[[page]] reference, regex=pattern matching"
+          ),
+        matchType: z
+          .enum(["exact", "contains", "regex"])
+          .default("contains")
+          .describe(
+            "contains=phrase within content, exact=entire content matches"
+          ),
+        semanticExpansion: z
+          .enum([
+            "fuzzy",
+            "synonyms",
+            "related_concepts",
+            "broader_terms",
+            "custom",
+            "all",
+          ])
+          .optional()
+          .describe(
+            "Semantic expansion strategy to apply. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
+          ),
+        negate: z
+          .boolean()
+          .default(false)
+          .describe("Exclude content matching this condition"),
+      })
+    )
+    .min(1, "At least one search condition required"),
+  combineConditions: z
+    .enum(["AND", "OR"])
+    .default("AND")
+    .describe("AND=all conditions must match, OR=any condition matches"),
+  minBlockCount: z
+    .number()
+    .min(1)
+    .default(1)
+    .describe("Minimum blocks that must match per page"),
+  maxBlockCount: z
+    .number()
+    .optional()
+    .describe("Maximum blocks that can match per page"),
+  includeBlockSamples: z
+    .boolean()
+    .default(true)
+    .describe("Include sample matching blocks in results"),
+  maxSamples: z
+    .number()
+    .min(1)
+    .max(20)
+    .default(5)
+    .describe("Max sample blocks per page"),
+  sortBy: z
+    .enum([
+      "relevance",
+      "creation",
+      "modification",
+      "alphabetical",
+      "block_count",
+      "total_blocks",
+    ])
+    .default("relevance")
+    .describe("Sort pages by this criteria"),
+  limit: z
+    .number()
+    .min(1)
+    .max(1000)
+    .default(200)
+    .describe("Maximum pages to return"),
+  fromResultId: z
+    .string()
+    .optional()
+    .describe(
+      "Limit to pages from previous result (e.g., 'findPagesByTitle_001') - major performance boost"
+    ),
 });
 
 const schema = z.object({
@@ -62,9 +158,6 @@ const schema = z.object({
     .min(1, "At least one condition is required"),
   combineConditions: z.enum(["AND", "OR"]).default("AND"),
   maxExpansions: z.number().min(1).max(10).default(3),
-  expansionStrategy: z
-    .enum(["synonyms", "related_concepts", "broader_terms"])
-    .default("related_concepts"),
 
   // Page-level filtering
   minBlockCount: z
@@ -160,6 +253,14 @@ const schema = z.object({
     .array(z.string())
     .optional()
     .describe("Limit search to specific page UIDs"),
+
+  // Block UID exclusion - exclude blocks (and thus their pages) from search
+  excludeBlockUid: z
+    .string()
+    .optional()
+    .describe(
+      "Block UID to exclude from search (typically the user's query block)"
+    ),
 });
 
 /**
@@ -315,7 +416,6 @@ const buildValuePattern = (value: string, type: string): string => {
       return escapeForDatomic(escapeRegex(value));
   }
 };
-
 
 /**
  * Search using regex pattern in block content
@@ -688,7 +788,6 @@ const searchChildrenWithLogic = async (
   return finalResults;
 };
 
-
 const findPagesByContentImpl = async (
   input: z.infer<typeof schema>,
   state?: any
@@ -697,7 +796,6 @@ const findPagesByContentImpl = async (
     conditions,
     combineConditions,
     maxExpansions,
-    expansionStrategy,
     minBlockCount,
     maxBlockCount,
     minTotalBlocks,
@@ -712,8 +810,8 @@ const findPagesByContentImpl = async (
     limit,
     fromResultId,
     limitToPageUids,
+    excludeBlockUid,
   } = input;
-
 
   // UID-based filtering for optimization
   const { pageUids: finalPageUids } = extractUidsFromResults(
@@ -726,8 +824,8 @@ const findPagesByContentImpl = async (
   // Step 1: Expand conditions with semantic terms
   const expandedConditions = await expandConditions(
     conditions,
-    expansionStrategy,
-    maxExpansions
+    maxExpansions,
+    state
   );
 
   // Step 2: Process all conditions (attribute and regular)
@@ -736,6 +834,7 @@ const findPagesByContentImpl = async (
     combineConditions,
     includeDaily,
     finalPageUids.length > 0 ? finalPageUids : undefined,
+    excludeBlockUid,
     state
   );
 
@@ -785,39 +884,312 @@ const findPagesByContentImpl = async (
 };
 
 /**
- * Expand conditions with semantic terms
+ * Create optimized regex pattern for multiple page reference variations
+ * Creates a single efficient OR pattern instead of multiple separate patterns
+ */
+const createMultiPageRefRegexPattern = (pageNames: string[]): string => {
+  if (pageNames.length === 0) return "";
+  if (pageNames.length === 1) return createPageRefRegexPattern(pageNames[0]);
+
+  // Escape and prepare all page names
+  const escapedNames = pageNames.map((name) =>
+    name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  );
+
+  // Create alternation of just the terms
+  const termAlternation = escapedNames.join("|");
+
+  // Single optimized pattern: factors out common Roam syntax structures
+  return `(?:\\[\\[(?:${termAlternation})\\]\\]|#(?:${termAlternation})(?!\\w)|(?:${termAlternation})::)`;
+};
+
+/**
+ * Create regex pattern for page references that matches Roam syntax but not plain text
+ * Supports: [[title]], #title, title:: but NOT plain "title"
+ */
+const createPageRefRegexPattern = (pageTitle: string): string => {
+  // Escape special regex characters in the page title
+  const escapedTitle = pageTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Optimized pattern: [[title]], #title, or title::
+  return `(?:\\[\\[${escapedTitle}\\]\\]|#${escapedTitle}(?!\\w)|${escapedTitle}::)`;
+};
+
+/**
+ * Expand conditions with semantic terms using comprehensive approach from blocks tool
  */
 const expandConditions = async (
   conditions: any[],
-  strategy: string,
-  maxExpansions: number
+  maxExpansions: number,
+  state?: any
 ): Promise<any[]> => {
   const expandedConditions = [...conditions];
+  const expansionLevel = state?.expansionLevel || 0;
+
+  // Check if semantic expansion is needed - either globally or per-condition
+  const hasGlobalExpansion = state?.isExpansionGlobal === true;
+
+  // Check if any condition has symbols that require expansion
+  const hasSymbolExpansion = conditions.some(
+    (c) => c.text.endsWith("*") || c.text.endsWith("~")
+  );
+
+  if (!hasGlobalExpansion && !hasSymbolExpansion) {
+    console.log(
+      `⏭️ [PageContentTool] Skipping semantic expansion (no global flag or symbols)`
+    );
+    return expandedConditions;
+  }
+
+  console.log(
+    `🧠 [PageContentTool] Applying semantic expansion at level ${expansionLevel}`
+  );
 
   for (const condition of conditions) {
-    if (condition.semanticExpansion && condition.type === "text") {
+    // Skip regex conditions - user wants exact results for regex
+    if (condition.type === "regex") {
+      continue;
+    }
+
+    // Parse semantic expansion from condition text using our new parser
+    const { cleanText, expansionType } = parseSemanticExpansion(
+      condition.text,
+      state?.semanticExpansion
+    );
+
+    console.log(`🔍 [DEBUG] Conditions received:`, condition);
+
+    // Determine final expansion strategy: per-condition > global
+    let effectiveExpansionStrategy = expansionType;
+    if (!effectiveExpansionStrategy && hasGlobalExpansion) {
+      effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
+    }
+
+    console.log("🔍 [DEBUG] expansionType :>> ", expansionType);
+
+    // Handle text conditions with semantic expansion
+    if (effectiveExpansionStrategy && condition.type === "text") {
       try {
+        const customStrategy =
+          effectiveExpansionStrategy === "custom"
+            ? state?.customSemanticExpansion
+            : undefined;
+
+        // Use generateSemanticExpansions for all expansion strategies (including fuzzy)
         const expansionTerms = await generateSemanticExpansions(
-          condition.text,
-          strategy as any,
-          maxExpansions
+          cleanText, // Use clean text for expansion
+          effectiveExpansionStrategy as
+            | "fuzzy"
+            | "synonyms"
+            | "related_concepts"
+            | "broader_terms"
+            | "custom"
+            | "all",
+          state?.userQuery,
+          state?.model,
+          state?.language,
+          customStrategy,
+          "text" // Allow regex patterns for text content search (since pages content is blocks)
         );
 
-        for (const term of expansionTerms) {
-          expandedConditions.push({
-            ...condition,
-            text: term,
-            semanticExpansion: false,
-            weight: condition.weight * 0.8,
+        // Create language-agnostic disjunctive regex with smart word boundaries
+        if (expansionTerms.length > 0) {
+          const smartPatterns = [cleanText, ...expansionTerms].map((term) => {
+            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+            // Multi-word terms: preserve spaces, add boundaries
+            if (term.includes(" ")) {
+              const spacedPattern = escapedTerm.replace(/\s+/g, "\\s+");
+              return `\\b${spacedPattern}\\b`;
+            }
+
+            // Single words: use word boundaries for short terms to avoid false positives
+            if (term.length <= 3) {
+              return `\\b${escapedTerm}\\b`;
+            } else {
+              // Longer terms: no boundaries to catch morphological variations (plurals, etc.)
+              return escapedTerm;
+            }
           });
+
+          const disjunctivePattern = `(?:${smartPatterns.join("|")})`;
+
+          // Replace original condition with expanded regex
+          condition.type = "regex";
+          condition.text = disjunctivePattern;
+          condition.matchType = "regex";
+          condition.semanticExpansion = undefined;
+          condition.weight = condition.weight * 0.7;
+        } else {
+          // Fallback: just update with clean text
+          condition.text = cleanText;
         }
       } catch (error) {
         console.warn(`Failed to expand condition "${condition.text}":`, error);
+        // Fallback: just update with clean text
+        condition.text = cleanText;
+      }
+    } else {
+      // No expansion needed, just update with clean text (remove symbols)
+      condition.text = cleanText;
+    }
+
+    // Handle page_ref conditions with semantic expansion
+    if (condition.type === "page_ref" && effectiveExpansionStrategy) {
+      try {
+        const customStrategy =
+          effectiveExpansionStrategy === "custom"
+            ? state?.customSemanticExpansion
+            : undefined;
+
+        // For all page_ref expansions (including fuzzy), use generateSemanticExpansions
+        const expansionTerms = await generateSemanticExpansions(
+          cleanText, // Use clean text for expansion
+          effectiveExpansionStrategy as
+            | "synonyms"
+            | "related_concepts"
+            | "broader_terms"
+            | "custom"
+            | "all",
+          state?.userQuery,
+          state?.model,
+          state?.language,
+          customStrategy,
+          "page_ref" // Generate simple text variations for page references
+        );
+
+        console.log(
+          `🔗 Expanding page reference "${condition.text}" with ${expansionTerms.length} semantic variations`
+        );
+
+        if (expansionTerms.length > 0) {
+          // Create page reference syntax pattern
+          const optimizedRegexPattern =
+            createMultiPageRefRegexPattern(expansionTerms);
+
+          // Replace original page_ref condition with expanded regex
+          condition.type = "regex";
+          condition.text = optimizedRegexPattern;
+          condition.matchType = "regex";
+          condition.semanticExpansion = undefined;
+          condition.weight = condition.weight * 0.7;
+
+          console.log(
+            `  ✅ Created optimized pattern for ${
+              expansionTerms.length
+            } expansion terms: ${expansionTerms.join(", ")}`
+          );
+        } else {
+          // Fallback: just update with clean text
+          condition.text = cleanText;
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to expand page_ref condition "${condition.text}":`,
+          error
+        );
+        // Fallback: just update with clean text
+        condition.text = cleanText;
       }
     }
   }
 
   return expandedConditions;
+};
+
+/**
+ * Expand attribute condition values with semantic expansion if needed
+ */
+const expandAttributeCondition = async (
+  attrCondition: AttributeCondition,
+  state?: any
+): Promise<AttributeCondition> => {
+  // Check if semantic expansion is needed - either globally or per-value
+  const hasGlobalExpansion = state?.isExpansionGlobal === true;
+  
+  // Check if any value has symbols that require expansion
+  const hasSymbolExpansion = attrCondition.values.some(
+    (v) => v.value.endsWith("*") || v.value.endsWith("~")
+  );
+
+  if (!hasGlobalExpansion && !hasSymbolExpansion) {
+    return attrCondition; // No expansion needed
+  }
+
+  console.log(
+    `🧠 [AttributeTool] Applying semantic expansion to attribute "${attrCondition.attributeKey}"`
+  );
+
+  const expandedValues: AttributeValue[] = [];
+
+  for (const value of attrCondition.values) {
+    // Parse semantic expansion from value text
+    const { cleanText, expansionType } = parseSemanticExpansion(
+      value.value,
+      state?.semanticExpansion
+    );
+
+    // Determine final expansion strategy: per-value > global
+    let effectiveExpansionStrategy = expansionType;
+    if (!effectiveExpansionStrategy && hasGlobalExpansion) {
+      effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
+    }
+
+    // Add the original clean value
+    expandedValues.push({
+      ...value,
+      value: cleanText,
+    });
+
+    // Apply semantic expansion if needed
+    if (effectiveExpansionStrategy && attrCondition.valueType !== "regex") {
+      try {
+        const customStrategy =
+          effectiveExpansionStrategy === "custom"
+            ? state?.customSemanticExpansion
+            : undefined;
+
+        // Determine the mode based on attribute value type
+        const expansionMode = attrCondition.valueType === "page_ref" ? "page_ref" : "text";
+
+        // Use generateSemanticExpansions for attribute values
+        const expansionTerms = await generateSemanticExpansions(
+          cleanText,
+          effectiveExpansionStrategy as
+            | "fuzzy"
+            | "synonyms"
+            | "related_concepts"
+            | "broader_terms"
+            | "custom"
+            | "all",
+          state?.userQuery,
+          state?.model,
+          state?.language,
+          customStrategy,
+          expansionMode
+        );
+
+        console.log(
+          `🔍 Expanding attribute value "${cleanText}" (${attrCondition.valueType}) with ${expansionTerms.length} semantic variations`
+        );
+
+        // Add expanded terms with same operator but reduced weight
+        for (const term of expansionTerms) {
+          expandedValues.push({
+            value: term,
+            operator: value.operator, // Keep the same logical operator
+          });
+        }
+      } catch (error) {
+        console.warn(`Failed to expand attribute value "${value.value}":`, error);
+      }
+    }
+  }
+
+  return {
+    ...attrCondition,
+    values: expandedValues,
+  };
 };
 
 /**
@@ -828,9 +1200,9 @@ const processAllConditions = async (
   combineLogic: "AND" | "OR",
   includeDaily: boolean,
   limitToPageUids?: string[],
+  excludeBlockUid?: string,
   state?: any
 ): Promise<any[]> => {
-
   // Separate attribute conditions from regular conditions
   const attributeConditions: AttributeCondition[] = [];
   const regularConditions: any[] = [];
@@ -839,7 +1211,9 @@ const processAllConditions = async (
     if (condition.text?.startsWith("attr:")) {
       const parsed = parseAttributeCondition(condition.text);
       if (parsed) {
-        attributeConditions.push(parsed);
+        // Apply semantic expansion to attribute values if needed
+        const expandedAttrCondition = await expandAttributeCondition(parsed, state);
+        attributeConditions.push(expandedAttrCondition);
       } else {
         console.warn(`Failed to parse attribute condition: ${condition.text}`);
       }
@@ -848,12 +1222,10 @@ const processAllConditions = async (
     }
   }
 
-
   let attributeResults: any[] = [];
 
   // Process each attribute condition with intelligent capture-based strategy
   for (const attrCondition of attributeConditions) {
-
     // Step 1: Get ALL attribute blocks with capture group to analyze value content
     const attributeBlocks = await searchAttributeBlocksWithCapture(
       attrCondition.attributeKey,
@@ -865,13 +1237,11 @@ const processAllConditions = async (
       continue;
     }
 
-
     let matches: any[] = [];
 
     // Separate empty and non-empty attribute blocks
     const emptyBlocks = attributeBlocks.filter((block) => block.isEmpty);
     const nonEmptyBlocks = attributeBlocks.filter((block) => !block.isEmpty);
-
 
     // Step 2: Process non-empty blocks (check if they match the values directly)
     for (const block of nonEmptyBlocks) {
@@ -919,7 +1289,6 @@ const processAllConditions = async (
       }
     }
 
-
     attributeResults = attributeResults.concat(matches);
   }
 
@@ -930,7 +1299,8 @@ const processAllConditions = async (
       regularConditions,
       combineLogic,
       includeDaily,
-      limitToPageUids
+      limitToPageUids,
+      excludeBlockUid
     );
   }
 
@@ -966,12 +1336,8 @@ const combineResultsByPageIntersection = (
   results1: any[],
   results2: any[]
 ): any[] => {
-  const pages1 = new Set(
-    results1.map(([, , , , pageUid]) => pageUid)
-  );
-  return results2.filter(([, , , , pageUid]) =>
-    pages1.has(pageUid)
-  );
+  const pages1 = new Set(results1.map(([, , , , pageUid]) => pageUid));
+  return results2.filter(([, , , , pageUid]) => pages1.has(pageUid));
 };
 
 /**
@@ -1000,7 +1366,8 @@ const findMatchingBlocks = async (
   conditions: any[],
   combineLogic: "AND" | "OR",
   includeDaily: boolean,
-  limitToPageUids?: string[]
+  limitToPageUids?: string[],
+  excludeBlockUid?: string
 ): Promise<any[]> => {
   let query = `[:find ?uid ?content ?time ?page-title ?page-uid ?page-created ?page-modified
                 :where 
@@ -1048,11 +1415,15 @@ const findMatchingBlocks = async (
   query += patternDefinitions;
   query += conditionClauses;
 
+  // Add exclusion for specific block UID
+  if (excludeBlockUid) {
+    query += `\n                [(not= ?uid "${excludeBlockUid}")]`;
+  }
+
   query += `]`;
 
   return await executeDatomicQuery(query);
 };
-
 
 /**
  * Analyze pages by grouping their matching blocks
@@ -1294,7 +1665,6 @@ export const findPagesByContentTool = tool(
         ...llmInput,
         // These will be injected by the agent wrapper - preserve if already set
         maxExpansions: 3,
-        expansionStrategy: "related_concepts" as const,
         includeDaily: true,
         dateRange: undefined, // Only set if explicitly provided by LLM
         sortOrder: "desc" as const,
@@ -1304,11 +1674,11 @@ export const findPagesByContentTool = tool(
         minTotalBlocks: 1,
         maxTotalBlocks: undefined,
         // Ensure conditions have all required fields
-        conditions: llmInput.conditions.map(cond => ({
+        conditions: llmInput.conditions.map((cond) => ({
           ...cond,
-          semanticExpansion: false,
-          weight: 1.0
-        }))
+          semanticExpansion: undefined,
+          weight: 1.0,
+        })),
       };
 
       // Extract state from config
@@ -1334,7 +1704,8 @@ export const findPagesByContentTool = tool(
   },
   {
     name: "findPagesByContent",
-    description: "Find pages by analyzing their block content. Search for pages containing specific text, page references, or attributes. Supports block counting, content filtering, and result aggregation. Use for 'pages that contain X' or 'pages with attributes' queries.",
+    description:
+      "Find pages by analyzing their block content. Search for pages containing specific text, page references, or attributes. Supports block counting, content filtering, and result aggregation. Use for 'pages that contain X' or 'pages with attributes' queries.",
     schema: llmFacingSchema, // Use minimal schema for better LLM experience
   }
 );

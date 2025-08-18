@@ -23,21 +23,41 @@ const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply 
 // Shared symbolic query language definition
 export const SYMBOLIC_QUERY_LANGUAGE = `## SYMBOLIC QUERY LANGUAGE
 
-We have defined a formal language to express search queries in a precise and unambiguous way, using symbolic operators to combine search conditions (text, /regex/[i] or page reference). By default the search targets blocks that meet conditions, but if the search targets pages it must be wrapped in the 'page:(...query...)' operator.
+We have defined a formal language to express search queries in a precise and unambiguous way, using symbolic operators to combine search conditions. All conditions must use explicit type prefixes for clarity. By default the search targets blocks that meet conditions, but if the search targets pages it must be wrapped in the 'page:(...query...)' operator.
+
+### Condition Types (ALWAYS use explicit prefixes):
+- 'text:term' - text content search (ALWAYS use text: prefix)
+- 'ref:title' - page reference (parsed from [[title]], #title, title::)
+- 'regex:/pattern/[i]' - regex pattern matching
+- 'bref:uid' - block reference by UID
 
 ### Logic Operators:
 - '+' AND (conjunction)
 - '|' OR (disjunction) 
-- '-' NOT (exclusion)
+- '-' NOT (exclusion, applies only to individual conditions)
+
+### Grouping Syntax (both forms valid):
+- **Explicit**: 'text:term1 + text:term2 + ref:page1' (for mixed types)
+- **Grouped**: 'text:(term1 + term2) + ref:page1' (for same-type conditions)
+
+### Operator Precedence:
+1. **Parentheses**: () - highest precedence
+2. **Hierarchical**: <=> > => >> << < - between two conditions only
+3. **AND**: + - conjunction
+4. **OR**: | - disjunction  
+5. **NOT**: - - lowest precedence, individual conditions only
 
 ### Search Expansion Operators:
-- 'regex:/regex/[i]' regex pattern (e.g.: regex:/words?|terms?/)
-- '*' fuzzy search/wildcard (e.g., 'wor*' matches 'work', 'world', 'word')
-- '~' semantic expansion (e.g., 'car~' includes 'vehicle', 'automobile', 'auto')
+Following operators are used as suffix to text condition, keep them as they are and do not confuse with markdown syntax:
+- '*' fuzzy search/wildcard (e.g., 'text:term*')
+- '~' semantic expansion (e.g., 'text:term~')
 
-### Reference Operators:
-- 'ref:title' page reference, parsed from Roam syntax '[[title]]', '#title' or 'title::', or title explicitly mentioned as page (e.g., ref:meeting - IMPORTANT: parsed without Roam syntax)
-- 'bref:uid' block reference by UID
+### Reference Examples:
+- 'ref:project | ref:status | ref:meeting' - multiple page reference OR
+- 'ref:project + ref:status' - multiple page reference AND  
+- 'text:productivity | text:tools | text:methods' - multiple text content OR
+- 'text:productivity + text:tools' - multiple text content AND
+- 'text:(productivity + tools) | ref:(project + status)' - grouped syntax
 
 ### Attribute Search Strategy:
 For attribute searches in blocks, convert to regex patterns:
@@ -47,29 +67,96 @@ The pattern '^attribute::.*value.*' matches blocks starting with 'attribute::' f
 For attribute in page searches, see below, operators are defined precisely.
 
 ### Page Operators (when searching for pages):
-- 'page:()' always use it to wrap page-level queries (block-level is default, but 'block:() can also be used when both are needed)
-- 'title:pattern' page titles matching pattern (contains text or match /regex/)
-- 'attr:key:type:value' attribute-value(s) used as metadata about page type and content (type can be text, ref or regex)
-- 'attr:key:type:(A + B - C)' complex attribute queries with logical operators (+ for AND, | for OR, - for NOT)
-- 'content:pattern' page content matching pattern (text or /regex/ or mention a reference)
+
+**CRITICAL CONSTRAINTS:**
+1. **Only ONE page:() operator per query** - tools cannot handle multiple page searches simultaneously
+2. **Always specify search target**: page:(title:...), page:(content:...), or page:(attr:...)
+3. **Never use bare page:pattern** - must specify title/content/attr
+
+**Page Search Strategy Priority (use in this order):**
+1. **'page:(title:pattern)'** - PRIMARY: page titles matching pattern (text or regex)
+   Use when: "pages about X", "X pages", "find pages with X in title"
+2. **'page:(content:pattern)'** - SECONDARY: page content matching pattern (text/regex/references)
+   Use when: "pages containing X", "pages that mention X", "pages with X content"  
+3. **'page:(attr:key:type:value)'** - SPECIFIC: attribute-value metadata searches (essentially content search)
+   Use when: "pages of type X", "pages with X property", "pages where attribute Y is Z"
+   - 'page:(attr:key:type:(A + B - C))' complex attribute queries with logical operators
+
+**Examples:**
+- "Pages about status" → 'page:(title:text:status)' (search titles)
+- "Pages containing status" → 'page:(content:text:status)' (search content)  
+- "Pages of type book" → 'page:(attr:type:text:book)' (attribute search in content)
+
+**INVALID Examples:**
+- 'page:(title:A) + page:(content:B)' ❌ (multiple page operators)
+- 'page:status' ❌ (missing title/content/attr specification)
 
 ### Scope Operators:
 - 'in:scope' search WITHIN specific page scope (e.g., in:work, in:dnp, in:attr:title:value)
 
 ### Hierarchical Operators:
-(in the following operators, A and B are just placeholder for any pattern, text or regex or page ref or logic combinatio of them)
-- 'A > B' direct child, match block A with a direct child B
-- 'A >> B' deep descendants hierarchy (A has B in one if its descendants)
-- 'A < B' direct parent hierarchy
-- 'A << B' deep ancestors hierarchy
-- 'A => B', '<=', '=>>' or '<<=' flexible hierarchy, blocks with A AND B are also matching
-- 'A <=> B' bidirectional direct hierarchy: A > B OR B > A
-- 'A <<=>> B' bidirectional deep hierarchy
+
+**STRICT RULES:**
+1. **Only ONE hierarchical operator per query** (never combine: text:A <=> text:B > text:C ❌)
+2. **Always between TWO conditions** (never dangling: <=> text:A ❌, text:A <=> ❌)  
+3. **Higher precedence than +/|** (evaluated before logical operators)
+
+**Operators** (A and B are any condition: text:, ref:, regex:, etc.):
+- 'text:A > ref:B' - direct child (A has direct child B)
+- 'text:A >> ref:B' - deep descendants (A has B somewhere in descendants)
+- 'text:A < ref:B' - direct parent (A has direct parent B)
+- 'text:A << ref:B' - deep ancestors (A has B somewhere in ancestors)
+- 'text:A => ref:B' - flexible hierarchy (A with B in descendants OR same block)
+- 'text:A <=> ref:B' - bidirectional direct (A > B OR B > A)
+- 'text:A <<=>> ref:B' - bidirectional deep hierarchy
+
+**Examples:**
+- 'text:project <=> ref:status' ✅ (one operator, between conditions)
+- 'text:A <=> text:B > text:C' ❌ (multiple operators)
+- '<=> text:project' ❌ (dangling operator)
 
 ### Advanced Operators:
-- '(...)' use parentheses to group similar conditions and reduce ambiguity (e.g., ref:(Projet A|MissionB))
+- '(...)' use parentheses to group similar conditions and reduce ambiguity (e.g., ref:(Project A | Mission B), text:(deep + learning))
 - '→' sequential/temporal relationships (when complex queries have to be sequenced in multiple simpler queries)
 - 'analyze:type' analysis requests (connections, patterns, summary, count)`;
+
+const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
+
+**CRITICAL DECISION RULES:**
+1. **SAME-BLOCK REQUESTS**: If user says "depth=0", "same block", "in same block" → ALWAYS use findBlocksByContent with depthLimit=0
+2. **HIERARCHICAL SEARCH**: For A + B patterns → convert to A <=> B and use findBlocksWithHierarchy (unless rule 1 applies)
+3. **HIERARCHY OPERATORS**: Use <=> (bidirectional), > (strict parent-child), => (flexible) based on context
+
+**HIERARCHICAL SEARCH (DEFAULT for multi-condition AND queries):**
+- 'ref:Machine Learning + ref:AI Fundamentals' → findBlocksWithHierarchy with hierarchicalExpression="ref:Machine Learning <=> ref:AI Fundamentals" (convert + to <=> for hierarchical relationships)
+- 'text:productivity + text:tools' → findBlocksWithHierarchy with hierarchicalExpression="text:productivity <=> text:tools" (searches hierarchical connections, not same-block)  
+- 'ref:recipe + text:sugar' → findBlocksWithHierarchy with hierarchicalExpression="ref:recipe <=> text:sugar" (sugar might be in child blocks of recipe references)
+
+**MULTIPLE REFERENCE OR/AND SYNTAX:**
+- 'ref:pending | ref:waiting | ref:pause + ref:status' → findBlocksWithHierarchy with hierarchicalExpression="ref:pending | ref:waiting | ref:pause + ref:status" (blocks with status AND any pending variant - tools automatically expand with semantic variations)
+- 'text:machine | text:AI | text:neural + ref:learning' → findBlocksWithHierarchy with hierarchicalExpression="text:machine | text:AI | text:neural <=> ref:learning" (blocks with learning page AND any ML text terms)
+- 'ref:project + ref:status' → findBlocksWithHierarchy (blocks referencing BOTH project AND status pages)  
+- 'text:deep + text:learning' → findBlocksByContent (blocks containing BOTH "deep" AND "learning" text)
+- 'text:Machine Learning > text:Deep Learning' → findBlocksWithHierarchy with hierarchicalExpression="text:Machine Learning > text:Deep Learning" (explicit hierarchy)
+- 'text:AI => text:neural networks' → findBlocksWithHierarchy with hierarchicalExpression="text:AI => text:neural networks" (flexible hierarchy)
+
+**FLAT SEARCH (for single conditions, OR logic, or explicit same-block requests):**
+- 'text:productivity | text:tools' → findBlocksByContent (OR logic works better with flat search)
+- 'text:productivity' → findBlocksByContent (single condition, no hierarchy needed)  
+- 'ref:meeting + in:Project A + depth=0' → findBlocksByContent with depthLimit=0 (user explicitly requests same-block search)
+- 'ref:Machine Learning + ref:AI Fundamentals depth=0' → findBlocksByContent with depthLimit=0 (force same-block search)
+- 'text:A + text:B in same block' → findBlocksByContent with depthLimit=0 (same-block constraint)
+
+**SYMBOLIC QUERY PATTERNS:**
+- 'text:strategy' → findBlocksByContent with text condition (normal text search, allows expansion)
+- 'regex:/\\\\bstrategy\\\\b/i' → findBlocksByContent with regex condition (exact word boundaries)
+- 'text:strategy*' → findBlocksByContent with fuzzy expansion
+- 'text:strategy~' → findBlocksByContent with semantic expansion
+- 'text:A + text:B same block' → findBlocksByContent with depthLimit=0 (same-block constraint)
+- 'text:A + text:B exact' → findBlocksByContent (keep + when user requests exact same-block matches)
+
+**SEMANTIC SEARCH:**
+- 'page:(title:AI~) → analyze:connections' → Find pages about AI or relative concepts using findPagesByTitle with smartExpansion:true`;
 
 // Shared Roam formatting instructions
 export const ROAM_FORMATTING_INSTRUCTIONS = `ROAM-SPECIFIC FORMATTING - MANDATORY:
@@ -137,14 +224,31 @@ export const buildSystemPrompt = (state: {
   userIntent?: string;
   userQuery?: string;
   formalQuery?: string;
-  searchStrategy?: "direct" | "expanded" | "semantic" | "hierarchical";
+  searchStrategy?: "direct" | "hierarchical";
   analysisType?: "count" | "compare" | "connections" | "summary";
   language?: string;
   datomicQuery?: string;
+  // Semantic expansion: simplified boolean flag + strategy
+  isExpansionGlobal?: boolean;
+  semanticExpansion?:
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "all"
+    | "custom";
   strategicGuidance?: {
     approach?: string;
     recommendedSteps?: string[];
   };
+  searchDetails?: {
+    timeRange?: { start: string; end: string };
+    maxResults?: number;
+    requireRandom?: boolean;
+    depthLimit?: number;
+  };
+  // Expansion support
+  shouldAddExpansionStrategies?: boolean;
+  currentExpansionLevel?: number;
 }): string => {
   // Determine if this is a simple query for token optimization
   const isSimpleQuery =
@@ -173,7 +277,6 @@ const buildSimpleQueryPrompt = (state: any): string => {
 
 ## SIMPLE QUERY EXECUTION
 
-USER REQUEST: "${state.userQuery}"
 USER INTENT: ${state.userIntent || "Execute search"}
 SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
 '${
@@ -184,11 +287,28 @@ SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
   }
 
 ## CORE SYMBOLIC OPERATORS:
-- '+' = AND , '|' = OR , '-' = NOT
-- '*' = fuzzy/wildcard , '~' = semantic expansion
-- 'ref:name' = find references TO , 'in:page' = search WITHIN page
-- 'content:pattern' = pattern in page content , 'title:pattern' = page titles matching pattern
-(a pattern can be text, regex:/regex/[i] or a ref:name)
+
+### Condition Types (ALWAYS use explicit prefixes):
+- 'text:term' - text content search (ALWAYS use text: prefix)
+- 'ref:title' - page references 
+- 'regex:/pattern/[i]' - regex patterns
+- 'bref:uid' - block references
+
+### Logic & Expansion:
+- '+' = AND , '|' = OR , '-' = NOT (individual conditions only)
+- '*' = fuzzy/wildcard , '~' = semantic expansion (suffixes: text:term*, text:term~)
+- 'text:(A + B)' = grouped syntax for same-type conditions
+
+### Hierarchical (only ONE per query, between TWO conditions):
+- 'text:A <=> ref:B' = bidirectional , 'text:A > ref:B' = parent-child
+- Precedence: () > hierarchical > + > | > -
+
+### Page Search (only ONE page:() per query):
+- 'page:(title:pattern)' - search page titles
+- 'page:(content:pattern)' - search page content  
+- 'page:(attr:key:type:value)' - attribute searches (also content search)
+
+${QUERY_TOOL_PATTERN_EXAMPLES}
 
 ## AVAILABLE TOOLS
 ${toolNames.map((name) => `- ${name}`).join("\n")}
@@ -199,7 +319,19 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
 3. **Execute**: Use decoded parameters from symbolic query
 
 ## KEY RULES
-- Transform symbolic operators into tool parameters
+- Execute SYMBOLIC QUERY as primary strategy, follow strictly its logic to transform conditions into tool parameters, calling the right tool
+- **SEMANTIC EXPANSION TRACKING**: 
+  * **CRITICAL: DO NOT expand symbols yourself - tools handle expansion internally**
+  * **ALWAYS preserve * and ~ symbols exactly as they appear in formalQuery**
+  * **Example**: formalQuery "text:color~" → create condition {text: "color~", type: "text"} (NOT individual colors)
+  * **Example**: formalQuery "text:car*" → create condition {text: "car*", type: "text"} (NOT car variations)
+  * **Example**: formalQuery "ref:pend*" → create condition {text: "pend*", type: "page_ref"} (NOT page variations)${
+    state.isExpansionGlobal
+      ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${
+          state.semanticExpansion || "synonyms"
+        }" strategy will be applied to ALL conditions automatically`
+      : ""
+  }
 - Use 'in:scope' for limitToPages parameter only
 - Default to 'summary' result mode for efficiency
 
@@ -224,6 +356,11 @@ ${state.formalQuery ? `SYMBOLIC QUERY: '${state.formalQuery}'` : ""}
 ${state.datomicQuery ? `DATOMIC QUERY: ${state.datomicQuery}` : ""}
 COMPLEXITY: ${state.queryComplexity || "multi-step"}
 ${state.analysisType ? `ANALYSIS: ${state.analysisType}` : ""}
+${
+  state.isExpansionGlobal
+    ? `GLOBAL SEMANTIC EXPANSION: ${state.semanticExpansion || "synonyms"}`
+    : ""
+}
 
 ## AVAILABLE TOOLS
 ${toolNames.map((name) => `- ${name}`).join("\n")}
@@ -234,13 +371,7 @@ IMPORTANT: fuzzy and semantic expansion have to be done in ${
     state.language ? ` in ${state.language}` : "the user request language"
   })
 
-## EXECUTION EXAMPLES:
-- 'recipe + sugar*' → findBlocksByContent with fuzzy "sugar" matching
-- 'ref:meeting + in:Project A' → Find [[meeting]] references within [[Project A]] page using findBlocksByContent with pageLimitation
-- 'page:(title:AI~) → analyze:connections' → Find pages about AI or relative concepts using findPagesSemantically, then use extractPageReferences to analyze the connections between their references
-- 'Machine Learning > Deep Learning' → findBlocksWithHierarchy with hierarchicalExpression="Machine Learning > Deep Learning"
-- '"AI" => "neural networks"' → findBlocksWithHierarchy with hierarchicalExpression="AI => neural networks"
-- 'ref:project <=> task' → findBlocksWithHierarchy with hierarchicalExpression="ref:project <=> task"
+${QUERY_TOOL_PATTERN_EXAMPLES}
 
 ## EXECUTION STRATEGY
 ${
@@ -255,11 +386,146 @@ ${
 - Apply fromResultId for multi-step efficiency
 
 ## CRITICAL RULES:
-- Execute symbolic query as primary strategy
+- Execute SYMBOLIC QUERY as primary strategy, follow strictly its logic to transform conditions into tool parameters, calling the right tool
+- **SEMANTIC EXPANSION TRACKING**: 
+  * **Semantic expansion is handled automatically by the tool** - you just need to create conditions with the exact text from formalQuery (including symbols)
+  * **Example**: formalQuery "pend*" → create condition {text: "pend*", type: "text"}
+  * **Example**: formalQuery "car~" → create condition {text: "car~", type: "text"}
+  * **Example**: formalQuery "ref:pend*" → create condition {text: "pend*", type: "page_ref"}${
+    state.isExpansionGlobal
+      ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${
+          state.semanticExpansion || "synonyms"
+        }" strategy will be applied to ALL conditions automatically`
+      : ""
+  }
 - Chain multi-step queries with intermediate results
 - Apply analysis tools when specified
 
+${buildExpansionGuidanceSection(state)}
+${
+  state.searchDetails?.depthLimit === 0
+    ? `\n🔒 **CRITICAL OVERRIDE**: User requested depth=0 (same-block search). MUST use findBlocksByContent, NOT findBlocksWithHierarchy.\n`
+    : ""
+}
 Execute the complex symbolic query now.`;
+};
+
+// Build expansion guidance section for ReAct Assistant (dynamic based on level and search type)
+const buildExpansionGuidanceSection = (state: any): string => {
+  // Only include expansion strategies when explicitly requested (zero results)
+  if (
+    !state.shouldAddExpansionStrategies ||
+    state.searchStrategy === "direct"
+  ) {
+    return "";
+  }
+
+  const currentLevel = state.currentExpansionLevel || 0;
+  const userQuery = state.userQuery || "";
+  const isPageSearch =
+    userQuery.toLowerCase().includes("page") ||
+    state.formalQuery?.includes("page:");
+
+  console.log(
+    `🔧 [buildExpansionGuidanceSection] Building guidance for level ${currentLevel}, isPageSearch: ${isPageSearch}, query: "${userQuery}"`
+  );
+
+  if (currentLevel <= 0) {
+    console.warn(
+      `🔧 [buildExpansionGuidanceSection] Unexpected level ${currentLevel} <= 0, should not show expansion guidance yet`
+    );
+    return "";
+  }
+
+  if (currentLevel === 1) {
+    return buildLevel1Guidance(isPageSearch, userQuery);
+  } else if (currentLevel === 2) {
+    return buildLevel2Guidance(isPageSearch, userQuery);
+  } else if (currentLevel === 3) {
+    return buildLevel3Guidance(isPageSearch, userQuery);
+  } else if (currentLevel >= 4) {
+    return buildLevel4Guidance(isPageSearch, userQuery);
+  }
+
+  return "";
+};
+
+// Level 1: Fuzzy matching + hierarchy for blocks
+const buildLevel1Guidance = (
+  isPageSearch: boolean,
+  userQuery: string
+): string => {
+  if (isPageSearch) {
+    return `
+## 🔍 LEVEL 1: FUZZY MATCHING
+
+**PAGE SEARCH - Level 1 Strategy:**
+- **Use semanticExpansion: "fuzzy"** for typo correction and morphological variations
+- **Focus**: Handle typos, plural/singular, verb forms, alternative spellings
+
+**ACTION**: Set semanticExpansion: "fuzzy" on key conditions
+`;
+  } else {
+    return `
+## 🔍 LEVEL 1: FUZZY + HIERARCHY
+
+**BLOCK SEARCH - Level 1 Strategy:**
+- **Use semanticExpansion: "fuzzy"** for typo correction and morphological variations  
+- **Try hierarchy exploration**: Use findBlocksWithHierarchy for parent/child relationships
+- **Focus**: Handle typos + explore hierarchical context
+
+**ACTION**: Set semanticExpansion: "fuzzy" and use hierarchy tools as needed
+`;
+  }
+};
+
+// Level 2: Synonyms expansion
+const buildLevel2Guidance = (
+  isPageSearch: boolean,
+  userQuery: string
+): string => {
+  return `
+## 📝 LEVEL 2: SYNONYMS
+
+**STRATEGY:**
+- **Use semanticExpansion: "synonyms"** for finding alternative terms
+- **Focus**: Words that mean the same thing or are used interchangeably
+
+**ACTION**: Set semanticExpansion: "synonyms" on key conditions
+`;
+};
+
+// Level 3: Related concepts expansion
+const buildLevel3Guidance = (
+  isPageSearch: boolean,
+  userQuery: string
+): string => {
+  return `
+## 🧠 LEVEL 3: RELATED CONCEPTS
+
+**STRATEGY:**
+- **Use semanticExpansion: "related_concepts"** for finding associated terms
+- **Focus**: Related ideas, associated concepts, terms commonly found together
+
+**ACTION**: Set semanticExpansion: "related_concepts" on key conditions
+`;
+};
+
+// Level 4: Different tool strategies
+const buildLevel4Guidance = (
+  isPageSearch: boolean,
+  userQuery: string
+): string => {
+  return `
+## 🔄 LEVEL 4: NEW TOOL STRATEGIES
+
+**STRATEGY:**
+- **Try completely different tool approaches**
+- **Use different tool sequences and combinations**
+- **Consider multi-step workflows**
+
+**ACTION**: Use different tools or tool combinations than previously attempted
+`;
 };
 
 // Request analysis system prompt
@@ -650,19 +916,28 @@ export const extractResultDataForPrompt = (
     }
   });
 
-  // Fallback: if no results marked as final, include the most recent results
+  // Fallback: if no results marked as final, include the most recent results with actual data
   if (relevantEntries.length === 0) {
     console.log(
-      "🎯 [ExtractResultData] No final results found, using fallback to most recent results"
+      "🎯 [ExtractResultData] No final results found, using fallback to most recent results with data"
     );
     const allEntries = Object.entries(resultStore);
-    // Sort by timestamp (if available) or by ID and take the most recent ones
-    const sortedEntries = allEntries.sort((a, b) => {
-      const aTime = a[1]?.timestamp || 0;
-      const bTime = b[1]?.timestamp || 0;
-      return bTime - aTime; // Most recent first
+
+    // Filter out entries with empty data first
+    const entriesWithData = allEntries.filter(([_, result]) => {
+      const data = result?.data || result;
+      return Array.isArray(data) && data.length > 0;
     });
-    relevantEntries.push(...sortedEntries.slice(0, 3)); // Include up to 3 most recent
+
+    if (entriesWithData.length > 0) {
+      // Sort by timestamp (if available) or by ID and take the most recent ones
+      const sortedEntries = entriesWithData.sort((a, b) => {
+        const aTime = a[1]?.timestamp || 0;
+        const bTime = b[1]?.timestamp || 0;
+        return bTime - aTime; // Most recent first
+      });
+      relevantEntries.push(...sortedEntries.slice(0, 3)); // Include up to 3 most recent with data
+    }
   }
 
   console.log(
@@ -793,6 +1068,10 @@ export const extractResultDataForPrompt = (
       `🎯 [ExtractResultData] Formatted combined results:`,
       dataString.substring(0, 200)
     );
+  } else {
+    // No results found - explicitly indicate this to prevent hallucination
+    console.log("🎯 [ExtractResultData] No results with data found");
+    formattedResults.push("No matching results found.");
   }
 
   return formattedResults.join("\n\n");
@@ -806,9 +1085,8 @@ const buildAvailableToolsSection = (
   const coreTools = `**Core Search Tools:**
 - findBlocksByContent: Search text, content (via regex) or page reference within blocks
 - findBlocksWithHierarchy: Search blocks matching conditions in them and in their parents or children
-- findPagesByTitle: Search pages by content in their title
+- findPagesByTitle: Search pages by title with exact, contains, or regex matching. Supports smart expansion - finds similar existing pages + semantic variations with existence validation
 - findPagesByContent: Search pages whose content matches some criteria
-- findPagesSemantically: AI-powered semantic search in page titles
 
 **Analysis Tools:**
 - extractPageReferences: get and count page mentionned in blocks (essential for "most mentioned/referenced" queries)`;
@@ -882,16 +1160,21 @@ ${SYMBOLIC_QUERY_LANGUAGE}
 
 ${ROAM_REFERENCES_PARSING}
 
+Rule specific to Roam:
+- if user ask for tasks (only if unquoted), you should replace task keyword by 'ref:TODO' (default) or 'ref:DONE' depending on the user demand
+
 ### Intent Parser Examples:
-- "Car prices but not motorcycles" → 'car + price - motorcycle'
+- "Blocks about car prices, not motorcycles" → 'text:car + text:price - text:motorcycle'
 - "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (it works also with 'ref:(book + to read) )
-- "Find my #recipe with sugar or vanilla (in descendants)" → 'ref:recipe >> sugar|vanilla'
-- "important tasks to do with 'important' tag under [[budget planning]]" → '(ref:TODO + important) << ref:budget planning'
-- "[[book]] notes tagged with "justice" in main block or in descendants" → 'ref:book =>> justice'
-- "Blocks about AI in my [[work]] page" → 'in:work + AI~'
-- "Find productivity #tips or similar concepts" → 'productivity~ + #tips|#tip'
-- "Blocks containing words starting with 'work'" → 'work*'
+- "Find my #recipe with sugar or vanilla (in descendants)" → 'ref:recipe >> text:sugar|text:vanilla'
+- "important tasks to do with 'important' tag under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
+- "[[book]] notes tagged with "justice" in main block or in descendants" → 'ref:book =>> text:justice'
+- "Blocks about AI in my [[work]] page" → 'in:work + text:AI~'
+- "Find productivity #tips or similar concepts" → 'text:productivity~ + ref:tips'
+- "Blocks containing words starting with 'work'" → 'text:work*'
 - "Pages matching /lib.*/i in their title" → 'page:(title:regex:/lib.*/i)
+- "All 'status' pages in title (with semantic variations)" → 'page:(title:status)' (let tools handle semantic expansion)
+- "Pages about productivity or similar concepts in title" → 'page:(title:productivity)' (tools will find related page titles)
 - "Pages with attribute 'status' set to #completed or #archived" → 'page:(attr:status:ref:(completed | archived))
 - "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
 - "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
@@ -910,6 +1193,80 @@ If the user provides a Datomic query (starts with patterns like \`[:find\`, \`[:
   "confidence": 1.0
 }
 
+## EXPANSION INTENT DETECTION:
+
+**Critical**: Detect user's expansion preference to apply appropriate search strategies, by interpreting its natural language request.
+
+By default, strict search without expansion will be applied.
+
+**CRITICAL DISTINCTION - Quoted terms vs Explicit exact keywords:**
+
+### **QUOTED TERMS** (casual usage) → **Simple text search** (users often quote terms casually - treat as normal search terms):
+- 'blocks mentioning "strategy"' → 'text:strategy' (normal text search)
+
+### **EXPLICIT EXACT KEYWORDS** → **Regex with word boundaries**:
+- 'exact word strategy' or 'blocks with "strategy" (exact)' → 'regex:/\\bstrategy\\b/i' (case-insensitive word boundaries)
+- **Only when user explicitly uses keywords: "exact", "strict", "precise", "literally"**
+
+### **EXACT BLOCK CONTENT** (very rare):
+- 'blocks with exactly "Hello world"' → matchType: "exact" (entire block content equals "Hello world")
+
+### User Expansion Intent:
+- **fuzzy**: User wants variations/typos/morphological forms (keywords: "fuzzy", "typos", "variations", "spelling", "forms", or '*' operator appended to terms like "word*")
+  → Examples: "fuzzy search", "find typos", "word* variations", "blocks starting with pend*"
+  → Set semanticExpansion: "fuzzy"
+- **synonyms**: user wants related concepts, using keyword like "similar", "related", "semantic", "alternatives", etc., or appending '~' operator to some term (→ in this case, apply it to it in the symbolic query)
+  → For PAGE TITLE searches: Use 'page:(title:keyword~)'
+  → For BLOCK CONTENT: 
+- Detect if possible other specific type to apply: "synonyms" (same meaning, by default), "related_concepts" (associated concepts), "broader_terms" (categories), "all" (comprehensive), or, if the semantic expansion is very specific, set semanticExpansion to "custom" and reproduce the specific user demand in the 'customSemanticExpansion" field
+
+### 🎯 ADVANCED: Implicit Custom Expansion Detection
+**CRITICAL**: Look for implicit enumeration/listing patterns that should trigger custom expansion:
+
+**Pattern 1: "most/common/popular/typical/main [category] [type]"**
+- "blocks matching the most common color names" → extract "color", custom: "generate common color names"
+- "find typical programming languages" → extract "programming", custom: "generate popular programming languages"
+- "main European countries" → extract "Europe~", custom: "generate major European countries"
+
+**Pattern 2: Quantified categories (numbers + categories)**
+- "top 10 project management tools" → extract "project management~", custom: "generate top project management tools"
+- "5 main meditation techniques" → extract "meditation~", custom: "generate meditation techniques"
+
+**Pattern 3: "examples of [category]" or "list of [category]"**  
+- "examples of machine learning algorithms" → extract "algorithm", custom: "generate machine learning algorithm examples"
+- "list of healthy foods" → extract "food~", custom: "generate healthy food examples"
+
+**How to apply:**
+1. **Extract the core concept** (color, language, country, etc.)
+2. **Set semanticExpansion: "custom"**
+3. **Set customSemanticExpansion: "generate [specific enumeration request]"**
+4. **ALWAYS use ~ symbol** on the core concept term (e.g., "color~", "programming~")
+5. **ALWAYS set isExpansionGlobal: false** (let the ~ symbol handle per-term expansion)
+
+### 🚨 CRITICAL: Global Semantic Expansion Rules:
+
+**RULE 1: ALWAYS check for * or ~ symbols in the query**
+- **IF query contains * or ~ symbols → ALWAYS set isExpansionGlobal: false**
+- **These symbols indicate per-term expansion, NOT global expansion**
+
+**RULE 2: Natural language semantic requests → set isExpansionGlobal: true**
+- **IF user requests semantic expansion in natural language WITHOUT symbols → set isExpansionGlobal: true**
+- Examples: "fuzzy search for pend", "find similar concepts", "semantic search for project"
+
+**RULE 3: Per-term expansion in parentheses → add symbol, keep isExpansionGlobal: false**
+- **IF expansion is specified for specific terms in parentheses → add * or ~ symbol, set isExpansionGlobal: false**
+- Examples: "pend (fuzzy) and archived" → "pend* + archived", isExpansionGlobal: false
+
+**Examples requiring isExpansionGlobal: false**:
+  - "pend*" → isExpansionGlobal: false (symbol controls expansion)
+  - "car~ and project" → isExpansionGlobal: false  
+  - "pend (fuzzy) and test" → "pend* + test", isExpansionGlobal: false
+
+**Examples requiring isExpansionGlobal: true**:
+  - "fuzzy search for pend" → isExpansionGlobal: true, semanticExpansion: "fuzzy"
+  - "find similar concepts to productivity" → isExpansionGlobal: true, semanticExpansion: "synonyms"
+  - "semantic search with related terms" → isExpansionGlobal: true, semanticExpansion: "related_concepts"
+
 ## INTENT vs QUERY DISTINCTION:
 
 **Critical**: User requests fall into two categories:
@@ -923,22 +1280,28 @@ If the user provides a Datomic query (starts with patterns like \`[:find\`, \`[:
 - **Connection words** ("related to", "connected", "links") → \`analyze:connections\`
 - **Summary words** ("summarize", "overview", "what about") → \`analyze:summary\`
 
-### Query Expansion Strategy:
-- If direct keywords might miss relevant content, suggest semantic expansion
-- Example: "productivity tips" might need expansion to "productive|efficiency|workflow|optimize"
-- Consider synonyms, abbreviations, related concepts
-
 ### Search Strategy Selection:
-- "direct": Simple keyword/reference searches
-- "expanded": When fuzzy or wildcard matching needed
-- "semantic": When AI-powered semantic understanding required
-- "hierarchical": When query contains hierarchical operators (>, =>, <=>, <<=>>)
+- "direct": Simple single keyword/reference searches
+- "hierarchical": **DEFAULT for multi-condition AND queries** (leverages Roam's hierarchical inheritance)
 
-**CRITICAL: Set searchStrategy to "hierarchical" if the query contains:**
-- Hierarchical operators: >, =>, <=>, <<=>> 
-- Parent-child relationship expressions
-- Phrases like "X has Y in children", "X contains Y", "Y under X"
-- Examples: "Machine Learning > Deep Learning", "AI => neural networks", "project <=> task"
+**Note**: Semantic expansion strategies are handled via globalSemanticHint field.
+
+**CRITICAL: Set searchStrategy to "hierarchical" by DEFAULT when:**
+- **Multi-condition AND queries** (e.g., "productivity + tools", "ref:recipe + sugar") 
+- **Explicit hierarchical operators**: >, =>, <=>, <<=>>
+- **Parent-child relationship expressions**
+- **Phrases like "X has Y in children", "X contains Y", "Y under X"**
+
+**ONLY use "direct" when:**
+- Single condition queries (e.g., "text:productivity" alone)
+- OR logic queries (e.g., "text:productivity | text:tools")  
+- User explicitly requests same-block search (e.g., "depth=0", "same block")
+
+**Examples:**
+- "text:productivity + text:tools" → searchStrategy: "hierarchical" (multi-condition AND)
+- "text:productivity | text:tools" → searchStrategy: "direct" (OR logic)  
+- "text:productivity" → searchStrategy: "direct" (single condition)
+- "text:Machine Learning > text:Deep Learning" → searchStrategy: "hierarchical" (explicit hierarchy)
 
 ## YOUR TASK
 
@@ -956,9 +1319,12 @@ Respond with only valid JSON, no explanations or any additional comment.
     "requireRandom": false | true,
     "depthLimit": null
   },
-  "searchStrategy": "direct" | "expanded" | "semantic" | "hierarchical",
+  "searchStrategy": "direct" | "hierarchical",
   "analysisType": null | "count" | "compare" | "connections" | "summary",
-  "language": "detected language of user request (e.g., 'en', 'fr', 'es')",
+  "isExpansionGlobal": false | true,
+  "semanticExpansion": null | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
+  "customSemanticExpansion": null | string,
+  "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
   "confidence": 0.1-1.0
 }
 

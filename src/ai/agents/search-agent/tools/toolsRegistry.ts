@@ -1,5 +1,5 @@
 import { findPagesByTitleTool } from './findPagesByTitleTool';
-import { findPagesSemanticallyTool } from './findPagesSemanticallyTool';
+// import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
 import { findBlocksByContentTool } from './findBlocksByContentTool';
 import { findBlocksWithHierarchyTool } from './findBlocksWithHierarchyTool';
 import { findPagesByContentTool } from './findPagesByContentTool';
@@ -25,14 +25,14 @@ export const SEARCH_TOOLS: Record<string, ToolInfo> = {
   findPagesByTitle: {
     tool: findPagesByTitleTool,
     securityLevel: "secure",
-    description: "Find pages by title conditions with exact, contains, or regex matching"
+    description: "Find pages by title conditions with exact, contains, or regex matching. Supports smart expansion - finds similar existing pages + semantic variations with existence validation"
   },
   
-  findPagesSemantically: {
-    tool: findPagesSemanticallyTool,
-    securityLevel: "secure", 
-    description: "Find pages using semantic search with AI-powered term expansion"
-  },
+  // findPagesSemantically: {
+  //   tool: findPagesSemanticallyTool,
+  //   securityLevel: "secure", 
+  //   description: "Find pages using semantic search with AI-powered term expansion - DEPRECATED: Use findPagesByTitle with smartExpansion instead"
+  // },
   
   findBlocksByContent: {
     tool: findBlocksByContentTool,
