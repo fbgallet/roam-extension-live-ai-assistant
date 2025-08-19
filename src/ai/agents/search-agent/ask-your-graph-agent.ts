@@ -1671,10 +1671,10 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
 
   // Group results by expansion level for ranking-aware display
   const resultsByLevel = {
-    0: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 0), // Exact matches
-    1: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 1), // Hierarchical
-    2: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 2), // Fuzzy + Semantic
-    3: deduplicatedResults.filter((item) => (item.expansionLevel || 0) === 3), // Multi-tool
+    0: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 0), // Exact matches
+    1: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 1), // Hierarchical
+    2: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 2), // Fuzzy + Semantic
+    3: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 3), // Multi-tool
   };
 
   const levelLabels = {

@@ -102,13 +102,15 @@ For attribute in page searches, see below, operators are defined precisely.
 3. **Higher precedence than +/|** (evaluated before logical operators)
 
 **Operators** (A and B are any condition: text:, ref:, regex:, etc.):
-- 'text:A > ref:B' - direct child (A has direct child B)
-- 'text:A >> ref:B' - deep descendants (A has B somewhere in descendants)
-- 'text:A < ref:B' - direct parent (A has direct parent B)
-- 'text:A << ref:B' - deep ancestors (A has B somewhere in ancestors)
-- 'text:A => ref:B' - flexible hierarchy (A with B in descendants OR same block)
-- 'text:A <=> ref:B' - bidirectional direct (A > B OR B > A)
-- 'text:A <<=>> ref:B' - bidirectional deep hierarchy
+- 'A > B' - direct child (A has direct child B)
+- 'A >> B' - deep descendants (A has B somewhere in descendants)
+- 'A < B' - direct parent (A has direct parent B)
+- 'A << B' - deep ancestors (A has B somewhere in ancestors)
+- 'A => B' - flexible hierarchy (A with B in descendants OR same block)
+- 'A =>> B' - flexible deep hierarchy (A with B in descendants OR same block)
+- 'A <= B' or 'A <<= B' - flexible ascendant hierarchy (or deep hierarchy)
+- 'A <=> B' - bidirectional direct (A > B OR B > A)
+- 'A <<=>> B' - bidirectional deep hierarchy
 
 **Examples:**
 - 'text:project <=> ref:status' ✅ (one operator, between conditions)
@@ -126,19 +128,20 @@ const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 1. **SAME-BLOCK REQUESTS**: If user says "depth=0", "same block", "in same block" → ALWAYS use findBlocksByContent with depthLimit=0
 2. **HIERARCHICAL SEARCH**: For A + B patterns → convert to A <=> B and use findBlocksWithHierarchy (unless rule 1 applies)
 3. **HIERARCHY OPERATORS**: Use <=> (bidirectional), > (strict parent-child), => (flexible) based on context
+4. **STRUCTURED FORMAT**: ALWAYS use hierarchyCondition parameter (NOT hierarchicalExpression) - see examples below
 
 **HIERARCHICAL SEARCH (DEFAULT for multi-condition AND queries):**
-- 'ref:Machine Learning + ref:AI Fundamentals' → findBlocksWithHierarchy with hierarchicalExpression="ref:Machine Learning <=> ref:AI Fundamentals" (convert + to <=> for hierarchical relationships)
-- 'text:productivity + text:tools' → findBlocksWithHierarchy with hierarchicalExpression="text:productivity <=> text:tools" (searches hierarchical connections, not same-block)  
-- 'ref:recipe + text:sugar' → findBlocksWithHierarchy with hierarchicalExpression="ref:recipe <=> text:sugar" (sugar might be in child blocks of recipe references)
+- 'ref:Machine Learning + ref:AI Fundamentals' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'Machine Learning', matchType: 'contains'}], rightConditions: [{type: 'page_ref', text: 'AI Fundamentals', matchType: 'contains'}]}
+- 'text:productivity + text:tools' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'text', text: 'productivity', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'tools', matchType: 'contains'}]}
+- 'ref:recipe + text:sugar' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'recipe', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'sugar', matchType: 'contains'}]}
 
 **MULTIPLE REFERENCE OR/AND SYNTAX:**
-- 'ref:pending | ref:waiting | ref:pause + ref:status' → findBlocksWithHierarchy with hierarchicalExpression="ref:pending | ref:waiting | ref:pause + ref:status" (blocks with status AND any pending variant - tools automatically expand with semantic variations)
-- 'text:machine | text:AI | text:neural + ref:learning' → findBlocksWithHierarchy with hierarchicalExpression="text:machine | text:AI | text:neural <=> ref:learning" (blocks with learning page AND any ML text terms)
-- 'ref:project + ref:status' → findBlocksWithHierarchy (blocks referencing BOTH project AND status pages)  
+- 'ref:pending | ref:waiting | ref:pause + ref:status' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'pending', matchType: 'contains'}, {type: 'page_ref', text: 'waiting', matchType: 'contains'}, {type: 'page_ref', text: 'pause', matchType: 'contains'}], leftCombination: 'OR', rightConditions: [{type: 'page_ref', text: 'status', matchType: 'contains'}]}
+- 'text:machine | text:AI | text:neural + ref:learning' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'text', text: 'machine', matchType: 'contains'}, {type: 'text', text: 'AI', matchType: 'contains'}, {type: 'text', text: 'neural', matchType: 'contains'}], leftCombination: 'OR', rightConditions: [{type: 'page_ref', text: 'learning', matchType: 'contains'}]}
+- 'ref:project + ref:status' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'project', matchType: 'contains'}], rightConditions: [{type: 'page_ref', text: 'status', matchType: 'contains'}]}
 - 'text:deep + text:learning' → findBlocksByContent (blocks containing BOTH "deep" AND "learning" text)
-- 'text:Machine Learning > text:Deep Learning' → findBlocksWithHierarchy with hierarchicalExpression="text:Machine Learning > text:Deep Learning" (explicit hierarchy)
-- 'text:AI => text:neural networks' → findBlocksWithHierarchy with hierarchicalExpression="text:AI => text:neural networks" (flexible hierarchy)
+- 'text:Machine Learning > text:Deep Learning' → findBlocksWithHierarchy with hierarchyCondition={operator: '>', leftConditions: [{type: 'text', text: 'Machine Learning', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'Deep Learning', matchType: 'contains'}]}
+- 'text:AI => text:neural networks' → findBlocksWithHierarchy with hierarchyCondition={operator: '=>', leftConditions: [{type: 'text', text: 'AI', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'neural networks', matchType: 'contains'}]}
 
 **FLAT SEARCH (for single conditions, OR logic, or explicit same-block requests):**
 - 'text:productivity | text:tools' → findBlocksByContent (OR logic works better with flat search)
