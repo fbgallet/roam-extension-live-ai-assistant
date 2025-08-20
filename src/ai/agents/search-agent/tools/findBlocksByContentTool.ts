@@ -18,6 +18,17 @@ import {
   sanitizeRegexForDatomic,
   parseSemanticExpansion,
 } from "./searchUtils";
+import { 
+  baseConditionSchema, 
+  conditionGroupSchema, 
+  extendedConditionsSchema,
+  processConditionGroups,
+  applyORToRegexConversion,
+  hasGroupedConditions,
+  hasSimpleConditions,
+  validateConditionInput,
+  convertSimpleToGrouped
+} from "./conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
 
@@ -66,34 +77,25 @@ const extractUserRequestedLimit = (userQuery: string): number | null => {
  * and hierarchy context. Use secureMode=true to exclude full block content from results.
  */
 
-const contentConditionSchema = z.object({
+// Use the shared base condition schema, extending it for content-specific types
+const contentConditionSchema = baseConditionSchema.extend({
   type: z
     .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
     .default("text"),
-  text: z.string().min(1, "Search text is required"),
-  matchType: z.enum(["exact", "contains", "regex"]).default("contains"),
-  semanticExpansion: z
-    .enum([
-      "fuzzy",
-      "synonyms",
-      "related_concepts",
-      "broader_terms",
-      "custom",
-      "all",
-    ])
-    .optional()
-    .describe(
-      "Semantic expansion strategy to apply, depending on '*'=fuzzy or '~'='synonym' or globalSemanticHint value if not undefined. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
-    ),
-  weight: z.number().min(0).max(10).default(1.0),
-  negate: z.boolean().default(false),
 });
 
-const schema = z.object({
+const schema = extendedConditionsSchema.extend({
+  // Override conditions to use content-specific schema
   conditions: z
     .array(contentConditionSchema)
-    .min(1, "At least one condition is required"),
-  combineConditions: z.enum(["AND", "OR"]).default("AND"),
+    .optional()
+    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
+  conditionGroups: z
+    .array(conditionGroupSchema.extend({
+      conditions: z.array(contentConditionSchema).min(1, "At least one condition required in group")
+    }))
+    .optional()
+    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
   includeChildren: z
     .boolean()
     .default(false)
@@ -241,8 +243,9 @@ const schema = z.object({
     ),
 });
 
-// Minimal LLM-facing schema - only essential user-controllable parameters
+// LLM-facing schema with both simple and grouped conditions support
 const llmFacingSchema = z.object({
+  // Simple conditions (backward compatible)
   conditions: z
     .array(
       z.object({
@@ -263,11 +266,45 @@ const llmFacingSchema = z.object({
           .describe("Exclude blocks matching this condition"),
       })
     )
-    .min(1, "At least one search condition required"),
+    .optional()
+    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
   combineConditions: z
     .enum(["AND", "OR"])
     .default("AND")
-    .describe("AND=all conditions must match, OR=any condition matches"),
+    .describe("How to combine simple conditions"),
+    
+  // Grouped conditions (new advanced feature)  
+  conditionGroups: z
+    .array(
+      z.object({
+        conditions: z
+          .array(
+            z.object({
+              text: z.string().min(1, "Search text is required"),
+              type: z
+                .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+                .default("text"),
+              matchType: z
+                .enum(["exact", "contains", "regex"])
+                .default("contains"),
+              negate: z
+                .boolean()
+                .default(false),
+            })
+          )
+          .min(1, "At least one condition required in group"),
+        combination: z
+          .enum(["AND", "OR"])
+          .default("AND")
+          .describe("How to combine conditions within this group"),
+      })
+    )
+    .optional()
+    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
+  groupCombination: z
+    .enum(["AND", "OR"])
+    .default("AND")  
+    .describe("How to combine condition groups"),
   includeChildren: z
     .boolean()
     .default(false)
@@ -321,6 +358,8 @@ const findBlocksByContentImpl = async (
   const {
     conditions,
     combineConditions,
+    conditionGroups,
+    groupCombination,
     includeChildren,
     childDepth,
     includeParents,
@@ -344,6 +383,44 @@ const findBlocksByContentImpl = async (
     fuzzyThreshold,
     expansionLevel,
   } = input;
+
+  // Handle grouped conditions vs simple conditions
+  let finalConditions: any[];
+  let finalCombineConditions: "AND" | "OR";
+
+  // Validate input format
+  try {
+    validateConditionInput(input);
+  } catch (error) {
+    console.error("❌ Invalid condition input:", error.message);
+    throw error; // Let the wrapper handle this with createToolResult
+  }
+
+  if (hasGroupedConditions(input)) {
+    console.log("🔧 Processing grouped conditions in findBlocksByContent");
+    // Process grouped conditions
+    const processedGroups = await processConditionGroups(
+      conditionGroups!,
+      groupCombination || "AND",
+      state
+    );
+    
+    // Apply OR-to-regex conversion for mixed logic cases  
+    const optimizedGroups = applyORToRegexConversion(
+      processedGroups.conditions,
+      processedGroups.combination
+    );
+    
+    finalConditions = optimizedGroups.conditions;
+    finalCombineConditions = optimizedGroups.combination;
+    
+    console.log(`🚀 Converted ${conditionGroups!.length} condition groups to ${finalConditions.length} optimized conditions with ${finalCombineConditions} logic`);
+  } else {
+    console.log("🔧 Processing simple conditions in findBlocksByContent");
+    // Use simple conditions (backward compatibility)
+    finalConditions = conditions!;
+    finalCombineConditions = combineConditions || "AND";
+  }
 
   // Parse dateRange if provided as strings
   let parsedDateRange;
@@ -370,9 +447,9 @@ const findBlocksByContentImpl = async (
     );
 
   // Step 1: Process conditions with semantic expansion if needed
-  const expandedConditions = await expandConditions(conditions, state);
+  const expandedConditions = await expandConditions(finalConditions, state);
 
-  const hasExpansions = expandedConditions.length > conditions.length;
+  const hasExpansions = expandedConditions.length > finalConditions.length;
   if (hasExpansions) {
     updateAgentToaster(`🔍 Expanding search with related terms...`);
   }
@@ -392,7 +469,7 @@ const findBlocksByContentImpl = async (
 
   const searchResults = await searchBlocksWithConditions(
     expandedConditions,
-    combineConditions,
+    finalCombineConditions,
     includeDaily,
     dailyNotesOnly,
     limitToPages,
@@ -402,10 +479,10 @@ const findBlocksByContentImpl = async (
 
   // Step 2.5: Apply fuzzy matching post-processing if enabled
   let fuzzyFilteredResults = searchResults;
-  if (fuzzyMatching && fuzzyThreshold && conditions.length > 0) {
+  if (fuzzyMatching && fuzzyThreshold && finalConditions.length > 0) {
     fuzzyFilteredResults = applyFuzzyFiltering(
       searchResults,
-      conditions,
+      finalConditions,
       fuzzyThreshold || 0.8
     );
   }
@@ -1176,7 +1253,7 @@ export const findBlocksByContentTool = tool(
   {
     name: "findBlocksByContent",
     description:
-      "Find blocks by content, page references, or regex patterns. Supports AND/OR logic, date ranges, and hierarchical context.",
+      "Find blocks by content, page references, or regex patterns. SIMPLE: Use 'conditions' array for basic AND/OR logic. GROUPED: Use 'conditionGroups' for complex logic like ((A|B) AND NOT C). Supports semantic expansion, date ranges, and hierarchical context.",
     schema: llmFacingSchema, // Use minimal schema
   }
 );
