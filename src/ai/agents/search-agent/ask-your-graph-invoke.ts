@@ -1,4 +1,4 @@
-import { defaultModel } from "../../..";
+import { defaultModel, automaticSemanticExpansion } from "../../..";
 import {
   LlmInfos,
   TokensUsage,
@@ -260,6 +260,8 @@ const invokeSearchAgentInternal = async ({
       startTime: Date.now(),
       // Pass abort signal for cancellation
       abortSignal: abortController.signal,
+      // Add automatic semantic expansion setting from extension
+      automaticExpansion: automaticSemanticExpansion,
     };
 
     // Store state globally for expansion handling

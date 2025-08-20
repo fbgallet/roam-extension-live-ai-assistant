@@ -76,6 +76,7 @@ export let isResponseToSplit;
 export let logPagesNbDefault;
 export let maxCapturingDepth = {};
 export let maxUidDepth = {};
+export let automaticSemanticExpansion;
 export let exclusionStrings = [];
 export let websearchContext;
 export let askGraphMode;
@@ -861,6 +862,18 @@ function getPanelConfig() {
         },
       },
       {
+        id: "automaticSemanticExpansion",
+        name: "Automatic semantic expansion",
+        description:
+          "Automatically expand search queries with synonyms and related terms without user intervention",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            automaticSemanticExpansion = evt.target.checked;
+          },
+        },
+      },
+      {
         id: "maxImages",
         name: "Images limit",
         className: "liveai-settings-smallinput",
@@ -1331,6 +1344,11 @@ export default {
     if (extensionAPI.settings.get("logPagesNbDefault") === null)
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");
+    
+    // Automatic semantic expansion setting for search agent
+    if (extensionAPI.settings.get("automaticSemanticExpansion") === null)
+      await extensionAPI.settings.set("automaticSemanticExpansion", false);
+    automaticSemanticExpansion = extensionAPI.settings.get("automaticSemanticExpansion");
     if (extensionAPI.settings.get("maxCapturingDepth") === null)
       await extensionAPI.settings.set("maxCapturingDepth", "99,3,4");
     maxCapturingDepth = getMaxDephObjectFromList(
