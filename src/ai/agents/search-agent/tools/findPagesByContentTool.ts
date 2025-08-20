@@ -11,7 +11,21 @@ import {
   extractUidsFromResults,
   sanitizeRegexForDatomic,
   parseSemanticExpansion,
+  PageWideQueryBuilder,
+  processConditionGroupsForPageWide,
+  parsePageSearchSyntax,
 } from "./searchUtils";
+import { 
+  baseConditionSchema, 
+  conditionGroupSchema, 
+  extendedConditionsSchema,
+  processConditionGroups,
+  applyORToRegexConversion,
+  hasGroupedConditions,
+  hasSimpleConditions,
+  validateConditionInput,
+  convertSimpleToGrouped
+} from "./conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { findBlocksByContentTool } from "./findBlocksByContentTool";
 
@@ -24,7 +38,8 @@ import { findBlocksByContentTool } from "./findBlocksByContentTool";
  * Use secureMode=true to exclude block content from results (UIDs and metadata only).
  */
 
-const contentConditionSchema = z.object({
+// Use the shared base condition schema, extending it for pages-by-content specific needs
+const contentConditionSchema = baseConditionSchema.extend({
   type: z
     .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
     .default("text")
@@ -37,32 +52,11 @@ const contentConditionSchema = z.object({
     .describe(
       "Search text, page name, or regex pattern. For attributes use format: attr:key:type:value or attr:key:type:(A + B - C)"
     ),
-  matchType: z
-    .enum(["exact", "contains", "regex"])
-    .default("contains")
-    .describe("contains=phrase within content, exact=entire content matches"),
-  semanticExpansion: z
-    .enum([
-      "fuzzy",
-      "synonyms",
-      "related_concepts",
-      "broader_terms",
-      "custom",
-      "all",
-    ])
-    .optional()
-    .describe(
-      "Semantic expansion strategy to apply. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
-    ),
-  weight: z.number().min(0).max(10).default(1.0),
-  negate: z
-    .boolean()
-    .default(false)
-    .describe("Exclude content matching this condition"),
 });
 
-// Minimal LLM-facing schema - only essential user-controllable parameters
+// LLM-facing schema with both simple and grouped conditions support
 const llmFacingSchema = z.object({
+  // Simple conditions (backward compatible)
   conditions: z
     .array(
       z.object({
@@ -103,20 +97,60 @@ const llmFacingSchema = z.object({
           .describe("Exclude content matching this condition"),
       })
     )
-    .min(1, "At least one search condition required"),
+    .optional()
+    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
   combineConditions: z
     .enum(["AND", "OR"])
     .default("AND")
-    .describe("AND=all conditions must match, OR=any condition matches"),
+    .describe("How to combine simple conditions"),
+    
+  // Search scope specification - CRITICAL for Assistant LLM
+  searchScope: z
+    .enum(["content", "block"])
+    .default("block")
+    .describe("SCOPE: 'content' = conditions can match across different blocks in page (content-wide AND), 'block' = all conditions must match within same blocks"),
+    
+  // Grouped conditions (new advanced feature)  
+  conditionGroups: z
+    .array(
+      z.object({
+        conditions: z
+          .array(
+            z.object({
+              text: z.string().min(1, "Search text is required"),
+              type: z
+                .enum(["text", "page_ref", "block_ref", "regex", "page_ref_or"])
+                .default("text"),
+              matchType: z
+                .enum(["exact", "contains", "regex"])
+                .default("contains"),
+              negate: z
+                .boolean()
+                .default(false),
+            })
+          )
+          .min(1, "At least one condition required in group"),
+        combination: z
+          .enum(["AND", "OR"])
+          .default("AND")
+          .describe("How to combine conditions within this group"),
+      })
+    )
+    .optional()
+    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
+  groupCombination: z
+    .enum(["AND", "OR"])
+    .default("AND")  
+    .describe("How to combine condition groups"),
   minBlockCount: z
     .number()
     .min(1)
     .default(1)
     .describe("Minimum blocks that must match per page"),
   maxBlockCount: z
-    .number()
-    .optional()
-    .describe("Maximum blocks that can match per page"),
+    .union([z.number().min(1), z.null()])
+    .default(null)
+    .describe("Maximum blocks that can match per page (null = unlimited)"),
   includeBlockSamples: z
     .boolean()
     .default(true)
@@ -150,14 +184,33 @@ const llmFacingSchema = z.object({
     .describe(
       "Limit to pages from previous result (e.g., 'findPagesByTitle_001') - major performance boost"
     ),
+  excludeBlockUid: z
+    .string()
+    .optional()
+    .describe(
+      "Block UID to exclude from search (typically the user's query block)"
+    ),
 });
 
-const schema = z.object({
+const schema = extendedConditionsSchema.extend({
+  // Override conditions to use content-specific schema
   conditions: z
     .array(contentConditionSchema)
-    .min(1, "At least one condition is required"),
-  combineConditions: z.enum(["AND", "OR"]).default("AND"),
+    .optional()
+    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
+  conditionGroups: z
+    .array(conditionGroupSchema.extend({
+      conditions: z.array(contentConditionSchema).min(1, "At least one condition required in group")
+    }))
+    .optional()
+    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
   maxExpansions: z.number().min(1).max(10).default(3),
+  
+  // Search scope specification
+  searchScope: z
+    .enum(["content", "block"])
+    .default("block")
+    .describe("SCOPE: 'content' = conditions can match across different blocks in page (page-wide AND), 'block' = all conditions must match within same blocks"),
 
   // Page-level filtering
   minBlockCount: z
@@ -166,9 +219,9 @@ const schema = z.object({
     .default(1)
     .describe("Minimum blocks that must match per page"),
   maxBlockCount: z
-    .number()
-    .optional()
-    .describe("Maximum blocks that can match per page"),
+    .union([z.number().min(1), z.null()])
+    .default(null)
+    .describe("Maximum blocks that can match per page (null = unlimited)"),
   minTotalBlocks: z
     .number()
     .min(1)
@@ -725,7 +778,7 @@ const searchChildrenWithLogic = async (
       }
     }
     resultUids = new Set(
-      [...resultUids].filter((uid) => allOrMatches.has(uid))
+      Array.from(resultUids).filter((uid) => allOrMatches.has(uid))
     );
   }
 
@@ -759,13 +812,13 @@ const searchChildrenWithLogic = async (
       Array.isArray(parsedMatches.data)
     ) {
       const notUids = new Set(parsedMatches.data.map((m: any) => m.uid));
-      resultUids = new Set([...resultUids].filter((uid) => !notUids.has(uid)));
+      resultUids = new Set(Array.from(resultUids).filter((uid) => !notUids.has(uid)));
     }
   }
 
   // Convert back to the expected format for page analysis
   const finalResults = [];
-  for (const uid of resultUids) {
+  for (const uid of Array.from(resultUids)) {
     // We need to get the actual block data - query it
     const blockQuery = `[:find ?uid ?content ?time ?page-title ?page-uid ?page-created ?page-modified
                         :where 
@@ -795,6 +848,9 @@ const findPagesByContentImpl = async (
   const {
     conditions,
     combineConditions,
+    conditionGroups,
+    groupCombination,
+    searchScope = "block",
     maxExpansions,
     minBlockCount,
     maxBlockCount,
@@ -813,6 +869,76 @@ const findPagesByContentImpl = async (
     excludeBlockUid,
   } = input;
 
+  // Parse syntax and detect search scope from condition text
+  let finalSearchScope = searchScope;
+  let rawConditions: any[] = conditions || [];
+  
+  if (hasSimpleConditions(input) && conditions && conditions.length > 0) {
+    // Check for page:(content:...) or page:(block:(...)) syntax in condition text
+    for (let i = 0; i < conditions.length; i++) {
+      const condition = conditions[i];
+      const syntaxResult = parsePageSearchSyntax(condition.text);
+      
+      // Only update if the extractedQuery is different (i.e., syntax was found)
+      if (syntaxResult.extractedQuery !== condition.text) {
+        console.log(`🎯 Detected explicit syntax: ${syntaxResult.searchScope} search for "${syntaxResult.extractedQuery}"`);
+        finalSearchScope = syntaxResult.searchScope;
+        // Update condition with clean text
+        rawConditions[i] = { ...condition, text: syntaxResult.extractedQuery };
+      }
+    }
+  }
+
+  // Handle grouped conditions vs simple conditions
+  let finalConditions: any[];
+  let finalCombineConditions: "AND" | "OR";
+
+  // Validate input format
+  try {
+    validateConditionInput(input);
+  } catch (error) {
+    console.error("❌ Invalid condition input:", error.message);
+    return createToolResult(false, undefined, error.message);
+  }
+
+  if (hasGroupedConditions(input)) {
+    console.log("🔧 Processing grouped conditions in findPagesByContent");
+    
+    // For page-wide search with grouped conditions, use special processing
+    if (finalSearchScope === "content" && groupCombination === "AND") {
+      console.log("🌍 Using content-wide processing for complex condition groups");
+      const processedGroups = processConditionGroupsForPageWide(
+        conditionGroups!,
+        groupCombination || "AND"
+      );
+      finalConditions = processedGroups.conditions;
+      finalCombineConditions = processedGroups.combination;
+    } else {
+      // Standard grouped processing for block-level search
+      const processedGroups = await processConditionGroups(
+        conditionGroups!,
+        groupCombination || "AND",
+        state
+      );
+      
+      // Apply OR-to-regex conversion for mixed logic cases  
+      const optimizedGroups = applyORToRegexConversion(
+        processedGroups.conditions,
+        processedGroups.combination
+      );
+      
+      finalConditions = optimizedGroups.conditions;
+      finalCombineConditions = optimizedGroups.combination;
+    }
+    
+    console.log(`🚀 Converted ${conditionGroups!.length} condition groups to ${finalConditions.length} optimized conditions with ${finalCombineConditions} logic (${finalSearchScope} scope)`);
+  } else {
+    console.log(`🔧 Processing simple conditions in findPagesByContent (${finalSearchScope} scope)`);
+    // Use simple conditions (backward compatibility)
+    finalConditions = rawConditions;
+    finalCombineConditions = combineConditions || "AND";
+  }
+
   // UID-based filtering for optimization
   const { pageUids: finalPageUids } = extractUidsFromResults(
     fromResultId,
@@ -823,20 +949,33 @@ const findPagesByContentImpl = async (
 
   // Step 1: Expand conditions with semantic terms
   const expandedConditions = await expandConditions(
-    conditions,
+    finalConditions,
     maxExpansions,
     state
   );
 
   // Step 2: Process all conditions (attribute and regular)
-  const matchingBlocks = await processAllConditions(
-    expandedConditions,
-    combineConditions,
-    includeDaily,
-    finalPageUids.length > 0 ? finalPageUids : undefined,
-    excludeBlockUid,
-    state
-  );
+  let matchingBlocks: any[];
+  if (finalSearchScope === "content" && finalCombineConditions === "AND") {
+    console.log("🌍 Using content-wide AND processing");
+    matchingBlocks = await processPageWideConditions(
+      expandedConditions,
+      includeDaily,
+      finalPageUids.length > 0 ? finalPageUids : undefined,
+      excludeBlockUid,
+      state
+    );
+  } else {
+    console.log(`📚 Using block-level processing (${finalSearchScope} scope)`);
+    matchingBlocks = await processAllConditions(
+      expandedConditions,
+      finalCombineConditions,
+      includeDaily,
+      finalPageUids.length > 0 ? finalPageUids : undefined,
+      excludeBlockUid,
+      state
+    );
+  }
 
   // Step 3: Analyze pages by grouping blocks
   const pageAnalysis = await analyzePagesByBlocks(
@@ -873,7 +1012,7 @@ const findPagesByContentImpl = async (
   }
 
   // Step 6: Sort results
-  enrichedResults = sortPageResults(enrichedResults, sortBy, conditions);
+  enrichedResults = sortPageResults(enrichedResults, sortBy, finalConditions);
 
   // Step 7: Limit results
   if (enrichedResults.length > limit) {
@@ -1193,6 +1332,195 @@ const expandAttributeCondition = async (
 };
 
 /**
+ * Process conditions with page-wide semantics using PageWideQueryBuilder
+ * Each positive condition can match in different blocks across the page
+ */
+const processPageWideConditions = async (
+  conditions: any[],
+  includeDaily: boolean,
+  limitToPageUids?: string[],
+  excludeBlockUid?: string,
+  state?: any
+): Promise<any[]> => {
+  // Separate attribute conditions from regular conditions
+  const attributeConditions: AttributeCondition[] = [];
+  const regularConditions: any[] = [];
+
+  for (const condition of conditions) {
+    if (condition.text?.startsWith("attr:")) {
+      const parsed = parseAttributeCondition(condition.text);
+      if (parsed) {
+        // Apply semantic expansion to attribute values if needed
+        const expandedAttrCondition = await expandAttributeCondition(parsed, state);
+        attributeConditions.push(expandedAttrCondition);
+      } else {
+        console.warn(`Failed to parse attribute condition: ${condition.text}`);
+      }
+    } else {
+      regularConditions.push(condition);
+    }
+  }
+
+  let attributeResults: any[] = [];
+
+  // Process attribute conditions (same as block-level for now - attributes are inherently page-wide)
+  for (const attrCondition of attributeConditions) {
+    // Use same attribute processing as block-level search
+    const attributeBlocks = await searchAttributeBlocksWithCapture(
+      attrCondition.attributeKey,
+      includeDaily,
+      limitToPageUids
+    );
+
+    if (attributeBlocks.length === 0) {
+      continue;
+    }
+
+    let matches: any[] = [];
+
+    // Separate empty and non-empty attribute blocks
+    const emptyBlocks = attributeBlocks.filter((block) => block.isEmpty);
+    const nonEmptyBlocks = attributeBlocks.filter((block) => !block.isEmpty);
+
+    // Process non-empty blocks
+    for (const block of nonEmptyBlocks) {
+      const valueMatches = checkValueMatches(
+        block.valueContent,
+        attrCondition.values,
+        attrCondition.valueType
+      );
+      if (valueMatches) {
+        matches.push(block.pageData);
+      }
+    }
+
+    // Process empty blocks (check their children)
+    if (emptyBlocks.length > 0) {
+      const emptyBlockUids = emptyBlocks.map((block) => block.uid);
+      const childrenUids = await getDirectChildrenBatch(emptyBlockUids);
+
+      if (childrenUids.length > 0) {
+        const childrenMatches = await searchChildrenWithLogic(
+          childrenUids,
+          attrCondition.values,
+          attrCondition.valueType,
+          state
+        );
+
+        // Get matching page UIDs
+        const matchingPageUids = new Set();
+        for (const childMatch of childrenMatches) {
+          const pageUid = childMatch[4];
+          if (pageUid) {
+            matchingPageUids.add(pageUid);
+          }
+        }
+
+        // Return the empty attribute blocks whose children matched
+        for (const block of emptyBlocks) {
+          const blockPageUid = block.pageData[4];
+          if (matchingPageUids.has(blockPageUid)) {
+            matches.push(block.pageData);
+          }
+        }
+      }
+    }
+
+    attributeResults = attributeResults.concat(matches);
+  }
+
+  // Process regular conditions with page-wide logic using PageWideQueryBuilder
+  let regularResults: any[] = [];
+  if (regularConditions.length > 0) {
+    console.log(`🌐 Building page-wide query for ${regularConditions.length} conditions`);
+    
+    // Convert conditions to SearchCondition format
+    const searchConditions: SearchCondition[] = regularConditions.map((cond) => ({
+      type: cond.type as any,
+      text: cond.text,
+      matchType: cond.matchType as any,
+      negate: cond.negate || false,
+    }));
+    
+    // Build base query with correct format for page results
+    const baseQuery = `[:find ?page-uid ?page-title ?page-created ?page-modified
+                :where
+                [?page :node/title ?page-title]
+                [?page :block/uid ?page-uid]
+                [?page :create/time ?page-created]
+                [?page :edit/time ?page-modified]`;
+                
+    const queryBuilder = new PageWideQueryBuilder(searchConditions, "AND", baseQuery, excludeBlockUid);
+    const pageWideQuery = queryBuilder.buildPageWideQuery();
+    
+    // Add additional constraints for includeDaily, limitToPageUids, excludeBlockUid
+    let finalQuery = pageWideQuery.query;
+    
+    if (!includeDaily) {
+      finalQuery = finalQuery.replace(
+        "]\n",
+        `
+                [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?dnp-pattern]
+                (not [(re-find ?dnp-pattern ?page-uid)])]\n`
+      );
+    }
+    
+    if (limitToPageUids && limitToPageUids.length > 0) {
+      if (limitToPageUids.length === 1) {
+        finalQuery = finalQuery.replace(
+          "]\n",
+          `
+                [?page :block/uid "${limitToPageUids[0]}"]]
+`
+        );
+      } else {
+        const uidsSet = limitToPageUids.map((uid) => `"${uid}"`).join(" ");
+        finalQuery = finalQuery.replace(
+          "]\n",
+          `
+                [(contains? #{${uidsSet}} ?page-uid)]]
+`
+        );
+      }
+    }
+    
+    console.log(`🔍 Executing page-wide query: ${finalQuery.substring(0, 200)}...`);
+    const queryResults = await executeDatomicQuery(finalQuery);
+    
+    // Convert results to the expected format for further processing
+    regularResults = queryResults.map(([pageUid, pageTitle, pageCreated, pageModified]) => [
+      pageUid, // Block UID (using page UID as placeholder)
+      pageTitle, // Content (using page title as placeholder)
+      pageModified, // Time
+      pageTitle, // Page title
+      pageUid, // Page UID
+      pageCreated, // Page created
+      pageModified, // Page modified
+    ]);
+    console.log(`🎯 Found ${regularResults.length} pages with page-wide matches`);
+  }
+
+  // Combine results based on combination logic (always AND for page-wide)
+  let finalResults: any[] = [];
+  if (attributeResults.length > 0 && regularResults.length > 0) {
+    // Pages must have both attribute and regular matches
+    finalResults = combineResultsByPageIntersection(
+      attributeResults,
+      regularResults
+    );
+    console.log(`🤝 Combined attribute + regular results: ${finalResults.length} pages`);
+  } else if (attributeResults.length > 0) {
+    finalResults = attributeResults;
+    console.log(`🏷️ Using attribute results only: ${finalResults.length} pages`);
+  } else {
+    finalResults = regularResults;
+    console.log(`📝 Using regular results only: ${finalResults.length} pages`);
+  }
+
+  return finalResults;
+};
+
+/**
  * Process all conditions (attribute and regular) with two-step fallback strategy
  */
 const processAllConditions = async (
@@ -1481,7 +1809,7 @@ const analyzePagesByBlocks = async (
   // Filter pages based on criteria
   const qualifyingPages = [];
 
-  for (const pageData of pageMap.values()) {
+  for (const pageData of Array.from(pageMap.values())) {
     const matchingCount = pageData.matchingBlocks.length;
     const totalCount = pageData.totalBlocks;
 
@@ -1659,6 +1987,7 @@ const sortPageResults = (
 export const findPagesByContentTool = tool(
   async (llmInput, config) => {
     const startTime = performance.now();
+    console.log('🔍 [findPagesByContentTool] RAW LLM INPUT:', JSON.stringify(llmInput, null, 2));
     try {
       // Auto-enrich with internal parameters (will be set by agent state)
       const enrichedInput = {
@@ -1673,13 +2002,31 @@ export const findPagesByContentTool = tool(
         includeContentStats: false,
         minTotalBlocks: 1,
         maxTotalBlocks: undefined,
+        searchScope: llmInput.searchScope || "block",
+        excludeBlockUid: (llmInput as any).excludeBlockUid || "", // Preserve agent-injected exclusion
+        
+        // Add missing schema properties with defaults
+        minBlockCount: llmInput.minBlockCount || 1,
+        includeBlockCount: true,
+        includeBlockSamples: llmInput.includeBlockSamples !== false, // Default true
+        maxSamples: llmInput.maxSamples || 5,
+        sortBy: llmInput.sortBy || "relevance",
+        limit: llmInput.limit || 200,
+        fromResultId: llmInput.fromResultId,
+        limitToPageUids: undefined, // Will be handled by agent
+        groupCombination: llmInput.groupCombination || "AND",
+        
         // Ensure conditions have all required fields
-        conditions: llmInput.conditions.map((cond) => ({
+        conditions: llmInput.conditions?.map((cond) => ({
           ...cond,
           semanticExpansion: undefined,
           weight: 1.0,
-        })),
+        })) || [],
       };
+      
+      console.log('🔍 [findPagesByContentTool] ENRICHED INPUT searchScope:', enrichedInput.searchScope);
+      console.log('🔍 [findPagesByContentTool] ENRICHED INPUT excludeBlockUid:', enrichedInput.excludeBlockUid);
+      console.log('🔍 [findPagesByContentTool] ENRICHED INPUT conditions:', JSON.stringify(enrichedInput.conditions, null, 2));
 
       // Extract state from config
       const state = config?.configurable?.state;
@@ -1705,7 +2052,7 @@ export const findPagesByContentTool = tool(
   {
     name: "findPagesByContent",
     description:
-      "Find pages by analyzing their block content. Search for pages containing specific text, page references, or attributes. Supports block counting, content filtering, and result aggregation. Use for 'pages that contain X' or 'pages with attributes' queries.",
+      "Find pages by analyzing their block content. SIMPLE: Use 'conditions' array for basic AND/OR logic. GROUPED: Use 'conditionGroups' for complex logic like ((A|B) AND NOT C). SCOPE: Use 'searchScope=content' for content-wide AND (conditions across different blocks) or 'block' for same-block matching. Supports syntax: page:(content:term) or page:(block:(term)). Use for 'pages that contain X' or 'pages with attributes' queries.",
     schema: llmFacingSchema, // Use minimal schema for better LLM experience
   }
 );

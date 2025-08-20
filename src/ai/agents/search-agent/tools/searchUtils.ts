@@ -1567,7 +1567,7 @@ export const getBatchBlockParents = async (
 
       if (allParentUids.length > 0) {
         // Remove duplicates
-        const uniqueParentUids = [...new Set(allParentUids)];
+        const uniqueParentUids = Array.from(new Set(allParentUids));
 
         // Batch query for grandparents (only need one representative per child)
         const grandparentsByParent = await getBatchBlockParents(
@@ -2174,8 +2174,8 @@ export const extractUidsFromResults = (
   }
 
   // Remove duplicates
-  finalBlockUids = [...new Set(finalBlockUids)];
-  finalPageUids = [...new Set(finalPageUids)];
+  finalBlockUids = Array.from(new Set(finalBlockUids));
+  finalPageUids = Array.from(new Set(finalPageUids));
 
   return { blockUids: finalBlockUids, pageUids: finalPageUids };
 };
@@ -2304,5 +2304,285 @@ export const sanitizeRegexForDatomic = (
   return {
     pattern: sanitizedPattern,
     isCaseInsensitive,
+  };
+};
+
+/**
+ * Page-wide query builder for findPagesByContent
+ * Implements page-wide AND/OR semantics where conditions can match across different blocks
+ */
+export class PageWideQueryBuilder {
+  constructor(
+    private conditions: SearchCondition[],
+    private combination: "AND" | "OR",
+    private baseQuery: string = "[:find ?page-uid ?page-title :where [?page :node/title ?page-title] [?page :block/uid ?page-uid]",
+    private excludeBlockUid?: string
+  ) {}
+
+  /**
+   * Build page-wide query based on combination logic
+   */
+  buildPageWideQuery(): { query: string; patternDefinitions: string } {
+    if (this.combination === "AND") {
+      return this.buildPageWideAND();
+    } else {
+      return this.buildPageWideOR();
+    }
+  }
+
+  /**
+   * Build page-wide AND query: each condition can match in different blocks
+   * A + B - C = page has A somewhere AND B somewhere AND NOT C anywhere
+   */
+  private buildPageWideAND(): { query: string; patternDefinitions: string } {
+    const positiveConditions = this.conditions.filter(c => !c.negate);
+    const negativeConditions = this.conditions.filter(c => c.negate);
+    
+    let query = this.baseQuery;
+    let patternDefinitions = "";
+    let patternIndex = 0;
+
+    // Each positive condition gets its own block variable
+    positiveConditions.forEach((condition, i) => {
+      query += `\n                [?block-${i} :block/page ?page]`;
+      
+      // Exclude user query block if specified
+      if (this.excludeBlockUid) {
+        query += `\n                [?block-${i} :block/uid ?block-${i}-uid]`;
+        query += `\n                [(not= ?block-${i}-uid "${this.excludeBlockUid}")]`;
+      }
+      
+      // Only add :block/string for text/regex conditions
+      if (condition.type === "text" || condition.type === "regex") {
+        query += `\n                [?block-${i} :block/string ?content-${i}]`;
+        const { clause, patterns } = this.buildConditionClause(
+          condition, 
+          patternIndex, 
+          `?content-${i}`
+        );
+        query += clause;
+        patternDefinitions += patterns;
+      } else {
+        // For page_ref/block_ref conditions, use block variable directly
+        const { clause, patterns } = this.buildConditionClause(
+          condition, 
+          patternIndex, 
+          `?content-${i}` // buildConditionClause will convert ?content to ?block internally
+        );
+        query += clause;
+        patternDefinitions += patterns;
+      }
+      patternIndex++;
+    });
+
+    // Negative conditions use not-join to exclude entire pages
+    negativeConditions.forEach((condition, i) => {
+      query += `\n                (not-join [?page]`;
+      query += `\n                  [?block-neg-${i} :block/page ?page]`;
+      
+      // Exclude user query block if specified
+      if (this.excludeBlockUid) {
+        query += `\n                  [?block-neg-${i} :block/uid ?block-neg-${i}-uid]`;
+        query += `\n                  [(not= ?block-neg-${i}-uid "${this.excludeBlockUid}")]`;
+      }
+      
+      // Only add :block/string for text/regex conditions
+      if (condition.type === "text" || condition.type === "regex") {
+        query += `\n                  [?block-neg-${i} :block/string ?content-neg-${i}]`;
+        const { clause, patterns } = this.buildConditionClause(
+          { ...condition, negate: false }, 
+          patternIndex, 
+          `?content-neg-${i}`
+        );
+        query += clause.replace(/\n                /g, "\n                  ");
+        patternDefinitions += patterns;
+      } else {
+        // For page_ref/block_ref conditions, use content variable (will be converted internally)
+        const { clause, patterns } = this.buildConditionClause(
+          { ...condition, negate: false }, 
+          patternIndex, 
+          `?content-neg-${i}` // buildConditionClause will convert ?content to ?block internally
+        );
+        query += clause.replace(/\n                /g, "\n                  ");
+        patternDefinitions += patterns;
+      }
+      query += `\n                )`;
+      patternIndex++;
+    });
+
+    query += `]`;
+    return { query, patternDefinitions };
+  }
+
+  /**
+   * Build page-wide OR query: page matches if ANY condition matches in ANY block
+   */
+  private buildPageWideOR(): { query: string; patternDefinitions: string } {
+    let query = this.baseQuery;
+    let patternDefinitions = "";
+    
+    // For OR logic, we can use a single block variable with or-join
+    query += `\n                [?block :block/page ?page]`;
+    
+    // Exclude user query block if specified
+    if (this.excludeBlockUid) {
+      query += `\n                [?block :block/uid ?block-uid]`;
+      query += `\n                [(not= ?block-uid "${this.excludeBlockUid}")]`;
+    }
+    
+    query += `\n                (or-join [?page]`;
+
+    this.conditions.forEach((condition, i) => {
+      const { clause, patterns } = this.buildConditionClause(condition, i, "?content");
+      
+      if (condition.negate) {
+        query += `\n                  (not`;
+        query += clause.replace(/\n                /g, "\n                    ");
+        query += `\n                  )`;
+      } else {
+        query += `\n                  (and`;
+        query += clause.replace(/\n                /g, "\n                    ");
+        query += `\n                  )`;
+      }
+      
+      patternDefinitions += patterns;
+    });
+
+    query += `\n                )`;
+    query += `]`;
+    return { query, patternDefinitions };
+  }
+
+  /**
+   * Build condition clause for a single condition
+   */
+  private buildConditionClause(
+    condition: SearchCondition, 
+    patternIndex: number, 
+    contentVar: string
+  ): { clause: string; patterns: string } {
+    let clause = "";
+    let patterns = "";
+
+    switch (condition.type) {
+      case "page_ref":
+        // Use proper Roam :block/refs attribute
+        clause = `\n                [?ref-page${patternIndex} :node/title "${condition.text}"]`;
+        clause += `\n                [${contentVar.replace('?content', '?block')} :block/refs ?ref-page${patternIndex}]`;
+        break;
+
+      case "block_ref":
+        // Use proper Roam :block/refs attribute for block references
+        clause = `\n                [?ref-block${patternIndex} :block/uid "${condition.text}"]`;
+        clause += `\n                [${contentVar.replace('?content', '?block')} :block/refs ?ref-block${patternIndex}]`;
+        break;
+
+      case "regex":
+      case "text":
+      default:
+        // Use regex pattern matching
+        const isRegex = condition.type === "regex" || condition.matchType === "regex";
+        let pattern: string;
+        
+        if (isRegex) {
+          const { pattern: sanitizedPattern } = sanitizeRegexForDatomic(condition.text);
+          pattern = sanitizedPattern;
+        } else {
+          // Escape special regex characters for text matching
+          const escapedText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          pattern = condition.matchType === "exact" 
+            ? `^${escapedText}$` 
+            : `(?i).*${escapedText}.*`;
+        }
+        
+        patterns += `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`;
+        clause = `\n                [(re-find ?pattern${patternIndex} ${contentVar})]`;
+        break;
+    }
+
+    return { clause, patterns };
+  }
+}
+
+/**
+ * Process condition groups for page-wide search
+ * Maps conditionGroups to appropriate page-wide query structure
+ */
+export const processConditionGroupsForPageWide = (
+  conditionGroups: any[],
+  groupCombination: "AND" | "OR"
+): { conditions: SearchCondition[]; combination: "AND" | "OR" } => {
+  // Convert grouped conditions to flat structure for page-wide processing
+  // Each group will be handled as a single logical unit
+  
+  if (groupCombination === "AND") {
+    // For AND between groups, we need each group to match in the page
+    // This requires special handling for OR groups (convert to regex)
+    const processedConditions: SearchCondition[] = [];
+    
+    conditionGroups.forEach(group => {
+      if (group.combination === "OR" && group.conditions.length > 1) {
+        // Convert OR group to single regex condition for page-wide search
+        const regexParts = group.conditions.map((c: any) => {
+          if (c.type === "page_ref") {
+            const escapedText = c.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            return `.*(\\[\\[${escapedText}\\]\\]|#${escapedText}|${escapedText}::).*`;
+          } else {
+            const escapedText = c.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            return `.*${escapedText}.*`;
+          }
+        });
+        
+        const combinedRegex = `(?i)(${regexParts.join("|")})`;
+        processedConditions.push({
+          type: "regex",
+          text: combinedRegex,
+          matchType: "regex",
+          negate: false
+        } as SearchCondition);
+      } else {
+        // AND group or single condition - add all conditions
+        processedConditions.push(...group.conditions);
+      }
+    });
+    
+    return { conditions: processedConditions, combination: "AND" };
+  } else {
+    // For OR between groups, flatten all conditions
+    const allConditions = conditionGroups.flatMap(group => group.conditions);
+    return { conditions: allConditions, combination: "OR" };
+  }
+};
+
+/**
+ * Parse syntax patterns for page-wide vs same-block search
+ * Supports: page:(content:...) for page-wide, page:(block:(...)) for same-block
+ */
+export const parsePageSearchSyntax = (query: string): {
+  searchScope: "content" | "block";
+  extractedQuery: string;
+} => {
+  // Check for page:(block:(...)) pattern
+  const blockScopeMatch = query.match(/page:\s*\(\s*block:\s*\((.*?)\)\s*\)/i);
+  if (blockScopeMatch) {
+    return {
+      searchScope: "block",
+      extractedQuery: blockScopeMatch[1]
+    };
+  }
+
+  // Check for page:(content:...) pattern  
+  const contentScopeMatch = query.match(/page:\s*\(\s*content:\s*(.*?)\s*\)/i);
+  if (contentScopeMatch) {
+    return {
+      searchScope: "content", 
+      extractedQuery: contentScopeMatch[1]
+    };
+  }
+
+  // Default: assume content-wide search for findPagesByContent
+  return {
+    searchScope: "content",
+    extractedQuery: query
   };
 };

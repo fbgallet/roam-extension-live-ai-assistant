@@ -1899,6 +1899,16 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     console.log(
       `🔀 [Graph] Assistant → TOOLS (${lastMessage.tool_calls.length} tool calls)`
     );
+    
+    // Debug logging: capture tool calls before schema validation
+    console.log('🔍 [DEBUG] RAW TOOL CALLS BEFORE VALIDATION:');
+    lastMessage.tool_calls.forEach((toolCall: any, index: number) => {
+      console.log(`🔍 [DEBUG] Tool Call ${index + 1}:`, {
+        name: toolCall.name,
+        args: JSON.stringify(toolCall.args, null, 2)
+      });
+    });
+    
     return "tools";
   }
 
