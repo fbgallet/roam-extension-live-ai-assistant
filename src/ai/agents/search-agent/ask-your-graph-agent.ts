@@ -183,6 +183,8 @@ const ReactSearchAgentState = Annotation.Root({
   // Timing and cancellation
   startTime: Annotation<number>,
   abortSignal: Annotation<AbortSignal | undefined>,
+  // Automatic semantic expansion setting
+  automaticExpansion: Annotation<boolean>,
 });
 
 // Global variables for the agent
