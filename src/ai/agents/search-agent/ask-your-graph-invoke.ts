@@ -1,8 +1,5 @@
 import { defaultModel, automaticSemanticExpansion } from "../../..";
-import {
-  LlmInfos,
-  TokensUsage,
-} from "../langraphModelsLoader";
+import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
 import {
   displaySpinner,
@@ -21,12 +18,10 @@ import {
   handleRetryLogic,
   validatePermissions,
 } from "../shared/agentsUtils";
-import {
-  deduplicateResultsByUid,
-} from "./tools/searchUtils";
+import { deduplicateResultsByUid } from "./tools/searchUtils";
 import {
   clearAgentController,
-  markAgentAsStopped
+  markAgentAsStopped,
 } from "../../../components/Toaster.js";
 
 let turnTokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 };
@@ -58,6 +53,10 @@ interface SearchAgentInvoker {
     expansionLevel?: number;
     expansionConsent?: boolean;
     zeroResultsAttempts?: number;
+    // Direct expansion parameters
+    isDirectExpansion?: boolean;
+    semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all";
+    isExpansionGlobal?: boolean;
   };
   // NEW: External context from chat or other components
   externalContext?: {
@@ -90,16 +89,16 @@ const invokeSearchAgentInternal = async ({
   options,
 }: SearchAgentInvoker) => {
   const startTime = Date.now();
-  
+
   // Create abort controller for cancellation
   const abortController = new AbortController();
-  
+
   // Essential debug for conversation mode and caching
   if (agentData?.isConversationMode) {
     console.log("🔄 Conversation mode - cached data:", {
       cachedResultsCount: Object.keys(agentData.cachedFullResults || {}).length,
       hasLimitedResults: agentData.hasLimitedResults,
-      historyLength: agentData.conversationHistory?.length || 0
+      historyLength: agentData.conversationHistory?.length || 0,
     });
   }
 
@@ -112,14 +111,18 @@ const invokeSearchAgentInternal = async ({
     if (permissions.contentAccess) return { name: "Full Access", icon: "🔓" };
     return { name: "Balanced", icon: "🛡️" };
   };
-  
+
   const modeInfo = getModeInfo(privateMode, permissions);
-  initializeAgentToaster("search", `${modeInfo.icon} ${modeInfo.name} mode`, abortController);
+  initializeAgentToaster(
+    "search",
+    `${modeInfo.icon} ${modeInfo.name} mode`,
+    abortController
+  );
 
   try {
     // Handle conversation state and retry logic using shared utilities
     const isConversationMode = agentData?.isConversationMode || false;
-    
+
     // Process prompt with retry instructions using shared utility
     const finalPrompt = handleRetryLogic(prompt, options);
 
@@ -144,8 +147,12 @@ const invokeSearchAgentInternal = async ({
 
     // NEW: Process external context and integrate into agent's result management
     if (externalContext?.results && externalContext.results.length > 0) {
-      console.log(`📥 Integrating external context: ${externalContext.results.length} results from ${externalContext.contextType || 'unknown source'}`);
-      
+      console.log(
+        `📥 Integrating external context: ${
+          externalContext.results.length
+        } results from ${externalContext.contextType || "unknown source"}`
+      );
+
       // Create a result entry for external context
       const externalResultId = "external_context_001";
       const externalCacheEntry = {
@@ -155,20 +162,23 @@ const invokeSearchAgentInternal = async ({
           metadata: {
             totalFound: externalContext.results.length,
             contextType: externalContext.contextType || "custom",
-            description: externalContext.description || "External context results"
-          }
+            description:
+              externalContext.description || "External context results",
+          },
         },
-        userQuery: `External context: ${externalContext.description || 'Chat results'}`,
+        userQuery: `External context: ${
+          externalContext.description || "Chat results"
+        }`,
         timestamp: Date.now(),
-        canExpand: false
+        canExpand: false,
       };
-      
+
       // Add to cached results for conversation context
       if (!conversationData.cachedFullResults) {
         conversationData.cachedFullResults = {};
       }
       conversationData.cachedFullResults[externalResultId] = externalCacheEntry;
-      
+
       // Add to result store if supported
       if (conversationData.resultStore) {
         conversationData.resultStore[externalResultId] = {
@@ -176,11 +186,13 @@ const invokeSearchAgentInternal = async ({
           purpose: "final" as const,
           status: "active" as const,
           toolName: "externalContext",
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       }
-      
-      console.log(`📥 External context integrated as ${externalResultId}: ${externalContext.results.length} results`);
+
+      console.log(
+        `📥 External context integrated as ${externalResultId}: ${externalContext.results.length} results`
+      );
     }
 
     // Store search parameters globally for potential post-completion expansion
@@ -189,44 +201,65 @@ const invokeSearchAgentInternal = async ({
       const existingListeners = (window as any)._expansionListeners || [];
       existingListeners.forEach((listener: any) => {
         try {
-          window.removeEventListener('agentExpansion', listener);
+          window.removeEventListener("agentExpansion", listener);
         } catch (e) {
           // Ignore errors from removing non-existent listeners
         }
       });
       (window as any)._expansionListeners = []; // Clear the tracking array
-      
+
       // Also try to remove old-style listeners (for VM cached code)
       try {
-        window.removeEventListener('agentExpansion', (window as any).handleExpansionEvent);
+        window.removeEventListener(
+          "agentExpansion",
+          (window as any).handleExpansionEvent
+        );
       } catch (e) {
         // Ignore if it doesn't exist
       }
-      
+
+      // Clear expansion history for NEW searches (not direct expansions)
+      if (!conversationData.isDirectExpansion) {
+        const queryKey = finalPrompt.toLowerCase().trim();
+        console.log("🧹 [New Search] Clearing expansion history for fresh search:", queryKey);
+        
+        // Clear expansion history for this specific query to start fresh
+        const expansionHistory = (window as any).searchExpansionHistory || {};
+        delete expansionHistory[queryKey];
+        (window as any).searchExpansionHistory = expansionHistory;
+      }
+
       (window as any).lastSearchQuery = finalPrompt;
       (window as any).lastSearchRootUid = rootUid;
       (window as any).lastSearchParams = {
         model,
         permissions,
         privateMode,
-        options
+        options,
       };
     }
 
     console.log(`🚀 Starting ReAct Search Agent: "${finalPrompt}"`);
     console.log(`🔍 Conversation parameters:`, {
       conversationHistory: conversationData.conversationHistory,
-      conversationHistoryLength: conversationData.conversationHistory?.length || 0,
+      conversationHistoryLength:
+        conversationData.conversationHistory?.length || 0,
       conversationSummary: conversationData.conversationSummary,
       hasLimitedResults: conversationData.hasLimitedResults,
       isConversationMode: isConversationMode,
-      cachedResultsCount: Object.keys(conversationData.cachedFullResults || {}).length,
-      toolResultsCacheCount: Object.keys(conversationData.toolResultsCache || {}).length,
+      cachedResultsCount: Object.keys(conversationData.cachedFullResults || {})
+        .length,
+      toolResultsCacheCount: Object.keys(
+        conversationData.toolResultsCache || {}
+      ).length,
       externalContextResults: externalContext?.results?.length || 0,
     });
 
     // Additional debugging for conversation history content
-    if (conversationData.conversationHistory && conversationData.conversationHistory.length > 0) {
+    if (
+      conversationData.conversationHistory &&
+      conversationData.conversationHistory.length > 0
+    ) {
       console.log(
         `🔍 Conversation history content:`,
         conversationData.conversationHistory.slice(-2)
@@ -262,7 +295,22 @@ const invokeSearchAgentInternal = async ({
       abortSignal: abortController.signal,
       // Add automatic semantic expansion setting from extension
       automaticExpansion: automaticSemanticExpansion,
+      
+      // Add expansion parameters for direct expansion  
+      isDirectExpansion: Boolean(conversationData.isDirectExpansion),
+      semanticExpansion: conversationData.semanticExpansion || undefined,
+      isExpansionGlobal: Boolean(conversationData.isExpansionGlobal),
     };
+
+    // Debug expansion parameters
+    if (conversationData.isDirectExpansion) {
+      console.log(`🔧 [Direct Expansion] Initial state created with:`, {
+        isDirectExpansion: initialState.isDirectExpansion,
+        semanticExpansion: initialState.semanticExpansion,
+        isExpansionGlobal: initialState.isExpansionGlobal,
+        expansionLevel: initialState.expansionLevel
+      });
+    }
 
     // Store state globally for expansion handling
     if (typeof window !== "undefined") {
@@ -271,7 +319,7 @@ const invokeSearchAgentInternal = async ({
 
     // Invoke agent with interrupt handling
     let response = await ReactSearchAgent.invoke(initialState);
-    
+
     // If the response has pendingExpansion, it means we need to wait for user input
     // The state has been updated by showResultsThenExpand, so we don't resume from this response
     if ((response as any).pendingExpansion) {
@@ -280,85 +328,118 @@ const invokeSearchAgentInternal = async ({
     }
 
     // Check if the graph was interrupted (user needs to provide input)
-    if ((response as any).pendingExpansion || (!response.finalAnswer && !response.targetUid)) {
+    if (
+      (response as any).pendingExpansion ||
+      (!response.finalAnswer && !response.targetUid)
+    ) {
       console.log("🚧 [Graph] Execution interrupted - waiting for user input");
-      
+
       // Set up a promise that resolves when user makes a choice
       return new Promise((resolve, reject) => {
         // Add a flag to prevent duplicate handling during rapid clicks
         let isProcessingExpansion = false;
         let timeoutId: NodeJS.Timeout;
         let abortListener: () => void;
-        
+
         // Listen for expansion events from toaster buttons
         const expansionEventListener = async (event: CustomEvent) => {
           if (isProcessingExpansion) {
-            console.log("🚫 [Graph] Expansion already in progress, ignoring duplicate event");
+            console.log(
+              "🚫 [Graph] Expansion already in progress, ignoring duplicate event"
+            );
             return;
           }
           isProcessingExpansion = true;
-          
+
           try {
             console.log("🚀 [Graph] Expansion choice made:", event.detail);
-            
+
             // Clean up listeners and timers immediately
-            window.removeEventListener('agentExpansion', expansionEventListener);
+            window.removeEventListener(
+              "agentExpansion",
+              expansionEventListener
+            );
             if (timeoutId) clearTimeout(timeoutId);
-            if (abortListener) abortController.signal.removeEventListener('abort', abortListener);
-            
+            if (abortListener)
+              abortController.signal.removeEventListener(
+                "abort",
+                abortListener
+              );
+
             // Update agent state with expansion consent
             if ((window as any).currentSearchAgentState) {
               const state = (window as any).currentSearchAgentState;
               const { action, label, emoji } = event.detail;
-              
+
               console.log(`🚀 [Expansion] User selected: ${emoji} ${label}`);
-              
+
               // Grant expansion consent and increment expansion level
               state.expansionConsent = true;
               state.expansionLabel = label;
               state.expansionLevel = (state.expansionLevel || 0) + 1;
-              
+
               // Set expansion strategy based on selected option
               if (action.includes("hierarchical")) {
                 state.searchStrategy = "hierarchical";
-              } else if (action.includes("fuzzy") || action.includes("semantic")) {
-                state.expansionState = { ...state.expansionState, searchStrategy: "semantic" };
+              } else if (
+                action.includes("fuzzy") ||
+                action.includes("semantic")
+              ) {
+                state.expansionState = {
+                  ...state.expansionState,
+                  searchStrategy: "semantic",
+                };
               } else if (action.includes("same-block")) {
                 state.searchStrategy = "flat";
               } else if (action.includes("multi-tool")) {
-                state.expansionState = { ...state.expansionState, searchStrategy: "multi_tool" };
+                state.expansionState = {
+                  ...state.expansionState,
+                  searchStrategy: "multi_tool",
+                };
               } else {
-                state.expansionState = { ...state.expansionState, searchStrategy: action }; // Generic fallback
+                state.expansionState = {
+                  ...state.expansionState,
+                  searchStrategy: action,
+                }; // Generic fallback
               }
-              
+
               // Clear pending expansion flag
               state.pendingExpansion = false;
-              
-              console.log(`🔄 [Expansion] Continuing with strategy: ${state.searchStrategy || state.expansionState?.searchStrategy || "default"}`);
+
+              console.log(
+                `🔄 [Expansion] Continuing with strategy: ${
+                  state.searchStrategy ||
+                  state.expansionState?.searchStrategy ||
+                  "default"
+                }`
+              );
             }
-            
+
             // Update toaster to show expansion is starting
             updateAgentToaster(`🚀 ${event.detail.label}...`);
-            
+
             // Resume the graph execution from where it left off
             console.log("🔄 [Graph] State before resume:", {
-              expansionConsent: (window as any).currentSearchAgentState.expansionConsent,
-              expansionLevel: (window as any).currentSearchAgentState.expansionLevel,
-              pendingExpansion: (window as any).currentSearchAgentState.pendingExpansion
+              expansionConsent: (window as any).currentSearchAgentState
+                .expansionConsent,
+              expansionLevel: (window as any).currentSearchAgentState
+                .expansionLevel,
+              pendingExpansion: (window as any).currentSearchAgentState
+                .pendingExpansion,
             });
-            
+
             const finalResponse = await ReactSearchAgent.invoke(
               (window as any).currentSearchAgentState,
-              { 
+              {
                 recursionLimit: 50,
-                streamMode: "values"
+                streamMode: "values",
               }
             );
-            
+
             // Clean up global state
             delete (window as any).currentSearchAgentState;
             delete (window as any).currentSearchAgentExecution;
-            
+
             // Process the final response and resolve with its result
             const result = await processAgentResponse(finalResponse);
             resolve(result);
@@ -367,7 +448,7 @@ const invokeSearchAgentInternal = async ({
             reject(error);
           }
         };
-        
+
         // Set up event listener and cleanup mechanisms
         if (typeof window !== "undefined") {
           // CRITICAL: Remove any existing expansion listeners to prevent duplicates
@@ -375,44 +456,58 @@ const invokeSearchAgentInternal = async ({
           const allEventListeners = (window as any)._expansionListeners || [];
           allEventListeners.forEach((listener: any) => {
             try {
-              window.removeEventListener('agentExpansion', listener);
+              window.removeEventListener("agentExpansion", listener);
             } catch (e) {
               // Ignore errors from removing non-existent listeners
             }
           });
-          
+
           // Track this listener for cleanup
           (window as any)._expansionListeners = [expansionEventListener];
-          window.addEventListener('agentExpansion', expansionEventListener);
-          
+          window.addEventListener("agentExpansion", expansionEventListener);
+
           // Store continuation function for manual triggering if needed
           (window as any).currentSearchAgentExecution = {
             continueWithExpansion: async () => {
-              const mockEvent = new CustomEvent('agentExpansion', {
-                detail: { action: 'smart expansion', label: 'Smart expansion', emoji: '🔍' }
+              const mockEvent = new CustomEvent("agentExpansion", {
+                detail: {
+                  action: "smart expansion",
+                  label: "Smart expansion",
+                  emoji: "🔍",
+                },
               });
               window.dispatchEvent(mockEvent);
-            }
+            },
           };
-          
+
           // Check if user cancelled during interrupt
           if (abortController.signal.aborted) {
             reject(new Error("Operation cancelled by user"));
             return;
           }
-          
+
           // Listen for abort signal during interrupt
           abortListener = () => {
-            window.removeEventListener('agentExpansion', expansionEventListener);
+            window.removeEventListener(
+              "agentExpansion",
+              expansionEventListener
+            );
             if (timeoutId) clearTimeout(timeoutId);
             reject(new Error("Operation cancelled by user"));
           };
-          abortController.signal.addEventListener('abort', abortListener);
-          
+          abortController.signal.addEventListener("abort", abortListener);
+
           // Set a timeout to prevent hanging indefinitely
           timeoutId = setTimeout(() => {
-            window.removeEventListener('agentExpansion', expansionEventListener);
-            if (abortListener) abortController.signal.removeEventListener('abort', abortListener);
+            window.removeEventListener(
+              "agentExpansion",
+              expansionEventListener
+            );
+            if (abortListener)
+              abortController.signal.removeEventListener(
+                "abort",
+                abortListener
+              );
             reject(new Error("User input timeout - no expansion choice made"));
           }, 300000); // 5 minutes timeout
         }
@@ -426,99 +521,156 @@ const invokeSearchAgentInternal = async ({
     async function processAgentResponse(response: any): Promise<any> {
       try {
         // Extract full results for the popup functionality
-    const allFullResults = [];
-    console.log("🔍 [ask-your-graph-invoke] response.cachedFullResults:", response.cachedFullResults);
-    console.log("🔍 [ask-your-graph-invoke] response.resultStore:", response.resultStore);
-    
-    // NEW: Check the token-optimized resultStore first (preferred)
-    if (response.resultStore) {
-      Object.values(response.resultStore).forEach((resultEntry: any) => {
-        console.log("🔍 [ask-your-graph-invoke] Processing resultStore entry:", resultEntry);
-        
-        // Handle new lifecycle structure: {data: Array, purpose: string, status: string, ...}
-        if (resultEntry && resultEntry.data && Array.isArray(resultEntry.data)) {
-          const validResults = resultEntry.data.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
-          console.log("🔍 [ask-your-graph-invoke] Valid results from new structure:", validResults.length);
-          allFullResults.push(...validResults);
-        }
-        // Handle legacy structure: direct array
-        else if (Array.isArray(resultEntry)) {
-          const validResults = resultEntry.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
-          console.log("🔍 [ask-your-graph-invoke] Valid results from legacy structure:", validResults.length);
-          allFullResults.push(...validResults);
-        }
-      });
-    }
-    
-    // FALLBACK: Check legacy cachedFullResults for backward compatibility
-    if (response.cachedFullResults && allFullResults.length === 0) {
-      Object.values(response.cachedFullResults).forEach((toolResults: any) => {
-        console.log("🔍 [ask-your-graph-invoke] Processing legacy cachedFullResults:", toolResults);
-        if (Array.isArray(toolResults)) {
-          const validResults = toolResults.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
-          console.log("🔍 [ask-your-graph-invoke] Valid results with UIDs:", validResults.length);
-          allFullResults.push(...validResults);
-        } else if (toolResults && toolResults.fullResults && Array.isArray(toolResults.fullResults.data)) {
-          // Handle the case where results are nested under fullResults.data
-          const validResults = toolResults.fullResults.data.filter(r => r && (r.uid || r.pageUid || r.pageTitle));
-          console.log("🔍 [ask-your-graph-invoke] Valid nested results with UIDs:", validResults.length);
-          allFullResults.push(...validResults);
-        }
-      });
-    }
-    
-    // CRITICAL: Deduplicate full results by UID to prevent duplicate entries in popup
-    const fullResults = deduplicateResultsByUid(allFullResults, "ask-your-graph-invoke");
-    
-    console.log("🔍 [ask-your-graph-invoke] Full results before deduplication:", allFullResults.length);
-    console.log("🔍 [ask-your-graph-invoke] Full results after deduplication:", fullResults.length);
+        const allFullResults = [];
+        console.log(
+          "🔍 [ask-your-graph-invoke] response.cachedFullResults:",
+          response.cachedFullResults
+        );
+        console.log(
+          "🔍 [ask-your-graph-invoke] response.resultStore:",
+          response.resultStore
+        );
 
-    // Calculate execution time and complete toaster with full results
-    const executionTime = formatExecutionTime(startTime);
-    completeAgentToaster("search", executionTime, turnTokensUsage, fullResults, response?.targetUid);
+        // NEW: Check the token-optimized resultStore first (preferred)
+        if (response.resultStore) {
+          Object.values(response.resultStore).forEach((resultEntry: any) => {
+            console.log(
+              "🔍 [ask-your-graph-invoke] Processing resultStore entry:",
+              resultEntry
+            );
 
-    // Insert conversation buttons for continued interaction
-    if (response && response.targetUid) {
-      const conversationState = await buildAgentConversationState(
-        conversationData.conversationHistory || [],
-        conversationData.conversationSummary,
-        finalPrompt,
-        response.finalAnswer || "",
-        llmInfos,
-        turnTokensUsage,
-        conversationData.exchangesSinceLastSummary || 0,
-        "search"
-      );
+            // Handle new lifecycle structure: {data: Array, purpose: string, status: string, ...}
+            if (
+              resultEntry &&
+              resultEntry.data &&
+              Array.isArray(resultEntry.data)
+            ) {
+              const validResults = resultEntry.data.filter(
+                (r) => r && (r.uid || r.pageUid || r.pageTitle)
+              );
+              console.log(
+                "🔍 [ask-your-graph-invoke] Valid results from new structure:",
+                validResults.length
+              );
+              allFullResults.push(...validResults);
+            }
+            // Handle legacy structure: direct array
+            else if (Array.isArray(resultEntry)) {
+              const validResults = resultEntry.filter(
+                (r) => r && (r.uid || r.pageUid || r.pageTitle)
+              );
+              console.log(
+                "🔍 [ask-your-graph-invoke] Valid results from legacy structure:",
+                validResults.length
+              );
+              allFullResults.push(...validResults);
+            }
+          });
+        }
 
-      setTimeout(() => {
-        insertInstantButtons({
-          model: llmInfos.id,
-          prompt: [
-            { role: "user", content: finalPrompt },
-            {
-              role: "assistant",
-              content: response.finalAnswer || "",
-            },
-          ],
-          currentUid: rootUid,
-          targetUid: response.targetUid,
-          responseFormat: "text",
-          response: response.finalAnswer || "",
-          agentData: {
-            toolResultsCache: response.toolResultsCache || {},
-            cachedFullResults: response.cachedFullResults || {},
-            hasLimitedResults: response.hasLimitedResults || false,
-            conversationHistory: conversationState.conversationHistory,
-            conversationSummary: conversationState.conversationSummary,
-            exchangesSinceLastSummary:
-              conversationState.exchangesSinceLastSummary || 0,
-            previousResponse: response.finalAnswer || "",
-            isConversationMode: true,
-          },
-          aiCallback: invokeSearchAgent,
-        });
-      }, 200);
-    }
+        // FALLBACK: Check legacy cachedFullResults for backward compatibility
+        if (response.cachedFullResults && allFullResults.length === 0) {
+          Object.values(response.cachedFullResults).forEach(
+            (toolResults: any) => {
+              console.log(
+                "🔍 [ask-your-graph-invoke] Processing legacy cachedFullResults:",
+                toolResults
+              );
+              if (Array.isArray(toolResults)) {
+                const validResults = toolResults.filter(
+                  (r) => r && (r.uid || r.pageUid || r.pageTitle)
+                );
+                console.log(
+                  "🔍 [ask-your-graph-invoke] Valid results with UIDs:",
+                  validResults.length
+                );
+                allFullResults.push(...validResults);
+              } else if (
+                toolResults &&
+                toolResults.fullResults &&
+                Array.isArray(toolResults.fullResults.data)
+              ) {
+                // Handle the case where results are nested under fullResults.data
+                const validResults = toolResults.fullResults.data.filter(
+                  (r) => r && (r.uid || r.pageUid || r.pageTitle)
+                );
+                console.log(
+                  "🔍 [ask-your-graph-invoke] Valid nested results with UIDs:",
+                  validResults.length
+                );
+                allFullResults.push(...validResults);
+              }
+            }
+          );
+        }
+
+        // CRITICAL: Deduplicate full results by UID to prevent duplicate entries in popup
+        const fullResults = deduplicateResultsByUid(
+          allFullResults,
+          "ask-your-graph-invoke"
+        );
+
+        console.log(
+          "🔍 [ask-your-graph-invoke] Full results before deduplication:",
+          allFullResults.length
+        );
+        console.log(
+          "🔍 [ask-your-graph-invoke] Full results after deduplication:",
+          fullResults.length
+        );
+
+        // Calculate execution time and complete toaster with full results
+        const executionTime = formatExecutionTime(startTime);
+        completeAgentToaster(
+          "search",
+          executionTime,
+          turnTokensUsage,
+          fullResults,
+          response?.targetUid
+        );
+
+        // Insert conversation buttons for continued interaction
+        if (response && response.targetUid) {
+          const conversationState = await buildAgentConversationState(
+            conversationData.conversationHistory || [],
+            conversationData.conversationSummary,
+            finalPrompt,
+            response.finalAnswer || "",
+            llmInfos,
+            turnTokensUsage,
+            conversationData.exchangesSinceLastSummary || 0,
+            "search"
+          );
+
+          setTimeout(() => {
+            insertInstantButtons({
+              model: llmInfos.id,
+              prompt: [
+                { role: "user", content: finalPrompt },
+                {
+                  role: "assistant",
+                  content: response.finalAnswer || "",
+                },
+              ],
+              currentUid: rootUid,
+              targetUid: response.targetUid,
+              responseFormat: "text",
+              response: response.finalAnswer || "",
+              agentData: {
+                toolResultsCache: response.toolResultsCache || {},
+                cachedFullResults: response.cachedFullResults || {},
+                hasLimitedResults: response.hasLimitedResults || false,
+                conversationHistory: conversationState.conversationHistory,
+                conversationSummary: conversationState.conversationSummary,
+                exchangesSinceLastSummary:
+                  conversationState.exchangesSinceLastSummary || 0,
+                previousResponse: response.finalAnswer || "",
+                isConversationMode: true,
+              },
+              aiCallback: invokeSearchAgent,
+            });
+          }, 200);
+        }
 
         return response;
       } catch (error) {
@@ -528,15 +680,18 @@ const invokeSearchAgentInternal = async ({
     }
   } catch (error) {
     console.error("❌ Search Agent error:", error);
-    
+
     // Handle cancellation gracefully
-    if (error instanceof Error && error.message === "Operation cancelled by user") {
+    if (
+      error instanceof Error &&
+      error.message === "Operation cancelled by user"
+    ) {
       markAgentAsStopped();
       updateAgentToaster("🛑 Search cancelled by user");
     } else {
       errorAgentToaster(error as Error);
     }
-    
+
     throw error;
   } finally {
     removeSpinner(spinnerId);
@@ -589,8 +744,7 @@ export const invokeSearchAgent = async ({
 };
 
 /**
- * Direct expansion search that bypasses IntentParser and goes straight to assistant
- * with expansion parameters pre-configured
+ * Direct expansion search using existing invokeSearchAgent with expansion parameters
  */
 export const invokeExpandedSearchDirect = async ({
   query,
@@ -598,7 +752,7 @@ export const invokeExpandedSearchDirect = async ({
   expansionLabel,
   expansionLevel,
   rootUid,
-  searchParams
+  searchParams,
 }: {
   query: string;
   expansionStrategy: string;
@@ -607,149 +761,60 @@ export const invokeExpandedSearchDirect = async ({
   rootUid: string;
   searchParams: any;
 }) => {
-  console.log(`🚀 [Direct Expansion] Starting Level ${expansionLevel} expansion: ${expansionLabel}`);
-  console.log(`🎯 [Direct Expansion] Strategy: ${expansionStrategy}, Query: "${query}"`);
-  
-  try {
-    const startTime = Date.now();
-    
-    // Import what we need
-    const { modelAccordingToProvider } = await import('../../aiAPIsHub');
-    const { HumanMessage, SystemMessage } = await import('@langchain/core/messages');
-    const { ReactSearchAgent } = await import('./ask-your-graph-agent');
-    
-    // Create abort controller
-    const abortController = new AbortController();
-    
-    let llmInfos = modelAccordingToProvider(searchParams.model || "claude-3-5-sonnet-20241022");
-    
-    // Initialize toaster for this expansion
-    const { initializeAgentToaster, updateAgentToaster, completeAgentToaster } = await import('../shared/agentsUtils');
-    initializeAgentToaster("search", `🔄 Level ${expansionLevel} Expansion`, abortController);
-    
-    // Prepare state to go directly to assistant with expansion parameters
-    const directState = {
-      model: llmInfos,
-      rootUid,
-      userQuery: query,
-      messages: [
-        new SystemMessage(`You are performing a Level ${expansionLevel} expansion search using strategy: ${expansionLabel}.
-Original query: "${query}"
-Expansion approach: ${expansionStrategy}
+  console.log(
+    `🚀 [Direct Expansion] Starting Level ${expansionLevel} expansion: ${expansionLabel}`
+  );
+  console.log(
+    `🎯 [Direct Expansion] Strategy: ${expansionStrategy}, Query: "${query}"`
+  );
 
-Previous searches for this query have been tried. You should now apply the specified expansion strategy to find different or more comprehensive results.
-
-IMPORTANT: Since this is an expansion search, avoid exact matching (matchType="exact"). Use "contains" or "regex" matching to be more flexible and capture more results that the original exact search might have missed.`),
-        new HumanMessage(query)
-      ],
-      conversationHistory: [],
-      conversationSummary: undefined,
-      isConversationMode: false,
-      isDirectChat: false,
-      permissions: searchParams.permissions || { contentAccess: false },
-      privateMode: searchParams.privateMode || false,
-      
-      // Pre-configure expansion state
-      expansionConsent: true,
-      expansionLevel: expansionLevel,
-      expansionState: {
-        canExpand: true,
-        lastResultCount: 0,
-        searchStrategy: expansionStrategy,
-        queryComplexity: "expanded",
-        expansionApplied: true,
-        hasErrors: false
-      },
-      
-      // Initialize caching
-      toolResultsCache: {},
-      cachedFullResults: {},
-      hasLimitedResults: false,
-      resultSummaries: {},
-      resultStore: {},
-      nextResultId: 1,
-      startTime: Date.now(),
-      abortSignal: abortController.signal,
-    };
-    
-    updateAgentToaster(`🎯 Bypassing intent parser, going directly to assistant with expansion parameters...`);
-    
-    // Invoke the graph starting from assistant node (bypassing intent parser)
-    const response = await ReactSearchAgent.invoke(directState, {
-      recursionLimit: 50,
-      streamMode: "values"
-    });
-    
-    // Process the response (inline logic since processAgentResponse is not accessible)
-    try {
-      // Extract full results for the popup functionality
-      const allFullResults = [];
-      console.log("🔍 [Direct Expansion] response.resultStore:", response.resultStore);
-      
-      // Check the token-optimized resultStore first (preferred)
-      if (response.resultStore) {
-        Object.values(response.resultStore).forEach((resultEntry: any) => {
-          console.log("🔍 [Direct Expansion] Processing resultStore entry:", resultEntry);
-          
-          // Handle new lifecycle structure: {data: Array, purpose: string, status: string, ...}
-          if (resultEntry && resultEntry.data && Array.isArray(resultEntry.data)) {
-            const validResults = resultEntry.data.filter((r: any) => r && (r.uid || r.pageUid || r.pageTitle));
-            console.log("🔍 [Direct Expansion] Valid results from new structure:", validResults.length);
-            allFullResults.push(...validResults);
-          }
-          // Handle legacy structure: direct array
-          else if (Array.isArray(resultEntry)) {
-            const validResults = resultEntry.filter((r: any) => r && (r.uid || r.pageUid || r.pageTitle));
-            console.log("🔍 [Direct Expansion] Valid results from legacy structure:", validResults.length);
-            allFullResults.push(...validResults);
-          }
-        });
-      }
-      
-      // FALLBACK: Check legacy cachedFullResults for backward compatibility
-      if (response.cachedFullResults && allFullResults.length === 0) {
-        Object.values(response.cachedFullResults).forEach((toolResults: any) => {
-          console.log("🔍 [Direct Expansion] Processing legacy cachedFullResults:", toolResults);
-          if (Array.isArray(toolResults)) {
-            const validResults = toolResults.filter((r: any) => r && (r.uid || r.pageUid || r.pageTitle));
-            console.log("🔍 [Direct Expansion] Valid results with UIDs:", validResults.length);
-            allFullResults.push(...validResults);
-          } else if (toolResults && toolResults.fullResults && Array.isArray(toolResults.fullResults.data)) {
-            // Handle the case where results are nested under fullResults.data
-            const validResults = toolResults.fullResults.data.filter((r: any) => r && (r.uid || r.pageUid || r.pageTitle));
-            console.log("🔍 [Direct Expansion] Valid nested results with UIDs:", validResults.length);
-            allFullResults.push(...validResults);
-          }
-        });
-      }
-      
-      // Deduplicate full results by UID to prevent duplicate entries in popup
-      const { deduplicateResultsByUid } = await import('./tools/searchUtils');
-      const fullResults = deduplicateResultsByUid(allFullResults, "direct-expansion");
-      
-      console.log("🔍 [Direct Expansion] Full results before deduplication:", allFullResults.length);
-      console.log("🔍 [Direct Expansion] Full results after deduplication:", fullResults.length);
-
-      // Calculate execution time and complete toaster with full results
-      const executionTime = (Date.now() - startTime) / 1000;
-      const { formatExecutionTime } = await import('../shared/agentsUtils');
-      completeAgentToaster("search", executionTime, { input_tokens: 0, output_tokens: 0 }, fullResults, response?.targetUid);
-
-      console.log(`✅ [Direct Expansion] Completed in ${executionTime.toFixed(1)}s`);
-      
-      return response;
-      
-    } catch (error) {
-      console.error("❌ [Direct Expansion] Response processing error:", error);
-      throw error;
+  // Map expansion label to semantic expansion strategy for tools
+  const mapExpansionLabelToStrategy = (expansionLabel: string, expansionStrategy: string): "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | null => {
+    if (expansionLabel.includes("All") || expansionLabel.includes("all") || expansionLabel.includes("once")) {
+      return "all";
+    } else if (expansionLabel.includes("Fuzzy") || expansionLabel.includes("fuzzy") || expansionLabel.includes("typos")) {
+      return "fuzzy";  
+    } else if (expansionLabel.includes("Synonyms") || expansionLabel.includes("synonyms") || expansionLabel.includes("alternative")) {
+      return "synonyms";
+    } else if (expansionLabel.includes("Related") || expansionLabel.includes("related") || expansionLabel.includes("concepts")) {
+      return "related_concepts";
+    } else if (expansionLabel.includes("Broader") || expansionLabel.includes("broader") || expansionLabel.includes("categories")) {
+      return "broader_terms";
     }
-    
-  } catch (error) {
-    console.error("❌ [Direct Expansion] Error:", error);
-    const { errorAgentToaster } = await import('../shared/agentsUtils');
-    errorAgentToaster(error as Error);
-    throw error;
-  }
+    return null;
+  };
+
+  // Create expansion agent data to pass semantic expansion parameters
+  const expansionAgentData = {
+    isConversationMode: false,
+    isDirectExpansion: true, // Flag for assistant bypass
+    semanticExpansion: mapExpansionLabelToStrategy(expansionLabel, expansionStrategy),
+    isExpansionGlobal: true,
+    expansionLevel: expansionLevel,
+    expansionConsent: true,
+    toolResultsCache: {},
+    cachedFullResults: {},
+    hasLimitedResults: false,
+    conversationHistory: [],
+    conversationSummary: undefined,
+    exchangesSinceLastSummary: 0
+  };
+
+  console.log(`🎯 [Direct Expansion] Mapped semantic expansion: "${expansionAgentData.semanticExpansion}"`);
+
+  // Use the standard invokeSearchAgent but with expansion parameters pre-configured
+  return await invokeSearchAgent({
+    model: searchParams.model || "claude-3-5-sonnet-20241022",
+    rootUid,
+    targetUid: rootUid,
+    target: "",
+    prompt: query,
+    permissions: searchParams.permissions,
+    privateMode: searchParams.privateMode,
+    isDirectChat: false, // Keep normal Roam insertion behavior
+    previousAgentState: expansionAgentData,
+    options: searchParams.options
+  });
 };
 
 // Legacy invokeAskAgent for backward compatibility
@@ -827,4 +892,3 @@ export const invokeSearchAgentFull = async ({
     options,
   });
 };
-

@@ -23,8 +23,6 @@ import { chatRoles, getInstantAssistantRole, defaultModel } from "../../..";
 import {
   updateAgentToaster,
   parseJSONWithFields,
-  generateResultId,
-  createResultSummary,
   generateSummaryText,
 } from "../shared/agentsUtils";
 
@@ -35,10 +33,7 @@ import {
 } from "./tools/toolsRegistry";
 
 // Import search utilities
-import {
-  deduplicateResultsByUid,
-  sanitizePageReferences,
-} from "./tools/searchUtils";
+import { deduplicateResultsByUid } from "./tools/searchUtils";
 
 // Import prompts from separate file
 import {
@@ -124,9 +119,7 @@ const ReactSearchAgentState = Annotation.Root({
   userIntent: Annotation<string | undefined>,
   // New symbolic query fields
   formalQuery: Annotation<string | undefined>,
-  searchStrategy: Annotation<
-    "direct" | "hierarchical" | undefined
-  >,
+  searchStrategy: Annotation<"direct" | "hierarchical" | undefined>,
   analysisType: Annotation<
     "count" | "compare" | "connections" | "summary" | undefined
   >,
@@ -136,6 +129,7 @@ const ReactSearchAgentState = Annotation.Root({
   // Semantic expansion: simplified boolean flag + strategy
   isExpansionGlobal: Annotation<boolean | undefined>,
   semanticExpansion: Annotation<
+    | "fuzzy"
     | "synonyms"
     | "related_concepts"
     | "broader_terms"
@@ -185,6 +179,8 @@ const ReactSearchAgentState = Annotation.Root({
   abortSignal: Annotation<AbortSignal | undefined>,
   // Automatic semantic expansion setting
   automaticExpansion: Annotation<boolean>,
+  // Direct expansion bypass flag
+  isDirectExpansion: Annotation<boolean>,
 });
 
 // Global variables for the agent
@@ -251,6 +247,24 @@ const conversationRouter = async (
   console.log(
     `🔀 [ConversationRouter] Analyzing routing for: "${state.userQuery}"`
   );
+
+  // Check for direct expansion bypass first - should skip all other routing logic
+  console.log(`🔧 [ConversationRouter] Debug state:`, {
+    isDirectExpansion: (state as any).isDirectExpansion,
+    semanticExpansion: (state as any).semanticExpansion,
+    isExpansionGlobal: (state as any).isExpansionGlobal,
+  });
+
+  if ((state as any).isDirectExpansion) {
+    console.log(
+      `🔀 [ConversationRouter] Direct expansion detected → skipping to need_new_search`
+    );
+    return {
+      routingDecision: "need_new_search" as const,
+      reformulatedQuery: state.userQuery,
+      originalSearchContext: "direct expansion request",
+    };
+  }
 
   const hasCachedResults =
     Object.keys(state.cachedFullResults || {}).length > 0 ||
@@ -426,7 +440,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       analysisType?: "count" | "compare" | "connections" | "summary";
       expansionGuidance?: string;
       isExpansionGlobal?: boolean;
-      semanticExpansion?: 
+      semanticExpansion?:
         | "synonyms"
         | "related_concepts"
         | "broader_terms"
@@ -482,7 +496,9 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     // Log semantic expansion detection
     if (analysis.isExpansionGlobal) {
       console.log(
-        `🎯 [IntentParser] Global semantic expansion detected: ${analysis.semanticExpansion || "synonyms"}`
+        `🎯 [IntentParser] Global semantic expansion detected: ${
+          analysis.semanticExpansion || "synonyms"
+        }`
       );
     }
 
@@ -494,7 +510,9 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     updateAgentToaster(`🔍 ${analysis.searchStrategy} search strategy planned`);
     if (analysis.isExpansionGlobal) {
       updateAgentToaster(
-        `🧠 Global semantic expansion: ${analysis.semanticExpansion || "synonyms"}`
+        `🧠 Global semantic expansion: ${
+          analysis.semanticExpansion || "synonyms"
+        }`
       );
     }
 
@@ -916,6 +934,36 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   // Check for cancellation
   if (state.abortSignal?.aborted) {
     throw new Error("Operation cancelled by user");
+  }
+
+  // Handle direct expansion with pre-configured parameters
+  console.log(`🔧 [Assistant] Debug state:`, {
+    isDirectExpansion: (state as any).isDirectExpansion,
+    semanticExpansion: (state as any).semanticExpansion,
+    stateSemanticExpansion: state.semanticExpansion,
+    isExpansionGlobal: (state as any).isExpansionGlobal,
+    stateIsExpansionGlobal: state.isExpansionGlobal,
+  });
+
+  if ((state as any).isDirectExpansion) {
+    console.log(
+      `🎯 [Direct Expansion] Injecting expansion parameters from agentData`
+    );
+
+    // Inject expansion parameters directly into state (they should already be in agentData)
+    if ((state as any).semanticExpansion) {
+      state.semanticExpansion = (state as any).semanticExpansion;
+    }
+    if ((state as any).isExpansionGlobal !== undefined) {
+      state.isExpansionGlobal = (state as any).isExpansionGlobal;
+    }
+    if ((state as any).expansionLevel !== undefined) {
+      state.expansionLevel = (state as any).expansionLevel;
+    }
+
+    console.log(
+      `🎯 [Direct Expansion] State updated with semanticExpansion: ${state.semanticExpansion}, isExpansionGlobal: ${state.isExpansionGlobal}, expansionLevel: ${state.expansionLevel}`
+    );
   }
 
   // Tools are already filtered by permissions in loadModel
@@ -1558,57 +1606,6 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   };
 };
 
-// Extract user-requested limit and sampling preferences from query
-const extractUserRequestInfo = (
-  userQuery: string
-): { limit: number | null; isRandom: boolean } => {
-  const query = userQuery.toLowerCase();
-
-  // Pattern 1: "N results", "N random results", "N pages", "N blocks"
-  const numberResultsMatch = query.match(
-    /(\d+)\s+(random\s+)?(results?|pages?|blocks?)/
-  );
-  if (numberResultsMatch) {
-    const num = parseInt(numberResultsMatch[1], 10);
-    const isRandom = !!numberResultsMatch[2]; // Check if "random" was captured
-    if (num > 0 && num <= 500) {
-      return { limit: num, isRandom };
-    }
-  }
-
-  // Pattern 2: "first N", "top N", "show me N" - these are NOT random
-  const firstNMatch = query.match(/(first|top|show me)\s+(\d+)/);
-  if (firstNMatch) {
-    const num = parseInt(firstNMatch[2], 10);
-    if (num > 0 && num <= 500) {
-      return { limit: num, isRandom: false };
-    }
-  }
-
-  // Pattern 3: "limit to N", "max N", "up to N" - these are NOT random
-  const limitMatch = query.match(/(limit to|max|up to)\s+(\d+)/);
-  if (limitMatch) {
-    const num = parseInt(limitMatch[2], 10);
-    if (num > 0 && num <= 500) {
-      return { limit: num, isRandom: false };
-    }
-  }
-
-  // Pattern 4: "random N", "N random", "some random results"
-  const randomOnlyMatch = query.match(
-    /(random\s+(\d+)|(\d+)\s+random|some\s+random|a\s+few\s+random)/
-  );
-  if (randomOnlyMatch) {
-    const num = randomOnlyMatch[2] || randomOnlyMatch[3];
-    return {
-      limit: num ? parseInt(num, 10) : null,
-      isRandom: true,
-    };
-  }
-
-  return { limit: null, isRandom: false };
-};
-
 // Direct result formatting for simple private mode cases (no LLM needed)
 const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   console.log(
@@ -1623,12 +1620,15 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
     };
   }
 
-  // Extract user-requested limit and random preference from query
-  const { limit: userRequestedLimit, isRandom } = extractUserRequestInfo(
-    state.userQuery || ""
-  );
+  // Use IntentParser results for user limits and random sampling
+  const userRequestedLimit = state.searchDetails?.maxResults || null;
+  const isRandom = state.searchDetails?.requireRandom || false;
   const displayLimit = userRequestedLimit || 20; // Default to 20 if no specific limit requested
 
+  console.log(
+    `🔍 [DEBUG DirectFormat] Full searchDetails:`,
+    state.searchDetails
+  );
   console.log(
     `🎯 [DirectFormat] User requested limit: ${userRequestedLimit}, isRandom: ${isRandom}, using display limit: ${displayLimit}`
   );
@@ -1673,10 +1673,18 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
 
   // Group results by expansion level for ranking-aware display
   const resultsByLevel = {
-    0: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 0), // Exact matches
-    1: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 1), // Hierarchical
-    2: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 2), // Fuzzy + Semantic
-    3: deduplicatedResults.filter((item) => item && (item.expansionLevel || 0) === 3), // Multi-tool
+    0: deduplicatedResults.filter(
+      (item) => item && (item.expansionLevel || 0) === 0
+    ), // Exact matches
+    1: deduplicatedResults.filter(
+      (item) => item && (item.expansionLevel || 0) === 1
+    ), // Hierarchical
+    2: deduplicatedResults.filter(
+      (item) => item && (item.expansionLevel || 0) === 2
+    ), // Fuzzy + Semantic
+    3: deduplicatedResults.filter(
+      (item) => item && (item.expansionLevel || 0) === 3
+    ), // Multi-tool
   };
 
   const levelLabels = {
@@ -1697,20 +1705,22 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
 
     // Calculate how many results to show from this level
     let levelLimit = levelResults.length;
-    if (!isRandom && displayCount + levelResults.length > displayLimit) {
+    if (displayCount + levelResults.length > displayLimit) {
       levelLimit = Math.max(1, displayLimit - displayCount); // At least show 1 from each level
     }
 
-    let levelLimitedResults = levelResults.slice(0, levelLimit);
+    let levelLimitedResults;
 
     // Apply random sampling within level if requested
-    if (isRandom && levelResults.length > levelLimit) {
+    if (isRandom) {
       const shuffled = [...levelResults];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
       levelLimitedResults = shuffled.slice(0, levelLimit);
+    } else {
+      levelLimitedResults = levelResults.slice(0, levelLimit);
     }
 
     limitedResults.push(...levelLimitedResults);
@@ -1901,16 +1911,16 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     console.log(
       `🔀 [Graph] Assistant → TOOLS (${lastMessage.tool_calls.length} tool calls)`
     );
-    
+
     // Debug logging: capture tool calls before schema validation
-    console.log('🔍 [DEBUG] RAW TOOL CALLS BEFORE VALIDATION:');
+    console.log("🔍 [DEBUG] RAW TOOL CALLS BEFORE VALIDATION:");
     lastMessage.tool_calls.forEach((toolCall: any, index: number) => {
       console.log(`🔍 [DEBUG] Tool Call ${index + 1}:`, {
         name: toolCall.name,
-        args: JSON.stringify(toolCall.args, null, 2)
+        args: JSON.stringify(toolCall.args, null, 2),
       });
     });
-    
+
     return "tools";
   }
 
@@ -1937,9 +1947,30 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     !state.userQuery?.includes("explain") &&
     !state.userQuery?.includes("summary");
 
+  // ALSO skip LLM when user requested specific limits (like "2 random blocks")
+  // to ensure proper limit enforcement regardless of mode
+  const hasUserLimits =
+    state.searchDetails?.maxResults || state.searchDetails?.requireRandom;
+  const canSkipForLimits =
+    hasUserLimits &&
+    !state.isConversationMode &&
+    hasSufficientResults &&
+    !state.userQuery?.includes("analysis") &&
+    !state.userQuery?.includes("explain") &&
+    !state.userQuery?.includes("summary");
+
   if (canSkipResponseWriter) {
     console.log(
       `🔀 [Graph] Assistant → DIRECT_FORMAT (private mode optimization)`
+    );
+    return "directFormat";
+  }
+
+  if (canSkipForLimits) {
+    console.log(
+      `🔀 [Graph] Assistant → DIRECT_FORMAT (user requested limits: ${
+        state.searchDetails?.maxResults || "N/A"
+      } results, random: ${state.searchDetails?.requireRandom || false})`
     );
     return "directFormat";
   }
@@ -2059,6 +2090,14 @@ const routeAfterLoadModel = (state: typeof ReactSearchAgentState.State) => {
 const routeAfterConversationRouter = (
   state: typeof ReactSearchAgentState.State
 ) => {
+  // Check for direct expansion bypass first
+  if ((state as any).isDirectExpansion) {
+    console.log(
+      `🔀 [Graph] ConversationRouter → ASSISTANT (direct expansion bypass)`
+    );
+    return "assistant";
+  }
+
   if (state.routingDecision === "use_cache") {
     console.log(`🔀 [Graph] ConversationRouter → CACHE_PROCESSOR`);
     return "cacheProcessor";
@@ -2186,6 +2225,26 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
     // Detect if query requires multi-step analysis beyond simple block retrieval
     const requiresAnalysis = detectAnalyticalQuery(state.userQuery || "");
 
+    // Check if user requested specific limits (like "2 random blocks")
+    const hasUserLimits =
+      state.searchDetails?.maxResults || state.searchDetails?.requireRandom;
+
+    // DEBUG: Log routing decision details
+    console.log(
+      `🔍 [DEBUG routeAfterTools] searchDetails:`,
+      state.searchDetails
+    );
+    console.log(`🔍 [DEBUG routeAfterTools] hasUserLimits: ${hasUserLimits}`);
+    console.log(`🔍 [DEBUG routeAfterTools] latestResult:`, {
+      purpose: latestResult?.purpose,
+      dataLength: latestResult?.data?.length,
+    });
+    console.log(`🔍 [DEBUG routeAfterTools] conditions:`, {
+      isConversationMode: state.isConversationMode,
+      privateMode: state.privateMode,
+      requiresAnalysis: requiresAnalysis,
+    });
+
     const canSkipAssistant =
       // Tool purpose is final (not intermediate exploration)
       latestResult?.purpose === "final" &&
@@ -2193,13 +2252,20 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       !state.isConversationMode &&
       // Private mode (simple formatting)
       // or Has sufficient data (>=10 results)
-      (latestResult?.data?.length >= 10 || state.privateMode) &&
+      // or User requested specific limits (need directFormat for proper limit enforcement)
+      (latestResult?.data?.length >= 10 ||
+        state.privateMode ||
+        hasUserLimits) &&
       // Query doesn't require multi-step analysis
       !requiresAnalysis;
 
+    console.log(
+      `🔍 [DEBUG routeAfterTools] canSkipAssistant: ${canSkipAssistant}`
+    );
+
     if (canSkipAssistant) {
       console.log(
-        `🔀 [Graph] TOOLS → DIRECT_FORMAT (sufficient results: ${latestResult.data.length}, purpose: ${latestResult.purpose})`
+        `🔀 [Graph] TOOLS → DIRECT_FORMAT (sufficient results: ${latestResult.data.length}, purpose: ${latestResult.purpose}, hasUserLimits: ${hasUserLimits})`
       );
       return "directFormat";
     } else if (requiresAnalysis) {

@@ -287,6 +287,7 @@ export const buildSystemPrompt = (state: {
   // Semantic expansion: simplified boolean flag + strategy
   isExpansionGlobal?: boolean;
   semanticExpansion?:
+    | "fuzzy"
     | "synonyms"
     | "related_concepts"
     | "broader_terms"
@@ -1385,7 +1386,7 @@ Respond with only valid JSON, no explanations or any additional comment.
   "searchStrategy": "direct" | "hierarchical",
   "analysisType": null | "count" | "compare" | "connections" | "summary",
   "isExpansionGlobal": false | true,
-  "semanticExpansion": null | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
+  "semanticExpansion": null | "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
   "customSemanticExpansion": null | string,
   "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
   "confidence": 0.1-1.0
