@@ -1004,8 +1004,8 @@ const findPagesByTitleImpl = async (
     };
   });
 
-  // Apply date range filtering for DNPs if specified
-  if (dateRange && (dateRange.start || dateRange.end) && includeDaily) {
+  // Apply date range filtering if specified
+  if (dateRange && (dateRange.start || dateRange.end)) {
     const parsedDateRange = {
       start:
         typeof dateRange.start === "string"
@@ -1108,6 +1108,9 @@ export const findPagesByTitleTool = tool(
 
       // Extract state from config
       const state = config?.configurable?.state;
+      
+      // Inject dateRange from agent state
+      enrichedInput.dateRange = state?.searchDetails?.timeRange;
       
       // Enrich conditions with IntentParser semantic expansion if available
       if (state?.semanticExpansion && state?.isExpansionGlobal) {

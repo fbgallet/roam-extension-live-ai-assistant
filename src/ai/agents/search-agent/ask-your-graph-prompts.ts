@@ -390,7 +390,13 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
       : ""
   }
 - Use 'in:scope' for limitToPages parameter only
-- Default to 'summary' result mode for efficiency
+- Default to 'summary' result mode for efficiency${
+    state.searchDetails?.timeRange
+      ? `\n- **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
+          state.searchDetails.timeRange
+        )} (handled by agent state, do not pass dateRange parameter)`
+      : ""
+  }
 
 Execute the symbolic query now.`;
 };
@@ -462,6 +468,12 @@ ${buildExpansionGuidanceSection(state)}
 ${
   state.searchDetails?.depthLimit === 0
     ? `\n🔒 **CRITICAL OVERRIDE**: User requested depth=0 (same-block search). MUST use findBlocksByContent, NOT findBlocksWithHierarchy.\n`
+    : ""
+}${
+  state.searchDetails?.timeRange
+    ? `\n📅 **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
+        state.searchDetails.timeRange
+      )} (handled by agent state, do not pass dateRange parameter)`
     : ""
 }
 Execute the complex symbolic query now.`;

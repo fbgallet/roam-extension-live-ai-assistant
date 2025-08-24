@@ -2468,7 +2468,7 @@ const findBlocksWithHierarchyImpl = async (
 
   // Step 5: Apply date range filtering
   let filteredResults = enrichedResults;
-  if (dateRange && (dateRange.start || dateRange.end) && includeDaily) {
+  if (dateRange && (dateRange.start || dateRange.end)) {
     const parsedDateRange = {
       start:
         typeof dateRange.start === "string"
@@ -3910,8 +3910,7 @@ const searchBlocksWithHierarchicalConditions = async (
   let filteredResults = enrichedResults;
   if (
     input.dateRange &&
-    (input.dateRange.start || input.dateRange.end) &&
-    input.includeDaily
+    (input.dateRange.start || input.dateRange.end)
   ) {
     const parsedDateRange = {
       start:
@@ -4955,7 +4954,7 @@ const calculateHierarchyRelevanceScore = (
 /**
  * Transform llmFacingSchema input to full internal schema with defaults
  */
-const transformLlmInputToInternalSchema = (llmInput: z.infer<typeof llmFacingSchema>): z.infer<typeof schema> => {
+const transformLlmInputToInternalSchema = (llmInput: z.infer<typeof llmFacingSchema>, state?: any): z.infer<typeof schema> => {
   return {
     // Legacy properties (now unused but required by internal schema)
     contentConditions: [],
@@ -4976,7 +4975,7 @@ const transformLlmInputToInternalSchema = (llmInput: z.infer<typeof llmFacingSch
     includeParents: false,
     parentDepth: 1,
     includeDaily: true,
-    dateRange: null,
+    dateRange: state?.searchDetails?.timeRange || null,
     strategyCombination: "union" as const,
     fromResultId: null,
     limitToBlockUids: null,
@@ -4990,14 +4989,12 @@ export const findBlocksWithHierarchyTool = tool(
   async (input, config) => {
     const startTime = performance.now();
     
-    // DEBUG: Log raw input to see what's being received
-    console.log("🔧 [RAW INPUT DEBUG] Tool received input:", JSON.stringify(input, null, 2));
     
-    // Transform LLM input to internal schema format
-    const internalInput = transformLlmInputToInternalSchema(input);
-    
-    // Extract state from config
+    // Extract state from config first
     const state = config?.configurable?.state;
+    
+    // Transform LLM input to internal schema format with state injection
+    const internalInput = transformLlmInputToInternalSchema(input, state);
     const isPrivateMode = state?.privateMode || internalInput.secureMode;
 
     // Override enrichment parameters in private mode for performance and privacy

@@ -2141,15 +2141,8 @@ const toolsWithResultLifecycle = async (
       return {
         ...tool,
         invoke: async (llmInput: any, config?: any) => {
-          const enrichedInput = {
-            ...llmInput,
-            resultMode: state.privateMode ? "uids_only" : "summary",
-            secureMode: state.privateMode || false,
-            userQuery: state.userQuery || "",
-            excludeBlockUid: state.rootUid || "",
-            expansionLevel: state.expansionLevel || 0, // Track expansion level for ranking
-          };
-          return tool.invoke(enrichedInput, config);
+          // Tool handles all state injection internally via config.configurable.state
+          return tool.invoke(llmInput, config);
         },
       };
     }
@@ -2157,13 +2150,8 @@ const toolsWithResultLifecycle = async (
       return {
         ...tool,
         invoke: async (llmInput: any, config?: any) => {
-          const enrichedInput = {
-            ...llmInput,
-            secureMode: state.privateMode || false,
-            excludeBlockUid: state.rootUid || "",
-            expansionLevel: state.expansionLevel || 0,
-          };
-          return tool.invoke(enrichedInput, config);
+          // Tool handles all state injection internally via config.configurable.state
+          return tool.invoke(llmInput, config);
         },
       };
     }
@@ -2171,13 +2159,8 @@ const toolsWithResultLifecycle = async (
       return {
         ...tool,
         invoke: async (llmInput: any, config?: any) => {
-          const enrichedInput = {
-            ...llmInput,
-            secureMode: state.privateMode || false,
-            excludeBlockUid: state.rootUid || "",
-            expansionLevel: state.expansionLevel || 0,
-          };
-          return tool.invoke(enrichedInput, config);
+          // Tool handles all state injection internally via config.configurable.state
+          return tool.invoke(llmInput, config);
         },
       };
     }

@@ -243,7 +243,7 @@ const schema = extendedConditionsSchema.extend({
     ),
 });
 
-// LLM-facing schema with both simple and grouped conditions support
+// LLM-facing schema with minimal required fields
 const llmFacingSchema = z.object({
   // Simple conditions (backward compatible)
   conditions: z
@@ -337,18 +337,6 @@ const llmFacingSchema = z.object({
     .boolean()
     .default(false)
     .describe("Enable typo tolerance and approximate matching"),
-
-  // Internal parameters injected by agent state wrapper (LLM should not set these)
-  resultMode: z.enum(["full", "summary", "uids_only"]).optional(),
-  secureMode: z.boolean().optional(),
-  userQuery: z.string().optional(),
-  excludeBlockUid: z.string().optional(),
-  expansionLevel: z
-    .number()
-    .optional()
-    .describe(
-      "Current expansion level for ranking (0=exact, 1-3=expansion levels)"
-    ),
 });
 
 const findBlocksByContentImpl = async (
@@ -435,6 +423,15 @@ const findBlocksByContentImpl = async (
           ? new Date(input.dateRange.end)
           : input.dateRange.end,
     };
+    console.log("📅 [findBlocksByContent] Parsed dateRange:", {
+      original: input.dateRange,
+      parsed: parsedDateRange,
+      startType: typeof parsedDateRange.start,
+      endType: typeof parsedDateRange.end
+    });
+  } else {
+    console.log("📅 [findBlocksByContent] No dateRange provided or invalid:", input.dateRange);
+    console.log("📅 [findBlocksByContent] Full input received:", JSON.stringify(input, null, 2));
   }
 
   // UID-based filtering for optimization
@@ -544,10 +541,23 @@ const findBlocksByContentImpl = async (
     );
   }
 
-  // Step 4: Apply date range filtering for DNPs if specified
+  // Step 4: Apply date range filtering if specified
   let filteredResults = enrichedResults;
-  if (parsedDateRange && includeDaily) {
+  console.log("📅 [findBlocksByContent] About to check date filtering:", {
+    hasParsedDateRange: !!parsedDateRange,
+    parsedDateRange: parsedDateRange,
+    enrichedResultsCount: enrichedResults.length
+  });
+  
+  if (parsedDateRange) {
+    console.log("📅 [findBlocksByContent] Applying date range filter...");
     filteredResults = filterByDateRange(filteredResults, parsedDateRange);
+    console.log("📅 [findBlocksByContent] Date filtering completed:", {
+      originalCount: enrichedResults.length,
+      filteredCount: filteredResults.length
+    });
+  } else {
+    console.log("📅 [findBlocksByContent] Skipping date filtering - no parsedDateRange");
   }
 
   // Step 4.5: Exclude user query block from results by UID
@@ -1200,16 +1210,21 @@ const applyFuzzyFiltering = (
 // LLM-facing tool with minimal schema and auto-enrichment
 export const findBlocksByContentTool = tool(
   async (llmInput, config) => {
+    
     const startTime = performance.now();
     try {
-      // Auto-enrich with internal parameters (wrapper should inject these, but provide defaults)
+      // Extract state from config to access injected parameters
+      const state = config?.configurable?.state;
+      
+      // Auto-enrich with internal parameters from agent state
       const enrichedInput = {
         ...llmInput,
-        // Defaults for parameters not set by wrapper
-        resultMode: llmInput.resultMode || ("summary" as const),
-        secureMode: llmInput.secureMode || false,
-        userQuery: llmInput.userQuery || "",
-        excludeBlockUid: llmInput.excludeBlockUid || "",
+        // Internal parameters injected from agent state (not from LLM)
+        resultMode: state?.privateMode ? ("uids_only" as const) : ("summary" as const),
+        secureMode: state?.privateMode || false,
+        userQuery: state?.userQuery || "",
+        excludeBlockUid: state?.rootUid || "",
+        expansionLevel: state?.expansionLevel || 0,
         // Internal defaults not exposed to LLM
         purpose: "final" as const,
         sortBy: "relevance" as const,
@@ -1220,13 +1235,11 @@ export const findBlocksByContentTool = tool(
         parentDepth: 1,
         includeDaily: true,
         dailyNotesOnly: false,
-        dateRange: undefined,
+        // Inject dateRange from agent state (not from LLM call)
+        dateRange: state?.searchDetails?.timeRange,
         randomSample: { enabled: false, size: 100 },
         fuzzyThreshold: 0.8,
       };
-
-      // Extract state from config
-      const state = config?.configurable?.state;
       const { results, metadata } = await findBlocksByContentImpl(
         enrichedInput,
         state
@@ -1254,6 +1267,6 @@ export const findBlocksByContentTool = tool(
     name: "findBlocksByContent",
     description:
       "Find blocks by content, page references, or regex patterns. SIMPLE: Use 'conditions' array for basic AND/OR logic. GROUPED: Use 'conditionGroups' for complex logic like ((A|B) AND NOT C). Supports semantic expansion, date ranges, and hierarchical context.",
-    schema: llmFacingSchema, // Use minimal schema
+    schema: llmFacingSchema, // Use minimal schema for LLM
   }
 );
