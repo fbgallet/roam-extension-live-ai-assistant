@@ -1086,33 +1086,87 @@ Generate pattern for "${text}":`;
 };
 
 /**
- * Filter pages/blocks by date range for DNPs
+ * Filter pages/blocks by date range using creation/modification times
+ * Enhanced to use actual timestamps instead of just DNP UIDs
  */
 export const filterByDateRange = <
-  T extends { uid?: string; pageUid?: string; isDaily?: boolean }
+  T extends { 
+    uid?: string; 
+    pageUid?: string; 
+    isDaily?: boolean;
+    created?: Date;
+    modified?: Date;
+  }
 >(
   results: T[],
-  dateRange: { start?: Date; end?: Date }
+  dateRange: { start?: Date; end?: Date },
+  filterMode: "created" | "modified" | "either" | "dnp_only" = "modified"
 ): T[] => {
-  return results.filter((result) => {
+  // Filter results by date range
+
+  let filteredCount = 0;
+
+  const filteredResults = results.filter((result) => {
     const uid = result.pageUid || result.uid;
     const isDaily = result.isDaily ?? (uid ? isDailyNote(uid) : false);
 
-    if (!isDaily) return true; // Keep non-DNPs
+    let targetDate: Date | null = null;
+
+    // Determine which date to use based on filter mode
+    switch (filterMode) {
+      case "created":
+        targetDate = result.created || null;
+        break;
+      
+      case "modified":
+        targetDate = result.modified || null;
+        break;
+        
+      case "either":
+        // Use modification date if available, fall back to creation date
+        targetDate = result.modified || result.created || null;
+        break;
+        
+      case "dnp_only":
+        // Legacy behavior - only filter DNPs by UID parsing
+        if (!isDaily) return true;
+        targetDate = parseDNPDate(uid!);
+        break;
+    }
+
+    // If no target date found and it's not DNP-only mode, keep the result
+    if (!targetDate && filterMode !== "dnp_only") {
+      console.debug(`🗓️ No ${filterMode} date found for UID ${uid}, keeping result`);
+      return true;
+    }
+
+    // If still no date found, keep the result (conservative approach)
+    if (!targetDate) {
+      console.debug(`🗓️ No date found for filtering UID ${uid}, keeping result`);
+      return true;
+    }
 
     try {
-      const pageDate = parseDNPDate(uid!);
-      if (!pageDate) return true; // Keep if we can't parse the date
-
       const isInRange =
-        (!dateRange.start || pageDate >= dateRange.start) &&
-        (!dateRange.end || pageDate <= dateRange.end);
+        (!dateRange.start || targetDate >= dateRange.start) &&
+        (!dateRange.end || targetDate <= dateRange.end);
+      
+      if (!isInRange) {
+        // Item filtered out by date range
+      } else {
+        filteredCount++;
+      }
+      
       return isInRange;
     } catch (error) {
-      console.warn("Error parsing DNP date for UID:", uid);
+      console.warn("🗓️ Error filtering by date range for UID:", uid, error);
       return true; // Keep if there's an error
     }
   });
+
+  console.log(`🗓️ Date filtering complete: ${filteredResults.length}/${results.length} results kept (${filteredCount} in range)`);
+  
+  return filteredResults;
 };
 
 /**

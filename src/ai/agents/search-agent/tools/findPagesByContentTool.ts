@@ -997,7 +997,7 @@ const findPagesByContentImpl = async (
   );
 
   // Step 5: Apply date filtering
-  if (dateRange && (dateRange.start || dateRange.end) && includeDaily) {
+  if (dateRange && (dateRange.start || dateRange.end)) {
     const parsedDateRange = {
       start:
         typeof dateRange.start === "string"
@@ -1987,23 +1987,29 @@ const sortPageResults = (
 export const findPagesByContentTool = tool(
   async (llmInput, config) => {
     const startTime = performance.now();
-    console.log('🔍 [findPagesByContentTool] RAW LLM INPUT:', JSON.stringify(llmInput, null, 2));
     try {
-      // Auto-enrich with internal parameters (will be set by agent state)
+      // Extract state from config to access injected parameters
+      const state = config?.configurable?.state;
+      
+      // Auto-enrich with internal parameters from agent state
       const enrichedInput = {
         ...llmInput,
-        // These will be injected by the agent wrapper - preserve if already set
+        // Internal parameters injected from agent state
+        resultMode: state?.privateMode ? ("uids_only" as const) : ("summary" as const),
+        secureMode: state?.privateMode || false,
+        userQuery: state?.userQuery || "",
+        excludeBlockUid: state?.rootUid || "",
+        expansionLevel: state?.expansionLevel || 0,
+        dateRange: state?.searchDetails?.timeRange,
+        // Tool-specific defaults
         maxExpansions: 3,
         includeDaily: true,
-        dateRange: undefined, // Only set if explicitly provided by LLM
         sortOrder: "desc" as const,
         randomSample: { enabled: false, size: 100 },
-        secureMode: false,
         includeContentStats: false,
         minTotalBlocks: 1,
         maxTotalBlocks: undefined,
         searchScope: llmInput.searchScope || "block",
-        excludeBlockUid: (llmInput as any).excludeBlockUid || "", // Preserve agent-injected exclusion
         
         // Add missing schema properties with defaults
         minBlockCount: llmInput.minBlockCount || 1,
@@ -2028,8 +2034,6 @@ export const findPagesByContentTool = tool(
       console.log('🔍 [findPagesByContentTool] ENRICHED INPUT excludeBlockUid:', enrichedInput.excludeBlockUid);
       console.log('🔍 [findPagesByContentTool] ENRICHED INPUT conditions:', JSON.stringify(enrichedInput.conditions, null, 2));
 
-      // Extract state from config
-      const state = config?.configurable?.state;
       const results = await findPagesByContentImpl(enrichedInput, state);
       return createToolResult(
         true,

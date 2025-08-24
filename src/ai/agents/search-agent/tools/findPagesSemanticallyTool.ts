@@ -135,8 +135,8 @@ const findPagesSemanticallyImpl = async (input: z.infer<typeof schema>) => {
     }
   }
 
-  // Step 3: Apply date range filtering for DNPs if specified
-  if (dateRange && (dateRange.start || dateRange.end) && includeDaily) {
+  // Step 3: Apply date range filtering if specified
+  if (dateRange && (dateRange.start || dateRange.end)) {
     const parsedDateRange = {
       start:
         typeof dateRange.start === "string"
