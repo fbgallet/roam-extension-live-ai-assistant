@@ -59,7 +59,7 @@ export const initializeAgentToaster = (
       ".search-agent-toaster .bp3-toast-message"
     );
     if (agentToasterStream) {
-      const typeDisplay = agentType === "search" ? "Search Agent" : agentType;
+      const typeDisplay = agentType === "search" ? "Ask your graph" : agentType;
       const serverDisplay = serverInfo ? ` with ${serverInfo}` : "";
       agentToasterStream.innerText = `🚀 Starting ${typeDisplay}${serverDisplay}`;
 
@@ -300,6 +300,59 @@ export const completeAgentToaster = (
 };
 
 /**
+ * Map expansion label and action to consistent strategy names
+ * This ensures proper tracking across different expansion systems
+ */
+const mapLabelToStrategy = (label: string, action: string): string => {
+  // Handle different label variations that map to the same strategy
+  const labelMappings: Record<string, string> = {
+    "Fuzzy matching (typos, morphological variations)": "fuzzy",
+    "🔍 Fuzzy matching (typos, morphological variations)": "fuzzy",
+    "Synonyms and alternative terms": "synonyms",
+    "📝 Synonyms and alternative terms": "synonyms",
+    "Related concepts and associated terms": "related_concepts",
+    "🧠 Related concepts and associated terms": "related_concepts",
+    "Broader terms and categories": "broader_terms",
+    "🌐 Broader terms and categories": "broader_terms",
+    "All semantic expansions at once (fuzzy + synonyms + related concepts)":
+      "all",
+    "⚡ All semantic expansions at once (fuzzy + synonyms + related concepts)":
+      "all",
+    "Automatic until results (level-to-level progression through Assistant)":
+      "automatic",
+    "🤖 Automatic until results (level-to-level progression through Assistant)":
+      "automatic",
+    "Auto (let the agent test progressive strategy)": "automatic",
+    "🤖 Auto (let the agent test progressive strategy)": "automatic",
+    "All at once (fuzzy + synonyms + related concepts)": "all",
+    "⚡ All at once (fuzzy + synonyms + related concepts)": "all",
+  };
+
+  // First try to map by label
+  if (labelMappings[label]) {
+    return labelMappings[label];
+  }
+
+  // Fallback to action if available
+  if (action && typeof action === "string") {
+    return action.toLowerCase();
+  }
+
+  // Final fallback - extract strategy from label text
+  const lowerLabel = label.toLowerCase();
+  if (lowerLabel.includes("fuzzy")) return "fuzzy";
+  if (lowerLabel.includes("synonym")) return "synonyms";
+  if (lowerLabel.includes("related") || lowerLabel.includes("concept"))
+    return "related_concepts";
+  if (lowerLabel.includes("broader") || lowerLabel.includes("categor"))
+    return "broader_terms";
+  if (lowerLabel.includes("all") || lowerLabel.includes("once")) return "all";
+  if (lowerLabel.includes("auto")) return "automatic";
+
+  return action || "unknown";
+};
+
+/**
  * Set up expansion handling for post-completion expansion buttons
  * This handles expansion events after the agent has already completed
  */
@@ -333,7 +386,6 @@ const setupPostCompletionExpansionHandler = (): void => {
         const invokeModule = await import(
           "../search-agent/ask-your-graph-invoke"
         );
-        const { invokeSearchAgent } = invokeModule;
         const invokeExpandedSearchDirect =
           invokeModule.invokeExpandedSearchDirect;
 
@@ -365,9 +417,20 @@ const setupPostCompletionExpansionHandler = (): void => {
         const previousExpansions = expansionHistory[queryKey] || [];
 
         // Check if this specific expansion has been tried before
+        // Map label to consistent strategy names to avoid false positives
+        const normalizedStrategy = mapLabelToStrategy(label, action);
         const isRepeatExpansion = previousExpansions.some(
-          (exp: any) => exp.strategy === action || exp.label === label
+          (exp: any) =>
+            exp.strategy === normalizedStrategy || exp.strategy === action
         );
+
+        console.log(`🔧 [Post-Completion] Checking expansion history:`, {
+          label,
+          action,
+          normalizedStrategy,
+          previousExpansions,
+          isRepeatExpansion,
+        });
 
         if (isRepeatExpansion) {
           updateAgentToaster(
@@ -831,7 +894,6 @@ const extractSampleItems = (
     return [];
   }
 
-  const samples: string[] = [];
   const sampleData = data.slice(0, count);
 
   switch (resultType) {
@@ -865,7 +927,7 @@ const extractSampleItems = (
       ];
 
     default:
-      return sampleData.map((item, i) => `Item ${i + 1}`);
+      return sampleData.map((_, i) => `Item ${i + 1}`);
   }
 };
 

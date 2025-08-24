@@ -205,6 +205,89 @@ const buildPageTitleExpansionOptions = (
 };
 
 /**
+ * Perform complete semantic expansion using all strategies
+ * Always runs all expansion levels without stopping early
+ */
+const performCompleteExpansion = async (
+  pageTitle: string,
+  matchType: "exact" | "contains" | "regex" = "contains",
+  instruction?: string,
+  modelInfo?: any,
+  userLanguage?: string,
+  userQuery?: string,
+  includeDaily: boolean = false
+): Promise<{ conditions: any[], level: number, totalFound: number }> => {
+  console.log(`🤖 [Complete] Starting complete expansion for "${pageTitle}" (${matchType})`);
+  
+  try {
+    // Use "all" strategy to get comprehensive results
+    const mode = matchType === "exact" ? "page_ref" : "text";
+    const allVariations = await generateSemanticExpansions(
+      pageTitle,
+      "all", // This runs fuzzy -> synonyms -> related_concepts -> broader_terms
+      userQuery || instruction || `Find pages with complete expansion of "${pageTitle}"`,
+      modelInfo,
+      userLanguage,
+      undefined,
+      mode
+    );
+    
+    console.log(`🤖 [Complete] Generated ${allVariations.length} variations from all strategies:`, allVariations);
+    
+    let finalConditions: any[];
+    
+    if (matchType === "exact") {
+      // For exact: create semantic page conditions
+      finalConditions = [
+        { text: pageTitle, matchType: "exact", isSemanticPage: false },
+        ...allVariations.map((term, index) => ({
+          text: term,
+          matchType: "exact" as const,
+          isSemanticPage: true,
+          expansionLevel: Math.floor(index / 5) + 1 // Group variations by level
+        }))
+      ];
+    } else {
+      // For contains/regex: create composite regex with all variations
+      const regexParts = [];
+      
+      // Add original page title (needs escaping since it's literal text)
+      const escapedPageTitle = pageTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+      regexParts.push(`.*${escapedPageTitle}.*`);
+      
+      // Add variations (already regex patterns from mode="text", don't escape)
+      allVariations.forEach(variation => {
+        // Variations from mode="text" are already regex patterns, just wrap with .*
+        regexParts.push(`.*${variation}.*`);
+      });
+      
+      const compositeRegex = `(?i)(${regexParts.join("|")})`;
+      
+      finalConditions = [{
+        text: compositeRegex,
+        matchType: "regex" as const,
+        expansionLevel: 4 // Highest level since it includes all strategies
+      }];
+    }
+    
+    // Test final results
+    const totalFound = await testConditionsExistence(finalConditions, includeDaily);
+    console.log(`🤖 [Complete] Complete expansion found ${totalFound} pages with ${allVariations.length} variations`);
+    
+    return { conditions: finalConditions, level: 4, totalFound };
+    
+  } catch (error) {
+    console.warn(`🤖 [Complete] Complete expansion failed:`, error);
+    // Fallback to original
+    return { 
+      conditions: [{ text: pageTitle, matchType, expansionLevel: 0 }], 
+      level: 0, 
+      totalFound: 0 
+    };
+  }
+};
+
+/**
  * Perform progressive semantic expansion with existence validation
  * Tests multiple expansion levels and validates page existence at each level
  */
@@ -498,10 +581,23 @@ const findPagesByTitleImpl = async (
   let processedConditions: any[] = [];
   
   for (const condition of conditions) {
-    const { cleanText, expansionType } = parseSemanticExpansion(
+    // First check if the condition has an explicit semanticExpansion from IntentParser
+    const intentParserExpansion = condition.semanticExpansion;
+    
+    const { cleanText, expansionType: suffixExpansionType } = parseSemanticExpansion(
       condition.text,
       state?.globalSemanticExpansion || "synonyms"
     );
+    
+    // Priority: explicit condition.semanticExpansion > suffix operator > global setting
+    const expansionType = intentParserExpansion || suffixExpansionType;
+    
+    // Debug log to show expansion type selection
+    if (expansionType && intentParserExpansion) {
+      console.log(`🎯 [TitleTool] Using IntentParser expansion: "${expansionType}" for "${cleanText}"`);
+    } else if (expansionType && suffixExpansionType) {
+      console.log(`🎯 [TitleTool] Using suffix operator expansion: "${expansionType}" for "${cleanText}"`);
+    }
     
     if (expansionType === "fuzzy") {
       console.log(`🔍 [TitleTool] Fuzzy expansion requested for: "${cleanText}"`);
@@ -552,12 +648,18 @@ const findPagesByTitleImpl = async (
           console.log(`🔍 [TitleTool] Generated ${fuzzyTerms.length} fuzzy regex variations:`, fuzzyTerms);
           
           // Create composite regex pattern: (.*original.*|.*variation1.*|.*variation2.*)
-          const allTerms = [cleanText, ...fuzzyTerms]; // Include original
-          const regexParts = allTerms.map(term => {
-            // Escape special regex characters for simple .*term.* pattern (double-escape for Datomic)
-            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
-            return `.*${escapedTerm}.*`;
+          const regexParts = [];
+          
+          // Add original text (needs escaping since it's literal text)
+          const escapedCleanText = cleanText.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+          regexParts.push(`.*${escapedCleanText}.*`);
+          
+          // Add fuzzy variations (already regex patterns from mode="text", don't escape)
+          fuzzyTerms.forEach(term => {
+            // Variations from mode="text" are already regex patterns, just wrap with .*
+            regexParts.push(`.*${term}.*`);
           });
+          
           const compositeRegex = `(?i)(${regexParts.join("|")})`;
           
           console.log(`🔍 [TitleTool] Created composite fuzzy regex:`, compositeRegex);
@@ -573,6 +675,30 @@ const findPagesByTitleImpl = async (
           console.warn(`Failed to generate fuzzy terms for "${cleanText}":`, error);
           processedConditions.push({ ...condition, text: cleanText });
         }
+      }
+      
+    } else if (expansionType === "all") {
+      console.log(`🔍 [TitleTool] Complete expansion requested for: "${cleanText}"`);
+      
+      // Use complete expansion that runs all strategies without early stopping
+      try {
+        const completeResult = await performCompleteExpansion(
+          cleanText,
+          condition.matchType,
+          state?.userQuery || `Find pages with complete expansion of "${cleanText}"`,
+          state?.modelInfo,
+          state?.language,
+          state?.userQuery,
+          includeDaily
+        );
+        
+        // Add all conditions from complete expansion
+        processedConditions.push(...completeResult.conditions);
+        
+        console.log(`🔍 [TitleTool] Complete expansion added ${completeResult.conditions.length} conditions with ${completeResult.totalFound} potential pages`);
+      } catch (error) {
+        console.warn(`Failed to generate complete expansion for "${cleanText}":`, error);
+        processedConditions.push({ ...condition, text: cleanText });
       }
       
     } else if (expansionType && expansionType !== "fuzzy") {
@@ -624,11 +750,16 @@ const findPagesByTitleImpl = async (
           console.log(`🔍 [TitleTool] Generated ${semanticTerms.length} ${expansionType} regex variations:`, semanticTerms);
           
           // Create composite regex pattern: (.*original.*|.*variation1.*|.*variation2.*)
-          const allTerms = [cleanText, ...semanticTerms]; // Include original
-          const regexParts = allTerms.map(term => {
-            // Escape special regex characters for simple .*term.* pattern (double-escape for Datomic)
-            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
-            return `.*${escapedTerm}.*`;
+          const regexParts = [];
+          
+          // Add original text (needs escaping since it's literal text)
+          const escapedCleanText = cleanText.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+          regexParts.push(`.*${escapedCleanText}.*`);
+          
+          // Add semantic variations (already regex patterns from mode="text", don't escape)
+          semanticTerms.forEach(term => {
+            // Variations from mode="text" are already regex patterns, just wrap with .*
+            regexParts.push(`.*${term}.*`);
           });
           const compositeRegex = `(?i)(${regexParts.join("|")})`;
           
@@ -905,24 +1036,45 @@ const findPagesByTitleImpl = async (
   // Track applied expansions for expansion options
   const appliedExpansions: string[] = [];
   
-  // Check if we used suffix operators for expansion
-  if (hasOperatorExpansions) {
-    // Look at original conditions to see what expansion types were used
-    conditions.forEach(condition => {
-      const { expansionType } = parseSemanticExpansion(
-        condition.text,
-        state?.globalSemanticExpansion || "synonyms"
-      );
-      if (expansionType && !appliedExpansions.includes(expansionType)) {
-        appliedExpansions.push(expansionType);
+  // Track expansions that were actually executed in this query
+  processedConditions.forEach(condition => {
+    if (condition.expansionLevel && condition.expansionLevel > 0) {
+      // This condition was expanded, check what type
+      if (condition.isSemanticPage) {
+        // This is a semantic page from exact matching expansion
+        appliedExpansions.push("exact_semantic");
+      } else if (condition.matchType === "regex" && condition.text.includes("(?i)(")) {
+        // This is a composite regex from fuzzy/semantic expansion
+        // Try to determine which type based on the condition context
+        const originalCondition = conditions.find(c => 
+          condition.text.includes(c.text.replace(/[.*+?^${}()|[\]\\*~]/g, ""))
+        );
+        if (originalCondition) {
+          const { expansionType } = parseSemanticExpansion(
+            originalCondition.text,
+            state?.globalSemanticExpansion || "synonyms"
+          );
+          if (expansionType && !appliedExpansions.includes(expansionType)) {
+            appliedExpansions.push(expansionType);
+          }
+        }
       }
-    });
+    }
+  });
+  
+  // Track IntentParser or state-based expansions
+  if (state?.semanticExpansion && state?.isExpansionGlobal) {
+    if (!appliedExpansions.includes(state.semanticExpansion)) {
+      appliedExpansions.push(state.semanticExpansion);
+    }
   }
   
-  // Check if we used smart expansion
-  if ((smartExpansion || state?.automaticExpansion) && !hasOperatorExpansions) {
-    appliedExpansions.push("smart_expansion");
+  // Check if we used smart/automatic expansion without specific operators
+  if ((smartExpansion || state?.automaticExpansion) && !hasOperatorExpansions && processedConditions.some(c => c.expansionLevel > 0)) {
+    appliedExpansions.push("progressive_expansion");
   }
+  
+  console.log(`🎯 [TitleTool] Applied expansions tracked:`, appliedExpansions);
   
   // Store expansion metadata for tool result
   const expansionMetadata = {
@@ -956,6 +1108,17 @@ export const findPagesByTitleTool = tool(
 
       // Extract state from config
       const state = config?.configurable?.state;
+      
+      // Enrich conditions with IntentParser semantic expansion if available
+      if (state?.semanticExpansion && state?.isExpansionGlobal) {
+        enrichedInput.conditions = enrichedInput.conditions.map((cond: any) => ({
+          ...cond,
+          // Only add semanticExpansion if not already specified
+          semanticExpansion: cond.semanticExpansion || state.semanticExpansion,
+        }));
+        console.log(`🎯 [TitleTool] Enriched conditions with IntentParser semanticExpansion: "${state.semanticExpansion}"`);
+      }
+      
       const { results, metadata } = await findPagesByTitleImpl(enrichedInput, state);
       
       // Generate expansion options if needed

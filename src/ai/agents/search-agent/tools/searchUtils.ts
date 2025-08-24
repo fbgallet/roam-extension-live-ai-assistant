@@ -35,6 +35,14 @@ export function parseSemanticExpansion(
     };
   }
 
+  // Check for '~all' suffix (all semantic strategies)
+  if (text.endsWith("~all")) {
+    return {
+      cleanText: text.replace(/~all$/, ""), // Remove trailing ~all
+      expansionType: "all",
+    };
+  }
+
   // Check for '~' suffix (use global semantic expansion, but not fuzzy)
   if (text.endsWith("~")) {
     return {
