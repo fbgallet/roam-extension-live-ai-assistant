@@ -140,7 +140,7 @@ const ReactSearchAgentState = Annotation.Root({
   customSemanticExpansion: Annotation<string | undefined>,
   searchDetails: Annotation<
     | {
-        timeRange?: { start: string; end: string };
+        timeRange?: { start: string; end: string; filterMode?: "created" | "modified" };
         maxResults?: number;
         requireRandom?: boolean;
         depthLimit?: number;
@@ -412,6 +412,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     conversationSummary: state.conversationSummary,
     permissions: state.permissions,
     privateMode: state.privateMode,
+    rootUid: state.rootUid,
   });
 
   try {

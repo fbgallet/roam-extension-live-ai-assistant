@@ -209,6 +209,7 @@ const schema = z.object({
     z.object({
       start: z.union([z.string(), z.null()]).default(null),
       end: z.union([z.string(), z.null()]).default(null),
+      filterMode: z.enum(["created", "modified"]).optional(),
     }),
     z.null()
   ]).default(null),
@@ -2479,7 +2480,8 @@ const findBlocksWithHierarchyImpl = async (
           ? new Date(dateRange.end)
           : dateRange.end,
     };
-    filteredResults = filterByDateRange(enrichedResults, parsedDateRange);
+    const filterMode = dateRange.filterMode || "modified";
+    filteredResults = filterByDateRange(enrichedResults, parsedDateRange, filterMode);
   }
 
   // Step 5.5: Exclude user query block from results by UID
@@ -3922,7 +3924,8 @@ const searchBlocksWithHierarchicalConditions = async (
           ? new Date(input.dateRange.end)
           : input.dateRange.end,
     };
-    filteredResults = filterByDateRange(enrichedResults, parsedDateRange);
+    const filterMode = input.dateRange.filterMode || "modified";
+    filteredResults = filterByDateRange(enrichedResults, parsedDateRange, filterMode);
   }
 
   // Sort and limit results

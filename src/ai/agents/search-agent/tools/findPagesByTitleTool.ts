@@ -1016,7 +1016,8 @@ const findPagesByTitleImpl = async (
           ? new Date(dateRange.end)
           : dateRange.end,
     };
-    structuredResults = filterByDateRange(structuredResults, parsedDateRange);
+    const filterMode = dateRange.filterMode || "modified";
+    structuredResults = filterByDateRange(structuredResults, parsedDateRange, filterMode);
   }
 
   // Sort by relevance score first, then by modification time

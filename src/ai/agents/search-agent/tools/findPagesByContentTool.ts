@@ -166,6 +166,7 @@ const llmFacingSchema = z.object({
       "relevance",
       "creation",
       "modification",
+      "recent",
       "alphabetical",
       "block_count",
       "total_blocks",
@@ -258,6 +259,7 @@ const schema = extendedConditionsSchema.extend({
     .object({
       start: z.union([z.date(), z.string()]).optional(),
       end: z.union([z.date(), z.string()]).optional(),
+      filterMode: z.enum(["created", "modified"]).optional(),
     })
     .optional(),
   // Enhanced sorting and sampling options
@@ -1008,7 +1010,8 @@ const findPagesByContentImpl = async (
           ? new Date(dateRange.end)
           : dateRange.end,
     };
-    enrichedResults = filterByDateRange(enrichedResults, parsedDateRange);
+    const filterMode = dateRange.filterMode || "modified";
+    enrichedResults = filterByDateRange(enrichedResults, parsedDateRange, filterMode);
   }
 
   // Step 6: Sort results

@@ -119,6 +119,7 @@ const schema = extendedConditionsSchema.extend({
     .object({
       start: z.union([z.date(), z.string()]).optional(),
       end: z.union([z.date(), z.string()]).optional(),
+      filterMode: z.enum(["created", "modified"]).optional(),
     })
     .optional(),
   // Enhanced sorting and sampling options
@@ -551,10 +552,12 @@ const findBlocksByContentImpl = async (
   
   if (parsedDateRange) {
     console.log("📅 [findBlocksByContent] Applying date range filter...");
-    filteredResults = filterByDateRange(filteredResults, parsedDateRange);
+    const filterMode = input.dateRange.filterMode || "modified";
+    filteredResults = filterByDateRange(filteredResults, parsedDateRange, filterMode);
     console.log("📅 [findBlocksByContent] Date filtering completed:", {
       originalCount: enrichedResults.length,
-      filteredCount: filteredResults.length
+      filteredCount: filteredResults.length,
+      filterMode
     });
   } else {
     console.log("📅 [findBlocksByContent] Skipping date filtering - no parsedDateRange");
