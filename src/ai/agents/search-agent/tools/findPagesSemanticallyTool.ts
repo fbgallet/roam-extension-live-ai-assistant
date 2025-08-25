@@ -28,6 +28,7 @@ const schema = z.object({
     .object({
       start: z.union([z.date(), z.string()]).optional(),
       end: z.union([z.date(), z.string()]).optional(),
+      filterMode: z.enum(["created", "modified"]).optional(),
     })
     .optional(),
   limit: z.number().min(1).max(1000).default(100),
@@ -147,7 +148,8 @@ const findPagesSemanticallyImpl = async (input: z.infer<typeof schema>) => {
           ? new Date(dateRange.end)
           : dateRange.end,
     };
-    results = filterByDateRange(results, parsedDateRange);
+    const filterMode = dateRange.filterMode || "modified";
+    results = filterByDateRange(results, parsedDateRange, filterMode);
   }
 
   // Step 4: Sort by relevance (exact matches first, then by modification time)

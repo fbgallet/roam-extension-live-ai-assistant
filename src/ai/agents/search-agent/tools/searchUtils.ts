@@ -2557,8 +2557,8 @@ export class PageWideQueryBuilder {
             : `(?i).*${escapedText}.*`;
         }
         
-        patterns += `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`;
-        clause = `\n                [(re-find ?pattern${patternIndex} ${contentVar})]`;
+        clause = `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`;
+        clause += `\n                [(re-find ?pattern${patternIndex} ${contentVar})]`;
         break;
     }
 

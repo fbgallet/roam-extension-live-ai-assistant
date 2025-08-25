@@ -4,6 +4,11 @@
  */
 
 import { listAvailableToolNames } from "./tools/toolsRegistry";
+import {
+  getPageUidByBlockUid,
+  getDateStringFromDnpUid,
+} from "../../../utils/roamAPI";
+import { dnpUidRegex } from "../../../utils/regex";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
@@ -470,12 +475,12 @@ ${
     ? `\n🔒 **CRITICAL OVERRIDE**: User requested depth=0 (same-block search). MUST use findBlocksByContent, NOT findBlocksWithHierarchy.\n`
     : ""
 }${
-  state.searchDetails?.timeRange
-    ? `\n📅 **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
-        state.searchDetails.timeRange
-      )} (handled by agent state, do not pass dateRange parameter)`
-    : ""
-}
+    state.searchDetails?.timeRange
+      ? `\n📅 **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
+          state.searchDetails.timeRange
+        )} (handled by agent state, do not pass dateRange parameter)`
+      : ""
+  }
 Execute the complex symbolic query now.`;
 };
 
@@ -1198,13 +1203,40 @@ export const buildIntentParserPrompt = (state: {
   dateContext?: string;
   permissions: { contentAccess: boolean };
   privateMode: boolean;
+  rootUid?: string;
 }): string => {
-  // Build date context
-  const today = new Date();
-  const dateStr = today.toISOString().split("T")[0]; // YYYY-MM-DD format
-  const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
-  const monthName = today.toLocaleDateString("en-US", { month: "long" });
-  const dateContext = `Today is ${dayName}, ${monthName} ${today.getDate()}, ${today.getFullYear()} (${dateStr})`;
+  // Build date context - use daily note date if rootUid is in a DNP, otherwise use system date
+  let referenceDate = new Date();
+  let contextNote = "";
+
+  if (state.rootUid) {
+    try {
+      const pageUid = getPageUidByBlockUid(state.rootUid);
+      if (pageUid && dnpUidRegex.test(pageUid)) {
+        // We're in a daily note page, use that date as "today"
+        const dnpDate = getDateStringFromDnpUid(pageUid);
+        if (dnpDate && dnpDate instanceof Date) {
+          referenceDate = dnpDate;
+          contextNote = " (based on current daily note page)";
+        }
+      }
+    } catch (error) {
+      // If there's any error accessing the page, fall back to system date
+      console.log(
+        "🗓️ [IntentParser] Could not determine daily note context, using system date:",
+        error
+      );
+    }
+  }
+
+  const dateStr = referenceDate.toISOString().split("T")[0]; // YYYY-MM-DD format
+  const dayName = referenceDate.toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+  const monthName = referenceDate.toLocaleDateString("en-US", {
+    month: "long",
+  });
+  const dateContext = `Today is ${dayName}, ${monthName} ${referenceDate.getDate()}, ${referenceDate.getFullYear()} (${dateStr})${contextNote}`;
 
   return `You are an Intent Parser for a Roam Research search system. Your job is to analyze user requests and convert them into symbolic queries that can be efficiently executed by search tools (note that the user could himself try to write symbolic queries or using /regex/[i]).
 
@@ -1232,11 +1264,26 @@ ${ROAM_REFERENCES_PARSING}
 Rule specific to Roam:
 - if user ask for tasks (only if unquoted), you should replace task keyword by 'ref:TODO' (default) or 'ref:DONE' depending on the user demand
 
+### **DATE FILTERING MODE DETECTION** → **Detect creation vs modification keywords** (default is "modified", last edited time)
+- **Examples**:
+  - "blocks created since one month" → timeRange: {..., "filterMode": "created"}
+  - "blocks since one week" → timeRange: {..., "filterMode": "modified"} (default)
+
+### **CAREFUL DATE RANGE INTERPRETATION** → **Parse temporal expressions precisely**:
+- **Be very careful with natural language date expressions - they have nuanced meanings**. When in doubt, favor the more inclusive interpretation
+Examples:
+- **"since one month"** = last 30 days from today (rolling window, not calendar month)
+- **"during last month"** = previous calendar month only (e.g., if today is Feb 15, means January 1-31)
+- **"since last month"** = from start of previous month until today (e.g., if today is Feb 15, means January 1 - February 15)  
+- **Consider user's language and cultural context** for date expressions
+
 ### Intent Parser Examples:
 
 **CRITICAL: Never use quotes in symbolic queries - multi-word terms are written without quotes**
 
 - "Blocks about car prices, not motorcycles" → 'text:car + text:price - text:motorcycle'
+- "Pages containing 'Live AI' content" → 'page:(content:(text:Live AI))' (quoted phrase stays as single term)
+- "Find blocks with 'machine learning algorithms'" → 'text:machine learning algorithms' (quoted multi-word phrase)
 - "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (it works also with 'ref:(book + to read)' )
 - "Find my #recipe with sugar or vanilla (in descendants)" → 'ref:recipe >> text:sugar|text:vanilla'
 - "important tasks to do with 'important' tag under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
@@ -1277,7 +1324,13 @@ By default, strict search without expansion will be applied.
 
 **CRITICAL DISTINCTION - Quoted terms vs Explicit exact keywords:**
 
-### **QUOTED TERMS** (casual usage) → **Simple text search** (users often quote terms casually - treat as normal search terms):
+### **QUOTED PHRASES** → **Keep as single text search terms**:
+- **CRITICAL**: When user quotes a multi-word phrase, treat it as a SINGLE search term, do NOT decompose into separate terms
+- 'blocks containing "Live AI"' → 'text:Live AI' (single phrase search, NOT text:Live + text:AI)
+- 'pages with "machine learning concepts"' → 'text:machine learning concepts' (single phrase)
+- 'find "artificial intelligence" discussions' → 'text:artificial intelligence' (single phrase)
+
+### **QUOTED SINGLE WORDS** (casual usage) → **Simple text search**:
 - 'blocks mentioning "strategy"' → 'text:strategy' (normal text search)
 
 ### **EXPLICIT EXACT KEYWORDS** → **Regex with word boundaries**:
@@ -1390,7 +1443,7 @@ Respond with only valid JSON, no explanations or any additional comment.
   "userIntent": "Clear description of what user wants to accomplish",
   "formalQuery": "symbolic query using the operators above (NEVER use quotes around terms)",
   "constraints": {
-    "timeRange": null | {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"},
+    "timeRange": null | {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "filterMode": "modified" | "created"},
     "maxResults": null | number,
     "requireRandom": false | true,
     "depthLimit": null
