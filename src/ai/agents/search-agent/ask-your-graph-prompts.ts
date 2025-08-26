@@ -159,26 +159,21 @@ const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 4. **STRUCTURED FORMAT**: ALWAYS use hierarchyCondition parameter (NOT hierarchicalExpression) - see examples below
 5. **COMPLEX LOGIC**: When you have mixed OR/AND with NOT (like (A|B) AND NOT C), or nested groupings like (A+B)|(C-D), ALWAYS use leftConditionGroups/rightConditionGroups instead of simple leftConditions/rightConditions. DETECT: parentheses with different operators inside and outside, OR combined with NOT.
 
+**TOOL EXECUTION PATTERNS:**
+
 **HIERARCHICAL SEARCH (DEFAULT for multi-condition AND queries):**
-- 'ref:Machine Learning + ref:AI Fundamentals' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'Machine Learning', matchType: 'contains'}], rightConditions: [{type: 'page_ref', text: 'AI Fundamentals', matchType: 'contains'}]}
-- 'text:productivity + text:tools' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'text', text: 'productivity', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'tools', matchType: 'contains'}]}
-- 'ref:recipe + text:sugar' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'recipe', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'sugar', matchType: 'contains'}]}
+- 'text:A + text:B' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [...], rightConditions: [...]}
+- 'ref:page + text:content' → findBlocksWithHierarchy with hierarchyCondition structure
 
 **HIERARCHICAL WITH NEGATION (CRITICAL: Distribute NOT to BOTH sides):**
-- 'ref:Machine Learning + ref:AI Fundamentals - text:deep' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'Machine Learning', matchType: 'contains'}, {type: 'text', text: 'deep', matchType: 'contains', negate: true}], leftCombination: 'AND', rightConditions: [{type: 'page_ref', text: 'AI Fundamentals', matchType: 'contains'}, {type: 'text', text: 'deep', matchType: 'contains', negate: true}], rightCombination: 'AND'}
-- 'text:productivity + text:tools - text:outdated' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'text', text: 'productivity', matchType: 'contains'}, {type: 'text', text: 'outdated', matchType: 'contains', negate: true}], leftCombination: 'AND', rightConditions: [{type: 'text', text: 'tools', matchType: 'contains'}, {type: 'text', text: 'outdated', matchType: 'contains', negate: true}], rightCombination: 'AND'}
-
-**SIMPLE OR/AND SYNTAX (single logic level):**
-- 'ref:pending | ref:waiting | ref:pause + ref:status' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'pending', matchType: 'contains'}, {type: 'page_ref', text: 'waiting', matchType: 'contains'}, {type: 'page_ref', text: 'pause', matchType: 'contains'}], leftCombination: 'OR', rightConditions: [{type: 'page_ref', text: 'status', matchType: 'contains'}]}
-- 'text:machine | text:AI | text:neural + ref:learning' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'text', text: 'machine', matchType: 'contains'}, {type: 'text', text: 'AI', matchType: 'contains'}, {type: 'text', text: 'neural', matchType: 'contains'}], leftCombination: 'OR', rightConditions: [{type: 'page_ref', text: 'learning', matchType: 'contains'}]}
+- 'text:A + text:B - text:exclude' → findBlocksWithHierarchy (distribute negate:true to BOTH leftConditions and rightConditions)
 
 **COMPLEX LOGIC (mixed OR/AND with NOT - USE GROUPS):**
-- '((ref:Machine Learning | text:HERE) - text:exclude) > text:AI Fundamentals' → findBlocksWithHierarchy with hierarchyCondition={operator: '>', leftConditionGroups: [{conditions: [{type: 'page_ref', text: 'Machine Learning', matchType: 'contains'}, {type: 'text', text: 'HERE', matchType: 'contains'}], combination: 'OR'}, {conditions: [{type: 'text', text: 'exclude', matchType: 'contains', negate: true}], combination: 'AND'}], leftGroupCombination: 'AND', rightConditions: [{type: 'text', text: 'AI Fundamentals', matchType: 'contains'}]}
-- '(ref:project + text:status) | (text:task - text:completed)' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditionGroups: [{conditions: [{type: 'page_ref', text: 'project', matchType: 'contains'}, {type: 'text', text: 'status', matchType: 'contains'}], combination: 'AND'}, {conditions: [{type: 'text', text: 'task', matchType: 'contains'}, {type: 'text', text: 'completed', matchType: 'contains', negate: true}], combination: 'AND'}], leftGroupCombination: 'OR', rightConditions: [{type: 'text', text: 'results', matchType: 'contains'}]}
+- '((ref:A | text:B) - text:exclude) > text:C' → findBlocksWithHierarchy with leftConditionGroups/rightConditionGroups
 
 **WHEN TO USE GROUPS vs SIMPLE:**
-- SIMPLE: Pure OR (A|B|C) or pure AND (A+B+C) or simple negation (A+B-C) distributed to both sides
-- GROUPS: Mixed logic like (A|B) AND NOT C, or (A+B) OR C, or multiple logical levels
+- SIMPLE: Pure OR (A|B|C) or pure AND (A+B+C) or simple negation (A+B-C) 
+- GROUPS: Mixed logic like (A|B) AND NOT C, or multiple logical levels
 
 **🎯 PAGE SEARCH SCOPE (CRITICAL: Parse page:(content:(...)) and page:(block:(...)) syntax)**
 
@@ -188,37 +183,24 @@ const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 3. **Extract conditions from inside the parentheses** and convert to proper tool parameters
 
 **PAGE SEARCH SCOPE EXAMPLES:**
-- 'page:(content:(ref:Machine Learning + ref:AI Finance))' → findPagesByContent with searchScope: "content", conditions: [{type: 'page_ref', text: 'Machine Learning'}, {type: 'page_ref', text: 'AI Finance'}], combineConditions: "AND"
-- 'page:(block:(text:AI + text:neural networks))' → findPagesByContent with searchScope: "block", conditions: [{type: 'text', text: 'AI'}, {type: 'text', text: 'neural networks'}], combineConditions: "AND"
-- 'page:(content:(text:productivity | text:tools))' → findPagesByContent with searchScope: "content", conditions: [{type: 'text', text: 'productivity'}, {type: 'text', text: 'tools'}], combineConditions: "OR"
-- 'page:(title:(text:machine learning))' → findPagesByTitle (no searchScope needed for title searches)
+- 'page:(content:(text:A + text:B))' → findPagesByContent with searchScope: "content", combineConditions: "AND"
+- 'page:(block:(text:A + text:B))' → findPagesByContent with searchScope: "block", combineConditions: "AND"  
+- 'page:(title:(text:keyword))' → findPagesByTitle (no searchScope needed)
 
 **SCOPE SEMANTICS:**
 - **searchScope: "content"**: Conditions can match across different blocks in the same page (A in block 1, B in block 2)
 - **searchScope: "block"**: All conditions must match within individual blocks (A and B both in same block)
 
-- 'ref:project + ref:status' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [{type: 'page_ref', text: 'project', matchType: 'contains'}], rightConditions: [{type: 'page_ref', text: 'status', matchType: 'contains'}]}
-- 'text:deep + text:learning' → findBlocksByContent (blocks containing BOTH "deep" AND "learning" text)
-- 'text:Machine Learning > text:Deep Learning' → findBlocksWithHierarchy with hierarchyCondition={operator: '>', leftConditions: [{type: 'text', text: 'Machine Learning', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'Deep Learning', matchType: 'contains'}]}
-- 'text:AI => text:neural networks' → findBlocksWithHierarchy with hierarchyCondition={operator: '=>', leftConditions: [{type: 'text', text: 'AI', matchType: 'contains'}], rightConditions: [{type: 'text', text: 'neural networks', matchType: 'contains'}]}
+**CORE TOOL SELECTION RULES:**
+- **Hierarchical patterns** (A + B, A > B, A <=> B) → findBlocksWithHierarchy
+- **Simple conditions** (single term, OR logic) → findBlocksByContent  
+- **Same-block override** (depth=0, 'in same block') → findBlocksByContent with depthLimit=0
+- **Page searches** → findPagesByTitle or findPagesByContent based on scope
 
-**FLAT SEARCH (for single conditions, OR logic, or explicit same-block requests):**
-- 'text:productivity | text:tools' → findBlocksByContent (OR logic works better with flat search)
-- 'text:productivity' → findBlocksByContent (single condition, no hierarchy needed)  
-- 'ref:meeting + in:Project A + depth=0' → findBlocksByContent with depthLimit=0 (user explicitly requests same-block search)
-- 'ref:Machine Learning + ref:AI Fundamentals depth=0' → findBlocksByContent with depthLimit=0 (force same-block search)
-- 'text:A + text:B in same block' → findBlocksByContent with depthLimit=0 (same-block constraint)
-
-**SYMBOLIC QUERY PATTERNS:**
-- 'text:strategy' → findBlocksByContent with text condition (normal text search, allows expansion)
-- 'regex:/\\\\bstrategy\\\\b/i' → findBlocksByContent with regex condition (exact word boundaries)
-- 'text:strategy*' → findBlocksByContent with fuzzy expansion
-- 'text:strategy~' → findBlocksByContent with semantic expansion
-- 'text:A + text:B same block' → findBlocksByContent with depthLimit=0 (same-block constraint)
-- 'text:A + text:B exact' → findBlocksByContent (keep + when user requests exact same-block matches)
-
-**SEMANTIC SEARCH:**
-- 'page:(title:AI~) → analyze:connections' → Find pages about AI or relative concepts using findPagesByTitle with smartExpansion:true`;
+**EXPANSION PATTERNS:**
+- 'text:term*' → fuzzy expansion
+- 'text:term~' → semantic expansion  
+- 'regex:/\\bterm\\b/i' → exact word boundaries`;
 
 // Shared Roam formatting instructions
 export const ROAM_FORMATTING_INSTRUCTIONS = `ROAM-SPECIFIC FORMATTING - MANDATORY:
@@ -382,15 +364,30 @@ SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
 - 'page:(content:pattern)' - search page content  
 - 'page:(attr:key:type:value)' - attribute searches (also content search)
 
-${QUERY_TOOL_PATTERN_EXAMPLES}
+## PRECISE TOOL SELECTION PATTERNS:
+
+**TOOL SELECTION REFERENCE:**
+- **Single/OR conditions**: findBlocksByContent
+- **Multi-condition AND**: findBlocksWithHierarchy (unless depth=0)
+- **Page searches**: findPagesByTitle or findPagesByContent (with searchScope)
+- **Same-block constraints**: findBlocksByContent with depthLimit=0
+
+**OPERATOR REFERENCE:**
+- **<=>** (bidirectional), **>** (parent-child), **=>** (flexible) → findBlocksWithHierarchy
+- **+** (AND), **|** (OR), **-** (NOT) → logical operators
+
+**SPECIAL PATTERNS:**
+- **Expansion symbols**: 'text:car*' → condition: {text: 'car*', type: 'text'} (preserve symbols exactly)
+- **Regex patterns**: 'regex:/pattern/i' → condition: {text: '/pattern/i', type: 'regex'}
+- **Page references**: 'ref:title' → condition: {text: 'title', type: 'page_ref'}
 
 ## AVAILABLE TOOLS
 ${toolNames.map((name) => `- ${name}`).join("\n")}
 
 ## EXECUTION STRATEGY
 1. **Decode Query**: '${state.formalQuery || state.userQuery}' 
-2. **Select Tool**: Choose most appropriate tool for query type
-3. **Execute**: Use decoded parameters from symbolic query
+2. **Select Tool**: Match pattern above to choose correct tool
+3. **Execute**: Transform conditions using exact parameter structure shown
 
 ## KEY RULES
 - Execute SYMBOLIC QUERY as primary strategy, follow strictly its logic to transform conditions into tool parameters, calling the right tool
@@ -546,7 +543,7 @@ const buildExpansionGuidanceSection = (state: any): string => {
   } else if (currentLevel === 3) {
     return buildLevel3Guidance(isPageSearch, userQuery);
   } else if (currentLevel >= 4) {
-    return buildLevel4Guidance(isPageSearch, userQuery);
+    return buildLevel4Guidance(isPageSearch, userQuery, state.formalQuery);
   }
 
   return "";
@@ -613,20 +610,57 @@ const buildLevel3Guidance = (
 `;
 };
 
-// Level 4: Different tool strategies
-const buildLevel4Guidance = (
+// Level 4: Different tool strategies with comprehensive query re-evaluation
+export const buildLevel4Guidance = (
   isPageSearch: boolean,
-  userQuery: string
+  userQuery: string,
+  formalQuery: string
 ): string => {
   return `
-## 🔄 LEVEL 4: NEW TOOL STRATEGIES
+## 🔄 LEVEL 4: COMPREHENSIVE STRATEGY CHANGE
 
-**STRATEGY:**
-- **Try completely different tool approaches**
-- **Use different tool sequences and combinations**
-- **Consider multi-step workflows**
+**CRITICAL: You have reached maximum expansion level (4) with zero results.**
 
-**ACTION**: Use different tools or tool combinations than previously attempted
+### 🎯 FIRST: RE-EVALUATE THE ORIGINAL USER QUERY
+
+**ORIGINAL USER REQUEST:** "${userQuery}"
+**INTERPRETED IN THIS SYMBOLIC QUERY:** "${formalQuery}"
+
+**CRITICAL ANALYSIS REQUIRED:**
+1. **Check for over-interpretation**: Did you add conditions that weren't explicitly stated?
+2. **Identify meta-comments vs actual search conditions**: User requests often mix:
+   - **Search conditions** (what to find): "recipes with sugar"
+   - **Meta-comments** (context/explanation): "I want to bake cookies"
+   - **Instructions** (what to do with results): "show me the best ones"
+
+3. **Question your current symbolic query**: Is it too complex for the natural language request?
+
+### 🔧 CONSTRAINT RELAXATION STRATEGIES
+
+**PRIORITY 1: Remove Over-Interpreted Conditions**
+- Remove conditions that were inferred but not explicitly stated
+- Focus only on the core, explicit search terms from the original request
+
+**PRIORITY 2: Convert Strict AND to OR Logic**
+- If you used: \`text:(A + B)\` → Try: \`text:(A | B)\`
+- If you used: \`ref:pageA + ref:pageB\` → Try: \`ref:(pageA | pageB)\`
+- AND is often too restrictive - OR finds more results
+
+**PRIORITY 3: Simplify Complex Conditions**
+- Remove secondary/supporting conditions
+- Focus on the main concept or primary search term
+- Try single-condition searches instead of multi-condition ones
+
+### 🛠️ DIFFERENT TOOL COMBINATIONS
+
+**Try completely different approaches:**
+- **Switch tools**, or try **Multi-step approach**
+- **Try page searches**: If searching blocks failed, search page titles/content
+- **Use extractHierarchyContent**: For broader context discovery
+- **Try extractPageReferences**: Find content by what it references
+- **Consider multi-step workflow**: Find related content, then narrow down
+
+**Remember**: Better to find something relevant than nothing at all.
 `;
 };
 
@@ -1528,35 +1562,41 @@ Examples:
 - **"since last month"** = from start of previous month until today (e.g., if today is Feb 15, means January 1 - February 15)  
 - **Consider user's language and cultural context** for date expressions
 
-### Intent Parser Examples:
+### Intent Parser Examples (organized by parsing challenge):
 
 **CRITICAL: Never use quotes in symbolic queries - multi-word terms are written without quotes**
 
+**1. OVER-INTERPRETATION PREVENTION:**
+- "Find my productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
+- "Show me AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
 - "Blocks about car prices, not motorcycles" → 'text:car + text:price - text:motorcycle'
-- "Pages containing 'Live AI' content" → 'page:(content:(text:Live AI))' (quoted phrase stays as single term)
+
+**2. QUOTED PHRASE HANDLING:**
+- "Pages containing 'Live AI' content" → 'page:(content:(text:Live AI))' (quoted phrase = single term)
 - "Find blocks with 'machine learning algorithms'" → 'text:machine learning algorithms' (quoted multi-word phrase)
-- "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (it works also with 'ref:(book + to read)' )
-- "Find my #recipe with sugar or vanilla (in descendants)" → 'ref:recipe >> text:sugar|text:vanilla'
-- "important tasks to do with 'important' tag under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
-- "[[book]] notes tagged with "justice" in main block or in descendants" → 'ref:book =>> text:justice'
-- "Blocks about AI in my [[work]] page" → 'in:work + text:AI~'
-- "Find productivity #tips or similar concepts" → 'text:productivity~ + ref:tips'
-- "Blocks containing words starting with 'work'" → 'text:work*'
-- "Pages mentioning Machine Learning and AI Finance" → 'page:(content:(ref:Machine Learning + ref:AI in Finance))' (NO quotes around multi-word terms)
+
+**3. REFERENCE FORMAT PARSING:**
+- "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (also works: 'ref:(book + to read)')
+- "important tasks under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
+
+**4. HIERARCHICAL RELATIONSHIPS:**
+- "Find my #recipe with sugar in descendants" → 'ref:recipe >> text:sugar'
+- "[[book]] notes with justice in main block or descendants" → 'ref:book =>> text:justice'
+
+**5. SCOPE AND EXPANSION:**
+- "Blocks about AI in my [[work]] page" → 'in:work + text:AI~' (scope + semantic expansion)
+- "Blocks containing words starting with 'work'" → 'text:work*' (fuzzy expansion)
+
+**6. PAGE SEARCH SCOPE DISTINCTIONS:**
 - "Pages matching /lib.*/i in their title" → 'page:(title:(regex:/lib.*/i))'
-- "All 'status' pages in title (with semantic variations)" → 'page:(title:(status))' (let tools handle semantic expansion)
-- "Pages about productivity or similar concepts in title" → 'page:(title:(productivity))' (tools will find related page titles)
-- "Pages with attribute 'status' set to #completed or #archived" → 'page:(attr:status:ref:(completed | archived))'
-- "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
 - "Pages discussing AI and machine learning" → 'page:(content:(text:AI + text:machine learning))' (content-wide AND)
-- "Pages with blocks about both AI and machine learning together" → 'page:(block:(text:AI + text:machine learning))' (same-block AND)
-- "Pages about AI or machine learning topics" → 'page:(content:(text:AI | text:machine learning))' (content-wide OR)
+- "Pages with AI and ML mentioned together" → 'page:(block:(text:AI + text:ML))' (same-block AND)
+- "Pages about AI or ML topics" → 'page:(content:(text:AI | text:machine learning))' (OR logic)
+
+**7. ATTRIBUTE PATTERN CONVERSION:**
 - "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
-- "Blocks with 'type' attribute set to [[book]] and #toRead in 'status'" → 'regex:/^type::.*book.*/i + regex:/^status::.*toread.*/i'
-- "Find books by Victor Hugo" → 'regex:/^author::.*victor hugo.*/i'
 - "Pages with status completed or done" → 'regex:/^status::.*(completed|done).*/i'
-- "All content with 'priority' set to 'high'" → 'regex:/^priority::.*high.*/i'
-- "Machine Learning => Deep Learning" → 'Machine Learning => Deep Learning' (keep plain text as-is for content search since there is not page ref syntax or mention)
+- "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
 
 ## SPECIAL CASE - DIRECT DATOMIC QUERIES:
 If the user provides a Datomic query (starts with patterns like \`[:find\`, \`[:find ?e\`, etc.), respond with:
@@ -1649,16 +1689,48 @@ By default, strict search without expansion will be applied.
 
 ## INTENT vs QUERY DISTINCTION:
 
-**Critical**: User requests fall into two categories:
-1. **Direct Search**: "Find recipes with sugar" → query matches intent
-2. **Analytical Questions**: "What's the best recipe?" → query finds recipes, analysis evaluates "best"
+**CRITICAL**: User requests often mix three different types of content that must be carefully separated:
+
+### 🎯 **CONTENT TYPE IDENTIFICATION:**
+1. **Search Conditions** (what to find): "recipes with sugar", "blocks about AI", "pages mentioning productivity"
+2. **Meta-Comments** (context/explanation): "I want to bake cookies", "for my research", "I'm writing a report"
+3. **Post-Processing Instructions** (what to do with results): "show me the best ones", "summarize them", "count how many"
+
+### ⚠️ **CRITICAL PARSING RULES:**
+- **ONLY extract explicit search conditions** - ignore meta-comments and instructions
+- **Don't infer conditions from context** unless they're explicitly stated
+- **Separate analysis requests** from search conditions (e.g., "best" → analysisType: "compare", not search condition)
+
+### 🔍 **QUESTION-TO-SEARCH CONVERSION:**
+When user asks a question without explicit search conditions, infer the **minimum necessary conditions** to find relevant results:
+
+**Examples:**
+- "What's the best recipe?" → Search: 'text:recipe', Analysis: compare/evaluate
+- "How many tasks do I have?" → Search: 'ref:TODO', Analysis: count  
+- "What did I write about AI yesterday?" → Search: 'text:AI', Constraint: timeRange yesterday
+- "Which pages mention productivity most?" → Search: 'text:productivity', Analysis: count/rank
+
+### 📏 **CONDITION RESTRAINT PRINCIPLE:**
+**When in doubt, prefer FEWER and MORE RELAXED conditions:**
+- ✅ **Good**: 'text:recipe' (broad, will find results)
+- ❌ **Over-interpretation**: 'text:recipe + text:sugar + text:easy + ref:cooking' (too restrictive)
+- **Exception**: Only be strict when user is very explicit and clear about multiple conditions
+
+**Examples of restraint:**
+- "I need some productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
+- "Find my AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
+- "Show me recipes I can make quickly" → 'text:recipe' (NOT 'text:recipe + text:quick + text:easy')
+
+### 🎯 **EXPLICIT vs IMPLICIT CONDITIONS:**
+- **Explicit**: "Find blocks with AI AND machine learning" → 'text:(AI + machine learning)'
+- **Implicit**: "Find blocks about AI research" → 'text:AI' (research is descriptive context, not a required condition)
 
 ### Question/Demand Pattern Recognition:
 - **Evaluative words** ("best", "worst", "most important", "wrong") → remove from query, add to analysis
-- **Quantitative words** ("how many", "count", "total") → \`analyze:count\`
-- **Comparative words** ("compare", "versus", "difference") → \`analyze:compare\`
-- **Connection words** ("related to", "connected", "links") → \`analyze:connections\`
-- **Summary words** ("summarize", "overview", "what about") → \`analyze:summary\`
+- **Quantitative words** ("how many", "count", "total") → 'analyze:count'
+- **Comparative words** ("compare", "versus", "difference") → 'analyze:compare'
+- **Connection words** ("related to", "connected", "links") → 'analyze:connections'
+- **Summary words** ("summarize", "overview", "what about") → 'analyze:summary'
 
 ### Search Strategy Selection:
 - "direct": Simple single keyword/reference searches
