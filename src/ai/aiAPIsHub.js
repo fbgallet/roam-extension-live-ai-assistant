@@ -378,7 +378,8 @@ export function modelAccordingToProvider(model) {
     }
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
-    if (model === "deepseek-v3.1 thinking") {
+    console.log("model in aiAPIsHub:>> ", model);
+    if (model === "deepseek-v3.1 thinking" || model === "deepseek-reasoner") {
       llm.id = "deepseek-reasoner";
       llm.name = "DeepSeek-V3.1 Thinking";
       llm.thinking = true;

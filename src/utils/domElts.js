@@ -148,13 +148,13 @@ export function removeContainer(position) {
 
 export const displaySpinner = async (targetUid) => {
   // console.log("targetUid :>> ", targetUid);
-  
+
   // Safety check: if targetUid is null, undefined, or invalid, return early
   if (!targetUid || targetUid === "undefined" || targetUid === "null") {
     console.warn("⚠️ displaySpinner called with invalid targetUid:", targetUid);
     return null; // Return null instead of intervalId to indicate no spinner was created
   }
-  
+
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
@@ -191,6 +191,7 @@ export const removeSpinner = (intervalId) => {
 
 export const insertParagraphForStream = (targetUid) => {
   let targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+  console.log("targetBlockElt in insertPar... :>> ", targetBlockElt);
   if (!targetBlockElt) targetBlockElt = document.querySelector(".rm-block");
   const previousStreamElt = targetBlockElt.querySelector(".speech-stream");
   if (previousStreamElt) previousStreamElt.remove();
@@ -286,7 +287,7 @@ export const displayAskGraphModeDialog = (dialogData) => {
   container = document.createElement("div");
   container.classList.add("askgraph-mode-dialog-container");
   targetElt.appendChild(container);
-  
+
   function unmountAskGraphModeDialog() {
     const node = document.querySelector(".askgraph-mode-dialog-container");
     if (node) {
@@ -294,7 +295,7 @@ export const displayAskGraphModeDialog = (dialogData) => {
       node.remove();
     }
   }
-  
+
   ReactDOM.render(
     <AskGraphModeDialog
       isOpen={true}
@@ -319,7 +320,9 @@ export const displayAskGraphFirstTimeDialog = (dialogData) => {
   const targetElt = document.querySelector(".roam-body");
   const previousContainer =
     targetElt &&
-    targetElt.parentElement.querySelector(".askgraph-firsttime-dialog-container");
+    targetElt.parentElement.querySelector(
+      ".askgraph-firsttime-dialog-container"
+    );
   let container;
   if (previousContainer) {
     ReactDOM.unmountComponentAtNode(previousContainer);
@@ -327,7 +330,7 @@ export const displayAskGraphFirstTimeDialog = (dialogData) => {
   container = document.createElement("div");
   container.classList.add("askgraph-firsttime-dialog-container");
   targetElt.appendChild(container);
-  
+
   function unmountAskGraphFirstTimeDialog() {
     const node = document.querySelector(".askgraph-firsttime-dialog-container");
     if (node) {
@@ -335,7 +338,7 @@ export const displayAskGraphFirstTimeDialog = (dialogData) => {
       node.remove();
     }
   }
-  
+
   ReactDOM.render(
     <AskGraphFirstTimeDialog
       isOpen={true}

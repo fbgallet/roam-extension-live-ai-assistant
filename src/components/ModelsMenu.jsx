@@ -509,7 +509,7 @@ const ModelsMenu = ({
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
                 text="DeepSeek-V3.1"
-                labelElement="64k"
+                labelElement="128k"
               />
               <MenuItem
                 icon={defaultModel === "DeepSeek-V3.1 Thinking" && "pin"}
@@ -522,7 +522,7 @@ const ModelsMenu = ({
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
                 text="DeepSeek-V3.1 Thinking"
-                labelElement="64k"
+                labelElement="128k"
               />
             </>
           )}

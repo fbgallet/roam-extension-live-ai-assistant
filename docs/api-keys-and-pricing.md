@@ -27,7 +27,7 @@ By default, logging of your inputs & outputs in OpenRouter's settings is enabled
 
 Pricing currently used in cost calculations in Live AI Assistant
 
-In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like o3, o1, deepseek-reasoner, etc.).
+In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like gpt-5, o3, Claude Sonnet 4 Thinking, deepseek-v3.1 Thinking, etc.).
 
 NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI Assistant. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI Assistant are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
 
@@ -52,8 +52,7 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | claude-sonnet-4-20250514     | $3.00                     | $15.00                     |
 | claude-opus-4-20250514       | $15.00                    | $75.00                     |
 | **DeepSeek**                 |                           |                            |
-| DeepSeek-V3                  | $0.27                     | $1.10                      |
-| deepseek-R1                  | $0.55                     | $2.19                      |
+| DeepSeek-V3.1                | $0.56                     | $1.68                      |
 | **Grok**                     |                           |                            |
 | grok-2-1212                  | $2.00                     | $10.00                     |
 

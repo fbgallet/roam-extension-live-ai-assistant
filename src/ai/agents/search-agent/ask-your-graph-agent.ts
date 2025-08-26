@@ -43,6 +43,7 @@ import {
   buildFinalResponseSystemPrompt,
   buildCacheProcessingPrompt,
   buildCacheSystemPrompt,
+  buildLevel4Guidance,
 } from "./ask-your-graph-prompts";
 
 // Result summary interface for token optimization
@@ -107,6 +108,10 @@ const ReactSearchAgentState = Annotation.Root({
   >, // Full results with lifecycle management
   nextResultId: Annotation<number>, // Counter for generating unique result IDs
   finalAnswer: Annotation<string | undefined>,
+  // Streaming response state
+  streamElement: Annotation<HTMLElement | null | undefined>,
+  wasStreamed: Annotation<boolean>,
+  streamingTargetUid: Annotation<string | undefined>,
   // Token tracking across entire agent execution
   totalTokensUsed: Annotation<{ input: number; output: number }>,
   // Timing tracking - separate LLM vs tool execution
@@ -1077,6 +1082,10 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
     // Initialize expansion tracking (Level 0 = initial search, Level 1+ = expansions)
     expansionLevel: state.expansionLevel || 0,
     expansionConsent: state.expansionConsent || false,
+    // Initialize streaming state
+    streamElement: undefined,
+    wasStreamed: false,
+    streamingTargetUid: undefined,
   };
 };
 
@@ -1653,18 +1662,129 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     }
   });
 
-  // Generate final response
-  const response = await Promise.race([
-    llm.invoke(messages), // Note: no tools binding for pure response
-    abortPromise,
-  ]);
+  // Import streaming dependencies
+  const { streamResponse } = await import("../../..");
+  const { insertParagraphForStream } = await import("../../../utils/domElts");
+
+  // Determine if we should stream (similar to aiAPIsHub logic)
+  // Don't stream for thinking models or o1/o3 models as they need special handling
+  const isThinkingModel =
+    state.model.thinking ||
+    state.model.id?.startsWith("o1") ||
+    state.model.id?.startsWith("o3") ||
+    state.model.id?.startsWith("o4") ||
+    state.model.id?.includes("reasoning");
+  const shouldStream = streamResponse && !isThinkingModel;
+
+  let finalAnswerContent = "";
+  let response: any;
+  let streamElt: HTMLElement | null = null;
+  let streamingTargetUid: string | undefined = undefined;
+
+  if (shouldStream) {
+    console.log(`🎯 [ResponseWriter] Using streaming mode`);
+
+    // For streaming, we need to create the response block first
+    const { getInstantAssistantRole } = await import("../../..");
+    const { chatRoles } = await import("../../..");
+    const { createChildBlock } = await import("../../../utils/roamAPI");
+
+    const assistantRole = state.model.id
+      ? getInstantAssistantRole(state.model.id)
+      : chatRoles?.assistant || "";
+
+    // Create response block first for streaming
+    streamingTargetUid = await createChildBlock(state.rootUid, assistantRole);
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Create streaming element for displaying progress
+    streamElt = insertParagraphForStream(streamingTargetUid);
+
+    try {
+      // Use LangChain streaming
+      const streamingResponse = await Promise.race([
+        llm.stream(messages),
+        abortPromise,
+      ]);
+
+      let streamedContent = "";
+      let usage_metadata: any = undefined;
+      let chunkCount = 0;
+
+      for await (const chunk of streamingResponse) {
+        chunkCount++;
+
+        // Check for cancellation
+        if (state.abortSignal?.aborted) {
+          if (streamElt) {
+            streamElt.innerHTML += " (⚠️ stream interrupted by user)";
+          }
+          finalAnswerContent = streamedContent; // Use what we got so far
+          break;
+        }
+
+        const chunkContent = chunk.content || "";
+        streamedContent += chunkContent;
+
+        // Update streaming display with detailed logging
+        if (streamElt && chunkContent) {
+          streamElt.innerHTML += chunkContent;
+
+          // Force a repaint by accessing offsetHeight
+          streamElt.offsetHeight;
+        } else if (!streamElt) {
+          console.warn(
+            `🎯 [ResponseWriter] No stream element available for chunk ${chunkCount}`
+          );
+        }
+
+        // Collect usage metadata from the last chunk
+        if (chunk.usage_metadata) {
+          usage_metadata = chunk.usage_metadata;
+        }
+      }
+
+      // Create final response object for consistency with non-streaming path
+      // We need to create a proper AIMessage for the messages array
+      const responseOptions: any = { content: streamedContent };
+      if (usage_metadata) {
+        responseOptions.usage_metadata = usage_metadata;
+      }
+      response = new AIMessage(responseOptions);
+
+      finalAnswerContent = streamedContent;
+    } catch (error) {
+      console.error("Streaming error:", error);
+      if (streamElt) {
+        streamElt.innerHTML +=
+          " (⚠️ streaming failed, generating response normally)";
+      }
+      // Fallback to non-streaming
+      response = await Promise.race([llm.invoke(messages), abortPromise]);
+      finalAnswerContent =
+        typeof response.content === "string"
+          ? response.content
+          : response.content?.toString() || "";
+    } finally {
+      // Clean up streaming element (will be handled by insertResponse)
+    }
+  } else {
+    // Generate final response (original non-streaming path)
+    response = await Promise.race([llm.invoke(messages), abortPromise]);
+
+    // Ensure finalAnswer is a string
+    finalAnswerContent =
+      typeof response.content === "string"
+        ? response.content
+        : response.content?.toString() || "";
+  }
 
   const llmDuration = Date.now() - llmStartTime;
   updateAgentToaster(
     `✅ Response generated (${(llmDuration / 1000).toFixed(1)}s)`
   );
 
-  console.log(`🎯 [FinalResponseWriter] Response content:`, response.content);
+  console.log(`🎯 [FinalResponseWriter] Response content:`, finalAnswerContent);
 
   // Track tokens and timing from final response generation
   const responseTokens = response.usage_metadata || {};
@@ -1683,17 +1803,16 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     toolCalls: state.timingMetrics?.toolCalls || 0,
   };
 
-  // Ensure finalAnswer is a string
-  const finalAnswerContent =
-    typeof response.content === "string"
-      ? response.content
-      : response.content?.toString() || "";
-
   return {
     messages: [...state.messages, response],
     finalAnswer: finalAnswerContent,
     totalTokensUsed: updatedTotalTokens,
     timingMetrics: updatedTimingMetrics,
+    // Pass streaming element info to insertResponse
+    streamElement: streamElt,
+    wasStreamed: shouldStream,
+    // Pass the created target UID for streaming (if created)
+    streamingTargetUid: shouldStream ? streamingTargetUid : undefined,
   };
 };
 
@@ -1703,6 +1822,18 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     state.finalAnswer || state.messages.at(-1).content.toString();
 
   updateAgentToaster("📝 Preparing your results...");
+
+  // Handle streaming element cleanup
+  if (state.wasStreamed && state.streamElement) {
+    console.log("🎯 [InsertResponse] Cleaning up streaming element");
+
+    // Remove the temporary streaming element
+    try {
+      state.streamElement.remove();
+    } catch (error) {
+      console.warn("Failed to remove streaming element:", error);
+    }
+  }
 
   // Calculate and display comprehensive timing and token metrics
   if (state.startTime) {
@@ -1715,8 +1846,9 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
       const llmCalls = state.timingMetrics.llmCalls;
       const toolCalls = state.timingMetrics.toolCalls;
 
+      const streamingNote = state.wasStreamed ? " (with streaming)" : "";
       updateAgentToaster(
-        `⏱️ Total: ${totalDuration}s (LLM: ${llmTime}s/${llmCalls} calls, Tools: ${toolTime}s/${toolCalls} calls)`
+        `⏱️ Total: ${totalDuration}s (LLM: ${llmTime}s/${llmCalls} calls, Tools: ${toolTime}s/${toolCalls} calls)${streamingNote}`
       );
     } else {
       updateAgentToaster(`⏱️ Total execution time: ${totalDuration}s`);
@@ -1735,12 +1867,18 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     );
   }
 
-  const assistantRole = state.model.id
-    ? getInstantAssistantRole(state.model.id)
-    : chatRoles?.assistant || "";
+  let targetUid: string;
 
-  // Create response block
-  const targetUid = await createChildBlock(state.rootUid, assistantRole);
+  if (state.wasStreamed && state.streamingTargetUid) {
+    // For streamed responses, use the pre-created block
+    targetUid = state.streamingTargetUid;
+  } else {
+    // For non-streamed responses, create the block now
+    const assistantRole = state.model.id
+      ? getInstantAssistantRole(state.model.id)
+      : chatRoles?.assistant || "";
+    targetUid = await createChildBlock(state.rootUid, assistantRole);
+  }
 
   await insertStructuredAIResponse({
     targetUid,
@@ -1748,7 +1886,11 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     forceInChildren: true,
   });
 
-  console.log("✅ ReAct Search Agent completed");
+  console.log(
+    `✅ ReAct Search Agent completed${
+      state.wasStreamed ? " (with streaming)" : ""
+    }`
+  );
 
   // Calculate result stats for smart button logic - only count final results with actual data
   const finalResults = Object.values(state.resultStore || {}).filter(
@@ -1908,515 +2050,6 @@ function calculateTotalContentLength(results: any[]): number {
   }, 0);
 }
 
-// Context expansion functions moved to contextExpansion.ts
-// Keeping stub for backward compatibility
-// async function performAdaptiveExpansion(
-//   results: any[],
-//   charLimit: number,
-//   currentContentLength: number,
-//   state: any
-// ): Promise<any[]> {
-//   // If current content already exceeds half the limit, be conservative with expansion
-//   const expansionBudget = charLimit - currentContentLength;
-//   const canExpand = expansionBudget > charLimit * 0.1; // Need at least 10% budget for expansion
-
-//   if (!canExpand) {
-//     console.log(
-//       `🌳 [AdaptiveExpansion] Insufficient budget for expansion (${expansionBudget} chars)`
-//     );
-//     return [];
-//   }
-
-//   console.log(
-//     `🌳 [AdaptiveExpansion] Expansion budget: ${expansionBudget} chars`
-//   );
-
-//   // Extract UIDs from results for hierarchy expansion
-//   const blockUids = results.filter((r) => r.uid).map((r) => r.uid);
-//   const pageUids = results
-//     .filter((r) => r.pageUid && !r.uid)
-//     .map((r) => r.pageUid); // Pages without block context
-
-//   if (blockUids.length === 0 && pageUids.length === 0) {
-//     console.log(`🌳 [AdaptiveExpansion] No UIDs found for expansion`);
-//     return [];
-//   }
-
-//   console.log(
-//     `🌳 [AdaptiveExpansion] Expanding ${blockUids.length} blocks + ${pageUids.length} pages`
-//   );
-
-//   try {
-//     // Get hierarchical content using getNodeDetails
-//     const hierarchyData = await expandWithGetNodeDetails(
-//       blockUids,
-//       pageUids,
-//       state
-//     );
-
-//     if (!hierarchyData || hierarchyData.length === 0) {
-//       console.log(`🌳 [AdaptiveExpansion] No hierarchy data retrieved`);
-//       return [];
-//     }
-
-//     console.log(
-//       `🌳 [AdaptiveExpansion] Retrieved ${hierarchyData.length} hierarchy items`
-//     );
-
-//     // Create expanded blocks with original + context
-//     const expandedBlocks = await createExpandedBlocks(
-//       results,
-//       hierarchyData,
-//       expansionBudget
-//     );
-
-//     // Apply intelligent truncation based on budget
-//     const finalExpandedBlocks = applyIntelligentTruncation(
-//       expandedBlocks,
-//       expansionBudget
-//     );
-
-//     console.log(
-//       `🌳 [AdaptiveExpansion] Created ${finalExpandedBlocks.length} expanded blocks`
-//     );
-//     return finalExpandedBlocks;
-//   } catch (error) {
-//     console.error(`🌳 [AdaptiveExpansion] Error during expansion:`, error);
-//     return [];
-//   }
-// }
-
-// Get hierarchical content using getNodeDetails with includeHierarchy
-// async function expandWithGetNodeDetails(
-//   blockUids: string[],
-//   pageUids: string[],
-//   state: any
-// ): Promise<any[]> {
-//   const { executeDatomicQuery } = await import("./tools/searchUtils");
-
-//   try {
-//     // Build Datomic query to get hierarchical content for blocks
-//     let allHierarchyData: any[] = [];
-
-//     if (blockUids.length > 0) {
-//       // Get basic block info first
-//       const blockInfoQuery = `
-//         [:find ?uid ?content
-//          :where
-//          [?b :block/uid ?uid]
-//          [?b :block/string ?content]
-//          [(contains? #{${blockUids.map((uid) => `"${uid}"`).join(" ")}} ?uid)]]
-//       `;
-
-//       const blockResults = await executeDatomicQuery(blockInfoQuery);
-//       if (blockResults && Array.isArray(blockResults)) {
-//         allHierarchyData.push(
-//           ...blockResults.map((r) => [r[0], r[1], null, null])
-//         ); // Format: [uid, content, parent-uid, parent-content]
-//       }
-
-//       // Get parent blocks separately (simpler query)
-//       const parentsQuery = `
-//         [:find ?child-uid ?parent-uid ?parent-content
-//          :where
-//          [?child :block/uid ?child-uid]
-//          [?child :block/parents ?parent]
-//          [?parent :block/uid ?parent-uid]
-//          [?parent :block/string ?parent-content]
-//          [(contains? #{${blockUids
-//            .map((uid) => `"${uid}"`)
-//            .join(" ")}} ?child-uid)]]
-//       `;
-
-//       const parentResults = await executeDatomicQuery(parentsQuery);
-//       if (parentResults && Array.isArray(parentResults)) {
-//         // Merge parent data with existing block data
-//         for (const parentResult of parentResults) {
-//           const [childUid, parentUid, parentContent] = parentResult;
-//           // Find existing block data and add parent info
-//           const existingIndex = allHierarchyData.findIndex(
-//             (h) => h[0] === childUid
-//           );
-//           if (existingIndex >= 0) {
-//             allHierarchyData[existingIndex][2] = parentUid;
-//             allHierarchyData[existingIndex][3] = parentContent;
-//           }
-//         }
-//       }
-
-//       // Get children blocks
-//       const childrenQuery = `
-//         [:find ?child-uid ?child-content ?parent-uid
-//          :where
-//          [?parent :block/uid ?parent-uid]
-//          [?parent :block/children ?child]
-//          [?child :block/uid ?child-uid]
-//          [?child :block/string ?child-content]
-//          [(contains? #{${blockUids
-//            .map((uid) => `"${uid}"`)
-//            .join(" ")}} ?parent-uid)]]
-//       `;
-
-//       const childrenResults = await executeDatomicQuery(childrenQuery);
-//       if (childrenResults && Array.isArray(childrenResults)) {
-//         allHierarchyData.push(...childrenResults);
-//       }
-//     }
-
-//     return allHierarchyData;
-//   } catch (error) {
-//     console.error(`🌳 [ExpandWithGetNodeDetails] Error:`, error);
-//     return [];
-//   }
-// }
-
-// Build recursive children outline with proper indentation (inspired by convertTreeToLinearArray)
-// async function buildRecursiveChildrenOutline(
-//   parentUid: string,
-//   budget: number,
-//   maxDepth: number = 2,
-//   resultCount: number = 50, // Total result count for degressive limits
-//   currentLevel: number = 1,
-//   indent: string = "  "
-// ): Promise<string> {
-//   if (currentLevel > maxDepth || budget <= 0) return "";
-
-//   // Query for direct children of the parent
-//   const childrenQuery = `
-//     [:find ?child-uid ?child-content ?order
-//      :where
-//      [?parent :block/uid "${parentUid}"]
-//      [?parent :block/children ?child]
-//      [?child :block/uid ?child-uid]
-//      [?child :block/string ?child-content]
-//      [?child :block/order ?order]]
-//   `;
-
-//   try {
-//     const childrenResults = await executeDatomicQuery(childrenQuery);
-//     if (!childrenResults || childrenResults.length === 0) {
-//       return "";
-//     }
-
-//     // Sort by order
-//     const sortedChildren = childrenResults.sort((a, b) => a[2] - b[2]);
-
-//     // ADAPTIVE 100-500 CHARACTER LIMITS with degressive limits for deeper levels
-//     const budgetPerChild = Math.floor(
-//       budget / Math.min(sortedChildren.length, 10)
-//     ); // Max 10 children
-
-//     // Base limits: 100-500 chars as requested
-//     let minContentPerChild = 100;
-//     let maxContentPerChild = 500;
-
-//     // DEGRESSIVE LIMITS: reduce content per child as we go deeper
-//     const depthFactor = Math.pow(0.7, currentLevel - 1); // 70% reduction per level
-//     minContentPerChild = Math.max(50, Math.floor(minContentPerChild * depthFactor));
-//     maxContentPerChild = Math.max(100, Math.floor(maxContentPerChild * depthFactor));
-
-//     // RESULT COUNT ADAPTATION: fewer results = more content per child
-//     const resultCountFactor = resultCount <= 20 ? 1.5 : resultCount <= 50 ? 1.2 : resultCount <= 100 ? 1.0 : 0.8;
-//     maxContentPerChild = Math.floor(maxContentPerChild * resultCountFactor);
-
-//     const targetContentPerChild = Math.max(
-//       minContentPerChild,
-//       Math.min(maxContentPerChild, budgetPerChild)
-//     );
-
-//     const outlineLines: string[] = [];
-//     let remainingBudget = budget;
-
-//     for (const [childUid, childContent, order] of sortedChildren.slice(0, 10)) {
-//       if (remainingBudget <= 0) break;
-
-//       // Format child content with adaptive truncation + REFERENCE RESOLUTION
-//       let formattedContent = childContent || "";
-
-//       // RESOLVE BLOCK REFERENCES: Replace ((uid)) with actual block content
-//       try {
-//         formattedContent = resolveReferences(formattedContent, [], true); // 'true' prevents deep recursion
-//       } catch (error) {
-//         console.warn(`Failed to resolve references in block ${childUid}:`, error);
-//         // Continue with unresolved content if resolution fails
-//       }
-
-//       // Apply content truncation after reference resolution
-//       if (formattedContent.length > targetContentPerChild) {
-//         formattedContent =
-//           formattedContent.substring(0, targetContentPerChild) + "...";
-//       }
-
-//       // Add current level with indentation
-//       outlineLines.push(`${indent}- ${formattedContent}`);
-//       remainingBudget -= formattedContent.length;
-
-//       // Recursively get children of this child if we have budget and depth remaining
-//       if (currentLevel < maxDepth && remainingBudget > 100) {
-//         // Need at least 100 chars for nested children
-//         const nestedBudget = Math.floor(remainingBudget * 0.3); // 30% of remaining budget for nested levels
-//         const nestedOutline = await buildRecursiveChildrenOutline(
-//           childUid,
-//           nestedBudget,
-//           maxDepth,
-//           resultCount, // Pass through result count
-//           currentLevel + 1,
-//           indent + "  " // Increase indentation
-//         );
-
-//         if (nestedOutline) {
-//           outlineLines.push(nestedOutline);
-//           remainingBudget -= nestedOutline.length;
-//         }
-//       }
-//     }
-
-//     const result = outlineLines.join("\n");
-//     return result;
-//   } catch (error) {
-//     console.error(`🌳 [BuildRecursiveOutline] Error for ${parentUid}:`, error);
-//     return "";
-//   }
-// }
-
-// // Create expanded blocks with original content + hierarchical context
-// async function createExpandedBlocks(
-//   originalResults: any[],
-//   hierarchyData: any[],
-//   budget: number
-// ): Promise<any[]> {
-//   const expandedBlocks: any[] = [];
-
-//   // Create budget per result
-//   const budgetPerResult = Math.floor(budget / originalResults.length);
-
-//   for (const result of originalResults) {
-//     try {
-//       // Find hierarchy data for this result
-//       const resultHierarchy = hierarchyData.filter(
-//         (h) => h[0] === result.uid || h[2] === result.uid || h[1] === result.uid
-//       );
-
-//       // Create expanded block object
-//       let originalContent = result.content || result.pageTitle || "";
-
-//       // RESOLVE REFERENCES in original block content
-//       try {
-//         originalContent = resolveReferences(originalContent, [], true);
-//       } catch (error) {
-//         console.warn(`Failed to resolve references in original block ${result.uid}:`, error);
-//       }
-
-//       const expandedBlock = {
-//         uid: result.uid,
-//         original: originalContent,
-//         pageTitle: result.pageTitle || "",
-//         parent: "",
-//         childrenOutline: "",
-//       };
-
-//       // Add parent context
-//       const parentData = resultHierarchy.find((h) => h[0] === result.uid); // child-uid matches result.uid
-//       if (parentData && parentData[3]) {
-//         // h[3] is parent-content (h[2] is parent-uid)
-//         let parentContent = parentData[3];
-
-//         // RESOLVE REFERENCES in parent content too
-//         try {
-//           parentContent = resolveReferences(parentContent, [], true);
-//         } catch (error) {
-//           console.warn(`Failed to resolve references in parent content:`, error);
-//         }
-
-//         expandedBlock.parent = parentContent;
-//       }
-
-//       // Add recursive children outline with adaptive depth strategy
-//       const availableBudgetForChildren = Math.max(
-//         budgetPerResult - (expandedBlock.original?.length || 0) - 200,
-//         500
-//       );
-
-//       // ADAPTIVE DEPTH STRATEGY based on result count
-//       const resultCount = originalResults.length;
-//       let maxDepth: number;
-//       if (resultCount > 150) {
-//         maxDepth = 0; // No expansion for very large result sets
-//       } else if (resultCount <= 20) {
-//         maxDepth = 4; // Deep exploration for small result sets
-//       } else if (resultCount <= 50) {
-//         maxDepth = 3; // Moderate depth for medium result sets
-//       } else if (resultCount <= 100) {
-//         maxDepth = 2; // Standard depth for larger result sets
-//       } else { // 100 < resultCount <= 150
-//         maxDepth = 1; // Shallow for large result sets
-//       }
-
-//       expandedBlock.childrenOutline = maxDepth > 0
-//         ? await buildRecursiveChildrenOutline(
-//             result.uid,
-//             availableBudgetForChildren,
-//             maxDepth,
-//             resultCount // Pass result count for degressive content limits
-//           )
-//         : ''; // No children expansion for >150 results
-
-//       // Stringify the expanded block
-//       const stringifiedBlock = stringifyExpandedBlock(
-//         expandedBlock,
-//         budgetPerResult
-//       );
-
-//       expandedBlocks.push({
-//         ...result,
-//         content: stringifiedBlock,
-//         expandedBlock: expandedBlock,
-//         metadata: {
-//           ...result.metadata,
-//           contextExpansion: true,
-//           originalLength: (result.content || "").length,
-//           expandedLength: stringifiedBlock.length,
-//         },
-//       });
-//     } catch (error) {
-//       console.error(
-//         `🌳 [CreateExpandedBlocks] Error processing ${result.uid}:`,
-//         error
-//       );
-//       // Fallback to original result
-//       expandedBlocks.push(result);
-//     }
-//   }
-
-//   return expandedBlocks;
-// }
-
-// // Stringify expanded block with proper formatting
-// function stringifyExpandedBlock(
-//   expandedBlock: any,
-//   budgetLimit: number
-// ): string {
-//   const parts: string[] = [];
-
-//   // Always include original content (NEVER truncated) - UID is handled by the extraction function
-//   if (expandedBlock.original) {
-//     parts.push(expandedBlock.original);
-//   }
-
-//   // Page title is already shown by extraction function as "(in [[PageTitle]])", so skip it to avoid duplication
-
-//   // Calculate remaining budget after original content + fixed elements
-//   const fixedContentLength = expandedBlock.original.length + 30; // +30 for labels (no UID or page title in output now)
-//   const remainingBudget = Math.max(budgetLimit - fixedContentLength, 200); // Minimum 200 chars for context
-
-//   // Add parent context if available (fixed allocation: simple truncation)
-//   if (expandedBlock.parent) {
-//     const parentLimit = Math.min(
-//       500,
-//       Math.max(100, Math.floor(remainingBudget * 0.2))
-//     ); // Max 20% of remaining budget, 100-500 chars
-//     const truncatedParent =
-//       expandedBlock.parent.length > parentLimit
-//         ? expandedBlock.parent.substring(0, parentLimit) + "..."
-//         : expandedBlock.parent;
-//     parts.push(`Parent: ${truncatedParent}`);
-//   }
-
-//   // Add children outline if available (MAIN LINEAR ALLOCATION TARGET)
-//   if (expandedBlock.childrenOutline) {
-//     const parentUsed = expandedBlock.parent
-//       ? Math.min(500, Math.max(100, Math.floor(remainingBudget * 0.2)))
-//       : 0;
-//     const childrenBudget = remainingBudget - parentUsed; // Most of remaining budget goes to children
-
-//     // The children outline is already properly formatted and budgeted, but apply final safety limit if needed
-//     const childrenLimit = Math.max(300, childrenBudget); // Ensure minimum viable children content (increased for recursive format)
-//     const truncatedChildren =
-//       expandedBlock.childrenOutline.length > childrenLimit
-//         ? expandedBlock.childrenOutline.substring(0, childrenLimit) +
-//           "\n    ...[truncated]"
-//         : expandedBlock.childrenOutline;
-//     parts.push(`Children:\n${truncatedChildren}`);
-//   }
-
-//   return parts.join("\n");
-// }
-
-// // Calculate how much content to extract from each child block (KEY LINEAR INTERPOLATION)
-// function calculateContentPerChild(
-//   childrenCount: number,
-//   totalChildrenBudget: number
-// ): number {
-//   if (childrenCount === 0) return 0;
-
-//   // Linear interpolation based on available budget and number of children
-//   const baseBudgetPerChild = Math.floor(totalChildrenBudget / childrenCount);
-//   const minContentPerChild = 50; // Minimum meaningful content
-//   const maxContentPerChild = 400; // Maximum content per child to avoid one child dominating
-
-//   // Linear interpolation: more budget = more content per child, but with reasonable limits
-//   return Math.max(
-//     minContentPerChild,
-//     Math.min(maxContentPerChild, baseBudgetPerChild)
-//   );
-// }
-
-// // Calculate truncation limit with linear interpolation (100-500 chars based on budget)
-// function calculateTruncationLimit(
-//   availableBudget: number,
-//   maxLimit: number
-// ): number {
-//   const minLimit = 100;
-//   const ratio = Math.min(availableBudget / 1000, 1); // Scale based on available budget
-//   return Math.floor(minLimit + (maxLimit - minLimit) * ratio);
-// }
-
-// // Apply final safety truncation if total exceeds budget
-// function applyIntelligentTruncation(
-//   expandedBlocks: any[],
-//   totalBudget: number
-// ): any[] {
-//   // Calculate total content length
-//   const totalLength = expandedBlocks.reduce(
-//     (sum, block) => sum + block.content.length,
-//     0
-//   );
-
-//   if (totalLength <= totalBudget) {
-//     return expandedBlocks; // No truncation needed
-//   }
-
-//   console.log(
-//     `🌳 [IntelligentTruncation] Total ${totalLength} chars > budget ${totalBudget}, applying proportional truncation`
-//   );
-
-//   // Calculate truncation ratio
-//   const truncationRatio = totalBudget / totalLength;
-//   const maxBlockLimit = Math.floor((totalBudget / expandedBlocks.length) * 0.9); // 90% of average budget per block
-
-//   return expandedBlocks.map((block) => {
-//     const targetLength = Math.min(
-//       Math.floor(block.content.length * truncationRatio),
-//       maxBlockLimit
-//     );
-
-//     if (block.content.length > targetLength) {
-//       return {
-//         ...block,
-//         content: block.content.substring(0, targetLength) + "...[truncated]",
-//         metadata: {
-//           ...block.metadata,
-//           truncated: true,
-//           originalLength: block.content.length,
-//           truncatedLength: targetLength,
-//         },
-//       };
-//     }
-
-//     return block;
-//   });
-// }
-
 // Direct result formatting for simple private mode cases (no LLM needed)
 const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   console.log(
@@ -2436,10 +2069,6 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   const isRandom = state.searchDetails?.requireRandom || false;
   const displayLimit = userRequestedLimit || 20; // Default to 20 if no specific limit requested
 
-  console.log(
-    `🔍 [DEBUG DirectFormat] Full searchDetails:`,
-    state.searchDetails
-  );
   console.log(
     `🎯 [DirectFormat] User requested limit: ${userRequestedLimit}, isRandom: ${isRandom}, using display limit: ${displayLimit}`
   );
@@ -2630,10 +2259,6 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
  * This gives users visibility into what was found before deciding on expansion
  */
 const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
-  console.log(
-    "🎯 [ShowResultsThenExpand] Showing current results before expansion options"
-  );
-
   // Get current results from the state
   const finalResults = state.resultStore
     ? Object.values(state.resultStore)
@@ -2849,29 +2474,16 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
           `🔄 [Graph] Level 4 reached with zero results. Prompting assistant to try different tool strategies.`
         );
 
-        // Add strategic guidance to prompt assistant to change approach
-        state.expansionGuidance = `zero_results_level_4_strategy_change: You have reached maximum expansion level (4) with zero results. 
-CRITICAL: You MUST now try completely different tool strategies and sequences. Consider:
+        // Use the comprehensive Level 4 guidance from the prompts file
+        const isPageSearch =
+          state.userQuery?.toLowerCase().includes("page") ||
+          state.formalQuery?.includes("page:");
 
-🔧 DIFFERENT TOOL COMBINATIONS:
-- Try findPagesByContent instead of findBlocksByContent (or vice versa)
-- Use extractHierarchyContent for broader context discovery
-- Combine multiple tools with different search patterns
-- Use extractPageReferences to find related content
-
-🎯 ALTERNATIVE SEARCH APPROACHES:
-- Break down complex queries into simpler parts
-- Search for synonyms or related concepts  
-- Use broader or narrower search terms
-- Try different search operators (AND, OR, NOT)
-
-🧠 STRATEGIC THINKING:
-- Reflect on why previous searches failed
-- Question if the content exists in this format
-- Consider if the user query needs reinterpretation
-- Try searching for metadata, tags, or references instead of direct content
-
-You MUST change your tool strategy - don't repeat the same approach that gave zero results.`;
+        state.expansionGuidance = `zero_results_level_4_strategy_change:\n\n${buildLevel4Guidance(
+          isPageSearch,
+          state.userQuery || "",
+          state.formalQuery || ""
+        )}`;
 
         return "assistant";
       }
