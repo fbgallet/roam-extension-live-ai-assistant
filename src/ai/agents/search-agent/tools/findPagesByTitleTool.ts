@@ -37,6 +37,7 @@ const schema = z.object({
     .object({
       start: z.union([z.date(), z.string()]).optional(),
       end: z.union([z.date(), z.string()]).optional(),
+      filterMode: z.enum(["created", "modified"]).optional(),
     })
     .optional(),
   limit: z.number().min(1).max(1000).default(100),
@@ -105,6 +106,7 @@ const llmFacingSchema = z.object({
     .object({
       start: z.string().optional().describe("Start date (YYYY-MM-DD)"),
       end: z.string().optional().describe("End date (YYYY-MM-DD)"),
+      filterMode: z.enum(["created", "modified"]).optional(),
     })
     .optional()
     .describe("Limit to pages created within date range"),

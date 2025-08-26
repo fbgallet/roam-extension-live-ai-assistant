@@ -1310,6 +1310,151 @@ export const truncateContent = (content: string, maxLength: number): string => {
 };
 
 /**
+ * Context expansion configuration for balanced mode
+ * Based on result count, determines what hierarchy context to include
+ */
+export const getHierarchyExpansionConfig = (resultCount: number) => {
+  if (resultCount < 10) {
+    return {
+      includeParents: true,
+      includeChildren: true, 
+      maxDepth: 3, // parent + 2 levels children
+      truncateLength: 250, // Limit context blocks to 250 chars
+      expandContext: true
+    };
+  } else if (resultCount <= 50) {
+    return {
+      includeParents: false,
+      includeChildren: true,
+      maxDepth: 1, // Only first level children
+      truncateLength: 200,
+      expandContext: true
+    };
+  } else { // > 50
+    return {
+      includeParents: false,
+      includeChildren: false,
+      maxDepth: 0,
+      expandContext: false // No expansion - too many results
+    };
+  }
+};
+
+/**
+ * Determine if balanced mode should expand context for given results
+ */
+export const shouldExpandContextInBalanced = (results: any[], userQuery: string): boolean => {
+  const resultCount = results.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+  const config = getHierarchyExpansionConfig(resultCount);
+  
+  if (!config.expandContext) return false;
+  
+  const allBlocks = results.flatMap(r => r.data || []);
+  
+  // Triggers for context expansion
+  const hasShortContent = allBlocks.some(b => 
+    b.content && b.content.trim().length < 50
+  );
+  
+  const userRequestsContext = /\b(context|children|parent|around|under|hierarchy)\b/i.test(userQuery);
+  
+  const hasTechnicalContent = allBlocks.some(b => 
+    b.content && /\b(function|class|code|api|method|def|import|const|let|var)\b/i.test(b.content)
+  );
+  
+  console.log(`🌳 [ContextExpansion] Analysis:`, {
+    resultCount,
+    hasShortContent,
+    userRequestsContext, 
+    hasTechnicalContent,
+    shouldExpand: hasShortContent || userRequestsContext || hasTechnicalContent
+  });
+  
+  return hasShortContent || userRequestsContext || hasTechnicalContent;
+};
+
+/**
+ * Expand hierarchy context using Datomic queries (for balanced mode)
+ * Since balanced mode doesn't have extractHierarchyContent, we use custom queries
+ */
+export const expandHierarchyWithDatomic = async (
+  blockUids: string[], 
+  config: ReturnType<typeof getHierarchyExpansionConfig>
+): Promise<any[]> => {
+  if (!config.expandContext || blockUids.length === 0) {
+    return [];
+  }
+
+  const hierarchyData: any[] = [];
+  
+  try {
+    // Get parent context if requested
+    if (config.includeParents) {
+      const parentQuery = `[:find ?parent-uid ?parent-content ?page-title
+                           :in $ [?block-uid ...]
+                           :where
+                           [?block :block/uid ?block-uid]
+                           [?parent :block/children ?block]
+                           [?parent :block/uid ?parent-uid]  
+                           [?parent :block/string ?parent-content]
+                           [?parent :block/page ?page]
+                           [?page :node/title ?page-title]]`;
+      
+      const parentResults = await executeDatomicQuery(parentQuery, blockUids);
+      
+      parentResults.forEach(([parentUid, parentContent, pageTitle]) => {
+        hierarchyData.push({
+          uid: parentUid,
+          content: truncateContent(parentContent, config.truncateLength),
+          pageTitle,
+          hierarchyType: 'parent',
+          originalBlockUids: blockUids
+        });
+      });
+    }
+    
+    // Get children context if requested
+    if (config.includeChildren && config.maxDepth > 0) {
+      const childrenQuery = `[:find ?child-uid ?child-content ?page-title ?order
+                             :in $ [?parent-uid ...]
+                             :where
+                             [?parent :block/uid ?parent-uid]
+                             [?parent :block/children ?child]
+                             [?child :block/uid ?child-uid]
+                             [?child :block/string ?child-content] 
+                             [?child :block/order ?order]
+                             [?child :block/page ?page]
+                             [?page :node/title ?page-title]]`;
+      
+      const childResults = await executeDatomicQuery(childrenQuery, blockUids);
+      
+      // Sort by order and apply depth limits
+      childResults
+        .sort((a, b) => a[3] - b[3]) // Sort by order
+        .slice(0, config.maxDepth * blockUids.length) // Limit total children
+        .forEach(([childUid, childContent, pageTitle, order]) => {
+          hierarchyData.push({
+            uid: childUid,
+            content: truncateContent(childContent, config.truncateLength),
+            pageTitle,
+            hierarchyType: 'child',
+            order,
+            originalBlockUids: blockUids
+          });
+        });
+    }
+    
+    console.log(`🌳 [ExpandHierarchy] Expanded ${blockUids.length} blocks → ${hierarchyData.length} context items`);
+    
+  } catch (error) {
+    console.error('🌳 [ExpandHierarchy] Error expanding hierarchy:', error);
+    return [];
+  }
+  
+  return hierarchyData;
+};
+
+/**
  * Get child blocks up to specified depth
  */
 export const getBlockChildren = async (
@@ -2077,12 +2222,24 @@ export const getEnhancedLimits = (
         maxResults: 10000, // 10x increase from 1000
         defaultLimit: 500, // 5x increase from 100
         summaryLimit: 50, // For LLM context
+        // NEW: Progressive content limits based on result count
+        getContentLimit: (resultCount: number): number | null => {
+          if (resultCount < 10) return null; // Full content
+          if (resultCount <= 50) return 500; // Medium limit
+          return 250; // >50 results - shorter for readability
+        }
       };
     case "full":
       return {
-        maxResults: 3000, // 10x increase from 300
-        defaultLimit: 300, // Same as before
-        summaryLimit: 20, // For LLM context
+        maxResults: 10000, // Match balanced mode - content richness is the differentiator
+        defaultLimit: 500, // Match balanced mode
+        summaryLimit: 20, // Keep lower due to richer content per item
+        // Progressive content strategy for full mode
+        getContentStrategy: (resultCount: number): string => {
+          if (resultCount < 30) return "rich_content_with_hierarchy";
+          if (resultCount <= 100) return "full_content_selected"; 
+          return "summary_with_expansion_options";
+        }
       };
     default:
       return {

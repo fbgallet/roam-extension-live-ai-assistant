@@ -190,12 +190,12 @@ export const modelsPricing = {
     output: 75,
   },
   "deepseek-chat": {
-    input: 0.27,
-    output: 1.1,
+    input: 0.56,
+    output: 1.68,
   },
   "deepseek-reasoner": {
-    input: 0.55,
-    output: 2.19,
+    input: 0.56,
+    output: 1.68,
   },
   "grok-2-1212": {
     input: 2,
