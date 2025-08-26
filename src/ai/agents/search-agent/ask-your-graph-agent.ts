@@ -33,7 +33,10 @@ import {
 } from "./tools/toolsRegistry";
 
 // Import search utilities
-import { deduplicateResultsByUid } from "./tools/searchUtils";
+import { 
+  deduplicateResultsByUid,
+  executeDatomicQuery
+} from "./tools/searchUtils";
 
 // Import prompts from separate file
 import {
@@ -108,6 +111,13 @@ const ReactSearchAgentState = Annotation.Root({
   finalAnswer: Annotation<string | undefined>,
   // Token tracking across entire agent execution
   totalTokensUsed: Annotation<{ input: number; output: number }>,
+  // Timing tracking - separate LLM vs tool execution
+  timingMetrics: Annotation<{
+    totalLlmTime: number; // milliseconds spent in LLM calls
+    totalToolTime: number; // milliseconds spent in tool execution
+    llmCalls: number; // number of LLM calls made
+    toolCalls: number; // number of tool executions
+  }>,
   // Request analysis and routing
   routingDecision: Annotation<
     "use_cache" | "need_new_search" | "analyze_complexity"
@@ -416,14 +426,29 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
   });
 
   try {
+    const llmStartTime = Date.now();
     const parsingLlm = modelViaLanggraph(state.model, turnTokensUsage);
     const response = await parsingLlm.invoke([
       new SystemMessage({ content: parsingPrompt }),
       new HumanMessage({ content: state.userQuery }),
     ]);
+    const llmDuration = Date.now() - llmStartTime;
 
     const responseContent = response.content.toString();
-    console.log(`🎯 [IntentParser] Raw response:`, responseContent);
+    console.log(`🎯 [IntentParser] Raw response (${llmDuration}ms):`, responseContent);
+
+    // Track tokens and timing
+    const responseTokens = response.usage_metadata || {};
+    const updatedTotalTokens = {
+      input: (state.totalTokensUsed?.input || 0) + (responseTokens.input_tokens || 0),
+      output: (state.totalTokensUsed?.output || 0) + (responseTokens.output_tokens || 0),
+    };
+    const updatedTimingMetrics = {
+      totalLlmTime: (state.timingMetrics?.totalLlmTime || 0) + llmDuration,
+      totalToolTime: state.timingMetrics?.totalToolTime || 0,
+      llmCalls: (state.timingMetrics?.llmCalls || 0) + 1,
+      toolCalls: state.timingMetrics?.toolCalls || 0,
+    };
 
     // Parse the Intent Parser response
     const analysis = parseJSONWithFields<{
@@ -474,6 +499,8 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         userIntent: state.userQuery,
         searchStrategy: "direct" as const,
         confidence: 0.5,
+        totalTokensUsed: updatedTotalTokens,
+        timingMetrics: updatedTimingMetrics,
       };
     }
 
@@ -491,6 +518,8 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
           approach: "single_search" as const,
           recommendedSteps: ["Execute user-provided Datomic query"],
         },
+        totalTokensUsed: updatedTotalTokens,
+        timingMetrics: updatedTimingMetrics,
       };
     }
 
@@ -538,12 +567,25 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       customSemanticExpansion: analysis.customSemanticExpansion,
       language: analysis.language,
       confidence: analysis.confidence,
+      totalTokensUsed: updatedTotalTokens,
+      timingMetrics: updatedTimingMetrics,
     };
   } catch (error) {
     console.error("Intent parsing failed:", error);
     updateAgentToaster("⚠️ Using fallback parsing");
 
-    // Fallback with basic parsing
+    // Fallback with basic parsing - still track any tokens used even on error
+    const fallbackTokens = {
+      input: state.totalTokensUsed?.input || 0,
+      output: state.totalTokensUsed?.output || 0,
+    };
+    const fallbackTiming = {
+      totalLlmTime: state.timingMetrics?.totalLlmTime || 0,
+      totalToolTime: state.timingMetrics?.totalToolTime || 0,
+      llmCalls: state.timingMetrics?.llmCalls || 0,
+      toolCalls: state.timingMetrics?.toolCalls || 0,
+    };
+
     return {
       routingDecision: "need_new_search" as const,
       formalQuery: state.userQuery,
@@ -555,6 +597,8 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       },
       searchStrategy: "direct" as const,
       confidence: 0.3,
+      totalTokensUsed: fallbackTokens,
+      timingMetrics: fallbackTiming,
     };
   }
 };
@@ -753,7 +797,11 @@ const buildCacheResultsSummary = (
 const generateCacheBasedResponse = async (
   state: typeof ReactSearchAgentState.State,
   cacheProcessorResponse: string
-): Promise<string> => {
+): Promise<{
+  finalResponse: string;
+  tokensUsed: { input: number; output: number };
+  timingMetrics: { llmTime: number; llmCalls: number };
+}> => {
   // If we have new result structure, enhance the response with proper formatting
   if (state.resultStore && Object.keys(state.resultStore).length > 0) {
     // Determine security mode
@@ -771,24 +819,51 @@ const generateCacheBasedResponse = async (
     );
 
     try {
+      const llmStartTime = Date.now();
       const llm = modelViaLanggraph(state.model, turnTokensUsage);
       const response = await llm.invoke([
         new SystemMessage({ content: cacheSystemPrompt }),
         new HumanMessage({ content: state.userQuery }),
       ]);
+      const llmDuration = Date.now() - llmStartTime;
 
-      return response.content.toString();
+      // Track tokens from this additional LLM call
+      const responseTokens = response.usage_metadata || {};
+      const tokensUsed = {
+        input: responseTokens.input_tokens || 0,
+        output: responseTokens.output_tokens || 0,
+      };
+      const timingMetrics = {
+        llmTime: llmDuration,
+        llmCalls: 1,
+      };
+
+      console.log(`💾 [CacheBasedResponse] Additional LLM call: ${llmDuration}ms, ${tokensUsed.input + tokensUsed.output} tokens`);
+
+      return {
+        finalResponse: response.content.toString(),
+        tokensUsed,
+        timingMetrics,
+      };
     } catch (error) {
       console.warn(
         "Cache-based response generation failed, using original:",
         error
       );
-      return cacheProcessorResponse;
+      return {
+        finalResponse: cacheProcessorResponse,
+        tokensUsed: { input: 0, output: 0 },
+        timingMetrics: { llmTime: 0, llmCalls: 0 },
+      };
     }
   }
 
   // For legacy results or when no new results available, return original response
-  return cacheProcessorResponse;
+  return {
+    finalResponse: cacheProcessorResponse,
+    tokensUsed: { input: 0, output: 0 },
+    timingMetrics: { llmTime: 0, llmCalls: 0 },
+  };
 };
 
 const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
@@ -819,13 +894,29 @@ const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
   const cacheProcessingPrompt = buildCacheProcessingPrompt(state);
 
   try {
+    const llmStartTime = Date.now();
     const cacheProcessingLlm = modelViaLanggraph(state.model, turnTokensUsage);
     const response = await cacheProcessingLlm.invoke([
       new SystemMessage({ content: cacheProcessingPrompt }),
       new HumanMessage({ content: state.reformulatedQuery || state.userQuery }),
     ]);
+    const llmDuration = Date.now() - llmStartTime;
 
     const responseContent = response.content.toString();
+    console.log(`💾 [CacheProcessor] LLM call completed in ${llmDuration}ms`);
+
+    // Track tokens and timing
+    const responseTokens = response.usage_metadata || {};
+    const updatedTotalTokens = {
+      input: (state.totalTokensUsed?.input || 0) + (responseTokens.input_tokens || 0),
+      output: (state.totalTokensUsed?.output || 0) + (responseTokens.output_tokens || 0),
+    };
+    const updatedTimingMetrics = {
+      totalLlmTime: (state.timingMetrics?.totalLlmTime || 0) + llmDuration,
+      totalToolTime: state.timingMetrics?.totalToolTime || 0,
+      llmCalls: (state.timingMetrics?.llmCalls || 0) + 1,
+      toolCalls: state.timingMetrics?.toolCalls || 0,
+    };
 
     // Handle HYBRID approach (new intelligent conversation mode)
     if (responseContent.startsWith("HYBRID:")) {
@@ -847,6 +938,8 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
       return {
         routingDecision: "need_new_search" as const,
         messages: [new HumanMessage(hybridQuery)],
+        totalTokensUsed: updatedTotalTokens,
+        timingMetrics: updatedTimingMetrics,
       };
     }
 
@@ -869,6 +962,8 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
       return {
         routingDecision: "need_new_search" as const,
         messages: [new HumanMessage(enhancedQuery)],
+        totalTokensUsed: updatedTotalTokens,
+        timingMetrics: updatedTimingMetrics,
       };
     }
 
@@ -877,21 +972,47 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
 
     // For cache-sufficient responses, we should generate a proper final answer using our result data
     // This ensures consistency with the new finalResponseWriter approach
-    const finalResponse = await generateCacheBasedResponse(
+    const cacheResponseData = await generateCacheBasedResponse(
       state,
       responseContent
     );
 
+    // Combine tokens from the cache processing LLM call and any additional LLM call in generateCacheBasedResponse
+    const finalTokensUsed = {
+      input: updatedTotalTokens.input + cacheResponseData.tokensUsed.input,
+      output: updatedTotalTokens.output + cacheResponseData.tokensUsed.output,
+    };
+    const finalTimingMetrics = {
+      totalLlmTime: updatedTimingMetrics.totalLlmTime + cacheResponseData.timingMetrics.llmTime,
+      totalToolTime: updatedTimingMetrics.totalToolTime,
+      llmCalls: updatedTimingMetrics.llmCalls + cacheResponseData.timingMetrics.llmCalls,
+      toolCalls: updatedTimingMetrics.toolCalls,
+    };
+
     return {
       messages: [...state.messages, response],
-      finalAnswer: finalResponse,
+      finalAnswer: cacheResponseData.finalResponse,
+      totalTokensUsed: finalTokensUsed,
+      timingMetrics: finalTimingMetrics,
     };
   } catch (error) {
     console.error("Cache processing failed:", error);
-    // Fallback to new search on error
+    // Fallback to new search on error - preserve current metrics
+    const fallbackTokens = {
+      input: state.totalTokensUsed?.input || 0,
+      output: state.totalTokensUsed?.output || 0,
+    };
+    const fallbackTiming = {
+      totalLlmTime: state.timingMetrics?.totalLlmTime || 0,
+      totalToolTime: state.timingMetrics?.totalToolTime || 0,
+      llmCalls: state.timingMetrics?.llmCalls || 0,
+      toolCalls: state.timingMetrics?.toolCalls || 0,
+    };
     return {
       routingDecision: "need_new_search" as const,
       messages: [new HumanMessage(state.reformulatedQuery || state.userQuery)],
+      totalTokensUsed: fallbackTokens,
+      timingMetrics: fallbackTiming,
     };
   }
 };
@@ -925,6 +1046,13 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
     resultStore: state.resultStore || {},
     nextResultId: state.nextResultId || 1,
     totalTokensUsed: state.totalTokensUsed || { input: 0, output: 0 },
+    // Initialize timing metrics
+    timingMetrics: state.timingMetrics || {
+      totalLlmTime: 0,
+      totalToolTime: 0,
+      llmCalls: 0,
+      toolCalls: 0,
+    },
     // Initialize expansion tracking (Level 0 = initial search, Level 1+ = expansions)
     expansionLevel: state.expansionLevel || 0,
     expansionConsent: state.expansionConsent || false,
@@ -1216,7 +1344,7 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
 
   console.log("Assistant response :>>, response");
 
-  const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
+  const llmDuration = Date.now() - llmStartTime;
 
   // Track tokens from this assistant call
   const responseTokens = response.usage_metadata || {};
@@ -1388,16 +1516,28 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
       }
     }
 
-    updateAgentToaster(`🔍 ${explanation} (${llmDuration}s)`);
+    updateAgentToaster(`🔍 ${explanation} (${(llmDuration / 1000).toFixed(1)}s)`);
   } else {
-    updateAgentToaster(`✅ Analysis complete (${llmDuration}s)`);
+    updateAgentToaster(`✅ Analysis complete (${(llmDuration / 1000).toFixed(1)}s)`);
   }
+
+  // Update timing metrics for assistant LLM call
+  const assistantTimingMetrics = {
+    totalLlmTime: (state.timingMetrics?.totalLlmTime || 0) + llmDuration,
+    totalToolTime: state.timingMetrics?.totalToolTime || 0,
+    llmCalls: (state.timingMetrics?.llmCalls || 0) + 1,
+    toolCalls: state.timingMetrics?.toolCalls || 0,
+  };
+
+  // Only increment expansion level for semantic expansion (when adding expansion strategies)
+  const shouldIncrementExpansionLevel = shouldAddExpansionStrategies;
 
   return {
     messages: [...state.messages, response],
     totalTokensUsed: updatedTotalTokens,
-    // Increment expansion level if expansion strategies were added this round
-    expansionLevel: shouldAddExpansionStrategies
+    timingMetrics: assistantTimingMetrics,
+    // Only increment expansion level for semantic expansion, NOT for context expansion
+    expansionLevel: shouldIncrementExpansionLevel
       ? (state.expansionLevel || 0) + 1
       : state.expansionLevel || 0,
   };
@@ -1494,12 +1634,12 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     abortPromise,
   ]);
 
-  const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
-  updateAgentToaster(`✅ Response generated (${llmDuration}s)`);
+  const llmDuration = Date.now() - llmStartTime;
+  updateAgentToaster(`✅ Response generated (${(llmDuration / 1000).toFixed(1)}s)`);
 
   console.log(`🎯 [FinalResponseWriter] Response content:`, response.content);
 
-  // Track tokens from final response generation
+  // Track tokens and timing from final response generation
   const responseTokens = response.usage_metadata || {};
   const updatedTotalTokens = {
     input:
@@ -1507,6 +1647,13 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     output:
       (state.totalTokensUsed?.output || 0) +
       (responseTokens.output_tokens || 0),
+  };
+  
+  const updatedTimingMetrics = {
+    totalLlmTime: (state.timingMetrics?.totalLlmTime || 0) + llmDuration,
+    totalToolTime: state.timingMetrics?.totalToolTime || 0,
+    llmCalls: (state.timingMetrics?.llmCalls || 0) + 1,
+    toolCalls: state.timingMetrics?.toolCalls || 0,
   };
 
   // Ensure finalAnswer is a string
@@ -1519,6 +1666,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     messages: [...state.messages, response],
     finalAnswer: finalAnswerContent,
     totalTokensUsed: updatedTotalTokens,
+    timingMetrics: updatedTimingMetrics,
   };
 };
 
@@ -1529,9 +1677,23 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
   updateAgentToaster("📝 Preparing your results...");
 
-  // Calculate total execution time
+  // Calculate and display comprehensive timing and token metrics
   if (state.startTime) {
     const totalDuration = ((Date.now() - state.startTime) / 1000).toFixed(1);
+    
+    // Display timing breakdown
+    if (state.timingMetrics) {
+      const llmTime = (state.timingMetrics.totalLlmTime / 1000).toFixed(1);
+      const toolTime = (state.timingMetrics.totalToolTime / 1000).toFixed(1);
+      const llmCalls = state.timingMetrics.llmCalls;
+      const toolCalls = state.timingMetrics.toolCalls;
+      
+      updateAgentToaster(
+        `⏱️ Total: ${totalDuration}s (LLM: ${llmTime}s/${llmCalls} calls, Tools: ${toolTime}s/${toolCalls} calls)`
+      );
+    } else {
+      updateAgentToaster(`⏱️ Total execution time: ${totalDuration}s`);
+    }
   }
 
   // Display total tokens used in toaster
@@ -1607,6 +1769,465 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   };
 };
 
+// Adaptive context expansion node with intelligent depth and truncation
+const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
+  console.log(`🌳 [ContextExpansion] Starting adaptive context expansion`);
+  updateAgentToaster("🌳 Analyzing context expansion needs...");
+
+  // Get final results for context expansion
+  const finalResults = Object.values(state.resultStore || {}).filter(
+    result => result?.purpose === "final" && result?.status === "active" && result?.data?.length > 0
+  );
+
+  if (finalResults.length === 0) {
+    console.log(`🌳 [ContextExpansion] No final results found, skipping expansion`);
+    return state; // Pass through unchanged
+  }
+
+  const allResults = finalResults.flatMap(r => r.data || []);
+  const resultCount = allResults.length;
+  
+  // Skip expansion if too many results (performance protection)
+  if (resultCount > 200) {
+    console.log(`🌳 [ContextExpansion] Too many results (${resultCount}), skipping expansion`);
+    return state;
+  }
+
+  console.log(`🌳 [ContextExpansion] Processing ${resultCount} results for adaptive expansion`);
+
+  // Determine mode and token limits
+  const mode = state.privateMode ? 'private' : (state.permissions?.contentAccess ? 'full' : 'balanced');
+  const CHAR_LIMITS = {
+    private: 0,        // No expansion in private mode  
+    balanced: 100000,  // ~25k tokens
+    full: 200000       // ~50k tokens
+  };
+
+  const charLimit = CHAR_LIMITS[mode];
+  if (charLimit === 0) {
+    console.log(`🌳 [ContextExpansion] Private mode, no expansion`);
+    return state;
+  }
+
+  // Calculate current content length
+  const currentContentLength = calculateTotalContentLength(allResults);
+  console.log(`🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${charLimit}`);
+
+  // Perform adaptive context expansion
+  const expandedResults = await performAdaptiveExpansion(allResults, charLimit, currentContentLength, state);
+  
+  if (expandedResults.length > 0) {
+    // Store expanded results in result store
+    const contextResultId = `contextExpansion_${state.nextResultId || 1}`;
+    const updatedResultStore = { ...state.resultStore };
+    updatedResultStore[contextResultId] = {
+      data: expandedResults,
+      purpose: "final",
+      status: "active",
+      toolName: "contextExpansion",
+      timestamp: Date.now(),
+      metadata: {
+        contextExpansion: true,
+        originalResultCount: resultCount,
+        expandedResultCount: expandedResults.length,
+        mode: mode
+      }
+    };
+
+    console.log(`🌳 [ContextExpansion] Created ${expandedResults.length} expanded results`);
+    
+    updateAgentToaster(`🌳 Context expansion completed (${expandedResults.length} results)`);
+
+    return {
+      ...state,
+      resultStore: updatedResultStore,
+      nextResultId: (state.nextResultId || 1) + 1
+    };
+  }
+
+  console.log(`🌳 [ContextExpansion] No expansion performed`);
+  return state;
+};
+
+// Helper function to calculate total content length
+function calculateTotalContentLength(results: any[]): number {
+  return results.reduce((total, result) => {
+    const content = result.content || result.pageTitle || '';
+    return total + content.length;
+  }, 0);
+}
+
+// Helper function to perform adaptive expansion with intelligent truncation
+async function performAdaptiveExpansion(
+  results: any[], 
+  charLimit: number, 
+  currentContentLength: number,
+  state: any
+): Promise<any[]> {
+  // If current content already exceeds half the limit, be conservative with expansion
+  const expansionBudget = charLimit - currentContentLength;
+  const canExpand = expansionBudget > (charLimit * 0.1); // Need at least 10% budget for expansion
+  
+  if (!canExpand) {
+    console.log(`🌳 [AdaptiveExpansion] Insufficient budget for expansion (${expansionBudget} chars)`);
+    return [];
+  }
+
+  console.log(`🌳 [AdaptiveExpansion] Expansion budget: ${expansionBudget} chars`);
+
+  // Extract UIDs from results for hierarchy expansion
+  const blockUids = results.filter(r => r.uid).map(r => r.uid);
+  const pageUids = results.filter(r => r.pageUid && !r.uid).map(r => r.pageUid); // Pages without block context
+  
+  if (blockUids.length === 0 && pageUids.length === 0) {
+    console.log(`🌳 [AdaptiveExpansion] No UIDs found for expansion`);
+    return [];
+  }
+
+  console.log(`🌳 [AdaptiveExpansion] Expanding ${blockUids.length} blocks + ${pageUids.length} pages`);
+
+  try {
+    // Get hierarchical content using getNodeDetails
+    const hierarchyData = await expandWithGetNodeDetails(blockUids, pageUids, state);
+    
+    if (!hierarchyData || hierarchyData.length === 0) {
+      console.log(`🌳 [AdaptiveExpansion] No hierarchy data retrieved`);
+      return [];
+    }
+
+    console.log(`🌳 [AdaptiveExpansion] Retrieved ${hierarchyData.length} hierarchy items`);
+
+    // Create expanded blocks with original + context
+    const expandedBlocks = await createExpandedBlocks(results, hierarchyData, expansionBudget);
+    
+    // Apply intelligent truncation based on budget
+    const finalExpandedBlocks = applyIntelligentTruncation(expandedBlocks, expansionBudget);
+    
+    console.log(`🌳 [AdaptiveExpansion] Created ${finalExpandedBlocks.length} expanded blocks`);
+    return finalExpandedBlocks;
+
+  } catch (error) {
+    console.error(`🌳 [AdaptiveExpansion] Error during expansion:`, error);
+    return [];
+  }
+}
+
+// Get hierarchical content using getNodeDetails with includeHierarchy
+async function expandWithGetNodeDetails(blockUids: string[], pageUids: string[], state: any): Promise<any[]> {
+  const { executeDatomicQuery } = await import("./tools/searchUtils");
+  
+  try {
+    // Build Datomic query to get hierarchical content for blocks
+    let allHierarchyData: any[] = [];
+    
+    if (blockUids.length > 0) {
+      // Get basic block info first
+      const blockInfoQuery = `
+        [:find ?uid ?content
+         :where
+         [?b :block/uid ?uid]
+         [?b :block/string ?content]
+         [(contains? #{${blockUids.map(uid => `"${uid}"`).join(' ')}} ?uid)]]
+      `;
+      
+      const blockResults = await executeDatomicQuery(blockInfoQuery);
+      if (blockResults && Array.isArray(blockResults)) {
+        allHierarchyData.push(...blockResults.map(r => [r[0], r[1], null, null])); // Format: [uid, content, parent-uid, parent-content]
+      }
+
+      // Get parent blocks separately (simpler query)
+      const parentsQuery = `
+        [:find ?child-uid ?parent-uid ?parent-content
+         :where
+         [?child :block/uid ?child-uid]
+         [?child :block/parents ?parent]
+         [?parent :block/uid ?parent-uid]
+         [?parent :block/string ?parent-content]
+         [(contains? #{${blockUids.map(uid => `"${uid}"`).join(' ')}} ?child-uid)]]
+      `;
+      
+      const parentResults = await executeDatomicQuery(parentsQuery);
+      if (parentResults && Array.isArray(parentResults)) {
+        // Merge parent data with existing block data
+        for (const parentResult of parentResults) {
+          const [childUid, parentUid, parentContent] = parentResult;
+          // Find existing block data and add parent info
+          const existingIndex = allHierarchyData.findIndex(h => h[0] === childUid);
+          if (existingIndex >= 0) {
+            allHierarchyData[existingIndex][2] = parentUid;
+            allHierarchyData[existingIndex][3] = parentContent;
+          }
+        }
+      }
+
+      // Get children blocks
+      const childrenQuery = `
+        [:find ?child-uid ?child-content ?parent-uid
+         :where
+         [?parent :block/uid ?parent-uid]
+         [?parent :block/children ?child]
+         [?child :block/uid ?child-uid]
+         [?child :block/string ?child-content]
+         [(contains? #{${blockUids.map(uid => `"${uid}"`).join(' ')}} ?parent-uid)]]
+      `;
+      
+      const childrenResults = await executeDatomicQuery(childrenQuery);
+      if (childrenResults && Array.isArray(childrenResults)) {
+        allHierarchyData.push(...childrenResults);
+      }
+    }
+
+    return allHierarchyData;
+    
+  } catch (error) {
+    console.error(`🌳 [ExpandWithGetNodeDetails] Error:`, error);
+    return [];
+  }
+}
+
+// Build recursive children outline with proper indentation (inspired by convertTreeToLinearArray)
+async function buildRecursiveChildrenOutline(
+  parentUid: string, 
+  budget: number, 
+  maxDepth: number = 2,
+  currentLevel: number = 1,
+  indent: string = "  "
+): Promise<string> {
+  if (currentLevel > maxDepth || budget <= 0) return '';
+  
+  // Query for direct children of the parent
+  const childrenQuery = `
+    [:find ?child-uid ?child-content ?order
+     :where
+     [?parent :block/uid "${parentUid}"]
+     [?parent :block/children ?child]
+     [?child :block/uid ?child-uid]
+     [?child :block/string ?child-content]
+     [?child :block/order ?order]]
+  `;
+  
+  try {
+    const childrenResults = await executeDatomicQuery(childrenQuery);
+    if (!childrenResults || childrenResults.length === 0) {
+      return '';
+    }
+    
+    
+    // Sort by order
+    const sortedChildren = childrenResults.sort((a, b) => a[2] - b[2]);
+    
+    // Calculate budget per child (adaptive based on number of children)
+    const budgetPerChild = Math.floor(budget / Math.min(sortedChildren.length, 10)); // Max 10 children
+    const minContentPerChild = 50; // Minimum viable content
+    const maxContentPerChild = 200; // Maximum to prevent one child dominating
+    const targetContentPerChild = Math.max(minContentPerChild, Math.min(maxContentPerChild, budgetPerChild));
+    
+    const outlineLines: string[] = [];
+    let remainingBudget = budget;
+    
+    for (const [childUid, childContent, order] of sortedChildren.slice(0, 10)) {
+      if (remainingBudget <= 0) break;
+      
+      // Format child content with adaptive truncation
+      let formattedContent = childContent || '';
+      if (formattedContent.length > targetContentPerChild) {
+        formattedContent = formattedContent.substring(0, targetContentPerChild) + '...';
+      }
+      
+      // Add current level with indentation
+      outlineLines.push(`${indent}- ${formattedContent}`);
+      remainingBudget -= formattedContent.length;
+      
+      // Recursively get children of this child if we have budget and depth remaining
+      if (currentLevel < maxDepth && remainingBudget > 100) { // Need at least 100 chars for nested children
+        const nestedBudget = Math.floor(remainingBudget * 0.3); // 30% of remaining budget for nested levels
+        const nestedOutline = await buildRecursiveChildrenOutline(
+          childUid,
+          nestedBudget,
+          maxDepth,
+          currentLevel + 1,
+          indent + "  " // Increase indentation
+        );
+        
+        if (nestedOutline) {
+          outlineLines.push(nestedOutline);
+          remainingBudget -= nestedOutline.length;
+        }
+      }
+    }
+    
+    const result = outlineLines.join('\n');
+    return result;
+    
+  } catch (error) {
+    console.error(`🌳 [BuildRecursiveOutline] Error for ${parentUid}:`, error);
+    return '';
+  }
+}
+
+// Create expanded blocks with original content + hierarchical context
+async function createExpandedBlocks(originalResults: any[], hierarchyData: any[], budget: number): Promise<any[]> {
+  const expandedBlocks: any[] = [];
+  
+  // Create budget per result
+  const budgetPerResult = Math.floor(budget / originalResults.length);
+  
+  for (const result of originalResults) {
+    try {
+      // Find hierarchy data for this result
+      const resultHierarchy = hierarchyData.filter(h => 
+        h[0] === result.uid || h[2] === result.uid || h[1] === result.uid
+      );
+
+      // Create expanded block object
+      const expandedBlock = {
+        uid: result.uid,
+        original: result.content || result.pageTitle || '',
+        pageTitle: result.pageTitle || '',
+        parent: '',
+        childrenOutline: ''
+      };
+
+      // Add parent context
+      const parentData = resultHierarchy.find(h => h[0] === result.uid); // child-uid matches result.uid
+      if (parentData && parentData[3]) { // h[3] is parent-content (h[2] is parent-uid)
+        expandedBlock.parent = parentData[3];
+      }
+
+      // Add recursive children outline with proper indentation
+      const availableBudgetForChildren = Math.max(budgetPerResult - (expandedBlock.original?.length || 0) - 200, 500);
+      expandedBlock.childrenOutline = await buildRecursiveChildrenOutline(
+        result.uid,
+        availableBudgetForChildren,
+        2 // Default to 2 levels deep
+      );
+
+      // Stringify the expanded block
+      const stringifiedBlock = stringifyExpandedBlock(expandedBlock, budgetPerResult);
+      
+      expandedBlocks.push({
+        ...result,
+        content: stringifiedBlock,
+        expandedBlock: expandedBlock,
+        metadata: {
+          ...result.metadata,
+          contextExpansion: true,
+          originalLength: (result.content || '').length,
+          expandedLength: stringifiedBlock.length
+        }
+      });
+
+    } catch (error) {
+      console.error(`🌳 [CreateExpandedBlocks] Error processing ${result.uid}:`, error);
+      // Fallback to original result
+      expandedBlocks.push(result);
+    }
+  }
+
+  return expandedBlocks;
+}
+
+// Stringify expanded block with proper formatting
+function stringifyExpandedBlock(expandedBlock: any, budgetLimit: number): string {
+  const parts: string[] = [];
+  
+  // Always include original content (NEVER truncated) - UID is handled by the extraction function
+  if (expandedBlock.original) {
+    parts.push(expandedBlock.original);
+  }
+  
+  // Page title is already shown by extraction function as "(in [[PageTitle]])", so skip it to avoid duplication
+  
+  // Calculate remaining budget after original content + fixed elements  
+  const fixedContentLength = expandedBlock.original.length + 30; // +30 for labels (no UID or page title in output now)
+  const remainingBudget = Math.max(budgetLimit - fixedContentLength, 200); // Minimum 200 chars for context
+  
+  // Add parent context if available (fixed allocation: simple truncation)
+  if (expandedBlock.parent) {
+    const parentLimit = Math.min(500, Math.max(100, Math.floor(remainingBudget * 0.2))); // Max 20% of remaining budget, 100-500 chars
+    const truncatedParent = expandedBlock.parent.length > parentLimit 
+      ? expandedBlock.parent.substring(0, parentLimit) + '...'
+      : expandedBlock.parent;
+    parts.push(`Parent: ${truncatedParent}`);
+  }
+  
+  // Add children outline if available (MAIN LINEAR ALLOCATION TARGET)
+  if (expandedBlock.childrenOutline) {
+    const parentUsed = expandedBlock.parent ? Math.min(500, Math.max(100, Math.floor(remainingBudget * 0.2))) : 0;
+    const childrenBudget = remainingBudget - parentUsed; // Most of remaining budget goes to children
+    
+    // The children outline is already properly formatted and budgeted, but apply final safety limit if needed
+    const childrenLimit = Math.max(300, childrenBudget); // Ensure minimum viable children content (increased for recursive format)
+    const truncatedChildren = expandedBlock.childrenOutline.length > childrenLimit
+      ? expandedBlock.childrenOutline.substring(0, childrenLimit) + '\n    ...[truncated]'
+      : expandedBlock.childrenOutline;
+    parts.push(`Children:\n${truncatedChildren}`);
+  }
+
+  return parts.join('\n');
+}
+
+// Calculate how much content to extract from each child block (KEY LINEAR INTERPOLATION)
+function calculateContentPerChild(childrenCount: number, totalChildrenBudget: number): number {
+  if (childrenCount === 0) return 0;
+  
+  // Linear interpolation based on available budget and number of children
+  const baseBudgetPerChild = Math.floor(totalChildrenBudget / childrenCount);
+  const minContentPerChild = 50;  // Minimum meaningful content
+  const maxContentPerChild = 400; // Maximum content per child to avoid one child dominating
+  
+  // Linear interpolation: more budget = more content per child, but with reasonable limits
+  return Math.max(
+    minContentPerChild, 
+    Math.min(maxContentPerChild, baseBudgetPerChild)
+  );
+}
+
+// Calculate truncation limit with linear interpolation (100-500 chars based on budget)
+function calculateTruncationLimit(availableBudget: number, maxLimit: number): number {
+  const minLimit = 100;
+  const ratio = Math.min(availableBudget / 1000, 1); // Scale based on available budget
+  return Math.floor(minLimit + ((maxLimit - minLimit) * ratio));
+}
+
+// Apply final safety truncation if total exceeds budget
+function applyIntelligentTruncation(expandedBlocks: any[], totalBudget: number): any[] {
+  // Calculate total content length
+  const totalLength = expandedBlocks.reduce((sum, block) => sum + block.content.length, 0);
+  
+  if (totalLength <= totalBudget) {
+    return expandedBlocks; // No truncation needed
+  }
+
+  console.log(`🌳 [IntelligentTruncation] Total ${totalLength} chars > budget ${totalBudget}, applying proportional truncation`);
+
+  // Calculate truncation ratio
+  const truncationRatio = totalBudget / totalLength;
+  const maxBlockLimit = Math.floor((totalBudget / expandedBlocks.length) * 0.9); // 90% of average budget per block
+
+  return expandedBlocks.map(block => {
+    const targetLength = Math.min(
+      Math.floor(block.content.length * truncationRatio),
+      maxBlockLimit
+    );
+
+    if (block.content.length > targetLength) {
+      return {
+        ...block,
+        content: block.content.substring(0, targetLength) + '...[truncated]',
+        metadata: {
+          ...block.metadata,
+          truncated: true,
+          originalLength: block.content.length,
+          truncatedLength: targetLength
+        }
+      };
+    }
+
+    return block;
+  });
+}
+
 // Direct result formatting for simple private mode cases (no LLM needed)
 const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   console.log(
@@ -1659,7 +2280,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   for (const [, result] of relevantEntries) {
     const data = result?.data || [];
     if (!Array.isArray(data) || data.length === 0) continue;
-
+    
     allResults.push(...data);
   }
 
@@ -1801,6 +2422,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
     .map(([level, results]) => `L${level}: ${results.length}`)
     .filter((_, i) => resultsByLevel[i].length > 0);
 
+
   console.log(
     `🎯 [DirectFormat] Generated direct response: ${
       resultText.length
@@ -1939,6 +2561,11 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   const hasZeroFinalResults =
     finalResults.length > 0 && totalFinalResults === 0;
 
+  console.log(`🔍 [DEBUG shouldContinue] Result status:`, {
+    hasSufficientResults,
+    totalFinalResults
+  });
+
   // OPTIMIZATION: For simple private mode cases with results, skip LLM and format directly
   const canSkipResponseWriter =
     state.privateMode &&
@@ -1960,7 +2587,7 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     !state.userQuery?.includes("explain") &&
     !state.userQuery?.includes("summary");
 
-  if (canSkipResponseWriter) {
+  if (canSkipResponseWriter) {    
     console.log(
       `🔀 [Graph] Assistant → DIRECT_FORMAT (private mode optimization)`
     );
@@ -1968,6 +2595,14 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   }
 
   if (canSkipForLimits) {
+    // Balanced/full mode should use responseWriter for proper result processing
+    if (!state.privateMode) {
+      console.log(
+        `🔀 [Graph] Assistant → RESPONSE_WRITER (balanced/full mode with user limits)`
+      );
+      return "responseWriter";
+    }
+    
     console.log(
       `🔀 [Graph] Assistant → DIRECT_FORMAT (user requested limits: ${
         state.searchDetails?.maxResults || "N/A"
@@ -2063,6 +2698,7 @@ You MUST change your tool strategy - don't repeat the same approach that gave ze
   }
 
   // If we have results but can't use direct format, go to response writer
+  // Simple routing based on final results - context expansion handled by dedicated node
   if (hasSufficientResults) {
     console.log(
       `🔀 [Graph] Assistant → RESPONSE_WRITER (${totalFinalResults} final results available)`
@@ -2136,6 +2772,9 @@ const routeAfterCache = (state: typeof ReactSearchAgentState.State) => {
 const toolsWithResultLifecycle = async (
   state: typeof ReactSearchAgentState.State
 ) => {
+  const toolStartTime = Date.now();
+  console.log(`🔧 [Tools] Starting tool execution...`);
+  
   // Create state-aware tool wrappers that auto-inject agent state
   const stateAwareTools = state.searchTools.map((tool) => {
     if (tool.name === "findBlocksByContent") {
@@ -2175,6 +2814,10 @@ const toolsWithResultLifecycle = async (
   const result = await toolNode.invoke(state, {
     configurable: { state },
   });
+  
+  const toolDuration = Date.now() - toolStartTime;
+  const toolCallCount = result.messages.filter((m) => !m.tool_calls && m.content).length;
+  console.log(`🔧 [Tools] Completed ${toolCallCount} tool calls in ${toolDuration}ms`);
 
   // Process tool results with lifecycle management
   const updatedResultStore = processToolResultsWithLifecycle(
@@ -2182,12 +2825,19 @@ const toolsWithResultLifecycle = async (
     result.messages
   );
 
+  // Update timing metrics
+  const updatedTimingMetrics = {
+    totalLlmTime: state.timingMetrics?.totalLlmTime || 0,
+    totalToolTime: (state.timingMetrics?.totalToolTime || 0) + toolDuration,
+    llmCalls: state.timingMetrics?.llmCalls || 0,
+    toolCalls: (state.timingMetrics?.toolCalls || 0) + toolCallCount,
+  };
+
   return {
     ...result,
     resultStore: updatedResultStore,
-    nextResultId:
-      (state.nextResultId || 1) +
-      result.messages.filter((m) => !m.tool_calls && m.content).length,
+    nextResultId: (state.nextResultId || 1) + toolCallCount,
+    timingMetrics: updatedTimingMetrics,
   };
 };
 
@@ -2234,12 +2884,9 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       latestResult?.purpose === "final" &&
       // Not in conversation mode (no user refinement expected)
       !state.isConversationMode &&
-      // Private mode (simple formatting)
-      // or Has sufficient data (>=10 results)
-      // or User requested specific limits (need directFormat for proper limit enforcement)
-      (latestResult?.data?.length >= 10 ||
-        state.privateMode ||
-        hasUserLimits) &&
+      // ONLY private mode should skip assistant and go to directFormat
+      // Balanced and full modes should always go to responseWriter for LLM processing
+      state.privateMode &&
       // Query doesn't require multi-step analysis
       !requiresAnalysis;
 
@@ -2249,9 +2896,16 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
 
     if (canSkipAssistant) {
       console.log(
-        `🔀 [Graph] TOOLS → DIRECT_FORMAT (sufficient results: ${latestResult.data.length}, purpose: ${latestResult.purpose}, hasUserLimits: ${hasUserLimits})`
+        `🔀 [Graph] TOOLS → DIRECT_FORMAT (private mode: ${latestResult.data.length} results, purpose: ${latestResult.purpose})`
       );
       return "directFormat";
+    } else if (latestResult?.purpose === "final" && !state.isConversationMode && !state.privateMode) {
+      // Balanced and Full modes route through contextExpansion for adaptive expansion
+      const currentMode = state.privateMode ? 'private' : (state.permissions?.contentAccess ? 'full' : 'balanced');
+      console.log(
+        `🔀 [Graph] TOOLS → CONTEXT_EXPANSION (${currentMode} mode: ${latestResult.data.length} results, checking expansion needs)`
+      );
+      return "contextExpansion";
     } else if (requiresAnalysis) {
       console.log(
         `🔀 [Graph] TOOLS → ASSISTANT (query requires analysis: "${state.userQuery}")`
@@ -2496,6 +3150,7 @@ builder
   .addNode("cacheProcessor", cacheProcessor)
   .addNode("assistant", assistant)
   .addNode("tools", toolsWithResultLifecycle)
+  .addNode("contextExpansion", contextExpansion)
   .addNode("responseWriter", responseWriter)
   .addNode("directFormat", directFormat)
   .addNode("showResultsThenExpand", showResultsThenExpand)
@@ -2508,6 +3163,7 @@ builder
   .addConditionalEdges("cacheProcessor", routeAfterCache)
   .addConditionalEdges("assistant", shouldContinue)
   .addConditionalEdges("tools", routeAfterTools)
+  .addEdge("contextExpansion", "responseWriter")
   .addEdge("responseWriter", "insertResponse")
   .addEdge("directFormat", "insertResponse")
   .addEdge("insertResponse", "__end__");

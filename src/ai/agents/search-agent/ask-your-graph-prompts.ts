@@ -9,6 +9,7 @@ import {
   getDateStringFromDnpUid,
 } from "../../../utils/roamAPI";
 import { dnpUidRegex } from "../../../utils/regex";
+import { getEnhancedLimits } from "./tools/searchUtils";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
@@ -222,9 +223,19 @@ const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 // Shared Roam formatting instructions
 export const ROAM_FORMATTING_INSTRUCTIONS = `ROAM-SPECIFIC FORMATTING - MANDATORY:
 - ALWAYS format page names as [[Page Name]] (double brackets) - NEVER use quotes around page names, user they are not existing
-- When referencing specific blocks found in results, ALWAYS embed them using the following syntaxe (with embed-path being a Roam native key-word, reproduce it strickly): {{[[embed-path]]: ((block-uid))}}.
+
+BLOCK EMBEDDING vs REFERENCING:
+- For EMBEDDING blocks (shows content + children): Use {{[[embed-path]]: ((block-uid))}}
+  * CRITICAL: 'embed-path' is a reserved Roam keyword - use it exactly as shown
+  * EMBEDDING RULE: Embedded blocks should always be alone on their line, typically as a sub-bullet
+  * Example: "- **Recipe Name**: Description\n  - {{[[embed-path]]: ((block-uid))}}"
+- For REFERENCING blocks (just links to the block): Use ((block-uid)) or "source: ((block-uid))"
+  * Use references when you just want to cite or link to a block without showing its full content
+  * Example: "This recipe is great (source: ((block-uid)))"
+
+FORMATTING RULES:
 - NEVER format block content in code blocks (\`\`\` syntax) - use block embeds instead
-- NEVER display raw block content - always use the embed syntax for blocks, unless you are just quoting a very small part of this block content on purpose
+- NEVER display raw block content - always use embed or reference syntax for blocks
 - Use Roam-compatible markdown syntax throughout your response
 - RESPECT USER LANGUAGE: Always respond in the same language as the user's request`;
 
@@ -336,6 +347,7 @@ const buildSimpleQueryPrompt = (state: any): string => {
   );
 
   return `${agentIntro}${privateModeInstructions}
+
 
 ## SIMPLE QUERY EXECUTION
 
@@ -481,6 +493,7 @@ ${
         )} (handled by agent state, do not pass dateRange parameter)`
       : ""
   }
+
 Execute the complex symbolic query now.`;
 };
 
@@ -492,6 +505,18 @@ const buildExpansionGuidanceSection = (state: any): string => {
     state.searchStrategy === "direct"
   ) {
     return "";
+  }
+
+  // CRITICAL: Don't show semantic expansion guidance when we have final results needing evaluation
+  const finalResults = Object.values(state.resultStore || {}).filter(
+    (result: any) => result?.purpose === "final" && result?.status === "active" && result?.data?.length > 0
+  );
+  
+  if (finalResults.length > 0) {
+    console.log(
+      `🔧 [buildExpansionGuidanceSection] Skipping expansion guidance - have ${finalResults.length} final results, evaluation should take precedence`
+    );
+    return ""; // Let result evaluation take precedence over semantic expansion
   }
 
   const currentLevel = state.currentExpansionLevel || 0;
@@ -600,6 +625,83 @@ const buildLevel4Guidance = (
 
 **ACTION**: Use different tools or tool combinations than previously attempted
 `;
+};
+
+// Build result evaluation section for intelligent context expansion decisions
+const buildResultEvaluationSection = (state: any): string => {
+  // Only show evaluation guidance in balanced/full modes when we have FINAL results
+  if (state.privateMode || !state.resultStore || Object.keys(state.resultStore).length === 0) {
+    return "";
+  }
+  
+  // Check if we have any FINAL results that need evaluation
+  const finalResults = Object.values(state.resultStore).filter(
+    (result: any) => result?.purpose === "final" && result?.status === "active" && result?.data?.length > 0
+  );
+  
+  if (finalResults.length === 0) {
+    return ""; // No final results yet, continue with normal search expansion
+  }
+  
+  const currentMode = state.privateMode ? 'private' : (state.permissions?.contentAccess ? 'full' : 'balanced');
+  
+  return `
+## 🚦 CRITICAL: FINAL RESULT EVALUATION & ROUTING DECISION
+
+🛑 **FINAL RESULTS DETECTED**: You have received final search results. You MUST now decide:
+1. **Are results sufficient?** → Call NO MORE TOOLS, go directly to response synthesis
+2. **Are results insufficient?** → Use context expansion ONCE, then synthesize
+
+### 🧠 EVALUATION PROCESS (${currentMode} mode):
+
+**STEP 1 - User Intent Analysis:**
+- What specific information does the user need?
+- Example: "shortest recipe to cook" → needs cooking duration/time info
+- Example: "how does X work" → needs detailed steps/explanation
+- Example: "what pages mention Y" → just needs page titles (sufficient)
+
+**STEP 2 - Result Completeness Check:**
+- ✅ **SUFFICIENT**: Results directly contain the needed information → **STOP SEARCHING, SYNTHESIZE RESPONSE**
+- ❌ **INSUFFICIENT**: Results are relevant but missing key details → **USE CONTEXT EXPANSION ONCE**
+
+**STEP 3 - Context Expansion Decision Communication:**
+- **If SUFFICIENT**: Set state flag \`needsContextExpansion: false\` (or omit it)
+- **If INSUFFICIENT**: Set state flag \`needsContextExpansion: true\`, then use \`getNodeDetails\`
+- **After using getNodeDetails**: Set state flag \`contextExpansionAttempted: true\`
+
+### CONTEXT EXPANSION USAGE:
+\`\`\`
+// First, communicate your decision to the system:
+needsContextExpansion: true
+
+// Then expand context:
+getNodeDetails({
+  fromResultId: "findBlocksByContent_001", // Use previous result
+  includeContent: true,
+  includeHierarchy: true,  // KEY: Gets parent/child context
+  limit: 50
+})
+
+// After expansion, mark as attempted:
+contextExpansionAttempted: true
+\`\`\`
+
+### 🛑 WHEN TO STOP TOOL CALLS:
+1. **Always after first successful search** if results are sufficient
+2. **Always after context expansion** (maximum 1 context expansion per query)
+3. **Never continue expanding** - either answer with what you have or explain limitations
+
+### ⚠️ ANTI-LOOP PROTECTION:
+- **NO EXPANSION LOOPS**: Maximum 1 context expansion attempt
+- **NO MULTIPLE TOOL CHAINS**: After getting results, evaluate → expand once (if needed) → synthesize
+- **RECOGNIZE FINAL RESULTS**: If you have data, stop and evaluate sufficiency immediately
+
+### 🔢 EXPANSION LEVEL MANAGEMENT:
+- **Semantic expansion** (search term expansion when no results): Increments expansion level (1-4)
+- **Context expansion** (getNodeDetails on final results): Does NOT increment expansion level
+- Context expansion is separate from semantic expansion levels
+
+**Remember**: Better to provide a complete answer from available data than to loop infinitely.`;
 };
 
 // Request analysis system prompt
@@ -1017,32 +1119,85 @@ export const extractResultDataForPrompt = (
   console.log(
     `🎯 [ExtractResultData] Using ${relevantEntries.length} relevant results for final response`
   );
+  
 
-  // DEDUPLICATION: Combine all result data and deduplicate by UID
+  // DEDUPLICATION: Combine all result data and deduplicate by UID, preferring context-expanded items
   const allResultData: any[] = [];
-  const seenUids = new Set<string>();
+  const seenItems = new Map<string, any>();
 
   for (const [resultId, result] of relevantEntries) {
     // Extract data from new or legacy structure
     const data = result?.data || result;
     if (!Array.isArray(data) || data.length === 0) continue;
 
-    // Add items to combined list, deduplicating by UID
+    // Add items to combined list, deduplicating by UID but preferring context-expanded items
     for (const item of data) {
       const itemUid = item.uid || item.pageUid;
-      if (itemUid && !seenUids.has(itemUid)) {
-        seenUids.add(itemUid);
-        allResultData.push({
-          ...item,
-          sourceResultId: resultId, // Track which tool found this result
-        });
+      if (itemUid) {
+        const existingItem = seenItems.get(itemUid);
+        const isContextExpanded = item.metadata?.contextExpansion || item.expandedBlock;
+        const existingIsExpanded = existingItem?.metadata?.contextExpansion || existingItem?.expandedBlock;
+        
+        // Keep this item if:
+        // - We haven't seen this UID before, OR
+        // - This item is context-expanded and the existing one isn't
+        if (!existingItem || (isContextExpanded && !existingIsExpanded)) {
+          const enrichedItem = {
+            ...item,
+            sourceResultId: resultId, // Track which tool found this result
+          };
+          seenItems.set(itemUid, enrichedItem);
+          
+          // Update allResultData array
+          if (!existingItem) {
+            allResultData.push(enrichedItem);
+          } else {
+            // Replace existing item with context-expanded version
+            const index = allResultData.findIndex(existing => (existing.uid || existing.pageUid) === itemUid);
+            if (index >= 0) {
+              allResultData[index] = enrichedItem;
+                }
+          }
+        }
       }
     }
   }
+  
+  // Convert Map values to final array (not needed since we maintain allResultData directly)
+  // allResultData is already populated correctly
 
   console.log(
     `🎯 [ExtractResultData] Deduplicated ${relevantEntries.length} result sets into ${allResultData.length} unique items`
   );
+
+  // Check if context expansion was applied
+  const contextExpansionResults = relevantEntries.filter(
+    ([, result]) => result?.metadata?.contextExpansion
+  );
+  
+  const hasContextExpansion = contextExpansionResults.length > 0;
+  let contextItems: any[] = [];
+  let mainResults: any[] = [];
+  
+  if (hasContextExpansion) {
+    // Separate context items from main results
+    for (const [, result] of relevantEntries) {
+      const data = result?.data || [];
+      if (!Array.isArray(data) || data.length === 0) continue;
+      
+      if (result?.metadata?.contextExpansion) {
+        // These are context items (parents/children)
+        contextItems.push(...data.map(item => ({
+          ...item,
+          isContextItem: true
+        })));
+      } else {
+        // These are original search results
+        mainResults.push(...data);
+      }
+    }
+    console.log(`🌳 [ExtractResultData] Context expansion detected: ${mainResults.length} main results + ${contextItems.length} context items`);
+  }
 
   // Now process the deduplicated data as a single combined result
   let formattedResults: string[] = [];
@@ -1070,16 +1225,28 @@ export const extractResultDataForPrompt = (
         break;
 
       case "balanced":
-        // UIDs, titles, basic metadata, limited content
+        // UIDs, titles, basic metadata with progressive content limits
+        // Get enhanced limits for progressive content strategy
+        const enhancedLimits = getEnhancedLimits("balanced");
+        const contentLimit = enhancedLimits.getContentLimit ? enhancedLimits.getContentLimit(data.length) : 200;
+        
         limitedData = data.slice(0, 100).map((item) => ({
           uid: item.uid,
           pageUid: item.pageUid, // For extractPageReferences results
           pageTitle: item.pageTitle || item.title,
           count: item.count, // Preserve count for references
-          content: item.content
-            ? item.content.substring(0, 200) + "..."
-            : undefined,
+          content: item.metadata?.contextExpansion || item.expandedBlock 
+            ? item.content // Context-expanded content is already optimally truncated - use as-is
+            : (item.content && contentLimit
+              ? item.content.substring(0, contentLimit) + (item.content.length > contentLimit ? "..." : "")
+              : item.content), // Apply progressive limits only to non-expanded content
         }));
+        
+        const expandedCount = data.filter(item => item.metadata?.contextExpansion || item.expandedBlock).length;
+        
+        console.log(
+          `🎯 [ExtractResultData] Balanced mode: ${expandedCount} context-expanded items preserved, progressive limit (${contentLimit || 'full'} chars) applied to ${data.length - expandedCount} regular items`
+        );
         break;
 
       case "full":
@@ -1146,6 +1313,49 @@ export const extractResultDataForPrompt = (
     // No results found - explicitly indicate this to prevent hallucination
     console.log("🎯 [ExtractResultData] No results with data found");
     formattedResults.push("No matching results found.");
+  }
+
+  // Add transparency messaging about applied limits and context expansion
+  const transparencyMessages: string[] = [];
+  
+  if (hasContextExpansion && securityMode === "balanced") {
+    const contextConfig = contextExpansionResults[0]?.[1]?.metadata?.config;
+    const contextDescription = [];
+    
+    if (contextConfig?.includeParents) {
+      contextDescription.push("parent blocks");
+    }
+    if (contextConfig?.includeChildren) {
+      const depth = contextConfig.maxDepth || 2;
+      contextDescription.push(`${depth} level${depth > 1 ? 's' : ''} of children`);
+    }
+    
+    if (contextDescription.length > 0) {
+      transparencyMessages.push(
+        `🌳 **Context Enhancement Applied**: Balanced mode intelligently expanded ${mainResults.length} core results with ${contextItems.length} contextual items (${contextDescription.join(", ")}) based on content analysis.`
+      );
+    }
+  }
+  
+  if (securityMode === "balanced" && allResultData.length > 0) {
+    const resultCount = allResultData.length;
+    let contentLimitMessage = "";
+    
+    if (resultCount < 10) {
+      contentLimitMessage = "full content provided";
+    } else if (resultCount <= 50) {
+      contentLimitMessage = "content limited to 500 characters per result";
+    } else {
+      contentLimitMessage = "content limited to 250 characters per result for efficiency";
+    }
+    
+    transparencyMessages.push(
+      `📊 **Progressive Limits Applied**: Found ${resultCount} results in balanced mode - ${contentLimitMessage}.`
+    );
+  }
+  
+  if (transparencyMessages.length > 0) {
+    formattedResults.push("\n---\n**SYSTEM INFO:**\n" + transparencyMessages.join("\n"));
   }
 
   return formattedResults.join("\n\n");
