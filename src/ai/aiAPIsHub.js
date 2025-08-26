@@ -378,13 +378,13 @@ export function modelAccordingToProvider(model) {
     }
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
-    if (model === "deepseek-r1") {
+    if (model === "deepseek-v3.1 thinking") {
       llm.id = "deepseek-reasoner";
-      llm.name = "DeepSeek-R1";
+      llm.name = "DeepSeek-V3.1 Thinking";
       llm.thinking = true;
     } else {
       llm.id = "deepseek-chat";
-      llm.name = "DeepSeek-V3";
+      llm.name = "DeepSeek-V3.1";
     }
     llm.library = deepseekLibrary;
   } else if (model.includes("grok")) {

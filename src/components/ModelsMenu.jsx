@@ -499,7 +499,7 @@ const ModelsMenu = ({
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
-                icon={defaultModel === "DeepSeek-V3" && "pin"}
+                icon={defaultModel === "DeepSeek-V3.1" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -508,11 +508,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="DeepSeek-V3"
+                text="DeepSeek-V3.1"
                 labelElement="64k"
               />
               <MenuItem
-                icon={defaultModel === "DeepSeek-R1" && "pin"}
+                icon={defaultModel === "DeepSeek-V3.1 Thinking" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -521,7 +521,7 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="DeepSeek-R1"
+                text="DeepSeek-V3.1 Thinking"
                 labelElement="64k"
               />
             </>

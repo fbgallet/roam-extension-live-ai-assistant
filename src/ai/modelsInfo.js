@@ -36,7 +36,7 @@ export const getAvailableModels = (provider) => {
         "Claude Opus 4.1",
       ];
     case "DeepSeek":
-      return ["DeepSeek-V3", "DeepSeek-R1"];
+      return ["DeepSeek-V3.1", "DeepSeek-V3.1 Thinking"];
     case "Grok":
       return [
         "Grok-3-mini",
