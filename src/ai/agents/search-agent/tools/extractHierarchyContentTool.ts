@@ -1,57 +1,123 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { 
-  executeDatomicQuery, 
-  createToolResult, 
+import {
+  executeDatomicQuery,
+  createToolResult,
   truncateContent,
-  extractUidsFromResults
-} from './searchUtils';
+  extractUidsFromResults,
+} from "../helpers/searchUtils";
 
 /**
  * Extract and format hierarchical content from specific blocks
  * Security Level: Content (accesses full block content and hierarchy for formatting)
- * 
+ *
  * This tool takes block UIDs and extracts their complete hierarchical content,
  * formatted for presentation with support for different output formats and filtering.
  */
 
 const extractOptionsSchema = z.object({
-  maxBlocks: z.number().min(1).max(1000).default(100).describe("Maximum blocks to include in extraction"),
-  maxDepth: z.number().min(1).max(10).default(5).describe("Maximum hierarchy depth to extract"),
-  includeReferences: z.boolean().default(true).describe("Include page/block references in output"),
-  includeMetadata: z.boolean().default(false).describe("Include creation/modification dates"),
-  truncateLength: z.number().min(50).max(1000).default(500).describe("Max characters per block content"),
-  indentSize: z.number().min(1).max(8).default(2).describe("Spaces per indentation level"),
-  bulletStyle: z.enum(["dash", "bullet", "number", "none"]).default("dash").describe("Bullet point style")
+  maxBlocks: z
+    .number()
+    .min(1)
+    .max(1000)
+    .default(100)
+    .describe("Maximum blocks to include in extraction"),
+  maxDepth: z
+    .number()
+    .min(1)
+    .max(10)
+    .default(5)
+    .describe("Maximum hierarchy depth to extract"),
+  includeReferences: z
+    .boolean()
+    .default(true)
+    .describe("Include page/block references in output"),
+  includeMetadata: z
+    .boolean()
+    .default(false)
+    .describe("Include creation/modification dates"),
+  truncateLength: z
+    .number()
+    .min(50)
+    .max(1000)
+    .default(500)
+    .describe("Max characters per block content"),
+  indentSize: z
+    .number()
+    .min(1)
+    .max(8)
+    .default(2)
+    .describe("Spaces per indentation level"),
+  bulletStyle: z
+    .enum(["dash", "bullet", "number", "none"])
+    .default("dash")
+    .describe("Bullet point style"),
 });
 
 const formatOptionsSchema = z.object({
-  outputFormat: z.enum(["markdown", "plain", "roam", "outline"]).default("markdown"),
-  includeBlockUIDs: z.boolean().default(false).describe("Include block UIDs in output"),
-  includePageContext: z.boolean().default(true).describe("Include page title and context"),
-  separatePages: z.boolean().default(true).describe("Separate content from different pages"),
-  addTimestamps: z.boolean().default(false).describe("Add timestamps to blocks"),
-  linkFormat: z.enum(["roam", "markdown", "plain"]).default("roam").describe("How to format links")
+  outputFormat: z
+    .enum(["markdown", "plain", "roam", "outline"])
+    .default("markdown"),
+  includeBlockUIDs: z
+    .boolean()
+    .default(false)
+    .describe("Include block UIDs in output"),
+  includePageContext: z
+    .boolean()
+    .default(true)
+    .describe("Include page title and context"),
+  separatePages: z
+    .boolean()
+    .default(true)
+    .describe("Separate content from different pages"),
+  addTimestamps: z
+    .boolean()
+    .default(false)
+    .describe("Add timestamps to blocks"),
+  linkFormat: z
+    .enum(["roam", "markdown", "plain"])
+    .default("roam")
+    .describe("How to format links"),
 });
 
-const schema = z.object({
-  blockUids: z.array(z.string().min(9).max(9)).optional().describe("Array of block UIDs to extract content from"),
-  fromResultId: z.string().optional().describe("Extract content from block UIDs in previous result (e.g., 'findBlocksByContent_001')"),
-  extractOptions: extractOptionsSchema.default({}),
-  formatOptions: formatOptionsSchema.default({}),
-  
-  // Content filtering
-  excludeEmpty: z.boolean().default(true).describe("Exclude empty blocks"),
-  includeParents: z.boolean().default(false).describe("Include parent blocks for context"),
-  includeChildren: z.boolean().default(true).describe("Include child blocks"),
-  
-  // Reference handling
-  resolveReferences: z.boolean().default(false).describe("Resolve page/block references to their content"),
-  maxReferenceDepth: z.number().min(0).max(3).default(1).describe("Max depth for reference resolution")
-}).refine(
-  (data) => data.blockUids?.length > 0 || data.fromResultId,
-  { message: "Either blockUids array or fromResultId must be provided" }
-);
+const schema = z
+  .object({
+    blockUids: z
+      .array(z.string().min(9).max(9))
+      .optional()
+      .describe("Array of block UIDs to extract content from"),
+    fromResultId: z
+      .string()
+      .optional()
+      .describe(
+        "Extract content from block UIDs in previous result (e.g., 'findBlocksByContent_001')"
+      ),
+    extractOptions: extractOptionsSchema.default({}),
+    formatOptions: formatOptionsSchema.default({}),
+
+    // Content filtering
+    excludeEmpty: z.boolean().default(true).describe("Exclude empty blocks"),
+    includeParents: z
+      .boolean()
+      .default(false)
+      .describe("Include parent blocks for context"),
+    includeChildren: z.boolean().default(true).describe("Include child blocks"),
+
+    // Reference handling
+    resolveReferences: z
+      .boolean()
+      .default(false)
+      .describe("Resolve page/block references to their content"),
+    maxReferenceDepth: z
+      .number()
+      .min(0)
+      .max(3)
+      .default(1)
+      .describe("Max depth for reference resolution"),
+  })
+  .refine((data) => data.blockUids?.length > 0 || data.fromResultId, {
+    message: "Either blockUids array or fromResultId must be provided",
+  });
 
 interface BlockNode {
   uid: string;
@@ -78,7 +144,10 @@ interface HierarchyContent {
   };
 }
 
-const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?: any): Promise<HierarchyContent[]> => {
+const extractHierarchyContentImpl = async (
+  input: z.infer<typeof schema>,
+  state?: any
+): Promise<HierarchyContent[]> => {
   const {
     blockUids,
     fromResultId,
@@ -88,7 +157,7 @@ const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?
     includeParents,
     includeChildren,
     resolveReferences,
-    maxReferenceDepth
+    maxReferenceDepth,
   } = input;
 
   // Extract block UIDs from previous results and user input
@@ -99,7 +168,9 @@ const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?
     state
   );
 
-  console.log(`🔍 ExtractHierarchyContent: Processing ${finalBlockUids.length} block UIDs`);
+  console.log(
+    `🔍 ExtractHierarchyContent: Processing ${finalBlockUids.length} block UIDs`
+  );
 
   const results: HierarchyContent[] = [];
   const processedPages = new Set<string>();
@@ -114,7 +185,10 @@ const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?
       }
 
       // Skip if we've already processed this page and separatePages is false
-      if (!formatOptions.separatePages && processedPages.has(rootBlock.pageUid)) {
+      if (
+        !formatOptions.separatePages &&
+        processedPages.has(rootBlock.pageUid)
+      ) {
         continue;
       }
       processedPages.add(rootBlock.pageUid);
@@ -137,7 +211,11 @@ const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?
       const references = extractAllReferences(structure);
 
       // Format the content
-      const formattedContent = formatHierarchyContent(structure, formatOptions, extractOptions);
+      const formattedContent = formatHierarchyContent(
+        structure,
+        formatOptions,
+        extractOptions
+      );
 
       // Calculate statistics
       const stats = calculateHierarchyStats(structure, extractOptions);
@@ -147,9 +225,8 @@ const extractHierarchyContentImpl = async (input: z.infer<typeof schema>, state?
         content: formattedContent,
         structure,
         references,
-        stats
+        stats,
       });
-
     } catch (error) {
       console.error(`Error processing block ${rootUid}:`, error);
     }
@@ -182,7 +259,7 @@ const getBlockInfo = async (uid: string): Promise<any> => {
     created: new Date(created),
     modified: new Date(modified),
     pageTitle,
-    pageUid
+    pageUid,
   };
 };
 
@@ -219,7 +296,7 @@ const buildHierarchyStructure = async (
     pageUid: rootInfo.pageUid,
     references: extractReferencesFromContent(rootInfo.content),
     // Explicit type flag (isPage: false means it's a block)
-    isPage: false
+    isPage: false,
   } as any;
 
   // Add parent context if requested
@@ -230,13 +307,16 @@ const buildHierarchyStructure = async (
       const parent = parents[i];
       const parentNode = {
         uid: parent.uid,
-        content: `[Parent] ${truncateContent(parent.content, extractOptions.truncateLength)}`,
+        content: `[Parent] ${truncateContent(
+          parent.content,
+          extractOptions.truncateLength
+        )}`,
         level: currentLevel - (i + 1),
         children: [],
         references: extractReferencesFromContent(parent.content),
         // Explicit type flags
         isBlock: true,
-        isPage: false
+        isPage: false,
       } as any;
       structure.push(parentNode);
     }
@@ -248,16 +328,16 @@ const buildHierarchyStructure = async (
   // Get children if requested
   if (includeChildren) {
     const children = await getBlockChildren(rootUid);
-    
+
     for (const child of children) {
       const childStructure = await buildHierarchyStructure(
         child.uid,
         extractOptions,
         false, // Don't include parents for children
-        true,  // Include children recursively
+        true, // Include children recursively
         currentLevel + 1
       );
-      
+
       rootNode.children.push(...childStructure);
     }
   }
@@ -303,26 +383,29 @@ const getBlockParents = async (childUid: string): Promise<any[]> => {
  */
 const extractReferencesFromContent = (content: string): string[] => {
   const references: string[] = [];
-  
+
   // Extract page references [[...]]
   const pageRefs = content.match(/\[\[([^\]]+)\]\]/g);
   if (pageRefs) {
-    references.push(...pageRefs.map(ref => ref.slice(2, -2)));
+    references.push(...pageRefs.map((ref) => ref.slice(2, -2)));
   }
-  
+
   // Extract block references ((...))
   const blockRefs = content.match(/\(\(([^)]+)\)\)/g);
   if (blockRefs) {
-    references.push(...blockRefs.map(ref => ref.slice(2, -2)));
+    references.push(...blockRefs.map((ref) => ref.slice(2, -2)));
   }
-  
+
   return references;
 };
 
 /**
  * Resolve references to their actual content
  */
-const resolveBlockReferences = async (structure: BlockNode[], maxDepth: number): Promise<void> => {
+const resolveBlockReferences = async (
+  structure: BlockNode[],
+  maxDepth: number
+): Promise<void> => {
   if (maxDepth <= 0) return;
 
   for (const node of structure) {
@@ -332,7 +415,10 @@ const resolveBlockReferences = async (structure: BlockNode[], maxDepth: number):
         if (ref.length === 9) {
           const blockInfo = await getBlockInfo(ref);
           if (blockInfo) {
-            node.content += `\n  → Block: ${truncateContent(blockInfo.content, 100)}`;
+            node.content += `\n  → Block: ${truncateContent(
+              blockInfo.content,
+              100
+            )}`;
           }
         } else {
           // Try to resolve as page reference
@@ -340,7 +426,7 @@ const resolveBlockReferences = async (structure: BlockNode[], maxDepth: number):
                              :where 
                              [?page :node/title "${ref}"]
                              [?page :block/uid ?uid]]`;
-          
+
           const pageResult = await executeDatomicQuery(pageQuery);
           if (pageResult.length > 0) {
             node.content += `\n  → Page: [[${ref}]]`;
@@ -359,27 +445,38 @@ const resolveBlockReferences = async (structure: BlockNode[], maxDepth: number):
 /**
  * Extract all references from the hierarchy structure
  */
-const extractAllReferences = (structure: BlockNode[]): Array<{ type: "page" | "block"; uid: string; title?: string }> => {
-  const references: Array<{ type: "page" | "block"; uid: string; title?: string }> = [];
-  
+const extractAllReferences = (
+  structure: BlockNode[]
+): Array<{ type: "page" | "block"; uid: string; title?: string }> => {
+  const references: Array<{
+    type: "page" | "block";
+    uid: string;
+    title?: string;
+  }> = [];
+
   const processNode = (node: BlockNode) => {
     if (node.references) {
       for (const ref of node.references) {
         const type = ref.length === 9 ? "block" : "page";
-        references.push({ type, uid: ref, title: type === "page" ? ref : undefined });
+        references.push({
+          type,
+          uid: ref,
+          title: type === "page" ? ref : undefined,
+        });
       }
     }
-    
+
     node.children.forEach(processNode);
   };
-  
+
   structure.forEach(processNode);
-  
+
   // Remove duplicates
-  const unique = references.filter((ref, index, arr) => 
-    arr.findIndex(r => r.type === ref.type && r.uid === ref.uid) === index
+  const unique = references.filter(
+    (ref, index, arr) =>
+      arr.findIndex((r) => r.type === ref.type && r.uid === ref.uid) === index
   );
-  
+
   return unique;
 };
 
@@ -391,44 +488,47 @@ const formatHierarchyContent = (
   formatOptions: any,
   extractOptions: any
 ): string => {
-  let output = '';
+  let output = "";
 
   const formatNode = (node: BlockNode, isLast: boolean = false): string => {
-    let result = '';
-    const indent = ' '.repeat(node.level * extractOptions.indentSize);
-    
+    let result = "";
+    const indent = " ".repeat(node.level * extractOptions.indentSize);
+
     // Format bullet based on style
-    let bullet = '';
+    let bullet = "";
     switch (extractOptions.bulletStyle) {
-      case 'dash':
-        bullet = node.level === 0 ? '# ' : '- ';
+      case "dash":
+        bullet = node.level === 0 ? "# " : "- ";
         break;
-      case 'bullet':
-        bullet = '• ';
+      case "bullet":
+        bullet = "• ";
         break;
-      case 'number':
-        bullet = '1. '; // Could be enhanced to track actual numbers
+      case "number":
+        bullet = "1. "; // Could be enhanced to track actual numbers
         break;
-      case 'none':
-        bullet = '';
+      case "none":
+        bullet = "";
         break;
     }
 
     // Format content based on output format
     let content = node.content;
-    if (extractOptions.truncateLength && content.length > extractOptions.truncateLength) {
+    if (
+      extractOptions.truncateLength &&
+      content.length > extractOptions.truncateLength
+    ) {
       content = truncateContent(content, extractOptions.truncateLength);
     }
 
     // Handle link formatting
-    if (formatOptions.linkFormat === 'markdown') {
+    if (formatOptions.linkFormat === "markdown") {
       content = content
-        .replace(/\[\[([^\]]+)\]\]/g, '[$1]($1)')
-        .replace(/\(\(([^)]+)\)\)/g, '[Block $1]($1)');
-    } else if (formatOptions.linkFormat === 'plain') {
+        .replace(/\[\[([^\]]+)\]\]/g, "[$1]($1)")
+        .replace(/\(\(([^)]+)\)\)/g, "[Block $1]($1)");
+    } else if (formatOptions.linkFormat === "plain") {
       content = content
-        .replace(/\[\[([^\]]+)\]\]/g, '$1')
-        .replace(/\(\(([^)]+)\)\)/g, 'Block $1');
+        .replace(/\[\[([^\]]+)\]\]/g, "$1")
+        .replace(/\(\(([^)]+)\)\)/g, "Block $1");
     }
 
     // Build the line
@@ -438,12 +538,12 @@ const formatHierarchyContent = (
     if (formatOptions.includeBlockUIDs) {
       result += ` \`${node.uid}\``;
     }
-    
+
     if (formatOptions.addTimestamps && node.modified) {
-      result += ` _(${node.modified.toISOString().split('T')[0]})_`;
+      result += ` _(${node.modified.toISOString().split("T")[0]})_`;
     }
 
-    result += '\n';
+    result += "\n";
 
     // Add children
     node.children.forEach((child, index) => {
@@ -472,7 +572,10 @@ const formatHierarchyContent = (
 /**
  * Calculate hierarchy statistics
  */
-const calculateHierarchyStats = (structure: BlockNode[], extractOptions: any) => {
+const calculateHierarchyStats = (
+  structure: BlockNode[],
+  extractOptions: any
+) => {
   let totalBlocks = 0;
   let maxDepth = 0;
   let totalCharacters = 0;
@@ -482,11 +585,11 @@ const calculateHierarchyStats = (structure: BlockNode[], extractOptions: any) =>
     totalBlocks++;
     maxDepth = Math.max(maxDepth, node.level);
     totalCharacters += node.content.length;
-    
+
     if (node.content.length > extractOptions.truncateLength) {
       truncated = true;
     }
-    
+
     node.children.forEach(processNode);
   };
 
@@ -496,7 +599,7 @@ const calculateHierarchyStats = (structure: BlockNode[], extractOptions: any) =>
     totalBlocks,
     maxDepth,
     totalCharacters,
-    truncated
+    truncated,
   };
 };
 
@@ -507,15 +610,28 @@ export const extractHierarchyContentTool = tool(
       // Extract state from config
       const state = config?.configurable?.state;
       const results = await extractHierarchyContentImpl(input, state);
-      return createToolResult(true, results, undefined, "extractHierarchyContent", startTime);
+      return createToolResult(
+        true,
+        results,
+        undefined,
+        "extractHierarchyContent",
+        startTime
+      );
     } catch (error) {
-      console.error('ExtractHierarchyContent tool error:', error);
-      return createToolResult(false, undefined, error.message, "extractHierarchyContent", startTime);
+      console.error("ExtractHierarchyContent tool error:", error);
+      return createToolResult(
+        false,
+        undefined,
+        error.message,
+        "extractHierarchyContent",
+        startTime
+      );
     }
   },
   {
     name: "extractHierarchyContent",
-    description: "Extract and format hierarchical content from specific blocks. Supports multiple output formats (markdown, plain, roam), reference resolution, and detailed content statistics.",
-    schema
+    description:
+      "Extract and format hierarchical content from specific blocks. Supports multiple output formats (markdown, plain, roam), reference resolution, and detailed content statistics.",
+    schema,
   }
 );

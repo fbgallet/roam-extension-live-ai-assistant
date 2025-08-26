@@ -9,7 +9,7 @@ import {
   getDateStringFromDnpUid,
 } from "../../../utils/roamAPI";
 import { dnpUidRegex } from "../../../utils/regex";
-import { getEnhancedLimits } from "./tools/searchUtils";
+import { getEnhancedLimits } from "./helpers/searchUtils";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
@@ -509,9 +509,12 @@ const buildExpansionGuidanceSection = (state: any): string => {
 
   // CRITICAL: Don't show semantic expansion guidance when we have final results needing evaluation
   const finalResults = Object.values(state.resultStore || {}).filter(
-    (result: any) => result?.purpose === "final" && result?.status === "active" && result?.data?.length > 0
+    (result: any) =>
+      result?.purpose === "final" &&
+      result?.status === "active" &&
+      result?.data?.length > 0
   );
-  
+
   if (finalResults.length > 0) {
     console.log(
       `🔧 [buildExpansionGuidanceSection] Skipping expansion guidance - have ${finalResults.length} final results, evaluation should take precedence`
@@ -630,21 +633,32 @@ const buildLevel4Guidance = (
 // Build result evaluation section for intelligent context expansion decisions
 const buildResultEvaluationSection = (state: any): string => {
   // Only show evaluation guidance in balanced/full modes when we have FINAL results
-  if (state.privateMode || !state.resultStore || Object.keys(state.resultStore).length === 0) {
+  if (
+    state.privateMode ||
+    !state.resultStore ||
+    Object.keys(state.resultStore).length === 0
+  ) {
     return "";
   }
-  
+
   // Check if we have any FINAL results that need evaluation
   const finalResults = Object.values(state.resultStore).filter(
-    (result: any) => result?.purpose === "final" && result?.status === "active" && result?.data?.length > 0
+    (result: any) =>
+      result?.purpose === "final" &&
+      result?.status === "active" &&
+      result?.data?.length > 0
   );
-  
+
   if (finalResults.length === 0) {
     return ""; // No final results yet, continue with normal search expansion
   }
-  
-  const currentMode = state.privateMode ? 'private' : (state.permissions?.contentAccess ? 'full' : 'balanced');
-  
+
+  const currentMode = state.privateMode
+    ? "private"
+    : state.permissions?.contentAccess
+    ? "full"
+    : "balanced";
+
   return `
 ## 🚦 CRITICAL: FINAL RESULT EVALUATION & ROUTING DECISION
 
@@ -1119,7 +1133,6 @@ export const extractResultDataForPrompt = (
   console.log(
     `🎯 [ExtractResultData] Using ${relevantEntries.length} relevant results for final response`
   );
-  
 
   // DEDUPLICATION: Combine all result data and deduplicate by UID, preferring context-expanded items
   const allResultData: any[] = [];
@@ -1135,9 +1148,12 @@ export const extractResultDataForPrompt = (
       const itemUid = item.uid || item.pageUid;
       if (itemUid) {
         const existingItem = seenItems.get(itemUid);
-        const isContextExpanded = item.metadata?.contextExpansion || item.expandedBlock;
-        const existingIsExpanded = existingItem?.metadata?.contextExpansion || existingItem?.expandedBlock;
-        
+        const isContextExpanded =
+          item.metadata?.contextExpansion || item.expandedBlock;
+        const existingIsExpanded =
+          existingItem?.metadata?.contextExpansion ||
+          existingItem?.expandedBlock;
+
         // Keep this item if:
         // - We haven't seen this UID before, OR
         // - This item is context-expanded and the existing one isn't
@@ -1147,22 +1163,24 @@ export const extractResultDataForPrompt = (
             sourceResultId: resultId, // Track which tool found this result
           };
           seenItems.set(itemUid, enrichedItem);
-          
+
           // Update allResultData array
           if (!existingItem) {
             allResultData.push(enrichedItem);
           } else {
             // Replace existing item with context-expanded version
-            const index = allResultData.findIndex(existing => (existing.uid || existing.pageUid) === itemUid);
+            const index = allResultData.findIndex(
+              (existing) => (existing.uid || existing.pageUid) === itemUid
+            );
             if (index >= 0) {
               allResultData[index] = enrichedItem;
-                }
+            }
           }
         }
       }
     }
   }
-  
+
   // Convert Map values to final array (not needed since we maintain allResultData directly)
   // allResultData is already populated correctly
 
@@ -1174,29 +1192,33 @@ export const extractResultDataForPrompt = (
   const contextExpansionResults = relevantEntries.filter(
     ([, result]) => result?.metadata?.contextExpansion
   );
-  
+
   const hasContextExpansion = contextExpansionResults.length > 0;
   let contextItems: any[] = [];
   let mainResults: any[] = [];
-  
+
   if (hasContextExpansion) {
     // Separate context items from main results
     for (const [, result] of relevantEntries) {
       const data = result?.data || [];
       if (!Array.isArray(data) || data.length === 0) continue;
-      
+
       if (result?.metadata?.contextExpansion) {
         // These are context items (parents/children)
-        contextItems.push(...data.map(item => ({
-          ...item,
-          isContextItem: true
-        })));
+        contextItems.push(
+          ...data.map((item) => ({
+            ...item,
+            isContextItem: true,
+          }))
+        );
       } else {
         // These are original search results
         mainResults.push(...data);
       }
     }
-    console.log(`🌳 [ExtractResultData] Context expansion detected: ${mainResults.length} main results + ${contextItems.length} context items`);
+    console.log(
+      `🌳 [ExtractResultData] Context expansion detected: ${mainResults.length} main results + ${contextItems.length} context items`
+    );
   }
 
   // Now process the deduplicated data as a single combined result
@@ -1228,24 +1250,32 @@ export const extractResultDataForPrompt = (
         // UIDs, titles, basic metadata with progressive content limits
         // Get enhanced limits for progressive content strategy
         const enhancedLimits = getEnhancedLimits("balanced");
-        const contentLimit = enhancedLimits.getContentLimit ? enhancedLimits.getContentLimit(data.length) : 200;
-        
+        const contentLimit = enhancedLimits.getContentLimit
+          ? enhancedLimits.getContentLimit(data.length)
+          : 200;
+
         limitedData = data.slice(0, 100).map((item) => ({
           uid: item.uid,
           pageUid: item.pageUid, // For extractPageReferences results
           pageTitle: item.pageTitle || item.title,
           count: item.count, // Preserve count for references
-          content: item.metadata?.contextExpansion || item.expandedBlock 
-            ? item.content // Context-expanded content is already optimally truncated - use as-is
-            : (item.content && contentLimit
-              ? item.content.substring(0, contentLimit) + (item.content.length > contentLimit ? "..." : "")
-              : item.content), // Apply progressive limits only to non-expanded content
+          content:
+            item.metadata?.contextExpansion || item.expandedBlock
+              ? item.content // Context-expanded content is already optimally truncated - use as-is
+              : item.content && contentLimit
+              ? item.content.substring(0, contentLimit) +
+                (item.content.length > contentLimit ? "..." : "")
+              : item.content, // Apply progressive limits only to non-expanded content
         }));
-        
-        const expandedCount = data.filter(item => item.metadata?.contextExpansion || item.expandedBlock).length;
-        
+
+        const expandedCount = data.filter(
+          (item) => item.metadata?.contextExpansion || item.expandedBlock
+        ).length;
+
         console.log(
-          `🎯 [ExtractResultData] Balanced mode: ${expandedCount} context-expanded items preserved, progressive limit (${contentLimit || 'full'} chars) applied to ${data.length - expandedCount} regular items`
+          `🎯 [ExtractResultData] Balanced mode: ${expandedCount} context-expanded items preserved, progressive limit (${
+            contentLimit || "full"
+          } chars) applied to ${data.length - expandedCount} regular items`
         );
         break;
 
@@ -1317,45 +1347,56 @@ export const extractResultDataForPrompt = (
 
   // Add transparency messaging about applied limits and context expansion
   const transparencyMessages: string[] = [];
-  
+
   if (hasContextExpansion && securityMode === "balanced") {
     const contextConfig = contextExpansionResults[0]?.[1]?.metadata?.config;
     const contextDescription = [];
-    
+
     if (contextConfig?.includeParents) {
       contextDescription.push("parent blocks");
     }
     if (contextConfig?.includeChildren) {
       const depth = contextConfig.maxDepth || 2;
-      contextDescription.push(`${depth} level${depth > 1 ? 's' : ''} of children`);
+      contextDescription.push(
+        `${depth} level${depth > 1 ? "s" : ""} of children`
+      );
     }
-    
+
     if (contextDescription.length > 0) {
       transparencyMessages.push(
-        `🌳 **Context Enhancement Applied**: Balanced mode intelligently expanded ${mainResults.length} core results with ${contextItems.length} contextual items (${contextDescription.join(", ")}) based on content analysis.`
+        `🌳 **Context Enhancement Applied**: Balanced mode intelligently expanded ${
+          mainResults.length
+        } core results with ${
+          contextItems.length
+        } contextual items (${contextDescription.join(
+          ", "
+        )}) based on content analysis.`
       );
     }
   }
-  
+
   if (securityMode === "balanced" && allResultData.length > 0) {
     const resultCount = allResultData.length;
     let contentLimitMessage = "";
-    
+
     if (resultCount < 10) {
       contentLimitMessage = "full content provided";
     } else if (resultCount <= 50) {
       contentLimitMessage = "content limited to 500 characters per result";
     } else {
-      contentLimitMessage = "content limited to 250 characters per result for efficiency";
+      contentLimitMessage =
+        "content limited to 250 characters per result for efficiency";
     }
-    
+
     transparencyMessages.push(
       `📊 **Progressive Limits Applied**: Found ${resultCount} results in balanced mode - ${contentLimitMessage}.`
     );
   }
-  
+
   if (transparencyMessages.length > 0) {
-    formattedResults.push("\n---\n**SYSTEM INFO:**\n" + transparencyMessages.join("\n"));
+    formattedResults.push(
+      "\n---\n**SYSTEM INFO:**\n" + transparencyMessages.join("\n")
+    );
   }
 
   return formattedResults.join("\n\n");

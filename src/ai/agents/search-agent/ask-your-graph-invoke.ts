@@ -18,7 +18,7 @@ import {
   handleRetryLogic,
   validatePermissions,
 } from "../shared/agentsUtils";
-import { deduplicateResultsByUid } from "./tools/searchUtils";
+import { deduplicateResultsByUid } from "./helpers/searchUtils";
 import {
   clearAgentController,
   markAgentAsStopped,
@@ -55,7 +55,12 @@ interface SearchAgentInvoker {
     zeroResultsAttempts?: number;
     // Direct expansion parameters
     isDirectExpansion?: boolean;
-    semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all";
+    semanticExpansion?:
+      | "fuzzy"
+      | "synonyms"
+      | "related_concepts"
+      | "broader_terms"
+      | "all";
     isExpansionGlobal?: boolean;
   };
   // NEW: External context from chat or other components
@@ -221,8 +226,11 @@ const invokeSearchAgentInternal = async ({
       // Clear expansion history for NEW searches (not direct expansions)
       if (!conversationData.isDirectExpansion) {
         const queryKey = finalPrompt.toLowerCase().trim();
-        console.log("🧹 [New Search] Clearing expansion history for fresh search:", queryKey);
-        
+        console.log(
+          "🧹 [New Search] Clearing expansion history for fresh search:",
+          queryKey
+        );
+
         // Clear expansion history for this specific query to start fresh
         const expansionHistory = (window as any).searchExpansionHistory || {};
         delete expansionHistory[queryKey];
@@ -295,8 +303,8 @@ const invokeSearchAgentInternal = async ({
       abortSignal: abortController.signal,
       // Add automatic semantic expansion setting from extension
       automaticExpansion: automaticSemanticExpansion,
-      
-      // Add expansion parameters for direct expansion  
+
+      // Add expansion parameters for direct expansion
       isDirectExpansion: Boolean(conversationData.isDirectExpansion),
       semanticExpansion: conversationData.semanticExpansion || undefined,
       isExpansionGlobal: Boolean(conversationData.isExpansionGlobal),
@@ -308,7 +316,7 @@ const invokeSearchAgentInternal = async ({
         isDirectExpansion: initialState.isDirectExpansion,
         semanticExpansion: initialState.semanticExpansion,
         isExpansionGlobal: initialState.isExpansionGlobal,
-        expansionLevel: initialState.expansionLevel
+        expansionLevel: initialState.expansionLevel,
       });
     }
 
@@ -769,16 +777,45 @@ export const invokeExpandedSearchDirect = async ({
   );
 
   // Map expansion label to semantic expansion strategy for tools
-  const mapExpansionLabelToStrategy = (expansionLabel: string, expansionStrategy: string): "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | null => {
-    if (expansionLabel.includes("All") || expansionLabel.includes("all") || expansionLabel.includes("once")) {
+  const mapExpansionLabelToStrategy = (
+    expansionLabel: string,
+    expansionStrategy: string
+  ):
+    | "fuzzy"
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "all"
+    | null => {
+    if (
+      expansionLabel.includes("All") ||
+      expansionLabel.includes("all") ||
+      expansionLabel.includes("once")
+    ) {
       return "all";
-    } else if (expansionLabel.includes("Fuzzy") || expansionLabel.includes("fuzzy") || expansionLabel.includes("typos")) {
-      return "fuzzy";  
-    } else if (expansionLabel.includes("Synonyms") || expansionLabel.includes("synonyms") || expansionLabel.includes("alternative")) {
+    } else if (
+      expansionLabel.includes("Fuzzy") ||
+      expansionLabel.includes("fuzzy") ||
+      expansionLabel.includes("typos")
+    ) {
+      return "fuzzy";
+    } else if (
+      expansionLabel.includes("Synonyms") ||
+      expansionLabel.includes("synonyms") ||
+      expansionLabel.includes("alternative")
+    ) {
       return "synonyms";
-    } else if (expansionLabel.includes("Related") || expansionLabel.includes("related") || expansionLabel.includes("concepts")) {
+    } else if (
+      expansionLabel.includes("Related") ||
+      expansionLabel.includes("related") ||
+      expansionLabel.includes("concepts")
+    ) {
       return "related_concepts";
-    } else if (expansionLabel.includes("Broader") || expansionLabel.includes("broader") || expansionLabel.includes("categories")) {
+    } else if (
+      expansionLabel.includes("Broader") ||
+      expansionLabel.includes("broader") ||
+      expansionLabel.includes("categories")
+    ) {
       return "broader_terms";
     }
     return null;
@@ -788,7 +825,10 @@ export const invokeExpandedSearchDirect = async ({
   const expansionAgentData = {
     isConversationMode: false,
     isDirectExpansion: true, // Flag for assistant bypass
-    semanticExpansion: mapExpansionLabelToStrategy(expansionLabel, expansionStrategy),
+    semanticExpansion: mapExpansionLabelToStrategy(
+      expansionLabel,
+      expansionStrategy
+    ),
     isExpansionGlobal: true,
     expansionLevel: expansionLevel,
     expansionConsent: true,
@@ -797,10 +837,12 @@ export const invokeExpandedSearchDirect = async ({
     hasLimitedResults: false,
     conversationHistory: [],
     conversationSummary: undefined,
-    exchangesSinceLastSummary: 0
+    exchangesSinceLastSummary: 0,
   };
 
-  console.log(`🎯 [Direct Expansion] Mapped semantic expansion: "${expansionAgentData.semanticExpansion}"`);
+  console.log(
+    `🎯 [Direct Expansion] Mapped semantic expansion: "${expansionAgentData.semanticExpansion}"`
+  );
 
   // Use the standard invokeSearchAgent but with expansion parameters pre-configured
   return await invokeSearchAgent({
@@ -813,7 +855,7 @@ export const invokeExpandedSearchDirect = async ({
     privateMode: searchParams.privateMode,
     isDirectChat: false, // Keep normal Roam insertion behavior
     previousAgentState: expansionAgentData,
-    options: searchParams.options
+    options: searchParams.options,
   });
 };
 

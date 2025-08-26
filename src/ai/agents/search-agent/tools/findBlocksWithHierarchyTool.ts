@@ -19,7 +19,7 @@ import {
   extractUidsFromResults,
   deduplicateResultsByUid,
   sanitizeRegexForDatomic,
-} from "./searchUtils";
+} from "../helpers/searchUtils";
 import type {
   SearchCondition as StructuredSearchCondition,
   CompoundCondition,
@@ -48,7 +48,7 @@ import { dnpUidRegex } from "../../../../utils/regex.js";
  *
  * Supported operators: >, <, >>, <<, =>, <=, =>>, <<=, <=>, <<=>
  * - > : A is direct parent of B
- * - < : A is direct child of B  
+ * - < : A is direct child of B
  * - >> : A is ancestor of B (any depth)
  * - << : A is descendant of B (any depth)
  * - => : A is same block OR parent of B
@@ -94,7 +94,7 @@ const contentConditionSchema = z.object({
         "custom",
         "all",
       ]),
-      z.null()
+      z.null(),
     ])
     .default(null)
     .describe(
@@ -120,7 +120,17 @@ interface HierarchicalExpression {
     | "flexible_hierarchy_left"
     | "flexible_hierarchy_right"
     | "deep_flexible_hierarchy";
-  operator: ">" | ">>" | "=>" | "<=>" | "<<=>>" | "<" | "<<" | "<=" | "=>>" | "<<=";
+  operator:
+    | ">"
+    | ">>"
+    | "=>"
+    | "<=>"
+    | "<<=>>"
+    | "<"
+    | "<<"
+    | "<="
+    | "=>>"
+    | "<<=";
   leftOperand: SearchTerm | CompoundExpression;
   rightOperand: SearchTerm | CompoundExpression;
   maxDepth?: number;
@@ -154,13 +164,13 @@ const hierarchySearchConditionSchema = z.object({
     .union([
       z.enum([
         "fuzzy",
-        "synonyms", 
+        "synonyms",
         "related_concepts",
         "broader_terms",
         "custom",
         "all",
       ]),
-      z.null()
+      z.null(),
     ])
     .default(null),
   weight: z.number().min(0).max(10).default(1.0),
@@ -175,20 +185,39 @@ const conditionGroupSchema = z.object({
 
 // OpenAI-compatible hierarchy condition using arrays instead of complex unions
 const openaiHierarchyConditionSchema = z.object({
-  operator: z.enum([">", "<", ">>", "<<", "=>", "<=", "=>>", "<<=", "<=>", "<<=>>"]),
-  
+  operator: z.enum([
+    ">",
+    "<",
+    ">>",
+    "<<",
+    "=>",
+    "<=",
+    "=>>",
+    "<<=",
+    "<=>",
+    "<<=>>",
+  ]),
+
   // Simple conditions (existing - backward compatible)
-  leftConditions: z.array(hierarchySearchConditionSchema).min(1).max(10).optional(),
+  leftConditions: z
+    .array(hierarchySearchConditionSchema)
+    .min(1)
+    .max(10)
+    .optional(),
   leftCombination: z.enum(["AND", "OR"]).default("AND"),
-  rightConditions: z.array(hierarchySearchConditionSchema).min(1).max(10).optional(),
+  rightConditions: z
+    .array(hierarchySearchConditionSchema)
+    .min(1)
+    .max(10)
+    .optional(),
   rightCombination: z.enum(["AND", "OR"]).default("AND"),
-  
+
   // Grouped conditions (new - for complex logic)
   leftConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional(),
   leftGroupCombination: z.enum(["AND", "OR"]).default("AND"),
   rightConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional(),
   rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
-  
+
   maxDepth: z.union([z.number().min(1).max(10), z.null()]).default(null),
 });
 
@@ -196,8 +225,12 @@ const schema = z.object({
   contentConditions: z
     .array(contentConditionSchema)
     .default([])
-    .describe("Content conditions for blocks. Can be empty when using hierarchyCondition."),
-  hierarchyConditions: z.union([z.array(hierarchyConditionSchema), z.null()]).default(null),
+    .describe(
+      "Content conditions for blocks. Can be empty when using hierarchyCondition."
+    ),
+  hierarchyConditions: z
+    .union([z.array(hierarchyConditionSchema), z.null()])
+    .default(null),
   combineConditions: z.enum(["AND", "OR"]).default("AND"),
   combineHierarchy: z.enum(["AND", "OR"]).default("OR"),
   includeChildren: z.boolean().default(false),
@@ -205,14 +238,16 @@ const schema = z.object({
   includeParents: z.boolean().default(false),
   parentDepth: z.number().min(1).max(3).default(1),
   includeDaily: z.boolean().default(true),
-  dateRange: z.union([
-    z.object({
-      start: z.union([z.string(), z.null()]).default(null),
-      end: z.union([z.string(), z.null()]).default(null),
-      filterMode: z.enum(["created", "modified"]).optional(),
-    }),
-    z.null()
-  ]).default(null),
+  dateRange: z
+    .union([
+      z.object({
+        start: z.union([z.string(), z.null()]).default(null),
+        end: z.union([z.string(), z.null()]).default(null),
+        filterMode: z.enum(["created", "modified"]).optional(),
+      }),
+      z.null(),
+    ])
+    .default(null),
   sortBy: z
     .enum(["relevance", "recent", "page_title", "hierarchy_depth"])
     .default("relevance"),
@@ -284,51 +319,122 @@ const schema = z.object({
 // Minimal LLM-facing schema for token optimization
 const llmFacingSchema = z.object({
   // Core hierarchy functionality - simplified condition schemas
-  hierarchyCondition: z.object({
-    operator: z.enum([">", "<", ">>", "<<", "=>", "<=", "=>>", "<<=", "<=>", "<<=>>"]),
-    
-    // Simple conditions (basic logic)
-    leftConditions: z.array(z.object({
-      text: z.string().min(1, "Search text is required"),
-      type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text"),
-      negate: z.boolean().default(false)
-    })).optional().describe("Left side conditions for hierarchy relationship"),
-    leftCombination: z.enum(["AND", "OR"]).default("AND"),
-    rightConditions: z.array(z.object({
-      text: z.string().min(1, "Search text is required"), 
-      type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text"),
-      negate: z.boolean().default(false)
-    })).optional().describe("Right side conditions for hierarchy relationship"),
-    rightCombination: z.enum(["AND", "OR"]).default("AND"),
-    
-    // Grouped conditions (complex logic)
-    leftConditionGroups: z.array(z.object({
-      conditions: z.array(z.object({
-        text: z.string().min(1),
-        type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text"),
-        negate: z.boolean().default(false)
-      })).min(1).max(5),
-      combination: z.enum(["AND", "OR"]).default("AND")
-    })).optional().describe("Left side condition groups for complex logic like ((A|B) AND NOT C)"),
-    leftGroupCombination: z.enum(["AND", "OR"]).default("AND"),
-    rightConditionGroups: z.array(z.object({
-      conditions: z.array(z.object({
-        text: z.string().min(1),
-        type: z.enum(["text", "page_ref", "block_ref", "regex"]).default("text"),
-        negate: z.boolean().default(false)
-      })).min(1).max(5),
-      combination: z.enum(["AND", "OR"]).default("AND")
-    })).optional().describe("Right side condition groups for complex logic"),
-    rightGroupCombination: z.enum(["AND", "OR"]).default("AND")
-  }).optional().describe("Structured hierarchy condition with operator and left/right conditions"),
-  
+  hierarchyCondition: z
+    .object({
+      operator: z.enum([
+        ">",
+        "<",
+        ">>",
+        "<<",
+        "=>",
+        "<=",
+        "=>>",
+        "<<=",
+        "<=>",
+        "<<=>>",
+      ]),
+
+      // Simple conditions (basic logic)
+      leftConditions: z
+        .array(
+          z.object({
+            text: z.string().min(1, "Search text is required"),
+            type: z
+              .enum(["text", "page_ref", "block_ref", "regex"])
+              .default("text"),
+            negate: z.boolean().default(false),
+          })
+        )
+        .optional()
+        .describe("Left side conditions for hierarchy relationship"),
+      leftCombination: z.enum(["AND", "OR"]).default("AND"),
+      rightConditions: z
+        .array(
+          z.object({
+            text: z.string().min(1, "Search text is required"),
+            type: z
+              .enum(["text", "page_ref", "block_ref", "regex"])
+              .default("text"),
+            negate: z.boolean().default(false),
+          })
+        )
+        .optional()
+        .describe("Right side conditions for hierarchy relationship"),
+      rightCombination: z.enum(["AND", "OR"]).default("AND"),
+
+      // Grouped conditions (complex logic)
+      leftConditionGroups: z
+        .array(
+          z.object({
+            conditions: z
+              .array(
+                z.object({
+                  text: z.string().min(1),
+                  type: z
+                    .enum(["text", "page_ref", "block_ref", "regex"])
+                    .default("text"),
+                  negate: z.boolean().default(false),
+                })
+              )
+              .min(1)
+              .max(5),
+            combination: z.enum(["AND", "OR"]).default("AND"),
+          })
+        )
+        .optional()
+        .describe(
+          "Left side condition groups for complex logic like ((A|B) AND NOT C)"
+        ),
+      leftGroupCombination: z.enum(["AND", "OR"]).default("AND"),
+      rightConditionGroups: z
+        .array(
+          z.object({
+            conditions: z
+              .array(
+                z.object({
+                  text: z.string().min(1),
+                  type: z
+                    .enum(["text", "page_ref", "block_ref", "regex"])
+                    .default("text"),
+                  negate: z.boolean().default(false),
+                })
+              )
+              .min(1)
+              .max(5),
+            combination: z.enum(["AND", "OR"]).default("AND"),
+          })
+        )
+        .optional()
+        .describe("Right side condition groups for complex logic"),
+      rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
+    })
+    .optional()
+    .describe(
+      "Structured hierarchy condition with operator and left/right conditions"
+    ),
+
   // Essential options only
-  limit: z.number().min(1).max(500).default(50).describe("Maximum number of results"),
-  sortBy: z.enum(["relevance", "recent", "page_title", "hierarchy_depth"]).default("relevance"),
-  maxDepth: z.number().min(1).max(10).default(3).describe("Maximum hierarchy traversal depth"),
-  
+  limit: z
+    .number()
+    .min(1)
+    .max(500)
+    .default(50)
+    .describe("Maximum number of results"),
+  sortBy: z
+    .enum(["relevance", "recent", "page_title", "hierarchy_depth"])
+    .default("relevance"),
+  maxDepth: z
+    .number()
+    .min(1)
+    .max(10)
+    .default(3)
+    .describe("Maximum hierarchy traversal depth"),
+
   // Optional filtering (advanced users)
-  excludeBlockUid: z.string().optional().describe("Block UID to exclude from results")
+  excludeBlockUid: z
+    .string()
+    .optional()
+    .describe("Block UID to exclude from results"),
 });
 
 /**
@@ -340,10 +446,15 @@ const convertHierarchicalExpressionToStructured = (
 ): HierarchyCondition | null => {
   try {
     const parsed = parseHierarchicalExpression(expression);
-    console.log(`🔍 [DEBUG] parseHierarchicalExpression result for "${expression}":`, parsed);
-    
+    console.log(
+      `🔍 [DEBUG] parseHierarchicalExpression result for "${expression}":`,
+      parsed
+    );
+
     if (!parsed || parsed.type === "term" || parsed.type === "compound") {
-      console.log(`🚫 [DEBUG] Conversion failed - parsed type: ${parsed?.type || 'null'}`);
+      console.log(
+        `🚫 [DEBUG] Conversion failed - parsed type: ${parsed?.type || "null"}`
+      );
       return null;
     }
 
@@ -422,26 +533,28 @@ const convertParsedExpressionToSearchCondition = (
  */
 const parseSimpleCompoundCondition = (expression: string): any | null => {
   const trimmed = expression.trim();
-  
+
   // Must be wrapped in parentheses for compound conditions
   if (!trimmed.startsWith("(") || !trimmed.endsWith(")")) {
     return null;
   }
-  
+
   const inner = trimmed.slice(1, -1).trim();
-  
+
   // Check for mixed operators (complex case - return null)
   const hasAnd = inner.includes("+");
   const hasOr = inner.includes("|");
-  
+
   if (hasAnd && hasOr) {
-    console.log("🚫 Complex mixed operators detected, requires LLM decomposition");
+    console.log(
+      "🚫 Complex mixed operators detected, requires LLM decomposition"
+    );
     return null;
   }
-  
+
   let operator: "AND" | "OR";
   let delimiter: string;
-  
+
   if (hasOr) {
     operator = "OR";
     delimiter = "|";
@@ -452,32 +565,34 @@ const parseSimpleCompoundCondition = (expression: string): any | null => {
     // Single term in parentheses - treat as simple condition
     return parseSimpleSearchCondition(inner);
   }
-  
+
   // Split and parse individual conditions
-  const terms = inner.split(delimiter).map(t => t.trim());
+  const terms = inner.split(delimiter).map((t) => t.trim());
   const conditions: any[] = [];
-  
+
   for (const term of terms) {
-    // Handle NOT logic: terms starting with "-" 
+    // Handle NOT logic: terms starting with "-"
     let negate = false;
     let cleanTerm = term;
-    
+
     if (term.startsWith("-")) {
       negate = true;
       cleanTerm = term.slice(1).trim();
     }
-    
+
     const condition = parseSimpleSearchCondition(cleanTerm);
     if (condition) {
       condition.negate = negate;
       conditions.push(condition);
     } else {
       // If any term is too complex, fallback to LLM decomposition
-      console.log(`🚫 Complex term "${term}" detected, requires LLM decomposition`);
+      console.log(
+        `🚫 Complex term "${term}" detected, requires LLM decomposition`
+      );
       return null;
     }
   }
-  
+
   return {
     operator,
     conditions,
@@ -489,14 +604,16 @@ const parseSimpleCompoundCondition = (expression: string): any | null => {
  */
 const parseSimpleSearchCondition = (text: string): any | null => {
   const trimmed = text.trim();
-  
+
   // Remove quotes if present
   let cleanText = trimmed;
-  if ((cleanText.startsWith('"') && cleanText.endsWith('"')) || 
-      (cleanText.startsWith("'") && cleanText.endsWith("'"))) {
+  if (
+    (cleanText.startsWith('"') && cleanText.endsWith('"')) ||
+    (cleanText.startsWith("'") && cleanText.endsWith("'"))
+  ) {
     cleanText = cleanText.slice(1, -1).trim();
   }
-  
+
   // Check for type prefixes
   if (cleanText.startsWith("ref:")) {
     return {
@@ -505,7 +622,7 @@ const parseSimpleSearchCondition = (text: string): any | null => {
       matchType: "contains",
     };
   }
-  
+
   if (cleanText.startsWith("regex:")) {
     const regexPattern = cleanText.slice(6).trim();
     // Handle regex:/pattern/[flags] format
@@ -518,13 +635,13 @@ const parseSimpleSearchCondition = (text: string): any | null => {
       };
     } else {
       return {
-        type: "regex", 
+        type: "regex",
         text: regexPattern,
         matchType: "regex",
       };
     }
   }
-  
+
   if (cleanText.startsWith("text:")) {
     return {
       type: "text",
@@ -532,7 +649,7 @@ const parseSimpleSearchCondition = (text: string): any | null => {
       matchType: "contains",
     };
   }
-  
+
   // Default to text condition
   return {
     type: "text",
@@ -550,26 +667,29 @@ const processOpenAIHierarchyCondition = async (
   options: any,
   state?: any
 ): Promise<any> => {
-  console.log("🔍 Processing OpenAI-compatible hierarchy condition:", hierarchyCondition);
-  
+  console.log(
+    "🔍 Processing OpenAI-compatible hierarchy condition:",
+    hierarchyCondition
+  );
+
   // Step 1: Convert array-based conditions to internal compound structures
   const internalHierarchyCondition = await convertArraysToInternalFormat(
     hierarchyCondition,
     state
   );
-  
+
   // Step 2: Apply semantic expansion to the converted condition
   const expandedHierarchyCondition = await expandHierarchyConditionSemantics(
     internalHierarchyCondition,
     state
   );
-  
+
   const structuredQuery = {
     hierarchyCondition: expandedHierarchyCondition,
     searchConditions: [],
     combineConditions: "AND" as const,
   };
-  
+
   return await processStructuredHierarchyQuery(structuredQuery, options, state);
 };
 
@@ -581,10 +701,12 @@ const convertArraysToInternalFormat = async (
   state?: any
 ): Promise<any> => {
   console.log("🔧 Converting arrays to internal format:", hierarchyCondition);
-  
+
   const convertConditionArray = (conditions: any[], combination: string) => {
     if (!conditions || conditions.length === 0) {
-      console.warn("⚠️ Empty or undefined conditions array passed to convertConditionArray");
+      console.warn(
+        "⚠️ Empty or undefined conditions array passed to convertConditionArray"
+      );
       return null;
     }
     if (conditions.length === 1) {
@@ -598,22 +720,22 @@ const convertArraysToInternalFormat = async (
       };
     }
   };
-  
+
   const leftCondition = convertConditionArray(
     hierarchyCondition.leftConditions,
     hierarchyCondition.leftCombination || "AND"
   );
-  
+
   const rightCondition = convertConditionArray(
     hierarchyCondition.rightConditions,
     hierarchyCondition.rightCombination || "AND"
   );
-  
+
   // Handle case where conditions are invalid
   if (!leftCondition && !rightCondition) {
     throw new Error("Both left and right conditions are invalid or empty");
   }
-  
+
   return {
     operator: hierarchyCondition.operator,
     leftCondition: leftCondition,
@@ -632,26 +754,29 @@ const processEnhancedHierarchyCondition = async (
   options: any,
   state?: any
 ): Promise<any> => {
-  console.log("🔍 Processing enhanced hierarchy condition:", hierarchyCondition);
-  
+  console.log(
+    "🔍 Processing enhanced hierarchy condition:",
+    hierarchyCondition
+  );
+
   // Step 1: Convert any string expressions to structured conditions
   const normalizedHierarchyCondition = await normalizeHierarchyCondition(
     hierarchyCondition,
     state
   );
-  
+
   // Step 2: Apply semantic expansion to the normalized condition
   const expandedHierarchyCondition = await expandHierarchyConditionSemantics(
     normalizedHierarchyCondition,
     state
   );
-  
+
   const structuredQuery = {
     hierarchyCondition: expandedHierarchyCondition,
     searchConditions: [],
     combineConditions: "AND" as const,
   };
-  
+
   return await processStructuredHierarchyQuery(structuredQuery, options, state);
 };
 
@@ -664,16 +789,22 @@ const normalizeHierarchyCondition = async (
   state?: any
 ): Promise<any> => {
   console.log("🔧 Normalizing hierarchy condition:", hierarchyCondition);
-  
+
   // If already fully structured, return as-is
   if (isFullyStructured(hierarchyCondition)) {
     return hierarchyCondition;
   }
-  
+
   // Handle mixed cases where leftCondition or rightCondition might be strings
-  const normalizedLeft = await normalizeCondition(hierarchyCondition.leftCondition, state);
-  const normalizedRight = await normalizeCondition(hierarchyCondition.rightCondition, state);
-  
+  const normalizedLeft = await normalizeCondition(
+    hierarchyCondition.leftCondition,
+    state
+  );
+  const normalizedRight = await normalizeCondition(
+    hierarchyCondition.rightCondition,
+    state
+  );
+
   return {
     ...hierarchyCondition,
     leftCondition: normalizedLeft,
@@ -684,40 +815,49 @@ const normalizeHierarchyCondition = async (
 /**
  * Normalize a single condition (left or right side of hierarchy)
  */
-const normalizeCondition = async (condition: any, state?: any): Promise<any> => {
+const normalizeCondition = async (
+  condition: any,
+  state?: any
+): Promise<any> => {
   // If it's already a structured object, return as-is
   if (typeof condition === "object" && condition.type) {
     return condition;
   }
-  
-  // If it's already a structured compound, return as-is  
-  if (typeof condition === "object" && condition.operator && condition.conditions) {
+
+  // If it's already a structured compound, return as-is
+  if (
+    typeof condition === "object" &&
+    condition.operator &&
+    condition.conditions
+  ) {
     return condition;
   }
-  
+
   // If it's a string, try to parse it with simple path first
   if (typeof condition === "string") {
     console.log(`🔍 Parsing string condition: "${condition}"`);
-    
+
     // Try simple compound parsing first (covers 95% of cases)
     const simpleCompound = parseSimpleCompoundCondition(condition);
     if (simpleCompound) {
       console.log(`✅ Parsed as simple compound:`, simpleCompound);
       return simpleCompound;
     }
-    
+
     // Try simple search condition
     const simpleCondition = parseSimpleSearchCondition(condition);
     if (simpleCondition) {
       console.log(`✅ Parsed as simple condition:`, simpleCondition);
       return simpleCondition;
     }
-    
+
     // Complex case - fall back to LLM decomposition (future enhancement)
-    console.log(`🚫 Complex condition detected, using fallback parsing for: "${condition}"`);
+    console.log(
+      `🚫 Complex condition detected, using fallback parsing for: "${condition}"`
+    );
     return await fallbackComplexConditionParsing(condition, state);
   }
-  
+
   // Unknown format - return as-is and let downstream handle it
   console.warn("⚠️ Unknown condition format:", condition);
   return condition;
@@ -727,9 +867,13 @@ const normalizeCondition = async (condition: any, state?: any): Promise<any> => 
  * Check if hierarchy condition is fully structured (no string expressions)
  */
 const isFullyStructured = (hierarchyCondition: any): boolean => {
-  const leftIsStructured = isConditionStructured(hierarchyCondition.leftCondition);
-  const rightIsStructured = isConditionStructured(hierarchyCondition.rightCondition);
-  
+  const leftIsStructured = isConditionStructured(
+    hierarchyCondition.leftCondition
+  );
+  const rightIsStructured = isConditionStructured(
+    hierarchyCondition.rightCondition
+  );
+
   return leftIsStructured && rightIsStructured;
 };
 
@@ -740,19 +884,19 @@ const isConditionStructured = (condition: any): boolean => {
   if (typeof condition === "string") {
     return false;
   }
-  
+
   if (typeof condition === "object") {
     // Simple structured condition
     if (condition.type && condition.text) {
       return true;
     }
-    
+
     // Compound structured condition
     if (condition.operator && Array.isArray(condition.conditions)) {
       return condition.conditions.every((c: any) => isConditionStructured(c));
     }
   }
-  
+
   return false;
 };
 
@@ -764,8 +908,10 @@ const fallbackComplexConditionParsing = async (
   condition: string,
   state?: any
 ): Promise<any> => {
-  console.log(`🔄 Using fallback parsing for complex condition: "${condition}"`);
-  
+  console.log(
+    `🔄 Using fallback parsing for complex condition: "${condition}"`
+  );
+
   // For now, treat as simple text condition
   // This can be enhanced later with LLM decomposition for truly complex cases
   return {
@@ -790,7 +936,7 @@ const expandHierarchyConditionSemantics = async (
     hierarchyCondition.rightCondition,
     state
   );
-  
+
   return {
     ...hierarchyCondition,
     leftCondition: expandedLeftCondition,
@@ -810,15 +956,15 @@ const expandConditionSemantics = async (
     const expandedConditions = await Promise.all(
       condition.conditions.map((c: any) => expandConditionSemantics(c, state))
     );
-    
+
     return {
       ...condition,
       conditions: expandedConditions.flat(), // Flatten in case expansion creates multiple conditions
     };
   } else {
-    // Simple condition - apply semantic expansion 
+    // Simple condition - apply semantic expansion
     const expandedConditions = await expandSingleCondition(condition, state);
-    
+
     // If only one condition returned, return it directly
     // If multiple returned (semantic expansion), wrap in OR compound
     if (expandedConditions.length === 1) {
@@ -841,7 +987,10 @@ const expandStructuredConditions = async (
 ): Promise<(StructuredSearchCondition | CompoundCondition)[]> => {
   // Handle undefined or empty conditions array
   if (!conditions || !Array.isArray(conditions)) {
-    console.warn("⚠️ expandStructuredConditions called with invalid conditions:", conditions);
+    console.warn(
+      "⚠️ expandStructuredConditions called with invalid conditions:",
+      conditions
+    );
     return [];
   }
 
@@ -851,10 +1000,12 @@ const expandStructuredConditions = async (
   for (const condition of conditions) {
     // Skip undefined or null conditions
     if (!condition) {
-      console.warn("⚠️ Skipping undefined condition in expandStructuredConditions");
+      console.warn(
+        "⚠️ Skipping undefined condition in expandStructuredConditions"
+      );
       continue;
     }
-    
+
     if ("operator" in condition) {
       // CompoundCondition - recursively expand nested conditions
       expandedConditions.push({
@@ -971,7 +1122,7 @@ const parseHierarchicalExpression = (
         operator: "<=>" as const,
       },
       {
-        pattern: /<<=/, 
+        pattern: /<<=/,
         type: "deep_flexible_hierarchy" as const,
         operator: "<<=" as const,
       },
@@ -1307,7 +1458,11 @@ const processStructuredHierarchyQuery = async (
 
   // Apply semantic expansion to hierarchy condition if present (legacy format only)
   // Skip this for grouped conditions as they handle expansion in processStructuredHierarchyCondition
-  if (query.hierarchyCondition && query.hierarchyCondition.leftCondition && query.hierarchyCondition.rightCondition) {
+  if (
+    query.hierarchyCondition &&
+    query.hierarchyCondition.leftCondition &&
+    query.hierarchyCondition.rightCondition
+  ) {
     const expandedLeftConditions = await expandStructuredConditions(
       [query.hierarchyCondition.leftCondition],
       state
@@ -1390,18 +1545,24 @@ const processStructuredHierarchyCondition = async (
   options: any,
   state?: any
 ): Promise<any[]> => {
-  console.log("🔧 Processing structured hierarchy condition:", hierarchyCondition);
-  
+  console.log(
+    "🔧 Processing structured hierarchy condition:",
+    hierarchyCondition
+  );
+
   // Validate that operator is defined
   if (!hierarchyCondition || !hierarchyCondition.operator) {
-    console.error("❌ Invalid hierarchy condition - missing operator:", hierarchyCondition);
+    console.error(
+      "❌ Invalid hierarchy condition - missing operator:",
+      hierarchyCondition
+    );
     return [];
   }
-  
+
   // Extract and process left and right conditions with backward compatibility
   let leftConditions: any[], leftCombination: string;
   let rightConditions: any[], rightCombination: string;
-  
+
   // Handle grouped conditions (new)
   if (hierarchyCondition.leftConditionGroups) {
     const processedGroups = await processConditionGroups(
@@ -1413,16 +1574,22 @@ const processStructuredHierarchyCondition = async (
     leftCombination = processedGroups.combination;
   } else {
     // Handle simple conditions (existing - backward compatible)
-    leftConditions = Array.isArray(hierarchyCondition.leftConditions) 
-      ? hierarchyCondition.leftConditions 
-      : hierarchyCondition.leftCondition?.conditions || (hierarchyCondition.leftCondition ? [hierarchyCondition.leftCondition] : []);
-    leftCombination = hierarchyCondition.leftCombination || hierarchyCondition.leftCondition?.operator || "AND";
+    leftConditions = Array.isArray(hierarchyCondition.leftConditions)
+      ? hierarchyCondition.leftConditions
+      : hierarchyCondition.leftCondition?.conditions ||
+        (hierarchyCondition.leftCondition
+          ? [hierarchyCondition.leftCondition]
+          : []);
+    leftCombination =
+      hierarchyCondition.leftCombination ||
+      hierarchyCondition.leftCondition?.operator ||
+      "AND";
   }
-  
+
   if (hierarchyCondition.rightConditionGroups) {
     const processedGroups = await processConditionGroups(
       hierarchyCondition.rightConditionGroups,
-      hierarchyCondition.rightGroupCombination || "AND", 
+      hierarchyCondition.rightGroupCombination || "AND",
       state
     );
     rightConditions = processedGroups.conditions;
@@ -1431,19 +1598,39 @@ const processStructuredHierarchyCondition = async (
     // Handle simple conditions (existing - backward compatible)
     rightConditions = Array.isArray(hierarchyCondition.rightConditions)
       ? hierarchyCondition.rightConditions
-      : hierarchyCondition.rightCondition?.conditions || (hierarchyCondition.rightCondition ? [hierarchyCondition.rightCondition] : []);
-    rightCombination = hierarchyCondition.rightCombination || hierarchyCondition.rightCondition?.operator || "AND";
+      : hierarchyCondition.rightCondition?.conditions ||
+        (hierarchyCondition.rightCondition
+          ? [hierarchyCondition.rightCondition]
+          : []);
+    rightCombination =
+      hierarchyCondition.rightCombination ||
+      hierarchyCondition.rightCondition?.operator ||
+      "AND";
   }
-  
-  console.log(`🔄 Processing ${hierarchyCondition.operator} with left: ${leftConditions.length} conditions (${leftCombination}), right: ${rightConditions.length} conditions (${rightCombination})`);
+
+  console.log(
+    `🔄 Processing ${hierarchyCondition.operator} with left: ${leftConditions.length} conditions (${leftCombination}), right: ${rightConditions.length} conditions (${rightCombination})`
+  );
 
   // Apply semantic expansion to conditions
-  const expandedLeftConditions = await expandStructuredConditions(leftConditions, state);
-  const expandedRightConditions = await expandStructuredConditions(rightConditions, state);
+  const expandedLeftConditions = await expandStructuredConditions(
+    leftConditions,
+    state
+  );
+  const expandedRightConditions = await expandStructuredConditions(
+    rightConditions,
+    state
+  );
 
   // Apply OR-to-regex conversion for mixed logic cases (Tier 2)
-  const processedLeftConditions = applyORToRegexConversion(expandedLeftConditions, leftCombination);
-  const processedRightConditions = applyORToRegexConversion(expandedRightConditions, rightCombination);
+  const processedLeftConditions = applyORToRegexConversion(
+    expandedLeftConditions,
+    leftCombination
+  );
+  const processedRightConditions = applyORToRegexConversion(
+    expandedRightConditions,
+    rightCombination
+  );
 
   // Execute hierarchy search based on operator
   switch (hierarchyCondition.operator) {
@@ -1457,7 +1644,7 @@ const processStructuredHierarchyCondition = async (
         options,
         state
       );
-      
+
     case ">>":
       // Deep strict hierarchy: left >> right (left ancestor, right descendant)
       return await executeStructuredDeepStrictHierarchySearch(
@@ -1468,7 +1655,7 @@ const processStructuredHierarchyCondition = async (
         options,
         state
       );
-      
+
     case "<=>":
       // Bidirectional: left <=> right (either direction)
       return await executeStructuredBidirectionalSearch(
@@ -1479,7 +1666,7 @@ const processStructuredHierarchyCondition = async (
         options,
         state
       );
-      
+
     case "=>":
       // Flexible hierarchy: left => right (same block OR left parent of right)
       return await executeStructuredFlexibleHierarchySearch(
@@ -1490,7 +1677,7 @@ const processStructuredHierarchyCondition = async (
         options,
         state
       );
-      
+
     case "=>>":
       // Right flexible hierarchy: left =>> right (left ancestor, right descendant with flexibility, deep)
       return await executeStructuredDeepFlexibleHierarchySearch(
@@ -1501,7 +1688,7 @@ const processStructuredHierarchyCondition = async (
         options,
         state
       );
-      
+
     case "<<=>>":
       // Deep bidirectional: left <<=>> right (either direction, any depth)
       return await executeStructuredDeepBidirectionalSearch(
@@ -1512,9 +1699,11 @@ const processStructuredHierarchyCondition = async (
         options,
         state
       );
-      
+
     default:
-      console.warn(`⚠️ Unsupported structured operator: ${hierarchyCondition.operator}`);
+      console.warn(
+        `⚠️ Unsupported structured operator: ${hierarchyCondition.operator}`
+      );
       return [];
   }
 };
@@ -1527,24 +1716,26 @@ const processConditionGroups = async (
   conditionGroups: any[],
   groupCombination: string,
   state?: any
-): Promise<{ conditions: any[], combination: string }> => {
-  console.log(`📦 Processing ${conditionGroups.length} condition groups with ${groupCombination} combination`);
-  
+): Promise<{ conditions: any[]; combination: string }> => {
+  console.log(
+    `📦 Processing ${conditionGroups.length} condition groups with ${groupCombination} combination`
+  );
+
   const allConditions: any[] = [];
   let hasMultipleGroups = conditionGroups.length > 1;
-  let hasORGroups = conditionGroups.some(group => group.combination === "OR");
-  
+  let hasORGroups = conditionGroups.some((group) => group.combination === "OR");
+
   // Process each group
   for (const group of conditionGroups) {
     const groupConditions = group.conditions || [];
     const groupCombination = group.combination || "AND";
-    
+
     // If this is an OR group with multiple conditions, we may need OR-to-regex conversion
     if (groupCombination === "OR" && groupConditions.length > 1) {
       // Check if this group has negated conditions mixed with positive ones
-      const hasNegated = groupConditions.some(c => c.negate === true);
-      const hasPositive = groupConditions.some(c => c.negate !== true);
-      
+      const hasNegated = groupConditions.some((c) => c.negate === true);
+      const hasPositive = groupConditions.some((c) => c.negate !== true);
+
       if (hasNegated && hasPositive) {
         // This is a complex case that needs OR-to-regex conversion
         // For now, add all conditions and let OR-to-regex conversion handle it
@@ -1558,10 +1749,10 @@ const processConditionGroups = async (
       allConditions.push(...groupConditions);
     }
   }
-  
+
   // Determine final combination logic
   let finalCombination: string;
-  
+
   if (hasMultipleGroups && groupCombination === "AND") {
     // Multiple groups combined with AND
     finalCombination = "AND";
@@ -1576,12 +1767,14 @@ const processConditionGroups = async (
     // Default to AND
     finalCombination = "AND";
   }
-  
-  console.log(`📦 Processed groups: ${allConditions.length} total conditions, final combination: ${finalCombination}`);
-  
+
+  console.log(
+    `📦 Processed groups: ${allConditions.length} total conditions, final combination: ${finalCombination}`
+  );
+
   return {
     conditions: allConditions,
-    combination: finalCombination
+    combination: finalCombination,
   };
 };
 
@@ -1592,38 +1785,41 @@ const processConditionGroups = async (
 const applyORToRegexConversion = (
   conditions: any[],
   combination: string
-): { conditions: any[], combination: string } => {
+): { conditions: any[]; combination: string } => {
   // Only apply conversion for AND-dominant logic with potential OR sub-groups
   if (combination !== "AND" && combination !== "OR") {
     return { conditions, combination };
   }
 
   // Check if this is a mixed logic case that benefits from OR-to-regex conversion
-  const hasNegatedConditions = conditions.some(c => c.negate === true);
-  const hasPositiveConditions = conditions.some(c => c.negate !== true);
-  
+  const hasNegatedConditions = conditions.some((c) => c.negate === true);
+  const hasPositiveConditions = conditions.some((c) => c.negate !== true);
+
   // For pure OR without negation, keep current OR clause logic
   if (combination === "OR" && !hasNegatedConditions) {
     return { conditions, combination };
   }
-  
+
   // For AND logic with mixed positive/negative, or OR with negation, apply conversion
-  if ((combination === "AND" && hasNegatedConditions && hasPositiveConditions) || 
-      (combination === "OR" && hasNegatedConditions)) {
-    
+  if (
+    (combination === "AND" && hasNegatedConditions && hasPositiveConditions) ||
+    (combination === "OR" && hasNegatedConditions)
+  ) {
     // Group positive conditions for potential OR-to-regex conversion
-    const positiveConditions = conditions.filter(c => c.negate !== true);
-    const negativeConditions = conditions.filter(c => c.negate === true);
-    
+    const positiveConditions = conditions.filter((c) => c.negate !== true);
+    const negativeConditions = conditions.filter((c) => c.negate === true);
+
     // Convert multiple positive conditions to a single regex condition
     if (positiveConditions.length > 1) {
       const regexCondition = convertConditionsToRegex(positiveConditions);
       const newConditions = [regexCondition, ...negativeConditions];
-      console.log(`🔄 Converted ${positiveConditions.length} positive conditions to regex, keeping ${negativeConditions.length} negative conditions`);
+      console.log(
+        `🔄 Converted ${positiveConditions.length} positive conditions to regex, keeping ${negativeConditions.length} negative conditions`
+      );
       return { conditions: newConditions, combination: "AND" };
     }
   }
-  
+
   return { conditions, combination };
 };
 
@@ -1632,7 +1828,7 @@ const applyORToRegexConversion = (
  */
 const convertConditionsToRegex = (conditions: any[]): any => {
   const regexParts: string[] = [];
-  
+
   for (const condition of conditions) {
     switch (condition.type) {
       case "text":
@@ -1640,43 +1836,57 @@ const convertConditionsToRegex = (conditions: any[]): any => {
           // Keep existing regex as-is (don't double-wrap)
           regexParts.push(condition.text);
         } else {
-          // Wrap text in .* for partial matching  
-          const escapedText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          // Wrap text in .* for partial matching
+          const escapedText = condition.text.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          );
           regexParts.push(`.*${escapedText}.*`);
         }
         break;
-        
+
       case "page_ref":
         // Convert page reference to multiple syntax patterns
-        const escapedPage = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escapedPage = condition.text.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        );
         const pagePattern = `.*(\\[\\[${escapedPage}\\]\\]|#${escapedPage}|${escapedPage}::).*`;
         regexParts.push(pagePattern);
         break;
-        
+
       case "block_ref":
         // Convert block reference to pattern (less common, but include for completeness)
-        const escapedBlock = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escapedBlock = condition.text.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        );
         regexParts.push(`.*\\(\\(${escapedBlock}\\)\\).*`);
         break;
-        
+
       default:
-        console.warn(`Unsupported condition type for OR-to-regex conversion: ${condition.type}`);
+        console.warn(
+          `Unsupported condition type for OR-to-regex conversion: ${condition.type}`
+        );
         // Fallback: treat as text
-        const escapedFallback = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escapedFallback = condition.text.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        );
         regexParts.push(`.*${escapedFallback}.*`);
     }
   }
-  
+
   // Combine all patterns with OR - this will be sanitized when used in Datomic query
   const combinedRegex = `(?i)(${regexParts.join("|")})`;
-  
+
   return {
     type: "text",
     text: combinedRegex,
     matchType: "regex",
     semanticExpansion: false, // Already expanded
     weight: 1,
-    negate: false
+    negate: false,
   };
 };
 
@@ -1704,10 +1914,10 @@ const executeStructuredStrictHierarchySearch = async (
   state?: any
 ): Promise<any[]> => {
   console.log("🏗️ Executing structured strict hierarchy search");
-  
+
   // Convert structured conditions to SearchCondition format
   const convertToSearchConditions = (conditions: any[]): SearchCondition[] => {
-    return conditions.map(cond => ({
+    return conditions.map((cond) => ({
       type: cond.type,
       text: cond.text,
       matchType: cond.matchType || "contains",
@@ -1716,10 +1926,10 @@ const executeStructuredStrictHierarchySearch = async (
       negate: cond.negate || false,
     }));
   };
-  
+
   const leftSearchConditions = convertToSearchConditions(leftConditions);
   const rightSearchConditions = convertToSearchConditions(rightConditions);
-  
+
   // Use existing strict hierarchy search function
   const resultSets = await executeStrictHierarchySearch(
     leftSearchConditions,
@@ -1729,7 +1939,7 @@ const executeStructuredStrictHierarchySearch = async (
     options,
     state
   );
-  
+
   // Flatten result sets array into single array
   return resultSets.flat();
 };
@@ -1746,10 +1956,10 @@ const executeStructuredBidirectionalSearch = async (
   state?: any
 ): Promise<any[]> => {
   console.log("🔄 Executing structured bidirectional search");
-  
+
   // Convert structured conditions to SearchCondition format
   const convertToSearchConditions = (conditions: any[]): SearchCondition[] => {
-    return conditions.map(cond => ({
+    return conditions.map((cond) => ({
       type: cond.type,
       text: cond.text,
       matchType: cond.matchType || "contains",
@@ -1758,10 +1968,10 @@ const executeStructuredBidirectionalSearch = async (
       negate: cond.negate || false,
     }));
   };
-  
+
   const leftSearchConditions = convertToSearchConditions(leftConditions);
   const rightSearchConditions = convertToSearchConditions(rightConditions);
-  
+
   // Use existing bidirectional search function
   const resultSets = await executeBidirectionalSearch(
     leftSearchConditions,
@@ -1771,7 +1981,7 @@ const executeStructuredBidirectionalSearch = async (
     options,
     state
   );
-  
+
   // Flatten result sets array into single array
   return resultSets.flat();
 };
@@ -1788,10 +1998,10 @@ const executeStructuredFlexibleHierarchySearch = async (
   state?: any
 ): Promise<any[]> => {
   console.log("🔧 Executing structured flexible hierarchy search");
-  
+
   // Convert structured conditions to SearchCondition format
   const convertToSearchConditions = (conditions: any[]): SearchCondition[] => {
-    return conditions.map(cond => ({
+    return conditions.map((cond) => ({
       type: cond.type,
       text: cond.text,
       matchType: cond.matchType || "contains",
@@ -1800,10 +2010,10 @@ const executeStructuredFlexibleHierarchySearch = async (
       negate: cond.negate || false,
     }));
   };
-  
+
   const leftSearchConditions = convertToSearchConditions(leftConditions);
   const rightSearchConditions = convertToSearchConditions(rightConditions);
-  
+
   // Use existing flexible hierarchy search function
   const resultSets = await executeFlexibleHierarchySearch(
     leftSearchConditions,
@@ -1813,7 +2023,7 @@ const executeStructuredFlexibleHierarchySearch = async (
     options,
     state
   );
-  
+
   // Flatten result sets array into single array
   return resultSets.flat();
 };
@@ -1830,10 +2040,10 @@ const executeStructuredDeepFlexibleHierarchySearch = async (
   state?: any
 ): Promise<any[]> => {
   console.log("🌳🔧 Executing structured deep flexible hierarchy search");
-  
+
   // Convert structured conditions to SearchCondition format
   const convertToSearchConditions = (conditions: any[]): SearchCondition[] => {
-    return conditions.map(cond => ({
+    return conditions.map((cond) => ({
       type: cond.type,
       text: cond.text,
       matchType: cond.matchType || "contains",
@@ -1842,14 +2052,17 @@ const executeStructuredDeepFlexibleHierarchySearch = async (
       negate: cond.negate || false,
     }));
   };
-  
+
   const leftSearchConditions = convertToSearchConditions(leftConditions);
   const rightSearchConditions = convertToSearchConditions(rightConditions);
-  
+
   // For =>> operator, we need flexible search with max depth instead of levels: 1
   // Step 1: Same-block search (A + B) - like flexible hierarchy
   console.log(`📝 Step 1: Same-block search (A + B)`);
-  const sameBlockConditions = [...leftSearchConditions, ...rightSearchConditions];
+  const sameBlockConditions = [
+    ...leftSearchConditions,
+    ...rightSearchConditions,
+  ];
   const sameBlockSearch = await executeContentSearch(
     sameBlockConditions,
     "AND", // For flexible hierarchy, both terms must appear
@@ -1884,14 +2097,14 @@ const executeStructuredDeepFlexibleHierarchySearch = async (
 
   // Combine results with same-block priority (like flexible hierarchy)
   const resultSets = [sameBlockSearch.results, hierarchyResults];
-  
+
   // Flatten result sets and ensure expansionLevel is set
   const flatResults = resultSets.flat();
   const expansionLevel = state?.expansionLevel || 0;
-  
-  return flatResults.map(result => ({
+
+  return flatResults.map((result) => ({
     ...result,
-    expansionLevel: result.expansionLevel || expansionLevel
+    expansionLevel: result.expansionLevel || expansionLevel,
   }));
 };
 
@@ -1907,10 +2120,10 @@ const executeStructuredDeepBidirectionalSearch = async (
   state?: any
 ): Promise<any[]> => {
   console.log("🔄🌳 Executing structured deep bidirectional search");
-  
+
   // Convert structured conditions to SearchCondition format
   const convertToSearchConditions = (conditions: any[]): SearchCondition[] => {
-    return conditions.map(cond => ({
+    return conditions.map((cond) => ({
       type: cond.type,
       text: cond.text,
       matchType: cond.matchType || "contains",
@@ -1919,10 +2132,10 @@ const executeStructuredDeepBidirectionalSearch = async (
       negate: cond.negate || false,
     }));
   };
-  
+
   const leftSearchConditions = convertToSearchConditions(leftConditions);
   const rightSearchConditions = convertToSearchConditions(rightConditions);
-  
+
   // Use existing deep bidirectional search function
   const resultSets = await executeDeepBidirectionalSearch(
     leftSearchConditions,
@@ -1932,14 +2145,14 @@ const executeStructuredDeepBidirectionalSearch = async (
     options,
     state
   );
-  
+
   // Flatten result sets and ensure expansionLevel is set
   const flatResults = resultSets.flat();
   const expansionLevel = state?.expansionLevel || 0;
-  
-  return flatResults.map(result => ({
+
+  return flatResults.map((result) => ({
     ...result,
-    expansionLevel: result.expansionLevel || expansionLevel
+    expansionLevel: result.expansionLevel || expansionLevel,
   }));
 };
 
@@ -1955,10 +2168,10 @@ const executeStructuredDeepStrictHierarchySearch = async (
   state?: any
 ): Promise<any[]> => {
   console.log("🌳 Executing structured deep strict hierarchy search");
-  
+
   // Convert structured conditions to SearchCondition format
   const convertToSearchConditions = (conditions: any[]): SearchCondition[] => {
-    return conditions.map(cond => ({
+    return conditions.map((cond) => ({
       type: cond.type,
       text: cond.text,
       matchType: cond.matchType || "contains",
@@ -1967,10 +2180,10 @@ const executeStructuredDeepStrictHierarchySearch = async (
       negate: cond.negate || false,
     }));
   };
-  
+
   const leftSearchConditions = convertToSearchConditions(leftConditions);
   const rightSearchConditions = convertToSearchConditions(rightConditions);
-  
+
   // Use existing deep hierarchy search function
   const resultSets = await executeDeepStrictHierarchySearch(
     leftSearchConditions,
@@ -1980,12 +2193,10 @@ const executeStructuredDeepStrictHierarchySearch = async (
     options,
     state
   );
-  
+
   // Flatten result sets array into single array
   return resultSets.flat();
 };
-
-
 
 /**
  * Build condition clauses for hierarchy search with custom block variables
@@ -2001,13 +2212,13 @@ const buildHierarchyConditionClauses = (
   if (conditions.length === 0) return "";
 
   let clauses = "";
-  
+
   // For AND logic or single condition
   if (combineLogic === "AND" || conditions.length === 1) {
     // Check if we have mixed logic that can be converted to regex
-    const hasNegatedConditions = conditions.some(c => c.negate === true);
-    const hasPositiveConditions = conditions.some(c => c.negate !== true);
-    
+    const hasNegatedConditions = conditions.some((c) => c.negate === true);
+    const hasPositiveConditions = conditions.some((c) => c.negate !== true);
+
     // If we have both positive and negative conditions, we might be able to use OR-to-regex conversion
     // But for now, process normally - OR-to-regex will be handled at a higher level
     for (let i = 0; i < conditions.length; i++) {
@@ -2024,57 +2235,74 @@ const buildHierarchyConditionClauses = (
     // For OR logic, separate preparation clauses from OR clauses
     let preparationClauses: string[] = [];
     let orClauses: string[] = [];
-    
+
     // Process each condition and separate preparation from OR clauses
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
       const patternIndex = i + patternOffset;
-      
+
       switch (condition.type) {
         case "page_ref":
           // Preparation clauses outside OR
-          preparationClauses.push(`\n                [(ground "${condition.text}") ?page-title${patternIndex}]`);
-          preparationClauses.push(`\n                [?ref-page${patternIndex} :node/title ?page-title${patternIndex}]`);
+          preparationClauses.push(
+            `\n                [(ground "${condition.text}") ?page-title${patternIndex}]`
+          );
+          preparationClauses.push(
+            `\n                [?ref-page${patternIndex} :node/title ?page-title${patternIndex}]`
+          );
           // Only the actual matching clause inside OR
-          orClauses.push(`\n                  [${blockVariable} :block/refs ?ref-page${patternIndex}]`);
+          orClauses.push(
+            `\n                  [${blockVariable} :block/refs ?ref-page${patternIndex}]`
+          );
           break;
-          
+
         case "text":
           let pattern: string;
           if (condition.matchType === "regex") {
             const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
-            pattern = sanitizedRegex.isCaseInsensitive 
-              ? sanitizedRegex.pattern 
+            pattern = sanitizedRegex.isCaseInsensitive
+              ? sanitizedRegex.pattern
               : `(?i)${sanitizedRegex.pattern}`;
           } else {
-            pattern = `(?i).*${condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+            pattern = `(?i).*${condition.text.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&"
+            )}.*`;
           }
           // Preparation clauses outside OR
-          preparationClauses.push(`\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`);
+          preparationClauses.push(
+            `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`
+          );
           // Only the actual matching clause inside OR
-          orClauses.push(`\n                  [(re-find ?pattern${patternIndex} ${contentVariable})]`);
+          orClauses.push(
+            `\n                  [(re-find ?pattern${patternIndex} ${contentVariable})]`
+          );
           break;
-          
+
         case "block_ref":
           // Block refs don't need preparation, can go directly in OR
           orClauses.push(`\n                  [?ref-block${patternIndex} :block/uid "${condition.text}"]
                   [${blockVariable} :block/refs ?ref-block${patternIndex}]`);
           break;
-          
+
         default:
-          console.warn(`Unsupported condition type for hierarchy: ${condition.type}`);
+          console.warn(
+            `Unsupported condition type for hierarchy: ${condition.type}`
+          );
       }
     }
-    
+
     // Add preparation clauses first (outside OR)
     clauses += preparationClauses.join("");
-    
+
     // Then add OR clause
     if (orClauses.length > 0) {
-      clauses += `\n                (or${orClauses.join("")}\n                )`;
+      clauses += `\n                (or${orClauses.join(
+        ""
+      )}\n                )`;
     }
   }
-  
+
   return clauses;
 };
 
@@ -2088,42 +2316,47 @@ const buildSingleHierarchyConditionClause = (
   patternIndex: number
 ): string => {
   let clause = "";
-  
+
   switch (condition.type) {
     case "page_ref":
       clause = `\n                [?ref-page${patternIndex} :node/title "${condition.text}"]
                 [${blockVariable} :block/refs ?ref-page${patternIndex}]`;
       break;
-    
+
     case "text":
       let pattern: string;
       if (condition.matchType === "regex") {
         const sanitizedRegex = sanitizeRegexForDatomic(condition.text);
-        pattern = sanitizedRegex.isCaseInsensitive 
-          ? sanitizedRegex.pattern 
+        pattern = sanitizedRegex.isCaseInsensitive
+          ? sanitizedRegex.pattern
           : `(?i)${sanitizedRegex.pattern}`;
       } else {
-        pattern = `(?i).*${condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+        pattern = `(?i).*${condition.text.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        )}.*`;
       }
       clause = `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]
                 [(re-find ?pattern${patternIndex} ${contentVariable})]`;
       break;
-    
+
     case "block_ref":
       clause = `\n                [?ref-block${patternIndex} :block/uid "${condition.text}"]
                 [${blockVariable} :block/refs ?ref-block${patternIndex}]`;
       break;
-    
+
     default:
-      console.warn(`Unsupported condition type for hierarchy: ${condition.type}`);
+      console.warn(
+        `Unsupported condition type for hierarchy: ${condition.type}`
+      );
       return "";
   }
-  
+
   // Apply negation if needed
   if (condition.negate) {
     clause = `\n                (not ${clause.trim()})`;
   }
-  
+
   return clause;
 };
 
@@ -2148,9 +2381,10 @@ const buildTextOrClause = (
   contentVariable: string,
   patternIndex: number
 ): string => {
-  const pattern = condition.matchType === "regex" 
-    ? condition.text 
-    : `(?i).*${condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+  const pattern =
+    condition.matchType === "regex"
+      ? condition.text
+      : `(?i).*${condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
   return `\n                  [(re-pattern "${pattern}") ?pattern${patternIndex}]
                   [(re-find ?pattern${patternIndex} ${contentVariable})]`;
 };
@@ -2217,14 +2451,16 @@ const findBlocksWithHierarchyImpl = async (
     contentConditions: contentConditions?.length || 0,
     hierarchyConditions: hierarchyConditions?.length || 0,
     hierarchicalExpression: hierarchicalExpression || null,
-    hierarchyCondition: hierarchyCondition ? {
-      operator: hierarchyCondition.operator,
-      leftConditions: hierarchyCondition.leftConditions,
-      rightConditions: hierarchyCondition.rightConditions,
-      leftCombination: hierarchyCondition.leftCombination,
-      rightCombination: hierarchyCondition.rightCombination,
-      maxDepth: hierarchyCondition.maxDepth,
-    } : null,
+    hierarchyCondition: hierarchyCondition
+      ? {
+          operator: hierarchyCondition.operator,
+          leftConditions: hierarchyCondition.leftConditions,
+          rightConditions: hierarchyCondition.rightConditions,
+          leftCombination: hierarchyCondition.leftCombination,
+          rightCombination: hierarchyCondition.rightCombination,
+          maxDepth: hierarchyCondition.maxDepth,
+        }
+      : null,
     combineConditions,
     limit,
     secureMode,
@@ -2243,16 +2479,21 @@ const findBlocksWithHierarchyImpl = async (
     console.log(
       `🚀 Processing hierarchyCondition with operator: "${hierarchyCondition.operator}"`
     );
-    
+
     // Check if this is a grouped condition (new format)
-    if (hierarchyCondition.leftConditionGroups || hierarchyCondition.rightConditionGroups) {
-      console.log("🔧 Detected grouped conditions, using structured processing");
+    if (
+      hierarchyCondition.leftConditionGroups ||
+      hierarchyCondition.rightConditionGroups
+    ) {
+      console.log(
+        "🔧 Detected grouped conditions, using structured processing"
+      );
       const structuredQuery = {
         hierarchyCondition: hierarchyCondition,
         searchConditions: [],
         combineConditions: "AND" as const,
       };
-      
+
       return await processStructuredHierarchyCondition(
         structuredQuery.hierarchyCondition,
         {
@@ -2275,9 +2516,11 @@ const findBlocksWithHierarchyImpl = async (
         state
       );
     }
-    
+
     // Handle simple array-based conditions (backward compatibility)
-    console.log("🔧 Using legacy OpenAI array processing for simple conditions");
+    console.log(
+      "🔧 Using legacy OpenAI array processing for simple conditions"
+    );
     return await processOpenAIHierarchyCondition(
       hierarchyCondition,
       {
@@ -2302,17 +2545,24 @@ const findBlocksWithHierarchyImpl = async (
   }
 
   // Debug logging for hierarchyConditions parameter
-  console.log(`🔍 [DEBUG] findBlocksWithHierarchy called with hierarchyConditions:`, {
-    hierarchyConditions,
-    hierarchyConditionsCount: hierarchyConditions?.length || 0,
-    hierarchyConditionsDetails: hierarchyConditions?.map((hc, i) => ({
-      index: i,
-      direction: hc.direction,
-      levels: hc.levels,
-      conditionsCount: hc.conditions?.length || 0,
-      conditions: hc.conditions?.map(c => ({ text: c.text, type: c.type, matchType: c.matchType }))
-    }))
-  });
+  console.log(
+    `🔍 [DEBUG] findBlocksWithHierarchy called with hierarchyConditions:`,
+    {
+      hierarchyConditions,
+      hierarchyConditionsCount: hierarchyConditions?.length || 0,
+      hierarchyConditionsDetails: hierarchyConditions?.map((hc, i) => ({
+        index: i,
+        direction: hc.direction,
+        levels: hc.levels,
+        conditionsCount: hc.conditions?.length || 0,
+        conditions: hc.conditions?.map((c) => ({
+          text: c.text,
+          type: c.type,
+          matchType: c.matchType,
+        })),
+      })),
+    }
+  );
 
   // Legacy structured format handling removed for simplification
 
@@ -2340,12 +2590,14 @@ const findBlocksWithHierarchyImpl = async (
 
     console.log(`🔍 [DEBUG] Converted hierarchical expression to structured:`, {
       originalExpression: hierarchicalExpression,
-      structuredCondition: structuredCondition ? {
-        operator: structuredCondition.operator,
-        leftCondition: structuredCondition.leftCondition,
-        rightCondition: structuredCondition.rightCondition,
-        maxDepth: structuredCondition.maxDepth
-      } : null
+      structuredCondition: structuredCondition
+        ? {
+            operator: structuredCondition.operator,
+            leftCondition: structuredCondition.leftCondition,
+            rightCondition: structuredCondition.rightCondition,
+            maxDepth: structuredCondition.maxDepth,
+          }
+        : null,
     });
 
     if (structuredCondition) {
@@ -2361,7 +2613,7 @@ const findBlocksWithHierarchyImpl = async (
         {
           maxHierarchyDepth,
           strategyCombination,
-                includeChildren,
+          includeChildren,
           childDepth,
           includeParents,
           parentDepth,
@@ -2387,7 +2639,7 @@ const findBlocksWithHierarchyImpl = async (
         {
           maxHierarchyDepth,
           strategyCombination,
-                includeChildren,
+          includeChildren,
           childDepth,
           includeParents,
           parentDepth,
@@ -2481,7 +2733,11 @@ const findBlocksWithHierarchyImpl = async (
           : dateRange.end,
     };
     const filterMode = dateRange.filterMode || "modified";
-    filteredResults = filterByDateRange(enrichedResults, parsedDateRange, filterMode);
+    filteredResults = filterByDateRange(
+      enrichedResults,
+      parsedDateRange,
+      filterMode
+    );
   }
 
   // Step 5.5: Exclude user query block from results by UID
@@ -2688,7 +2944,7 @@ const processHierarchicalQuery = async (
     case "<":
       // Inverse strict hierarchy: A < B (A child, B parent) - return child blocks
       resultSets = await executeInverseStrictHierarchySearch(
-        leftConditions,  // A (child condition to return)
+        leftConditions, // A (child condition to return)
         rightConditions, // B (parent condition to filter)
         leftCombineLogic,
         rightCombineLogic,
@@ -2701,7 +2957,7 @@ const processHierarchicalQuery = async (
       // Inverse deep strict hierarchy: A << B (A descendant, B ancestor) - swap the conditions
       resultSets = await executeDeepStrictHierarchySearch(
         rightConditions, // B becomes ancestor
-        leftConditions,  // A becomes descendant
+        leftConditions, // A becomes descendant
         rightCombineLogic,
         leftCombineLogic,
         options,
@@ -2713,7 +2969,7 @@ const processHierarchicalQuery = async (
       // Inverse flexible hierarchy: A <= B (same block OR A child of B) - swap the conditions
       resultSets = await executeFlexibleHierarchySearch(
         rightConditions, // B becomes parent
-        leftConditions,  // A becomes child
+        leftConditions, // A becomes child
         rightCombineLogic,
         leftCombineLogic,
         options,
@@ -2737,7 +2993,7 @@ const processHierarchicalQuery = async (
       // Left deep flexible hierarchy: A <<= B (A descendant, B ancestor with flexibility) - swap the conditions
       resultSets = await executeFlexibleHierarchySearch(
         rightConditions, // B becomes ancestor
-        leftConditions,  // A becomes descendant
+        leftConditions, // A becomes descendant
         rightCombineLogic,
         leftCombineLogic,
         options,
@@ -2988,7 +3244,9 @@ const executeInverseStrictHierarchySearch = async (
   options: any,
   state?: any
 ): Promise<any[]> => {
-  console.log(`🏗️ Executing inverse strict hierarchy search (returning children)`);
+  console.log(
+    `🏗️ Executing inverse strict hierarchy search (returning children)`
+  );
 
   // Call executeDirectHierarchySearch but we need to extract child blocks from the query results
   // This is much simpler than my previous overcomplicated approach
@@ -3000,7 +3258,7 @@ const executeInverseStrictHierarchySearch = async (
     options,
     state
   );
-  
+
   if (hierarchyResults.length > 0) {
     updateAgentToaster(
       `🏗️ Child←parent search: ${hierarchyResults.length} hierarchy relationships found`
@@ -3071,10 +3329,8 @@ const executeDirectHierarchySearchAndReturnChildren = async (
     expandedChildConditions,
     childCombineLogic
   );
-  const {
-    patternDefinitions: childPatterns,
-    conditionClauses: childClauses,
-  } = childQueryBuilder.buildConditionClauses("?child-content");
+  const { patternDefinitions: childPatterns, conditionClauses: childClauses } =
+    childQueryBuilder.buildConditionClauses("?child-content");
 
   // Fix pattern variable conflicts by replacing pattern indices in child patterns
   const offsetChildPatterns = childPatterns.replace(
@@ -3085,7 +3341,7 @@ const executeDirectHierarchySearchAndReturnChildren = async (
     /\?pattern(\d+)/g,
     (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
   );
-  
+
   query += offsetChildPatterns;
   query += offsetChildClauses;
 
@@ -3126,7 +3382,7 @@ const executeDirectHierarchySearchAndReturnChildren = async (
         content: parentContent,
         pageTitle: parentPageTitle,
         pageUid: parentPageUid,
-      }
+      },
     })
   );
 
@@ -3705,10 +3961,7 @@ const executeDirectHierarchySearch = async (
     parentConditions.some((c) => c.semanticExpansion) ||
     childConditions.some((c) => c.semanticExpansion);
   const expandedParentConditions = shouldExpand
-    ? await expandConditions(
-        parentConditions,
-        state
-      )
+    ? await expandConditions(parentConditions, state)
     : parentConditions;
   const expandedChildConditions = shouldExpand
     ? await expandConditions(childConditions, state)
@@ -3910,10 +4163,7 @@ const searchBlocksWithHierarchicalConditions = async (
 
   // Apply date range filtering
   let filteredResults = enrichedResults;
-  if (
-    input.dateRange &&
-    (input.dateRange.start || input.dateRange.end)
-  ) {
+  if (input.dateRange && (input.dateRange.start || input.dateRange.end)) {
     const parsedDateRange = {
       start:
         typeof input.dateRange.start === "string"
@@ -3925,7 +4175,11 @@ const searchBlocksWithHierarchicalConditions = async (
           : input.dateRange.end,
     };
     const filterMode = input.dateRange.filterMode || "modified";
-    filteredResults = filterByDateRange(enrichedResults, parsedDateRange, filterMode);
+    filteredResults = filterByDateRange(
+      enrichedResults,
+      parsedDateRange,
+      filterMode
+    );
   }
 
   // Sort and limit results
@@ -4719,9 +4973,11 @@ const applyHierarchyFilters = async (
 
       const hierarchyMatch = hierarchyBlocks.some((hierarchyBlock) => {
         const blockContent = hierarchyBlock.content || "";
-        const conditionResults = conditions.map((condition: SearchCondition) => {
-          return matchesCondition(blockContent, condition);
-        });
+        const conditionResults = conditions.map(
+          (condition: SearchCondition) => {
+            return matchesCondition(blockContent, condition);
+          }
+        );
         return conditionResults.every((r: boolean) => r);
       });
 
@@ -4957,21 +5213,24 @@ const calculateHierarchyRelevanceScore = (
 /**
  * Transform llmFacingSchema input to full internal schema with defaults
  */
-const transformLlmInputToInternalSchema = (llmInput: z.infer<typeof llmFacingSchema>, state?: any): z.infer<typeof schema> => {
+const transformLlmInputToInternalSchema = (
+  llmInput: z.infer<typeof llmFacingSchema>,
+  state?: any
+): z.infer<typeof schema> => {
   return {
     // Legacy properties (now unused but required by internal schema)
     contentConditions: [],
     hierarchyConditions: null,
     combineConditions: "AND" as const,
     combineHierarchy: "OR" as const,
-    
+
     // Essential properties from LLM input
     hierarchyCondition: llmInput.hierarchyCondition || null,
     limit: llmInput.limit || 50,
     sortBy: llmInput.sortBy || "relevance",
     maxHierarchyDepth: llmInput.maxDepth || 3,
     excludeBlockUid: llmInput.excludeBlockUid || null,
-    
+
     // Default properties not exposed to LLM
     includeChildren: false,
     childDepth: 1,
@@ -4984,18 +5243,17 @@ const transformLlmInputToInternalSchema = (llmInput: z.infer<typeof llmFacingSch
     limitToBlockUids: null,
     limitToPageUids: null,
     secureMode: false,
-    hierarchicalExpression: null
+    hierarchicalExpression: null,
   };
 };
 
 export const findBlocksWithHierarchyTool = tool(
   async (input, config) => {
     const startTime = performance.now();
-    
-    
+
     // Extract state from config first
     const state = config?.configurable?.state;
-    
+
     // Transform LLM input to internal schema format with state injection
     const internalInput = transformLlmInputToInternalSchema(input, state);
     const isPrivateMode = state?.privateMode || internalInput.secureMode;
@@ -5033,7 +5291,7 @@ export const findBlocksWithHierarchyTool = tool(
     }
   },
   {
-    name: "findBlocksWithHierarchy", 
+    name: "findBlocksWithHierarchy",
     description:
       "Find blocks using hierarchical parent-child relationships. Use 'hierarchyCondition' with operator (>, >>, <=>, etc.) and left/right conditions. SIMPLE: Use leftConditions/rightConditions arrays for basic logic. GROUPED: Use leftConditionGroups/rightConditionGroups for complex logic like ((A|B) AND NOT C). Supports all hierarchy operators and semantic expansion.",
     schema: llmFacingSchema, // Use minimal schema for token optimization
