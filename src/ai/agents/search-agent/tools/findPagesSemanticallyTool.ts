@@ -6,7 +6,7 @@ import {
   filterByDateRange,
   createToolResult,
   generateSemanticExpansions,
-} from "./searchUtils";
+} from "../helpers/searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 
 /**

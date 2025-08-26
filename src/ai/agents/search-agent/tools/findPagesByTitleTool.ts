@@ -7,7 +7,7 @@ import {
   createToolResult,
   generateSemanticExpansions,
   parseSemanticExpansion,
-} from "./searchUtils";
+} from "../helpers/searchUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 
 /**
@@ -22,7 +22,16 @@ const titleConditionSchema = z.object({
   negate: z.boolean().default(false),
   isSemanticPage: z.boolean().optional(), // Flag for exact titles found via semantic expansion
   fuzzyMatching: z.boolean().optional(), // Flag for fuzzy matching enabled via '*' suffix
-  semanticExpansion: z.enum(["fuzzy", "synonyms", "related_concepts", "broader_terms", "custom", "all"]).optional(), // Semantic expansion type from '~' suffix
+  semanticExpansion: z
+    .enum([
+      "fuzzy",
+      "synonyms",
+      "related_concepts",
+      "broader_terms",
+      "custom",
+      "all",
+    ])
+    .optional(), // Semantic expansion type from '~' suffix
   forceSemanticExpansion: z.boolean().optional(), // Force semantic expansion
   expansionLevel: z.number().optional(), // Track expansion level for relevance scoring
 });
@@ -80,7 +89,12 @@ const llmFacingSchema = z.object({
   conditions: z
     .array(
       z.object({
-        text: z.string().min(1, "Page title or pattern to search for. For regex patterns, use clean pattern syntax (e.g., 'test.*page' or '(?i)status|state') without /regex:/ or /pattern/flags wrapper"),
+        text: z
+          .string()
+          .min(
+            1,
+            "Page title or pattern to search for. For regex patterns, use clean pattern syntax (e.g., 'test.*page' or '(?i)status|state') without /regex:/ or /pattern/flags wrapper"
+          ),
         matchType: z
           .enum(["exact", "contains", "regex"])
           .default("contains")
@@ -134,31 +148,37 @@ const llmFacingSchema = z.object({
  * Parse and clean regex patterns from user input
  * Handles formats like: regex:/pattern/flags, /pattern/flags, or plain patterns
  */
-const parseRegexPattern = (text: string): { pattern: string, matchType: "exact" | "contains" | "regex", hasFlags: boolean } => {
+const parseRegexPattern = (
+  text: string
+): {
+  pattern: string;
+  matchType: "exact" | "contains" | "regex";
+  hasFlags: boolean;
+} => {
   // Check for regex:/pattern/flags format
   const regexColonMatch = text.match(/^regex:\/(.+?)\/([gimuy]*)$/i);
   if (regexColonMatch) {
     const [, pattern, flags] = regexColonMatch;
-    const hasIFlag = flags.includes('i');
+    const hasIFlag = flags.includes("i");
     const cleanPattern = hasIFlag ? `(?i)${pattern}` : pattern;
     return { pattern: cleanPattern, matchType: "regex", hasFlags: true };
   }
-  
+
   // Check for /pattern/flags format
   const slashMatch = text.match(/^\/(.+?)\/([gimuy]*)$/);
   if (slashMatch) {
     const [, pattern, flags] = slashMatch;
-    const hasIFlag = flags.includes('i');
+    const hasIFlag = flags.includes("i");
     const cleanPattern = hasIFlag ? `(?i)${pattern}` : pattern;
     return { pattern: cleanPattern, matchType: "regex", hasFlags: true };
   }
-  
+
   // Check if it looks like a regex pattern (contains regex special chars)
   const regexChars = /[.*+?^${}()|[\]\\]/;
   if (regexChars.test(text)) {
     return { pattern: text, matchType: "regex", hasFlags: false };
   }
-  
+
   // Default: treat as literal text
   return { pattern: text, matchType: "contains", hasFlags: false };
 };
@@ -181,11 +201,31 @@ const buildPageTitleExpansionOptions = (
 
   // Check what expansions haven't been applied yet
   const availableExpansions = [
-    { key: "fuzzy", label: "🔍 Fuzzy matching (typos, morphological variations)", strategy: "fuzzy" },
-    { key: "synonyms", label: "📝 Synonyms and alternative terms", strategy: "synonyms" },
-    { key: "related", label: "🧠 Related concepts and associated terms", strategy: "related_concepts" },
-    { key: "broader", label: "🌐 Broader terms and categories", strategy: "broader_terms" },
-    { key: "all", label: "⚡ All at once (complete semantic expansion)", strategy: "all" }
+    {
+      key: "fuzzy",
+      label: "🔍 Fuzzy matching (typos, morphological variations)",
+      strategy: "fuzzy",
+    },
+    {
+      key: "synonyms",
+      label: "📝 Synonyms and alternative terms",
+      strategy: "synonyms",
+    },
+    {
+      key: "related",
+      label: "🧠 Related concepts and associated terms",
+      strategy: "related_concepts",
+    },
+    {
+      key: "broader",
+      label: "🌐 Broader terms and categories",
+      strategy: "broader_terms",
+    },
+    {
+      key: "all",
+      label: "⚡ All at once (complete semantic expansion)",
+      strategy: "all",
+    },
   ];
 
   for (const expansion of availableExpansions) {
@@ -218,26 +258,33 @@ const performCompleteExpansion = async (
   userLanguage?: string,
   userQuery?: string,
   includeDaily: boolean = false
-): Promise<{ conditions: any[], level: number, totalFound: number }> => {
-  console.log(`🤖 [Complete] Starting complete expansion for "${pageTitle}" (${matchType})`);
-  
+): Promise<{ conditions: any[]; level: number; totalFound: number }> => {
+  console.log(
+    `🤖 [Complete] Starting complete expansion for "${pageTitle}" (${matchType})`
+  );
+
   try {
     // Use "all" strategy to get comprehensive results
     const mode = matchType === "exact" ? "page_ref" : "text";
     const allVariations = await generateSemanticExpansions(
       pageTitle,
       "all", // This runs fuzzy -> synonyms -> related_concepts -> broader_terms
-      userQuery || instruction || `Find pages with complete expansion of "${pageTitle}"`,
+      userQuery ||
+        instruction ||
+        `Find pages with complete expansion of "${pageTitle}"`,
       modelInfo,
       userLanguage,
       undefined,
       mode
     );
-    
-    console.log(`🤖 [Complete] Generated ${allVariations.length} variations from all strategies:`, allVariations);
-    
+
+    console.log(
+      `🤖 [Complete] Generated ${allVariations.length} variations from all strategies:`,
+      allVariations
+    );
+
     let finalConditions: any[];
-    
+
     if (matchType === "exact") {
       // For exact: create semantic page conditions
       finalConditions = [
@@ -246,45 +293,54 @@ const performCompleteExpansion = async (
           text: term,
           matchType: "exact" as const,
           isSemanticPage: true,
-          expansionLevel: Math.floor(index / 5) + 1 // Group variations by level
-        }))
+          expansionLevel: Math.floor(index / 5) + 1, // Group variations by level
+        })),
       ];
     } else {
       // For contains/regex: create composite regex with all variations
       const regexParts = [];
-      
+
       // Add original page title (needs escaping since it's literal text)
-      const escapedPageTitle = pageTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+      const escapedPageTitle = pageTitle.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\\\$&"
+      );
       regexParts.push(`.*${escapedPageTitle}.*`);
-      
+
       // Add variations (already regex patterns from mode="text", don't escape)
-      allVariations.forEach(variation => {
+      allVariations.forEach((variation) => {
         // Variations from mode="text" are already regex patterns, just wrap with .*
         regexParts.push(`.*${variation}.*`);
       });
-      
+
       const compositeRegex = `(?i)(${regexParts.join("|")})`;
-      
-      finalConditions = [{
-        text: compositeRegex,
-        matchType: "regex" as const,
-        expansionLevel: 4 // Highest level since it includes all strategies
-      }];
+
+      finalConditions = [
+        {
+          text: compositeRegex,
+          matchType: "regex" as const,
+          expansionLevel: 4, // Highest level since it includes all strategies
+        },
+      ];
     }
-    
+
     // Test final results
-    const totalFound = await testConditionsExistence(finalConditions, includeDaily);
-    console.log(`🤖 [Complete] Complete expansion found ${totalFound} pages with ${allVariations.length} variations`);
-    
+    const totalFound = await testConditionsExistence(
+      finalConditions,
+      includeDaily
+    );
+    console.log(
+      `🤖 [Complete] Complete expansion found ${totalFound} pages with ${allVariations.length} variations`
+    );
+
     return { conditions: finalConditions, level: 4, totalFound };
-    
   } catch (error) {
     console.warn(`🤖 [Complete] Complete expansion failed:`, error);
     // Fallback to original
-    return { 
-      conditions: [{ text: pageTitle, matchType, expansionLevel: 0 }], 
-      level: 0, 
-      totalFound: 0 
+    return {
+      conditions: [{ text: pageTitle, matchType, expansionLevel: 0 }],
+      level: 0,
+      totalFound: 0,
     };
   }
 };
@@ -301,104 +357,127 @@ const performProgressiveExpansion = async (
   userLanguage?: string,
   userQuery?: string,
   includeDaily: boolean = false
-): Promise<{ conditions: any[], level: number, totalFound: number }> => {
-  console.log(`🤖 [Progressive] Starting progressive expansion for "${pageTitle}" (${matchType})`);
-  
+): Promise<{ conditions: any[]; level: number; totalFound: number }> => {
+  console.log(
+    `🤖 [Progressive] Starting progressive expansion for "${pageTitle}" (${matchType})`
+  );
+
   // Define expansion levels to test progressively
   const expansionLevels = [
     { strategy: "fuzzy", label: "fuzzy variations" },
     { strategy: "synonyms", label: "synonyms" },
     { strategy: "related_concepts", label: "related concepts" },
-    { strategy: "broader_terms", label: "broader terms" }
+    { strategy: "broader_terms", label: "broader terms" },
   ] as const;
-  
+
   let bestConditions: any[] = [];
   let bestLevel = 0;
   let bestCount = 0;
-  
+
   // Test each expansion level
   for (let level = 0; level < expansionLevels.length; level++) {
     const { strategy, label } = expansionLevels[level];
-    
+
     console.log(`🤖 [Progressive] Testing level ${level + 1}: ${label}`);
-    
+
     try {
       // Generate variations for this level
       const mode = matchType === "exact" ? "page_ref" : "text";
       const variations = await generateSemanticExpansions(
         pageTitle,
         strategy,
-        userQuery || instruction || `Find pages with ${label} of "${pageTitle}"`,
+        userQuery ||
+          instruction ||
+          `Find pages with ${label} of "${pageTitle}"`,
         modelInfo,
         userLanguage,
         undefined,
         mode
       );
-      
-      console.log(`🤖 [Progressive] Generated ${variations.length} ${label}:`, variations);
-      
+
+      console.log(
+        `🤖 [Progressive] Generated ${variations.length} ${label}:`,
+        variations
+      );
+
       // Create test conditions
       let testConditions: any[];
-      
+
       if (matchType === "exact") {
         // For exact: create semantic page conditions
         testConditions = [
           { text: pageTitle, matchType: "exact", isSemanticPage: false },
-          ...variations.map(term => ({
+          ...variations.map((term) => ({
             text: term,
             matchType: "exact" as const,
             isSemanticPage: true,
-            expansionLevel: level + 1
-          }))
+            expansionLevel: level + 1,
+          })),
         ];
       } else {
         // For contains/regex: create composite regex
         const allTerms = [pageTitle, ...variations];
-        const regexParts = allTerms.map(term => {
+        const regexParts = allTerms.map((term) => {
           const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
           return `.*${escapedTerm}.*`;
         });
         const compositeRegex = `(?i)(${regexParts.join("|")})`;
-        
-        testConditions = [{
-          text: compositeRegex,
-          matchType: "regex" as const,
-          expansionLevel: level + 1
-        }];
+
+        testConditions = [
+          {
+            text: compositeRegex,
+            matchType: "regex" as const,
+            expansionLevel: level + 1,
+          },
+        ];
       }
-      
+
       // Test existence by running a quick query
-      const testCount = await testConditionsExistence(testConditions, includeDaily);
-      console.log(`🤖 [Progressive] Level ${level + 1} found ${testCount} pages`);
-      
+      const testCount = await testConditionsExistence(
+        testConditions,
+        includeDaily
+      );
+      console.log(
+        `🤖 [Progressive] Level ${level + 1} found ${testCount} pages`
+      );
+
       // Update best result if this level found more pages
       if (testCount > bestCount) {
         bestConditions = testConditions;
         bestLevel = level + 1;
         bestCount = testCount;
       }
-      
+
       // If we found a good number of results, we can stop (configurable threshold)
       if (testCount >= 3) {
-        console.log(`🤖 [Progressive] Found sufficient results (${testCount}) at level ${level + 1}, stopping`);
+        console.log(
+          `🤖 [Progressive] Found sufficient results (${testCount}) at level ${
+            level + 1
+          }, stopping`
+        );
         break;
       }
-      
     } catch (error) {
       console.warn(`🤖 [Progressive] Level ${level + 1} failed:`, error);
       continue;
     }
   }
-  
+
   // If no expansion found results, use original
   if (bestCount === 0) {
     console.log(`🤖 [Progressive] No expansions found results, using original`);
     bestConditions = [{ text: pageTitle, matchType, expansionLevel: 0 }];
     bestLevel = 0;
   }
-  
-  console.log(`🤖 [Progressive] Best result: level ${bestLevel} with ${bestCount} pages`);
-  return { conditions: bestConditions, level: bestLevel, totalFound: bestCount };
+
+  console.log(
+    `🤖 [Progressive] Best result: level ${bestLevel} with ${bestCount} pages`
+  );
+  return {
+    conditions: bestConditions,
+    level: bestLevel,
+    totalFound: bestCount,
+  };
 };
 
 /**
@@ -410,38 +489,41 @@ const testConditionsExistence = async (
 ): Promise<number> => {
   try {
     // Separate semantic pages from regular conditions
-    const semanticPages = conditions.filter(c => c.isSemanticPage);
-    const regularConditions = conditions.filter(c => !c.isSemanticPage);
-    
+    const semanticPages = conditions.filter((c) => c.isSemanticPage);
+    const regularConditions = conditions.filter((c) => !c.isSemanticPage);
+
     let totalCount = 0;
-    
+
     // Test semantic pages with exact matching
     if (semanticPages.length > 0) {
-      const semanticTitles = semanticPages.map(c => c.text);
+      const semanticTitles = semanticPages.map((c) => c.text);
       const testQuery = `[:find (count ?page)
                          :where 
                          [?page :node/title ?title]
                          [(contains? #{${semanticTitles
-                           .map(t => `"${t.replace(/"/g, '\\"')}"`)
+                           .map((t) => `"${t.replace(/"/g, '\\"')}"`)
                            .join(" ")}} ?title)]${
         !includeDaily
           ? `
                          [?page :block/uid ?uid]
-                         [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?dnp-pattern]
+                         [(re-pattern "${dnpUidRegex.source.slice(
+                           1,
+                           -1
+                         )}") ?dnp-pattern]
                          (not [(re-find ?dnp-pattern ?uid)])`
           : ""
       }]`;
-      
+
       const semanticResults = await executeDatomicQuery(testQuery);
       totalCount += semanticResults[0]?.[0] || 0;
     }
-    
+
     // Test regular conditions
     for (const condition of regularConditions) {
       const count = await testSingleConditionExistence(condition, includeDaily);
       totalCount += count;
     }
-    
+
     return totalCount;
   } catch (error) {
     console.warn("Failed to test conditions existence:", error);
@@ -460,7 +542,7 @@ const testSingleConditionExistence = async (
     let testQuery = `[:find (count ?page)
                      :where 
                      [?page :node/title ?title]`;
-    
+
     // Add title filtering based on match type
     switch (condition.matchType) {
       case "exact":
@@ -468,7 +550,7 @@ const testSingleConditionExistence = async (
         break;
       case "regex":
         // Check if the regex already has case-insensitive flag and double-escape
-        const testRegexPattern = condition.text.startsWith("(?i)") 
+        const testRegexPattern = condition.text.startsWith("(?i)")
           ? condition.text.replace(/\\/g, "\\\\") // Double-escape for Datomic
           : `(?i)${condition.text.replace(/\\/g, "\\\\")}`;
         testQuery += `\n                     [(re-pattern "${testRegexPattern}") ?pattern]
@@ -476,21 +558,27 @@ const testSingleConditionExistence = async (
         break;
       case "contains":
       default:
-        const cleanText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+        const cleanText = condition.text.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\\\$&"
+        );
         testQuery += `\n                     [(re-pattern "(?i).*${cleanText}.*") ?pattern]
                      [(re-find ?pattern ?title)]`;
         break;
     }
-    
+
     // Add DNP filtering if needed
     if (!includeDaily) {
       testQuery += `\n                     [?page :block/uid ?uid]
-                     [(re-pattern "${dnpUidRegex.source.slice(1, -1)}") ?dnp-pattern]
+                     [(re-pattern "${dnpUidRegex.source.slice(
+                       1,
+                       -1
+                     )}") ?dnp-pattern]
                      (not [(re-find ?dnp-pattern ?uid)])`;
     }
-    
+
     testQuery += `]`;
-    
+
     const results = await executeDatomicQuery(testQuery);
     return results[0]?.[0] || 0;
   } catch (error) {
@@ -498,8 +586,6 @@ const testSingleConditionExistence = async (
     return 0;
   }
 };
-
-
 
 /**
  * Execute efficient Datomic query for a single page title condition
@@ -523,7 +609,7 @@ const executePageTitleQuery = async (
 
     case "regex":
       // Check if the regex already has case-insensitive flag
-      const regexPattern = condition.text.startsWith("(?i)") 
+      const regexPattern = condition.text.startsWith("(?i)")
         ? condition.text.replace(/\\/g, "\\\\") // Double-escape for Datomic
         : `(?i)${condition.text.replace(/\\/g, "\\\\")}`;
       query += `\n                [(re-pattern "${regexPattern}") ?pattern]
@@ -532,7 +618,7 @@ const executePageTitleQuery = async (
 
     case "contains":
     default:
-      // Use case-insensitive contains  
+      // Use case-insensitive contains
       query += `\n                [(re-pattern "(?i).*${condition.text.replace(
         /[.*+?^${}()|[\]\\]/g,
         "\\\\$&"
@@ -581,47 +667,58 @@ const findPagesByTitleImpl = async (
 
   // Parse suffix operators (* for fuzzy, ~ for semantic) and generate expansions directly
   let processedConditions: any[] = [];
-  
+
   for (const condition of conditions) {
     // First check if the condition has an explicit semanticExpansion from IntentParser
     const intentParserExpansion = condition.semanticExpansion;
-    
-    const { cleanText, expansionType: suffixExpansionType } = parseSemanticExpansion(
-      condition.text,
-      state?.globalSemanticExpansion || "synonyms"
-    );
-    
+
+    const { cleanText, expansionType: suffixExpansionType } =
+      parseSemanticExpansion(
+        condition.text,
+        state?.globalSemanticExpansion || "synonyms"
+      );
+
     // Priority: explicit condition.semanticExpansion > suffix operator > global setting
     const expansionType = intentParserExpansion || suffixExpansionType;
-    
+
     // Debug log to show expansion type selection
     if (expansionType && intentParserExpansion) {
-      console.log(`🎯 [TitleTool] Using IntentParser expansion: "${expansionType}" for "${cleanText}"`);
+      console.log(
+        `🎯 [TitleTool] Using IntentParser expansion: "${expansionType}" for "${cleanText}"`
+      );
     } else if (expansionType && suffixExpansionType) {
-      console.log(`🎯 [TitleTool] Using suffix operator expansion: "${expansionType}" for "${cleanText}"`);
+      console.log(
+        `🎯 [TitleTool] Using suffix operator expansion: "${expansionType}" for "${cleanText}"`
+      );
     }
-    
+
     if (expansionType === "fuzzy") {
-      console.log(`🔍 [TitleTool] Fuzzy expansion requested for: "${cleanText}"`);
-      
+      console.log(
+        `🔍 [TitleTool] Fuzzy expansion requested for: "${cleanText}"`
+      );
+
       if (condition.matchType === "exact") {
         // For exact matches: use sophisticated pattern with page_ref mode (existing logic)
         try {
           const fuzzyTerms = await generateSemanticExpansions(
             cleanText,
             "fuzzy",
-            state?.userQuery || `Find pages with fuzzy variations of "${cleanText}"`,
+            state?.userQuery ||
+              `Find pages with fuzzy variations of "${cleanText}"`,
             state?.modelInfo,
             state?.language,
             undefined,
             "page_ref"
           );
-          
-          console.log(`🔍 [TitleTool] Generated ${fuzzyTerms.length} fuzzy variations for exact match:`, fuzzyTerms);
-          
+
+          console.log(
+            `🔍 [TitleTool] Generated ${fuzzyTerms.length} fuzzy variations for exact match:`,
+            fuzzyTerms
+          );
+
           // Add original condition plus fuzzy variations as semantic pages (exact matching)
           processedConditions.push({ ...condition, text: cleanText });
-          fuzzyTerms.forEach(term => {
+          fuzzyTerms.forEach((term) => {
             processedConditions.push({
               ...condition,
               text: term,
@@ -631,7 +728,10 @@ const findPagesByTitleImpl = async (
             });
           });
         } catch (error) {
-          console.warn(`Failed to generate fuzzy terms for "${cleanText}":`, error);
+          console.warn(
+            `Failed to generate fuzzy terms for "${cleanText}":`,
+            error
+          );
           processedConditions.push({ ...condition, text: cleanText });
         }
       } else {
@@ -640,32 +740,42 @@ const findPagesByTitleImpl = async (
           const fuzzyTerms = await generateSemanticExpansions(
             cleanText,
             "fuzzy",
-            state?.userQuery || `Find pages with fuzzy variations of "${cleanText}"`,
+            state?.userQuery ||
+              `Find pages with fuzzy variations of "${cleanText}"`,
             state?.modelInfo,
             state?.language,
             undefined,
             "text" // Use text mode for regex patterns
           );
-          
-          console.log(`🔍 [TitleTool] Generated ${fuzzyTerms.length} fuzzy regex variations:`, fuzzyTerms);
-          
+
+          console.log(
+            `🔍 [TitleTool] Generated ${fuzzyTerms.length} fuzzy regex variations:`,
+            fuzzyTerms
+          );
+
           // Create composite regex pattern: (.*original.*|.*variation1.*|.*variation2.*)
           const regexParts = [];
-          
+
           // Add original text (needs escaping since it's literal text)
-          const escapedCleanText = cleanText.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+          const escapedCleanText = cleanText.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\\\$&"
+          );
           regexParts.push(`.*${escapedCleanText}.*`);
-          
+
           // Add fuzzy variations (already regex patterns from mode="text", don't escape)
-          fuzzyTerms.forEach(term => {
+          fuzzyTerms.forEach((term) => {
             // Variations from mode="text" are already regex patterns, just wrap with .*
             regexParts.push(`.*${term}.*`);
           });
-          
+
           const compositeRegex = `(?i)(${regexParts.join("|")})`;
-          
-          console.log(`🔍 [TitleTool] Created composite fuzzy regex:`, compositeRegex);
-          
+
+          console.log(
+            `🔍 [TitleTool] Created composite fuzzy regex:`,
+            compositeRegex
+          );
+
           // Add single condition with composite regex
           processedConditions.push({
             ...condition,
@@ -674,56 +784,76 @@ const findPagesByTitleImpl = async (
             expansionLevel: 1,
           });
         } catch (error) {
-          console.warn(`Failed to generate fuzzy terms for "${cleanText}":`, error);
+          console.warn(
+            `Failed to generate fuzzy terms for "${cleanText}":`,
+            error
+          );
           processedConditions.push({ ...condition, text: cleanText });
         }
       }
-      
     } else if (expansionType === "all") {
-      console.log(`🔍 [TitleTool] Complete expansion requested for: "${cleanText}"`);
-      
+      console.log(
+        `🔍 [TitleTool] Complete expansion requested for: "${cleanText}"`
+      );
+
       // Use complete expansion that runs all strategies without early stopping
       try {
         const completeResult = await performCompleteExpansion(
           cleanText,
           condition.matchType,
-          state?.userQuery || `Find pages with complete expansion of "${cleanText}"`,
+          state?.userQuery ||
+            `Find pages with complete expansion of "${cleanText}"`,
           state?.modelInfo,
           state?.language,
           state?.userQuery,
           includeDaily
         );
-        
+
         // Add all conditions from complete expansion
         processedConditions.push(...completeResult.conditions);
-        
-        console.log(`🔍 [TitleTool] Complete expansion added ${completeResult.conditions.length} conditions with ${completeResult.totalFound} potential pages`);
+
+        console.log(
+          `🔍 [TitleTool] Complete expansion added ${completeResult.conditions.length} conditions with ${completeResult.totalFound} potential pages`
+        );
       } catch (error) {
-        console.warn(`Failed to generate complete expansion for "${cleanText}":`, error);
+        console.warn(
+          `Failed to generate complete expansion for "${cleanText}":`,
+          error
+        );
         processedConditions.push({ ...condition, text: cleanText });
       }
-      
     } else if (expansionType && expansionType !== "fuzzy") {
-      console.log(`🔍 [TitleTool] Semantic expansion requested for: "${cleanText}" (${expansionType})`);
-      
+      console.log(
+        `🔍 [TitleTool] Semantic expansion requested for: "${cleanText}" (${expansionType})`
+      );
+
       if (condition.matchType === "exact") {
         // For exact matches: use sophisticated pattern with page_ref mode (existing logic)
         try {
           const semanticTerms = await generateSemanticExpansions(
             cleanText,
-            expansionType as "synonyms" | "related_concepts" | "broader_terms" | "custom" | "all",
-            state?.userQuery || `Find pages with ${expansionType} variations of "${cleanText}"`,
+            expansionType as
+              | "synonyms"
+              | "related_concepts"
+              | "broader_terms"
+              | "custom"
+              | "all",
+            state?.userQuery ||
+              `Find pages with ${expansionType} variations of "${cleanText}"`,
             state?.modelInfo,
             state?.language,
             undefined,
             "page_ref"
           );
-          
-          console.log(`🔍 [TitleTool] Generated ${semanticTerms.length} ${expansionType} variations for exact match:`, semanticTerms);
-          
+
+          console.log(
+            `🔍 [TitleTool] Generated ${semanticTerms.length} ${expansionType} variations for exact match:`,
+            semanticTerms
+          );
+
           // Add original condition plus semantic variations as semantic pages (exact matching)
           processedConditions.push({ ...condition, text: cleanText });
-          semanticTerms.forEach(term => {
+          semanticTerms.forEach((term) => {
             processedConditions.push({
               ...condition,
               text: term,
@@ -733,7 +863,10 @@ const findPagesByTitleImpl = async (
             });
           });
         } catch (error) {
-          console.warn(`Failed to generate ${expansionType} terms for "${cleanText}":`, error);
+          console.warn(
+            `Failed to generate ${expansionType} terms for "${cleanText}":`,
+            error
+          );
           processedConditions.push({ ...condition, text: cleanText });
         }
       } else {
@@ -741,32 +874,47 @@ const findPagesByTitleImpl = async (
         try {
           const semanticTerms = await generateSemanticExpansions(
             cleanText,
-            expansionType as "synonyms" | "related_concepts" | "broader_terms" | "custom" | "all",
-            state?.userQuery || `Find pages with ${expansionType} variations of "${cleanText}"`,
+            expansionType as
+              | "synonyms"
+              | "related_concepts"
+              | "broader_terms"
+              | "custom"
+              | "all",
+            state?.userQuery ||
+              `Find pages with ${expansionType} variations of "${cleanText}"`,
             state?.modelInfo,
             state?.language,
             undefined,
             "text" // Use text mode for regex patterns
           );
-          
-          console.log(`🔍 [TitleTool] Generated ${semanticTerms.length} ${expansionType} regex variations:`, semanticTerms);
-          
+
+          console.log(
+            `🔍 [TitleTool] Generated ${semanticTerms.length} ${expansionType} regex variations:`,
+            semanticTerms
+          );
+
           // Create composite regex pattern: (.*original.*|.*variation1.*|.*variation2.*)
           const regexParts = [];
-          
+
           // Add original text (needs escaping since it's literal text)
-          const escapedCleanText = cleanText.replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
+          const escapedCleanText = cleanText.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\\\$&"
+          );
           regexParts.push(`.*${escapedCleanText}.*`);
-          
+
           // Add semantic variations (already regex patterns from mode="text", don't escape)
-          semanticTerms.forEach(term => {
+          semanticTerms.forEach((term) => {
             // Variations from mode="text" are already regex patterns, just wrap with .*
             regexParts.push(`.*${term}.*`);
           });
           const compositeRegex = `(?i)(${regexParts.join("|")})`;
-          
-          console.log(`🔍 [TitleTool] Created composite ${expansionType} regex:`, compositeRegex);
-          
+
+          console.log(
+            `🔍 [TitleTool] Created composite ${expansionType} regex:`,
+            compositeRegex
+          );
+
           // Add single condition with composite regex
           processedConditions.push({
             ...condition,
@@ -775,11 +923,13 @@ const findPagesByTitleImpl = async (
             expansionLevel: 1,
           });
         } catch (error) {
-          console.warn(`Failed to generate ${expansionType} terms for "${cleanText}":`, error);
+          console.warn(
+            `Failed to generate ${expansionType} terms for "${cleanText}":`,
+            error
+          );
           processedConditions.push({ ...condition, text: cleanText });
         }
       }
-      
     } else {
       // No expansion operator - use original condition
       processedConditions.push({ ...condition, text: cleanText });
@@ -788,14 +938,18 @@ const findPagesByTitleImpl = async (
 
   // Check if we already processed expansions via suffix operators
   const hasOperatorExpansions = processedConditions.length > conditions.length;
-  console.log(`🔍 [TitleTool] Processed ${processedConditions.length} conditions from ${conditions.length} original (hasOperatorExpansions: ${hasOperatorExpansions})`);
-  
+  console.log(
+    `🔍 [TitleTool] Processed ${processedConditions.length} conditions from ${conditions.length} original (hasOperatorExpansions: ${hasOperatorExpansions})`
+  );
+
   // Handle smart expansion for conditions without suffix operators, or if explicitly enabled
   let expandedConditions = [...processedConditions];
 
   if ((smartExpansion || state?.automaticExpansion) && !hasOperatorExpansions) {
-    console.log(`🤖 [TitleTool] Running progressive expansion for conditions without suffix operators`);
-    
+    console.log(
+      `🤖 [TitleTool] Running progressive expansion for conditions without suffix operators`
+    );
+
     for (const condition of processedConditions) {
       if (
         condition.matchType === "contains" ||
@@ -804,7 +958,8 @@ const findPagesByTitleImpl = async (
         const progressiveResult = await performProgressiveExpansion(
           condition.text,
           condition.matchType,
-          expansionInstruction || `Find pages with progressive expansion of "${condition.text}"`,
+          expansionInstruction ||
+            `Find pages with progressive expansion of "${condition.text}"`,
           state?.modelInfo,
           state?.language,
           state?.userQuery,
@@ -814,8 +969,10 @@ const findPagesByTitleImpl = async (
         // Replace original condition with progressive expansion results
         expandedConditions = expandedConditions.filter((c) => c !== condition);
         expandedConditions.push(...progressiveResult.conditions);
-        
-        console.log(`🤖 [TitleTool] Progressive expansion found ${progressiveResult.totalFound} pages at level ${progressiveResult.level}`);
+
+        console.log(
+          `🤖 [TitleTool] Progressive expansion found ${progressiveResult.totalFound} pages at level ${progressiveResult.level}`
+        );
       }
     }
   }
@@ -1019,7 +1176,11 @@ const findPagesByTitleImpl = async (
           : dateRange.end,
     };
     const filterMode = dateRange.filterMode || "modified";
-    structuredResults = filterByDateRange(structuredResults, parsedDateRange, filterMode);
+    structuredResults = filterByDateRange(
+      structuredResults,
+      parsedDateRange,
+      filterMode
+    );
   }
 
   // Sort by relevance score first, then by modification time
@@ -1038,18 +1199,21 @@ const findPagesByTitleImpl = async (
 
   // Track applied expansions for expansion options
   const appliedExpansions: string[] = [];
-  
+
   // Track expansions that were actually executed in this query
-  processedConditions.forEach(condition => {
+  processedConditions.forEach((condition) => {
     if (condition.expansionLevel && condition.expansionLevel > 0) {
       // This condition was expanded, check what type
       if (condition.isSemanticPage) {
         // This is a semantic page from exact matching expansion
         appliedExpansions.push("exact_semantic");
-      } else if (condition.matchType === "regex" && condition.text.includes("(?i)(")) {
+      } else if (
+        condition.matchType === "regex" &&
+        condition.text.includes("(?i)(")
+      ) {
         // This is a composite regex from fuzzy/semantic expansion
         // Try to determine which type based on the condition context
-        const originalCondition = conditions.find(c => 
+        const originalCondition = conditions.find((c) =>
           condition.text.includes(c.text.replace(/[.*+?^${}()|[\]\\*~]/g, ""))
         );
         if (originalCondition) {
@@ -1064,28 +1228,32 @@ const findPagesByTitleImpl = async (
       }
     }
   });
-  
+
   // Track IntentParser or state-based expansions
   if (state?.semanticExpansion && state?.isExpansionGlobal) {
     if (!appliedExpansions.includes(state.semanticExpansion)) {
       appliedExpansions.push(state.semanticExpansion);
     }
   }
-  
+
   // Check if we used smart/automatic expansion without specific operators
-  if ((smartExpansion || state?.automaticExpansion) && !hasOperatorExpansions && processedConditions.some(c => c.expansionLevel > 0)) {
+  if (
+    (smartExpansion || state?.automaticExpansion) &&
+    !hasOperatorExpansions &&
+    processedConditions.some((c) => c.expansionLevel > 0)
+  ) {
     appliedExpansions.push("progressive_expansion");
   }
-  
+
   console.log(`🎯 [TitleTool] Applied expansions tracked:`, appliedExpansions);
-  
+
   // Store expansion metadata for tool result
   const expansionMetadata = {
     appliedExpansions,
     hasResults: structuredResults.length > 0,
     automaticExpansionEnabled: !!state?.automaticExpansion,
     wasLimited,
-    totalFound: structuredResults.length + (wasLimited ? (limit || 100) : 0)
+    totalFound: structuredResults.length + (wasLimited ? limit || 100 : 0),
   };
 
   return { results: structuredResults, metadata: expansionMetadata };
@@ -1111,36 +1279,47 @@ export const findPagesByTitleTool = tool(
 
       // Extract state from config
       const state = config?.configurable?.state;
-      
+
       // Inject dateRange from agent state
       enrichedInput.dateRange = state?.searchDetails?.timeRange;
-      
+
       // Enrich conditions with IntentParser semantic expansion if available
       if (state?.semanticExpansion && state?.isExpansionGlobal) {
-        enrichedInput.conditions = enrichedInput.conditions.map((cond: any) => ({
-          ...cond,
-          // Only add semanticExpansion if not already specified
-          semanticExpansion: cond.semanticExpansion || state.semanticExpansion,
-        }));
-        console.log(`🎯 [TitleTool] Enriched conditions with IntentParser semanticExpansion: "${state.semanticExpansion}"`);
+        enrichedInput.conditions = enrichedInput.conditions.map(
+          (cond: any) => ({
+            ...cond,
+            // Only add semanticExpansion if not already specified
+            semanticExpansion:
+              cond.semanticExpansion || state.semanticExpansion,
+          })
+        );
+        console.log(
+          `🎯 [TitleTool] Enriched conditions with IntentParser semanticExpansion: "${state.semanticExpansion}"`
+        );
       }
-      
-      const { results, metadata } = await findPagesByTitleImpl(enrichedInput, state);
-      
+
+      const { results, metadata } = await findPagesByTitleImpl(
+        enrichedInput,
+        state
+      );
+
       // Generate expansion options if needed
       const expansionOptions = buildPageTitleExpansionOptions(
         metadata.appliedExpansions,
         metadata.hasResults,
         metadata.automaticExpansionEnabled
       );
-      
+
       // Add expansion options to metadata if results are sparse
       const enhancedMetadata = {
         ...metadata,
-        expansionOptions: metadata.hasResults && results.length >= 3 ? undefined : expansionOptions,
-        showExpansionButton: !metadata.hasResults || results.length < 3
+        expansionOptions:
+          metadata.hasResults && results.length >= 3
+            ? undefined
+            : expansionOptions,
+        showExpansionButton: !metadata.hasResults || results.length < 3,
       };
-      
+
       return createToolResult(
         true,
         results,

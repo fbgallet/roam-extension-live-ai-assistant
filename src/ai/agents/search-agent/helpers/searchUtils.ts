@@ -2,8 +2,8 @@ import { dnpUidRegex } from "../../../../utils/regex.js";
 import { normalizePageTitle } from "../../../../utils/roamAPI.js";
 import { modelViaLanggraph } from "../../langraphModelsLoader";
 import { HumanMessage } from "@langchain/core/messages";
-import { modelAccordingToProvider } from "../../../aiAPIsHub";
-import { defaultModel } from "../../../..";
+import { modelAccordingToProvider } from "../../../aiAPIsHub.js";
+import { defaultModel } from "../../../../index.js";
 
 // Extend Window interface for TypeScript
 declare global {
@@ -586,8 +586,10 @@ If relevant for some variation, you can use regex patterns to match most common 
 If some variations have distinct morphological variaton (plural, verbal...), generate also the most common with simple text only (no regex patterns):
 - Examples: For "analyze" → analysis, analyzing, analyzer`;
 
-    const strategyText = isAllStrategy ? ` for ${currentStrategy} expansion` : "";
-    const originalTermText = isAllStrategy 
+    const strategyText = isAllStrategy
+      ? ` for ${currentStrategy} expansion`
+      : "";
+    const originalTermText = isAllStrategy
       ? `- Do NOT include the original term "${text}" or any previously found variations`
       : `- Prioritize terms that would help find related content in a knowledge base`;
 
@@ -1090,9 +1092,9 @@ Generate pattern for "${text}":`;
  * Enhanced to use actual timestamps instead of just DNP UIDs
  */
 export const filterByDateRange = <
-  T extends { 
-    uid?: string; 
-    pageUid?: string; 
+  T extends {
+    uid?: string;
+    pageUid?: string;
     isDaily?: boolean;
     created?: Date;
     modified?: Date;
@@ -1117,16 +1119,16 @@ export const filterByDateRange = <
       case "created":
         targetDate = result.created || null;
         break;
-      
+
       case "modified":
         targetDate = result.modified || null;
         break;
-        
+
       case "either":
         // Use modification date if available, fall back to creation date
         targetDate = result.modified || result.created || null;
         break;
-        
+
       case "dnp_only":
         // Legacy behavior - only filter DNPs by UID parsing
         if (!isDaily) return true;
@@ -1136,13 +1138,17 @@ export const filterByDateRange = <
 
     // If no target date found and it's not DNP-only mode, keep the result
     if (!targetDate && filterMode !== "dnp_only") {
-      console.debug(`🗓️ No ${filterMode} date found for UID ${uid}, keeping result`);
+      console.debug(
+        `🗓️ No ${filterMode} date found for UID ${uid}, keeping result`
+      );
       return true;
     }
 
     // If still no date found, keep the result (conservative approach)
     if (!targetDate) {
-      console.debug(`🗓️ No date found for filtering UID ${uid}, keeping result`);
+      console.debug(
+        `🗓️ No date found for filtering UID ${uid}, keeping result`
+      );
       return true;
     }
 
@@ -1150,13 +1156,13 @@ export const filterByDateRange = <
       const isInRange =
         (!dateRange.start || targetDate >= dateRange.start) &&
         (!dateRange.end || targetDate <= dateRange.end);
-      
+
       if (!isInRange) {
         // Item filtered out by date range
       } else {
         filteredCount++;
       }
-      
+
       return isInRange;
     } catch (error) {
       console.warn("🗓️ Error filtering by date range for UID:", uid, error);
@@ -1164,8 +1170,10 @@ export const filterByDateRange = <
     }
   });
 
-  console.log(`🗓️ Date filtering complete: ${filteredResults.length}/${results.length} results kept (${filteredCount} in range)`);
-  
+  console.log(
+    `🗓️ Date filtering complete: ${filteredResults.length}/${results.length} results kept (${filteredCount} in range)`
+  );
+
   return filteredResults;
 };
 
@@ -1236,7 +1244,6 @@ export const deduplicateResultsByUid = (
     if (!uid) return true; // Keep items without UIDs
 
     if (seenUids.has(uid)) {
-      console.log(`🔄 [${debugContext}] Deduplicating duplicate UID: ${uid}`);
       return false; // Skip duplicate
     }
 
@@ -1317,10 +1324,10 @@ export const getHierarchyExpansionConfig = (resultCount: number) => {
   if (resultCount < 10) {
     return {
       includeParents: true,
-      includeChildren: true, 
+      includeChildren: true,
       maxDepth: 3, // parent + 2 levels children
       truncateLength: 250, // Limit context blocks to 250 chars
-      expandContext: true
+      expandContext: true,
     };
   } else if (resultCount <= 50) {
     return {
@@ -1328,14 +1335,15 @@ export const getHierarchyExpansionConfig = (resultCount: number) => {
       includeChildren: true,
       maxDepth: 1, // Only first level children
       truncateLength: 200,
-      expandContext: true
+      expandContext: true,
     };
-  } else { // > 50
+  } else {
+    // > 50
     return {
       includeParents: false,
       includeChildren: false,
       maxDepth: 0,
-      expandContext: false // No expansion - too many results
+      expandContext: false, // No expansion - too many results
     };
   }
 };
@@ -1343,33 +1351,44 @@ export const getHierarchyExpansionConfig = (resultCount: number) => {
 /**
  * Determine if balanced mode should expand context for given results
  */
-export const shouldExpandContextInBalanced = (results: any[], userQuery: string): boolean => {
-  const resultCount = results.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+export const shouldExpandContextInBalanced = (
+  results: any[],
+  userQuery: string
+): boolean => {
+  const resultCount = results.reduce(
+    (sum, r) => sum + (r.data?.length || 0),
+    0
+  );
   const config = getHierarchyExpansionConfig(resultCount);
-  
+
   if (!config.expandContext) return false;
-  
-  const allBlocks = results.flatMap(r => r.data || []);
-  
+
+  const allBlocks = results.flatMap((r) => r.data || []);
+
   // Triggers for context expansion
-  const hasShortContent = allBlocks.some(b => 
-    b.content && b.content.trim().length < 50
+  const hasShortContent = allBlocks.some(
+    (b) => b.content && b.content.trim().length < 50
   );
-  
-  const userRequestsContext = /\b(context|children|parent|around|under|hierarchy)\b/i.test(userQuery);
-  
-  const hasTechnicalContent = allBlocks.some(b => 
-    b.content && /\b(function|class|code|api|method|def|import|const|let|var)\b/i.test(b.content)
+
+  const userRequestsContext =
+    /\b(context|children|parent|around|under|hierarchy)\b/i.test(userQuery);
+
+  const hasTechnicalContent = allBlocks.some(
+    (b) =>
+      b.content &&
+      /\b(function|class|code|api|method|def|import|const|let|var)\b/i.test(
+        b.content
+      )
   );
-  
+
   console.log(`🌳 [ContextExpansion] Analysis:`, {
     resultCount,
     hasShortContent,
-    userRequestsContext, 
+    userRequestsContext,
     hasTechnicalContent,
-    shouldExpand: hasShortContent || userRequestsContext || hasTechnicalContent
+    shouldExpand: hasShortContent || userRequestsContext || hasTechnicalContent,
   });
-  
+
   return hasShortContent || userRequestsContext || hasTechnicalContent;
 };
 
@@ -1378,7 +1397,7 @@ export const shouldExpandContextInBalanced = (results: any[], userQuery: string)
  * Since balanced mode doesn't have extractHierarchyContent, we use custom queries
  */
 export const expandHierarchyWithDatomic = async (
-  blockUids: string[], 
+  blockUids: string[],
   config: ReturnType<typeof getHierarchyExpansionConfig>
 ): Promise<any[]> => {
   if (!config.expandContext || blockUids.length === 0) {
@@ -1386,7 +1405,7 @@ export const expandHierarchyWithDatomic = async (
   }
 
   const hierarchyData: any[] = [];
-  
+
   try {
     // Get parent context if requested
     if (config.includeParents) {
@@ -1399,20 +1418,20 @@ export const expandHierarchyWithDatomic = async (
                            [?parent :block/string ?parent-content]
                            [?parent :block/page ?page]
                            [?page :node/title ?page-title]]`;
-      
+
       const parentResults = await executeDatomicQuery(parentQuery, blockUids);
-      
+
       parentResults.forEach(([parentUid, parentContent, pageTitle]) => {
         hierarchyData.push({
           uid: parentUid,
           content: truncateContent(parentContent, config.truncateLength),
           pageTitle,
-          hierarchyType: 'parent',
-          originalBlockUids: blockUids
+          hierarchyType: "parent",
+          originalBlockUids: blockUids,
         });
       });
     }
-    
+
     // Get children context if requested
     if (config.includeChildren && config.maxDepth > 0) {
       const childrenQuery = `[:find ?child-uid ?child-content ?page-title ?order
@@ -1425,9 +1444,9 @@ export const expandHierarchyWithDatomic = async (
                              [?child :block/order ?order]
                              [?child :block/page ?page]
                              [?page :node/title ?page-title]]`;
-      
+
       const childResults = await executeDatomicQuery(childrenQuery, blockUids);
-      
+
       // Sort by order and apply depth limits
       childResults
         .sort((a, b) => a[3] - b[3]) // Sort by order
@@ -1437,20 +1456,21 @@ export const expandHierarchyWithDatomic = async (
             uid: childUid,
             content: truncateContent(childContent, config.truncateLength),
             pageTitle,
-            hierarchyType: 'child',
+            hierarchyType: "child",
             order,
-            originalBlockUids: blockUids
+            originalBlockUids: blockUids,
           });
         });
     }
-    
-    console.log(`🌳 [ExpandHierarchy] Expanded ${blockUids.length} blocks → ${hierarchyData.length} context items`);
-    
+
+    console.log(
+      `🌳 [ExpandHierarchy] Expanded ${blockUids.length} blocks → ${hierarchyData.length} context items`
+    );
   } catch (error) {
-    console.error('🌳 [ExpandHierarchy] Error expanding hierarchy:', error);
+    console.error("🌳 [ExpandHierarchy] Error expanding hierarchy:", error);
     return [];
   }
-  
+
   return hierarchyData;
 };
 
@@ -2227,7 +2247,7 @@ export const getEnhancedLimits = (
           if (resultCount < 10) return null; // Full content
           if (resultCount <= 50) return 500; // Medium limit
           return 250; // >50 results - shorter for readability
-        }
+        },
       };
     case "full":
       return {
@@ -2237,9 +2257,9 @@ export const getEnhancedLimits = (
         // Progressive content strategy for full mode
         getContentStrategy: (resultCount: number): string => {
           if (resultCount < 30) return "rich_content_with_hierarchy";
-          if (resultCount <= 100) return "full_content_selected"; 
+          if (resultCount <= 100) return "full_content_selected";
           return "summary_with_expansion_options";
-        }
+        },
       };
     default:
       return {
@@ -2554,9 +2574,9 @@ export class PageWideQueryBuilder {
    * A + B - C = page has A somewhere AND B somewhere AND NOT C anywhere
    */
   private buildPageWideAND(): { query: string; patternDefinitions: string } {
-    const positiveConditions = this.conditions.filter(c => !c.negate);
-    const negativeConditions = this.conditions.filter(c => c.negate);
-    
+    const positiveConditions = this.conditions.filter((c) => !c.negate);
+    const negativeConditions = this.conditions.filter((c) => c.negate);
+
     let query = this.baseQuery;
     let patternDefinitions = "";
     let patternIndex = 0;
@@ -2564,19 +2584,19 @@ export class PageWideQueryBuilder {
     // Each positive condition gets its own block variable
     positiveConditions.forEach((condition, i) => {
       query += `\n                [?block-${i} :block/page ?page]`;
-      
+
       // Exclude user query block if specified
       if (this.excludeBlockUid) {
         query += `\n                [?block-${i} :block/uid ?block-${i}-uid]`;
         query += `\n                [(not= ?block-${i}-uid "${this.excludeBlockUid}")]`;
       }
-      
+
       // Only add :block/string for text/regex conditions
       if (condition.type === "text" || condition.type === "regex") {
         query += `\n                [?block-${i} :block/string ?content-${i}]`;
         const { clause, patterns } = this.buildConditionClause(
-          condition, 
-          patternIndex, 
+          condition,
+          patternIndex,
           `?content-${i}`
         );
         query += clause;
@@ -2584,8 +2604,8 @@ export class PageWideQueryBuilder {
       } else {
         // For page_ref/block_ref conditions, use block variable directly
         const { clause, patterns } = this.buildConditionClause(
-          condition, 
-          patternIndex, 
+          condition,
+          patternIndex,
           `?content-${i}` // buildConditionClause will convert ?content to ?block internally
         );
         query += clause;
@@ -2598,19 +2618,19 @@ export class PageWideQueryBuilder {
     negativeConditions.forEach((condition, i) => {
       query += `\n                (not-join [?page]`;
       query += `\n                  [?block-neg-${i} :block/page ?page]`;
-      
+
       // Exclude user query block if specified
       if (this.excludeBlockUid) {
         query += `\n                  [?block-neg-${i} :block/uid ?block-neg-${i}-uid]`;
         query += `\n                  [(not= ?block-neg-${i}-uid "${this.excludeBlockUid}")]`;
       }
-      
+
       // Only add :block/string for text/regex conditions
       if (condition.type === "text" || condition.type === "regex") {
         query += `\n                  [?block-neg-${i} :block/string ?content-neg-${i}]`;
         const { clause, patterns } = this.buildConditionClause(
-          { ...condition, negate: false }, 
-          patternIndex, 
+          { ...condition, negate: false },
+          patternIndex,
           `?content-neg-${i}`
         );
         query += clause.replace(/\n                /g, "\n                  ");
@@ -2618,8 +2638,8 @@ export class PageWideQueryBuilder {
       } else {
         // For page_ref/block_ref conditions, use content variable (will be converted internally)
         const { clause, patterns } = this.buildConditionClause(
-          { ...condition, negate: false }, 
-          patternIndex, 
+          { ...condition, negate: false },
+          patternIndex,
           `?content-neg-${i}` // buildConditionClause will convert ?content to ?block internally
         );
         query += clause.replace(/\n                /g, "\n                  ");
@@ -2639,31 +2659,41 @@ export class PageWideQueryBuilder {
   private buildPageWideOR(): { query: string; patternDefinitions: string } {
     let query = this.baseQuery;
     let patternDefinitions = "";
-    
+
     // For OR logic, we can use a single block variable with or-join
     query += `\n                [?block :block/page ?page]`;
-    
+
     // Exclude user query block if specified
     if (this.excludeBlockUid) {
       query += `\n                [?block :block/uid ?block-uid]`;
       query += `\n                [(not= ?block-uid "${this.excludeBlockUid}")]`;
     }
-    
+
     query += `\n                (or-join [?page]`;
 
     this.conditions.forEach((condition, i) => {
-      const { clause, patterns } = this.buildConditionClause(condition, i, "?content");
-      
+      const { clause, patterns } = this.buildConditionClause(
+        condition,
+        i,
+        "?content"
+      );
+
       if (condition.negate) {
         query += `\n                  (not`;
-        query += clause.replace(/\n                /g, "\n                    ");
+        query += clause.replace(
+          /\n                /g,
+          "\n                    "
+        );
         query += `\n                  )`;
       } else {
         query += `\n                  (and`;
-        query += clause.replace(/\n                /g, "\n                    ");
+        query += clause.replace(
+          /\n                /g,
+          "\n                    "
+        );
         query += `\n                  )`;
       }
-      
+
       patternDefinitions += patterns;
     });
 
@@ -2676,8 +2706,8 @@ export class PageWideQueryBuilder {
    * Build condition clause for a single condition
    */
   private buildConditionClause(
-    condition: SearchCondition, 
-    patternIndex: number, 
+    condition: SearchCondition,
+    patternIndex: number,
     contentVar: string
   ): { clause: string; patterns: string } {
     let clause = "";
@@ -2687,33 +2717,46 @@ export class PageWideQueryBuilder {
       case "page_ref":
         // Use proper Roam :block/refs attribute
         clause = `\n                [?ref-page${patternIndex} :node/title "${condition.text}"]`;
-        clause += `\n                [${contentVar.replace('?content', '?block')} :block/refs ?ref-page${patternIndex}]`;
+        clause += `\n                [${contentVar.replace(
+          "?content",
+          "?block"
+        )} :block/refs ?ref-page${patternIndex}]`;
         break;
 
       case "block_ref":
         // Use proper Roam :block/refs attribute for block references
         clause = `\n                [?ref-block${patternIndex} :block/uid "${condition.text}"]`;
-        clause += `\n                [${contentVar.replace('?content', '?block')} :block/refs ?ref-block${patternIndex}]`;
+        clause += `\n                [${contentVar.replace(
+          "?content",
+          "?block"
+        )} :block/refs ?ref-block${patternIndex}]`;
         break;
 
       case "regex":
       case "text":
       default:
         // Use regex pattern matching
-        const isRegex = condition.type === "regex" || condition.matchType === "regex";
+        const isRegex =
+          condition.type === "regex" || condition.matchType === "regex";
         let pattern: string;
-        
+
         if (isRegex) {
-          const { pattern: sanitizedPattern } = sanitizeRegexForDatomic(condition.text);
+          const { pattern: sanitizedPattern } = sanitizeRegexForDatomic(
+            condition.text
+          );
           pattern = sanitizedPattern;
         } else {
           // Escape special regex characters for text matching
-          const escapedText = condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          pattern = condition.matchType === "exact" 
-            ? `^${escapedText}$` 
-            : `(?i).*${escapedText}.*`;
+          const escapedText = condition.text.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          );
+          pattern =
+            condition.matchType === "exact"
+              ? `^${escapedText}$`
+              : `(?i).*${escapedText}.*`;
         }
-        
+
         clause = `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`;
         clause += `\n                [(re-find ?pattern${patternIndex} ${contentVar})]`;
         break;
@@ -2733,13 +2776,13 @@ export const processConditionGroupsForPageWide = (
 ): { conditions: SearchCondition[]; combination: "AND" | "OR" } => {
   // Convert grouped conditions to flat structure for page-wide processing
   // Each group will be handled as a single logical unit
-  
+
   if (groupCombination === "AND") {
     // For AND between groups, we need each group to match in the page
     // This requires special handling for OR groups (convert to regex)
     const processedConditions: SearchCondition[] = [];
-    
-    conditionGroups.forEach(group => {
+
+    conditionGroups.forEach((group) => {
       if (group.combination === "OR" && group.conditions.length > 1) {
         // Convert OR group to single regex condition for page-wide search
         const regexParts = group.conditions.map((c: any) => {
@@ -2751,24 +2794,24 @@ export const processConditionGroupsForPageWide = (
             return `.*${escapedText}.*`;
           }
         });
-        
+
         const combinedRegex = `(?i)(${regexParts.join("|")})`;
         processedConditions.push({
           type: "regex",
           text: combinedRegex,
           matchType: "regex",
-          negate: false
+          negate: false,
         } as SearchCondition);
       } else {
         // AND group or single condition - add all conditions
         processedConditions.push(...group.conditions);
       }
     });
-    
+
     return { conditions: processedConditions, combination: "AND" };
   } else {
     // For OR between groups, flatten all conditions
-    const allConditions = conditionGroups.flatMap(group => group.conditions);
+    const allConditions = conditionGroups.flatMap((group) => group.conditions);
     return { conditions: allConditions, combination: "OR" };
   }
 };
@@ -2777,7 +2820,9 @@ export const processConditionGroupsForPageWide = (
  * Parse syntax patterns for page-wide vs same-block search
  * Supports: page:(content:...) for page-wide, page:(block:(...)) for same-block
  */
-export const parsePageSearchSyntax = (query: string): {
+export const parsePageSearchSyntax = (
+  query: string
+): {
   searchScope: "content" | "block";
   extractedQuery: string;
 } => {
@@ -2786,22 +2831,22 @@ export const parsePageSearchSyntax = (query: string): {
   if (blockScopeMatch) {
     return {
       searchScope: "block",
-      extractedQuery: blockScopeMatch[1]
+      extractedQuery: blockScopeMatch[1],
     };
   }
 
-  // Check for page:(content:...) pattern  
+  // Check for page:(content:...) pattern
   const contentScopeMatch = query.match(/page:\s*\(\s*content:\s*(.*?)\s*\)/i);
   if (contentScopeMatch) {
     return {
-      searchScope: "content", 
-      extractedQuery: contentScopeMatch[1]
+      searchScope: "content",
+      extractedQuery: contentScopeMatch[1],
     };
   }
 
   // Default: assume content-wide search for findPagesByContent
   return {
     searchScope: "content",
-    extractedQuery: query
+    extractedQuery: query,
   };
 };

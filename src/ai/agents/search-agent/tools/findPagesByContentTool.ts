@@ -14,17 +14,17 @@ import {
   PageWideQueryBuilder,
   processConditionGroupsForPageWide,
   parsePageSearchSyntax,
-} from "./searchUtils";
-import { 
-  baseConditionSchema, 
-  conditionGroupSchema, 
+} from "../helpers/searchUtils";
+import {
+  baseConditionSchema,
+  conditionGroupSchema,
   extendedConditionsSchema,
   processConditionGroups,
   applyORToRegexConversion,
   hasGroupedConditions,
   hasSimpleConditions,
   validateConditionInput,
-  convertSimpleToGrouped
+  convertSimpleToGrouped,
 } from "./conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { findBlocksByContentTool } from "./findBlocksByContentTool";
@@ -98,19 +98,23 @@ const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
+    .describe(
+      "SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."
+    ),
   combineConditions: z
     .enum(["AND", "OR"])
     .default("AND")
     .describe("How to combine simple conditions"),
-    
+
   // Search scope specification - CRITICAL for Assistant LLM
   searchScope: z
     .enum(["content", "block"])
     .default("block")
-    .describe("SCOPE: 'content' = conditions can match across different blocks in page (content-wide AND), 'block' = all conditions must match within same blocks"),
-    
-  // Grouped conditions (new advanced feature)  
+    .describe(
+      "SCOPE: 'content' = conditions can match across different blocks in page (content-wide AND), 'block' = all conditions must match within same blocks"
+    ),
+
+  // Grouped conditions (new advanced feature)
   conditionGroups: z
     .array(
       z.object({
@@ -124,9 +128,7 @@ const llmFacingSchema = z.object({
               matchType: z
                 .enum(["exact", "contains", "regex"])
                 .default("contains"),
-              negate: z
-                .boolean()
-                .default(false),
+              negate: z.boolean().default(false),
             })
           )
           .min(1, "At least one condition required in group"),
@@ -137,10 +139,12 @@ const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
+    .describe(
+      "GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."
+    ),
   groupCombination: z
     .enum(["AND", "OR"])
-    .default("AND")  
+    .default("AND")
     .describe("How to combine condition groups"),
   minBlockCount: z
     .number()
@@ -199,20 +203,30 @@ const schema = extendedConditionsSchema.extend({
   conditions: z
     .array(contentConditionSchema)
     .optional()
-    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
+    .describe(
+      "SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."
+    ),
   conditionGroups: z
-    .array(conditionGroupSchema.extend({
-      conditions: z.array(contentConditionSchema).min(1, "At least one condition required in group")
-    }))
+    .array(
+      conditionGroupSchema.extend({
+        conditions: z
+          .array(contentConditionSchema)
+          .min(1, "At least one condition required in group"),
+      })
+    )
     .optional()
-    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
+    .describe(
+      "GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."
+    ),
   maxExpansions: z.number().min(1).max(10).default(3),
-  
+
   // Search scope specification
   searchScope: z
     .enum(["content", "block"])
     .default("block")
-    .describe("SCOPE: 'content' = conditions can match across different blocks in page (page-wide AND), 'block' = all conditions must match within same blocks"),
+    .describe(
+      "SCOPE: 'content' = conditions can match across different blocks in page (page-wide AND), 'block' = all conditions must match within same blocks"
+    ),
 
   // Page-level filtering
   minBlockCount: z
@@ -816,7 +830,9 @@ const searchChildrenWithLogic = async (
       Array.isArray(parsedMatches.data)
     ) {
       const notUids = new Set(parsedMatches.data.map((m: any) => m.uid));
-      resultUids = new Set(Array.from(resultUids).filter((uid) => !notUids.has(uid)));
+      resultUids = new Set(
+        Array.from(resultUids).filter((uid) => !notUids.has(uid))
+      );
     }
   }
 
@@ -876,16 +892,18 @@ const findPagesByContentImpl = async (
   // Parse syntax and detect search scope from condition text
   let finalSearchScope = searchScope;
   let rawConditions: any[] = conditions || [];
-  
+
   if (hasSimpleConditions(input) && conditions && conditions.length > 0) {
     // Check for page:(content:...) or page:(block:(...)) syntax in condition text
     for (let i = 0; i < conditions.length; i++) {
       const condition = conditions[i];
       const syntaxResult = parsePageSearchSyntax(condition.text);
-      
+
       // Only update if the extractedQuery is different (i.e., syntax was found)
       if (syntaxResult.extractedQuery !== condition.text) {
-        console.log(`🎯 Detected explicit syntax: ${syntaxResult.searchScope} search for "${syntaxResult.extractedQuery}"`);
+        console.log(
+          `🎯 Detected explicit syntax: ${syntaxResult.searchScope} search for "${syntaxResult.extractedQuery}"`
+        );
         finalSearchScope = syntaxResult.searchScope;
         // Update condition with clean text
         rawConditions[i] = { ...condition, text: syntaxResult.extractedQuery };
@@ -907,10 +925,12 @@ const findPagesByContentImpl = async (
 
   if (hasGroupedConditions(input)) {
     console.log("🔧 Processing grouped conditions in findPagesByContent");
-    
+
     // For page-wide search with grouped conditions, use special processing
     if (finalSearchScope === "content" && groupCombination === "AND") {
-      console.log("🌍 Using content-wide processing for complex condition groups");
+      console.log(
+        "🌍 Using content-wide processing for complex condition groups"
+      );
       const processedGroups = processConditionGroupsForPageWide(
         conditionGroups!,
         groupCombination || "AND"
@@ -924,20 +944,26 @@ const findPagesByContentImpl = async (
         groupCombination || "AND",
         state
       );
-      
-      // Apply OR-to-regex conversion for mixed logic cases  
+
+      // Apply OR-to-regex conversion for mixed logic cases
       const optimizedGroups = applyORToRegexConversion(
         processedGroups.conditions,
         processedGroups.combination
       );
-      
+
       finalConditions = optimizedGroups.conditions;
       finalCombineConditions = optimizedGroups.combination;
     }
-    
-    console.log(`🚀 Converted ${conditionGroups!.length} condition groups to ${finalConditions.length} optimized conditions with ${finalCombineConditions} logic (${finalSearchScope} scope)`);
+
+    console.log(
+      `🚀 Converted ${conditionGroups!.length} condition groups to ${
+        finalConditions.length
+      } optimized conditions with ${finalCombineConditions} logic (${finalSearchScope} scope)`
+    );
   } else {
-    console.log(`🔧 Processing simple conditions in findPagesByContent (${finalSearchScope} scope)`);
+    console.log(
+      `🔧 Processing simple conditions in findPagesByContent (${finalSearchScope} scope)`
+    );
     // Use simple conditions (backward compatibility)
     finalConditions = rawConditions;
     finalCombineConditions = combineConditions || "AND";
@@ -1013,7 +1039,11 @@ const findPagesByContentImpl = async (
           : dateRange.end,
     };
     const filterMode = dateRange.filterMode || "modified";
-    enrichedResults = filterByDateRange(enrichedResults, parsedDateRange, filterMode);
+    enrichedResults = filterByDateRange(
+      enrichedResults,
+      parsedDateRange,
+      filterMode
+    );
   }
 
   // Step 6: Sort results
@@ -1250,7 +1280,7 @@ const expandAttributeCondition = async (
 ): Promise<AttributeCondition> => {
   // Check if semantic expansion is needed - either globally or per-value
   const hasGlobalExpansion = state?.isExpansionGlobal === true;
-  
+
   // Check if any value has symbols that require expansion
   const hasSymbolExpansion = attrCondition.values.some(
     (v) => v.value.endsWith("*") || v.value.endsWith("~")
@@ -1294,7 +1324,8 @@ const expandAttributeCondition = async (
             : undefined;
 
         // Determine the mode based on attribute value type
-        const expansionMode = attrCondition.valueType === "page_ref" ? "page_ref" : "text";
+        const expansionMode =
+          attrCondition.valueType === "page_ref" ? "page_ref" : "text";
 
         // Use generateSemanticExpansions for attribute values
         const expansionTerms = await generateSemanticExpansions(
@@ -1325,7 +1356,10 @@ const expandAttributeCondition = async (
           });
         }
       } catch (error) {
-        console.warn(`Failed to expand attribute value "${value.value}":`, error);
+        console.warn(
+          `Failed to expand attribute value "${value.value}":`,
+          error
+        );
       }
     }
   }
@@ -1356,7 +1390,10 @@ const processPageWideConditions = async (
       const parsed = parseAttributeCondition(condition.text);
       if (parsed) {
         // Apply semantic expansion to attribute values if needed
-        const expandedAttrCondition = await expandAttributeCondition(parsed, state);
+        const expandedAttrCondition = await expandAttributeCondition(
+          parsed,
+          state
+        );
         attributeConditions.push(expandedAttrCondition);
       } else {
         console.warn(`Failed to parse attribute condition: ${condition.text}`);
@@ -1437,16 +1474,20 @@ const processPageWideConditions = async (
   // Process regular conditions with page-wide logic using PageWideQueryBuilder
   let regularResults: any[] = [];
   if (regularConditions.length > 0) {
-    console.log(`🌐 Building page-wide query for ${regularConditions.length} conditions`);
-    
+    console.log(
+      `🌐 Building page-wide query for ${regularConditions.length} conditions`
+    );
+
     // Convert conditions to SearchCondition format
-    const searchConditions: SearchCondition[] = regularConditions.map((cond) => ({
-      type: cond.type as any,
-      text: cond.text,
-      matchType: cond.matchType as any,
-      negate: cond.negate || false,
-    }));
-    
+    const searchConditions: SearchCondition[] = regularConditions.map(
+      (cond) => ({
+        type: cond.type as any,
+        text: cond.text,
+        matchType: cond.matchType as any,
+        negate: cond.negate || false,
+      })
+    );
+
     // Build base query with correct format for page results
     const baseQuery = `[:find ?page-uid ?page-title ?page-created ?page-modified
                 :where
@@ -1454,13 +1495,18 @@ const processPageWideConditions = async (
                 [?page :block/uid ?page-uid]
                 [?page :create/time ?page-created]
                 [?page :edit/time ?page-modified]`;
-                
-    const queryBuilder = new PageWideQueryBuilder(searchConditions, "AND", baseQuery, excludeBlockUid);
+
+    const queryBuilder = new PageWideQueryBuilder(
+      searchConditions,
+      "AND",
+      baseQuery,
+      excludeBlockUid
+    );
     const pageWideQuery = queryBuilder.buildPageWideQuery();
-    
+
     // Add additional constraints for includeDaily, limitToPageUids, excludeBlockUid
     let finalQuery = pageWideQuery.query;
-    
+
     if (!includeDaily) {
       finalQuery = finalQuery.replace(
         "]\n",
@@ -1469,7 +1515,7 @@ const processPageWideConditions = async (
                 (not [(re-find ?dnp-pattern ?page-uid)])]\n`
       );
     }
-    
+
     if (limitToPageUids && limitToPageUids.length > 0) {
       if (limitToPageUids.length === 1) {
         finalQuery = finalQuery.replace(
@@ -1488,21 +1534,27 @@ const processPageWideConditions = async (
         );
       }
     }
-    
-    console.log(`🔍 Executing page-wide query: ${finalQuery.substring(0, 200)}...`);
+
+    console.log(
+      `🔍 Executing page-wide query: ${finalQuery.substring(0, 200)}...`
+    );
     const queryResults = await executeDatomicQuery(finalQuery);
-    
+
     // Convert results to the expected format for further processing
-    regularResults = queryResults.map(([pageUid, pageTitle, pageCreated, pageModified]) => [
-      pageUid, // Block UID (using page UID as placeholder)
-      pageTitle, // Content (using page title as placeholder)
-      pageModified, // Time
-      pageTitle, // Page title
-      pageUid, // Page UID
-      pageCreated, // Page created
-      pageModified, // Page modified
-    ]);
-    console.log(`🎯 Found ${regularResults.length} pages with page-wide matches`);
+    regularResults = queryResults.map(
+      ([pageUid, pageTitle, pageCreated, pageModified]) => [
+        pageUid, // Block UID (using page UID as placeholder)
+        pageTitle, // Content (using page title as placeholder)
+        pageModified, // Time
+        pageTitle, // Page title
+        pageUid, // Page UID
+        pageCreated, // Page created
+        pageModified, // Page modified
+      ]
+    );
+    console.log(
+      `🎯 Found ${regularResults.length} pages with page-wide matches`
+    );
   }
 
   // Combine results based on combination logic (always AND for page-wide)
@@ -1513,10 +1565,14 @@ const processPageWideConditions = async (
       attributeResults,
       regularResults
     );
-    console.log(`🤝 Combined attribute + regular results: ${finalResults.length} pages`);
+    console.log(
+      `🤝 Combined attribute + regular results: ${finalResults.length} pages`
+    );
   } else if (attributeResults.length > 0) {
     finalResults = attributeResults;
-    console.log(`🏷️ Using attribute results only: ${finalResults.length} pages`);
+    console.log(
+      `🏷️ Using attribute results only: ${finalResults.length} pages`
+    );
   } else {
     finalResults = regularResults;
     console.log(`📝 Using regular results only: ${finalResults.length} pages`);
@@ -1545,7 +1601,10 @@ const processAllConditions = async (
       const parsed = parseAttributeCondition(condition.text);
       if (parsed) {
         // Apply semantic expansion to attribute values if needed
-        const expandedAttrCondition = await expandAttributeCondition(parsed, state);
+        const expandedAttrCondition = await expandAttributeCondition(
+          parsed,
+          state
+        );
         attributeConditions.push(expandedAttrCondition);
       } else {
         console.warn(`Failed to parse attribute condition: ${condition.text}`);
@@ -1995,12 +2054,14 @@ export const findPagesByContentTool = tool(
     try {
       // Extract state from config to access injected parameters
       const state = config?.configurable?.state;
-      
+
       // Auto-enrich with internal parameters from agent state
       const enrichedInput = {
         ...llmInput,
         // Internal parameters injected from agent state
-        resultMode: state?.privateMode ? ("uids_only" as const) : ("summary" as const),
+        resultMode: state?.privateMode
+          ? ("uids_only" as const)
+          : ("summary" as const),
         secureMode: state?.privateMode || false,
         userQuery: state?.userQuery || "",
         excludeBlockUid: state?.rootUid || "",
@@ -2015,7 +2076,7 @@ export const findPagesByContentTool = tool(
         minTotalBlocks: 1,
         maxTotalBlocks: undefined,
         searchScope: llmInput.searchScope || "block",
-        
+
         // Add missing schema properties with defaults
         minBlockCount: llmInput.minBlockCount || 1,
         includeBlockCount: true,
@@ -2026,18 +2087,28 @@ export const findPagesByContentTool = tool(
         fromResultId: llmInput.fromResultId,
         limitToPageUids: undefined, // Will be handled by agent
         groupCombination: llmInput.groupCombination || "AND",
-        
+
         // Ensure conditions have all required fields
-        conditions: llmInput.conditions?.map((cond) => ({
-          ...cond,
-          semanticExpansion: undefined,
-          weight: 1.0,
-        })) || [],
+        conditions:
+          llmInput.conditions?.map((cond) => ({
+            ...cond,
+            semanticExpansion: undefined,
+            weight: 1.0,
+          })) || [],
       };
-      
-      console.log('🔍 [findPagesByContentTool] ENRICHED INPUT searchScope:', enrichedInput.searchScope);
-      console.log('🔍 [findPagesByContentTool] ENRICHED INPUT excludeBlockUid:', enrichedInput.excludeBlockUid);
-      console.log('🔍 [findPagesByContentTool] ENRICHED INPUT conditions:', JSON.stringify(enrichedInput.conditions, null, 2));
+
+      console.log(
+        "🔍 [findPagesByContentTool] ENRICHED INPUT searchScope:",
+        enrichedInput.searchScope
+      );
+      console.log(
+        "🔍 [findPagesByContentTool] ENRICHED INPUT excludeBlockUid:",
+        enrichedInput.excludeBlockUid
+      );
+      console.log(
+        "🔍 [findPagesByContentTool] ENRICHED INPUT conditions:",
+        JSON.stringify(enrichedInput.conditions, null, 2)
+      );
 
       const results = await findPagesByContentImpl(enrichedInput, state);
       return createToolResult(

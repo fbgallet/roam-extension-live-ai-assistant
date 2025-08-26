@@ -17,17 +17,17 @@ import {
   extractUidsFromResults,
   sanitizeRegexForDatomic,
   parseSemanticExpansion,
-} from "./searchUtils";
-import { 
-  baseConditionSchema, 
-  conditionGroupSchema, 
+} from "../helpers/searchUtils";
+import {
+  baseConditionSchema,
+  conditionGroupSchema,
   extendedConditionsSchema,
   processConditionGroups,
   applyORToRegexConversion,
   hasGroupedConditions,
   hasSimpleConditions,
   validateConditionInput,
-  convertSimpleToGrouped
+  convertSimpleToGrouped,
 } from "./conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
@@ -89,13 +89,21 @@ const schema = extendedConditionsSchema.extend({
   conditions: z
     .array(contentConditionSchema)
     .optional()
-    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
+    .describe(
+      "SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."
+    ),
   conditionGroups: z
-    .array(conditionGroupSchema.extend({
-      conditions: z.array(contentConditionSchema).min(1, "At least one condition required in group")
-    }))
+    .array(
+      conditionGroupSchema.extend({
+        conditions: z
+          .array(contentConditionSchema)
+          .min(1, "At least one condition required in group"),
+      })
+    )
     .optional()
-    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
+    .describe(
+      "GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."
+    ),
   includeChildren: z
     .boolean()
     .default(false)
@@ -268,13 +276,15 @@ const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .describe("SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."),
+    .describe(
+      "SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."
+    ),
   combineConditions: z
     .enum(["AND", "OR"])
     .default("AND")
     .describe("How to combine simple conditions"),
-    
-  // Grouped conditions (new advanced feature)  
+
+  // Grouped conditions (new advanced feature)
   conditionGroups: z
     .array(
       z.object({
@@ -288,9 +298,7 @@ const llmFacingSchema = z.object({
               matchType: z
                 .enum(["exact", "contains", "regex"])
                 .default("contains"),
-              negate: z
-                .boolean()
-                .default(false),
+              negate: z.boolean().default(false),
             })
           )
           .min(1, "At least one condition required in group"),
@@ -301,10 +309,12 @@ const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .describe("GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."),
+    .describe(
+      "GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."
+    ),
   groupCombination: z
     .enum(["AND", "OR"])
-    .default("AND")  
+    .default("AND")
     .describe("How to combine condition groups"),
   includeChildren: z
     .boolean()
@@ -393,17 +403,21 @@ const findBlocksByContentImpl = async (
       groupCombination || "AND",
       state
     );
-    
-    // Apply OR-to-regex conversion for mixed logic cases  
+
+    // Apply OR-to-regex conversion for mixed logic cases
     const optimizedGroups = applyORToRegexConversion(
       processedGroups.conditions,
       processedGroups.combination
     );
-    
+
     finalConditions = optimizedGroups.conditions;
     finalCombineConditions = optimizedGroups.combination;
-    
-    console.log(`🚀 Converted ${conditionGroups!.length} condition groups to ${finalConditions.length} optimized conditions with ${finalCombineConditions} logic`);
+
+    console.log(
+      `🚀 Converted ${conditionGroups!.length} condition groups to ${
+        finalConditions.length
+      } optimized conditions with ${finalCombineConditions} logic`
+    );
   } else {
     console.log("🔧 Processing simple conditions in findBlocksByContent");
     // Use simple conditions (backward compatibility)
@@ -428,11 +442,17 @@ const findBlocksByContentImpl = async (
       original: input.dateRange,
       parsed: parsedDateRange,
       startType: typeof parsedDateRange.start,
-      endType: typeof parsedDateRange.end
+      endType: typeof parsedDateRange.end,
     });
   } else {
-    console.log("📅 [findBlocksByContent] No dateRange provided or invalid:", input.dateRange);
-    console.log("📅 [findBlocksByContent] Full input received:", JSON.stringify(input, null, 2));
+    console.log(
+      "📅 [findBlocksByContent] No dateRange provided or invalid:",
+      input.dateRange
+    );
+    console.log(
+      "📅 [findBlocksByContent] Full input received:",
+      JSON.stringify(input, null, 2)
+    );
   }
 
   // UID-based filtering for optimization
@@ -547,20 +567,26 @@ const findBlocksByContentImpl = async (
   console.log("📅 [findBlocksByContent] About to check date filtering:", {
     hasParsedDateRange: !!parsedDateRange,
     parsedDateRange: parsedDateRange,
-    enrichedResultsCount: enrichedResults.length
+    enrichedResultsCount: enrichedResults.length,
   });
-  
+
   if (parsedDateRange) {
     console.log("📅 [findBlocksByContent] Applying date range filter...");
     const filterMode = input.dateRange.filterMode || "modified";
-    filteredResults = filterByDateRange(filteredResults, parsedDateRange, filterMode);
+    filteredResults = filterByDateRange(
+      filteredResults,
+      parsedDateRange,
+      filterMode
+    );
     console.log("📅 [findBlocksByContent] Date filtering completed:", {
       originalCount: enrichedResults.length,
       filteredCount: filteredResults.length,
-      filterMode
+      filterMode,
     });
   } else {
-    console.log("📅 [findBlocksByContent] Skipping date filtering - no parsedDateRange");
+    console.log(
+      "📅 [findBlocksByContent] Skipping date filtering - no parsedDateRange"
+    );
   }
 
   // Step 4.5: Exclude user query block from results by UID
@@ -1213,17 +1239,18 @@ const applyFuzzyFiltering = (
 // LLM-facing tool with minimal schema and auto-enrichment
 export const findBlocksByContentTool = tool(
   async (llmInput, config) => {
-    
     const startTime = performance.now();
     try {
       // Extract state from config to access injected parameters
       const state = config?.configurable?.state;
-      
+
       // Auto-enrich with internal parameters from agent state
       const enrichedInput = {
         ...llmInput,
         // Internal parameters injected from agent state (not from LLM)
-        resultMode: state?.privateMode ? ("uids_only" as const) : ("summary" as const),
+        resultMode: state?.privateMode
+          ? ("uids_only" as const)
+          : ("summary" as const),
         secureMode: state?.privateMode || false,
         userQuery: state?.userQuery || "",
         excludeBlockUid: state?.rootUid || "",

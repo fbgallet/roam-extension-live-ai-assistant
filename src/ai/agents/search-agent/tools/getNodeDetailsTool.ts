@@ -5,35 +5,68 @@ import {
   isDailyNote,
   createToolResult,
   extractUidsFromResults,
-} from "./searchUtils";
+} from "../helpers/searchUtils";
 
 /**
  * Get detailed information about specific nodes (blocks or pages)
  * Security Level: Content (includes full content when requested)
- * 
+ *
  * This tool fetches detailed information about specific nodes when needed,
  * allowing other tools to return minimal data and fetch details on demand.
  */
 
-const schema = z.object({
-  // Input - what to fetch details for
-  blockUids: z.array(z.string()).optional().describe("Array of block UIDs to get details for"),
-  pageUids: z.array(z.string()).optional().describe("Array of page UIDs to get details for"),
-  fromResultId: z.string().optional().describe("Get details for blocks/pages from previous result (e.g., 'findBlocksByContent_001')"),
-  
-  // What details to include
-  includeContent: z.boolean().default(true).describe("Include full block content (secure mode: false)"),
-  includeMetadata: z.boolean().default(true).describe("Include creation/modification dates"),
-  includeHierarchy: z.boolean().default(false).describe("Include parent/child information"),
-  
-  // Limiting
-  limit: z.number().min(1).max(100).default(50).describe("Maximum number of nodes to fetch details for"),
-}).refine(
-  (data) => data.blockUids?.length > 0 || data.pageUids?.length > 0 || data.fromResultId,
-  { message: "Either blockUids, pageUids, or fromResultId must be provided" }
-);
+const schema = z
+  .object({
+    // Input - what to fetch details for
+    blockUids: z
+      .array(z.string())
+      .optional()
+      .describe("Array of block UIDs to get details for"),
+    pageUids: z
+      .array(z.string())
+      .optional()
+      .describe("Array of page UIDs to get details for"),
+    fromResultId: z
+      .string()
+      .optional()
+      .describe(
+        "Get details for blocks/pages from previous result (e.g., 'findBlocksByContent_001')"
+      ),
 
-const getNodeDetailsImpl = async (input: z.infer<typeof schema>, state?: any) => {
+    // What details to include
+    includeContent: z
+      .boolean()
+      .default(true)
+      .describe("Include full block content (secure mode: false)"),
+    includeMetadata: z
+      .boolean()
+      .default(true)
+      .describe("Include creation/modification dates"),
+    includeHierarchy: z
+      .boolean()
+      .default(false)
+      .describe("Include parent/child information"),
+
+    // Limiting
+    limit: z
+      .number()
+      .min(1)
+      .max(100)
+      .default(50)
+      .describe("Maximum number of nodes to fetch details for"),
+  })
+  .refine(
+    (data) =>
+      data.blockUids?.length > 0 ||
+      data.pageUids?.length > 0 ||
+      data.fromResultId,
+    { message: "Either blockUids, pageUids, or fromResultId must be provided" }
+  );
+
+const getNodeDetailsImpl = async (
+  input: z.infer<typeof schema>,
+  state?: any
+) => {
   console.log(`🔧 getNodeDetailsImpl input:`, input);
   const {
     blockUids,
@@ -46,16 +79,14 @@ const getNodeDetailsImpl = async (input: z.infer<typeof schema>, state?: any) =>
   } = input;
 
   // Extract UIDs from previous results and user input
-  const { blockUids: finalBlockUids, pageUids: finalPageUids } = extractUidsFromResults(
-    fromResultId,
-    blockUids,
-    pageUids,
-    state
-  );
+  const { blockUids: finalBlockUids, pageUids: finalPageUids } =
+    extractUidsFromResults(fromResultId, blockUids, pageUids, state);
 
   // Validate we have something to work with
   if (!finalBlockUids.length && !finalPageUids.length) {
-    throw new Error("Must provide at least one of: blockUids, pageUids, or fromResultId with valid results");
+    throw new Error(
+      "Must provide at least one of: blockUids, pageUids, or fromResultId with valid results"
+    );
   }
 
   let allResults: any[] = [];
@@ -101,10 +132,10 @@ const fetchBlockDetails = async (
 ): Promise<any[]> => {
   if (blockUids.length === 0) return [];
 
-  const uidsClause = blockUids.map(uid => `"${uid}"`).join(' ');
-  
+  const uidsClause = blockUids.map((uid) => `"${uid}"`).join(" ");
+
   // Base query for block details
-  let queryFields = ['?uid'];
+  let queryFields = ["?uid"];
   let queryWhere = `[?b :block/uid ?uid]
                     [(contains? #{${uidsClause}} ?uid)]
                     [?b :block/page ?page]
@@ -112,32 +143,32 @@ const fetchBlockDetails = async (
                     [?page :block/uid ?page-uid]`;
 
   if (includeContent) {
-    queryFields.push('?content');
+    queryFields.push("?content");
     queryWhere += `\n                    [?b :block/string ?content]`;
   }
 
   if (includeMetadata) {
-    queryFields.push('?created', '?modified');
+    queryFields.push("?created", "?modified");
     queryWhere += `\n                    [?b :create/time ?created]
                     [?b :edit/time ?modified]`;
   }
 
-  queryFields.push('?page-title', '?page-uid');
+  queryFields.push("?page-title", "?page-uid");
 
-  const query = `[:find ${queryFields.join(' ')}
+  const query = `[:find ${queryFields.join(" ")}
                   :where
                   ${queryWhere}]`;
 
   console.log(`🔍 Fetching details for ${blockUids.length} blocks...`);
   const results = await executeDatomicQuery(query);
 
-  return results.map(result => {
+  return results.map((result) => {
     let index = 0;
     const blockDetail: any = {
-      type: 'block',
+      type: "block",
       uid: result[index++],
       // Explicit type flag (isPage: false means it's a block)
-      isPage: false
+      isPage: false,
     };
 
     if (includeContent) {
@@ -173,34 +204,34 @@ const fetchPageDetails = async (
 ): Promise<any[]> => {
   if (pageUids.length === 0) return [];
 
-  const uidsClause = pageUids.map(uid => `"${uid}"`).join(' ');
-  
-  let queryFields = ['?page-uid', '?page-title'];
+  const uidsClause = pageUids.map((uid) => `"${uid}"`).join(" ");
+
+  let queryFields = ["?page-uid", "?page-title"];
   let queryWhere = `[?page :block/uid ?page-uid]
                     [(contains? #{${uidsClause}} ?page-uid)]
                     [?page :node/title ?page-title]`;
 
   if (includeMetadata) {
-    queryFields.push('?created', '?modified');
+    queryFields.push("?created", "?modified");
     queryWhere += `\n                    [?page :create/time ?created]
                     [?page :edit/time ?modified]`;
   }
 
-  const query = `[:find ${queryFields.join(' ')}
+  const query = `[:find ${queryFields.join(" ")}
                   :where
                   ${queryWhere}]`;
 
   console.log(`🔍 Fetching details for ${pageUids.length} pages...`);
   const results = await executeDatomicQuery(query);
 
-  return results.map(result => {
+  return results.map((result) => {
     let index = 0;
     const pageDetail: any = {
-      type: 'page',
+      type: "page",
       pageUid: result[index++],
       pageTitle: result[index++],
       // Explicit type flag
-      isPage: true
+      isPage: true,
     };
 
     if (includeMetadata) {
