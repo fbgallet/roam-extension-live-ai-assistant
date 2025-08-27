@@ -76,7 +76,7 @@ export let isResponseToSplit;
 export let logPagesNbDefault;
 export let maxCapturingDepth = {};
 export let maxUidDepth = {};
-export let automaticSemanticExpansion;
+export let automaticSemanticExpansionMode;
 export let exclusionStrings = [];
 export let websearchContext;
 export let askGraphMode;
@@ -394,7 +394,7 @@ function getPanelConfig() {
       },
       {
         id: "askGraphMode",
-        name: "Ask Your Graph default mode",
+        name: "Ask Your Graph privacy mode",
         description: (
           <>
             <span>
@@ -404,11 +404,12 @@ function getPanelConfig() {
             <strong>Private:</strong> Only UIDs returned (no personal content
             processing by LLMs)
             <br />
-            <strong>Balanced:</strong> Agent tools handle only UIDs + final
-            summary (only matching blocks can be processed)
+            <strong>Balanced:</strong> Agent tools handle only UIDs +
+            post-processing (only matching blocks processed by LLMs for final
+            response)
             <br />
-            <strong>Full Access:</strong> Complete content access for in-depth
-            analysis
+            <strong>Full Access:</strong> More complete content access for
+            in-depth analysis
           </>
         ),
         action: {
@@ -416,6 +417,30 @@ function getPanelConfig() {
           items: ["Private", "Balanced", "Full Access"],
           onChange: (evt) => {
             askGraphMode = evt;
+          },
+        },
+      },
+      {
+        id: "automaticSemanticExpansionMode",
+        name: "Ask You Graph semantic expansion",
+        description:
+          "Default 'Ask your graph' Agent semantic expansion behavior:",
+        action: {
+          type: "select",
+          items: [
+            "Always ask user",
+            "Automatic until result",
+            "Always with fuzzy",
+            "Always with fuzzy + synonyms",
+          ],
+          onChange: (evt) => {
+            const modeMap = {
+              "Always ask user": "ask_user",
+              "Automatic until result": "auto_until_result",
+              "Always with fuzzy": "always_fuzzy",
+              "Always with fuzzy + synonyms": "always_fuzzy_synonyms",
+            };
+            automaticSemanticExpansionMode = modeMap[evt];
           },
         },
       },
@@ -858,18 +883,6 @@ function getPanelConfig() {
           type: "input",
           onChange: (evt) => {
             logPagesNbDefault = evt.target.value;
-          },
-        },
-      },
-      {
-        id: "automaticSemanticExpansion",
-        name: "Automatic semantic expansion",
-        description:
-          "Automatically expand search queries with synonyms and related terms without user intervention",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            automaticSemanticExpansion = evt.target.checked;
           },
         },
       },
@@ -1344,11 +1357,16 @@ export default {
     if (extensionAPI.settings.get("logPagesNbDefault") === null)
       await extensionAPI.settings.set("logPagesNbDefault", 7);
     logPagesNbDefault = extensionAPI.settings.get("logPagesNbDefault");
-    
-    // Automatic semantic expansion setting for search agent
-    if (extensionAPI.settings.get("automaticSemanticExpansion") === null)
-      await extensionAPI.settings.set("automaticSemanticExpansion", false);
-    automaticSemanticExpansion = extensionAPI.settings.get("automaticSemanticExpansion");
+
+    // Semantic expansion mode setting for search agent
+    if (extensionAPI.settings.get("automaticSemanticExpansionMode") === null)
+      await extensionAPI.settings.set(
+        "automaticSemanticExpansionMode",
+        "auto_until_result"
+      );
+    automaticSemanticExpansionMode = extensionAPI.settings.get(
+      "automaticSemanticExpansionMode"
+    );
     if (extensionAPI.settings.get("maxCapturingDepth") === null)
       await extensionAPI.settings.set("maxCapturingDepth", "99,3,4");
     maxCapturingDepth = getMaxDephObjectFromList(

@@ -642,6 +642,16 @@ export const StandaloneContextMenu = () => {
 
   const filterCommandsInternal = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
+    
+    // Skip if command should be hidden based on current default privacy mode
+    if (item.hideIfDefaultMode) {
+      const { getCurrentAskGraphMode } = require("../../ai/agents/search-agent/ask-your-graph");
+      const currentMode = getCurrentAskGraphMode();
+      if (item.hideIfDefaultMode === currentMode) {
+        return false;
+      }
+    }
+    
     // Hide "Ask your graph - Last results" if no results are available
     if (!query && item.id === 93) {
       const results = window.lastAskYourGraphResults;
@@ -799,6 +809,15 @@ export const StandaloneContextMenu = () => {
                 // Skip if subCommand is not found
                 if (!subCommand) {
                   return null;
+                }
+
+                // Skip if subCommand should be hidden based on current default privacy mode
+                if (subCommand.hideIfDefaultMode) {
+                  const { getCurrentAskGraphMode } = require("../../ai/agents/search-agent/ask-your-graph");
+                  const currentMode = getCurrentAskGraphMode();
+                  if (subCommand.hideIfDefaultMode === currentMode) {
+                    return null;
+                  }
                 }
 
                 // Handle divider items
