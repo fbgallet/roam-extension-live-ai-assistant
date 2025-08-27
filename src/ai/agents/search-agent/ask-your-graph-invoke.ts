@@ -1,4 +1,4 @@
-import { defaultModel, automaticSemanticExpansion } from "../../..";
+import { defaultModel, automaticSemanticExpansionMode } from "../../..";
 import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../aiAPIsHub";
 import {
@@ -62,6 +62,10 @@ interface SearchAgentInvoker {
       | "broader_terms"
       | "all";
     isExpansionGlobal?: boolean;
+    // Privacy mode update bypass flag
+    isPrivacyModeUpdated?: boolean;
+    // Flag to indicate privacy mode was forced (skip privacy analysis)
+    isPrivacyModeForced?: boolean;
   };
   // NEW: External context from chat or other components
   externalContext?: {
@@ -207,6 +211,7 @@ const invokeSearchAgentInternal = async ({
       existingListeners.forEach((listener: any) => {
         try {
           window.removeEventListener("agentExpansion", listener);
+          window.removeEventListener("agentPrivacyMode", listener);
         } catch (e) {
           // Ignore errors from removing non-existent listeners
         }
@@ -301,13 +306,17 @@ const invokeSearchAgentInternal = async ({
       startTime: Date.now(),
       // Pass abort signal for cancellation
       abortSignal: abortController.signal,
-      // Add automatic semantic expansion setting from extension
-      automaticExpansion: automaticSemanticExpansion,
+      // Add automatic semantic expansion mode setting from extension
+      automaticExpansionMode: automaticSemanticExpansionMode,
 
       // Add expansion parameters for direct expansion
       isDirectExpansion: Boolean(conversationData.isDirectExpansion),
       semanticExpansion: conversationData.semanticExpansion || undefined,
       isExpansionGlobal: Boolean(conversationData.isExpansionGlobal),
+      // Privacy mode update bypass flag
+      isPrivacyModeUpdated: Boolean(conversationData.isPrivacyModeUpdated),
+      // Flag to indicate privacy mode was forced (skip privacy analysis)
+      isPrivacyModeForced: Boolean(conversationData.isPrivacyModeForced),
     };
 
     // Debug expansion parameters
@@ -328,9 +337,9 @@ const invokeSearchAgentInternal = async ({
     // Invoke agent with interrupt handling
     let response = await ReactSearchAgent.invoke(initialState);
 
-    // If the response has pendingExpansion, it means we need to wait for user input
-    // The state has been updated by showResultsThenExpand, so we don't resume from this response
-    if ((response as any).pendingExpansion) {
+    // If the response has pendingExpansion or pendingPrivacyEscalation, it means we need to wait for user input
+    // The state has been updated by showResultsThenExpand or showPrivacyModeDialog, so we don't resume from this response
+    if ((response as any).pendingExpansion || (response as any).pendingPrivacyEscalation) {
       // Update the stored state with the current response state
       (window as any).currentSearchAgentState = response;
     }
@@ -338,6 +347,7 @@ const invokeSearchAgentInternal = async ({
     // Check if the graph was interrupted (user needs to provide input)
     if (
       (response as any).pendingExpansion ||
+      (response as any).pendingPrivacyEscalation ||
       (!response.finalAnswer && !response.targetUid)
     ) {
       console.log("🚧 [Graph] Execution interrupted - waiting for user input");
@@ -465,14 +475,114 @@ const invokeSearchAgentInternal = async ({
           allEventListeners.forEach((listener: any) => {
             try {
               window.removeEventListener("agentExpansion", listener);
+              window.removeEventListener("agentPrivacyMode", listener);
             } catch (e) {
               // Ignore errors from removing non-existent listeners
             }
           });
 
+          // Privacy mode event listener for handling privacy escalation
+          const privacyModeEventListener = async (event: CustomEvent) => {
+            if (isProcessingExpansion) {
+              console.log(
+                "🚫 [Graph] Privacy mode change already in progress, ignoring duplicate event"
+              );
+              return;
+            }
+            isProcessingExpansion = true;
+
+            try {
+              console.log("🔒 [Graph] Privacy mode choice made:", event.detail);
+
+              // Clean up listeners and timers immediately
+              window.removeEventListener(
+                "agentExpansion",
+                expansionEventListener
+              );
+              window.removeEventListener(
+                "agentPrivacyMode",
+                privacyModeEventListener
+              );
+              if (timeoutId) clearTimeout(timeoutId);
+              if (abortListener)
+                abortController.signal.removeEventListener(
+                  "abort",
+                  abortListener
+                );
+
+              // Update agent state with new privacy mode
+              if ((window as any).currentSearchAgentState) {
+                const state = (window as any).currentSearchAgentState;
+                const { selectedMode, rememberChoice } = event.detail;
+
+                console.log(`🔒 [Privacy] User selected mode: ${selectedMode}`);
+
+                // Update privacy mode in global settings if user wants to remember
+                if (rememberChoice) {
+                  const { setSessionAskGraphMode } = await import("./ask-your-graph");
+                  setSessionAskGraphMode(selectedMode, true);
+                  console.log(`🔒 [Privacy] Remembered choice: ${selectedMode}`);
+                }
+
+                // Clear privacy escalation flags and update current mode
+                state.pendingPrivacyEscalation = false;
+                state.privacyMessage = undefined;
+                state.currentMode = selectedMode;
+                state.suggestedMode = undefined;
+
+                // Update permissions based on new mode
+                if (selectedMode === "Private") {
+                  state.permissions = { contentAccess: false };
+                  state.privateMode = true;
+                } else {
+                  state.permissions = { contentAccess: true };
+                  state.privateMode = false;
+                }
+
+                // CRITICAL: Set flag to bypass conversationRouter and intentParser since we already have IntentParser response
+                state.isPrivacyModeUpdated = true;
+                state.routingDecision = "need_new_search";
+
+                console.log(`🔒 [Privacy] Updated permissions:`, state.permissions);
+                console.log(`🔒 [Privacy] Set isPrivacyModeUpdated flag:`, state.isPrivacyModeUpdated);
+
+                // CRITICAL: Continue graph execution from assistant node with updated state
+                // We have the IntentParser response, now continue with updated privacy mode
+                console.log("🔄 [Privacy] Continuing graph execution from assistant node");
+
+                // Update toaster to show privacy mode change
+                updateAgentToaster(`🔒 Switched to ${selectedMode} mode - continuing search...`);
+
+                // Continue the graph execution from assistant with updated state and permissions
+                const finalResponse = await ReactSearchAgent.invoke(
+                  state,
+                  {
+                    recursionLimit: 50,
+                    streamMode: "values",
+                  }
+                );
+
+                // Clean up global state
+                delete (window as any).currentSearchAgentState;
+
+                // Process the final response and resolve with its result
+                const result = await processAgentResponse(finalResponse);
+                resolve(result);
+              } else {
+                reject(new Error("Agent state not found"));
+              }
+            } catch (error) {
+              console.error("❌ [Graph] Error handling privacy mode choice:", error);
+              reject(error);
+            } finally {
+              isProcessingExpansion = false;
+            }
+          };
+
           // Track this listener for cleanup
-          (window as any)._expansionListeners = [expansionEventListener];
+          (window as any)._expansionListeners = [expansionEventListener, privacyModeEventListener];
           window.addEventListener("agentExpansion", expansionEventListener);
+          window.addEventListener("agentPrivacyMode", privacyModeEventListener);
 
           // Store continuation function for manual triggering if needed
           (window as any).currentSearchAgentExecution = {
@@ -500,6 +610,10 @@ const invokeSearchAgentInternal = async ({
               "agentExpansion",
               expansionEventListener
             );
+            window.removeEventListener(
+              "agentPrivacyMode", 
+              privacyModeEventListener
+            );
             if (timeoutId) clearTimeout(timeoutId);
             reject(new Error("Operation cancelled by user"));
           };
@@ -511,12 +625,16 @@ const invokeSearchAgentInternal = async ({
               "agentExpansion",
               expansionEventListener
             );
+            window.removeEventListener(
+              "agentPrivacyMode",
+              privacyModeEventListener
+            );
             if (abortListener)
               abortController.signal.removeEventListener(
                 "abort",
                 abortListener
               );
-            reject(new Error("User input timeout - no expansion choice made"));
+            reject(new Error("User input timeout - no privacy mode choice made"));
           }, 300000); // 5 minutes timeout
         }
       });

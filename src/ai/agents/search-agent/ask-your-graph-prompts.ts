@@ -10,6 +10,7 @@ import {
 } from "../../../utils/roamAPI";
 import { dnpUidRegex } from "../../../utils/regex";
 import { getEnhancedLimits } from "./helpers/searchUtils";
+import { applyLinearContentTruncation } from "./helpers/contentTruncation";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
@@ -1117,6 +1118,7 @@ ${getFormattingInstructions(state.isDirectChat)}`;
 /**
  * Extract and format result data for system prompt based on security mode
  */
+
 export const extractResultDataForPrompt = (
   resultStore: Record<string, any>,
   securityMode: "private" | "balanced" | "full"
@@ -1282,40 +1284,57 @@ export const extractResultDataForPrompt = (
 
       case "balanced":
         // UIDs, titles, basic metadata with progressive content limits
-        // Get enhanced limits for progressive content strategy
-        const enhancedLimits = getEnhancedLimits("balanced");
-        const contentLimit = enhancedLimits.getContentLimit
-          ? enhancedLimits.getContentLimit(data.length)
-          : 200;
+        if (data.length > 150) {
+          // Apply linear content truncation to stay under 100k chars
+          console.log(
+            `🎯 [ExtractResultData] Balanced mode: High result count (${data.length}), applying linear truncation (100k char limit)`
+          );
+          limitedData = applyLinearContentTruncation(data, 100000);
+        } else {
+          // Use existing progressive limits (context expansion may have been applied for ≤150 results)
+          const enhancedLimits = getEnhancedLimits("balanced");
+          const contentLimit = enhancedLimits.getContentLimit
+            ? enhancedLimits.getContentLimit(data.length)
+            : 200;
 
-        limitedData = data.slice(0, 100).map((item) => ({
-          uid: item.uid,
-          pageUid: item.pageUid, // For extractPageReferences results
-          pageTitle: item.pageTitle || item.title,
-          count: item.count, // Preserve count for references
-          content:
-            item.metadata?.contextExpansion || item.expandedBlock
-              ? item.content // Context-expanded content is already optimally truncated - use as-is
-              : item.content && contentLimit
-              ? item.content.substring(0, contentLimit) +
-                (item.content.length > contentLimit ? "..." : "")
-              : item.content, // Apply progressive limits only to non-expanded content
-        }));
+          limitedData = data.slice(0, 100).map((item) => ({
+            uid: item.uid,
+            pageUid: item.pageUid, // For extractPageReferences results
+            pageTitle: item.pageTitle || item.title,
+            count: item.count, // Preserve count for references
+            content:
+              item.metadata?.contextExpansion || item.expandedBlock
+                ? item.content // Context-expanded content is already optimally truncated - use as-is
+                : item.content && contentLimit
+                ? item.content.substring(0, contentLimit) +
+                  (item.content.length > contentLimit ? "..." : "")
+                : item.content, // Apply progressive limits only to non-expanded content
+          }));
 
-        const expandedCount = data.filter(
-          (item) => item.metadata?.contextExpansion || item.expandedBlock
-        ).length;
+          const expandedCount = data.filter(
+            (item) => item.metadata?.contextExpansion || item.expandedBlock
+          ).length;
 
-        console.log(
-          `🎯 [ExtractResultData] Balanced mode: ${expandedCount} context-expanded items preserved, progressive limit (${
-            contentLimit || "full"
-          } chars) applied to ${data.length - expandedCount} regular items`
-        );
+          console.log(
+            `🎯 [ExtractResultData] Balanced mode: ${expandedCount} context-expanded items preserved, progressive limit (${
+              contentLimit || "full"
+            } chars) applied to ${data.length - expandedCount} regular items`
+          );
+        }
         break;
 
       case "full":
         // Complete data access for full analysis
-        limitedData = data.slice(0, 200);
+        if (data.length > 150) {
+          // Apply linear content truncation to stay under 200k chars
+          console.log(
+            `🎯 [ExtractResultData] Full mode: High result count (${data.length}), applying linear truncation (200k char limit)`
+          );
+          limitedData = applyLinearContentTruncation(data, 200000);
+        } else {
+          // Use existing limits (context expansion may have been applied for ≤150 results)
+          limitedData = data.slice(0, 200);
+        }
         break;
     }
 
@@ -1489,6 +1508,7 @@ export const buildIntentParserPrompt = (state: {
   permissions: { contentAccess: boolean };
   privateMode: boolean;
   rootUid?: string;
+  skipPrivacyAnalysis?: boolean; // Skip privacy mode analysis when privacy mode is forced
 }): string => {
   // Build date context - use daily note date if rootUid is in a DNP, otherwise use system date
   let referenceDate = new Date();
@@ -1755,6 +1775,27 @@ When user asks a question without explicit search conditions, infer the **minimu
 - "text:productivity" → searchStrategy: "direct" (single condition)
 - "text:Machine Learning > text:Deep Learning" → searchStrategy: "hierarchical" (explicit hierarchy)
 
+${!state.skipPrivacyAnalysis ? `
+## PRIVACY MODE ANALYSIS
+
+**CRITICAL**: Analyze if the current privacy mode is sufficient for the user's request:
+
+### Current Mode: ${state.privateMode ? "Private" : "Balanced/Full"}
+${state.privateMode 
+  ? `**Private Mode Limitations**: Only UIDs returned, no content analysis, no summaries, no insights`
+  : `**Current Mode Capabilities**: Can process content for analysis and insights`
+}
+
+### Analysis Required:
+1. **Does this request need content analysis?** (summarize, analyze, compare, find best, evaluate, etc.)
+2. **Does this request need AI insights beyond simple search?** (recommendations, explanations, patterns)
+3. **Is simple UID/reference finding sufficient?** (basic search, list results)
+
+### Privacy Escalation Rules:
+- **Request needs content analysis + current mode is Private** → suggest "Balanced" or "Full Access"
+- **Request needs deep analysis/comparison + current mode is Private/Balanced** → suggest "Full Access"  
+- **Simple search requests** → current mode is fine` : ''}
+
 ## YOUR TASK
 
 Parse this user request: "${state.userQuery}"
@@ -1776,6 +1817,7 @@ Respond with only valid JSON, no explanations or any additional comment.
   "isExpansionGlobal": false | true,
   "semanticExpansion": null | "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
   "customSemanticExpansion": null | string,
+  "suggestedMode": ${!state.skipPrivacyAnalysis ? 'null | "Balanced" | "Full Access"' : 'null'},
   "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
   "confidence": 0.1-1.0
 }

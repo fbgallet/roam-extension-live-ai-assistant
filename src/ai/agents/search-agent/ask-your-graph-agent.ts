@@ -35,6 +35,7 @@ import {
 // Import search utilities
 import { deduplicateResultsByUid } from "./helpers/searchUtils";
 import { performAdaptiveExpansion } from "./helpers/contextExpansion";
+import { applyIntermediateContentTruncation } from "./helpers/contentTruncation";
 
 // Import prompts from separate file
 import {
@@ -123,13 +124,18 @@ const ReactSearchAgentState = Annotation.Root({
   }>,
   // Request analysis and routing
   routingDecision: Annotation<
-    "use_cache" | "need_new_search" | "analyze_complexity"
+    "use_cache" | "need_new_search" | "analyze_complexity" | "show_privacy_dialog"
   >,
   reformulatedQuery: Annotation<string | undefined>,
   originalSearchContext: Annotation<string | undefined>,
   // Enhanced complexity analysis
   queryComplexity: Annotation<"simple" | "logical" | "multi-step">,
   userIntent: Annotation<string | undefined>,
+  // Privacy escalation
+  currentMode: Annotation<string | undefined>,
+  suggestedMode: Annotation<string | undefined>,
+  pendingPrivacyEscalation: Annotation<boolean>,
+  privacyMessage: Annotation<string | undefined>,
   // New symbolic query fields
   formalQuery: Annotation<string | undefined>,
   searchStrategy: Annotation<"direct" | "hierarchical" | undefined>,
@@ -194,10 +200,14 @@ const ReactSearchAgentState = Annotation.Root({
   // Timing and cancellation
   startTime: Annotation<number>,
   abortSignal: Annotation<AbortSignal | undefined>,
-  // Automatic semantic expansion setting
-  automaticExpansion: Annotation<boolean>,
+  // Semantic expansion mode setting
+  automaticExpansionMode: Annotation<string>,
   // Direct expansion bypass flag
   isDirectExpansion: Annotation<boolean>,
+  // Privacy mode update bypass flag
+  isPrivacyModeUpdated: Annotation<boolean>,
+  // Flag to indicate privacy mode was forced (skip privacy analysis in IntentParser)
+  isPrivacyModeForced: Annotation<boolean>,
 });
 
 // Global variables for the agent
@@ -267,12 +277,13 @@ const conversationRouter = async (
 
   // Check for direct expansion bypass first - should skip all other routing logic
   console.log(`🔧 [ConversationRouter] Debug state:`, {
-    isDirectExpansion: (state as any).isDirectExpansion,
+    isDirectExpansion: state.isDirectExpansion,
+    isPrivacyModeUpdated: state.isPrivacyModeUpdated,
     semanticExpansion: (state as any).semanticExpansion,
     isExpansionGlobal: (state as any).isExpansionGlobal,
   });
 
-  if ((state as any).isDirectExpansion) {
+  if (state.isDirectExpansion) {
     console.log(
       `🔀 [ConversationRouter] Direct expansion detected → skipping to need_new_search`
     );
@@ -280,6 +291,18 @@ const conversationRouter = async (
       routingDecision: "need_new_search" as const,
       reformulatedQuery: state.userQuery,
       originalSearchContext: "direct expansion request",
+    };
+  }
+
+  // Check for privacy mode update bypass - skip all routing since we already have IntentParser response
+  if (state.isPrivacyModeUpdated) {
+    console.log(
+      `🔀 [ConversationRouter] Privacy mode updated → skipping to need_new_search`
+    );
+    return {
+      routingDecision: "need_new_search" as const,
+      reformulatedQuery: state.userQuery,
+      originalSearchContext: "privacy mode update",
     };
   }
 
@@ -430,6 +453,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     permissions: state.permissions,
     privateMode: state.privateMode,
     rootUid: state.rootUid,
+    skipPrivacyAnalysis: state.isPrivacyModeForced, // Skip privacy analysis if mode was forced
   });
 
   try {
@@ -487,6 +511,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         | "all"
         | "custom";
       customSemanticExpansion?: string;
+      suggestedMode?: "Balanced" | "Full Access";
       language: string;
       confidence: number;
     }>(responseContent, {
@@ -501,6 +526,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       isExpansionGlobal: ["isExpansionGlobal"],
       semanticExpansion: ["semanticExpansion"],
       customSemanticExpansion: ["customSemanticExpansion"],
+      suggestedMode: ["suggestedMode"],
       language: ["language"],
       confidence: ["confidence"],
     });
@@ -532,6 +558,26 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
           approach: "single_search" as const,
           recommendedSteps: ["Execute user-provided Datomic query"],
         },
+        totalTokensUsed: updatedTotalTokens,
+        timingMetrics: updatedTimingMetrics,
+      };
+    }
+
+    // Handle privacy mode escalation
+    if (analysis.suggestedMode && state.privateMode) {
+      console.log(`🔒 [IntentParser] Privacy escalation needed: current=Private, suggested=${analysis.suggestedMode}`);
+      console.log(`🔒 [IntentParser] Query requires content access: "${state.userQuery}"`);
+      
+      updateAgentToaster(`🔒 This query needs ${analysis.suggestedMode} mode for content analysis`);
+      
+      // Use the same pattern as showResultsThenExpand to pause execution
+      return {
+        routingDecision: "show_privacy_dialog" as const,
+        userIntent: analysis.userIntent,
+        formalQuery: analysis.formalQuery,
+        currentMode: "Private",
+        suggestedMode: analysis.suggestedMode,
+        queryComplexity: determineComplexity(analysis.formalQuery),
         totalTokensUsed: updatedTotalTokens,
         timingMetrics: updatedTimingMetrics,
       };
@@ -1132,9 +1178,25 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   // Check if we need to add expansion strategies to the system prompt
   let shouldAddExpansionStrategies = false;
 
-  // Check if user requested exact matches (skip expansion)
+  // Check if user requested exact matches (skip expansion) or specific expansion levels
+  const userQuery = state.userQuery?.toLowerCase() || "";
   const requestsExactMatch =
-    state.userQuery?.toLowerCase().includes("exact") || false;
+    userQuery.includes("exact") ||
+    userQuery.includes("strict") ||
+    userQuery.includes("precise") ||
+    userQuery.includes("literal") ||
+    userQuery.includes("no expansion") ||
+    userQuery.includes("without expansion") || false;
+
+  // Check if user explicitly requested higher semantic expansion
+  const userRequestsHighExpansion =
+    userQuery.includes("semantic") ||
+    userQuery.includes("broader") ||
+    userQuery.includes("related") ||
+    userQuery.includes("synonyms") ||
+    userQuery.includes("fuzzy") ||
+    userQuery.includes("expand") ||
+    userQuery.includes("expansion") || false;
 
   // Only check final results for expansion decision
   const finalResults = Object.values(state.resultStore || {}).filter(
@@ -1164,38 +1226,67 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   // Don't trigger expansion on the first assistant call when no tools have run yet
   const hasToolsBeenExecuted = finalResults.length > 0;
 
-  // Add expansion strategies for:
-  // 1. Successful searches with <100 results, OR
-  // 2. No results found (most important case for expansion)
-  // NOTE: searchStrategy should NOT block expansion - user should always have expansion options when results are insufficient
+  // NEW EXPANSION MODE LOGIC: Handle the four different expansion modes
+  const expansionMode = state.automaticExpansionMode || "ask_user";
+  console.log(`🔧 [Assistant] Expansion mode: ${expansionMode}, hasToolsBeenExecuted: ${hasToolsBeenExecuted}, hasNoResults: ${hasNoResults}, hasLowResults: ${hasLowResults}, requestsExactMatch: ${requestsExactMatch}`);
+
+  // Determine if expansion should be applied based on mode
+  let shouldApplyExpansion = false;
+  let forceExpansionLevel: number | undefined = undefined;
+
+  if (hasToolsBeenExecuted && !requestsExactMatch && (state.expansionLevel || 0) < 4) {
+    switch (expansionMode) {
+      case "ask_user":
+        // Never auto-expand, but allow user override requests
+        shouldApplyExpansion = userRequestsHighExpansion && (hasLowResults || hasNoResults);
+        break;
+      case "auto_until_result":
+        // Expand progressively until we get results (original behavior)
+        // OR if user explicitly requests expansion
+        shouldApplyExpansion = (hasLowResults || hasNoResults) || userRequestsHighExpansion;
+        break;
+      case "always_fuzzy":
+        // Always apply fuzzy matching (level 1) regardless of result count
+        // OR if user requests higher expansion
+        shouldApplyExpansion = true;
+        forceExpansionLevel = userRequestsHighExpansion 
+          ? Math.max(state.expansionLevel || 0, 2) // Jump to synonyms if user requests
+          : Math.max(state.expansionLevel || 0, 1);
+        break;
+      case "always_fuzzy_synonyms":
+        // Always apply fuzzy + synonyms (level 2) regardless of result count
+        // OR if user requests higher expansion
+        shouldApplyExpansion = true;
+        forceExpansionLevel = userRequestsHighExpansion 
+          ? Math.max(state.expansionLevel || 0, 3) // Jump to related concepts if user requests
+          : Math.max(state.expansionLevel || 0, 2);
+        break;
+    }
+  }
+
+  // Add expansion strategies based on the mode decision
   // CRITICAL: Maximum expansion level is 4 to prevent infinite loops
-  if (
-    hasToolsBeenExecuted &&
-    (hasLowResults || hasNoResults) &&
-    !requestsExactMatch &&
-    (state.expansionLevel || 0) < 4 // Maximum expansion level is 4
-  ) {
+  let nextLevel = 1; // Default fallback
+  if (shouldApplyExpansion) {
     const currentExpansionLevel = state.expansionLevel || 0;
+    nextLevel = forceExpansionLevel || (currentExpansionLevel + 1);
     console.log(
-      `🔍 [Assistant] Detected ${totalResultCount} final results ${
-        hasNoResults ? "(zero results)" : "(low results <100)"
-      }, adding expansion strategies (level ${currentExpansionLevel + 1})`
+      `🔍 [Assistant] Mode: ${expansionMode}, applying expansion strategies (current: ${currentExpansionLevel}, next: ${nextLevel})`
     );
 
     shouldAddExpansionStrategies = true;
 
     // Show specific expansion strategy being applied
     const expansionStrategy = getExpansionStrategyDescription(
-      currentExpansionLevel + 1,
+      nextLevel,
       state.searchStrategy || "direct"
     );
     updateAgentToaster(
-      `🔧 Level ${currentExpansionLevel + 1}: ${expansionStrategy}`
+      `🔧 Level ${nextLevel}: ${expansionStrategy} (mode: ${expansionMode})`
     );
 
     // Update expansion state for UI buttons
     // Determine which semantic strategy is being applied based on expansion level
-    const currentLevel = state.expansionLevel || 0;
     const appliedStrategies =
       state.expansionState?.appliedSemanticStrategies || [];
 
@@ -1207,11 +1298,11 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
       // Level 4+ uses different tool strategies, not semantic expansion
     };
 
-    const currentStrategy =
-      levelToStrategyMap[currentLevel as keyof typeof levelToStrategyMap];
+    const targetStrategy =
+      levelToStrategyMap[nextLevel as keyof typeof levelToStrategyMap];
     const updatedStrategies =
-      currentStrategy && !appliedStrategies.includes(currentStrategy)
-        ? [...appliedStrategies, currentStrategy]
+      targetStrategy && !appliedStrategies.includes(targetStrategy)
+        ? [...appliedStrategies, targetStrategy]
         : appliedStrategies;
 
     state.expansionState = {
@@ -1256,7 +1347,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     semanticExpansion: state.semanticExpansion,
     shouldAddExpansionStrategies: shouldAddExpansionStrategies,
     currentExpansionLevel: shouldAddExpansionStrategies
-      ? (state.expansionLevel || 0) + 1 // If expansion is active, tell assistant the NEXT level
+      ? nextLevel // Use the calculated next level
       : state.expansionLevel || 0, // Otherwise, use current level
   });
   // console.log("Assistant systemPrompt :>> ", systemPrompt);
@@ -1288,36 +1379,73 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
           Array.isArray(parsed.data) &&
           parsed.data.length > 0
         ) {
-          // Create a concise summary instead of full results (no specific result ID needed here)
-          const summary = {
-            success: true,
-            summary: `Found ${
-              parsed.metadata?.totalFound || parsed.data.length
-            } results${
-              parsed.metadata?.wasLimited
-                ? ` (showing ${parsed.data.length})`
-                : ""
-            } from ${msg.name}.`,
-            count: {
-              total: parsed.metadata?.totalFound || parsed.data.length,
-              returned: parsed.data.length,
-            },
-            metadata: {
-              searchGuidance: parsed.metadata?.searchGuidance,
-            },
-          };
+          // NEW: Full mode gets intermediate content truncation instead of summaries
+          // Only for manageable result counts and when contentAccess is true
+          const securityMode = state.privateMode
+            ? "private"
+            : state.permissions?.contentAccess
+            ? "full"
+            : "balanced";
 
-          const summaryContent = JSON.stringify(summary);
-          console.log(
-            `🎯 [Assistant] Replaced verbose tool result (${msg.content.length} chars) with summary (${summaryContent.length} chars)`
-          );
+          if (
+            securityMode === "full" &&
+            parsed.data.length <= 100 && // Only for manageable result counts
+            parsed.data.length > 0
+          ) {
+            // Apply intermediate content truncation for full mode
+            const truncatedData = applyIntermediateContentTruncation(
+              parsed.data,
+              50000
+            ); // 50k char limit for intermediate processing
+            const truncatedContent = JSON.stringify({
+              ...parsed,
+              data: truncatedData,
+            });
 
-          // Create a new ToolMessage with the summary content
-          return new ToolMessage({
-            content: summaryContent,
-            tool_call_id: (msg as any).tool_call_id,
-            name: msg.name,
-          });
+            console.log(
+              `🔓 [Assistant] Full mode: Preserved ${truncatedData.length} results with content truncation (${msg.content.length} → ${truncatedContent.length} chars)`
+            );
+
+            // Return ToolMessage with truncated but real content for full mode
+            return new ToolMessage({
+              content: truncatedContent,
+              tool_call_id: (msg as any).tool_call_id,
+              name: msg.name,
+            });
+          } else {
+            // Private/balanced modes OR high result counts: use existing summary approach
+            const summary = {
+              success: true,
+              summary: `Found ${
+                parsed.metadata?.totalFound || parsed.data.length
+              } results${
+                parsed.metadata?.wasLimited
+                  ? ` (showing ${parsed.data.length})`
+                  : ""
+              } from ${msg.name}.`,
+              count: {
+                total: parsed.metadata?.totalFound || parsed.data.length,
+                returned: parsed.data.length,
+              },
+              metadata: {
+                searchGuidance: parsed.metadata?.searchGuidance,
+              },
+            };
+
+            const summaryContent = JSON.stringify(summary);
+            console.log(
+              `🎯 [Assistant] ${
+                securityMode === "full" ? "Full mode (high results)" : securityMode
+              }: Replaced verbose tool result (${msg.content.length} chars) with summary (${summaryContent.length} chars)`
+            );
+
+            // Create a new ToolMessage with the summary content
+            return new ToolMessage({
+              content: summaryContent,
+              tool_call_id: (msg as any).tool_call_id,
+              name: msg.name,
+            });
+          }
         }
       } catch (e) {
         // If parsing fails, return original message
@@ -1334,9 +1462,6 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
 
   // CLEAR EXPANSION LEVEL LOGGING
   const currentLevel = state.expansionLevel || 0;
-  const nextLevel = shouldAddExpansionStrategies
-    ? currentLevel + 1
-    : currentLevel;
   console.log(
     `🔍 [EXPANSION] ASSISTANT CALLED AT LEVEL ${nextLevel} (currentLevel=${currentLevel}, shouldAddExpansionStrategies=${shouldAddExpansionStrategies})`
   );
@@ -1563,17 +1688,26 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
     toolCalls: state.timingMetrics?.toolCalls || 0,
   };
 
-  // Only increment expansion level for semantic expansion (when adding expansion strategies)
-  const shouldIncrementExpansionLevel = shouldAddExpansionStrategies;
+  // Handle expansion level updates based on mode
+  const shouldUpdateExpansionLevel = shouldAddExpansionStrategies;
+  let newExpansionLevel = state.expansionLevel || 0;
+  
+  if (shouldUpdateExpansionLevel) {
+    if (forceExpansionLevel !== undefined) {
+      // For "always" modes, use the forced level
+      newExpansionLevel = forceExpansionLevel;
+    } else {
+      // For "auto_until_result" mode, increment normally
+      newExpansionLevel = (state.expansionLevel || 0) + 1;
+    }
+  }
 
   return {
     messages: [...state.messages, response],
     totalTokensUsed: updatedTotalTokens,
     timingMetrics: assistantTimingMetrics,
-    // Only increment expansion level for semantic expansion, NOT for context expansion
-    expansionLevel: shouldIncrementExpansionLevel
-      ? (state.expansionLevel || 0) + 1
-      : state.expansionLevel || 0,
+    // Update expansion level based on mode logic
+    expansionLevel: newExpansionLevel,
   };
 };
 
@@ -2334,6 +2468,53 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
   };
 };
 
+/**
+ * Show privacy mode escalation dialog and wait for user choice
+ * Similar to showResultsThenExpand but for privacy mode selection
+ */
+const showPrivacyModeDialog = async (state: typeof ReactSearchAgentState.State) => {
+  console.log(
+    `🔒 [PrivacyDialog] Query "${state.userQuery}" requires ${state.suggestedMode} mode`
+  );
+
+  // Import the display function dynamically to avoid circular dependencies
+  const { displayAskGraphModeDialog } = await import("../../../utils/domElts.js");
+  
+  // Show the mode selection dialog with callback to handle user choice
+  displayAskGraphModeDialog({
+    currentMode: state.currentMode,
+    suggestedMode: state.suggestedMode,
+    userQuery: state.userQuery,
+    onModeSelect: (selectedMode: string, rememberChoice: boolean) => {
+      console.log(`🔒 [PrivacyDialog] User selected mode: ${selectedMode}, remember: ${rememberChoice}`);
+      
+      // Dispatch custom event to resume graph execution
+      const event = new CustomEvent('agentPrivacyMode', {
+        detail: {
+          selectedMode,
+          rememberChoice,
+          currentMode: state.currentMode,
+          suggestedMode: state.suggestedMode
+        }
+      });
+      window.dispatchEvent(event);
+    }
+  });
+
+  const message = `🔒 Content Access Required: This query needs ${state.suggestedMode} mode for content analysis.`;
+
+  // INTERRUPT: Stop execution and wait for user mode selection
+  // The graph execution will pause here until user selects a privacy mode
+  return {
+    ...state,
+    // Mark that we're waiting for privacy mode selection
+    pendingPrivacyEscalation: true,
+    privacyMessage: message,
+    // CRITICAL: Set flag to bypass IntentParser on restart since we already processed it
+    isPrivacyModeUpdated: true,
+  };
+};
+
 // Edges
 const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   const { messages } = state;
@@ -2528,9 +2709,17 @@ const routeAfterConversationRouter = (
   state: typeof ReactSearchAgentState.State
 ) => {
   // Check for direct expansion bypass first
-  if ((state as any).isDirectExpansion) {
+  if (state.isDirectExpansion) {
     console.log(
       `🔀 [Graph] ConversationRouter → ASSISTANT (direct expansion bypass)`
+    );
+    return "assistant";
+  }
+
+  // Check for privacy mode update bypass - skip IntentParser since we already have its response
+  if (state.isPrivacyModeUpdated) {
+    console.log(
+      `🔀 [Graph] ConversationRouter → ASSISTANT (privacy mode updated)`
     );
     return "assistant";
   }
@@ -2550,6 +2739,11 @@ const routeAfterConversationRouter = (
 
 // Routing logic for intent parsing
 const routeAfterIntentParsing = (state: typeof ReactSearchAgentState.State) => {
+  if (state.routingDecision === "show_privacy_dialog") {
+    console.log(`🔀 [Graph] IntentParser → PRIVACY_DIALOG (mode escalation needed)`);
+    return "showPrivacyModeDialog";
+  }
+  
   const route =
     state.routingDecision === "use_cache" ? "cacheProcessor" : "assistant";
   console.log(`🔀 [Graph] IntentParser → ${route.toUpperCase()}`);
@@ -2966,6 +3160,7 @@ builder
   .addNode("responseWriter", responseWriter)
   .addNode("directFormat", directFormat)
   .addNode("showResultsThenExpand", showResultsThenExpand)
+  .addNode("showPrivacyModeDialog", showPrivacyModeDialog)
   .addNode("insertResponse", insertResponse)
 
   .addEdge(START, "loadModel")

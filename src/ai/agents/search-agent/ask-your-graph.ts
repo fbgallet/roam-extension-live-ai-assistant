@@ -101,6 +101,7 @@ export interface AskYourGraphParams {
   previousAgentState?: any;
   options?: any;
   requestedMode?: "Private" | "Balanced" | "Full Access";
+  forcePrivacyMode?: "Private" | "Balanced" | "Full Access"; // For command menu forcing
   bypassDialog?: boolean;
 }
 
@@ -115,11 +116,15 @@ export async function askYourGraph(params: AskYourGraphParams) {
     previousAgentState,
     options,
     requestedMode, // For manual mode override
+    forcePrivacyMode, // For command menu forcing
     bypassDialog = false, // For continuing conversations
   } = params;
 
+  // If forcePrivacyMode is specified, use it as requestedMode
+  const effectiveRequestedMode = forcePrivacyMode || requestedMode;
+
   // Determine current mode
-  let effectiveMode = requestedMode || getCurrentAskGraphMode();
+  let effectiveMode = effectiveRequestedMode || getCurrentAskGraphMode();
 
   // Check if this is the first time using Ask Your Graph
   if (!bypassDialog && !sessionModeRemembered) {
@@ -142,7 +147,11 @@ export async function askYourGraph(params: AskYourGraphParams) {
     targetUid,
     target,
     prompt,
-    previousAgentState,
+    previousAgentState: {
+      ...previousAgentState,
+      // Set flag when privacy mode is forced to skip privacy analysis in IntentParser
+      isPrivacyModeForced: Boolean(forcePrivacyMode),
+    },
     options,
   };
 
