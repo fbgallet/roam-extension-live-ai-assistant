@@ -7,15 +7,26 @@ import { ResultContent, ResultMetadata } from "./ResultRenderer";
 import { useFullResultsState } from "./hooks/useFullResultsState";
 import { canUseChat } from "./utils/chatHelpers";
 import { ReferencesFilterPopover } from "./ReferencesFilterPopover";
+import { QueryManager } from "./QueryManager";
+import { StoredQuery } from "../../ai/agents/search-agent/helpers/queryStorage";
+import { executeQueryWithLiveUpdates } from "../../ai/agents/search-agent/helpers/livePopupExecution";
 
 const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   results,
   isOpen,
-  title = "Ask your graph: last request full results",
+  title = "Ask your graph: full results view",
   targetUid,
   privateMode = false,
   permissions = { contentAccess: false },
+  userQuery,
+  formalQuery,
 }) => {
+  // Query execution state
+  const [isExecutingQuery, setIsExecutingQuery] = useState(false);
+  const [executionProgress, setExecutionProgress] = useState<string>("");
+  const [currentResults, setCurrentResults] = useState(results);
+  const [currentUserQuery, setCurrentUserQuery] = useState(userQuery);
+  const [currentFormalQuery, setCurrentFormalQuery] = useState(formalQuery);
   const {
     // State
     selectedResults,
@@ -79,7 +90,61 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleIncludeReference,
     handleExcludeReference,
     handleClearAllReferences,
-  } = useFullResultsState(results, isOpen);
+  } = useFullResultsState(currentResults, isOpen);
+
+  // Query selection handler
+  const handleQuerySelect = async (query: StoredQuery | "current") => {
+    if (query === "current") {
+      // Reset to original results
+      setCurrentResults(results);
+      setCurrentUserQuery(userQuery);
+      setCurrentFormalQuery(formalQuery);
+      setExecutionProgress("");
+      return;
+    }
+
+    // Execute stored query
+    setIsExecutingQuery(true);
+    setExecutionProgress("Running query with Ask your Graph agent...");
+    setCurrentUserQuery(query.userQuery);
+    setCurrentFormalQuery(query.formalQuery);
+
+    // Clear previous results immediately when starting new query
+    setCurrentResults([]);
+
+    try {
+      await executeQueryWithLiveUpdates({
+        intentParserResult: query.intentParserResult,
+        userQuery: query.userQuery,
+        formalQuery: query.formalQuery,
+        onProgress: (message: string) => {
+          setExecutionProgress(
+            `Running query with Ask your Graph agent... ${message}`
+          );
+        },
+        onResults: (partialResults: any[], isPartial?: boolean) => {
+          if (!isPartial) {
+            setCurrentResults(partialResults);
+          }
+        },
+        onComplete: (finalResults: any[]) => {
+          setCurrentResults(finalResults);
+          setExecutionProgress(
+            `✅ Query completed - ${finalResults.length} results found`
+          );
+          setTimeout(() => setExecutionProgress(""), 3000);
+        },
+        onError: (error: string) => {
+          setExecutionProgress(`❌ Query failed: ${error}`);
+          setTimeout(() => setExecutionProgress(""), 5000);
+        },
+      });
+    } catch (error) {
+      console.error("Query execution failed:", error);
+    } finally {
+      setIsExecutingQuery(false);
+    }
+  };
 
   const handleInsertAtDNPEnd = async () => {
     try {
@@ -102,19 +167,26 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       // Create blocks with appropriate references
       for (const result of selectedResultsList) {
         // Use explicit isPage flag when available, fallback to legacy detection, default to block
-        const isPage = result.isPage !== undefined ? result.isPage : 
-                       (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
-        let insertText;
-        
+        const isPage =
+          result.isPage !== undefined
+            ? result.isPage
+            : result.uid && !result.pageUid; // Legacy: if has uid but no pageUid, assume page
+        let insertText: string;
+
         if (isPage) {
           // For page results, use page reference
-          const pageTitle = result.pageTitle || result.content || result.text || result.title || "Untitled Page";
+          const pageTitle =
+            result.pageTitle ||
+            result.content ||
+            result.text ||
+            result.title ||
+            "Untitled Page";
           insertText = `[[${pageTitle}]]`;
         } else {
           // For block results, use block embed
           insertText = `((${result.uid}))`;
         }
-        
+
         await createChildBlock(insertionParentUid, insertText);
       }
 
@@ -154,12 +226,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     const embeds = selectedResultsList
       .map((result) => {
         // Use explicit isPage flag when available, fallback to legacy detection, default to block
-        const isPage = result.isPage !== undefined ? result.isPage : 
-                       (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
-        
+        const isPage =
+          result.isPage !== undefined
+            ? result.isPage
+            : result.uid && !result.pageUid; // Legacy: if has uid but no pageUid, assume page
+
         if (isPage) {
           // For page results, use page embed syntax
-          const pageTitle = result.pageTitle || result.content || result.text || result.title || "Untitled Page";
+          const pageTitle =
+            result.pageTitle ||
+            result.content ||
+            result.text ||
+            result.title ||
+            "Untitled Page";
           return `{{[[embed]]: [[${pageTitle}]]}}`;
         } else {
           // For block results, use block embed
@@ -181,12 +260,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     const references = selectedResultsList
       .map((result) => {
         // Use explicit isPage flag when available, fallback to legacy detection, default to block
-        const isPage = result.isPage !== undefined ? result.isPage : 
-                       (result.uid && !result.pageUid); // Legacy: if has uid but no pageUid, assume page
-        
+        const isPage =
+          result.isPage !== undefined
+            ? result.isPage
+            : result.uid && !result.pageUid; // Legacy: if has uid but no pageUid, assume page
+
         if (isPage) {
           // For page results, use page reference
-          const pageTitle = result.pageTitle || result.content || result.text || result.title || "Untitled Page";
+          const pageTitle =
+            result.pageTitle ||
+            result.content ||
+            result.text ||
+            result.title ||
+            "Untitled Page";
           return `[[${pageTitle}]]`;
         } else {
           // For block results, use page reference where the block is located
@@ -376,7 +462,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 isFullscreen ? "Exit fullscreen (ESC)" : "Fullscreen (F11)"
               }
             >
-              {isFullscreen ? "🗗" : "🗖"}
+              {isFullscreen ? "⧈" : "⤢"}
             </button>
             <button className="full-results-close-button" onClick={handleClose}>
               ×
@@ -392,109 +478,124 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               display: chatOnlyMode ? "none" : "flex",
             }}
           >
+            {/* Query Management */}
+            <QueryManager
+              currentUserQuery={currentUserQuery}
+              currentFormalQuery={currentFormalQuery}
+              onQuerySelect={handleQuerySelect}
+              disabled={isExecutingQuery}
+              executionProgress={executionProgress}
+            />
+
             {/* Enhanced Controls */}
             <div className="full-results-controls">
-              <div className="full-results-search-filters">
-                <InputGroup
-                  leftIcon="search"
-                  placeholder={
-                    results.length > 300 
-                      ? "Search within results (blocks content and page titles)..."
-                      : "Search within results (blocks + children content and page titles)..."
-                  }
-                  value={searchFilter}
-                  onChange={(e) => setSearchFilter(e.target.value)}
-                  className="full-results-search-input"
-                />
+              <div className="full-results-filters-and-sorts">
+                <div className="full-results-search-filters">
+                  <InputGroup
+                    leftIcon="search"
+                    placeholder={
+                      results.length > 300
+                        ? "Search within blocks or page titles..."
+                        : "Search within blocks/children or page titles..."
+                    }
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    className="full-results-search-input"
+                  />
 
-                <ReferencesFilterPopover
-                  availableReferences={availableReferences}
-                  includedReferences={includedReferences}
-                  excludedReferences={excludedReferences}
-                  onIncludeToggle={handleIncludeReference}
-                  onExcludeToggle={handleExcludeReference}
-                  onClearAll={handleClearAllReferences}
-                />
-              </div>
+                  <ReferencesFilterPopover
+                    availableReferences={availableReferences}
+                    includedReferences={includedReferences}
+                    excludedReferences={excludedReferences}
+                    onIncludeToggle={handleIncludeReference}
+                    onExcludeToggle={handleExcludeReference}
+                    onClearAll={handleClearAllReferences}
+                  />
+                </div>
 
-              <div className="full-results-sort-controls">
-                <HTMLSelect
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="full-results-sort-select"
-                >
-                  <option value="relevance">Sort: Relevance</option>
-                  <option value="date">Sort: Date</option>
-                  <option value="page">Sort: Page</option>
-                  {viewMode !== "pages" && (
-                    <>
-                      <option value="content-alpha">Sort: Content (A-Z)</option>
-                      <option value="content-length">Sort: Content Length</option>
-                    </>
-                  )}
-                </HTMLSelect>
-
-                <Button
-                  icon={sortOrder === "desc" ? "sort-desc" : "sort-asc"}
-                  onClick={() =>
-                    setSortOrder(sortOrder === "desc" ? "asc" : "desc")
-                  }
-                  title={`Sort ${
-                    sortOrder === "desc" ? "Descending" : "Ascending"
-                  }`}
-                />
-
-                <Checkbox
-                  checked={showMetadata}
-                  onChange={() => setShowMetadata(!showMetadata)}
-                  label="Metadata"
-                  className="full-results-metadata-toggle"
-                />
-
-                <Checkbox
-                  checked={showPaths}
-                  onChange={() => setShowPaths(!showPaths)}
-                  label="Block Paths"
-                  className="full-results-paths-toggle"
-                />
-
-                {(hasBlocks || hasPages) && (
+                <div className="full-results-sort-controls">
                   <HTMLSelect
-                    value={viewMode}
-                    onChange={(e) => setViewMode(e.target.value as any)}
-                    className="full-results-view-mode-select"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="full-results-sort-select"
                   >
-                    {hasBlocks && hasPages && (
-                      <option value="mixed">All Types</option>
+                    <option value="relevance">Sort: Relevance</option>
+                    <option value="date">Sort: Date</option>
+                    <option value="page">Sort: Page</option>
+                    {viewMode !== "pages" && (
+                      <>
+                        <option value="content-alpha">
+                          Sort: Content (A-Z)
+                        </option>
+                        <option value="content-length">
+                          Sort: Content Length
+                        </option>
+                      </>
                     )}
-                    {hasBlocks && <option value="blocks">Blocks Only</option>}
-                    {hasPages && <option value="pages">Pages Only</option>}
                   </HTMLSelect>
-                )}
 
-                {hasPages && viewMode !== "blocks" && (
-                  <HTMLSelect
-                    value={pageDisplayMode}
-                    onChange={(e) => setPageDisplayMode(e.target.value as any)}
-                    className="full-results-page-display-select"
-                  >
-                    <option value="metadata">Page Title</option>
-                    <option value="embed">Page Embed</option>
-                  </HTMLSelect>
-                )}
+                  <Button
+                    icon={sortOrder === "desc" ? "sort-desc" : "sort-asc"}
+                    onClick={() =>
+                      setSortOrder(sortOrder === "desc" ? "asc" : "desc")
+                    }
+                    title={`Sort ${
+                      sortOrder === "desc" ? "Descending" : "Ascending"
+                    }`}
+                  />
 
+                  <Checkbox
+                    checked={showMetadata}
+                    onChange={() => setShowMetadata(!showMetadata)}
+                    label="Metadata"
+                    className="full-results-metadata-toggle"
+                  />
+
+                  <Checkbox
+                    checked={showPaths}
+                    onChange={() => setShowPaths(!showPaths)}
+                    label="Block Paths"
+                    className="full-results-paths-toggle"
+                  />
+
+                  {hasBlocks && hasPages && (
+                    <HTMLSelect
+                      value={viewMode}
+                      onChange={(e) => setViewMode(e.target.value as any)}
+                      className="full-results-view-mode-select"
+                    >
+                      <option value="mixed">All Types</option>
+                      <option value="blocks">Blocks Only</option>
+                      <option value="pages">Pages Only</option>
+                    </HTMLSelect>
+                  )}
+
+                  {hasPages && viewMode !== "blocks" && (
+                    <HTMLSelect
+                      value={pageDisplayMode}
+                      onChange={(e) =>
+                        setPageDisplayMode(e.target.value as any)
+                      }
+                      className="full-results-page-display-select"
+                    >
+                      <option value="metadata">Page Title</option>
+                      <option value="embed">Page Embed</option>
+                    </HTMLSelect>
+                  )}
+                </div>
               </div>
 
               <div className="full-results-pagination-info">
                 <span>
-                  {filteredAndSortedResults.length} of {results.length} results
+                  {filteredAndSortedResults.length} of {currentResults.length}{" "}
+                  results
                 </span>
                 {selectedResults.size > 0 && (
                   <span className="full-results-selection-info">
                     ({selectedResults.size} selected)
                   </span>
                 )}
-                
+
                 {/* Integrated Pagination Controls */}
                 {totalPages > 1 && (
                   <div className="full-results-pagination-compact">
@@ -523,7 +624,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                     />
                     <HTMLSelect
                       value={resultsPerPage}
-                      onChange={(e) => setResultsPerPage(Number(e.target.value))}
+                      onChange={(e) =>
+                        setResultsPerPage(Number(e.target.value))
+                      }
                       className="full-results-per-page-compact"
                       minimal
                     >
@@ -543,7 +646,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               <div className="full-results-list">
                 {paginatedResults && paginatedResults.length > 0 ? (
                   paginatedResults.map((result, index) => {
-                    const originalIndex = results.indexOf(result);
+                    const originalIndex = currentResults.indexOf(result);
                     return (
                       <div
                         key={originalIndex}
@@ -559,6 +662,12 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                           <ResultMetadata
                             result={result}
                             showMetadata={showMetadata}
+                            sortBy={sortBy}
+                            sortOrder={sortOrder}
+                            onSortByDate={(order) => {
+                              setSortBy("date");
+                              setSortOrder(order);
+                            }}
                           />
                           <ResultContent
                             result={result}
@@ -583,7 +692,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   </div>
                 )}
               </div>
-
             </div>
           </div>
 
@@ -628,7 +736,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 checked={
                   paginatedResults.length > 0 &&
                   paginatedResults.every((result) =>
-                    selectedResults.has(results.indexOf(result))
+                    selectedResults.has(currentResults.indexOf(result))
                   )
                 }
                 onChange={handleSelectAll}
@@ -711,32 +819,37 @@ export default FullResultsPopup;
 // Shared utility function for opening last Ask Your Graph results
 // Used by both command palette and context menu
 export const openLastAskYourGraphResults = () => {
-  const lastResults = (window as any).lastAskYourGraphResults;
-  if (lastResults && lastResults.length > 0) {
-    // Import and use the popup function
-    import("../Toaster.js")
-      .then(({ openFullResultsPopup }) => {
-        if (openFullResultsPopup) {
-          const targetUid = (window as any).lastAgentResponseTargetUid || null;
-          openFullResultsPopup(lastResults, targetUid);
-        }
-      })
-      .catch(() => {
-        // Fallback for environments where dynamic import doesn't work
-        if (
-          (window as any).LiveAI &&
-          (window as any).LiveAI.openFullResultsPopup
-        ) {
-          (window as any).LiveAI.openFullResultsPopup(lastResults);
-        } else {
+  const lastResults = (window as any).lastAskYourGraphResults || [];
+
+  // Import and use the popup function - open even with empty results
+  import("../Toaster.js")
+    .then(({ openFullResultsPopup }) => {
+      if (openFullResultsPopup) {
+        const targetUid = (window as any).lastAgentResponseTargetUid || null;
+        const userQuery = (window as any).lastUserQuery || null;
+        const formalQuery = (window as any).lastFormalQuery || null;
+        openFullResultsPopup(lastResults, targetUid, userQuery, formalQuery);
+      }
+    })
+    .catch(() => {
+      // Fallback for environments where dynamic import doesn't work
+      if (
+        (window as any).LiveAI &&
+        (window as any).LiveAI.openFullResultsPopup
+      ) {
+        (window as any).LiveAI.openFullResultsPopup(lastResults);
+      } else {
+        if (lastResults.length > 0) {
           alert(
             `Found ${lastResults.length} results, but popup functionality is not available. Results are stored in window.lastAskYourGraphResults`
           );
+        } else {
+          alert(
+            "Opening full results popup - you can load previous queries from the query manager."
+          );
         }
-      });
-  } else {
-    console.warn("No Ask Your Graph results available to display");
-  }
+      }
+    });
 };
 
 // Function to check if results are available (for conditional command display)

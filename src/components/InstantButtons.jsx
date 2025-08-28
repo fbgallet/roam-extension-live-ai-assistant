@@ -396,33 +396,40 @@ const InstantButtons = ({
         console.log("🐛 DEBUG: Error data:", {
           currentMode: error.currentMode,
           suggestedMode: error.suggestedMode,
-          userQuery: error.userQuery
+          userQuery: error.userQuery,
         });
-        
+
         // Show mode selection dialog using the display function
         displayAskGraphModeDialog({
           currentMode: error.currentMode,
           suggestedMode: error.suggestedMode,
           userQuery: error.userQuery,
           onModeSelect: async (selectedMode, rememberChoice) => {
-            console.log("🐛 DEBUG: Mode selected:", selectedMode, "Remember:", rememberChoice);
+            console.log(
+              "🐛 DEBUG: Mode selected:",
+              selectedMode,
+              "Remember:",
+              rememberChoice
+            );
             try {
               // Set session mode if user chose to remember
               if (rememberChoice) {
-                const { setSessionAskGraphMode } = await import("../ai/agents/search-agent/ask-your-graph.ts");
+                const { setSessionAskGraphMode } = await import(
+                  "../ai/agents/search-agent/ask-your-graph.ts"
+                );
                 setSessionAskGraphMode(selectedMode, true);
               }
-              
+
               // Call askYourGraph again with the selected mode and bypass dialog
               await askYourGraph({
                 ...params,
                 requestedMode: selectedMode,
-                bypassDialog: true
+                bypassDialog: true,
               });
             } catch (retryError) {
               console.error("Error with selected mode:", retryError);
             }
-          }
+          },
         });
         return null; // Don't proceed, wait for user selection
       }
@@ -431,42 +438,43 @@ const InstantButtons = ({
   };
 
   const questionAgentResultsButton = () => {
-    return (
-      <Button
-        onClick={handleQuestionAgentResults}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          ContextMenu.show(
-            ModelsMenu({ callback: handleQuestionAgentResults }),
-            { left: e.clientX, top: e.clientY },
-            null
-          );
-        }}
-      >
-        <Tooltip
-          content={
-            <p>
-              Instructions or question on results
-              <br />
-              for post-processing by AI
-              <br />
-              <code>Right Click</code> to choose another AI model
-            </p>
-          }
-          hoverOpenDelay="500"
-        >
-          <Icon icon="search-template" />
-        </Tooltip>
-      </Button>
-    );
+    return null;
+    // return (
+    //   <Button
+    //     onClick={handleQuestionAgentResults}
+    //     onContextMenu={(e) => {
+    //       e.preventDefault();
+    //       ContextMenu.show(
+    //         ModelsMenu({ callback: handleQuestionAgentResults }),
+    //         { left: e.clientX, top: e.clientY },
+    //         null
+    //       );
+    //     }}
+    //   >
+    //     <Tooltip
+    //       content={
+    //         <p>
+    //           Instructions or question on results
+    //           <br />
+    //           for post-processing by AI
+    //           <br />
+    //           <code>Right Click</code> to choose another AI model
+    //         </p>
+    //       }
+    //       hoverOpenDelay="500"
+    //     >
+    //       <Icon icon="search-template" />
+    //     </Tooltip>
+    //   </Button>
+    // );
   };
 
   const handleExpansionRetry = (expansionType) => {
     const retryPrompts = {
       semantic: "Try similar and related concepts",
-      hierarchical: "Search with hierarchical context and relationships", 
+      hierarchical: "Search with hierarchical context and relationships",
       expansion: "Expand search with broader and deeper strategies",
-      fuzzy: "Try fuzzy matching and variations"
+      fuzzy: "Try fuzzy matching and variations",
     };
 
     callAskYourGraphWithModeHandling({
@@ -508,7 +516,10 @@ const InstantButtons = ({
             );
           }}
         >
-          <Tooltip content="Search with progressive expansion strategies" hoverOpenDelay="500">
+          <Tooltip
+            content="Search with progressive expansion strategies"
+            hoverOpenDelay="500"
+          >
             <Icon icon="zoom-in" />
           </Tooltip>
         </Button>
@@ -530,7 +541,10 @@ const InstantButtons = ({
             );
           }}
         >
-          <Tooltip content="Search for related concepts and synonyms" hoverOpenDelay="500">
+          <Tooltip
+            content="Search for related concepts and synonyms"
+            hoverOpenDelay="500"
+          >
             <Icon icon="graph" />
           </Tooltip>
         </Button>
@@ -538,7 +552,11 @@ const InstantButtons = ({
     }
 
     // "Search Context" for hierarchical expansion (logical complexity, no errors)
-    if (expansion.queryComplexity === "logical" && expansion.searchStrategy !== "hierarchical" && !expansion.hasErrors) {
+    if (
+      expansion.queryComplexity === "logical" &&
+      expansion.searchStrategy !== "hierarchical" &&
+      !expansion.hasErrors
+    ) {
       buttons.push(
         <Button
           key="search-context"
@@ -546,13 +564,18 @@ const InstantButtons = ({
           onContextMenu={(e) => {
             e.preventDefault();
             ContextMenu.show(
-              ModelsMenu({ callback: () => handleExpansionRetry("hierarchical") }),
+              ModelsMenu({
+                callback: () => handleExpansionRetry("hierarchical"),
+              }),
               { left: e.clientX, top: e.clientY },
               null
             );
           }}
         >
-          <Tooltip content="Search with hierarchical context and relationships" hoverOpenDelay="500">
+          <Tooltip
+            content="Search with hierarchical context and relationships"
+            hoverOpenDelay="500"
+          >
             <Icon icon="diagram-tree" />
           </Tooltip>
         </Button>
@@ -734,7 +757,7 @@ const InstantButtons = ({
           </Button>
         )}
       {/* Smart expansion buttons for search agents */}
-      {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) && 
+      {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) &&
         renderExpansionButtons()}
       {(aiCallback === invokeSearchAgent || aiCallback === invokeAskAgent) &&
         questionAgentResultsButton()}

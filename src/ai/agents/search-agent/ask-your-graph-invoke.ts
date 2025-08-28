@@ -752,7 +752,23 @@ const invokeSearchAgentInternal = async ({
           executionTime,
           turnTokensUsage,
           fullResults,
-          response?.targetUid
+          response?.targetUid,
+          response?.userQuery || finalPrompt,
+          response?.formalQuery,
+          response ? {
+            formalQuery: response.formalQuery,
+            searchStrategy: response.searchStrategy,
+            analysisType: response.analysisType,
+            language: response.language,
+            confidence: response.confidence,
+            datomicQuery: response.datomicQuery,
+            needsPostProcessing: response.needsPostProcessing,
+            postProcessingType: response.postProcessingType,
+            isExpansionGlobal: response.isExpansionGlobal,
+            semanticExpansion: response.semanticExpansion,
+            customSemanticExpansion: response.customSemanticExpansion,
+            searchDetails: response.searchDetails
+          } : undefined
         );
 
         // Insert conversation buttons for continued interaction

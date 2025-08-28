@@ -222,7 +222,10 @@ export const completeAgentToaster = (
   executionTime?: number,
   tokensUsage?: TokensUsage,
   fullResults?: any[],
-  targetUid?: string
+  targetUid?: string,
+  userQuery?: string,
+  formalQuery?: string,
+  intentParserResult?: any
 ): void => {
   // Clear the agent controller since processing is complete
   clearAgentController();
@@ -259,6 +262,36 @@ export const completeAgentToaster = (
       // Store targetUid for insertion context
       if (targetUid) {
         (window as any).lastAgentResponseTargetUid = targetUid;
+      }
+      // Store queries for display in popup
+      if (userQuery) {
+        (window as any).lastUserQuery = userQuery;
+      }
+      if (formalQuery) {
+        (window as any).lastFormalQuery = formalQuery;
+      }
+      // Store IntentParser result for query management
+      if (intentParserResult) {
+        (window as any).lastIntentParserResult = intentParserResult;
+        
+        // Add previous query to recent queries (if there was one)
+        const { addRecentQuery } = require("../search-agent/helpers/queryStorage");
+        const prevUserQuery = (window as any).previousUserQuery;
+        const prevFormalQuery = (window as any).previousFormalQuery;
+        const prevIntentParserResult = (window as any).previousIntentParserResult;
+        
+        if (prevUserQuery && prevIntentParserResult) {
+          addRecentQuery({
+            userQuery: prevUserQuery,
+            formalQuery: prevFormalQuery || prevUserQuery,
+            intentParserResult: prevIntentParserResult
+          });
+        }
+        
+        // Store current as previous for next time
+        (window as any).previousUserQuery = userQuery;
+        (window as any).previousFormalQuery = formalQuery;
+        (window as any).previousIntentParserResult = intentParserResult;
       }
 
       setTimeout(() => {

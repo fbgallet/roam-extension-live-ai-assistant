@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Result, ViewMode, PageDisplayMode, SortBy, SortOrder, ChatMessage, ChatMode, DNPFilter } from "../types";
 import { filterAndSortResults, paginateResults, calculateTotalPages, getUniquePages, detectResultTypes, extractPageReferences, filterResultsByReferences, PageReference, getBlockAndChildrenContent, detectDNPDistribution } from "../utils/resultProcessing";
 import { getSelectedResultsList } from "../utils/chatHelpers";
+import { extensionStorage } from "../../..";
 
 export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   // Selection state
@@ -17,12 +18,30 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [resultsPerPage, setResultsPerPage] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showMetadata, setShowMetadata] = useState(true);
-  const [showPaths, setShowPaths] = useState(false);
+  // Load preferences from storage or use defaults
+  const getStoredPreferences = () => {
+    const stored = extensionStorage.get("fullResultsPreferences") || {};
+    return {
+      showMetadata: stored.showMetadata ?? true,  // Default to true
+      showPaths: stored.showPaths ?? false       // Default to false
+    };
+  };
+
+  const [showMetadata, setShowMetadata] = useState(() => getStoredPreferences().showMetadata);
+  const [showPaths, setShowPaths] = useState(() => getStoredPreferences().showPaths);
   
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>("mixed");
   const [pageDisplayMode, setPageDisplayMode] = useState<PageDisplayMode>("metadata");
+
+  // Save preferences to storage when they change
+  useEffect(() => {
+    const preferences = {
+      showMetadata,
+      showPaths
+    };
+    extensionStorage.set("fullResultsPreferences", preferences);
+  }, [showMetadata, showPaths]);
 
   // Auto-adjust sorting when switching to pages-only view
   const handleViewModeChange = (newViewMode: ViewMode) => {

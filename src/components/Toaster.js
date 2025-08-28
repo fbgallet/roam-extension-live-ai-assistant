@@ -218,10 +218,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
   }, [isOpen]);
 
   return (
-    <div
-      key="expansion"
-      className="expansion-dropdown-container"
-    >
+    <div key="expansion" className="expansion-dropdown-container">
       <Button
         ref={buttonRef}
         text="Expand Search"
@@ -232,10 +229,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
       />
 
       {isOpen && (
-        <div
-          ref={dropdownRef}
-          className="expansion-dropdown-menu"
-        >
+        <div ref={dropdownRef} className="expansion-dropdown-menu">
           {options.map((option, index) => (
             <div
               key={index}
@@ -245,7 +239,9 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
               <span className="expansion-dropdown-option-emoji">
                 {option.emoji}
               </span>
-              <span className="expansion-dropdown-option-label">{option.label}</span>
+              <span className="expansion-dropdown-option-label">
+                {option.label}
+              </span>
             </div>
           ))}
         </div>
@@ -352,6 +348,8 @@ export const addButtonsToToaster = (
   // Add view full results button (available after completion)
   if (options.showFullResultsButton && currentFullResults) {
     const targetUid = window.lastAgentResponseTargetUid || null;
+    const userQuery = window.lastUserQuery || null;
+    const formalQuery = window.lastFormalQuery || null;
 
     buttons.push(
       <Button
@@ -360,7 +358,7 @@ export const addButtonsToToaster = (
         {...props}
         intent="primary"
         icon="list-detail-view"
-        onClick={() => openFullResultsPopup(currentFullResults, targetUid)}
+        onClick={() => openFullResultsPopup(currentFullResults, targetUid, userQuery, formalQuery)}
       />
     );
   }
@@ -400,7 +398,12 @@ export const addButtonsToToaster = (
 };
 
 // React component for popup functionality
-export const openFullResultsPopup = (results, targetUid = null) => {
+export const openFullResultsPopup = (
+  results,
+  targetUid = null,
+  userQuery = null,
+  formalQuery = null
+) => {
   // Remove any existing popup first
   const existingContainer = document.getElementById(
     "full-results-popup-container"
@@ -423,8 +426,10 @@ export const openFullResultsPopup = (results, targetUid = null) => {
     return React.createElement(FullResultsPopup, {
       results: results || [],
       isOpen: true,
-      title: "Ask your graph: last request full results",
+      title: "Ask your graph: full results view",
       targetUid: targetUid,
+      userQuery: userQuery,
+      formalQuery: formalQuery,
     });
   };
 

@@ -25,6 +25,9 @@ export interface FullResultsPopupProps {
   // Privacy mode props for chat functionality
   privateMode?: boolean;
   permissions?: { contentAccess: boolean };
+  // Query information for display
+  userQuery?: string;
+  formalQuery?: string;
 }
 
 export type ViewMode = "blocks" | "pages" | "mixed";

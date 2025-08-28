@@ -222,6 +222,8 @@ const ReactSearchAgentState = Annotation.Root({
   isPrivacyModeUpdated: Annotation<boolean>,
   // Flag to indicate privacy mode was forced (skip privacy analysis in IntentParser)
   isPrivacyModeForced: Annotation<boolean>,
+  // Popup execution mode - skip directFormat and insertResponse
+  isPopupExecution: Annotation<boolean | undefined>,
 });
 
 // Global variables for the agent
@@ -2424,6 +2426,11 @@ const toolsWithResultLifecycle = async (
 ) => {
   const toolStartTime = Date.now();
   console.log(`🔧 [Tools] Starting tool execution...`);
+  
+  // Handle popup execution progress tracking
+  if ((state as any).isPopupExecution && (state as any).popupProgressCallback) {
+    (state as any).popupProgressCallback("🔧 Executing search tools...");
+  }
 
   // Create state-aware tool wrappers that auto-inject agent state
   const stateAwareTools = state.searchTools.map((tool) => {
@@ -2478,6 +2485,32 @@ const toolsWithResultLifecycle = async (
     state,
     result.messages
   );
+  
+  // Handle popup execution result updates
+  if ((state as any).isPopupExecution) {
+    // Calculate total results across all stores
+    let totalResults = 0;
+    Object.values(updatedResultStore).forEach((store: any) => {
+      if (store?.data && Array.isArray(store.data)) {
+        totalResults += store.data.length;
+      }
+    });
+    
+    if ((state as any).popupProgressCallback && totalResults > 0) {
+      (state as any).popupProgressCallback(`🔍 Found ${totalResults} results`);
+    }
+    
+    if ((state as any).popupResultsCallback && totalResults > 0) {
+      // Flatten all results for popup update
+      const allResults: any[] = [];
+      Object.values(updatedResultStore).forEach((store: any) => {
+        if (store?.data && Array.isArray(store.data)) {
+          allResults.push(...store.data);
+        }
+      });
+      (state as any).popupResultsCallback(allResults, true); // Partial results
+    }
+  }
 
   // Update timing metrics
   const updatedTimingMetrics = {
@@ -2497,6 +2530,12 @@ const toolsWithResultLifecycle = async (
 
 // Smart routing after tool execution - skip assistant when results are sufficient
 const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
+  // Special routing for popup execution - skip all formatting and go directly to end
+  if ((state as any).isPopupExecution) {
+    console.log("🔀 [Graph] TOOLS → END (popup execution mode)");
+    return "__end__";
+  }
+
   // Check if we have actual result data (not just result store entries)
   const hasResults =
     state.resultStore &&
