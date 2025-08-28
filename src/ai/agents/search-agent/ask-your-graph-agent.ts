@@ -231,6 +231,13 @@ let llm: StructuredOutputType;
 let turnTokensUsage: TokensUsage;
 let searchTools: any[] = [];
 
+// Export function to get current token usage (for popup execution)
+export const getCurrentTokenUsage = (): TokensUsage => {
+  console.log("🐛 [getCurrentTokenUsage] Returning turnTokensUsage:", turnTokensUsage);
+  console.log("🐛 [getCurrentTokenUsage] Stack trace:", new Error().stack?.split('\n').slice(1, 4).join('\n'));
+  return { ...turnTokensUsage }; // Return a copy
+};
+
 // Initialize and get all available tools
 const initializeTools = (permissions: { contentAccess: boolean }) => {
   // Get tools based on permissions using the registry
@@ -371,6 +378,14 @@ const conversationRouter = async (
   }
 
   // Decision logic
+  // Special case: popup execution with pre-computed IntentParser results - skip IntentParser
+  if ((state as any).isPopupExecution) {
+    console.log("🔀 [ConversationRouter] Popup execution detected - skipping IntentParser");
+    return {
+      routingDecision: "need_new_search" as const,
+    };
+  }
+
   if (!state.isConversationMode || !hasConversationHistory) {
     // Fresh request without conversation context - always analyze complexity
     return {
@@ -934,6 +949,10 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
 
   console.log("state.rootUid :>> ", state.rootUid);
 
+  // Reset token usage for new execution (important for popup executions)
+  turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
+  console.log("🐛 [loadModel] Initialized turnTokensUsage:", turnTokensUsage);
+
   // Initialize LLM
   llm = modelViaLanggraph(state.model, turnTokensUsage);
 
@@ -1216,6 +1235,13 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
     );
   }
   const llmStartTime = Date.now();
+  
+  // Debug popup execution and token tracking
+  console.log("🐛 [Assistant] About to make LLM call:", {
+    isPopupExecution: (state as any).isPopupExecution,
+    currentTurnTokensUsage: turnTokensUsage,
+    currentTotalTokens: state.totalTokensUsed
+  });
 
   // Check for cancellation before LLM call
   if (state.abortSignal?.aborted) {
@@ -1250,6 +1276,15 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
       (state.totalTokensUsed?.output || 0) +
       (responseTokens.output_tokens || 0),
   };
+  
+  // Debug token tracking after assistant call
+  console.log("🐛 [Assistant] LLM call completed:", {
+    isPopupExecution: (state as any).isPopupExecution,
+    llmDuration: llmDuration + "ms",
+    responseTokens: responseTokens,
+    updatedTotalTokens: updatedTotalTokens,
+    turnTokensUsageAfter: turnTokensUsage
+  });
 
   if (response.tool_calls && response.tool_calls.length > 0) {
     // Generate user-friendly explanations for tool calls
