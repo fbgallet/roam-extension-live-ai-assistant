@@ -158,6 +158,8 @@ const ReactSearchAgentState = Annotation.Root({
   language: Annotation<string | undefined>,
   confidence: Annotation<number | undefined>,
   datomicQuery: Annotation<string | undefined>,
+  needsPostProcessing: Annotation<boolean | undefined>,
+  postProcessingType: Annotation<string | undefined>,
   // Semantic expansion: simplified boolean flag + strategy
   isExpansionGlobal: Annotation<boolean | undefined>,
   semanticExpansion: Annotation<
@@ -244,7 +246,10 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
 const conversationRouter = async (
   state: typeof ReactSearchAgentState.State
 ) => {
-  logger.flow("ConversationRouter", `Analyzing routing for: "${state.userQuery}"`);
+  logger.flow(
+    "ConversationRouter",
+    `Analyzing routing for: "${state.userQuery}"`
+  );
 
   // Check for direct expansion bypass first - should skip all other routing logic
   logger.debug("ConversationRouter state:", {
@@ -463,6 +468,8 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     const analysis = parseJSONWithFields<{
       routingDecision?: "direct_datomic";
       datomicQuery?: string;
+      needsPostProcessing?: boolean;
+      postProcessingType?: string;
       userIntent: string;
       formalQuery: string;
       constraints: {
@@ -488,6 +495,8 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     }>(responseContent, {
       routingDecision: ["routingDecision"],
       datomicQuery: ["datomicQuery"],
+      needsPostProcessing: ["needsPostProcessing"],
+      postProcessingType: ["postProcessingType"],
       userIntent: ["userIntent"],
       formalQuery: ["formalQuery"],
       constraints: ["constraints"],
@@ -523,6 +532,8 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       return {
         routingDecision: "need_new_search" as const,
         datomicQuery: analysis.datomicQuery,
+        needsPostProcessing: analysis.needsPostProcessing,
+        postProcessingType: analysis.postProcessingType,
         userIntent: analysis.userIntent,
         queryComplexity: "simple" as const,
         strategicGuidance: {
@@ -768,7 +779,9 @@ const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
   const legacyResultsCount = Object.keys(state.cachedFullResults || {}).length;
   const totalResultsCount = newResultsCount + legacyResultsCount;
 
-  logger.debug(`Available cached results: ${totalResultsCount} (${newResultsCount} new + ${legacyResultsCount} legacy)`);
+  logger.debug(
+    `Available cached results: ${totalResultsCount} (${newResultsCount} new + ${legacyResultsCount} legacy)`
+  );
   uiMessages.processingCache();
 
   // In Private mode, don't process cached content - route to new search
@@ -1222,7 +1235,7 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
     abortPromise,
   ]);
 
-  console.log("Assistant response :>>, response");
+  // console.log("Assistant response :>>, response");
 
   const llmDuration = Date.now() - llmStartTime;
 
