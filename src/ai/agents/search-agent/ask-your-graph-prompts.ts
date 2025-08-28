@@ -14,6 +14,103 @@ import { applyLinearContentTruncation } from "./helpers/contentTruncation";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
+/**
+ * Detects if a user query contains a Datomic query that should be executed directly
+ */
+export const isDatomicQuery = (userQuery: string): boolean => {
+  const query = userQuery.toLowerCase().trim();
+
+  // Check for key Datomic patterns
+  const hasFindClause = query.includes("[:find") || query.includes("[: find");
+  const hasWhereClause = query.includes(":where");
+
+  // Also check for common Datomic variable patterns
+  const hasDatomicVariables = /\?\w+/.test(userQuery); // ?variable syntax
+
+  return hasFindClause && hasWhereClause && hasDatomicVariables;
+};
+
+/**
+ * Extracts the actual Datomic query from user input (removes quotes, code blocks, etc.)
+ */
+export const extractDatomicQuery = (userQuery: string): string => {
+  let query = userQuery.trim();
+
+  // Remove common prefixes like "Execute this query:", "Run:", "Results of:", etc.
+  query = query.replace(
+    /^(execute|run|results?\s+of|summarize\s+the\s+results?\s+of)\s*(:|\s)\s*/i,
+    ""
+  );
+
+  // Remove quotes if the query is wrapped in them
+  if (
+    (query.startsWith('"') && query.endsWith('"')) ||
+    (query.startsWith("'") && query.endsWith("'"))
+  ) {
+    query = query.slice(1, -1);
+  }
+
+  // Remove code block markers
+  query = query.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+  query = query.replace(/^`/, "").replace(/`$/, "");
+
+  return query.trim();
+};
+
+/**
+ * Builds a specialized system prompt for Datomic query requests
+ */
+export const buildDatomicQueryPrompt = (state: {
+  userQuery: string;
+  conversationHistory?: any[];
+  conversationSummary?: string;
+  permissions: { contentAccess: boolean };
+  privateMode: boolean;
+}): string => {
+  const datomicQuery = extractDatomicQuery(state.userQuery);
+
+  return `You are processing a user request that contains a Datomic query for a Roam Research database.
+
+USER REQUEST: "${state.userQuery}"
+DETECTED DATOMIC QUERY: ${datomicQuery}
+
+## ANALYSIS REQUEST DETECTION:
+
+**Your task is to determine if the user wants:**
+1. **Direct execution only**: Just run the query and return results
+2. **Analysis/Summary**: Execute query AND provide analysis, summary, explanation, or processing of results
+
+**Look for analysis indicators in ANY language:**
+- Words meaning: summarize, analyze, explain, describe, count, compare, what, how many, why, etc.
+- Questions about the results: "What do these show?", "How many?", "Explain these results"
+- Request for insights: "What can you tell me about...", "Give me insights from..."
+- Processing requests: "Group by...", "Show patterns...", "Find trends..."
+
+## CRITICAL INSTRUCTIONS:
+
+**RESPOND WITH EXACTLY THIS JSON FORMAT (no explanations or additional text):**
+
+{
+  "routingDecision": "direct_datomic",
+  "datomicQuery": "${datomicQuery.replace(/"/g, '\\"')}",
+  "userIntent": "your analysis of what the user wants (in their language if not English)",
+  "needsPostProcessing": true/false (based on your analysis),
+  "postProcessingType": "summary"/"analysis"/"count"/"compare"/null (choose appropriate type or null for direct execution),
+  "confidence": 1.0
+}
+
+**DO NOT:**
+- Parse this as a symbolic query
+- Convert to search conditions  
+- Modify the Datomic query syntax, unless it's requested by the user
+- Add any explanatory text
+
+**ALWAYS:**
+- Use "routingDecision": "direct_datomic" 
+- Include the exact Datomic query
+- Set needsPostProcessing: true if user wants analysis/summary of results`;
+};
+
 const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply ref: prefix when EXPLICITLY formatted as references)
 - '[[page title]]': 'ref:page title' (references TO) or 'in:page title' (content WITHIN)
 - '#tag' or '#[[long tag]]': 'ref:tag' (references TO)
@@ -283,6 +380,8 @@ export const buildSystemPrompt = (state: {
   analysisType?: "count" | "compare" | "connections" | "summary";
   language?: string;
   datomicQuery?: string;
+  needsPostProcessing?: boolean;
+  postProcessingType?: string;
   // Semantic expansion: simplified boolean flag + strategy
   isExpansionGlobal?: boolean;
   semanticExpansion?:
@@ -338,7 +437,15 @@ SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
 '${
     state.datomicQuery
       ? `\nDATOMIC QUERY: ${state.datomicQuery}
-  \nSince a Datomic queries is provided by the user, use executeDatomicQuery directly`
+  \nSince a Datomic query is provided by the user, use executeDatomicQuery directly${
+    state.needsPostProcessing
+      ? `, then ${
+          state.postProcessingType === "summary"
+            ? "provide analysis and summary"
+            : "process the results as requested"
+        } of the results`
+      : ""
+  }`
       : ""
   }
 
@@ -430,7 +537,19 @@ const buildComplexQueryPrompt = (state: any): string => {
 USER REQUEST: "${state.userQuery}"
 USER INTENT: ${state.userIntent || "Execute advanced search"}
 ${state.formalQuery ? `SYMBOLIC QUERY: '${state.formalQuery}'` : ""}
-${state.datomicQuery ? `DATOMIC QUERY: ${state.datomicQuery}` : ""}
+${
+  state.datomicQuery
+    ? `DATOMIC QUERY: ${state.datomicQuery}${
+        state.needsPostProcessing
+          ? `\n🔄 POST-PROCESSING REQUIRED: After executing the Datomic query, ${
+              state.postProcessingType === "summary"
+                ? "provide analysis and summary"
+                : "process the results as requested"
+            } of the results.`
+          : ""
+      }`
+    : ""
+}
 COMPLEXITY: ${state.queryComplexity || "multi-step"}
 ${state.analysisType ? `ANALYSIS: ${state.analysisType}` : ""}
 ${
@@ -489,11 +608,15 @@ ${
       : ""
   }
 
-${state.needsAlternativeStrategies 
-  ? `${buildAlternativeStrategiesGuidance(state.userQuery || "", state.formalQuery || "")}\n\nRETRY THE SEARCH: Apply the alternative strategies above and search again with modified parameters.`
-  : 'Execute the complex symbolic query now.'}`;
+${
+  state.needsAlternativeStrategies
+    ? `${buildAlternativeStrategiesGuidance(
+        state.userQuery || "",
+        state.formalQuery || ""
+      )}\n\nRETRY THE SEARCH: Apply the alternative strategies above and search again with modified parameters.`
+    : "Execute the complex symbolic query now."
+}`;
 };
-
 
 // Alternative strategies guidance when automatic expansion fails
 export const buildAlternativeStrategiesGuidance = (
@@ -547,7 +670,6 @@ export const buildAlternativeStrategiesGuidance = (
 **Remember**: Better to find something relevant than nothing at all.
 `;
 };
-
 
 // Request analysis system prompt
 export const buildRequestAnalysisPrompt = (state: {
@@ -1251,7 +1373,6 @@ export const extractResultDataForPrompt = (
   return formattedResults.join("\n\n");
 };
 
-
 // Intent Parser prompt with symbolic language
 export const buildIntentParserPrompt = (state: {
   userQuery: string;
@@ -1263,6 +1384,10 @@ export const buildIntentParserPrompt = (state: {
   rootUid?: string;
   skipPrivacyAnalysis?: boolean; // Skip privacy mode analysis when privacy mode is forced
 }): string => {
+  // Pre-check for Datomic queries - if detected, use specialized prompt
+  if (isDatomicQuery(state.userQuery)) {
+    return buildDatomicQueryPrompt(state);
+  }
   // Build date context - use daily note date if rootUid is in a DNP, otherwise use system date
   let referenceDate = new Date();
   let contextNote = "";
@@ -1370,15 +1495,6 @@ Examples:
 - "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
 - "Pages with status completed or done" → 'regex:/^status::.*(completed|done).*/i'
 - "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
-
-## SPECIAL CASE - DIRECT DATOMIC QUERIES:
-If the user provides a Datomic query (starts with patterns like \`[:find\`, \`[:find ?e\`, etc.), respond with:
-{
-  "routingDecision": "direct_datomic",
-  "datomicQuery": "user's exact query",
-  "userIntent": "Execute user-provided Datomic query",
-  "confidence": 1.0
-}
 
 ## EXPANSION INTENT DETECTION:
 
@@ -1528,15 +1644,18 @@ When user asks a question without explicit search conditions, infer the **minimu
 - "text:productivity" → searchStrategy: "direct" (single condition)
 - "text:Machine Learning > text:Deep Learning" → searchStrategy: "hierarchical" (explicit hierarchy)
 
-${!state.skipPrivacyAnalysis ? `
+${
+  !state.skipPrivacyAnalysis
+    ? `
 ## PRIVACY MODE ANALYSIS
 
 **CRITICAL**: Analyze if the current privacy mode is sufficient for the user's request:
 
 ### Current Mode: ${state.privateMode ? "Private" : "Balanced/Full"}
-${state.privateMode 
-  ? `**Private Mode Limitations**: Only UIDs returned, no content analysis, no summaries, no insights`
-  : `**Current Mode Capabilities**: Can process content for analysis and insights`
+${
+  state.privateMode
+    ? `**Private Mode Limitations**: Only UIDs returned, no content analysis, no summaries, no insights`
+    : `**Current Mode Capabilities**: Can process content for analysis and insights`
 }
 
 ### Analysis Required:
@@ -1547,7 +1666,9 @@ ${state.privateMode
 ### Privacy Escalation Rules:
 - **Request needs content analysis + current mode is Private** → suggest "Balanced" or "Full Access"
 - **Request needs deep analysis/comparison + current mode is Private/Balanced** → suggest "Full Access"  
-- **Simple search requests** → current mode is fine` : ''}
+- **Simple search requests** → current mode is fine`
+    : ""
+}
 
 ## YOUR TASK
 
@@ -1570,7 +1691,9 @@ Respond with only valid JSON, no explanations or any additional comment.
   "isExpansionGlobal": false | true,
   "semanticExpansion": null | "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
   "customSemanticExpansion": null | string,
-  "suggestedMode": ${!state.skipPrivacyAnalysis ? 'null | "Balanced" | "Full Access"' : 'null'},
+  "suggestedMode": ${
+    !state.skipPrivacyAnalysis ? 'null | "Balanced" | "Full Access"' : "null"
+  },
   "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
   "confidence": 0.1-1.0
 }
