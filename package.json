@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.17.1",
     "@blueprintjs/core": "^5.9.1",
+    "@blueprintjs/select": "^6.0.3",
     "@fortawesome/free-solid-svg-icons": "^6.4.2",
     "@fortawesome/react-fontawesome": "^0.2.0",
     "@langchain/anthropic": "^0.3.14",
