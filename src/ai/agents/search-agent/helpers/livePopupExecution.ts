@@ -4,7 +4,7 @@
  */
 
 import { HumanMessage } from "@langchain/core/messages";
-import { ReactSearchAgent } from "../ask-your-graph-agent";
+import { ReactSearchAgent, getCurrentTokenUsage } from "../ask-your-graph-agent";
 import { LlmInfos } from "../../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../../aiAPIsHub";
 import { defaultModel } from "../../../..";
@@ -17,6 +17,7 @@ import {
   errorAgentToaster,
   formatExecutionTime
 } from "../../shared/agentsUtils";
+import { TokensUsage } from "../../langraphModelsLoader";
 
 export interface PopupExecutionConfig {
   intentParserResult: IntentParserResult;
@@ -42,8 +43,12 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
     onError
   } = config;
 
-  // Track execution time
+  // Track execution time and tokens
   const startTime = Date.now();
+  let turnTokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 };
+  
+  console.log("🐛 [Popup Execution] Starting with query:", userQuery);
+  console.log("🐛 [Popup Execution] Intent parser result:", intentParserResult);
 
   try {
     // Initialize the agent toaster for visual feedback
@@ -106,16 +111,33 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
       
       // Progress tracking
       popupProgressCallback: onProgress,
-      popupResultsCallback: onResults
+      popupResultsCallback: onResults,
+      
+      // Token tracking - pass reference to be updated by the agent
+      turnTokensUsage: turnTokensUsage
     };
 
     // Execute the agent starting from Assistant node
     onProgress?.("🚀 Executing search...");
     updateAgentToaster("🚀 Executing search...");
     
+    console.log("🐛 [Popup Execution] About to invoke agent with state:", {
+      userQuery: initialState.userQuery,
+      formalQuery: initialState.formalQuery,
+      isPopupExecution: initialState.isPopupExecution,
+      skipDirectFormat: initialState.skipDirectFormat,
+      turnTokensUsageRef: turnTokensUsage
+    });
+    
     const response = await ReactSearchAgent.invoke(initialState, {
       recursionLimit: 50,
       streamMode: "values"
+    });
+    
+    console.log("🐛 [Popup Execution] Agent response received:", {
+      resultStoreKeys: Object.keys(response.resultStore || {}),
+      toolResultsKeys: Object.keys(response.toolResults || {}),
+      hasResults: !!(response.resultStore || response.toolResults)
     });
 
     // Extract results from final response
@@ -146,12 +168,24 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
     onResults?.(finalResults, false); // Final results, not partial
     onComplete?.(finalResults);
     
-    // Complete the agent toaster with success, including execution time
+    // Get the actual token usage from the agent's global state
+    const actualTokenUsage = getCurrentTokenUsage();
+    
+    console.log("🐛 [Popup Execution] Token usage after execution:", actualTokenUsage);
+    console.log("🐛 [Popup Execution] Final results count:", finalResults.length);
+    
+    // Complete the agent toaster with success, including execution time and tokens
     const executionTime = formatExecutionTime(startTime);
+    console.log("🐛 [Popup Execution] Calling completeAgentToaster with:", {
+      executionTime,
+      actualTokenUsage,
+      resultsCount: finalResults.length
+    });
+    
     completeAgentToaster(
       "search",
       executionTime,
-      undefined, // No token tracking for now
+      actualTokenUsage,
       finalResults
     );
 
