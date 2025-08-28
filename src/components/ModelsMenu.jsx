@@ -173,19 +173,6 @@ const ModelsMenu = ({
           !isWebSearch ? (
             <>
               <MenuItem
-                icon={defaultModel === "gpt-5-chat-latest" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="gpt-5-chat-latest"
-                labelElement="400k"
-              />
-              <MenuItem
                 icon={defaultModel === "gpt-5-nano" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
@@ -222,6 +209,19 @@ const ModelsMenu = ({
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
                 text="gpt-5"
+                labelElement="400k"
+              />
+              <MenuItem
+                icon={defaultModel === "gpt-5 (not reasoning)" && "pin"}
+                onClick={(e) => {
+                  handleClickOnModel(e);
+                }}
+                onKeyDown={(e) => {
+                  handleKeyDownOnModel(e);
+                }}
+                onContextMenu={(e) => handleContextMenu(e)}
+                tabindex="0"
+                text="gpt-5 (not reasoning)"
                 labelElement="400k"
               />
               <MenuItem text="Web Search models">

@@ -431,14 +431,16 @@ function getPanelConfig() {
             "Always ask user",
             "Automatic until result",
             "Always with fuzzy",
-            "Always with fuzzy + synonyms",
+            "Always with synonyms",
+            "Always with all",
           ],
           onChange: (evt) => {
             const modeMap = {
               "Always ask user": "ask_user",
               "Automatic until result": "auto_until_result",
               "Always with fuzzy": "always_fuzzy",
-              "Always with fuzzy + synonyms": "always_fuzzy_synonyms",
+              "Always with synonyms": "always_synonyms",
+              "Always with all": "always_all",
             };
             automaticSemanticExpansionMode = modeMap[evt];
           },
@@ -1364,9 +1366,18 @@ export default {
         "automaticSemanticExpansionMode",
         "auto_until_result"
       );
-    automaticSemanticExpansionMode = extensionAPI.settings.get(
+    const rawExpansionMode = extensionAPI.settings.get(
       "automaticSemanticExpansionMode"
     );
+    // Apply mapping to ensure internal values are used
+    const modeMap = {
+      "Always ask user": "ask_user",
+      "Automatic until result": "auto_until_result", 
+      "Always with fuzzy": "always_fuzzy",
+      "Always with synonyms": "always_synonyms",
+      "Always with all": "always_all",
+    };
+    automaticSemanticExpansionMode = modeMap[rawExpansionMode] || rawExpansionMode;
     if (extensionAPI.settings.get("maxCapturingDepth") === null)
       await extensionAPI.settings.set("maxCapturingDepth", "99,3,4");
     maxCapturingDepth = getMaxDephObjectFromList(

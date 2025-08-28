@@ -2097,6 +2097,43 @@ export const findPagesByContentTool = tool(
           })) || [],
       };
 
+      // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
+      if (state?.automaticExpansionMode === 'auto_until_result') {
+        console.log(`🔧 [FindPagesByContent] Using automatic expansion for auto_until_result mode`);
+        
+        // Import the helper function
+        const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+        
+        // Use automatic expansion starting from fuzzy
+        const expansionResult = await automaticSemanticExpansion(
+          enrichedInput,
+          (params: any, state?: any) => findPagesByContentImpl(params, state),
+          state
+        );
+
+        // Log expansion results
+        if (expansionResult.expansionUsed) {
+          console.log(`✅ [FindPagesByContent] Found results with ${expansionResult.expansionUsed} expansion`);
+        } else {
+          console.log(`😟 [FindPagesByContent] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+        }
+
+        return createToolResult(
+          true,
+          expansionResult.results,
+          undefined,
+          "findPagesByContent",
+          startTime,
+          {
+            automaticExpansion: {
+              used: expansionResult.expansionUsed,
+              attempts: expansionResult.expansionAttempts,
+              finalAttempt: expansionResult.finalAttempt
+            }
+          }
+        );
+      }
+
       console.log(
         "🔍 [findPagesByContentTool] ENRICHED INPUT searchScope:",
         enrichedInput.searchScope

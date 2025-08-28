@@ -302,9 +302,8 @@ export const buildSystemPrompt = (state: {
     requireRandom?: boolean;
     depthLimit?: number;
   };
-  // Expansion support
-  shouldAddExpansionStrategies?: boolean;
-  currentExpansionLevel?: number;
+  // Alternative strategies support
+  needsAlternativeStrategies?: boolean;
 }): string => {
   // Determine if this is a simple query for token optimization
   const isSimpleQuery =
@@ -478,8 +477,6 @@ ${
   }
 - Chain multi-step queries with intermediate results
 - Apply analysis tools when specified
-
-${buildExpansionGuidanceSection(state)}
 ${
   state.searchDetails?.depthLimit === 0
     ? `\n🔒 **CRITICAL OVERRIDE**: User requested depth=0 (same-block search). MUST use findBlocksByContent, NOT findBlocksWithHierarchy.\n`
@@ -492,135 +489,21 @@ ${
       : ""
   }
 
-Execute the complex symbolic query now.`;
+${state.needsAlternativeStrategies 
+  ? `${buildAlternativeStrategiesGuidance(state.userQuery || "", state.formalQuery || "")}\n\nRETRY THE SEARCH: Apply the alternative strategies above and search again with modified parameters.`
+  : 'Execute the complex symbolic query now.'}`;
 };
 
-// Build expansion guidance section for ReAct Assistant (dynamic based on level and search type)
-const buildExpansionGuidanceSection = (state: any): string => {
-  // Only include expansion strategies when explicitly requested (zero results)
-  if (
-    !state.shouldAddExpansionStrategies ||
-    state.searchStrategy === "direct"
-  ) {
-    return "";
-  }
 
-  // CRITICAL: Don't show semantic expansion guidance when we have final results needing evaluation
-  const finalResults = Object.values(state.resultStore || {}).filter(
-    (result: any) =>
-      result?.purpose === "final" &&
-      result?.status === "active" &&
-      result?.data?.length > 0
-  );
-
-  if (finalResults.length > 0) {
-    console.log(
-      `🔧 [buildExpansionGuidanceSection] Skipping expansion guidance - have ${finalResults.length} final results, evaluation should take precedence`
-    );
-    return ""; // Let result evaluation take precedence over semantic expansion
-  }
-
-  const currentLevel = state.currentExpansionLevel || 0;
-  const userQuery = state.userQuery || "";
-  const isPageSearch =
-    userQuery.toLowerCase().includes("page") ||
-    state.formalQuery?.includes("page:");
-
-  console.log(
-    `🔧 [buildExpansionGuidanceSection] Building guidance for level ${currentLevel}, isPageSearch: ${isPageSearch}, query: "${userQuery}"`
-  );
-
-  if (currentLevel <= 0) {
-    console.warn(
-      `🔧 [buildExpansionGuidanceSection] Unexpected level ${currentLevel} <= 0, should not show expansion guidance yet`
-    );
-    return "";
-  }
-
-  if (currentLevel === 1) {
-    return buildLevel1Guidance(isPageSearch, userQuery);
-  } else if (currentLevel === 2) {
-    return buildLevel2Guidance(isPageSearch, userQuery);
-  } else if (currentLevel === 3) {
-    return buildLevel3Guidance(isPageSearch, userQuery);
-  } else if (currentLevel >= 4) {
-    return buildLevel4Guidance(isPageSearch, userQuery, state.formalQuery);
-  }
-
-  return "";
-};
-
-// Level 1: Fuzzy matching + hierarchy for blocks
-const buildLevel1Guidance = (
-  isPageSearch: boolean,
-  userQuery: string
-): string => {
-  if (isPageSearch) {
-    return `
-## 🔍 LEVEL 1: FUZZY MATCHING
-
-**PAGE SEARCH - Level 1 Strategy:**
-- **Use semanticExpansion: "fuzzy"** for typo correction and morphological variations
-- **Focus**: Handle typos, plural/singular, verb forms, alternative spellings
-
-**ACTION**: Set semanticExpansion: "fuzzy" on key conditions
-`;
-  } else {
-    return `
-## 🔍 LEVEL 1: FUZZY + HIERARCHY
-
-**BLOCK SEARCH - Level 1 Strategy:**
-- **Use semanticExpansion: "fuzzy"** for typo correction and morphological variations  
-- **Try hierarchy exploration**: Use findBlocksWithHierarchy for parent/child relationships
-- **Focus**: Handle typos + explore hierarchical context
-
-**ACTION**: Set semanticExpansion: "fuzzy" and use hierarchy tools as needed
-`;
-  }
-};
-
-// Level 2: Synonyms expansion
-const buildLevel2Guidance = (
-  isPageSearch: boolean,
-  userQuery: string
-): string => {
-  return `
-## 📝 LEVEL 2: SYNONYMS
-
-**STRATEGY:**
-- **Use semanticExpansion: "synonyms"** for finding alternative terms
-- **Focus**: Words that mean the same thing or are used interchangeably
-
-**ACTION**: Set semanticExpansion: "synonyms" on key conditions
-`;
-};
-
-// Level 3: Related concepts expansion
-const buildLevel3Guidance = (
-  isPageSearch: boolean,
-  userQuery: string
-): string => {
-  return `
-## 🧠 LEVEL 3: RELATED CONCEPTS
-
-**STRATEGY:**
-- **Use semanticExpansion: "related_concepts"** for finding associated terms
-- **Focus**: Related ideas, associated concepts, terms commonly found together
-
-**ACTION**: Set semanticExpansion: "related_concepts" on key conditions
-`;
-};
-
-// Level 4: Different tool strategies with comprehensive query re-evaluation
-export const buildLevel4Guidance = (
-  isPageSearch: boolean,
+// Alternative strategies guidance when automatic expansion fails
+export const buildAlternativeStrategiesGuidance = (
   userQuery: string,
   formalQuery: string
 ): string => {
   return `
-## 🔄 LEVEL 4: COMPREHENSIVE STRATEGY CHANGE
+## 🔄 ALTERNATIVE SEARCH STRATEGIES
 
-**CRITICAL: You have reached maximum expansion level (4) with zero results.**
+**CRITICAL: Automatic semantic expansion failed to find results.**
 
 ### 🎯 FIRST: RE-EVALUATE THE ORIGINAL USER QUERY
 
@@ -665,93 +548,6 @@ export const buildLevel4Guidance = (
 `;
 };
 
-// Build result evaluation section for intelligent context expansion decisions
-const buildResultEvaluationSection = (state: any): string => {
-  // Only show evaluation guidance in balanced/full modes when we have FINAL results
-  if (
-    state.privateMode ||
-    !state.resultStore ||
-    Object.keys(state.resultStore).length === 0
-  ) {
-    return "";
-  }
-
-  // Check if we have any FINAL results that need evaluation
-  const finalResults = Object.values(state.resultStore).filter(
-    (result: any) =>
-      result?.purpose === "final" &&
-      result?.status === "active" &&
-      result?.data?.length > 0
-  );
-
-  if (finalResults.length === 0) {
-    return ""; // No final results yet, continue with normal search expansion
-  }
-
-  const currentMode = state.privateMode
-    ? "private"
-    : state.permissions?.contentAccess
-    ? "full"
-    : "balanced";
-
-  return `
-## 🚦 CRITICAL: FINAL RESULT EVALUATION & ROUTING DECISION
-
-🛑 **FINAL RESULTS DETECTED**: You have received final search results. You MUST now decide:
-1. **Are results sufficient?** → Call NO MORE TOOLS, go directly to response synthesis
-2. **Are results insufficient?** → Use context expansion ONCE, then synthesize
-
-### 🧠 EVALUATION PROCESS (${currentMode} mode):
-
-**STEP 1 - User Intent Analysis:**
-- What specific information does the user need?
-- Example: "shortest recipe to cook" → needs cooking duration/time info
-- Example: "how does X work" → needs detailed steps/explanation
-- Example: "what pages mention Y" → just needs page titles (sufficient)
-
-**STEP 2 - Result Completeness Check:**
-- ✅ **SUFFICIENT**: Results directly contain the needed information → **STOP SEARCHING, SYNTHESIZE RESPONSE**
-- ❌ **INSUFFICIENT**: Results are relevant but missing key details → **USE CONTEXT EXPANSION ONCE**
-
-**STEP 3 - Context Expansion Decision Communication:**
-- **If SUFFICIENT**: Set state flag \`needsContextExpansion: false\` (or omit it)
-- **If INSUFFICIENT**: Set state flag \`needsContextExpansion: true\`, then use \`getNodeDetails\`
-- **After using getNodeDetails**: Set state flag \`contextExpansionAttempted: true\`
-
-### CONTEXT EXPANSION USAGE:
-\`\`\`
-// First, communicate your decision to the system:
-needsContextExpansion: true
-
-// Then expand context:
-getNodeDetails({
-  fromResultId: "findBlocksByContent_001", // Use previous result
-  includeContent: true,
-  includeHierarchy: true,  // KEY: Gets parent/child context
-  limit: 50
-})
-
-// After expansion, mark as attempted:
-contextExpansionAttempted: true
-\`\`\`
-
-### 🛑 WHEN TO STOP TOOL CALLS:
-1. **Always after first successful search** if results are sufficient
-2. **Always after context expansion** (maximum 1 context expansion per query)
-3. **Never continue expanding** - either answer with what you have or explain limitations
-
-### ⚠️ ANTI-LOOP PROTECTION:
-- **NO EXPANSION LOOPS**: Maximum 1 context expansion attempt
-- **NO MULTIPLE TOOL CHAINS**: After getting results, evaluate → expand once (if needed) → synthesize
-- **RECOGNIZE FINAL RESULTS**: If you have data, stop and evaluate sufficiency immediately
-
-### 🔢 EXPANSION LEVEL MANAGEMENT:
-- **Semantic expansion** (search term expansion when no results): Increments expansion level (1-4)
-- **Context expansion** (getNodeDetails on final results): Does NOT increment expansion level
-- Context expansion is separate from semantic expansion levels
-
-**Remember**: Better to provide a complete answer from available data than to loop infinitely.`;
-};
 
 // Request analysis system prompt
 export const buildRequestAnalysisPrompt = (state: {
@@ -1455,49 +1251,6 @@ export const extractResultDataForPrompt = (
   return formattedResults.join("\n\n");
 };
 
-// Build available tools section based on permissions
-const buildAvailableToolsSection = (
-  hasContentAccess: boolean,
-  isPrivateMode: boolean
-): string => {
-  const coreTools = `**Core Search Tools:**
-- findBlocksByContent: Search text, content (via regex) or page reference within blocks
-- findBlocksWithHierarchy: Search blocks matching conditions in them and in their parents or children
-- findPagesByTitle: Search pages by title with exact, contains, or regex matching. Supports smart expansion - finds similar existing pages + semantic variations with existence validation
-- findPagesByContent: Search pages whose content matches some criteria
-
-**Analysis Tools:**
-- extractPageReferences: get and count page mentionned in blocks (essential for "most mentioned/referenced" queries)`;
-
-  const contentTools =
-    hasContentAccess && !isPrivateMode
-      ? `
-- getNodeDetails: Retrieve detailed information for pages or blocks (content, metadata, properties)
-- extractHierarchyContent: Extract and format hierarchical block structures (children or parents)`
-      : "";
-
-  const advancedTools = `
-
-**Advanced Query Tools:**
-- executeDatomicQuery: Execute Datalog queries against Roam database (supports user-provided queries, auto-generated from criteria, or parameterized queries with variables from previous results)
-
-**Utility Tools:**
-- combineResults: Union/Intersection/Difference of multiple search results (essential for OR logic)`;
-
-  return `## AVAILABLE TOOLS (Brief Descriptions)
-
-${coreTools}${contentTools}${advancedTools}
-
-${
-  !hasContentAccess || isPrivateMode
-    ? `**NOTE:** Content extraction tools (getNodeDetails, extractHierarchyContent) are ${
-        isPrivateMode
-          ? "disabled in private mode"
-          : "restricted - limited access"
-      }. Focus on search and reference analysis tools.`
-    : ""
-}`;
-};
 
 // Intent Parser prompt with symbolic language
 export const buildIntentParserPrompt = (state: {

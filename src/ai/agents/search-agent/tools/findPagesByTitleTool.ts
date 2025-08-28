@@ -1280,6 +1280,94 @@ export const findPagesByTitleTool = tool(
       // Extract state from config
       const state = config?.configurable?.state;
 
+      // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
+      if (state?.automaticExpansionMode === 'auto_until_result') {
+        console.log(`🔧 [FindPagesByTitle] Using automatic expansion for auto_until_result mode`);
+        
+        // Import the helper function
+        const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+        
+        // Use automatic expansion starting from fuzzy
+        const expansionResult = await automaticSemanticExpansion(
+          enrichedInput,
+          (params: any, state?: any) => findPagesByTitleImpl(params, state),
+          state
+        );
+
+        // Log expansion results
+        if (expansionResult.expansionUsed) {
+          console.log(`✅ [FindPagesByTitle] Found results with ${expansionResult.expansionUsed} expansion`);
+        } else {
+          console.log(`😟 [FindPagesByTitle] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+        }
+
+        // Generate expansion options if needed (using existing logic)
+        const expansionOptions = buildPageTitleExpansionOptions(
+          expansionResult.results.metadata?.appliedExpansions || [],
+          expansionResult.results.results?.length > 0,
+          false // automaticExpansionEnabled - false since we handled it
+        );
+
+        // Add expansion options to metadata if results are sparse
+        const enhancedMetadata = {
+          ...expansionResult.results.metadata,
+          automaticExpansion: {
+            used: expansionResult.expansionUsed,
+            attempts: expansionResult.expansionAttempts,
+            finalAttempt: expansionResult.finalAttempt
+          },
+          expansionOptions:
+            expansionResult.results.results?.length >= 3
+              ? undefined
+              : expansionOptions,
+          showExpansionButton: !expansionResult.results.results?.length || expansionResult.results.results.length < 3,
+        };
+
+        return createToolResult(
+          true,
+          expansionResult.results.results,
+          undefined,
+          "findPagesByTitle",
+          startTime,
+          enhancedMetadata
+        );
+      }
+
+      // Handle other expansion modes (always_fuzzy, always_synonyms, always_all, etc.)
+      let expansionStates = {
+        isExpansionGlobal: state?.isExpansionGlobal || false,
+        semanticExpansion: state?.semanticExpansion || null
+      };
+
+      if (state?.automaticExpansionMode) {
+        const expansionMode = state.automaticExpansionMode;
+        console.log(`🔧 [FindPagesByTitle] Checking expansion mode: ${expansionMode}`);
+        
+        // Set expansion states based on mode (only if not already set by user actions)
+        if (!state?.isExpansionGlobal) {
+          switch (expansionMode) {
+            case "always_fuzzy":
+            case "Always with fuzzy":
+              expansionStates.isExpansionGlobal = true;
+              expansionStates.semanticExpansion = "fuzzy";
+              console.log(`🔧 [FindPagesByTitle] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`);
+              break;
+            case "always_synonyms":
+            case "Always with synonyms":
+              expansionStates.isExpansionGlobal = true;
+              expansionStates.semanticExpansion = "synonyms";
+              console.log(`🔧 [FindPagesByTitle] Auto-enabling synonyms expansion due to mode: ${expansionMode}`);
+              break;
+            case "always_all":
+            case "Always with all":
+              expansionStates.isExpansionGlobal = true;
+              expansionStates.semanticExpansion = "all";
+              console.log(`🔧 [FindPagesByTitle] Auto-enabling all expansions due to mode: ${expansionMode}`);
+              break;
+          }
+        }
+      }
+
       // Inject dateRange from agent state
       enrichedInput.dateRange = state?.searchDetails?.timeRange;
 
@@ -1300,7 +1388,10 @@ export const findPagesByTitleTool = tool(
 
       const { results, metadata } = await findPagesByTitleImpl(
         enrichedInput,
-        state
+        {
+          ...state,
+          ...expansionStates
+        }
       );
 
       // Generate expansion options if needed
