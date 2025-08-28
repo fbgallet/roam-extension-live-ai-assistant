@@ -180,7 +180,8 @@ export const BUILTIN_COMMANDS = [
   {
     id: 922,
     name: "Ask your graph (Full Access)",
-    callback: (args) => askYourGraph({ ...args, forcePrivacyMode: "Full Access" }),
+    callback: (args) =>
+      askYourGraph({ ...args, forcePrivacyMode: "Full Access" }),
     category: "QUERY AGENTS",
     isIncompatibleWith: {
       outliner: true,
@@ -192,7 +193,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 93,
-    name: "Ask your graph: view last results",
+    name: "Ask your graph: full results view",
     callback: openLastAskYourGraphResults,
     category: "QUERY AGENTS",
     icon: "list-detail-view",
