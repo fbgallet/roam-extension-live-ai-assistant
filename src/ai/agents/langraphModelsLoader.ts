@@ -171,7 +171,8 @@ export const getLlmSuitableOptions = (
     outputOptions.method = "function_calling";
   }
   if (model.provider === "OpenAI" && model.thinking) {
-    outputOptions["reasoning_effort"] = reasoningEffort;
+    outputOptions["reasoning_effort"] =
+      reasoningEffort === "minimal" ? reasoningEffort : "low";
   }
   if (isClaudeModel) outputOptions.includeRaw = true;
   return outputOptions;

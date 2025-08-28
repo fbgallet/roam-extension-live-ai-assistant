@@ -5254,6 +5254,59 @@ export const findBlocksWithHierarchyTool = tool(
     // Extract state from config first
     const state = config?.configurable?.state;
 
+    // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
+    if (state?.automaticExpansionMode === 'auto_until_result') {
+      console.log(`🔧 [FindBlocksWithHierarchy] Using automatic expansion for auto_until_result mode`);
+      
+      // Transform LLM input to internal schema format first
+      const internalInput = transformLlmInputToInternalSchema(input, state);
+      const isPrivateMode = state?.privateMode || internalInput.secureMode;
+      
+      // Override enrichment parameters in private mode
+      const finalInput = isPrivateMode
+        ? {
+            ...internalInput,
+            includeChildren: false,
+            includeParents: false,
+            childDepth: 1,
+            parentDepth: 1,
+            secureMode: true,
+          }
+        : internalInput;
+      
+      // Import the helper function
+      const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+      
+      // Use automatic expansion starting from fuzzy
+      const expansionResult = await automaticSemanticExpansion(
+        finalInput,
+        (params: any, state?: any) => findBlocksWithHierarchyImpl(params, state),
+        state
+      );
+
+      // Log expansion results
+      if (expansionResult.expansionUsed) {
+        console.log(`✅ [FindBlocksWithHierarchy] Found results with ${expansionResult.expansionUsed} expansion`);
+      } else {
+        console.log(`😟 [FindBlocksWithHierarchy] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+      }
+
+      return createToolResult(
+        true,
+        expansionResult.results,
+        undefined,
+        "findBlocksWithHierarchy",
+        startTime,
+        {
+          automaticExpansion: {
+            used: expansionResult.expansionUsed,
+            attempts: expansionResult.expansionAttempts,
+            finalAttempt: expansionResult.finalAttempt
+          }
+        }
+      );
+    }
+
     // Transform LLM input to internal schema format with state injection
     const internalInput = transformLlmInputToInternalSchema(input, state);
     const isPrivateMode = state?.privateMode || internalInput.secureMode;

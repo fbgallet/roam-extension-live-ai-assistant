@@ -102,6 +102,7 @@ export interface AskYourGraphParams {
   options?: any;
   requestedMode?: "Private" | "Balanced" | "Full Access";
   forcePrivacyMode?: "Private" | "Balanced" | "Full Access"; // For command menu forcing
+  forceExpansionMode?: "always_fuzzy" | "always_synonyms" | "always_all"; // For command menu forcing
   bypassDialog?: boolean;
 }
 
@@ -117,6 +118,7 @@ export async function askYourGraph(params: AskYourGraphParams) {
     options,
     requestedMode, // For manual mode override
     forcePrivacyMode, // For command menu forcing
+    forceExpansionMode, // For command menu forcing
     bypassDialog = false, // For continuing conversations
   } = params;
 
@@ -151,6 +153,8 @@ export async function askYourGraph(params: AskYourGraphParams) {
       ...previousAgentState,
       // Set flag when privacy mode is forced to skip privacy analysis in IntentParser
       isPrivacyModeForced: Boolean(forcePrivacyMode),
+      // Set automatic expansion mode when forced
+      ...(forceExpansionMode && { automaticExpansionMode: forceExpansionMode }),
     },
     options,
   };

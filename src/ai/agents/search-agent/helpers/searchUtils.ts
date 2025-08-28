@@ -831,8 +831,6 @@ ${commonRequirements}`;
         );
         const response = await llm.invoke([new HumanMessage(prompt)]);
 
-        console.log("response :>> ", response);
-
         const expansions = response.content
           .toString()
           .split("\n")
@@ -885,7 +883,7 @@ ${commonRequirements}`;
 
 ${commonRequirements}`;
 
-  console.log(`🔍 [${strategy}] Prompt for "${text}":`, prompt);
+  // console.log(`🔍 [${strategy}] Prompt for "${text}":`, prompt);
 
   try {
     // Use provided model or fall back to defaultModel if not provided
@@ -922,21 +920,14 @@ ${commonRequirements}`;
 
     const response = await llm.invoke([new HumanMessage(prompt)]);
 
-    console.log(
-      `🔍 [${strategy}] Raw LLM response for "${text}":`,
-      response.content.toString()
-    );
-
     const lines = response.content
       .toString()
       .split("\n")
       .map((line) => line.trim());
-    console.log(`🔍 [${strategy}] Split lines:`, lines);
 
     const filteredLines = lines.filter(
       (line) => line.length > 0 && !line.match(/^\d+\./) && line.length < 50
     );
-    console.log(`🔍 [${strategy}] After basic filtering:`, filteredLines);
 
     const terms = filteredLines.filter((term) => {
       // For fuzzy and custom strategies, keep all variations
@@ -2850,3 +2841,132 @@ export const parsePageSearchSyntax = (
     extractedQuery: query,
   };
 };
+
+/**
+ * Automatic semantic expansion for search tools
+ * Tries progressively more semantic expansions until results are found
+ * 
+ * @param originalParams - Original search parameters
+ * @param searchFunction - Function to execute search (tool implementation)
+ * @param state - Agent state containing automatic expansion settings
+ * @param startingExpansion - Optional starting expansion type (defaults to first in sequence)
+ * @returns Promise with results and expansion metadata
+ */
+export async function automaticSemanticExpansion<T, R>(
+  originalParams: T,
+  searchFunction: (params: T, state?: any) => Promise<R>,
+  state?: any,
+  startingExpansion?: string
+): Promise<{
+  results: R;
+  expansionUsed: string | null;
+  expansionAttempts: string[];
+  finalAttempt: boolean;
+}> {
+  // Semantic expansion sequence: fuzzy -> synonyms -> related_concepts -> broader_terms
+  const expansionSequence = ['fuzzy', 'synonyms', 'related_concepts', 'broader_terms'];
+  
+  // Determine starting point in sequence
+  let startIndex = 0;
+  if (startingExpansion) {
+    const foundIndex = expansionSequence.indexOf(startingExpansion);
+    if (foundIndex !== -1) {
+      startIndex = foundIndex;
+    }
+  }
+  
+  const attemptedExpansions: string[] = [];
+  let bestResults: R | null = null;
+  let bestResultsExpansion: string | null = null;
+  
+  // Try original query first (no expansion)
+  console.log(`🔍 [AutoExpansion] Trying original query (no expansion)`);
+  attemptedExpansions.push('none');
+  
+  try {
+    const originalResults = await searchFunction(originalParams, state);
+    // Check if we got results (assuming results have a .data array or similar)
+    const hasResults = (originalResults as any)?.data?.length > 0 || 
+                      (originalResults as any)?.results?.length > 0 ||
+                      (Array.isArray(originalResults) && originalResults.length > 0);
+    
+    if (hasResults) {
+      console.log(`✅ [AutoExpansion] Original query found results, no expansion needed`);
+      return {
+        results: originalResults,
+        expansionUsed: null,
+        expansionAttempts: attemptedExpansions,
+        finalAttempt: false
+      };
+    }
+    
+    bestResults = originalResults; // Keep as fallback
+  } catch (error) {
+    console.warn(`⚠️ [AutoExpansion] Original query failed:`, error);
+  }
+  
+  // Try semantic expansions in sequence
+  for (let i = startIndex; i < expansionSequence.length; i++) {
+    const expansionType = expansionSequence[i];
+    const isLastAttempt = i === expansionSequence.length - 1;
+    
+    console.log(`🔍 [AutoExpansion] Trying expansion: ${expansionType} ${isLastAttempt ? '(final attempt)' : ''}`);
+    attemptedExpansions.push(expansionType);
+    
+    try {
+      // Modify params to include semantic expansion
+      const expandedParams = {
+        ...originalParams,
+        // Add semantic expansion to conditions if they exist
+        ...(((originalParams as any)?.conditions) && {
+          conditions: ((originalParams as any).conditions as any[]).map((condition: any) => ({
+            ...condition,
+            semanticExpansion: expansionType
+          }))
+        }),
+        // Also set global semantic expansion for tools that use it
+        semanticExpansion: expansionType,
+      } as T;
+      
+      // Create expanded state with global expansion flag
+      const expandedState = {
+        ...state,
+        isExpansionGlobal: true,
+        semanticExpansion: expansionType,
+      };
+      
+      const expandedResults = await searchFunction(expandedParams, expandedState);
+      
+      // Check if this expansion found results
+      const hasResults = (expandedResults as any)?.data?.length > 0 || 
+                        (expandedResults as any)?.results?.length > 0 ||
+                        (Array.isArray(expandedResults) && expandedResults.length > 0);
+      
+      if (hasResults) {
+        console.log(`✅ [AutoExpansion] Found results with ${expansionType} expansion`);
+        return {
+          results: expandedResults,
+          expansionUsed: expansionType,
+          expansionAttempts: attemptedExpansions,
+          finalAttempt: isLastAttempt
+        };
+      }
+      
+      // Keep the latest results as fallback
+      bestResults = expandedResults;
+      bestResultsExpansion = expansionType;
+      
+    } catch (error) {
+      console.warn(`⚠️ [AutoExpansion] Expansion ${expansionType} failed:`, error);
+    }
+  }
+  
+  // No expansion found results, return the best attempt we have
+  console.log(`😟 [AutoExpansion] No expansion found results, returning best attempt (${bestResultsExpansion || 'original'})`);
+  return {
+    results: bestResults!,
+    expansionUsed: bestResultsExpansion,
+    expansionAttempts: attemptedExpansions,
+    finalAttempt: true
+  };
+}

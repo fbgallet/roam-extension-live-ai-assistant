@@ -378,7 +378,6 @@ export function modelAccordingToProvider(model) {
     }
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
-    console.log("model in aiAPIsHub:>> ", model);
     if (model === "deepseek-v3.1 thinking" || model === "deepseek-reasoner") {
       llm.id = "deepseek-reasoner";
       llm.name = "DeepSeek-V3.1 Thinking";
@@ -414,7 +413,7 @@ export function modelAccordingToProvider(model) {
     llm.provider = "OpenAI";
     if (
       model.startsWith("o") ||
-      (model.includes("gpt-5") && model !== "gpt-5-chat-latest")
+      (model.includes("gpt-5") && model !== "gpt-5 (not reasoning)")
     ) {
       llm.thinking = true;
     }
@@ -427,6 +426,9 @@ export function modelAccordingToProvider(model) {
         llm.id = model + "-preview";
         llm.name = model;
       }
+    } else if (model === "gpt-5 (not reasoning)") {
+      llm.id = "gpt-5-chat-latest";
+      llm.name = "gpt-5";
     } else llm.id = model || "gpt-4.1-mini";
     llm.library = openaiLibrary;
   }

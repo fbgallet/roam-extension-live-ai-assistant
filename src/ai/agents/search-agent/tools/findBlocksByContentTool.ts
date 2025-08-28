@@ -1243,6 +1243,7 @@ export const findBlocksByContentTool = tool(
     try {
       // Extract state from config to access injected parameters
       const state = config?.configurable?.state;
+      console.log(`🔧 [FindBlocksByContent] Tool called with expansion mode: ${state?.automaticExpansionMode}, original fuzzy: ${llmInput.fuzzyMatching}`);
 
       // Auto-enrich with internal parameters from agent state
       const enrichedInput = {
@@ -1270,9 +1271,85 @@ export const findBlocksByContentTool = tool(
         randomSample: { enabled: false, size: 100 },
         fuzzyThreshold: 0.8,
       };
+
+      // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
+      if (state?.automaticExpansionMode === 'auto_until_result') {
+        console.log(`🔧 [FindBlocksByContent] Using automatic expansion for auto_until_result mode`);
+        
+        // Import the helper function
+        const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+        
+        // Use automatic expansion starting from fuzzy
+        const expansionResult = await automaticSemanticExpansion(
+          enrichedInput,
+          (params: any, state?: any) => findBlocksByContentImpl(params, state),
+          state
+        );
+
+        // Log expansion results
+        if (expansionResult.expansionUsed) {
+          console.log(`✅ [FindBlocksByContent] Found results with ${expansionResult.expansionUsed} expansion`);
+        } else {
+          console.log(`😟 [FindBlocksByContent] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+        }
+
+        return createToolResult(
+          true,
+          expansionResult.results.results,
+          undefined,
+          "findBlocksByContent",
+          startTime,
+          {
+            ...expansionResult.results.metadata,
+            automaticExpansion: {
+              used: expansionResult.expansionUsed,
+              attempts: expansionResult.expansionAttempts,
+              finalAttempt: expansionResult.finalAttempt
+            }
+          }
+        );
+      }
+
+      // Handle other expansion modes (always_fuzzy, always_synonyms, always_all, etc.)
+      let expansionStates = {
+        isExpansionGlobal: state?.isExpansionGlobal || false,
+        semanticExpansion: state?.semanticExpansion || null
+      };
+
+      if (state?.automaticExpansionMode) {
+        const expansionMode = state.automaticExpansionMode;
+        console.log(`🔧 [FindBlocksByContent] Checking expansion mode: ${expansionMode}`);
+        
+        // Set expansion states based on mode (only if not already set by user actions)
+        if (!state?.isExpansionGlobal) {
+          switch (expansionMode) {
+            case "always_fuzzy":
+            case "Always with fuzzy":
+              expansionStates.isExpansionGlobal = true;
+              expansionStates.semanticExpansion = "fuzzy";
+              console.log(`🔧 [FindBlocksByContent] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`);
+              break;
+            case "always_synonyms":
+            case "Always with synonyms":
+              expansionStates.isExpansionGlobal = true;
+              expansionStates.semanticExpansion = "synonyms";
+              console.log(`🔧 [FindBlocksByContent] Auto-enabling synonyms expansion due to mode: ${expansionMode}`);
+              break;
+            case "always_all":
+            case "Always with all":
+              expansionStates.isExpansionGlobal = true;
+              expansionStates.semanticExpansion = "all";
+              console.log(`🔧 [FindBlocksByContent] Auto-enabling all expansions due to mode: ${expansionMode}`);
+              break;
+          }
+        }
+      }
       const { results, metadata } = await findBlocksByContentImpl(
         enrichedInput,
-        state
+        {
+          ...state,
+          ...expansionStates
+        }
       );
       return createToolResult(
         true,
