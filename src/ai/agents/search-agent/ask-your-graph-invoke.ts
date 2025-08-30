@@ -66,6 +66,12 @@ interface SearchAgentInvoker {
     isPrivacyModeUpdated?: boolean;
     // Flag to indicate privacy mode was forced (skip privacy analysis)
     isPrivacyModeForced?: boolean;
+    // External context from chat or other components
+    externalContext?: {
+      results?: any[];
+      contextType?: "search_results" | "chat_context" | "custom";
+      description?: string;
+    };
   };
   // NEW: External context from chat or other components
   externalContext?: {
@@ -75,6 +81,10 @@ interface SearchAgentInvoker {
   };
   // NEW: Direct chat mode to bypass RequestAnalyzer
   isDirectChat?: boolean;
+  // NEW: Popup execution mode - skip directFormat and insertResponse
+  isPopupExecution?: boolean;
+  // NEW: Streaming callback for popup chat interface
+  streamingCallback?: (content: string) => void;
   // Retry options
   options?: {
     retryInstruction?: string;
@@ -95,6 +105,8 @@ const invokeSearchAgentInternal = async ({
   agentData,
   externalContext,
   isDirectChat = false,
+  isPopupExecution = false,
+  streamingCallback,
   options,
 }: SearchAgentInvoker) => {
   const startTime = Date.now();
@@ -154,12 +166,21 @@ const invokeSearchAgentInternal = async ({
       zeroResultsAttempts: 0,
     };
 
+    // Debug conversation data and history
+    console.log(`🔍 [Invoke] Conversation history check:`, {
+      hasAgentData: !!agentData,
+      agentDataConversationHistory: agentData?.conversationHistory?.length || 0,
+      conversationDataHistory: conversationData.conversationHistory?.length || 0,
+      isConversationMode: conversationData.isConversationMode
+    });
+
     // NEW: Process external context and integrate into agent's result management
-    if (externalContext?.results && externalContext.results.length > 0) {
+    const embeddedExternalContext = agentData?.externalContext;
+    if (embeddedExternalContext?.results && embeddedExternalContext.results.length > 0) {
       console.log(
         `📥 Integrating external context: ${
-          externalContext.results.length
-        } results from ${externalContext.contextType || "unknown source"}`
+          embeddedExternalContext.results.length
+        } results from ${embeddedExternalContext.contextType || "unknown source"}`
       );
 
       // Create a result entry for external context
@@ -167,31 +188,33 @@ const invokeSearchAgentInternal = async ({
       const externalCacheEntry = {
         toolName: "externalContext",
         fullResults: {
-          data: externalContext.results,
+          data: embeddedExternalContext.results,
           metadata: {
-            totalFound: externalContext.results.length,
-            contextType: externalContext.contextType || "custom",
+            totalFound: embeddedExternalContext.results.length,
+            contextType: embeddedExternalContext.contextType || "custom",
             description:
-              externalContext.description || "External context results",
+              embeddedExternalContext.description || "External context results",
           },
         },
         userQuery: `External context: ${
-          externalContext.description || "Chat results"
+          embeddedExternalContext.description || "Chat results"
         }`,
         timestamp: Date.now(),
         canExpand: false,
       };
 
-      // Add to cached results for conversation context
-      if (!conversationData.cachedFullResults) {
-        conversationData.cachedFullResults = {};
+      // Add to cached results for conversation context (skip for popup execution to avoid duplicate context)
+      if (!isPopupExecution) {
+        if (!conversationData.cachedFullResults) {
+          conversationData.cachedFullResults = {};
+        }
+        conversationData.cachedFullResults[externalResultId] = externalCacheEntry;
       }
-      conversationData.cachedFullResults[externalResultId] = externalCacheEntry;
 
       // Add to result store if supported
       if (conversationData.resultStore) {
         conversationData.resultStore[externalResultId] = {
-          data: externalContext.results,
+          data: embeddedExternalContext.results,
           purpose: "final" as const,
           status: "active" as const,
           toolName: "externalContext",
@@ -200,8 +223,14 @@ const invokeSearchAgentInternal = async ({
       }
 
       console.log(
-        `📥 External context integrated as ${externalResultId}: ${externalContext.results.length} results`
+        `📥 External context integrated: ${embeddedExternalContext.results.length} results → resultStore[${externalResultId}]`
       );
+      
+      // Debug content lengths
+      embeddedExternalContext.results.forEach((result, i) => {
+        const content = result.content || result.text || '';
+        console.log(`📝 Result ${i+1} content length: ${content.length} chars - "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
+      });
     }
 
     // Store search parameters globally for potential post-completion expansion
@@ -231,10 +260,6 @@ const invokeSearchAgentInternal = async ({
       // Clear expansion history for NEW searches (not direct expansions)
       if (!conversationData.isDirectExpansion) {
         const queryKey = finalPrompt.toLowerCase().trim();
-        console.log(
-          "🧹 [New Search] Clearing expansion history for fresh search:",
-          queryKey
-        );
 
         // Clear expansion history for this specific query to start fresh
         const expansionHistory = (window as any).searchExpansionHistory || {};
@@ -253,20 +278,20 @@ const invokeSearchAgentInternal = async ({
     }
 
     console.log(`🚀 Starting ReAct Search Agent: "${finalPrompt}"`);
-    console.log(`🔍 Conversation parameters:`, {
-      conversationHistory: conversationData.conversationHistory,
-      conversationHistoryLength:
-        conversationData.conversationHistory?.length || 0,
-      conversationSummary: conversationData.conversationSummary,
-      hasLimitedResults: conversationData.hasLimitedResults,
-      isConversationMode: isConversationMode,
-      cachedResultsCount: Object.keys(conversationData.cachedFullResults || {})
-        .length,
-      toolResultsCacheCount: Object.keys(
-        conversationData.toolResultsCache || {}
-      ).length,
-      externalContextResults: externalContext?.results?.length || 0,
-    });
+    // console.log(`🔍 Conversation parameters:`, {
+    //   conversationHistory: conversationData.conversationHistory,
+    //   conversationHistoryLength:
+    //     conversationData.conversationHistory?.length || 0,
+    //   conversationSummary: conversationData.conversationSummary,
+    //   hasLimitedResults: conversationData.hasLimitedResults,
+    //   isConversationMode: isConversationMode,
+    //   cachedResultsCount: Object.keys(conversationData.cachedFullResults || {})
+    //     .length,
+    //   toolResultsCacheCount: Object.keys(
+    //     conversationData.toolResultsCache || {}
+    //   ).length,
+    //   externalContextResults: externalContext?.results?.length || 0,
+    // });
 
     // Additional debugging for conversation history content
     if (
@@ -317,6 +342,10 @@ const invokeSearchAgentInternal = async ({
       isPrivacyModeUpdated: Boolean(conversationData.isPrivacyModeUpdated),
       // Flag to indicate privacy mode was forced (skip privacy analysis)
       isPrivacyModeForced: Boolean(conversationData.isPrivacyModeForced),
+      // Popup execution mode - skip directFormat and insertResponse
+      isPopupExecution,
+      // Streaming callback for popup chat interface
+      streamingCallback,
     };
 
     // Debug expansion parameters
@@ -339,7 +368,10 @@ const invokeSearchAgentInternal = async ({
 
     // If the response has pendingExpansion or pendingPrivacyEscalation, it means we need to wait for user input
     // The state has been updated by showResultsThenExpand or showPrivacyModeDialog, so we don't resume from this response
-    if ((response as any).pendingExpansion || (response as any).pendingPrivacyEscalation) {
+    if (
+      (response as any).pendingExpansion ||
+      (response as any).pendingPrivacyEscalation
+    ) {
       // Update the stored state with the current response state
       (window as any).currentSearchAgentState = response;
     }
@@ -519,9 +551,13 @@ const invokeSearchAgentInternal = async ({
 
                 // Update privacy mode in global settings if user wants to remember
                 if (rememberChoice) {
-                  const { setSessionAskGraphMode } = await import("./ask-your-graph");
+                  const { setSessionAskGraphMode } = await import(
+                    "./ask-your-graph"
+                  );
                   setSessionAskGraphMode(selectedMode, true);
-                  console.log(`🔒 [Privacy] Remembered choice: ${selectedMode}`);
+                  console.log(
+                    `🔒 [Privacy] Remembered choice: ${selectedMode}`
+                  );
                 }
 
                 // Clear privacy escalation flags and update current mode
@@ -543,24 +579,31 @@ const invokeSearchAgentInternal = async ({
                 state.isPrivacyModeUpdated = true;
                 state.routingDecision = "need_new_search";
 
-                console.log(`🔒 [Privacy] Updated permissions:`, state.permissions);
-                console.log(`🔒 [Privacy] Set isPrivacyModeUpdated flag:`, state.isPrivacyModeUpdated);
+                console.log(
+                  `🔒 [Privacy] Updated permissions:`,
+                  state.permissions
+                );
+                console.log(
+                  `🔒 [Privacy] Set isPrivacyModeUpdated flag:`,
+                  state.isPrivacyModeUpdated
+                );
 
                 // CRITICAL: Continue graph execution from assistant node with updated state
                 // We have the IntentParser response, now continue with updated privacy mode
-                console.log("🔄 [Privacy] Continuing graph execution from assistant node");
+                console.log(
+                  "🔄 [Privacy] Continuing graph execution from assistant node"
+                );
 
                 // Update toaster to show privacy mode change
-                updateAgentToaster(`🔒 Switched to ${selectedMode} mode - continuing search...`);
+                updateAgentToaster(
+                  `🔒 Switched to ${selectedMode} mode - continuing search...`
+                );
 
                 // Continue the graph execution from assistant with updated state and permissions
-                const finalResponse = await ReactSearchAgent.invoke(
-                  state,
-                  {
-                    recursionLimit: 50,
-                    streamMode: "values",
-                  }
-                );
+                const finalResponse = await ReactSearchAgent.invoke(state, {
+                  recursionLimit: 50,
+                  streamMode: "values",
+                });
 
                 // Clean up global state
                 delete (window as any).currentSearchAgentState;
@@ -572,7 +615,10 @@ const invokeSearchAgentInternal = async ({
                 reject(new Error("Agent state not found"));
               }
             } catch (error) {
-              console.error("❌ [Graph] Error handling privacy mode choice:", error);
+              console.error(
+                "❌ [Graph] Error handling privacy mode choice:",
+                error
+              );
               reject(error);
             } finally {
               isProcessingExpansion = false;
@@ -580,7 +626,10 @@ const invokeSearchAgentInternal = async ({
           };
 
           // Track this listener for cleanup
-          (window as any)._expansionListeners = [expansionEventListener, privacyModeEventListener];
+          (window as any)._expansionListeners = [
+            expansionEventListener,
+            privacyModeEventListener,
+          ];
           window.addEventListener("agentExpansion", expansionEventListener);
           window.addEventListener("agentPrivacyMode", privacyModeEventListener);
 
@@ -611,7 +660,7 @@ const invokeSearchAgentInternal = async ({
               expansionEventListener
             );
             window.removeEventListener(
-              "agentPrivacyMode", 
+              "agentPrivacyMode",
               privacyModeEventListener
             );
             if (timeoutId) clearTimeout(timeoutId);
@@ -634,7 +683,9 @@ const invokeSearchAgentInternal = async ({
                 "abort",
                 abortListener
               );
-            reject(new Error("User input timeout - no privacy mode choice made"));
+            reject(
+              new Error("User input timeout - no privacy mode choice made")
+            );
           }, 300000); // 5 minutes timeout
         }
       });
@@ -755,20 +806,22 @@ const invokeSearchAgentInternal = async ({
           response?.targetUid,
           response?.userQuery || finalPrompt,
           response?.formalQuery,
-          response ? {
-            formalQuery: response.formalQuery,
-            searchStrategy: response.searchStrategy,
-            analysisType: response.analysisType,
-            language: response.language,
-            confidence: response.confidence,
-            datomicQuery: response.datomicQuery,
-            needsPostProcessing: response.needsPostProcessing,
-            postProcessingType: response.postProcessingType,
-            isExpansionGlobal: response.isExpansionGlobal,
-            semanticExpansion: response.semanticExpansion,
-            customSemanticExpansion: response.customSemanticExpansion,
-            searchDetails: response.searchDetails
-          } : undefined
+          response
+            ? {
+                formalQuery: response.formalQuery,
+                searchStrategy: response.searchStrategy,
+                analysisType: response.analysisType,
+                language: response.language,
+                confidence: response.confidence,
+                datomicQuery: response.datomicQuery,
+                needsPostProcessing: response.needsPostProcessing,
+                postProcessingType: response.postProcessingType,
+                isExpansionGlobal: response.isExpansionGlobal,
+                semanticExpansion: response.semanticExpansion,
+                customSemanticExpansion: response.customSemanticExpansion,
+                searchDetails: response.searchDetails,
+              }
+            : undefined
         );
 
         // Insert conversation buttons for continued interaction
@@ -855,6 +908,8 @@ interface AgentInvoker {
   permissions?: { contentAccess: boolean };
   privateMode?: boolean;
   isDirectChat?: boolean; // For chat mode to bypass RequestAnalyzer
+  isPopupExecution?: boolean; // For popup execution mode
+  streamingCallback?: (content: string) => void; // For popup streaming
 }
 
 // Main invoke function for backward compatibility with existing system
@@ -870,6 +925,8 @@ export const invokeSearchAgent = async ({
   permissions,
   privateMode,
   isDirectChat,
+  isPopupExecution,
+  streamingCallback,
 }: AgentInvoker) => {
   return await invokeSearchAgentInternal({
     model,
@@ -880,6 +937,8 @@ export const invokeSearchAgent = async ({
     permissions: permissions || { contentAccess: false }, // Default to secure mode for backward compatibility
     privateMode: privateMode || false,
     isDirectChat: isDirectChat || false,
+    isPopupExecution: isPopupExecution || false,
+    streamingCallback,
     agentData: previousAgentState,
     options,
   });

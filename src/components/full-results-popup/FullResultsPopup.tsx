@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, HTMLSelect, InputGroup, Checkbox } from "@blueprintjs/core";
+import { Button, HTMLSelect, InputGroup, Checkbox, Icon } from "@blueprintjs/core";
 import { createChildBlock } from "../../utils/roamAPI.js";
 import { FullResultsPopupProps, Result } from "./types";
 import { FullResultsChat } from "./FullResultsChat";
@@ -452,7 +452,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 onClick={handleChatOnlyToggle}
                 title={chatOnlyMode ? "Show results" : "Chat only"}
               >
-                {chatOnlyMode ? "📊" : "💬"}
+                <Icon icon={chatOnlyMode ? "chart" : "chat"} size={16} />
               </button>
             )}
             <button
@@ -462,10 +462,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 isFullscreen ? "Exit fullscreen (ESC)" : "Fullscreen (F11)"
               }
             >
-              {isFullscreen ? "⧈" : "⤢"}
+              <Icon icon={isFullscreen ? "minimize" : "maximize"} size={16} />
             </button>
             <button className="full-results-close-button" onClick={handleClose}>
-              ×
+              <Icon icon="cross" size={16} />
             </button>
           </div>
         </div>

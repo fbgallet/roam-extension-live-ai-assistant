@@ -224,6 +224,8 @@ const ReactSearchAgentState = Annotation.Root({
   isPrivacyModeForced: Annotation<boolean>,
   // Popup execution mode - skip directFormat and insertResponse
   isPopupExecution: Annotation<boolean | undefined>,
+  // Streaming callback for popup chat interface
+  streamingCallback: Annotation<((content: string) => void) | undefined>,
 });
 
 // Global variables for the agent
@@ -233,8 +235,14 @@ let searchTools: any[] = [];
 
 // Export function to get current token usage (for popup execution)
 export const getCurrentTokenUsage = (): TokensUsage => {
-  console.log("🐛 [getCurrentTokenUsage] Returning turnTokensUsage:", turnTokensUsage);
-  console.log("🐛 [getCurrentTokenUsage] Stack trace:", new Error().stack?.split('\n').slice(1, 4).join('\n'));
+  console.log(
+    "🐛 [getCurrentTokenUsage] Returning turnTokensUsage:",
+    turnTokensUsage
+  );
+  console.log(
+    "🐛 [getCurrentTokenUsage] Stack trace:",
+    new Error().stack?.split("\n").slice(1, 4).join("\n")
+  );
   return { ...turnTokensUsage }; // Return a copy
 };
 
@@ -380,7 +388,9 @@ const conversationRouter = async (
   // Decision logic
   // Special case: popup execution with pre-computed IntentParser results - skip IntentParser
   if ((state as any).isPopupExecution) {
-    console.log("🔀 [ConversationRouter] Popup execution detected - skipping IntentParser");
+    console.log(
+      "🔀 [ConversationRouter] Popup execution detected - skipping IntentParser"
+    );
     return {
       routingDecision: "need_new_search" as const,
     };
@@ -956,6 +966,17 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
   // Initialize LLM
   llm = modelViaLanggraph(state.model, turnTokensUsage);
 
+  // Show model information in toaster
+  const modelDisplayName =
+    state.model.id || state.model.name || "Unknown model";
+  console.log("🤖 [loadModel] Using model:", modelDisplayName);
+
+  // Only show toaster for non-popup executions to avoid duplicate messages
+  if (!(state as any).isPopupExecution) {
+    const { updateAgentToaster } = await import("../shared/agentsUtils");
+    updateAgentToaster(`🤖 Using ${modelDisplayName}`);
+  }
+
   // Set default permissions (secure level only unless specified)
   const permissions = state.permissions || { contentAccess: false };
 
@@ -1235,12 +1256,12 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
     );
   }
   const llmStartTime = Date.now();
-  
+
   // Debug popup execution and token tracking
   console.log("🐛 [Assistant] About to make LLM call:", {
     isPopupExecution: (state as any).isPopupExecution,
     currentTurnTokensUsage: turnTokensUsage,
-    currentTotalTokens: state.totalTokensUsed
+    currentTotalTokens: state.totalTokensUsed,
   });
 
   // Check for cancellation before LLM call
@@ -1276,14 +1297,14 @@ When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, 
       (state.totalTokensUsed?.output || 0) +
       (responseTokens.output_tokens || 0),
   };
-  
+
   // Debug token tracking after assistant call
   console.log("🐛 [Assistant] LLM call completed:", {
     isPopupExecution: (state as any).isPopupExecution,
     llmDuration: llmDuration + "ms",
     responseTokens: responseTokens,
     updatedTotalTokens: updatedTotalTokens,
-    turnTokensUsageAfter: turnTokensUsage
+    turnTokensUsageAfter: turnTokensUsage,
   });
 
   if (response.tool_calls && response.tool_calls.length > 0) {
@@ -1543,6 +1564,8 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     );
   }
 
+  console.log("messages :>> ", messages);
+
   // Use LLM without tools for pure response generation
   const llmStartTime = Date.now();
 
@@ -1557,7 +1580,6 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
 
   // Import streaming dependencies
   const { streamResponse } = await import("../../..");
-  const { insertParagraphForStream } = await import("../../../utils/domElts");
 
   // Determine if we should stream (similar to aiAPIsHub logic)
   // Don't stream for thinking models or o1/o3 models as they need special handling
@@ -1567,7 +1589,11 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     state.model.id?.startsWith("o3") ||
     state.model.id?.startsWith("o4") ||
     state.model.id?.includes("reasoning");
-  const shouldStream = streamResponse && !isThinkingModel;
+
+  // For popup execution, only stream if we have a streaming callback
+  const shouldStream = (state as any).isPopupExecution
+    ? (state as any).streamingCallback && !isThinkingModel
+    : streamResponse && !isThinkingModel;
 
   let finalAnswerContent = "";
   let response: any;
@@ -1577,21 +1603,27 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   if (shouldStream) {
     console.log(`🎯 [ResponseWriter] Using streaming mode`);
 
-    // For streaming, we need to create the response block first
-    const { getInstantAssistantRole } = await import("../../..");
-    const { chatRoles } = await import("../../..");
-    const { createChildBlock } = await import("../../../utils/roamAPI");
+    // Skip block creation for popup execution - streaming will be text-only
+    if (!(state as any).isPopupExecution) {
+      // For streaming, we need to create the response block first
+      const { getInstantAssistantRole } = await import("../../..");
+      const { chatRoles } = await import("../../..");
+      const { createChildBlock } = await import("../../../utils/roamAPI");
+      const { insertParagraphForStream } = await import(
+        "../../../utils/domElts"
+      );
 
-    const assistantRole = state.model.id
-      ? getInstantAssistantRole(state.model.id)
-      : chatRoles?.assistant || "";
+      const assistantRole = state.model.id
+        ? getInstantAssistantRole(state.model.id)
+        : chatRoles?.assistant || "";
 
-    // Create response block first for streaming
-    streamingTargetUid = await createChildBlock(state.rootUid, assistantRole);
+      // Create response block first for streaming
+      streamingTargetUid = await createChildBlock(state.rootUid, assistantRole);
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    // Create streaming element for displaying progress
-    streamElt = insertParagraphForStream(streamingTargetUid);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Create streaming element for displaying progress
+      streamElt = insertParagraphForStream(streamingTargetUid);
+    }
 
     try {
       // Use LangChain streaming
@@ -1625,9 +1657,12 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
 
           // Force a repaint by accessing offsetHeight
           streamElt.offsetHeight;
-        } else if (!streamElt) {
+        } else if ((state as any).streamingCallback && chunkContent) {
+          // Use popup streaming callback for chat interface
+          (state as any).streamingCallback(chunkContent);
+        } else if (!streamElt && !(state as any).streamingCallback) {
           console.warn(
-            `🎯 [ResponseWriter] No stream element available for chunk ${chunkCount}`
+            `🎯 [ResponseWriter] No stream element or callback available for chunk ${chunkCount}`
           );
         }
 
@@ -1706,6 +1741,20 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     wasStreamed: shouldStream,
     // Pass the created target UID for streaming (if created)
     streamingTargetUid: shouldStream ? streamingTargetUid : undefined,
+    // IMPORTANT: For popup execution, include conversation state since we skip insertResponse
+    ...((state as any).isPopupExecution && {
+      // Return same conversation state as insertResponse would
+      toolResultsCache: state.toolResultsCache,
+      cachedFullResults: state.cachedFullResults,
+      hasLimitedResults: state.hasLimitedResults,
+      resultSummaries: state.resultSummaries,
+      resultStore: state.resultStore,
+      nextResultId: state.nextResultId,
+      conversationHistory: state.conversationHistory,
+      conversationSummary: state.conversationSummary,
+      exchangesSinceLastSummary: (state as any).exchangesSinceLastSummary,
+      isConversationMode: state.isConversationMode,
+    }),
   };
 };
 
@@ -1814,6 +1863,11 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     resultSummaries: state.resultSummaries,
     resultStore: state.resultStore,
     nextResultId: state.nextResultId,
+    // IMPORTANT: Return conversation state for continuity
+    conversationHistory: state.conversationHistory,
+    conversationSummary: state.conversationSummary,
+    exchangesSinceLastSummary: (state as any).exchangesSinceLastSummary,
+    isConversationMode: state.isConversationMode,
     // Enhanced expansion metadata for smart buttons - focus on successful final results only
     expansionState: {
       lastResultCount: totalFinalResults, // Only count successful final results (no errors)
@@ -1890,12 +1944,19 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${charLimit}`
   );
 
+  // Convert agent state to access mode for expansion
+  const accessMode = state.privateMode 
+    ? "Private"
+    : state.permissions?.contentAccess 
+    ? "Full Access"
+    : "Balanced";
+
   // Perform adaptive context expansion
   const expandedResults = await performAdaptiveExpansion(
     allResults,
     charLimit,
     currentContentLength,
-    state
+    accessMode
   );
 
   if (expandedResults.length > 0) {
@@ -2461,7 +2522,7 @@ const toolsWithResultLifecycle = async (
 ) => {
   const toolStartTime = Date.now();
   console.log(`🔧 [Tools] Starting tool execution...`);
-  
+
   // Handle popup execution progress tracking
   if ((state as any).isPopupExecution && (state as any).popupProgressCallback) {
     (state as any).popupProgressCallback("🔧 Executing search tools...");
@@ -2520,7 +2581,7 @@ const toolsWithResultLifecycle = async (
     state,
     result.messages
   );
-  
+
   // Handle popup execution result updates
   if ((state as any).isPopupExecution) {
     // Calculate total results across all stores
@@ -2530,11 +2591,11 @@ const toolsWithResultLifecycle = async (
         totalResults += store.data.length;
       }
     });
-    
+
     if ((state as any).popupProgressCallback && totalResults > 0) {
       (state as any).popupProgressCallback(`🔍 Found ${totalResults} results`);
     }
-    
+
     if ((state as any).popupResultsCallback && totalResults > 0) {
       // Flatten all results for popup update
       const allResults: any[] = [];
@@ -2873,6 +2934,27 @@ const handleResultLifecycle = (
   );
 };
 
+// Routing functions for popup execution
+const routeAfterResponseWriter = (
+  state: typeof ReactSearchAgentState.State
+) => {
+  if ((state as any).isPopupExecution) {
+    console.log(`🔀 [Graph] ResponseWriter → END (popup execution)`);
+    return "__end__";
+  }
+  console.log(`🔀 [Graph] ResponseWriter → INSERT RESPONSE`);
+  return "insertResponse";
+};
+
+const routeAfterDirectFormat = (state: typeof ReactSearchAgentState.State) => {
+  if ((state as any).isPopupExecution) {
+    console.log(`🔀 [Graph] DirectFormat → END (popup execution)`);
+    return "__end__";
+  }
+  console.log(`🔀 [Graph] DirectFormat → INSERT RESPONSE`);
+  return "insertResponse";
+};
+
 // Build the ReAct Search Agent graph with human-in-the-loop support
 const builder = new StateGraph(ReactSearchAgentState);
 builder
@@ -2897,8 +2979,8 @@ builder
   .addConditionalEdges("assistant", shouldContinue)
   .addConditionalEdges("tools", routeAfterTools)
   .addEdge("contextExpansion", "responseWriter")
-  .addEdge("responseWriter", "insertResponse")
-  .addEdge("directFormat", "insertResponse")
+  .addConditionalEdges("responseWriter", routeAfterResponseWriter)
+  .addConditionalEdges("directFormat", routeAfterDirectFormat)
   .addEdge("insertResponse", "__end__");
 
 // Note: Expansion event handling is now managed in ask-your-graph-invoke.ts

@@ -9,8 +9,11 @@ import {
   Popover,
   Position,
   Collapse,
+  ContextMenu,
 } from "@blueprintjs/core";
 import { Select, ItemRenderer } from "@blueprintjs/select";
+import ModelsMenu from "../ModelsMenu";
+import { defaultModel } from "../..";
 import {
   StoredQuery,
   getStoredQueries,
@@ -61,6 +64,8 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   );
   const [isExpanded, setIsExpanded] = useState(!currentUserQuery); // Auto-expand when no current query
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(defaultModel);
+  const [showModelMenu, setShowModelMenu] = useState(false);
 
   // Dialogs
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -292,74 +297,80 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 </div>
               )}
             </div>
-          ) : (
-            // Saved queries: show timestamp on same line, description below
-            item.type === "saved" ? (
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      fontSize: "1em",
-                      color: "#182026",
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.label}
-                  </div>
-                  {item.query && (
-                    <div
-                      style={{
-                        fontSize: "0.8em",
-                        color: "#8A9BA8",
-                        marginLeft: "12px",
-                        fontWeight: "normal",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {formatTimestamp(item.query.timestamp)}
-                    </div>
-                  )}
-                </div>
-                {item.description && (
-                  <div
-                    style={{ fontSize: "0.85em", color: "#666", marginTop: "2px" }}
-                  >
-                    {item.description}
-                  </div>
-                )}
-              </div>
-            ) : (
-              // Other queries (current): description below label (original layout)
-              <div>
+          ) : // Saved queries: show timestamp on same line, description below
+          item.type === "saved" ? (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
                 <div
                   style={{
                     fontWeight: "bold",
                     fontSize: "1em",
                     color: "#182026",
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {item.label}
                 </div>
-                {item.description && (
+                {item.query && (
                   <div
-                    style={{ fontSize: "0.85em", color: "#666", marginTop: "2px" }}
+                    style={{
+                      fontSize: "0.8em",
+                      color: "#8A9BA8",
+                      marginLeft: "12px",
+                      fontWeight: "normal",
+                      flexShrink: 0,
+                    }}
                   >
-                    {item.description}
+                    {formatTimestamp(item.query.timestamp)}
                   </div>
                 )}
               </div>
-            )
+              {item.description && (
+                <div
+                  style={{
+                    fontSize: "0.85em",
+                    color: "#666",
+                    marginTop: "2px",
+                  }}
+                >
+                  {item.description}
+                </div>
+              )}
+            </div>
+          ) : (
+            // Other queries (current): description below label (original layout)
+            <div>
+              <div
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "1em",
+                  color: "#182026",
+                }}
+              >
+                {item.label}
+              </div>
+              {item.description && (
+                <div
+                  style={{
+                    fontSize: "0.85em",
+                    color: "#666",
+                    marginTop: "2px",
+                  }}
+                >
+                  {item.description}
+                </div>
+              )}
+            </div>
           )
         }
         onClick={handleClick}
@@ -419,7 +430,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     // Just update selection, don't execute query yet
   };
 
-  const handleLoadQuery = async () => {
+  const handleLoadQuery = async (model?: string) => {
     if (disabled || isLoading || selectedValue === "current" || !selectedValue)
       return;
 
@@ -431,11 +442,28 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     if (selectedItem && selectedItem.query) {
       setIsLoading(true);
       try {
-        onQuerySelect(selectedItem.query);
+        // Pass the selected model or default model to the query execution
+        const queryWithModel = {
+          ...selectedItem.query,
+          preferredModel: model || selectedModel,
+        };
+        onQuerySelect(queryWithModel);
       } finally {
         setIsLoading(false);
       }
     }
+  };
+
+  // Handler for model selection from ModelsMenu
+  const handleModelSelection = async ({ model }) => {
+    await handleLoadQuery(model);
+    setShowModelMenu(false);
+  };
+
+  // Handler for right-click on Run button
+  const handleRunButtonContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setShowModelMenu(true);
   };
 
   const handleSaveQuery = () => {
@@ -692,15 +720,54 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
             <div className="query-manager-selector-actions">
               {selectedValue && selectedValue !== "current" && (
-                <Button
-                  text="Run"
-                  icon="play"
-                  intent="primary"
-                  small
-                  onClick={handleLoadQuery}
-                  disabled={disabled || isLoading}
-                  title="Execute the selected query"
-                />
+                <div style={{ position: "relative" }}>
+                  <Popover
+                    content={
+                      <ModelsMenu
+                        callback={handleModelSelection}
+                        command={{ name: "Execute Query" }}
+                        prompt=""
+                        setModel={setSelectedModel}
+                        roleStructure="menuitem"
+                        isConversationToContinue={false}
+                      />
+                    }
+                    position={Position.BOTTOM}
+                    isOpen={showModelMenu}
+                    onClose={() => setShowModelMenu(false)}
+                    minimal
+                  >
+                    <Button
+                      text={
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <span>Run</span>
+                          <span
+                            style={{ fontSize: "0.7em", fontWeight: "normal" }}
+                          >
+                            (
+                            {selectedModel === defaultModel
+                              ? defaultModel
+                              : selectedModel}
+                            )
+                          </span>
+                        </div>
+                      }
+                      icon="play"
+                      intent="primary"
+                      small
+                      onClick={() => handleLoadQuery()}
+                      onContextMenu={handleRunButtonContextMenu}
+                      disabled={disabled || isLoading}
+                      title={`Execute with ${selectedModel} (right-click to change model)`}
+                    />
+                  </Popover>
+                </div>
               )}
 
               <Button
