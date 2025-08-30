@@ -59,12 +59,13 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
       abortController
     );
     
-    onProgress?.("🔧 Initializing search agent...");
-    updateAgentToaster("🔧 Initializing search agent...");
-
-    // Initialize the model
-    const model = defaultModel;
+    // Initialize the model (use preferred model if provided, otherwise default)
+    const model = intentParserResult.preferredModel || defaultModel;
     const llmInfos: LlmInfos = modelAccordingToProvider(model);
+    
+    const modelDisplayName = llmInfos.id || llmInfos.name || "Unknown model";
+    onProgress?.(`🤖 Using ${modelDisplayName}`);
+    updateAgentToaster(`🤖 Using ${modelDisplayName}`);
 
     onProgress?.("🔍 Starting search execution...");
     updateAgentToaster("🔍 Starting search execution...");

@@ -15,6 +15,7 @@ export interface IntentParserResult {
   isExpansionGlobal?: boolean;
   semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom";
   customSemanticExpansion?: string;
+  preferredModel?: string; // Model to use for this query execution
   searchDetails?: {
     timeRange?: {
       start: string;

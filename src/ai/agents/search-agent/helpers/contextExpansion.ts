@@ -13,7 +13,7 @@ import { resolveReferences } from "../../../../utils/roamAPI";
  * Adaptive expansion budget limits by mode
  */
 const EXPANSION_BUDGETS = {
-  balanced: 100000, // ~25k tokens
+  balanced: 80000, // ~20k tokens
   full: 200000, // ~50k tokens
 };
 
@@ -24,15 +24,19 @@ export async function performAdaptiveExpansion(
   results: any[],
   charLimit: number,
   currentContentLength: number,
-  state?: any
+  accessMode?: string
 ): Promise<any[]> {
   if (!results || results.length === 0) return [];
 
   const resultCount = results.length;
   const availableBudget = Math.max(0, charLimit - currentContentLength);
 
-  // Use smaller budget between available and mode limit
-  const expansionBudget = Math.min(availableBudget, EXPANSION_BUDGETS.balanced);
+  // Use smaller budget between available and access mode limit
+  const modeBudget =
+    accessMode === "Full Access"
+      ? EXPANSION_BUDGETS.full
+      : EXPANSION_BUDGETS.balanced;
+  const expansionBudget = Math.min(availableBudget, modeBudget);
 
   console.log(
     `🌳 [AdaptiveExpansion] Expanding ${resultCount} blocks + 0 pages`
@@ -52,7 +56,8 @@ export async function performAdaptiveExpansion(
   const expandedBlocks = await createExpandedBlocks(
     results,
     hierarchyData,
-    expansionBudget
+    expansionBudget,
+    accessMode
   );
 
   // Apply intelligent truncation based on budget
@@ -151,7 +156,8 @@ async function fetchHierarchyData(blockUids: string[]): Promise<any[]> {
 async function createExpandedBlocks(
   originalResults: any[],
   hierarchyData: any[],
-  budget: number
+  budget: number,
+  accessMode?: string
 ): Promise<any[]> {
   const expandedBlocks: any[] = [];
 
@@ -214,6 +220,8 @@ async function createExpandedBlocks(
       // ADAPTIVE DEPTH STRATEGY based on result count
       const resultCount = originalResults.length;
       let maxDepth: number;
+
+      // First apply standard result count limits
       if (resultCount > 150) {
         maxDepth = 0; // No expansion for very large result sets
       } else if (resultCount <= 20) {
@@ -225,6 +233,15 @@ async function createExpandedBlocks(
       } else {
         // 100 < resultCount <= 150
         maxDepth = 1; // Shallow for large result sets
+      }
+
+      // Then apply additional restrictions for Balanced mode
+      if (accessMode === "Balanced") {
+        if (resultCount > 50) {
+          maxDepth = Math.min(maxDepth, 1); // Cap at 1 level for >50 results in Balanced
+        } else {
+          maxDepth = Math.min(maxDepth, 2); // Cap at 2 levels for ≤50 results in Balanced
+        }
       }
 
       expandedBlock.childrenOutline =
@@ -339,7 +356,7 @@ async function buildRecursiveChildrenOutline(
     const outlineLines: string[] = [];
     let remainingBudget = budget;
 
-    for (const [childUid, childContent, order] of sortedChildren.slice(0, 10)) {
+    for (const [childUid, childContent] of sortedChildren.slice(0, 10)) {
       if (remainingBudget <= 0) break;
 
       // Format child content with adaptive truncation + REFERENCE RESOLUTION
@@ -493,39 +510,4 @@ function applyIntelligentTruncation(
 
     return block;
   });
-}
-
-// Utility functions (kept for backward compatibility but not used in current implementation)
-
-/**
- * Calculate how much content to extract from each child block (KEY LINEAR INTERPOLATION)
- */
-function calculateContentPerChild(
-  childrenCount: number,
-  totalChildrenBudget: number
-): number {
-  if (childrenCount === 0) return 0;
-
-  // Linear interpolation based on available budget and number of children
-  const baseBudgetPerChild = Math.floor(totalChildrenBudget / childrenCount);
-  const minContentPerChild = 50; // Minimum meaningful content
-  const maxContentPerChild = 400; // Maximum content per child to avoid one child dominating
-
-  // Linear interpolation: more budget = more content per child, but with reasonable limits
-  return Math.max(
-    minContentPerChild,
-    Math.min(maxContentPerChild, baseBudgetPerChild)
-  );
-}
-
-/**
- * Calculate truncation limit with linear interpolation (100-500 chars based on budget)
- */
-function calculateTruncationLimit(
-  availableBudget: number,
-  maxLimit: number
-): number {
-  const minLimit = 100;
-  const ratio = Math.min(availableBudget / 1000, 1); // Scale based on available budget
-  return Math.floor(minLimit + (maxLimit - minLimit) * ratio);
 }

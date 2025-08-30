@@ -777,6 +777,11 @@ export const buildFinalResponseSystemPrompt = (
             securityMode
           )}\n`
         : "";
+        
+    // Only log when there's an issue (no results when expected)
+    if (!externalContextPrompt && state.isConversationMode) {
+      console.log(`⚠️ [DirectChat] No results in system prompt - resultStore keys:`, state.resultStore ? Object.keys(state.resultStore) : []);
+    }
 
     return `You are a helpful AI assistant having a conversation about search results from a Roam Research database.
 
@@ -785,9 +790,15 @@ User Query: ${state.userQuery}
 
 CONVERSATION HISTORY:
 ${
-  state.conversationHistory
-    ?.map((msg) => `${msg.role}: ${msg.content}`)
-    .join("\n") || "No previous conversation"
+  state.conversationHistory?.length
+    ? state.conversationHistory
+        .map((msg) => {
+          if (typeof msg === "string") return msg;
+          if (msg.role && msg.content) return `${msg.role}: ${msg.content}`;
+          return String(msg);
+        })
+        .join("\n")
+    : "No previous conversation"
 }
 
 PERMISSIONS: ${
@@ -1044,6 +1055,16 @@ export const extractResultDataForPrompt = (
   if (!resultStore || Object.keys(resultStore).length === 0) {
     return "No result data available.";
   }
+  
+  // Debug: Check content lengths before processing
+  Object.entries(resultStore).forEach(([key, result]) => {
+    if (result.data && Array.isArray(result.data)) {
+      result.data.forEach((item: any, i: number) => {
+        const content = item.content || item.text || '';
+        console.log(`📝 [ExtractResultData] ${key}[${i}]: UID=${item.uid}, content length=${content.length} chars - "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
+      });
+    }
+  });
 
   // Filter to only include final and active results for the final response
   const relevantEntries = Object.entries(resultStore).filter(([, result]) => {

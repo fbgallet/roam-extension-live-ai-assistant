@@ -1,15 +1,39 @@
 import { useState, useEffect, useMemo } from "react";
-import { Result, ViewMode, PageDisplayMode, SortBy, SortOrder, ChatMessage, ChatMode, DNPFilter } from "../types";
-import { filterAndSortResults, paginateResults, calculateTotalPages, getUniquePages, detectResultTypes, extractPageReferences, filterResultsByReferences, PageReference, getBlockAndChildrenContent, detectDNPDistribution } from "../utils/resultProcessing";
+import {
+  Result,
+  ViewMode,
+  PageDisplayMode,
+  SortBy,
+  SortOrder,
+  ChatMessage,
+  ChatMode,
+  DNPFilter,
+} from "../types";
+import {
+  filterAndSortResults,
+  paginateResults,
+  calculateTotalPages,
+  getUniquePages,
+  detectResultTypes,
+  extractPageReferences,
+  filterResultsByReferences,
+  PageReference,
+  getBlockAndChildrenContent,
+  detectDNPDistribution,
+} from "../utils/resultProcessing";
 import { getSelectedResultsList } from "../utils/chatHelpers";
 import { extensionStorage } from "../../..";
 
 export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   // Selection state
-  const [selectedResults, setSelectedResults] = useState<Set<number>>(new Set());
-  const [dropdownStates, setDropdownStates] = useState<Record<string, boolean>>({});
+  const [selectedResults, setSelectedResults] = useState<Set<number>>(
+    new Set()
+  );
+  const [dropdownStates, setDropdownStates] = useState<Record<string, boolean>>(
+    {}
+  );
   const [isClosing, setIsClosing] = useState(false);
-  
+
   // Filtering and sorting state
   const [searchFilter, setSearchFilter] = useState("");
   const [pageFilter, setPageFilter] = useState("all");
@@ -22,23 +46,28 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   const getStoredPreferences = () => {
     const stored = extensionStorage.get("fullResultsPreferences") || {};
     return {
-      showMetadata: stored.showMetadata ?? true,  // Default to true
-      showPaths: stored.showPaths ?? false       // Default to false
+      showMetadata: stored.showMetadata ?? true, // Default to true
+      showPaths: stored.showPaths ?? false, // Default to false
     };
   };
 
-  const [showMetadata, setShowMetadata] = useState(() => getStoredPreferences().showMetadata);
-  const [showPaths, setShowPaths] = useState(() => getStoredPreferences().showPaths);
-  
+  const [showMetadata, setShowMetadata] = useState(
+    () => getStoredPreferences().showMetadata
+  );
+  const [showPaths, setShowPaths] = useState(
+    () => getStoredPreferences().showPaths
+  );
+
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>("mixed");
-  const [pageDisplayMode, setPageDisplayMode] = useState<PageDisplayMode>("metadata");
+  const [pageDisplayMode, setPageDisplayMode] =
+    useState<PageDisplayMode>("metadata");
 
   // Save preferences to storage when they change
   useEffect(() => {
     const preferences = {
       showMetadata,
-      showPaths
+      showPaths,
     };
     extensionStorage.set("fullResultsPreferences", preferences);
   }, [showMetadata, showPaths]);
@@ -46,22 +75,25 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   // Auto-adjust sorting when switching to pages-only view
   const handleViewModeChange = (newViewMode: ViewMode) => {
     setViewMode(newViewMode);
-    
+
     // If switching to pages-only and current sort is content-based, switch to page sorting
-    if (newViewMode === "pages" && (sortBy === "content-alpha" || sortBy === "content-length")) {
+    if (
+      newViewMode === "pages" &&
+      (sortBy === "content-alpha" || sortBy === "content-length")
+    ) {
       setSortBy("page");
     }
   };
-  
+
   // Chat state
   const [showChat, setShowChat] = useState(false);
-  
+
   // Advanced UI state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chatOnlyMode, setChatOnlyMode] = useState(false);
-  const [mainContentWidth, setMainContentWidth] = useState(60); // percentage
+  const [mainContentWidth, setMainContentWidth] = useState(50); // percentage
   const [isResizing, setIsResizing] = useState(false);
-  
+
   // References filtering state
   const [includedReferences, setIncludedReferences] = useState<string[]>([]);
   const [excludedReferences, setExcludedReferences] = useState<string[]>([]);
@@ -75,10 +107,10 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
       setDNPFilter("all");
       setCurrentPage(1);
       setViewMode("mixed"); // Always show mixed view by default
-      
+
       // Reset chat state
       setShowChat(false);
-      
+
       // Reset references filters
       setIncludedReferences([]);
       setExcludedReferences([]);
@@ -90,29 +122,44 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   }, [isOpen]);
 
   // References state
-  const [availableReferences, setAvailableReferences] = useState<PageReference[]>([]);
-  
+  const [availableReferences, setAvailableReferences] = useState<
+    PageReference[]
+  >([]);
+
   // Content maps for enhanced search
-  const [blockContentMap, setBlockContentMap] = useState<Map<string, string>>(new Map());
-  const [childrenContentMap, setChildrenContentMap] = useState<Map<string, string[]>>(new Map());
-  
+  const [blockContentMap, setBlockContentMap] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [childrenContentMap, setChildrenContentMap] = useState<
+    Map<string, string[]>
+  >(new Map());
+
   // Compute unique pages for filter dropdown and detect result types
-  const { uniquePages, hasBlocks, hasPages, shouldShowDNPFilter } = useMemo(() => {
-    const pages = getUniquePages(results);
-    const { hasBlocks, hasPages } = detectResultTypes(results);
-    const { shouldShowDNPFilter } = detectDNPDistribution(results);
-    
-    console.log("🔍 Analyzing results structure:", results);
-    console.log(`Found ${hasBlocks ? 'blocks' : 'no blocks'} and ${hasPages ? 'pages' : 'no pages'}`);
-    console.log(`DNP filter should ${shouldShowDNPFilter ? 'be shown' : 'be hidden'} (mixed DNP/non-DNP: ${shouldShowDNPFilter})`);
-    
-    return { 
-      uniquePages: pages, 
-      hasBlocks, 
-      hasPages,
-      shouldShowDNPFilter
-    };
-  }, [results]);
+  const { uniquePages, hasBlocks, hasPages, shouldShowDNPFilter } =
+    useMemo(() => {
+      const pages = getUniquePages(results);
+      const { hasBlocks, hasPages } = detectResultTypes(results);
+      const { shouldShowDNPFilter } = detectDNPDistribution(results);
+
+      console.log("🔍 Analyzing results structure:", results);
+      console.log(
+        `Found ${hasBlocks ? "blocks" : "no blocks"} and ${
+          hasPages ? "pages" : "no pages"
+        }`
+      );
+      console.log(
+        `DNP filter should ${
+          shouldShowDNPFilter ? "be shown" : "be hidden"
+        } (mixed DNP/non-DNP: ${shouldShowDNPFilter})`
+      );
+
+      return {
+        uniquePages: pages,
+        hasBlocks,
+        hasPages,
+        shouldShowDNPFilter,
+      };
+    }, [results]);
 
   // Extract block/children content from original results (this doesn't need to change with filters)
   useEffect(() => {
@@ -122,7 +169,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
         setBlockContentMap(contentData.blockContent);
         setChildrenContentMap(contentData.childrenContent);
       } catch (error) {
-        console.error('Failed to extract content:', error);
+        console.error("Failed to extract content:", error);
         setBlockContentMap(new Map());
         setChildrenContentMap(new Map());
       }
@@ -142,20 +189,31 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
       try {
         // Apply base filtering (DNP, view mode, search, page) but not references filtering
         // to get the results that should be considered for reference extraction
-        const baseFiltered = await filterAndSortResults(results, {
-          searchFilter,
-          pageFilter,
-          sortBy: "relevance", // Sort doesn't matter for reference extraction
-          sortOrder: "desc",
-          viewMode,
-          dnpFilter
-        }, blockContentMap, childrenContentMap);
-        
+        const baseFiltered = await filterAndSortResults(
+          results,
+          {
+            searchFilter,
+            pageFilter,
+            sortBy: "relevance", // Sort doesn't matter for reference extraction
+            sortOrder: "desc",
+            viewMode,
+            dnpFilter,
+          },
+          blockContentMap,
+          childrenContentMap
+        );
+
         const references = await extractPageReferences(baseFiltered);
-        console.log(`Extracted ${references.length} page references from filtered results:`, references);
+        console.log(
+          `Extracted ${references.length} page references from filtered results:`,
+          references
+        );
         setAvailableReferences(references);
       } catch (error) {
-        console.error('Failed to extract references from filtered results:', error);
+        console.error(
+          "Failed to extract references from filtered results:",
+          error
+        );
         setAvailableReferences([]);
       }
     };
@@ -165,51 +223,94 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     } else {
       setAvailableReferences([]);
     }
-  }, [results, searchFilter, pageFilter, viewMode, dnpFilter, blockContentMap, childrenContentMap]);
+  }, [
+    results,
+    searchFilter,
+    pageFilter,
+    viewMode,
+    dnpFilter,
+    blockContentMap,
+    childrenContentMap,
+  ]);
 
   // Filtered results state (for async filtering)
-  const [filteredAndSortedResults, setFilteredAndSortedResults] = useState<Result[]>([]);
-  
+  const [filteredAndSortedResults, setFilteredAndSortedResults] = useState<
+    Result[]
+  >([]);
+
   // Apply filtering and sorting asynchronously
   useEffect(() => {
     const applyFiltering = async () => {
       try {
         // First apply references filtering
-        const referencesFiltered = await filterResultsByReferences(results, includedReferences, excludedReferences);
-        
+        const referencesFiltered = await filterResultsByReferences(
+          results,
+          includedReferences,
+          excludedReferences
+        );
+
         // Then apply standard filtering and sorting with block and children content
-        const finalResults = await filterAndSortResults(referencesFiltered, {
-          searchFilter,
-          pageFilter,
-          sortBy,
-          sortOrder,
-          viewMode,
-          dnpFilter
-        }, blockContentMap, childrenContentMap);
-        
+        const finalResults = await filterAndSortResults(
+          referencesFiltered,
+          {
+            searchFilter,
+            pageFilter,
+            sortBy,
+            sortOrder,
+            viewMode,
+            dnpFilter,
+          },
+          blockContentMap,
+          childrenContentMap
+        );
+
         setFilteredAndSortedResults(finalResults);
       } catch (error) {
-        console.error('Failed to filter results:', error);
+        console.error("Failed to filter results:", error);
         // Fallback to just applying standard filtering without references
-        const fallbackResults = await filterAndSortResults(results, {
-          searchFilter,
-          pageFilter,
-          sortBy,
-          sortOrder,
-          viewMode,
-          dnpFilter
-        }, blockContentMap, childrenContentMap);
+        const fallbackResults = await filterAndSortResults(
+          results,
+          {
+            searchFilter,
+            pageFilter,
+            sortBy,
+            sortOrder,
+            viewMode,
+            dnpFilter,
+          },
+          blockContentMap,
+          childrenContentMap
+        );
         setFilteredAndSortedResults(fallbackResults);
       }
     };
 
     applyFiltering();
-  }, [results, includedReferences, excludedReferences, searchFilter, pageFilter, sortBy, sortOrder, viewMode, dnpFilter, blockContentMap, childrenContentMap]);
+  }, [
+    results,
+    includedReferences,
+    excludedReferences,
+    searchFilter,
+    pageFilter,
+    sortBy,
+    sortOrder,
+    viewMode,
+    dnpFilter,
+    blockContentMap,
+    childrenContentMap,
+  ]);
 
   // Pagination
-  const totalPages = calculateTotalPages(filteredAndSortedResults.length, resultsPerPage);
+  const totalPages = calculateTotalPages(
+    filteredAndSortedResults.length,
+    resultsPerPage
+  );
   const paginatedResults = useMemo(() => {
-    return paginateResults(filteredAndSortedResults, currentPage, resultsPerPage);
+    return paginateResults(
+      filteredAndSortedResults,
+      currentPage,
+      resultsPerPage
+    );
   }, [filteredAndSortedResults, currentPage, resultsPerPage]);
 
   // Update currentPage if it exceeds totalPages
@@ -234,16 +335,20 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
 
   const handleSelectAll = () => {
     if (isClosing) return; // Prevent state updates if closing
-    const currentPageIndices = paginatedResults.map(result => results.indexOf(result));
-    const allCurrentSelected = currentPageIndices.every(idx => selectedResults.has(idx));
-    
+    const currentPageIndices = paginatedResults.map((result) =>
+      results.indexOf(result)
+    );
+    const allCurrentSelected = currentPageIndices.every((idx) =>
+      selectedResults.has(idx)
+    );
+
     const newSelected = new Set(selectedResults);
     if (allCurrentSelected) {
       // Deselect all current page results
-      currentPageIndices.forEach(idx => newSelected.delete(idx));
+      currentPageIndices.forEach((idx) => newSelected.delete(idx));
     } else {
       // Select all current page results
-      currentPageIndices.forEach(idx => newSelected.add(idx));
+      currentPageIndices.forEach((idx) => newSelected.add(idx));
     }
     setSelectedResults(newSelected);
   };
@@ -253,7 +358,9 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     if (selectedResults.size === filteredAndSortedResults.length) {
       setSelectedResults(new Set());
     } else {
-      const allFilteredIndices = filteredAndSortedResults.map(result => results.indexOf(result));
+      const allFilteredIndices = filteredAndSortedResults.map((result) =>
+        results.indexOf(result)
+      );
       setSelectedResults(new Set(allFilteredIndices));
     }
   };
@@ -278,36 +385,36 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   const toggleChat = () => {
     setShowChat(!showChat);
   };
-  
+
   // References filter handlers
   const handleIncludeReference = (reference: string) => {
-    setIncludedReferences(prev => {
+    setIncludedReferences((prev) => {
       if (prev.includes(reference)) {
-        return prev.filter(ref => ref !== reference);
+        return prev.filter((ref) => ref !== reference);
       } else {
         // Remove from excluded if it was there
-        setExcludedReferences(prevExcluded => 
-          prevExcluded.filter(ref => ref !== reference)
+        setExcludedReferences((prevExcluded) =>
+          prevExcluded.filter((ref) => ref !== reference)
         );
         return [...prev, reference];
       }
     });
   };
-  
+
   const handleExcludeReference = (reference: string) => {
-    setExcludedReferences(prev => {
+    setExcludedReferences((prev) => {
       if (prev.includes(reference)) {
-        return prev.filter(ref => ref !== reference);
+        return prev.filter((ref) => ref !== reference);
       } else {
         // Remove from included if it was there
-        setIncludedReferences(prevIncluded => 
-          prevIncluded.filter(ref => ref !== reference)
+        setIncludedReferences((prevIncluded) =>
+          prevIncluded.filter((ref) => ref !== reference)
         );
         return [...prev, reference];
       }
     });
   };
-  
+
   const handleClearAllReferences = () => {
     setIncludedReferences([]);
     setExcludedReferences([]);
@@ -377,6 +484,6 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     toggleChat,
     handleIncludeReference,
     handleExcludeReference,
-    handleClearAllReferences
+    handleClearAllReferences,
   };
 };
