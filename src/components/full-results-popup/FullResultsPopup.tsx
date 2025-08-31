@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { Button, HTMLSelect, InputGroup, Checkbox, Icon } from "@blueprintjs/core";
+import {
+  Button,
+  HTMLSelect,
+  InputGroup,
+  Checkbox,
+  Icon,
+} from "@blueprintjs/core";
 import { createChildBlock } from "../../utils/roamAPI.js";
 import { FullResultsPopupProps, Result } from "./types";
 import { FullResultsChat } from "./FullResultsChat";
@@ -44,6 +50,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     viewMode,
     pageDisplayMode,
     showChat,
+    chatMessages,
+    chatAccessMode,
+    chatAgentData,
+    chatExpandedResults,
     isFullscreen,
     chatOnlyMode,
     mainContentWidth,
@@ -63,6 +73,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setShowPaths,
     setViewMode,
     setPageDisplayMode,
+    setChatMessages,
+    setChatAccessMode,
+    setChatAgentData,
+    setChatExpandedResults,
     setIsFullscreen,
     setChatOnlyMode,
     setMainContentWidth,
@@ -90,6 +104,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleIncludeReference,
     handleExcludeReference,
     handleClearAllReferences,
+    resetChatConversation,
   } = useFullResultsState(currentResults, isOpen);
 
   // Query selection handler
@@ -100,6 +115,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       setCurrentUserQuery(userQuery);
       setCurrentFormalQuery(formalQuery);
       setExecutionProgress("");
+      resetChatConversation(); // Reset chat when switching back to original query
       return;
     }
 
@@ -111,6 +127,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
     // Clear previous results immediately when starting new query
     setCurrentResults([]);
+    resetChatConversation(); // Reset chat when executing a new stored query
 
     try {
       await executeQueryWithLiveUpdates({
@@ -651,6 +668,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       <div
                         key={originalIndex}
                         className="full-results-result-item"
+                        data-uid={result.uid}
                       >
                         <input
                           type="checkbox"
@@ -717,11 +735,28 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               <FullResultsChat
                 isOpen={showChat}
                 selectedResults={getSelectedResultsArray()}
-                allResults={paginatedResults}
+                allResults={filteredAndSortedResults} // Pass filtered results to scope chat automatically
+                paginatedResults={paginatedResults}
                 privateMode={privateMode}
-                permissions={permissions}
                 targetUid={targetUid}
                 onClose={() => toggleChat()}
+                chatMessages={chatMessages}
+                setChatMessages={setChatMessages}
+                chatAccessMode={chatAccessMode}
+                setChatAccessMode={setChatAccessMode}
+                chatAgentData={chatAgentData}
+                setChatAgentData={setChatAgentData}
+                chatExpandedResults={chatExpandedResults}
+                setChatExpandedResults={setChatExpandedResults}
+                // Pagination props for cross-page navigation
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                resultsPerPage={resultsPerPage}
+                // View mode props for ((uid)) click handling
+                chatOnlyMode={chatOnlyMode}
+                handleChatOnlyToggle={handleChatOnlyToggle}
+                // References filtering
+                handleIncludeReference={handleIncludeReference}
               />
             </div>
           )}
@@ -794,9 +829,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             />
 
             <Button
-              text={showChat ? "Hide Chat" : "💬 Chat"}
+              text={showChat ? "Hide Chat" : "Chat"}
               onClick={toggleChat}
-              intent={showChat ? "none" : "primary"}
+              intent={showChat ? "warning" : "success"}
               icon={showChat ? "cross" : "chat"}
               disabled={!canUseChat(privateMode, permissions) && !showChat}
               title={

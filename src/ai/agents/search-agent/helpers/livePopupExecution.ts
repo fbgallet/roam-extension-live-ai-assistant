@@ -187,7 +187,12 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
       "search",
       executionTime,
       actualTokenUsage,
-      finalResults
+      finalResults,
+      undefined, // targetUid
+      undefined, // userQuery  
+      undefined, // formalQuery
+      undefined, // intentParserResult
+      false // not conversation mode for popup execution
     );
 
     return finalResults;

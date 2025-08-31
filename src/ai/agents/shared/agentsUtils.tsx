@@ -225,7 +225,8 @@ export const completeAgentToaster = (
   targetUid?: string,
   userQuery?: string,
   formalQuery?: string,
-  intentParserResult?: any
+  intentParserResult?: any,
+  isConversationMode?: boolean
 ): void => {
   // Clear the agent controller since processing is complete
   clearAgentController();
@@ -274,21 +275,10 @@ export const completeAgentToaster = (
       if (intentParserResult) {
         (window as any).lastIntentParserResult = intentParserResult;
         
-        // Add previous query to recent queries (if there was one)
-        const { addRecentQuery } = require("../search-agent/helpers/queryStorage");
-        const prevUserQuery = (window as any).previousUserQuery;
-        const prevFormalQuery = (window as any).previousFormalQuery;
-        const prevIntentParserResult = (window as any).previousIntentParserResult;
+        // Note: Recent query storage moved to ask-your-graph-invoke.ts to ensure
+        // only actual search agent executions are stored, not simple chat messages
         
-        if (prevUserQuery && prevIntentParserResult) {
-          addRecentQuery({
-            userQuery: prevUserQuery,
-            formalQuery: prevFormalQuery || prevUserQuery,
-            intentParserResult: prevIntentParserResult
-          });
-        }
-        
-        // Store current as previous for next time
+        // Store current queries for potential later use
         (window as any).previousUserQuery = userQuery;
         (window as any).previousFormalQuery = formalQuery;
         (window as any).previousIntentParserResult = intentParserResult;

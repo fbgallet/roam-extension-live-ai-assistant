@@ -1,19 +1,47 @@
-import React, { useState } from "react";
-import { Button, InputGroup, Icon, Tooltip } from "@blueprintjs/core";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Button,
+  Icon,
+  Tooltip,
+  HTMLSelect,
+  TextArea,
+  Popover,
+} from "@blueprintjs/core";
 import { invokeSearchAgent } from "../../ai/agents/search-agent/ask-your-graph-invoke";
 import { Result, ChatMessage, ChatMode } from "./types";
-import { createChildBlock } from "../../utils/roamAPI";
 import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/contextExpansion";
-import { extensionStorage } from "../..";
+import { extensionStorage, defaultModel } from "../..";
+import ModelsMenu from "../ModelsMenu";
+import { getPageUidByPageName } from "../../utils/roamAPI";
 
 interface FullResultsChatProps {
   isOpen: boolean;
   selectedResults: Result[];
-  allResults: Result[];
+  allResults: Result[]; // All available results
+  paginatedResults: Result[]; // Currently displayed results
   privateMode: boolean;
-  permissions: { contentAccess: boolean };
   targetUid?: string;
   onClose: () => void;
+  // Chat state from parent
+  chatMessages: ChatMessage[];
+  setChatMessages: (
+    messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])
+  ) => void;
+  chatAccessMode: "Balanced" | "Full Access";
+  setChatAccessMode: (mode: "Balanced" | "Full Access") => void;
+  chatAgentData: any;
+  setChatAgentData: (data: any) => void;
+  chatExpandedResults: Result[] | null;
+  setChatExpandedResults: (results: Result[] | null) => void;
+  // Pagination props for cross-page navigation
+  currentPage: number;
+  setCurrentPage: (page: number) => void;
+  resultsPerPage: number;
+  // View mode props for ((uid)) click handling
+  chatOnlyMode: boolean;
+  handleChatOnlyToggle: () => void;
+  // References filtering
+  handleIncludeReference: (reference: string) => void;
 }
 
 // Convert chat messages to agent conversation history
@@ -61,13 +89,25 @@ const renderMarkdown = (text: string): string => {
   // Convert Roam embed syntax to clickable links
   rendered = rendered.replace(
     /\{\{\[\[(.*?)\]\]:\s*\(\((.*?)\)\)\}\}/g,
-    "<a href=\"#\" onclick=\"window.roamAlphaAPI.ui.setBlockFocusAndSelection({location: {'block-uid': '$2', 'window-id': 'main-window'}}); return false;\" class=\"roam-embed-link\" title=\"Go to block\">📄 $1</a>"
+    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">📄 {{[[embed-path]]: (($2))}}]</a>'
   );
 
-  // Simple block reference ((uid))
+  // Simple block reference ((uid)) - convert to [source block](((uid)))
   rendered = rendered.replace(
-    /\(\((.*?)\)\)/g,
-    "<a href=\"#\" onclick=\"window.roamAlphaAPI.ui.setBlockFocusAndSelection({location: {'block-uid': '$1', 'window-id': 'main-window'}}); return false;\" class=\"roam-block-ref\" title=\"Go to block\">((§))</a>"
+    /\(\(([^\(].*?)\)\)/g,
+    '<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">(($1))</a>'
+  );
+
+  // Page references [[page title]] - make clickable
+  rendered = rendered.replace(
+    /\[\[([^\]]+)\]\]/g,
+    '<a href="#" data-page-title="$1" class="roam-page-ref-chat" title="Click: Filter by this page • Shift+click: Open in sidebar">[[$1]]</a>'
+  );
+
+  // Tag references #tag - make clickable
+  rendered = rendered.replace(
+    /#([a-zA-Z0-9_-]+)/g,
+    '<a href="#" data-page-title="$1" class="roam-tag-ref-chat" title="Click: Filter by this tag • Shift+click: Open in sidebar">#$1</a>'
   );
 
   // Wrap in paragraphs (but not if it starts with a header or list)
@@ -83,58 +123,303 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   isOpen,
   selectedResults,
   allResults,
+  paginatedResults,
   privateMode,
-  permissions,
   targetUid,
+  onClose,
+  chatMessages,
+  setChatMessages,
+  chatAccessMode,
+  setChatAccessMode,
+  chatAgentData,
+  setChatAgentData,
+  chatExpandedResults,
+  setChatExpandedResults,
+  currentPage,
+  setCurrentPage,
+  resultsPerPage,
+  chatOnlyMode,
+  handleChatOnlyToggle,
+  handleIncludeReference,
 }) => {
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [chatMode, setChatMode] = useState<ChatMode>("simple"); // TODO: Future evolution - Chat Mode vs Deep Analysis
-  const [accessMode, setAccessMode] = useState<"Balanced" | "Full Access">(
-    () => {
-      const defaultMode = extensionStorage.get("askGraphMode") || "Balanced";
-      return defaultMode === "Private"
-        ? "Balanced"
-        : (defaultMode as "Balanced" | "Full Access");
+
+  // Ref for auto-scrolling to the latest message
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // State to track pending highlight after page change
+  const [pendingHighlight, setPendingHighlight] = useState<string | null>(null);
+
+  // Auto-scroll to the latest message when messages change
+  useEffect(() => {
+    if (chatMessages.length > 0 && messagesContainerRef.current) {
+      // Find the last user message to position it at the top of the visible area
+      const userMessages = messagesContainerRef.current.querySelectorAll(
+        ".full-results-chat-message.user"
+      );
+      const lastUserMessage = userMessages[
+        userMessages.length - 1
+      ] as HTMLElement;
+
+      if (lastUserMessage) {
+        // Scroll so the last user message is at the top of the container
+        lastUserMessage.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      } else {
+        // If no user messages, scroll to the bottom to show the latest content
+        messagesContainerRef.current.scrollTop =
+          messagesContainerRef.current.scrollHeight;
+      }
     }
-  );
-  const [agentData, setAgentData] = useState<any>(null); // Store agent conversation state
+  }, [chatMessages, streamingContent]);
+
+  // Watch for page changes and handle pending highlights
+  useEffect(() => {
+    if (pendingHighlight) {
+      // Small delay to ensure DOM is updated
+      const timeoutId = setTimeout(() => {
+        highlightElementOnCurrentPage(pendingHighlight);
+        setPendingHighlight(null);
+      }, 50);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentPage, pendingHighlight]);
+
+  // Watch for chat-only mode changes and handle pending highlights
+  useEffect(() => {
+    if (pendingHighlight && !chatOnlyMode) {
+      // When switching from chat-only mode to results view, handle pending highlight
+      const timeoutId = setTimeout(() => {
+        highlightAndScrollToResult(pendingHighlight);
+        setPendingHighlight(null);
+      }, 100); // Slightly longer delay for mode switch
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [chatOnlyMode, pendingHighlight]);
+
+  // Handle block reference hover for navigation and highlighting
+  useEffect(() => {
+    const handleBlockRefHover = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+
+      if (target.classList.contains("roam-block-ref-chat")) {
+        const blockUid = target.getAttribute("data-block-uid");
+        if (!blockUid) return;
+
+        // Only highlight on hover if NOT in chat-only mode
+        if (!chatOnlyMode) {
+          // Hover: Highlight and scroll to result in popup
+          highlightAndScrollToResult(blockUid);
+        }
+      }
+    };
+
+    const handleBlockRefClick = (event: MouseEvent) => {
+      event.preventDefault();
+      const target = event.target as HTMLElement;
+
+      if (target.classList.contains("roam-block-ref-chat")) {
+        const blockUid = target.getAttribute("data-block-uid");
+        if (!blockUid) return;
+
+        // Always copy ((uid)) to clipboard
+        const clipboardText = `((${blockUid}))`;
+        navigator.clipboard
+          .writeText(clipboardText)
+          .then(() => {
+          })
+          .catch((err) => {
+            console.warn("Failed to copy to clipboard:", err);
+          });
+
+        if (event.shiftKey) {
+          // Shift+click: Open in sidebar
+          window.roamAlphaAPI.ui.rightSidebar.addWindow({
+            window: { type: "block", "block-uid": blockUid },
+          });
+        } else {
+          // Regular click: Show results and highlight
+          if (chatOnlyMode) {
+            // Set pending highlight and switch mode - useEffect will handle the rest
+            setPendingHighlight(blockUid);
+            handleChatOnlyToggle(); // Use the proper handler instead of direct setter
+          } else {
+            // Highlight immediately if already in results view
+            highlightAndScrollToResult(blockUid);
+          }
+        }
+      }
+
+      // Handle page references [[page]] and #tag clicks
+      if (
+        target.classList.contains("roam-page-ref-chat") ||
+        target.classList.contains("roam-tag-ref-chat")
+      ) {
+        const pageTitle = target.getAttribute("data-page-title");
+        if (!pageTitle) return;
+
+        if (event.shiftKey) {
+          // Shift+click: Open page in sidebar
+          window.roamAlphaAPI.ui.rightSidebar.addWindow({
+            window: {
+              type: "outline",
+              "block-uid": getPageUidByPageName(pageTitle),
+            },
+          });
+        } else {
+          // Regular click: Add to included references filter
+          handleIncludeReference(pageTitle);
+
+          // Switch to results view if in chat-only mode
+          if (chatOnlyMode) {
+            handleChatOnlyToggle();
+          }
+        }
+      }
+    };
+
+    // Add both hover and click listeners to the messages container
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.addEventListener(
+        "mouseover",
+        handleBlockRefHover
+      );
+      messagesContainerRef.current.addEventListener(
+        "click",
+        handleBlockRefClick
+      );
+    }
+
+    // Cleanup
+    return () => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.removeEventListener(
+          "mouseover",
+          handleBlockRefHover
+        );
+        messagesContainerRef.current.removeEventListener(
+          "click",
+          handleBlockRefClick
+        );
+      }
+    };
+  }, [chatMessages]); // Re-attach when messages change
+
+  // Function to highlight and scroll to a result by UID (with cross-page navigation)
+  const highlightAndScrollToResult = (blockUid: string) => {
+    // Find the result in either selectedResults or allResults
+    const allAvailableResults =
+      selectedResults.length > 0 ? selectedResults : allResults;
+    const targetResultIndex = allAvailableResults.findIndex(
+      (result) => result.uid === blockUid
+    );
+
+    if (targetResultIndex === -1) {
+      console.warn(`Block ${blockUid} not found in current results`);
+      return;
+    }
+
+    // Calculate which page the target result is on
+    const targetPage = Math.floor(targetResultIndex / resultsPerPage) + 1;
+
+    // Always check if the block is actually visible in DOM first
+    const blockAlreadyVisible = document.querySelector(
+      `.full-results-result-item[data-uid="${blockUid}"]`
+    );
+
+    if (blockAlreadyVisible) {
+      highlightElementOnCurrentPage(blockUid);
+    } else {
+      // Force navigation regardless of state (since state might be wrong)
+      setPendingHighlight(blockUid);
+
+      // Force re-render: briefly set to a different page, then to target page
+      const tempPage = targetPage === 1 ? 2 : 1;
+      setCurrentPage(tempPage);
+
+      // Small delay then set to actual target page
+      setTimeout(() => {
+        setCurrentPage(targetPage);
+      }, 10);
+    }
+  };
+
+  // Helper function to highlight element on the current page
+  const highlightElementOnCurrentPage = (blockUid: string) => {
+    // Find target element for highlighting
+    const allResultItems = document.querySelectorAll(
+      ".full-results-result-item"
+    );
+
+    const targetElement = document.querySelector(
+      `.full-results-result-item[data-uid="${blockUid}"]`
+    ) as HTMLElement;
+
+    if (targetElement) {
+
+      // Remove any existing highlights first
+      document.querySelectorAll(".highlighted-result").forEach((el) => {
+        el.classList.remove("highlighted-result");
+      });
+
+      // Add temporary highlight
+      targetElement.classList.add("highlighted-result");
+
+      // Scroll to the element
+      targetElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        targetElement?.classList.remove("highlighted-result");
+      }, 3000);
+    } else {
+      console.warn(
+        `❌ DOM element for block ${blockUid} not found on current page`
+      );
+    }
+  };
+  const [chatMode] = useState<ChatMode>("simple"); // TODO: Future evolution - Chat Mode vs Deep Analysis
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     []
   ); // Track result selection changes
-  const [expandedResultsObjects, setExpandedResultsObjects] = useState<
-    Result[] | null
-  >(null); // Cache expanded result objects
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
 
   // Reset cache when chat is closed/reopened
   React.useEffect(() => {
     if (!isOpen) {
-      setExpandedResultsObjects(null);
+      setChatExpandedResults(null);
       setLastSelectedResultIds([]);
     }
-  }, [isOpen]);
+  }, [isOpen, setChatExpandedResults]);
 
   const getSelectedResultsForChat = () => {
-    return selectedResults.length > 0 ? selectedResults : allResults;
+    // Create copies to prevent mutation of shared objects from parent component
+    const results = selectedResults.length > 0 ? selectedResults : allResults;
+    return results.map((result) => ({ ...result }));
   };
 
   const resetChat = () => {
     setChatMessages([]);
-    setAgentData(null);
-    setExpandedResultsObjects(null);
+    setChatAgentData(null);
+    setChatExpandedResults(null);
     setLastSelectedResultIds([]);
     setHasExpandedResults(false);
-    console.log("💬 [Chat] Reset chat conversation");
   };
 
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      console.log("📋 Copied to clipboard");
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
     }
@@ -167,6 +452,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     } search results\nExported: ${new Date().toLocaleString()}\n\n`;
     await copyToClipboard(header + conversationText);
   };
+
+  const handleModelSelection = async ({ model }) => {
+    setSelectedModel(model);
+    setIsModelMenuOpen(false); // Close the popover after selection
+  };
+
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || isTyping) return;
@@ -208,7 +500,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   ) => {
     try {
       console.log("🔍 Processing chat message with search agent");
-      console.log(`💬 Access mode: ${accessMode}, using simple chat mode`);
+      console.log(`💬 Access mode: ${chatAccessMode}, using simple chat mode`);
 
       // Check if result selection has changed
       const currentResultIds = contextResults
@@ -222,52 +514,69 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       let expandedResults: Result[];
 
-      if (selectionChanged || !expandedResultsObjects) {
-        console.log(
-          `📊 ${
-            selectionChanged ? "Result selection changed" : "First turn"
-          }: ${lastSelectedResultIds.length} → ${
-            currentResultIds.length
-          } results`
-        );
+      if (selectionChanged || !chatExpandedResults) {
         setLastSelectedResultIds(currentResultIds);
+
 
         // Perform expansion once and cache the expanded objects
         // Use proper expansion budgets based on access mode
-        const expansionBudget = accessMode === "Full Access" ? 200000 : 100000; // ~50k vs ~25k tokens
+        const expansionBudget =
+          chatAccessMode === "Full Access" ? 200000 : 80000; // ~50k vs ~20k tokens
         const charLimit = Math.min(
           expansionBudget,
           Math.max(50000, contextResults.length * 2000)
         );
         expandedResults = await performAdaptiveExpansion(
-          contextResults,
+          contextResults.map((result) => ({ ...result })), // Pass deep copies to prevent any mutation
+          // [...contextResults],
           charLimit,
           0,
-          accessMode // Pass access mode to influence depth strategy
+          chatAccessMode // Pass access mode to influence depth strategy
         );
-        setExpandedResultsObjects(expandedResults);
-        console.log(
-          `📝 [Chat] Cached ${expandedResults.length} expanded result objects`
-        );
+        setChatExpandedResults(expandedResults);
       } else {
         // Reuse cached expanded objects
-        expandedResults = expandedResultsObjects;
-        console.log(
-          `📝 [Chat] Reusing cached ${expandedResults.length} expanded result objects`
-        );
+        expandedResults = chatExpandedResults;
       }
 
       // Build string context from expanded objects (only when needed for prompts)
       resultsContext = expandedResults
         .map((result, index) => {
           const parts = [];
+          const isPage = !result.pageUid; // Pages don't have pageUid property
+
+          // UID (always present)
           if (result.uid) parts.push(`UID: ${result.uid}`);
-          if (result.pageTitle) parts.push(`Page: [[${result.pageTitle}]]`);
-          if (result.content) {
-            parts.push(`Content: ${result.content}`);
+
+          // Content first (most important)
+          if (result.expandedBlock?.original || result.content) {
+            const content = result.expandedBlock?.original || result.content;
+            parts.push(`Content: ${content}`);
           } else {
-            parts.push(`Content: [Block content not available]`);
+            parts.push(`Content: [Content not available]`);
           }
+
+          // Location info differs between pages and blocks
+          if (isPage) {
+            // For pages: just indicate it's a page
+            if (result.pageTitle) parts.push(`Page: [[${result.pageTitle}]]`);
+          } else {
+            // For blocks: show which page they're in
+            if (result.pageTitle)
+              parts.push(`In page: [[${result.pageTitle}]]`);
+          }
+
+          // Parent info (only for blocks that have parent context)
+          if (result.expandedBlock?.parent) {
+            parts.push(`Parent: ${result.expandedBlock.parent}`);
+          }
+
+          // Children info (if available)
+          if (result.expandedBlock?.childrenOutline) {
+            parts.push(`Children:\n${result.expandedBlock.childrenOutline}`);
+          }
+
+          // Timestamps
           if (result.created) parts.push(`Created: ${result.created}`);
           if (result.modified) parts.push(`Modified: ${result.modified}`);
 
@@ -290,28 +599,21 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // The agent's system prompt already includes the results context
       const hasConversationHistory = currentConversationHistory.length > 0;
 
-      let chatPrompt: string;
-      if (hasConversationHistory && !selectionChanged) {
-        // For continuing conversations, just send the user message
-        chatPrompt = message;
-      } else {
-        // For first turn or when selection changes, include results context
-        const selectionChangeNotice = selectionChanged
-          ? `\n🔄 IMPORTANT: The user has changed their result selection since the last message. The results below represent the NEW selection.\n`
-          : ``;
+      // ALWAYS build the full system prompt with context - never just the user message
+      // The user message will be passed separately as the user message
+      const selectionChangeNotice = selectionChanged
+        ? `\n🔄 IMPORTANT: The user has changed their result selection since the last message. The results below represent the NEW selection.\n`
+        : ``;
 
-        chatPrompt = `You are an intelligent assistant analyzing search results. The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.${selectionChangeNotice}
+      const chatPrompt = `You are an intelligent assistant analyzing search results extracted from a Roam Research graph databae. The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.${selectionChangeNotice}
 
 SEARCH RESULTS DATA:
 ${resultsContext}
 
-User request: ${message}
-
 🎯 YOUR ROLE - PROVIDE VALUE BEYOND RAW DATA:
+- **Focus on the user request in its last message** to provide the most relevant response as possible
 - **DON'T repeat** content/metadata the user already sees
-- **DO provide** insights, patterns, connections, themes, implications
 - **Focus on** what the content MEANS, not what it SAYS
-- **Be concise** - give key insights first, elaborate only when asked
 - **Use the full context** - leverage parent blocks, page context, and children to understand meaning
 - **Identify** relationships, contradictions, common themes, or missing pieces
 - **Be analytical** - help the user understand significance and context
@@ -323,26 +625,17 @@ ${
 - When searching: use specific UIDs, purpose: "completion" for expanding context
 - Use fromResultId: "external_context_001" to reference the provided results
 - Focus on synthesis and deeper understanding`
-    : `💬 CHAT MODE (${accessMode}):
-- Analyze and synthesize the provided content
-- Provide insights, not repetition
-${
-  accessMode === "Full Access"
-    ? "- Full access: Can access complete content and context for deeper analysis"
-    : "- Balanced access: Focus on provided results with secure processing"
-}`
+    : ``
 }
 
 RESPONSE GUIDELINES:
 - **Be concise and focused** - 2-3 key insights, not lengthy explanations (unless user asks for detail)
-- **Leverage hierarchical context** - use Parent context, Children outline, and Page context to understand each block's true meaning and purpose
 - **Conversational and insightful** - like a thoughtful colleague reviewing the data
-- **Reference specific results** using block reference syntax ((UID)) when relevant
-- **Avoid summarizing** - instead analyze, connect, and provide perspective
-- **Focus on user's specific question** while bringing broader insights
+- **Leverage hierarchical context** - use Parent context, Children outline, and Page context to understand each block's true meaning and purpose
+- **Reference specific blocks** - ALWAYS use strict '((uid))' syntax when mentioning content from blocks (CRITICAL: always DOUBLE parentheses). For single block: ((uid)), for multiple blocks: ((uid1)), ((uid2)), ((uid3)). You can be explicit: (source block: ((uid)))
+- **Reference pages** - Always use the syntax '[[page title]]' or #tag (where tag is a page title without space) when you have to mention page titles.
 
 Remember: The user wants concise understanding and analysis, not lengthy recaps. Use the rich context (parent/children/page) to truly understand what each block represents.`;
-      }
 
       // Prepare agent data with conversation state
       // Let the agent's built-in conversation management handle history and summarization
@@ -358,16 +651,16 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 
       // Debug what we're passing to the agent
       console.log(`💬 [Chat] Passing agent data:`, {
-        hasAgentData: !!agentData,
+        hasAgentData: !!chatAgentData,
         chatMessagesCount: chatMessages.length,
         conversationHistoryFromChat: currentConversationHistory,
         conversationHistoryLength: currentConversationHistory.length,
-        agentConversationSummary: agentData?.conversationSummary,
+        agentConversationSummary: chatAgentData?.conversationSummary,
       });
 
       // Build the agent state object with embedded external context using expanded results
       const previousAgentState = {
-        ...agentData, // Include any previous agent state from the search agent (results, etc.) FIRST
+        ...chatAgentData, // Include any previous agent state from the search agent (results, etc.) FIRST
         // Then override with popup-specific conversation state
         isConversationMode: true,
         conversationHistory: currentConversationHistory, // Use chat messages directly - this will override any stale conversationHistory from agentData
@@ -411,13 +704,13 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
       }
 
       const agentOptions = {
-        model: "gpt-4o-mini", // TODO: Use user's preferred model
+        model: selectedModel,
         rootUid: chatRootUid,
         targetUid: undefined, // Chat mode doesn't write to Roam
         target: "new",
-        prompt: chatPrompt,
-        permissions: { contentAccess: accessMode === "Full Access" },
-        privateMode: accessMode === "Balanced",
+        prompt: message, // The actual user message
+        permissions: { contentAccess: chatAccessMode === "Full Access" },
+        privateMode: chatAccessMode === "Balanced",
         // Enable direct chat mode to bypass RequestAnalyzer
         isDirectChat: true,
         // Enable popup execution to skip block creation and insertion
@@ -429,6 +722,8 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         // Pass the existing agent data which contains conversation state and external context
         // For popup execution, build conversation history directly from chat messages
         previousAgentState,
+        // IMPORTANT: chatSystemPrompt must come AFTER previousAgentState to avoid being overwritten
+        chatSystemPrompt: chatPrompt, // The system prompt for popup execution - always fresh
       };
 
       const agentResult = await invokeSearchAgent(agentOptions);
@@ -446,9 +741,11 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         conversationSummary: agentResult.conversationSummary,
         exchangesSinceLastSummary: agentResult.exchangesSinceLastSummary,
         isConversationMode: agentResult.isConversationMode,
+        // CRITICAL: Do NOT persist chatSystemPrompt - it should be freshly generated each turn
+        // chatSystemPrompt should never be carried over from previous turns
       };
 
-      setAgentData(newAgentData);
+      setChatAgentData(newAgentData);
 
       // Debug conversation state
       console.log(`💬 [Chat] Agent returned conversation state:`, {
@@ -460,7 +757,7 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 
       // Log live result updates for debugging
       const previousResultCount = Object.keys(
-        agentData?.resultStore || {}
+        chatAgentData?.resultStore || {}
       ).length;
       const newResultCount = Object.keys(agentResult.resultStore || {}).length;
 
@@ -548,7 +845,7 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         <div className="full-results-chat-header-main">
           <h4>
             <Icon icon="chat" size={16} style={{ marginRight: "6px" }} />
-            Chat Assistant
+            Chat with results
           </h4>
           {chatMessages.length > 0 && (
             <div className="full-results-chat-header-controls">
@@ -592,7 +889,7 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         )}
       </div>
 
-      <div className="full-results-chat-messages">
+      <div className="full-results-chat-messages" ref={messagesContainerRef}>
         {chatMessages.length === 0 ? (
           <div className="full-results-chat-welcome">
             <div className="full-results-chat-assistant-avatar">🤖</div>
@@ -602,22 +899,48 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
               <div className="full-results-chat-suggestions">
                 <button
                   onClick={() =>
-                    setChatInput("What are the main themes in these results?")
+                    setChatInput(
+                      "Give me a short, clear summary of these results highlighting the most important points"
+                    )
                   }
-                >
-                  Main themes
-                </button>
-                <button
-                  onClick={() => setChatInput("Summarize these results for me")}
                 >
                   Summarize
                 </button>
                 <button
                   onClick={() =>
-                    setChatInput("What connections exist between these items?")
+                    setChatInput(
+                      "What are the key insights and takeaways from these results?"
+                    )
+                  }
+                >
+                  Key insights
+                </button>
+                <button
+                  onClick={() =>
+                    setChatInput(
+                      "What connections exist between these items? Look for page references, tags, block references, and thematic links"
+                    )
                   }
                 >
                   Find connections
+                </button>
+                <button
+                  onClick={() =>
+                    setChatInput(
+                      "Help me find specific information about [topic] that might be buried in these results"
+                    )
+                  }
+                >
+                  Retrieval
+                </button>
+                <button
+                  onClick={() =>
+                    setChatInput(
+                      "What patterns or recurring themes can you extract from these results?"
+                    )
+                  }
+                >
+                  Extract patterns
                 </button>
                 {/* TODO: Future evolution - Deep Analysis mode
                 {chatMode === "agent" && (
@@ -634,10 +957,14 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 */}
               </div>
               <div className="full-results-chat-feature-hint">
-                💡 <strong>Chat mode</strong>: I'll focus on analyzing the
-                content you've selected. Use{" "}
-                {accessMode === "Balanced" ? "🛡️ Balanced" : "🔓 Full Access"}{" "}
-                mode above for different levels of context.
+                <strong>
+                  {(chatAccessMode === "Balanced" ? "🛡️ " : "🔓 ") +
+                    chatAccessMode}
+                </strong>{" "}
+                mode:{" "}
+                {chatAccessMode === "Balanced"
+                  ? "2 children levels maximum, and context limited to 80 000 characters (approx. 20 000 tokens)"
+                  : "up to 4 children levels, and broader context up to 200 000 characters (approx. 50 000 tokens)"}{" "}
                 {/* TODO: Future evolution - Deep Analysis mode
                 {chatMode === "agent" ? (
                   <>
@@ -709,36 +1036,46 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
       </div>
 
       <div className="full-results-chat-input-area">
-        <div className="full-results-chat-access-mode">
-          <Tooltip
-            content={
-              accessMode === "Balanced"
-                ? "Balanced Mode: Secure tools with final summary"
-                : "Full Access Mode: Complete content access with expanded context"
-            }
-          >
-            <Button
-              className="full-results-chat-access-button"
-              minimal
-              small
-              onClick={() =>
-                setAccessMode(
-                  accessMode === "Balanced" ? "Full Access" : "Balanced"
-                )
+        <div className="full-results-chat-controls">
+          <div className="full-results-chat-access-mode">
+            <HTMLSelect
+              minimal={true}
+              value={chatAccessMode}
+              onChange={(e) =>
+                setChatAccessMode(e.target.value as "Balanced" | "Full Access")
               }
+              options={[
+                { label: "🛡️ Balanced", value: "Balanced" },
+                { label: "🔓 Full Access", value: "Full Access" },
+              ]}
+            />
+          </div>
+          <div className="full-results-chat-model-selector">
+            <Popover
+              isOpen={isModelMenuOpen}
+              onInteraction={(nextOpenState) =>
+                setIsModelMenuOpen(nextOpenState)
+              }
+              content={
+                <ModelsMenu
+                  callback={handleModelSelection}
+                  setModel={setSelectedModel}
+                  command={null}
+                  prompt=""
+                  isConversationToContinue={false}
+                />
+              }
+              placement="top"
             >
-              <Icon
-                icon={accessMode === "Balanced" ? "shield" : "unlock"}
-                size={12}
-                style={{ marginRight: '4px' }}
+              <Button
+                minimal
+                small
+                icon="cog"
+                text={selectedModel}
+                title="Click to change AI model"
               />
-              <span style={{ fontWeight: 'bold' }}>{accessMode}</span>
-              <Icon icon="chevron-right" size={10} style={{ margin: '0 2px', opacity: 0.6 }} />
-              <span style={{ fontSize: '11px', opacity: 0.7 }}>
-                {accessMode === "Balanced" ? "Full Access" : "Balanced"}
-              </span>
-            </Button>
-          </Tooltip>
+            </Popover>
+          </div>
         </div>
 
         {/* Future evolution: Chat Mode vs Deep Analysis - currently hidden
@@ -767,7 +1104,7 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         */}
 
         <div className="full-results-chat-input-container">
-          <InputGroup
+          <TextArea
             placeholder="Ask me about your results..."
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
@@ -776,6 +1113,9 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
             }
             disabled={isTyping}
             className="full-results-chat-input"
+            autoResize={true}
+            // rows={1}
+            fill={true}
           />
           <Button
             icon="send-message"

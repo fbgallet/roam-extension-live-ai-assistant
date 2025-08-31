@@ -91,6 +91,7 @@ const ReactSearchAgentState = Annotation.Root({
   conversationSummary: Annotation<string | undefined>,
   isConversationMode: Annotation<boolean>,
   isDirectChat: Annotation<boolean>,
+  chatSystemPrompt: Annotation<string | undefined>,
   // Permissions
   permissions: Annotation<{ contentAccess: boolean }>,
   privateMode: Annotation<boolean>, // Strict Private mode - only UIDs, no content processing
@@ -263,11 +264,6 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
 const conversationRouter = async (
   state: typeof ReactSearchAgentState.State
 ) => {
-  logger.flow(
-    "ConversationRouter",
-    `Analyzing routing for: "${state.userQuery}"`
-  );
-
   // Check for direct expansion bypass first - should skip all other routing logic
   logger.debug("ConversationRouter state:", {
     isDirectExpansion: state.isDirectExpansion,
@@ -1513,42 +1509,75 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     ? "full"
     : "balanced";
 
-  // Build system prompt with access to actual result data via state
-  const responseSystemPrompt = buildFinalResponseSystemPrompt(
-    state,
-    securityMode
-  );
-  console.log(
-    `🎯 [FinalResponseWriter] System prompt length: ${responseSystemPrompt.length} chars`
-  );
-  console.log(
-    `🎯 [FinalResponseWriter] System prompt preview:`,
-    responseSystemPrompt.substring(0, 500) + "..."
-  );
-  const sys_msg = new SystemMessage({ content: responseSystemPrompt });
+  // Handle system prompt based on execution mode
+  let sys_msg: SystemMessage;
+
+  if ((state as any).isPopupExecution) {
+    // For popup execution, use the chatSystemPrompt as the system message
+    if (state.chatSystemPrompt) {
+      console.log(
+        `🎯 [PopupExecution] Using FullResultsChat system prompt (${state.chatSystemPrompt.length} chars)`
+      );
+      sys_msg = new SystemMessage({ content: state.chatSystemPrompt });
+    } else {
+      // Fallback for backward compatibility
+      console.log(
+        "⚠️ [PopupExecution] No chatSystemPrompt provided, falling back to buildFinalResponseSystemPrompt"
+      );
+      const responseSystemPrompt = buildFinalResponseSystemPrompt(
+        state,
+        securityMode
+      );
+      sys_msg = new SystemMessage({ content: responseSystemPrompt });
+    }
+  } else {
+    // For regular execution, build system prompt with access to actual result data via state
+    const responseSystemPrompt = buildFinalResponseSystemPrompt(
+      state,
+      securityMode
+    );
+    console.log(
+      `🎯 [FinalResponseWriter] System prompt length: ${responseSystemPrompt.length} chars`
+    );
+    console.log(
+      `🎯 [FinalResponseWriter] System prompt preview:`,
+      responseSystemPrompt.substring(0, 500) + "..."
+    );
+    sys_msg = new SystemMessage({ content: responseSystemPrompt });
+  }
 
   // Build conversation messages for direct chat mode
   const messages = [sys_msg];
 
   if (
-    state.isDirectChat &&
+    (state.isDirectChat || (state as any).isPopupExecution) &&
     state.conversationHistory &&
     state.conversationHistory.length > 0
   ) {
     // Include recent conversation history as actual messages for better context
     const recentHistory = state.conversationHistory.slice(-6); // Last 3 exchanges (6 messages)
     for (const msg of recentHistory) {
-      if (msg.role === "user") {
+      if (msg.role === "user" || msg.role === "User") {
         messages.push(new HumanMessage({ content: msg.content }));
-      } else if (msg.role === "assistant") {
+      } else if (msg.role === "assistant" || msg.role === "Assistant") {
         messages.push(new AIMessage({ content: msg.content })); // Use AIMessage for assistant responses
       }
     }
   }
 
   // Add current user message
+  // In popup execution mode, userQuery is the actual user message
+  // In regular execution mode, userQuery is the parsed user request
   const userMessage = new HumanMessage({ content: state.userQuery });
   messages.push(userMessage);
+
+  if ((state as any).isPopupExecution) {
+    console.log(
+      `🎯 [PopupExecution] User message: "${state.userQuery.substring(0, 200)}${
+        state.userQuery.length > 200 ? "..." : ""
+      }"`
+    );
+  }
 
   console.log(
     `🎯 [ResponseWriter] Total messages: ${messages.length}${
@@ -1909,7 +1938,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   const resultCount = allResults.length;
 
   // Skip expansion if too many results (performance protection)
-  if (resultCount > 100) {
+  if (resultCount > 150) {
     console.log(
       `🌳 [ContextExpansion] Too many results (${resultCount}), skipping expansion`
     );
@@ -1928,7 +1957,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     : "balanced";
   const CHAR_LIMITS = {
     private: 0, // No expansion in private mode
-    balanced: 100000, // ~25k tokens
+    balanced: 80000, // ~20k tokens
     full: 200000, // ~50k tokens
   };
 
@@ -1945,9 +1974,9 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   );
 
   // Convert agent state to access mode for expansion
-  const accessMode = state.privateMode 
+  const accessMode = state.privateMode
     ? "Private"
-    : state.permissions?.contentAccess 
+    : state.permissions?.contentAccess
     ? "Full Access"
     : "Balanced";
 

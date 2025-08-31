@@ -141,7 +141,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 92,
-    name: "Ask your graph",
+    name: "Ask Your Graph",
     callback: askYourGraph,
     category: "QUERY AGENTS",
     isIncompatibleWith: {
@@ -153,7 +153,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 920,
-    name: "Ask your graph (Private)",
+    name: "Ask Your Graph (Private)",
     callback: (args) => askYourGraph({ ...args, forcePrivacyMode: "Private" }),
     category: "QUERY AGENTS",
     isIncompatibleWith: {
@@ -166,7 +166,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 921,
-    name: "Ask your graph (Balanced)",
+    name: "Ask Your Graph (Balanced)",
     callback: (args) => askYourGraph({ ...args, forcePrivacyMode: "Balanced" }),
     category: "QUERY AGENTS",
     isIncompatibleWith: {
@@ -179,7 +179,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 922,
-    name: "Ask your graph (Full Access)",
+    name: "Ask Your Graph (Full Access)",
     callback: (args) =>
       askYourGraph({ ...args, forcePrivacyMode: "Full Access" }),
     category: "QUERY AGENTS",
@@ -193,7 +193,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 93,
-    name: "Ask your graph: full results view",
+    name: "Ask Your Graph: Results view & Chat",
     callback: openLastAskYourGraphResults,
     category: "QUERY AGENTS",
     icon: "list-detail-view",
