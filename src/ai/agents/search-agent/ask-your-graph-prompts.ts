@@ -764,6 +764,7 @@ export const buildFinalResponseSystemPrompt = (
     conversationSummary?: string;
     permissions?: { contentAccess: boolean };
     privateMode?: boolean;
+    isPopupExecution?: boolean;
   },
   securityMode: "private" | "balanced" | "full"
 ): string => {
@@ -774,7 +775,8 @@ export const buildFinalResponseSystemPrompt = (
       state.resultStore && Object.keys(state.resultStore).length > 0
         ? `\n\nAVAILABLE SEARCH RESULTS:\n${extractResultDataForPrompt(
             state.resultStore,
-            securityMode
+            securityMode,
+            state.isPopupExecution
           )}\n`
         : "";
         
@@ -830,7 +832,8 @@ STYLE: Natural dialogue - feel free to use phrases like "I can see in your resul
   // Regular agent mode - extract result data for complex processing
   const resultDataForPrompt = extractResultDataForPrompt(
     state.resultStore || {},
-    securityMode
+    securityMode,
+    state.isPopupExecution
   );
 
   // Chat-friendly conversation context
@@ -1022,6 +1025,7 @@ export const buildCacheSystemPrompt = (
     userQuery: string;
     resultStore?: Record<string, any>;
     isDirectChat?: boolean;
+    isPopupExecution?: boolean;
   },
   cacheProcessorResponse: string,
   securityMode: "private" | "balanced" | "full"
@@ -1032,7 +1036,7 @@ USER QUERY: "${state.userQuery}"
 CACHE PROCESSOR ANALYSIS: "${cacheProcessorResponse}"
 
 AVAILABLE RESULT DATA:
-${extractResultDataForPrompt(state.resultStore || {}, securityMode)}
+${extractResultDataForPrompt(state.resultStore || {}, securityMode, state.isPopupExecution)}
 
 INSTRUCTIONS:
 - Use the CACHE PROCESSOR ANALYSIS as your guide for what to include
@@ -1050,7 +1054,8 @@ ${getFormattingInstructions(state.isDirectChat)}`;
 
 export const extractResultDataForPrompt = (
   resultStore: Record<string, any>,
-  securityMode: "private" | "balanced" | "full"
+  securityMode: "private" | "balanced" | "full",
+  isPopupExecution?: boolean
 ): string => {
   if (!resultStore || Object.keys(resultStore).length === 0) {
     return "No result data available.";
@@ -1198,6 +1203,12 @@ export const extractResultDataForPrompt = (
 
   // Now process the deduplicated data as a single combined result
   let formattedResults: string[] = [];
+
+  // Skip redundant result formatting in popup execution mode since detailed results are already provided above
+  if (isPopupExecution) {
+    console.log("🎯 [ExtractResultData] Skipping redundant result formatting for popup execution mode");
+    return ""; // Return empty string since detailed results are already included in the conversation context
+  }
 
   // Process the deduplicated data directly
   if (allResultData.length > 0) {

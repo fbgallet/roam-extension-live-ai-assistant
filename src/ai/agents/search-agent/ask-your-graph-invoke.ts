@@ -19,6 +19,7 @@ import {
   validatePermissions,
 } from "../shared/agentsUtils";
 import { deduplicateResultsByUid } from "./helpers/searchUtils";
+import { addRecentQuery } from "./helpers/queryStorage";
 import {
   clearAgentController,
   markAgentAsStopped,
@@ -83,6 +84,8 @@ interface SearchAgentInvoker {
   isDirectChat?: boolean;
   // NEW: Popup execution mode - skip directFormat and insertResponse
   isPopupExecution?: boolean;
+  // NEW: Chat system prompt for popup execution
+  chatSystemPrompt?: string;
   // NEW: Streaming callback for popup chat interface
   streamingCallback?: (content: string) => void;
   // Retry options
@@ -106,10 +109,12 @@ const invokeSearchAgentInternal = async ({
   externalContext,
   isDirectChat = false,
   isPopupExecution = false,
+  chatSystemPrompt,
   streamingCallback,
   options,
 }: SearchAgentInvoker) => {
   const startTime = Date.now();
+
 
   // Create abort controller for cancellation
   const abortController = new AbortController();
@@ -134,11 +139,15 @@ const invokeSearchAgentInternal = async ({
   };
 
   const modeInfo = getModeInfo(privateMode, permissions);
-  initializeAgentToaster(
-    "search",
-    `${modeInfo.icon} ${modeInfo.name} mode`,
-    abortController
-  );
+  
+  // Only show toaster if not in chat mode within popup
+  if (!(isPopupExecution && agentData?.isConversationMode)) {
+    initializeAgentToaster(
+      "search",
+      `${modeInfo.icon} ${modeInfo.name} mode`,
+      abortController
+    );
+  }
 
   try {
     // Handle conversation state and retry logic using shared utilities
@@ -316,6 +325,9 @@ const invokeSearchAgentInternal = async ({
       isDirectChat,
       permissions,
       privateMode,
+      // For popup execution, pass the chat system prompt
+      chatSystemPrompt,
+      isPopupExecution,
       // Initialize caching (MCP pattern)
       toolResultsCache: conversationData.toolResultsCache || {},
       cachedFullResults: conversationData.cachedFullResults || {},
@@ -342,8 +354,6 @@ const invokeSearchAgentInternal = async ({
       isPrivacyModeUpdated: Boolean(conversationData.isPrivacyModeUpdated),
       // Flag to indicate privacy mode was forced (skip privacy analysis)
       isPrivacyModeForced: Boolean(conversationData.isPrivacyModeForced),
-      // Popup execution mode - skip directFormat and insertResponse
-      isPopupExecution,
       // Streaming callback for popup chat interface
       streamingCallback,
     };
@@ -796,6 +806,33 @@ const invokeSearchAgentInternal = async ({
           fullResults.length
         );
 
+        // Store this successful query as a recent query for future re-execution
+        if (response?.userQuery && response?.formalQuery && response?.searchStrategy) {
+          try {
+            addRecentQuery({
+              userQuery: response.userQuery,
+              formalQuery: response.formalQuery,
+              intentParserResult: {
+                formalQuery: response.formalQuery,
+                searchStrategy: response.searchStrategy,
+                analysisType: response.analysisType,
+                language: response.language,
+                confidence: response.confidence,
+                datomicQuery: response.datomicQuery,
+                needsPostProcessing: response.needsPostProcessing,
+                postProcessingType: response.postProcessingType,
+                isExpansionGlobal: response.isExpansionGlobal,
+                semanticExpansion: response.semanticExpansion,
+                customSemanticExpansion: response.customSemanticExpansion,
+                searchDetails: response.searchDetails,
+                preferredModel: response.model?.id || response.model?.name
+              }
+            });
+          } catch (error) {
+            console.warn("Failed to store recent query:", error);
+          }
+        }
+
         // Calculate execution time and complete toaster with full results
         const executionTime = formatExecutionTime(startTime);
         completeAgentToaster(
@@ -821,7 +858,8 @@ const invokeSearchAgentInternal = async ({
                 customSemanticExpansion: response.customSemanticExpansion,
                 searchDetails: response.searchDetails,
               }
-            : undefined
+            : undefined,
+          agentData?.isConversationMode || false
         );
 
         // Insert conversation buttons for continued interaction
@@ -909,6 +947,7 @@ interface AgentInvoker {
   privateMode?: boolean;
   isDirectChat?: boolean; // For chat mode to bypass RequestAnalyzer
   isPopupExecution?: boolean; // For popup execution mode
+  chatSystemPrompt?: string; // For popup chat system prompt
   streamingCallback?: (content: string) => void; // For popup streaming
 }
 
@@ -926,6 +965,7 @@ export const invokeSearchAgent = async ({
   privateMode,
   isDirectChat,
   isPopupExecution,
+  chatSystemPrompt,
   streamingCallback,
 }: AgentInvoker) => {
   return await invokeSearchAgentInternal({
@@ -938,6 +978,7 @@ export const invokeSearchAgent = async ({
     privateMode: privateMode || false,
     isDirectChat: isDirectChat || false,
     isPopupExecution: isPopupExecution || false,
+    chatSystemPrompt,
     streamingCallback,
     agentData: previousAgentState,
     options,

@@ -7,7 +7,10 @@
  */
 
 import { executeDatomicQuery } from "./searchUtils";
-import { resolveReferences } from "../../../../utils/roamAPI";
+import {
+  getBlockContentByUid,
+  resolveReferences,
+} from "../../../../utils/roamAPI";
 
 /**
  * Adaptive expansion budget limits by mode
@@ -27,6 +30,8 @@ export async function performAdaptiveExpansion(
   accessMode?: string
 ): Promise<any[]> {
   if (!results || results.length === 0) return [];
+
+  console.log("results in performAdativeExpansion :>> ", results);
 
   const resultCount = results.length;
   const availableBudget = Math.max(0, charLimit - currentContentLength);
@@ -54,7 +59,7 @@ export async function performAdaptiveExpansion(
 
   // Create expanded blocks with content + context
   const expandedBlocks = await createExpandedBlocks(
-    results,
+    [...results],
     hierarchyData,
     expansionBudget,
     accessMode
@@ -171,15 +176,29 @@ async function createExpandedBlocks(
         (h) => h[0] === result.uid || h[2] === result.uid || h[1] === result.uid
       );
 
-      // Create expanded block object
-      let originalContent = result.content || result.pageTitle || "";
+      // Distinguish between blocks and pages
+      // Blocks have pageUid property (they are IN a page), pages don't
+      const isBlock = result.pageUid !== undefined;
+      let originalContent = "";
 
-      // RESOLVE REFERENCES in original block content
+      if (isBlock) {
+        // For blocks: always fetch fresh block content (ignore result.content as it may be pre-expanded)
+        originalContent = getBlockContentByUid(result.uid) || "";
+      } else {
+        // For pages: use page title as content
+        originalContent = result.pageTitle || "";
+      }
+
+      // RESOLVE REFERENCES in original content
       try {
-        originalContent = resolveReferences(originalContent, [], true);
+        if (originalContent) {
+          originalContent = resolveReferences(originalContent, [], true);
+        }
       } catch (error) {
         console.warn(
-          `Failed to resolve references in original block ${result.uid}:`,
+          `Failed to resolve references in ${isBlock ? "block" : "page"} ${
+            result.uid
+          }:`,
           error
         );
       }
@@ -244,6 +263,8 @@ async function createExpandedBlocks(
         }
       }
 
+      // Only expand children if we have budget and depth allowed
+      // For pages, always try to expand children. For blocks, check hierarchy
       expandedBlock.childrenOutline =
         maxDepth > 0
           ? await buildRecursiveChildrenOutline(
@@ -254,20 +275,25 @@ async function createExpandedBlocks(
             )
           : ""; // No children expansion for >150 results
 
+      console.log("expandedBlock.original :>> ", expandedBlock.original);
+
       // Stringify the expanded block
       const stringifiedBlock = stringifyExpandedBlock(
         expandedBlock,
         budgetPerResult
       );
 
+      console.log("stringifiedBlock :>> ", stringifiedBlock);
+
       expandedBlocks.push({
         ...result,
+        originalContent: originalContent, // Preserve the fresh original content
         content: stringifiedBlock,
         expandedBlock: expandedBlock,
         metadata: {
           ...result.metadata,
           contextExpansion: true,
-          originalLength: (result.content || "").length,
+          originalLength: originalContent.length,
           expandedLength: stringifiedBlock.length,
         },
       });

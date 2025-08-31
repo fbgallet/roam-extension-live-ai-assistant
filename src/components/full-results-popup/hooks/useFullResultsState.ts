@@ -87,6 +87,19 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
 
   // Chat state
   const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatAccessMode, setChatAccessMode] = useState<
+    "Balanced" | "Full Access"
+  >(() => {
+    const defaultMode = extensionStorage.get("askGraphMode") || "Balanced";
+    return defaultMode === "Private"
+      ? "Balanced"
+      : (defaultMode as "Balanced" | "Full Access");
+  });
+  const [chatAgentData, setChatAgentData] = useState<any>(null);
+  const [chatExpandedResults, setChatExpandedResults] = useState<
+    Result[] | null
+  >(null);
 
   // Advanced UI state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -108,7 +121,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
       setCurrentPage(1);
       setViewMode("mixed"); // Always show mixed view by default
 
-      // Reset chat state
+      // Reset chat state only on popup open (not just toggle)
       setShowChat(false);
 
       // Reset references filters
@@ -383,6 +396,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   };
 
   const toggleChat = () => {
+    if (chatOnlyMode) setChatOnlyMode(false);
     setShowChat(!showChat);
   };
 
@@ -420,6 +434,13 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     setExcludedReferences([]);
   };
 
+  const resetChatConversation = () => {
+    setChatMessages([]);
+    setChatAgentData(null);
+    setChatExpandedResults(null);
+    console.log("💬 [Hook] Reset chat conversation");
+  };
+
   return {
     // State
     selectedResults,
@@ -437,6 +458,10 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     viewMode,
     pageDisplayMode,
     showChat,
+    chatMessages,
+    chatAccessMode,
+    chatAgentData,
+    chatExpandedResults,
     isFullscreen,
     chatOnlyMode,
     mainContentWidth,
@@ -458,6 +483,10 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     setViewMode: handleViewModeChange,
     setPageDisplayMode,
     setShowChat,
+    setChatMessages,
+    setChatAccessMode,
+    setChatAgentData,
+    setChatExpandedResults,
     setIsFullscreen,
     setChatOnlyMode,
     setMainContentWidth,
@@ -485,5 +514,6 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     handleIncludeReference,
     handleExcludeReference,
     handleClearAllReferences,
+    resetChatConversation,
   };
 };
