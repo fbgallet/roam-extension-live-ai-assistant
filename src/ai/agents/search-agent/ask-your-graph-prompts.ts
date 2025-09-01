@@ -54,6 +54,38 @@ export const extractDatomicQuery = (userQuery: string): string => {
   query = query.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
   query = query.replace(/^`/, "").replace(/`$/, "");
 
+  // Remove Roam inline query prefix ':q ' if present
+  query = query.replace(/^:q\s+/, "");
+
+  // Find the actual Datomic query boundaries
+  // Look for [:find or [: find pattern and extract from there to the last ]
+  const findMatch = query.match(/(\[:\s*find.*)/i);
+  if (findMatch) {
+    const fromFind = findMatch[1];
+
+    // Find the last closing bracket that balances the opening bracket
+    let bracketCount = 0;
+    let lastValidIndex = -1;
+
+    for (let i = 0; i < fromFind.length; i++) {
+      if (fromFind[i] === "[") {
+        bracketCount++;
+      } else if (fromFind[i] === "]") {
+        bracketCount--;
+        if (bracketCount === 0) {
+          lastValidIndex = i;
+        }
+      }
+    }
+
+    if (lastValidIndex !== -1) {
+      query = fromFind.substring(0, lastValidIndex + 1);
+    } else {
+      // If no balanced brackets found, take the whole string from [:find
+      query = fromFind;
+    }
+  }
+
   return query.trim();
 };
 
@@ -121,6 +153,13 @@ const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply 
 - Convert to regex patterns: 'regex:/^attribute::.*value.*/i'
 - Examples: "author:: Victor Hugo" → 'regex:/^author::.*victor hugo.*/i'
 - This matches blocks starting with the attribute key followed by any content containing the value
+
+**ROAM NATIVE QUERY PARSING**: User may provide Roam native queries in these formats:
+- '{{[[query]]: logical conditions...}}' or '{{query: logical conditions...}}'
+- **CRITICAL**: Ignore the 'query' keyword/page reference - it's just syntax, not a search condition
+- **Parse logical conditions**: Convert nested logical structure to symbolic query
+- **Key term**: '{search: some text...}' → convert to 'text:some text' condition
+- **Example**: '{{[[query]]: {and: {search: productivity} {or: [[project]] [[work]]}}}}' → 'text:productivity + (ref:project | ref:work)'
 
 **IMPORTANT**: Do NOT add 'ref:' prefix to plain text terms like "Machine Learning" - only when they appear as [[Machine Learning]] or #tag format. Plain text should remain as content search terms.`;
 
