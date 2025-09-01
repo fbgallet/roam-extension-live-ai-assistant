@@ -103,6 +103,7 @@ export interface AskYourGraphParams {
   requestedMode?: "Private" | "Balanced" | "Full Access";
   forcePrivacyMode?: "Private" | "Balanced" | "Full Access"; // For command menu forcing
   forceExpansionMode?: "always_fuzzy" | "always_synonyms" | "always_all"; // For command menu forcing
+  forcePopupOnly?: boolean; // For command menu forcing popup-only results
   bypassDialog?: boolean;
 }
 
@@ -119,6 +120,7 @@ export async function askYourGraph(params: AskYourGraphParams) {
     requestedMode, // For manual mode override
     forcePrivacyMode, // For command menu forcing
     forceExpansionMode, // For command menu forcing
+    forcePopupOnly = false, // For command menu forcing popup-only results
     bypassDialog = false, // For continuing conversations
   } = params;
 
@@ -155,6 +157,8 @@ export async function askYourGraph(params: AskYourGraphParams) {
       isPrivacyModeForced: Boolean(forcePrivacyMode),
       // Set automatic expansion mode when forced
       ...(forceExpansionMode && { automaticExpansionMode: forceExpansionMode }),
+      // Set flag to force popup-only results
+      forcePopupOnly: Boolean(forcePopupOnly),
     },
     options,
   };

@@ -263,15 +263,16 @@ const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 - 'text:A + text:B' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [...], rightConditions: [...]}
 - 'ref:page + text:content' → findBlocksWithHierarchy with hierarchyCondition structure
 
-**HIERARCHICAL WITH NEGATION (CRITICAL: Distribute NOT to BOTH sides):**
-- 'text:A + text:B - text:exclude' → findBlocksWithHierarchy (distribute negate:true to BOTH leftConditions and rightConditions)
-
 **COMPLEX LOGIC (mixed OR/AND with NOT - USE GROUPS):**
 - '((ref:A | text:B) - text:exclude) > text:C' → findBlocksWithHierarchy with leftConditionGroups/rightConditionGroups
+- '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' → findBlocksWithHierarchy with:
+  leftConditionGroups: [{conditions: [{text:"Machine Learning", type:"page_ref", negate:false}, {text:"deep", type:"text", negate:true}], combination:"AND"}]
+  rightConditionGroups: [{conditions: [{text:"AI Fundamentals", type:"page_ref", negate:false}, {text:"deep", type:"text", negate:true}], combination:"AND"}]
 
 **WHEN TO USE GROUPS vs SIMPLE:**
-- SIMPLE: Pure OR (A|B|C) or pure AND (A+B+C) or simple negation (A+B-C) 
-- GROUPS: Mixed logic like (A|B) AND NOT C, or multiple logical levels
+- SIMPLE: Pure OR (A|B|C) or pure AND (A+B+C) without parentheses around individual sides
+- GROUPS: ANY condition with parentheses containing mixed operators: (A+B), (A-C), (A|B), or multiple logical levels
+- **CRITICAL**: Distributed NOT conditions like "(ref:A - text:C) + (ref:B - text:C)" ALWAYS use conditionGroups because each side has mixed positive/negative conditions within parentheses
 
 **🎯 PAGE SEARCH SCOPE (CRITICAL: Parse page:(content:(...)) and page:(block:(...)) syntax)**
 
@@ -779,10 +780,13 @@ export const buildFinalResponseSystemPrompt = (
             state.isPopupExecution
           )}\n`
         : "";
-        
+
     // Only log when there's an issue (no results when expected)
     if (!externalContextPrompt && state.isConversationMode) {
-      console.log(`⚠️ [DirectChat] No results in system prompt - resultStore keys:`, state.resultStore ? Object.keys(state.resultStore) : []);
+      console.log(
+        `⚠️ [DirectChat] No results in system prompt - resultStore keys:`,
+        state.resultStore ? Object.keys(state.resultStore) : []
+      );
     }
 
     return `You are a helpful AI assistant having a conversation about search results from a Roam Research database.
@@ -1036,7 +1040,11 @@ USER QUERY: "${state.userQuery}"
 CACHE PROCESSOR ANALYSIS: "${cacheProcessorResponse}"
 
 AVAILABLE RESULT DATA:
-${extractResultDataForPrompt(state.resultStore || {}, securityMode, state.isPopupExecution)}
+${extractResultDataForPrompt(
+  state.resultStore || {},
+  securityMode,
+  state.isPopupExecution
+)}
 
 INSTRUCTIONS:
 - Use the CACHE PROCESSOR ANALYSIS as your guide for what to include
@@ -1060,13 +1068,20 @@ export const extractResultDataForPrompt = (
   if (!resultStore || Object.keys(resultStore).length === 0) {
     return "No result data available.";
   }
-  
+
   // Debug: Check content lengths before processing
   Object.entries(resultStore).forEach(([key, result]) => {
     if (result.data && Array.isArray(result.data)) {
       result.data.forEach((item: any, i: number) => {
-        const content = item.content || item.text || '';
-        console.log(`📝 [ExtractResultData] ${key}[${i}]: UID=${item.uid}, content length=${content.length} chars - "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
+        const content = item.content || item.text || "";
+        console.log(
+          `📝 [ExtractResultData] ${key}[${i}]: UID=${
+            item.uid
+          }, content length=${content.length} chars - "${content.substring(
+            0,
+            100
+          )}${content.length > 100 ? "..." : ""}"`
+        );
       });
     }
   });
@@ -1206,7 +1221,9 @@ export const extractResultDataForPrompt = (
 
   // Skip redundant result formatting in popup execution mode since detailed results are already provided above
   if (isPopupExecution) {
-    console.log("🎯 [ExtractResultData] Skipping redundant result formatting for popup execution mode");
+    console.log(
+      "🎯 [ExtractResultData] Skipping redundant result formatting for popup execution mode"
+    );
     return ""; // Return empty string since detailed results are already included in the conversation context
   }
 
@@ -1508,6 +1525,12 @@ Examples:
 **3. REFERENCE FORMAT PARSING:**
 - "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (also works: 'ref:(book + to read)')
 - "important tasks under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
+
+**3.5. NOT CONDITION DISTRIBUTION FOR HIERARCHICAL SEARCHES:**
+CRITICAL: When generating hierarchical AND queries with NOT conditions, distribute the NOT condition to BOTH sides:
+- "Find [[Machine Learning]] and [[AI Fundamentals]] but not deep learning" → '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' 
+- "Blocks with recipe and sugar, but not chocolate" → '(ref:recipe - text:chocolate) + (text:sugar - text:chocolate)'
+- Reason: Hierarchical searches test both A→B and B→A directions, so exclusions must apply to both contexts
 
 **4. HIERARCHICAL RELATIONSHIPS:**
 - "Find my #recipe with sugar in descendants" → 'ref:recipe >> text:sugar'

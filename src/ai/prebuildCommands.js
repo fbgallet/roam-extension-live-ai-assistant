@@ -193,14 +193,31 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 93,
-    name: "Ask Your Graph: Results view & Chat",
+    name: "Ask Your Graph => Results directly in full view",
+    callback: (args) =>
+      askYourGraph({
+        ...args,
+        forcePrivacyMode: "Private",
+        forcePopupOnly: true,
+      }),
+    category: "QUERY AGENTS",
+    icon: "list-detail-view",
+    isIncompatibleWith: {
+      outliner: true,
+    },
+    target: "new",
+    keyWords: "popup only private results view",
+  },
+  {
+    id: 94,
+    name: "Open Results view (Ask Your Graph queries)",
     callback: openLastAskYourGraphResults,
     category: "QUERY AGENTS",
     icon: "list-detail-view",
     isIncompatibleWith: {
       outliner: true,
     },
-    keyWords: "full, chat",
+    keyWords: "full, chat, load",
   },
 
   // CONTENT ANALYSIS

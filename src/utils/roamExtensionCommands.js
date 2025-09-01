@@ -206,14 +206,16 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI: View Last Ask Your Graph Full Results",
+    label: "Live AI: Ask Your Graph Full Results View",
     callback: () => {
       // Use shared utility function from FullResultsPopup
-      import("../components/full-results-popup").then(({ openLastAskYourGraphResults }) => {
-        openLastAskYourGraphResults();
-      }).catch(() => {
-        alert("Could not load FullResultsPopup functionality");
-      });
+      import("../components/full-results-popup")
+        .then(({ openLastAskYourGraphResults }) => {
+          openLastAskYourGraphResults();
+        })
+        .catch(() => {
+          alert("Could not load FullResultsPopup functionality");
+        });
     },
   });
 
