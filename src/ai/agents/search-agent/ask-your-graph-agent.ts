@@ -225,6 +225,8 @@ const ReactSearchAgentState = Annotation.Root({
   isPrivacyModeForced: Annotation<boolean>,
   // Popup execution mode - skip directFormat and insertResponse
   isPopupExecution: Annotation<boolean | undefined>,
+  // Force popup-only results (skip Roam block insertion)
+  forcePopupOnly: Annotation<boolean | undefined>,
   // Streaming callback for popup chat interface
   streamingCallback: Annotation<((content: string) => void) | undefined>,
 });
@@ -2967,8 +2969,8 @@ const handleResultLifecycle = (
 const routeAfterResponseWriter = (
   state: typeof ReactSearchAgentState.State
 ) => {
-  if ((state as any).isPopupExecution) {
-    console.log(`🔀 [Graph] ResponseWriter → END (popup execution)`);
+  if ((state as any).isPopupExecution || state.forcePopupOnly) {
+    console.log(`🔀 [Graph] ResponseWriter → END (popup execution or forcePopupOnly)`);
     return "__end__";
   }
   console.log(`🔀 [Graph] ResponseWriter → INSERT RESPONSE`);
@@ -2976,8 +2978,8 @@ const routeAfterResponseWriter = (
 };
 
 const routeAfterDirectFormat = (state: typeof ReactSearchAgentState.State) => {
-  if ((state as any).isPopupExecution) {
-    console.log(`🔀 [Graph] DirectFormat → END (popup execution)`);
+  if ((state as any).isPopupExecution || state.forcePopupOnly) {
+    console.log(`🔀 [Graph] DirectFormat → END (popup execution or forcePopupOnly)`);
     return "__end__";
   }
   console.log(`🔀 [Graph] DirectFormat → INSERT RESPONSE`);

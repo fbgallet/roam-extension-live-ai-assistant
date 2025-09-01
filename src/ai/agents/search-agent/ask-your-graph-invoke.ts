@@ -67,6 +67,8 @@ interface SearchAgentInvoker {
     isPrivacyModeUpdated?: boolean;
     // Flag to indicate privacy mode was forced (skip privacy analysis)
     isPrivacyModeForced?: boolean;
+    // Flag to force popup-only results (skip Roam block insertion)
+    forcePopupOnly?: boolean;
     // External context from chat or other components
     externalContext?: {
       results?: any[];
@@ -283,6 +285,10 @@ const invokeSearchAgentInternal = async ({
         permissions,
         privateMode,
         options,
+        // Preserve forcePopupOnly for expansions
+        agentData: {
+          forcePopupOnly: conversationData.forcePopupOnly,
+        },
       };
     }
 
@@ -354,6 +360,8 @@ const invokeSearchAgentInternal = async ({
       isPrivacyModeUpdated: Boolean(conversationData.isPrivacyModeUpdated),
       // Flag to indicate privacy mode was forced (skip privacy analysis)
       isPrivacyModeForced: Boolean(conversationData.isPrivacyModeForced),
+      // Force popup-only results (skip Roam block insertion)
+      forcePopupOnly: Boolean(conversationData.forcePopupOnly),
       // Streaming callback for popup chat interface
       streamingCallback,
     };
@@ -862,6 +870,41 @@ const invokeSearchAgentInternal = async ({
           agentData?.isConversationMode || false
         );
 
+        // Handle forcePopupOnly mode - automatically open the popup and skip Roam block insertion
+        if (agentData?.forcePopupOnly) {
+          console.log("🔍 [ForcePopupOnly] Opening FullResultsPopup automatically");
+          
+          // Store results and metadata for the popup
+          if (typeof window !== "undefined") {
+            (window as any).lastAskYourGraphResults = fullResults;
+            (window as any).lastAgentResponseTargetUid = response?.targetUid;
+            (window as any).lastUserQuery = response?.userQuery || finalPrompt;
+            (window as any).lastFormalQuery = response?.formalQuery;
+          }
+
+          // Import and open the popup automatically
+          import("../../../components/Toaster.js").then(({ openFullResultsPopup }) => {
+            if (openFullResultsPopup) {
+              console.log("🔍 [ForcePopupOnly] Opening popup with results:", fullResults?.length || 0);
+              openFullResultsPopup(
+                fullResults, 
+                response?.targetUid, 
+                response?.userQuery || finalPrompt, 
+                response?.formalQuery
+              );
+            }
+          }).catch((error) => {
+            console.error("Failed to open FullResultsPopup:", error);
+          });
+
+          // Return early to skip conversation buttons and Roam block insertion
+          return {
+            ...response,
+            targetUid: null, // Skip Roam block insertion by nullifying targetUid
+            forcePopupOnly: true // Include flag in response for debugging
+          };
+        }
+
         // Insert conversation buttons for continued interaction
         if (response && response.targetUid) {
           const conversationState = await buildAgentConversationState(
@@ -1072,10 +1115,15 @@ export const invokeExpandedSearchDirect = async ({
     conversationHistory: [],
     conversationSummary: undefined,
     exchangesSinceLastSummary: 0,
+    // Preserve forcePopupOnly flag from original search
+    forcePopupOnly: searchParams.agentData?.forcePopupOnly || false,
   };
 
   console.log(
     `🎯 [Direct Expansion] Mapped semantic expansion: "${expansionAgentData.semanticExpansion}"`
+  );
+  console.log(
+    `🔍 [Direct Expansion] ForcePopupOnly preserved: ${expansionAgentData.forcePopupOnly}`
   );
 
   // Use the standard invokeSearchAgent but with expansion parameters pre-configured

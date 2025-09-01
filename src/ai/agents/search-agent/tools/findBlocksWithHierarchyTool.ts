@@ -1563,8 +1563,10 @@ const processStructuredHierarchyCondition = async (
   let leftConditions: any[], leftCombination: string;
   let rightConditions: any[], rightCombination: string;
 
-  // Handle grouped conditions (new)
-  if (hierarchyCondition.leftConditionGroups) {
+  // Handle grouped conditions (new) - only if they have content
+  if (hierarchyCondition.leftConditionGroups && 
+      Array.isArray(hierarchyCondition.leftConditionGroups) && 
+      hierarchyCondition.leftConditionGroups.length > 0) {
     const processedGroups = await processConditionGroups(
       hierarchyCondition.leftConditionGroups,
       hierarchyCondition.leftGroupCombination || "AND",
@@ -1586,7 +1588,9 @@ const processStructuredHierarchyCondition = async (
       "AND";
   }
 
-  if (hierarchyCondition.rightConditionGroups) {
+  if (hierarchyCondition.rightConditionGroups && 
+      Array.isArray(hierarchyCondition.rightConditionGroups) && 
+      hierarchyCondition.rightConditionGroups.length > 0) {
     const processedGroups = await processConditionGroups(
       hierarchyCondition.rightConditionGroups,
       hierarchyCondition.rightGroupCombination || "AND",
@@ -3141,6 +3145,12 @@ const executeContentSearch = async (
   console.log(
     `🔍 Executing content search with ${conditions.length} conditions (${combineLogic})`
   );
+
+  // If no conditions, return empty results instead of calling findBlocksByContent
+  if (!conditions || conditions.length === 0) {
+    console.log("ℹ️ No conditions provided, returning empty results");
+    return { results: [], totalFound: 0 };
+  }
 
   try {
     const toolInput = {

@@ -237,14 +237,14 @@ export const convertConditionsToRegex = (conditions: any[]): any => {
  * Check if input uses grouped conditions format
  */
 export const hasGroupedConditions = (input: any): boolean => {
-  return !!(input.conditionGroups && input.conditionGroups.length > 0);
+  return !!(input.conditionGroups && Array.isArray(input.conditionGroups) && input.conditionGroups.length > 0);
 };
 
 /**
  * Check if input uses simple conditions format
  */
 export const hasSimpleConditions = (input: any): boolean => {
-  return !!(input.conditions && input.conditions.length > 0);
+  return !!(input.conditions && Array.isArray(input.conditions) && input.conditions.length > 0);
 };
 
 /**
@@ -255,9 +255,12 @@ export const validateConditionInput = (input: any): void => {
   const hasSimple = hasSimpleConditions(input);
 
   if (hasGrouped && hasSimple) {
-    throw new Error(
-      "Cannot use both 'conditions' (simple) and 'conditionGroups' (grouped) simultaneously. Use either simple conditions for basic logic or grouped conditions for complex logic."
+    console.warn(
+      "⚠️ Both 'conditions' and 'conditionGroups' provided. Using 'conditionGroups' (more advanced format) and ignoring 'conditions'."
     );
+    // Remove simple conditions to avoid confusion in downstream processing
+    delete input.conditions;
+    delete input.combineConditions;
   }
 
   if (!hasGrouped && !hasSimple) {
