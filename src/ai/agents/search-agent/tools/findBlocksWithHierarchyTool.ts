@@ -1506,8 +1506,12 @@ const processStructuredHierarchyQuery = async (
     );
 
     // Use findBlocksByContentTool for pure content search
+    // CRITICAL: Disable expansion for sub-calls - expansion should only be handled at hierarchy level
     const result: any = await findBlocksByContentTool.invoke({
-      conditions: legacyConditions,
+      conditions: legacyConditions.map(cond => ({
+        ...cond,
+        semanticExpansion: null // Force disable expansion for sub-calls
+      })),
       combineConditions: query.combineConditions || "AND",
       includeChildren: options.includeChildren,
       includeParents: options.includeParents,
@@ -3159,6 +3163,7 @@ const executeContentSearch = async (
         type: cond.type || "text",
         matchType: cond.matchType || "contains",
         negate: cond.negate || false,
+        semanticExpansion: null, // Force disable expansion for sub-calls
       })),
       combineConditions: combineLogic,
       includeDaily: options.includeDaily,
