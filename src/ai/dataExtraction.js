@@ -564,6 +564,17 @@ export const getAndNormalizeContext = async ({
             }))
       );
     }
+    if (roamContext.children) {
+      let childrenFlattenedContent = getFlattenedContentFromTree({
+        parentUid: focusedBlock,
+        maxCapturing: 99,
+        maxUid: 0,
+        withDash: true,
+        isParentToIgnore: true,
+      });
+      if (childrenFlattenedContent)
+        context += "\n\n" + childrenFlattenedContent;
+    }
     if (roamContext.linkedPages) {
       let sourceUids =
         blocksSelectionUids && blocksSelectionUids.length
@@ -832,7 +843,14 @@ export const getTemplateFromPrompt = (prompt) => {
 };
 
 export const getRoamContextFromPrompt = (prompt, alert = true) => {
-  const elts = ["linkedRefs", "sidebar", "page", "block", "logPages"];
+  const elts = [
+    "linkedRefs",
+    "sidebar",
+    "page",
+    "block",
+    "logPages",
+    "children",
+  ];
   const roamContext = {};
   let hasContext = false;
   const inlineCommand = getMatchingInlineCommand(prompt, contextRegex);
@@ -1002,7 +1020,11 @@ export const getContextFromSbCommand = async (
     if (context && sbParamRegex.test(context.trim())) {
       let contextObj;
       context = context.trim().slice(1, -1);
-      contextObj = getRoamContextFromPrompt(`((context: ${context}))`, false);
+      contextObj = getRoamContextFromPrompt(
+        `((context: ${context}))`,
+        false,
+        currentUid
+      );
       if (!contextObj) {
         const splittedContext = context.split("+");
         contextObj = {
@@ -1137,6 +1159,7 @@ export const getUnionContext = (context1, context2) => {
         .concat(context1?.blockArgument?.length ? context1?.blockArgument : [])
         .concat(context2?.blockArgument?.length ? context2?.blockArgument : [])
     ),
+    children: context1?.children || context2?.children,
     page: context1?.page || context2?.page,
     pageViewUid: context1?.pageViewUid || context2?.pageViewUid,
     pageArgument: removeDuplicates(

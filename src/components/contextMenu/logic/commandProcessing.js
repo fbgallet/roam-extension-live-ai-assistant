@@ -551,8 +551,8 @@ export const getInstantPrompt = (
     additionalPrompt,
   } = params;
   let instantPrompt = "";
-  if (focusedBlockUid.current) {
-    if (isChildrenTreeToInclude && hasBlockChildren(focusedBlockUid.current))
+  if (focusedBlockUid?.current) {
+    if (isChildrenTreeToInclude && hasBlockChildren(focusedBlockUid?.current))
       instantPrompt = getFlattenedContentFromTree({
         parentUid: focusedBlockUid.current,
         maxCapturing: 99,
@@ -562,7 +562,7 @@ export const getInstantPrompt = (
       });
     else
       instantPrompt =
-        selectedTextInBlock.current || focusedBlockContent.current;
+        selectedTextInBlock?.current || focusedBlockContent?.current;
   } else if (selectedBlocks?.current?.length) {
     instantPrompt = getResolvedContentFromBlocks(
       selectedBlocks.current,

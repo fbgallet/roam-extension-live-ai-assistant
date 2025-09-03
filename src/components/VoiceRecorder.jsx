@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Tooltip } from "@blueprintjs/core";
+import { ContextMenu, Tooltip } from "@blueprintjs/core";
 
 import {
   faBolt,
@@ -11,13 +11,11 @@ import {
   faLanguage,
   faRectangleList,
   faListUl,
+  faHexagonNodesBolt,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
-import {
-  aiCompletionRunner,
-  insertCompletion,
-} from "../ai/responseInsertion.js";
+import { aiCompletionRunner } from "../ai/responseInsertion.js";
 import {
   addContentToBlock,
   createChildBlock,
@@ -28,6 +26,7 @@ import {
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
+  resolveReferences,
 } from "../utils/roamAPI.js";
 import Timer from "./Timer.jsx";
 import {
@@ -38,6 +37,7 @@ import {
   openaiLibrary,
   extensionStorage,
   uidsInPrompt,
+  defaultModel,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import {
@@ -48,9 +48,14 @@ import {
   toggleComponentVisibility,
 } from "../utils/domElts.js";
 import { transcribeAudio, translateAudio } from "../ai/aiAPIsHub.js";
-import { handleModifierKeys } from "../ai/dataExtraction.js";
+import {
+  getResolvedContentFromBlocks,
+  handleModifierKeys,
+} from "../ai/dataExtraction.js";
 import { AppToaster } from "./Toaster.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
+import { askYourGraph } from "../ai/agents/search-agent/ask-your-graph.ts";
+import ModelsMenu from "./ModelsMenu.jsx";
 
 function VoiceRecorder({
   blockUid,
@@ -73,6 +78,7 @@ function VoiceRecorder({
     translateIcon:
       !transcribeOnly && !completionOnly && isTranslateIconDisplayed,
     completionIcon: !translateOnly && !transcribeOnly,
+    askYourGraphIcon: !translateOnly && !completionOnly,
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
@@ -248,6 +254,10 @@ function VoiceRecorder({
       // "o", to make it compatible with modifiers
       handleOutlinerAgent(e);
     }
+    if (e.key.toLowerCase() === "g") {
+      handleAskYourGraph(e);
+      return;
+    }
   };
 
   const handleEltHighlight = async (e) => {
@@ -355,6 +365,12 @@ function VoiceRecorder({
     handleEltHighlight(e);
     initializeProcessing(e);
   };
+  const handleAskYourGraph = async (e, model) => {
+    if (model) instantModel.current = model;
+    lastCommand.current = "askYourGraph";
+    blocksSelectionUids.current = getBlocksSelectionUids();
+    initializeProcessing(e);
+  };
 
   const initializeProcessing = async (e) => {
     if (isListening) {
@@ -411,7 +427,8 @@ function VoiceRecorder({
     console.log("targetUid in audioFileProcessing :>> ", targetUid);
     if (
       lastCommand.current === "gptCompletion" ||
-      lastCommand.current === "outlinerAgent"
+      lastCommand.current === "outlinerAgent" ||
+      lastCommand.current == "askYourGraph"
     ) {
       voiceProcessingCommand = transcribeAudio;
       toChain = true;
@@ -472,65 +489,30 @@ function VoiceRecorder({
           targetUid || window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
         model: instantModel.current,
       });
-      // let inlineTemplate = getTemplateFromPrompt(
-      //   getBlockContentByUid(promptUid)
-      // );
-      // let uidsToExclude = [];
-      // if (inlineTemplate) {
-      //   uidsToExclude = await copyTemplate(
-      //     promptUid,
-      //     inlineTemplate.templateUid
-      //   );
-      //   prompt = resolveReferences(inlineTemplate.updatedPrompt);
-      //   waitForBlockCopy = true;
-      // } else if (!getFirstChildUid(promptUid)) {
-      //   await copyTemplate(promptUid);
-      //   waitForBlockCopy = true;
-      // }
-      // setTimeout(
-      //   async () => {
-      //     let template = await getTemplateForPostProcessing(
-      //       promptUid,
-      //       99,
-      //       uidsToExclude
-      //     );
-      //     // console.log("template :>> ", template);
-      //     let commandType;
-      //     if (!template) {
-      //       // default post-processing
-      //       AppToaster.show({
-      //         message:
-      //           "You are requesting a post-processing completion following a template, but there is neither provided template nor default template defined in settings.",
-      //       });
-      //       commandType = "gptCompletion";
-      //       prompt = prompt;
-      //       uid = await createChildBlock(promptUid, assistantRole);
-      //     } else {
-      //       commandType = "outlinerAgent";
-      //       prompt =
-      //         specificContentPromptBeforeTemplate +
-      //         prompt +
-      //         "\n\n" +
-      //         template.stringified;
-      //       uid = getFirstChildUid(promptUid);
-      //     }
-
-      //     // remove {text} mentions from template
-      //     if (template.excluded && template.excluded.length) {
-      //       cleanFlagFromBlocks("{text}", template.excluded);
-      //     }
-
-      //     await insertCompletion({
-      //       prompt,
-      //       targetUid: uid,
-      //       context,
-      //       typeOfCompletion: commandType,
-      //       instantModel: instantModel.current,
-      //     });
-      //     initialize(true);
-      //   },
-      //   waitForBlockCopy ? 100 : 0
-      // );
+    } else if (lastCommand.current === "askYourGraph") {
+      let instantRootUid =
+        window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] ||
+        (blocksSelectionUids?.current.length
+          ? blocksSelectionUids.current[0]
+          : null);
+      if (!instantRootUid) return;
+      askYourGraph({
+        model: instantModel.current || defaultModel,
+        rootUid: instantRootUid,
+        prompt:
+          prompt ||
+          (blocksSelectionUids.current?.length
+            ? getResolvedContentFromBlocks(
+                blocksSelectionUids.current,
+                false,
+                true
+              )
+            : resolveReferences(
+                getBlockContentByUid(
+                  window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
+                )
+              )),
+      });
     } else {
       aiCompletionRunner({
         e,
@@ -579,6 +561,7 @@ function VoiceRecorder({
         transcribeIcon: true,
         translateIcon: isTranslateIconDisplayed || translateOnly,
         completionIcon: true,
+        askYourGraphIcon: true,
       });
       setAreCommandsToDisplay(false);
     }
@@ -754,6 +737,8 @@ function VoiceRecorder({
         ? "speech-translate"
         : command === handleCompletion
         ? "speech-completion"
+        : command === handleAskYourGraph
+        ? "ask-your-graph"
         : "outliner-agent";
     return (
       // {(isListening || recording !== null) && (
@@ -785,6 +770,14 @@ function VoiceRecorder({
                 window.LiveAI.toggleContextMenu({ e, onlyCompletion: true });
               } else if (command === handleOutlinerAgent) {
                 window.LiveAI.toggleContextMenu({ e, onlyOutliner: true });
+              } else if (command === handleAskYourGraph) {
+                ContextMenu.show(
+                  ModelsMenu({
+                    callback: ({ e, model }) => handleAskYourGraph(e, model),
+                  }),
+                  { left: e.clientX, top: e.clientY },
+                  null
+                );
               }
             }}
             disabled={!areCommandsToDisplay}
@@ -868,6 +861,28 @@ function VoiceRecorder({
               </Tooltip>
             ))
         }
+        {isToDisplay.askYourGraphIcon &&
+          jsxCommandIcon({}, handleAskYourGraph, () => (
+            <Tooltip
+              openOnTargetFocus={false}
+              disabled={window.roamAlphaAPI.platform.isMobile}
+              content={
+                <p>
+                  Ask You Graph Agent (focused/selected content as prompt) (G)
+                  <br /> <br />
+                  <b>Right-click</b> to switch model
+                </p>
+              }
+              hoverOpenDelay="500"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                zIndex: "99",
+              }}
+            >
+              <FontAwesomeIcon icon={faHexagonNodesBolt} />
+            </Tooltip>
+          ))}
         {
           /*isListening || areCommandsToDisplay && */
           isToDisplay.completionIcon &&
