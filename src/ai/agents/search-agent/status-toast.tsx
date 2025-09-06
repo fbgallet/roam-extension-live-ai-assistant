@@ -4,12 +4,13 @@
 
 import { Intent, ProgressBar } from "@blueprintjs/core";
 import { AgentToaster } from "../../../components/Toaster";
-import { SearchAgentState } from "./search-agent";
-import { toasterInstance } from "./invoke-search-agent";
 import { ReactNode } from "react";
 
+// Legacy status display component - not currently used in the new ask-your-graph-agent system
+// The new system uses updateAgentToaster from ../shared/agentsUtils for progress updates
+
 export const displayAgentStatus = (
-  state: typeof SearchAgentState.State,
+  state: any, // Legacy state structure - keeping as any since this component is not used
   status: string,
   error?: string
 ) => {
@@ -143,8 +144,9 @@ export const displayAgentStatus = (
         </>
       ) as ReactNode,
       timeout: status === "output" ? 15000 : 0,
-    },
-    toasterInstance
+    }
+    // Note: Using AgentToaster.show() without specifying toaster instance
+    // since this legacy component is not currently used
   );
 };
 
