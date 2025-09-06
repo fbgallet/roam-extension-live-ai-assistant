@@ -809,8 +809,8 @@ const expandConditions = async (
 
     console.log("🔍 [DEBUG] expansionType :>> ", expansionType);
 
-    // Handle text conditions with semantic expansion
-    if (effectiveExpansionStrategy && condition.type === "text") {
+    // Handle text conditions with semantic expansion (unless disabled for combination testing)
+    if (effectiveExpansionStrategy && condition.type === "text" && !state?.disableSemanticExpansion) {
       try {
         const customStrategy =
           effectiveExpansionStrategy === "custom"
@@ -888,8 +888,8 @@ const expandConditions = async (
       condition.text = cleanText;
     }
 
-    // Handle page_ref conditions with semantic expansion
-    if (condition.type === "page_ref" && effectiveExpansionStrategy) {
+    // Handle page_ref conditions with semantic expansion (unless disabled for combination testing)
+    if (condition.type === "page_ref" && effectiveExpansionStrategy && !state?.disableSemanticExpansion) {
       try {
         const customStrategy =
           effectiveExpansionStrategy === "custom"

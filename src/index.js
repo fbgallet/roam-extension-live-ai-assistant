@@ -1372,12 +1372,13 @@ export default {
     // Apply mapping to ensure internal values are used
     const modeMap = {
       "Always ask user": "ask_user",
-      "Automatic until result": "auto_until_result", 
+      "Automatic until result": "auto_until_result",
       "Always with fuzzy": "always_fuzzy",
       "Always with synonyms": "always_synonyms",
       "Always with all": "always_all",
     };
-    automaticSemanticExpansionMode = modeMap[rawExpansionMode] || rawExpansionMode;
+    automaticSemanticExpansionMode =
+      modeMap[rawExpansionMode] || rawExpansionMode;
     if (extensionAPI.settings.get("maxCapturingDepth") === null)
       await extensionAPI.settings.set("maxCapturingDepth", "99,3,4");
     maxCapturingDepth = getMaxDephObjectFromList(

@@ -153,6 +153,7 @@ const ReactSearchAgentState = Annotation.Root({
   // New symbolic query fields
   formalQuery: Annotation<string | undefined>,
   searchStrategy: Annotation<"direct" | "hierarchical" | undefined>,
+  forceHierarchical: Annotation<boolean | undefined>,
   analysisType: Annotation<
     "count" | "compare" | "connections" | "summary" | undefined
   >,
@@ -504,6 +505,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         depthLimit?: number;
       };
       searchStrategy: "direct" | "hierarchical";
+      forceHierarchical?: boolean;
       analysisType?: "count" | "compare" | "connections" | "summary";
       expansionGuidance?: string;
       isExpansionGlobal?: boolean;
@@ -526,6 +528,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       formalQuery: ["formalQuery"],
       constraints: ["constraints"],
       searchStrategy: ["searchStrategy"],
+      forceHierarchical: ["forceHierarchical"],
       analysisType: ["analysisType"],
       expansionGuidance: ["expansionGuidance"],
       isExpansionGlobal: ["isExpansionGlobal"],
@@ -632,6 +635,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         ),
       },
       searchStrategy: analysis.searchStrategy,
+      forceHierarchical: analysis.forceHierarchical,
       analysisType: analysis.analysisType,
       searchDetails: analysis.constraints,
       expansionGuidance: expansionGuidanceForLLM || analysis.expansionGuidance, // Use generated guidance
@@ -1018,20 +1022,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     throw new Error("Operation cancelled by user");
   }
 
-  // Handle direct expansion with pre-configured parameters
-  console.log(`🔧 [Assistant] Debug state:`, {
-    isDirectExpansion: (state as any).isDirectExpansion,
-    semanticExpansion: (state as any).semanticExpansion,
-    stateSemanticExpansion: state.semanticExpansion,
-    isExpansionGlobal: (state as any).isExpansionGlobal,
-    stateIsExpansionGlobal: state.isExpansionGlobal,
-  });
-
   if ((state as any).isDirectExpansion) {
-    console.log(
-      `🎯 [Direct Expansion] Injecting expansion parameters from agentData`
-    );
-
     // Inject expansion parameters directly into state (they should already be in agentData)
     if ((state as any).semanticExpansion) {
       state.semanticExpansion = (state as any).semanticExpansion;
@@ -2233,13 +2224,6 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
       ? `⚠️ No results found. Try expansion strategies:`
       : `⚠️ Found ${resultCount} results. Try expansion for better coverage:`;
 
-  console.log(`🎯 [TOASTER DEBUG] Calling updateAgentToaster with:`, {
-    message: message + resultsSummary,
-    showExpansionButton: true,
-    expansionOptions: expansionOptions,
-    expansionOptionsArray: expansionOptions.split("\n"),
-  });
-
   updateAgentToaster(message + resultsSummary, {
     showExpansionButton: true,
     expansionOptions: expansionOptions,
@@ -2574,6 +2558,9 @@ const toolsWithResultLifecycle = async (
       return {
         ...tool,
         invoke: async (llmInput: any, config?: any) => {
+          // Tool automatically detects when to use combination testing based on condition count
+          console.log(`🔍 [HIERARCHY-TOOL] Tool will auto-detect if combination testing is needed`);
+          
           // Tool handles all state injection internally via config.configurable.state
           return tool.invoke(llmInput, config);
         },
@@ -2679,26 +2666,6 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
     // Detect if query requires multi-step analysis beyond simple block retrieval
     const requiresAnalysis = detectAnalyticalQuery(state.userQuery || "");
 
-    // Check if user requested specific limits (like "2 random blocks")
-    const hasUserLimits =
-      state.searchDetails?.maxResults || state.searchDetails?.requireRandom;
-
-    // DEBUG: Log routing decision details
-    console.log(
-      `🔍 [DEBUG routeAfterTools] searchDetails:`,
-      state.searchDetails
-    );
-    console.log(`🔍 [DEBUG routeAfterTools] hasUserLimits: ${hasUserLimits}`);
-    console.log(`🔍 [DEBUG routeAfterTools] latestResult:`, {
-      purpose: latestResult?.purpose,
-      dataLength: latestResult?.data?.length,
-    });
-    console.log(`🔍 [DEBUG routeAfterTools] conditions:`, {
-      isConversationMode: state.isConversationMode,
-      privateMode: state.privateMode,
-      requiresAnalysis: requiresAnalysis,
-    });
-
     const canSkipAssistant =
       // Tool purpose is final (not intermediate exploration)
       latestResult?.purpose === "final" &&
@@ -2710,14 +2677,7 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       // Query doesn't require multi-step analysis
       !requiresAnalysis;
 
-    console.log(
-      `🔍 [DEBUG routeAfterTools] canSkipAssistant: ${canSkipAssistant}`
-    );
-
     if (canSkipAssistant) {
-      console.log(
-        `🔀 [Graph] TOOLS → DIRECT_FORMAT (private mode: ${latestResult.data.length} results, purpose: ${latestResult.purpose})`
-      );
       return "directFormat";
     } else if (
       latestResult?.purpose === "final" &&
@@ -2970,7 +2930,9 @@ const routeAfterResponseWriter = (
   state: typeof ReactSearchAgentState.State
 ) => {
   if ((state as any).isPopupExecution || state.forcePopupOnly) {
-    console.log(`🔀 [Graph] ResponseWriter → END (popup execution or forcePopupOnly)`);
+    console.log(
+      `🔀 [Graph] ResponseWriter → END (popup execution or forcePopupOnly)`
+    );
     return "__end__";
   }
   console.log(`🔀 [Graph] ResponseWriter → INSERT RESPONSE`);
@@ -2979,7 +2941,9 @@ const routeAfterResponseWriter = (
 
 const routeAfterDirectFormat = (state: typeof ReactSearchAgentState.State) => {
   if ((state as any).isPopupExecution || state.forcePopupOnly) {
-    console.log(`🔀 [Graph] DirectFormat → END (popup execution or forcePopupOnly)`);
+    console.log(
+      `🔀 [Graph] DirectFormat → END (popup execution or forcePopupOnly)`
+    );
     return "__end__";
   }
   console.log(`🔀 [Graph] DirectFormat → INSERT RESPONSE`);

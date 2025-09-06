@@ -31,8 +31,6 @@ export async function performAdaptiveExpansion(
 ): Promise<any[]> {
   if (!results || results.length === 0) return [];
 
-  console.log("results in performAdativeExpansion :>> ", results);
-
   const resultCount = results.length;
   const availableBudget = Math.max(0, charLimit - currentContentLength);
 
@@ -42,10 +40,6 @@ export async function performAdaptiveExpansion(
       ? EXPANSION_BUDGETS.full
       : EXPANSION_BUDGETS.balanced;
   const expansionBudget = Math.min(availableBudget, modeBudget);
-
-  console.log(
-    `🌳 [AdaptiveExpansion] Expanding ${resultCount} blocks + 0 pages`
-  );
 
   // Extract block UIDs for hierarchy queries
   const blockUids = results
@@ -275,15 +269,11 @@ async function createExpandedBlocks(
             )
           : ""; // No children expansion for >150 results
 
-      console.log("expandedBlock.original :>> ", expandedBlock.original);
-
       // Stringify the expanded block
       const stringifiedBlock = stringifyExpandedBlock(
         expandedBlock,
         budgetPerResult
       );
-
-      console.log("stringifiedBlock :>> ", stringifiedBlock);
 
       expandedBlocks.push({
         ...result,

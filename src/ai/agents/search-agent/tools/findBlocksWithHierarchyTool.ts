@@ -311,6 +311,7 @@ const schema = z.object({
       "Block UID to exclude from results (typically the user's query block)"
     ),
 
+
   // Legacy internal parameters (kept for backward compatibility)
   // structuredHierarchyCondition: z.any().optional(),
   // structuredSearchConditions: z.any().optional(),
@@ -659,18 +660,21 @@ const parseSimpleSearchCondition = (text: string): any | null => {
 };
 
 /**
- * Process OpenAI-compatible hierarchy condition with array-based structure
+ * Process simple hierarchy condition with array-based structure
  * Converts arrays to internal compound structures while maintaining full semantic expansion
  */
-const processOpenAIHierarchyCondition = async (
+const processSimpleHierarchyCondition = async (
   hierarchyCondition: any,
   options: any,
   state?: any
 ): Promise<any> => {
-  console.log(
-    "🔍 Processing OpenAI-compatible hierarchy condition:",
-    hierarchyCondition
-  );
+  // Only log if not part of combination testing to reduce noise
+  if (!options?.testAllCombinations) {
+    console.log(
+      "🔍 Processing simple hierarchy condition:",
+      hierarchyCondition
+    );
+  }
 
   // Step 1: Convert array-based conditions to internal compound structures
   const internalHierarchyCondition = await convertArraysToInternalFormat(
@@ -1542,6 +1546,187 @@ const processStructuredHierarchyQuery = async (
 };
 
 /**
+ * Process hierarchical combinations for 3-4 AND conditions
+ * Tests all possible combinations: A<=>B+C, B<=>A+C, C<=>A+B (for 3 conditions)
+ */
+const processHierarchicalCombinations = async (
+  hierarchyCondition: any,
+  options: any,
+  state?: any
+): Promise<any[]> => {
+  console.log('🔀 Starting hierarchical combination testing');
+  updateAgentToaster('🔀 Testing all hierarchical combinations...');
+  
+  // Extract only positive AND conditions (NOT conditions should be distributed across all combinations)
+  const positiveConditions: any[] = [];
+  const negativeConditions: any[] = [];
+  
+  // Extract and separate left conditions
+  if (hierarchyCondition.leftConditions && Array.isArray(hierarchyCondition.leftConditions)) {
+    for (const condition of hierarchyCondition.leftConditions) {
+      if (condition.negate) {
+        negativeConditions.push(condition);
+      } else {
+        positiveConditions.push(condition);
+      }
+    }
+  }
+  
+  // Extract and separate right conditions 
+  if (hierarchyCondition.rightConditions && Array.isArray(hierarchyCondition.rightConditions)) {
+    for (const condition of hierarchyCondition.rightConditions) {
+      if (condition.negate) {
+        negativeConditions.push(condition);
+      } else {
+        positiveConditions.push(condition);
+      }
+    }
+  }
+  
+  console.log(`🔀 Extracted ${positiveConditions.length} positive AND conditions and ${negativeConditions.length} NOT conditions`);
+  
+  // Only process 3-4 positive conditions
+  if (positiveConditions.length < 3 || positiveConditions.length > 4) {
+    console.warn(`🔀 Combination testing only supports 3-4 positive AND conditions, got ${positiveConditions.length}. Falling back to normal processing.`);
+    // Fall back to normal processing by calling processSimpleHierarchyCondition directly
+    return await processSimpleHierarchyCondition(hierarchyCondition, options, state);
+  }
+  
+  // Generate all combinations using only positive conditions
+  const combinations = generateHierarchyCombinations(positiveConditions);
+  console.log(`🔀 Generated ${combinations.length} combinations for ${positiveConditions.length} positive conditions:`);
+  
+  // Preview all combinations that will be tested
+  combinations.forEach((combo, idx) => {
+    const leftDesc = combo.leftConditions.map(c => {
+      const typePrefix = c.type === 'page_ref' ? 'ref' : c.type;
+      return `${c.negate ? 'NOT ' : ''}${typePrefix}:${c.text}`;
+    }).join(' + ');
+    const rightDesc = combo.rightConditions.map(c => {
+      const typePrefix = c.type === 'page_ref' ? 'ref' : c.type;
+      return `${c.negate ? 'NOT ' : ''}${typePrefix}:${c.text}`;
+    }).join(' + ');
+    console.log(`🔀   ${idx + 1}. (${leftDesc}) <=> (${rightDesc})`);
+  });
+  
+  const allResults = new Map<string, any>(); // uid -> result (for deduplication)
+  
+  // Execute each combination with detailed logging
+  for (let i = 0; i < combinations.length; i++) {
+    const { leftConditions, rightConditions } = combinations[i];
+    
+    // Create readable condition descriptions for logging
+    const leftDesc = leftConditions.map(c => {
+      const typePrefix = c.type === 'page_ref' ? 'ref' : c.type;
+      return `${c.negate ? 'NOT ' : ''}${typePrefix}:${c.text}`;
+    }).join(' + ');
+    const rightDesc = rightConditions.map(c => {
+      const typePrefix = c.type === 'page_ref' ? 'ref' : c.type;
+      return `${c.negate ? 'NOT ' : ''}${typePrefix}:${c.text}`;
+    }).join(' + ');
+    
+    console.log(`🔀 COMBINATION ${i + 1}/${combinations.length}: (${leftDesc}) ${hierarchyCondition.operator} (${rightDesc})`);
+    updateAgentToaster(`🔀 Testing combination ${i + 1}/${combinations.length}: (${leftDesc}) ${hierarchyCondition.operator} (${rightDesc})`);
+    
+    // Create simple hierarchy condition for this combination
+    // Distribute NOT conditions to both sides (they apply to the entire query)
+    const combinationHierarchyCondition = {
+      operator: hierarchyCondition.operator,
+      leftConditions: [...leftConditions, ...negativeConditions],
+      leftCombination: 'AND',
+      rightConditions: [...rightConditions, ...negativeConditions], 
+      rightCombination: 'AND',
+      maxDepth: hierarchyCondition.maxDepth
+    };
+    
+    try {
+      // Create options for this combination with semantic expansion disabled
+      const combinationOptions = {
+        ...options,
+        disableSemanticExpansion: true, // Disable semantic expansion for individual combinations
+        testAllCombinations: false // Prevent recursive combination testing
+      };
+      
+      // Create state with semantic expansion disabled for this combination
+      const combinationState = {
+        ...state,
+        disableSemanticExpansion: true
+      };
+      
+      // Call processSimpleHierarchyCondition for this combination
+      const combinationResults = await processSimpleHierarchyCondition(
+        combinationHierarchyCondition,
+        combinationOptions,
+        combinationState
+      );
+      
+      // Add results to map (automatic deduplication by UID)
+      let newResultsAdded = 0;
+      if (Array.isArray(combinationResults)) {
+        combinationResults.forEach(result => {
+          if (result && result.uid && !allResults.has(result.uid)) {
+            allResults.set(result.uid, result);
+            newResultsAdded++;
+          }
+        });
+      }
+      
+      console.log(`🔀   → Found ${Array.isArray(combinationResults) ? combinationResults.length : 0} results, ${newResultsAdded} new (total: ${allResults.size})`);
+      
+    } catch (error) {
+      console.error(`🔀   → FAILED:`, error);
+    }
+  }
+  
+  const finalResults = Array.from(allResults.values());
+  console.log(`🔀 Hierarchical combination testing complete: ${finalResults.length} unique results from ${combinations.length} combinations`);
+  updateAgentToaster(`✅ Combination testing complete: ${finalResults.length} unique results from ${combinations.length} combinations`);
+  
+  // Note: Semantic expansion should be applied by the calling function after combination testing
+  // Individual combinations ran with semantic expansion disabled for efficiency
+  
+  return finalResults;
+};
+
+/**
+ * Generate all valid hierarchy combinations for 3-4 AND conditions
+ */
+const generateHierarchyCombinations = (conditions: any[]): Array<{ leftConditions: any[], rightConditions: any[] }> => {
+  const combinations: Array<{ leftConditions: any[], rightConditions: any[] }> = [];
+  
+  console.log(`🔀 [generateCombinations] Input: ${conditions.length} conditions`, conditions.map(c => `${c.type}:${c.text}`));
+  
+  if (conditions.length === 3) {
+    // For 3 conditions A, B, C: 3 combinations
+    // A <=> (B + C), B <=> (A + C), C <=> (A + B)
+    for (let i = 0; i < 3; i++) {
+      const leftConditions = [conditions[i]];
+      const rightConditions = conditions.filter((_, idx) => idx !== i);
+      combinations.push({ leftConditions, rightConditions });
+    }
+  } else if (conditions.length === 4) {
+    // For 4 conditions A, B, C, D: 7 combinations
+    // Balanced 2 vs 2: (A+B) <=> (C+D), (A+C) <=> (B+D), (A+D) <=> (B+C)
+    // Generate all ways to split 4 items into 2 groups of 2
+    combinations.push(
+      { leftConditions: [conditions[0], conditions[1]], rightConditions: [conditions[2], conditions[3]] },
+      { leftConditions: [conditions[0], conditions[2]], rightConditions: [conditions[1], conditions[3]] },
+      { leftConditions: [conditions[0], conditions[3]], rightConditions: [conditions[1], conditions[2]] }
+    );
+    
+    // 1 vs 3: A <=> (B+C+D), B <=> (A+C+D), C <=> (A+B+D), D <=> (A+B+C) 
+    for (let i = 0; i < 4; i++) {
+      const leftConditions = [conditions[i]];
+      const rightConditions = conditions.filter((_, idx) => idx !== i);
+      combinations.push({ leftConditions, rightConditions });
+    }
+  }
+  
+  console.log(`🔀 [generateCombinations] Generated ${combinations.length} combinations`);
+  return combinations;
+};
+
+/**
  * Process structured hierarchy condition natively without converting to legacy string
  */
 const processStructuredHierarchyCondition = async (
@@ -1561,6 +1746,17 @@ const processStructuredHierarchyCondition = async (
       hierarchyCondition
     );
     return [];
+  }
+
+  // Handle combination testing for bidirectional operators with 3-4 AND conditions
+  if (options.testAllCombinations && 
+      (hierarchyCondition.operator === '<=>' || hierarchyCondition.operator === '<<=>>')) {
+    console.log('🔀 Processing hierarchical combinations for operator:', hierarchyCondition.operator);
+    return await processHierarchicalCombinations(
+      hierarchyCondition, 
+      options, 
+      state
+    );
   }
 
   // Extract and process left and right conditions with backward compatibility
@@ -1801,16 +1997,14 @@ const applyORToRegexConversion = (
 
   // Check if this is a mixed logic case that benefits from OR-to-regex conversion
   const hasNegatedConditions = conditions.some((c) => c.negate === true);
-  const hasPositiveConditions = conditions.some((c) => c.negate !== true);
 
   // For pure OR without negation, keep current OR clause logic
   if (combination === "OR" && !hasNegatedConditions) {
     return { conditions, combination };
   }
 
-  // For AND logic with mixed positive/negative, or OR with negation, apply conversion
+  // For OR logic with negation, apply conversion (NOT for simple AND+NOT queries)
   if (
-    (combination === "AND" && hasNegatedConditions && hasPositiveConditions) ||
     (combination === "OR" && hasNegatedConditions)
   ) {
     // Group positive conditions for potential OR-to-regex conversion
@@ -2454,7 +2648,47 @@ const findBlocksWithHierarchyImpl = async (
     strategyCombination,
   } = input;
 
+  // Determine if we should use combination testing based on IntentParser analysis
+  const shouldUseCombinationTesting = (() => {
+    // Only test combinations when IntentParser indicates this was a forced hierarchical conversion
+    const forceHierarchical = state?.forceHierarchical;
+    
+    if (!forceHierarchical) {
+      console.log(`🔍 [COMBINATION-LOGIC] forceHierarchical=${forceHierarchical}, respecting user's explicit structure`);
+      return false;
+    }
+    
+    if (!hierarchyCondition) {
+      console.log(`🔍 [COMBINATION-LOGIC] No hierarchy condition found`);
+      return false;
+    }
+    
+    // Count positive AND conditions only (exclude NOT conditions)
+    let positiveAndConditions = 0;
+    
+    // Count left positive conditions
+    if (hierarchyCondition.leftConditions && Array.isArray(hierarchyCondition.leftConditions)) {
+      positiveAndConditions += hierarchyCondition.leftConditions.filter(c => !c.negate).length;
+    }
+    
+    // Count right positive conditions  
+    if (hierarchyCondition.rightConditions && Array.isArray(hierarchyCondition.rightConditions)) {
+      positiveAndConditions += hierarchyCondition.rightConditions.filter(c => !c.negate).length;
+    }
+    
+    // Test combinations only for ≥3 positive AND conditions with bidirectional operators
+    const shouldTest = positiveAndConditions >= 3 && 
+                      (hierarchyCondition.operator === '<=>' || hierarchyCondition.operator === '<<=>>');
+    
+    console.log(`🔍 [COMBINATION-LOGIC] forceHierarchical=${forceHierarchical}, positive AND conditions: ${positiveAndConditions}, operator: ${hierarchyCondition.operator}`);
+    console.log(`🔍 [COMBINATION-LOGIC] Will test combinations: ${shouldTest}`);
+    
+    return shouldTest;
+  })();
+
   // Log all tool arguments for debugging
+  console.log("🔍 [TOOL CALL] findBlocksWithHierarchy called with complete input:", input);
+  console.log("🔍 [TOOL CALL] combination testing auto-detected:", shouldUseCombinationTesting);
   console.log("🔍 [TOOL CALL] findBlocksWithHierarchy called with arguments:", {
     contentConditions: contentConditions?.length || 0,
     hierarchyConditions: hierarchyConditions?.length || 0,
@@ -2488,13 +2722,16 @@ const findBlocksWithHierarchyImpl = async (
       `🚀 Processing hierarchyCondition with operator: "${hierarchyCondition.operator}"`
     );
 
-    // Check if this is a grouped condition (new format)
+    // Check if this is a grouped condition OR needs combination testing
     if (
       hierarchyCondition.leftConditionGroups ||
-      hierarchyCondition.rightConditionGroups
+      hierarchyCondition.rightConditionGroups ||
+      shouldUseCombinationTesting
     ) {
       console.log(
-        "🔧 Detected grouped conditions, using structured processing"
+        shouldUseCombinationTesting 
+          ? "🔀 Detected combination testing request, using structured processing"
+          : "🔧 Detected grouped conditions, using structured processing"
       );
       const structuredQuery = {
         hierarchyCondition: hierarchyCondition,
@@ -2520,6 +2757,7 @@ const findBlocksWithHierarchyImpl = async (
           limitToBlockUids,
           limitToPageUids,
           excludeBlockUid: input.excludeBlockUid,
+          testAllCombinations: shouldUseCombinationTesting,
         },
         state
       );
@@ -2527,9 +2765,9 @@ const findBlocksWithHierarchyImpl = async (
 
     // Handle simple array-based conditions (backward compatibility)
     console.log(
-      "🔧 Using legacy OpenAI array processing for simple conditions"
+      "🔧 Using simple hierarchy condition processing"
     );
-    return await processOpenAIHierarchyCondition(
+    return await processSimpleHierarchyCondition(
       hierarchyCondition,
       {
         maxHierarchyDepth,
@@ -3306,26 +3544,64 @@ const executeDirectHierarchySearchAndReturnChildren = async (
     ? await expandConditions(childConditions, state)
     : childConditions;
 
-  // Build the exact same Datomic query as executeDirectHierarchySearch
-  let query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
-                       ?child-uid ?child-content ?child-page-title ?child-page-uid
-                :where
-                ;; Parent block structure
-                [?parent :block/uid ?parent-uid]
-                [?parent :block/string ?parent-content]
-                [?parent :block/page ?parent-page]
-                [?parent-page :node/title ?parent-page-title]
-                [?parent-page :block/uid ?parent-page-uid]
-                
-                ;; Child block structure  
-                [?child :block/uid ?child-uid]
-                [?child :block/string ?child-content]
-                [?child :block/page ?child-page]
-                [?child-page :node/title ?child-page-title]
-                [?child-page :block/uid ?child-page-uid]
-                
-                ;; Hierarchy relationship (parent -> child)
-                [?parent :block/children ?child]`;
+  // Build Datomic query - structure depends on child combination logic
+  let query;
+  
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    // For hierarchical AND: use separate child variables for each condition
+    console.log(`🔧 [HierarchyAND] Building query with separate child variables for ${expandedChildConditions.length} AND conditions`);
+    
+    query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
+                     ?child-uid ?child-content ?child-page-title ?child-page-uid
+              :where
+              ;; Parent block structure
+              [?parent :block/uid ?parent-uid]
+              [?parent :block/string ?parent-content]
+              [?parent :block/page ?parent-page]
+              [?parent-page :node/title ?parent-page-title]
+              [?parent-page :block/uid ?parent-page-uid]
+              
+              ;; Representative child for results (any child for display)
+              [?parent :block/children ?child]
+              [?child :block/uid ?child-uid]
+              [?child :block/string ?child-content]  
+              [?child :block/page ?child-page]
+              [?child-page :node/title ?child-page-title]
+              [?child-page :block/uid ?child-page-uid]`;
+              
+    // Add separate child variables for each condition
+    for (let i = 0; i < expandedChildConditions.length; i++) {
+      const childVar = `?child${i + 1}`;
+      const childContentVar = `${childVar}-content`;
+      
+      query += `
+              
+              ;; Child ${i + 1} for condition ${i + 1}
+              [?parent :block/children ${childVar}]
+              [${childVar} :block/string ${childContentVar}]`;
+    }
+  } else {
+    // For OR logic or single condition: use original single-child approach  
+    query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
+                     ?child-uid ?child-content ?child-page-title ?child-page-uid
+              :where
+              ;; Parent block structure
+              [?parent :block/uid ?parent-uid]
+              [?parent :block/string ?parent-content]
+              [?parent :block/page ?parent-page]
+              [?parent-page :node/title ?parent-page-title]
+              [?parent-page :block/uid ?parent-page-uid]
+              
+              ;; Child block structure  
+              [?child :block/uid ?child-uid]
+              [?child :block/string ?child-content]
+              [?child :block/page ?child-page]
+              [?child-page :node/title ?child-page-title]
+              [?child-page :block/uid ?child-page-uid]
+              
+              ;; Hierarchy relationship (parent -> child)
+              [?parent :block/children ?child]`;
+  }
 
   // Add parent content filtering (same as original)
   const parentQueryBuilder = new DatomicQueryBuilder(
@@ -3339,26 +3615,63 @@ const executeDirectHierarchySearchAndReturnChildren = async (
   query += parentPatterns;
   query += parentClauses;
 
-  // Add child content filtering (same as original)
-  const childQueryBuilder = new DatomicQueryBuilder(
-    expandedChildConditions,
-    childCombineLogic
-  );
-  const { patternDefinitions: childPatterns, conditionClauses: childClauses } =
-    childQueryBuilder.buildConditionClauses("?child-content");
+  // Handle child content filtering based on combination logic
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    // For hierarchical AND: apply each condition to its separate child variable
+    let allChildPatterns = "";
+    let allChildClauses = "";
+    
+    for (let i = 0; i < expandedChildConditions.length; i++) {
+      const childVar = `?child${i + 1}`;
+      const childContentVar = `${childVar}-content`;
+      const condition = expandedChildConditions[i];
+      
+      // Build condition clauses for this specific child
+      const singleConditionBuilder = new DatomicQueryBuilder([condition], "AND");
+      const { patternDefinitions, conditionClauses } = singleConditionBuilder.buildConditionClauses(childContentVar);
+      
+      // Fix pattern variable conflicts
+      const offsetPatterns = patternDefinitions.replace(
+        /\?pattern(\d+)/g,
+        (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length + i * 10}`
+      );
+      const offsetClauses = conditionClauses.replace(
+        /\?pattern(\d+)/g, 
+        (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length + i * 10}`
+      );
+      
+      allChildPatterns += offsetPatterns;
+      allChildClauses += offsetClauses;
+    }
+    
+    // Note: Representative child (?child) doesn't need to match any specific condition
+    // It's just used for result formatting and will be one of the matching children
+    
+    query += allChildPatterns;
+    query += allChildClauses;
+    
+  } else {
+    // For OR logic or single condition: use original single-child approach
+    const childQueryBuilder = new DatomicQueryBuilder(
+      expandedChildConditions,
+      childCombineLogic
+    );
+    const { patternDefinitions: childPatterns, conditionClauses: childClauses } =
+      childQueryBuilder.buildConditionClauses("?child-content");
 
-  // Fix pattern variable conflicts by replacing pattern indices in child patterns
-  const offsetChildPatterns = childPatterns.replace(
-    /\?pattern(\d+)/g,
-    (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
-  );
-  const offsetChildClauses = childClauses.replace(
-    /\?pattern(\d+)/g,
-    (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
-  );
+    // Fix pattern variable conflicts by replacing pattern indices in child patterns
+    const offsetChildPatterns = childPatterns.replace(
+      /\?pattern(\d+)/g,
+      (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
+    );
+    const offsetChildClauses = childClauses.replace(
+      /\?pattern(\d+)/g,
+      (_, num) => `?pattern${parseInt(num) + expandedParentConditions.length}`
+    );
 
-  query += offsetChildPatterns;
-  query += offsetChildClauses;
+    query += offsetChildPatterns;
+    query += offsetChildClauses;
+  }
 
   // Exclude specific block if provided (same as original)
   if (options.excludeBlockUid) {
@@ -3982,28 +4295,66 @@ const executeDirectHierarchySearch = async (
     ? await expandConditions(childConditions, state)
     : childConditions;
 
-  // Build single Datomic query with parent and child content filtering
-  let query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
-                       ?child-uid ?child-content ?child-page-title ?child-page-uid
-                :where
-                ;; Parent block structure
-                [?parent :block/uid ?parent-uid]
-                [?parent :block/string ?parent-content]
-                [?parent :block/page ?parent-page]
-                [?parent-page :node/title ?parent-page-title]
-                [?parent-page :block/uid ?parent-page-uid]
-                
-                ;; Child block structure  
-                [?child :block/uid ?child-uid]
-                [?child :block/string ?child-content]
-                [?child :block/page ?child-page]
-                [?child-page :node/title ?child-page-title]
-                [?child-page :block/uid ?child-page-uid]
-                
-                ;; Hierarchy relationship (parent -> child)
-                [?parent :block/children ?child]`;
+  // Build Datomic query - structure depends on child combination logic
+  let query;
+  
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    // For hierarchical AND: use separate child variables for each condition
+    console.log(`🔧 [executeDirectHierarchySearch] Using optimized separate child variables for ${expandedChildConditions.length} AND conditions`);
+    
+    query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
+                     ?child1-uid ?child1-content ?child1-page-title ?child1-page-uid
+              :where`;
+              
+    // Add separate child variables for each condition (optimized data fetching)
+    for (let i = 0; i < expandedChildConditions.length; i++) {
+      const childVar = `?child${i + 1}`;
+      const childContentVar = `${childVar}-content`;
+      
+      if (i === 0) {
+        // First child: fetch full data for results
+        query += `
+              
+              ;; Child ${i + 1} (result child) with full data
+              [?parent :block/children ${childVar}]
+              [${childVar} :block/uid ${childVar}-uid]
+              [${childVar} :block/string ${childContentVar}]
+              [${childVar} :block/page ${childVar}-page]
+              [${childVar}-page :node/title ${childVar}-page-title]
+              [${childVar}-page :block/uid ${childVar}-page-uid]`;
+      } else {
+        // Other children: minimal data for conditions only
+        query += `
+              
+              ;; Child ${i + 1} (condition only - minimal data)
+              [?parent :block/children ${childVar}]
+              [${childVar} :block/string ${childContentVar}]`;
+      }
+    }
+  } else {
+    // For OR logic or single condition: use original single-child approach  
+    query = `[:find ?parent-uid ?parent-content ?parent-page-title ?parent-page-uid 
+                     ?child-uid ?child-content ?child-page-title ?child-page-uid
+              :where
+              ;; Parent block structure
+              [?parent :block/uid ?parent-uid]
+              [?parent :block/string ?parent-content]
+              [?parent :block/page ?parent-page]
+              [?parent-page :node/title ?parent-page-title]
+              [?parent-page :block/uid ?parent-page-uid]
+              
+              ;; Child block structure  
+              [?child :block/uid ?child-uid]
+              [?child :block/string ?child-content]
+              [?child :block/page ?child-page]
+              [?child-page :node/title ?child-page-title]
+              [?child-page :block/uid ?child-page-uid]
+              
+              ;; Hierarchy relationship (parent -> child)
+              [?parent :block/children ?child]`;
+  }
 
-  // Add parent content filtering with custom block variable
+  // STEP 1: Add most selective conditions FIRST (parent conditions)
   const parentClauses = buildHierarchyConditionClauses(
     expandedParentConditions,
     parentCombineLogic,
@@ -4013,21 +4364,92 @@ const executeDirectHierarchySearch = async (
   );
   query += parentClauses;
 
-  // Add child content filtering with custom block variable
-  const childClauses = buildHierarchyConditionClauses(
-    expandedChildConditions,
-    childCombineLogic,
-    "?child",
-    "?child-content",
-    expandedParentConditions.length
-  );
-  query += childClauses;
+  // STEP 2: Add child conditions (also selective)
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    // For hierarchical AND: apply each condition to its separate child variable
+    for (let i = 0; i < expandedChildConditions.length; i++) {
+      const childVar = `?child${i + 1}`;
+      const childContentVar = `${childVar}-content`;
+      const condition = expandedChildConditions[i];
+      
+      // Build condition clauses for this specific child
+      const childClauses = buildHierarchyConditionClauses(
+        [condition],
+        "AND",
+        childVar,
+        childContentVar,
+        expandedParentConditions.length + i * 10
+      );
+      query += childClauses;
+    }
+  } else {
+    // For OR logic or single condition: use original single-child approach
+    const childClauses = buildHierarchyConditionClauses(
+      expandedChildConditions,
+      childCombineLogic,
+      "?child",
+      "?child-content",
+      expandedParentConditions.length
+    );
+    query += childClauses;
+  }
+
+  // STEP 3: Add hierarchy relationships (after conditions established)
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    for (let i = 0; i < expandedChildConditions.length; i++) {
+      const childVar = `?child${i + 1}`;
+      query += `
+                [?parent :block/children ${childVar}]`;
+      
+      if (i === 0) {
+        // First child: add hierarchy relationship already included above
+      }
+    }
+  } else {
+    query += `
+                [?parent :block/children ?child]`;
+  }
+
+  // STEP 4: Add block structure details LAST (broadest, for data fetching only)
+  query += `
+                ;; Parent block structure (for results)
+                [?parent :block/uid ?parent-uid]
+                [?parent :block/string ?parent-content]
+                [?parent :block/page ?parent-page]
+                [?parent-page :node/title ?parent-page-title]
+                [?parent-page :block/uid ?parent-page-uid]`;
+
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    query += `
+                ;; First child structure (for results)
+                [?child1 :block/uid ?child1-uid]
+                [?child1 :block/string ?child1-content]
+                [?child1 :block/page ?child1-page]
+                [?child1-page :node/title ?child1-page-title]
+                [?child1-page :block/uid ?child1-page-uid]`;
+  } else {
+    query += `
+                ;; Child structure (for results)
+                [?child :block/uid ?child-uid]
+                [?child :block/string ?child-content]
+                [?child :block/page ?child-page]
+                [?child-page :node/title ?child-page-title]
+                [?child-page :block/uid ?child-page-uid]`;
+  }
 
   // Add exclusion logic for user query block
   if (options.excludeBlockUid) {
-    query += `\n                ;; Exclude user query block from both parent and child results
+    if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+      // For optimized AND query: exclude from parent and first child
+      query += `\n                ;; Exclude user query block from both parent and child results
+                [(not= ?parent-uid "${options.excludeBlockUid}")]
+                [(not= ?child1-uid "${options.excludeBlockUid}")]`;
+    } else {
+      // For regular query: exclude from parent and representative child
+      query += `\n                ;; Exclude user query block from both parent and child results
                 [(not= ?parent-uid "${options.excludeBlockUid}")]
                 [(not= ?child-uid "${options.excludeBlockUid}")]`;
+    }
   }
 
   query += `]`;
@@ -4097,7 +4519,199 @@ const executeDirectHierarchySearch = async (
 };
 
 /**
- * Search blocks with hierarchical conditions (reuse existing logic)
+ * REMOVED: Performance-heavy descendant-wide AND implementation
+ * This was causing too many Datomic queries and premature semantic expansion
+ */
+/*
+const searchWithDescendantWideAND = async (
+  contentConditions: SearchCondition[],
+  hierarchyConditions: any[],
+  combineHierarchy: "AND" | "OR",
+  options: any,
+  state?: any
+): Promise<any[]> => {
+  console.log(`🌳 [DescendantWideAND] Processing ${contentConditions.length} conditions with descendant-wide AND semantics`);
+  
+  // Step 1: Find all blocks that match each individual condition (OR logic for initial search)
+  const individualMatches: Map<string, any[]> = new Map(); // condition.text -> blocks[]
+  
+  for (let i = 0; i < contentConditions.length; i++) {
+    const condition = contentConditions[i];
+    console.log(`🔍 [DescendantWideAND] Finding blocks for condition ${i + 1}: ${condition.type}:${condition.text}`);
+    
+    // Search for this single condition
+    const conditionMatches = await searchBlocksWithConditions(
+      [condition], // Single condition
+      "AND", // Not relevant for single condition
+      options.includeDaily || true,
+      options.limitToBlockUids,
+      options.limitToPageUids
+    );
+    
+    individualMatches.set(`${condition.type}:${condition.text}`, conditionMatches);
+    console.log(`🔍 [DescendantWideAND] Found ${conditionMatches.length} blocks for ${condition.type}:${condition.text}`);
+  }
+  
+  // Step 2: Apply hierarchy filtering - find parent blocks that have ALL conditions in their descendants
+  if (hierarchyConditions && hierarchyConditions.length > 0) {
+    console.log(`🌳 [DescendantWideAND] Applying hierarchy filtering with ${hierarchyConditions.length} hierarchy conditions`);
+    
+    // For now, use the first hierarchy condition to determine depth
+    const hierarchyCondition = hierarchyConditions[0];
+    const direction = hierarchyCondition.direction || "descendants";
+    const levels = hierarchyCondition.levels || 1;
+    
+    console.log(`🌳 [DescendantWideAND] Hierarchy: ${direction}, levels: ${levels}`);
+    
+    // Convert all individual matches to a flat list of all blocks that match any condition
+    const allMatchingBlocks = new Set<string>();
+    for (const blocks of individualMatches.values()) {
+      blocks.forEach(block => allMatchingBlocks.add(block.uid));
+    }
+    
+    console.log(`🌳 [DescendantWideAND] Total unique blocks matching any condition: ${allMatchingBlocks.size}`);
+    
+    // Find parent blocks that have descendants matching ALL conditions
+    const validParentBlocks = await findParentsWithAllConditionsInDescendants(
+      Array.from(allMatchingBlocks),
+      Array.from(individualMatches.values()),
+      contentConditions,
+      levels,
+      direction === "descendants"
+    );
+    
+    return validParentBlocks;
+  }
+  
+  // If no hierarchy conditions, return intersection of all matches (traditional AND)
+  console.log(`🌳 [DescendantWideAND] No hierarchy conditions, using intersection`);
+  const allResults = Array.from(individualMatches.values());
+  if (allResults.length === 0) return [];
+  
+  // Find intersection of all condition matches
+  let intersection = allResults[0];
+  for (let i = 1; i < allResults.length; i++) {
+    const nextResults = allResults[i];
+    intersection = intersection.filter(block => 
+      nextResults.some(nextBlock => nextBlock.uid === block.uid)
+    );
+  }
+  
+  return intersection;
+};
+
+/**
+ * Find parent blocks that have descendants matching ALL conditions
+ */
+const findParentsWithAllConditionsInDescendants = async (
+  allMatchingBlockUids: string[],
+  conditionMatches: any[][],
+  contentConditions: SearchCondition[],
+  levels: number,
+  isDescendants: boolean = true
+): Promise<any[]> => {
+  console.log(`🔍 [FindParentsWithAll] Processing ${allMatchingBlockUids.length} matching blocks, checking ${contentConditions.length} conditions`);
+  
+  if (allMatchingBlockUids.length === 0) return [];
+  
+  // Get hierarchy relationships for all matching blocks
+  const hierarchyQuery = `[:find ?parent-uid ?child-uid ?level
+                           :where
+                           ${allMatchingBlockUids.map((uid, i) => 
+                             `[?child${i} :block/uid "${uid}"]`
+                           ).join('\n                           ')}
+                           
+                           ${allMatchingBlockUids.map((uid, i) => 
+                             `(or-join [?parent-uid ?child-uid ?level]
+                               ${isDescendants ? 
+                                 // For descendants: find parents of matching blocks
+                                 `(and [?child${i} :block/uid ?child-uid]
+                                       [?child${i} :block/parents ?parent]
+                                       [?parent :block/uid ?parent-uid]
+                                       [(get-level ?parent ?child${i}) ?level]
+                                       [(<= ?level ${levels})])` :
+                                 // For ancestors: find children of matching blocks  
+                                 `(and [?parent${i} :block/uid ?parent-uid]
+                                       [?parent${i} :block/parents ?child]
+                                       [?child :block/uid ?child-uid]
+                                       [(get-level ?child ?parent${i}) ?level]
+                                       [(<= ?level ${levels})])`
+                               })`
+                           ).join('\n                           ')}]`;
+  
+  // This is getting complex - let me use a simpler approach with existing utilities
+  console.log(`🔍 [FindParentsWithAll] Using simplified approach with getFlattenedAncestors/getFlattenedDescendants`);
+  
+  const parentCandidates = new Map<string, Set<string>>(); // parentUid -> set of condition indices it satisfies
+  
+  for (let conditionIndex = 0; conditionIndex < conditionMatches.length; conditionIndex++) {
+    const blocks = conditionMatches[conditionIndex];
+    console.log(`🔍 [FindParentsWithAll] Processing condition ${conditionIndex + 1}: ${blocks.length} blocks`);
+    
+    for (const block of blocks) {
+      let relatedBlocks: any[] = [];
+      
+      if (isDescendants) {
+        // Find ancestors of this block (parents that could have this block as descendant)
+        const ancestorResults = await getFlattenedAncestors([block.uid], levels);
+        relatedBlocks = Object.values(ancestorResults).flat();
+      } else {
+        // Find descendants of this block (children that this block could be parent of)
+        const descendantResults = await getFlattenedDescendants([block.uid], levels);
+        relatedBlocks = Object.values(descendantResults).flat();
+      }
+      
+      // Record that these parent/ancestor blocks satisfy this condition
+      for (const relatedBlock of relatedBlocks) {
+        const key = relatedBlock.uid;
+        if (!parentCandidates.has(key)) {
+          parentCandidates.set(key, new Set());
+        }
+        parentCandidates.get(key)!.add(conditionIndex.toString());
+      }
+    }
+  }
+  
+  // Find parents that satisfy ALL conditions
+  const validParents: any[] = [];
+  const numConditions = contentConditions.length;
+  
+  console.log(`🔍 [FindParentsWithAll] Checking ${parentCandidates.size} parent candidates for ALL ${numConditions} conditions`);
+  
+  for (const [parentUid, satisfiedConditions] of parentCandidates) {
+    if (satisfiedConditions.size === numConditions) {
+      // This parent has descendants that match ALL conditions
+      console.log(`✅ [FindParentsWithAll] Parent ${parentUid} satisfies all ${numConditions} conditions`);
+      
+      // Get the full block data for this parent
+      const parentData = await executeDatomicQuery(`[:find ?uid ?content ?time ?page-title ?page-uid
+                                                     :where 
+                                                     [?b :block/uid "${parentUid}"]
+                                                     [?b :block/uid ?uid]
+                                                     [?b :block/string ?content]
+                                                     [?b :block/page ?page]
+                                                     [?page :node/title ?page-title]
+                                                     [?page :block/uid ?page-uid]
+                                                     [?b :edit/time ?time]]`);
+      
+      if (parentData.length > 0) {
+        validParents.push({
+          uid: parentData[0][0],
+          content: parentData[0][1],
+          time: parentData[0][2],
+          page_title: parentData[0][3],
+          page_uid: parentData[0][4]
+        });
+      }
+    }
+  }
+  
+  console.log(`🔍 [FindParentsWithAll] Found ${validParents.length} valid parents with all conditions in their descendants`);
+  return validParents;
+};
+
+/**
+ * Search blocks with hierarchical conditions (restored to original efficient implementation)
  */
 const searchBlocksWithHierarchicalConditions = async (
   contentConditions: SearchCondition[],
@@ -4107,7 +4721,45 @@ const searchBlocksWithHierarchicalConditions = async (
   options: any,
   state?: any
 ): Promise<any[]> => {
-  // Reuse the existing findBlocksWithHierarchyImpl logic
+  // Use the direct hierarchy search functions that support separate child variables
+  // This ensures AND conditions like (B + D) use different child variables
+  
+  if (!hierarchyConditions || hierarchyConditions.length === 0) {
+    console.warn('⚠️ [searchBlocksWithHierarchicalConditions] No hierarchy conditions provided');
+    return [];
+  }
+  
+  const hierarchyCondition = hierarchyConditions[0]; // Use first hierarchy condition
+  
+  if (hierarchyCondition.direction === "descendants") {
+    // For parent > children relationship, use executeDirectHierarchySearch
+    console.log(`🔧 [searchBlocksWithHierarchicalConditions] Using executeDirectHierarchySearch for descendants with combineConditions=${combineConditions}`);
+    
+    // Convert parent conditions (empty in this case, using contentConditions as parents)
+    const parentConditions: SearchCondition[] = [];
+    
+    // Convert child conditions from hierarchy condition
+    const childConditions = hierarchyCondition.conditions.map((cond: any) => ({
+      type: cond.type as any,
+      text: cond.text,
+      matchType: cond.matchType || "contains",
+      semanticExpansion: cond.semanticExpansion,
+      weight: cond.weight || 1,
+      negate: cond.negate || false,
+    }));
+    
+    return await executeDirectHierarchySearch(
+      contentConditions, // These become the parent conditions 
+      combineConditions,  // How to combine parent conditions
+      childConditions,    // These are the child conditions from hierarchy
+      combineHierarchy,   // How to combine child conditions (this should be "AND" for B + D)
+      options,
+      state
+    );
+  }
+  
+  // Fallback to original implementation for other cases
+  console.log('⚠️ [searchBlocksWithHierarchicalConditions] Using fallback to findBlocksWithHierarchyImpl');
   const input = {
     contentConditions: contentConditions.map((cond) => ({
       type: cond.type as any,
@@ -4623,11 +5275,12 @@ const expandConditions = async (
     );
   }
 
-  // Group conditions that need expansion to avoid duplicate toaster messages
+  // Group conditions that need expansion to avoid duplicate toaster messages (unless disabled for combination testing)
   const conditionsToExpand = conditions.filter(
     (c) =>
-      (c.semanticExpansion && c.type === "text") ||
-      (c.type === "page_ref" && c.semanticExpansion)
+      !state?.disableSemanticExpansion && 
+      ((c.semanticExpansion && c.type === "text") ||
+       (c.type === "page_ref" && c.semanticExpansion))
   );
 
   if (conditionsToExpand.length > 0) {
@@ -4637,8 +5290,8 @@ const expandConditions = async (
   for (const condition of conditions) {
     let conditionWasExpanded = false;
 
-    // Handle text conditions with semantic expansion
-    if (condition.semanticExpansion && condition.type === "text") {
+    // Handle text conditions with semantic expansion (unless disabled for combination testing)
+    if (condition.semanticExpansion && condition.type === "text" && !state?.disableSemanticExpansion) {
       try {
         const expansionTerms = await generateSemanticExpansions(
           condition.text,
@@ -4667,8 +5320,8 @@ const expandConditions = async (
       }
     }
 
-    // Handle page_ref conditions with smart expansion using findPagesByTitleTool
-    if (condition.type === "page_ref" && condition.semanticExpansion) {
+    // Handle page_ref conditions with smart expansion using findPagesByTitleTool (unless disabled for combination testing)
+    if (condition.type === "page_ref" && condition.semanticExpansion && !state?.disableSemanticExpansion) {
       try {
         console.log(
           `🔗 Smart expansion for page reference "${condition.text}" using findPagesByTitleTool`
@@ -5269,58 +5922,8 @@ export const findBlocksWithHierarchyTool = tool(
     // Extract state from config first
     const state = config?.configurable?.state;
 
-    // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
-    if (state?.automaticExpansionMode === 'auto_until_result') {
-      console.log(`🔧 [FindBlocksWithHierarchy] Using automatic expansion for auto_until_result mode`);
-      
-      // Transform LLM input to internal schema format first
-      const internalInput = transformLlmInputToInternalSchema(input, state);
-      const isPrivateMode = state?.privateMode || internalInput.secureMode;
-      
-      // Override enrichment parameters in private mode
-      const finalInput = isPrivateMode
-        ? {
-            ...internalInput,
-            includeChildren: false,
-            includeParents: false,
-            childDepth: 1,
-            parentDepth: 1,
-            secureMode: true,
-          }
-        : internalInput;
-      
-      // Import the helper function
-      const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
-      
-      // Use automatic expansion starting from fuzzy
-      const expansionResult = await automaticSemanticExpansion(
-        finalInput,
-        (params: any, state?: any) => findBlocksWithHierarchyImpl(params, state),
-        state
-      );
-
-      // Log expansion results
-      if (expansionResult.expansionUsed) {
-        console.log(`✅ [FindBlocksWithHierarchy] Found results with ${expansionResult.expansionUsed} expansion`);
-      } else {
-        console.log(`😟 [FindBlocksWithHierarchy] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
-      }
-
-      return createToolResult(
-        true,
-        expansionResult.results,
-        undefined,
-        "findBlocksWithHierarchy",
-        startTime,
-        {
-          automaticExpansion: {
-            used: expansionResult.expansionUsed,
-            attempts: expansionResult.expansionAttempts,
-            finalAttempt: expansionResult.finalAttempt
-          }
-        }
-      );
-    }
+    // Store automatic expansion mode for later use (moved to end as fallback)
+    const shouldUseAutomaticExpansion = state?.automaticExpansionMode === 'auto_until_result';
 
     // Transform LLM input to internal schema format with state injection
     const internalInput = transformLlmInputToInternalSchema(input, state);
@@ -5340,6 +5943,47 @@ export const findBlocksWithHierarchyTool = tool(
 
     try {
       const results = await findBlocksWithHierarchyImpl(finalInput, state);
+      
+      // Check if we got results
+      const hasResults = Array.isArray(results) && results.length > 0;
+      
+      // If no results and automatic expansion is enabled, try expansion as fallback
+      if (!hasResults && shouldUseAutomaticExpansion) {
+        console.log(`🔧 [FindBlocksWithHierarchy] No results found, trying automatic expansion as fallback`);
+        
+        // Import the helper function
+        const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+        
+        // Use automatic expansion starting from fuzzy
+        const expansionResult = await automaticSemanticExpansion(
+          finalInput,
+          (params: any, state?: any) => findBlocksWithHierarchyImpl(params, state),
+          state
+        );
+
+        // Log expansion results
+        if (expansionResult.expansionUsed) {
+          console.log(`✅ [FindBlocksWithHierarchy] Found results with ${expansionResult.expansionUsed} expansion`);
+        } else {
+          console.log(`😟 [FindBlocksWithHierarchy] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+        }
+
+        return createToolResult(
+          true,
+          expansionResult.results,
+          undefined,
+          "findBlocksWithHierarchy",
+          startTime,
+          {
+            automaticExpansion: {
+              used: expansionResult.expansionUsed,
+              attempts: expansionResult.expansionAttempts,
+              finalAttempt: expansionResult.finalAttempt
+            }
+          }
+        );
+      }
+      
       return createToolResult(
         true,
         results,

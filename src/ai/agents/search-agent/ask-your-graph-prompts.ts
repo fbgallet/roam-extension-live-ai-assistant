@@ -302,6 +302,11 @@ const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 - 'text:A + text:B' → findBlocksWithHierarchy with hierarchyCondition={operator: '<=>', leftConditions: [...], rightConditions: [...]}
 - 'ref:page + text:content' → findBlocksWithHierarchy with hierarchyCondition structure
 
+**AUTOMATIC COMBINATION TESTING (3+ positive AND conditions):**
+- The system automatically tests all hierarchical combinations when appropriate
+- For simple AND queries converted to hierarchical search, combination testing happens automatically
+- No special parameters needed - the system detects this from IntentParser analysis
+
 **COMPLEX LOGIC (mixed OR/AND with NOT - USE GROUPS):**
 - '((ref:A | text:B) - text:exclude) > text:C' → findBlocksWithHierarchy with leftConditionGroups/rightConditionGroups
 - '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' → findBlocksWithHierarchy with:
@@ -417,6 +422,7 @@ export const buildSystemPrompt = (state: {
   userQuery?: string;
   formalQuery?: string;
   searchStrategy?: "direct" | "hierarchical";
+  forceHierarchical?: boolean;
   analysisType?: "count" | "compare" | "connections" | "summary";
   language?: string;
   datomicQuery?: string;
@@ -544,11 +550,9 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
   * **Example**: formalQuery "text:color~" → create condition {text: "color~", type: "text"} (NOT individual colors)
   * **Example**: formalQuery "text:car*" → create condition {text: "car*", type: "text"} (NOT car variations)
   * **Example**: formalQuery "ref:pend*" → create condition {text: "pend*", type: "page_ref"} (NOT page variations)${
-    state.isExpansionGlobal
-      ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${
-          state.semanticExpansion || "synonyms"
-        }" strategy will be applied to ALL conditions automatically`
-      : ""
+    state.isExpansionGlobal && state.semanticExpansion
+      ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${state.semanticExpansion}" strategy will be applied to ALL conditions automatically`
+      : `\n  * **NO SEMANTIC EXPANSION**: Do not add semanticExpansion parameter to tool calls unless explicitly instructed above`
   }
 - Use 'in:scope' for limitToPages parameter only
 - Default to 'summary' result mode for efficiency${
@@ -628,11 +632,9 @@ ${
   * **Example**: formalQuery "pend*" → create condition {text: "pend*", type: "text"}
   * **Example**: formalQuery "car~" → create condition {text: "car~", type: "text"}
   * **Example**: formalQuery "ref:pend*" → create condition {text: "pend*", type: "page_ref"}${
-    state.isExpansionGlobal
-      ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${
-          state.semanticExpansion || "synonyms"
-        }" strategy will be applied to ALL conditions automatically`
-      : ""
+    state.isExpansionGlobal && state.semanticExpansion
+      ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${state.semanticExpansion}" strategy will be applied to ALL conditions automatically`
+      : `\n  * **NO SEMANTIC EXPANSION**: Do not add semanticExpansion parameter to tool calls unless explicitly instructed above`
   }
 - Chain multi-step queries with intermediate results
 - Apply analysis tools when specified
@@ -1565,11 +1567,17 @@ Examples:
 - "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (also works: 'ref:(book + to read)')
 - "important tasks under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
 
-**3.5. NOT CONDITION DISTRIBUTION FOR HIERARCHICAL SEARCHES:**
-CRITICAL: When generating hierarchical AND queries with NOT conditions, distribute the NOT condition to BOTH sides:
+**3.5. NOT CONDITION HANDLING FOR HIERARCHICAL SEARCHES:**
+CRITICAL: For multi-condition AND queries with NOT conditions that will be converted to hierarchical search:
+
+**When forceHierarchical will be TRUE (3+ AND conditions):**
+- "Find [[A]] and [[B]] and [[C]] but not [[D]]" → 'ref:A + ref:B + ref:C - ref:D' (keep NOT conditions separate)
+- "Blocks with recipe and sugar and spice, but not chocolate" → 'ref:recipe + text:sugar + text:spice - text:chocolate'
+- Reason: The combination testing phase will automatically distribute NOT conditions to all tested combinations
+
+**When forceHierarchical will be FALSE (2 AND conditions or explicit hierarchical relationships):**
 - "Find [[Machine Learning]] and [[AI Fundamentals]] but not deep learning" → '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' 
-- "Blocks with recipe and sugar, but not chocolate" → '(ref:recipe - text:chocolate) + (text:sugar - text:chocolate)'
-- Reason: Hierarchical searches test both A→B and B→A directions, so exclusions must apply to both contexts
+- Reason: Traditional hierarchical searches need explicit NOT distribution since no combination testing occurs
 
 **4. HIERARCHICAL RELATIONSHIPS:**
 - "Find my #recipe with sugar in descendants" → 'ref:recipe >> text:sugar'
@@ -1727,6 +1735,11 @@ When user asks a question without explicit search conditions, infer the **minimu
 - **Parent-child relationship expressions**
 - **Phrases like "X has Y in children", "X contains Y", "Y under X"**
 
+**CRITICAL: Set forceHierarchical to true ONLY when:**
+- Converting simple AND queries to hierarchical (not explicitly hierarchical requests)
+- Examples: "blocks with A and B and C" → searchStrategy: "hierarchical", forceHierarchical: true
+- Counter-examples: "children of A" → searchStrategy: "hierarchical", forceHierarchical: false
+
 **ONLY use "direct" when:**
 - Single condition queries (e.g., "text:productivity" alone)
 - OR logic queries (e.g., "text:productivity | text:tools")  
@@ -1781,6 +1794,7 @@ Respond with only valid JSON, no explanations or any additional comment.
     "depthLimit": null
   },
   "searchStrategy": "direct" | "hierarchical",
+  "forceHierarchical": false | true,
   "analysisType": null | "count" | "compare" | "connections" | "summary",
   "isExpansionGlobal": false | true,
   "semanticExpansion": null | "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
