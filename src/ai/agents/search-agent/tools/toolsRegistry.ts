@@ -1,13 +1,13 @@
-import { findPagesByTitleTool } from './findPagesByTitleTool';
+import { findPagesByTitleTool } from "./findPagesByTitleTool";
 // import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
-import { findBlocksByContentTool } from './findBlocksByContentTool';
-import { findBlocksWithHierarchyTool } from './findBlocksWithHierarchyTool';
-import { findPagesByContentTool } from './findPagesByContentTool';
-import { extractHierarchyContentTool } from './extractHierarchyContentTool';
-import { combineResultsTool } from './combineResultsTool';
-import { executeDatomicQueryTool } from './executeDatomicQueryTool';
-import { extractPageReferencesTool } from './extractPageReferencesTool';
-import { getNodeDetailsTool } from './getNodeDetailsTool';
+import { findBlocksByContentTool } from "./findBlocksByContentTool";
+import { findBlocksWithHierarchyTool } from "./findBlocksWithHierarchy/findBlocksWithHierarchyTool";
+import { findPagesByContentTool } from "./findPagesByContentTool";
+import { extractHierarchyContentTool } from "./extractHierarchyContentTool";
+import { combineResultsTool } from "./combineResultsTool";
+import { executeDatomicQueryTool } from "./executeDatomicQueryTool";
+import { extractPageReferencesTool } from "./extractPageReferencesTool";
+import { getNodeDetailsTool } from "./getNodeDetailsTool";
 
 /**
  * Registry of all ReAct Search Agent tools with security levels
@@ -25,62 +25,71 @@ export const SEARCH_TOOLS: Record<string, ToolInfo> = {
   findPagesByTitle: {
     tool: findPagesByTitleTool,
     securityLevel: "secure",
-    description: "Find pages by title conditions with exact, contains, or regex matching. Supports smart expansion - finds similar existing pages + semantic variations with existence validation"
+    description:
+      "Find pages by title conditions with exact, contains, or regex matching. Supports smart expansion - finds similar existing pages + semantic variations with existence validation",
   },
-  
+
   // findPagesSemantically: {
   //   tool: findPagesSemanticallyTool,
-  //   securityLevel: "secure", 
+  //   securityLevel: "secure",
   //   description: "Find pages using semantic search with AI-powered term expansion - DEPRECATED: Use findPagesByTitle with smartExpansion instead"
   // },
-  
+
   findBlocksByContent: {
     tool: findBlocksByContentTool,
     securityLevel: "secure",
-    description: "Find blocks by content conditions with semantic expansion and hierarchy support"
+    description:
+      "Find blocks by content conditions with semantic expansion and hierarchy support",
   },
-  
+
   findBlocksWithHierarchy: {
     tool: findBlocksWithHierarchyTool,
     securityLevel: "secure", // Flexible: secure mode available via secureMode parameter
-    description: "Find blocks with hierarchical context using content and structural conditions (flexible security via secureMode)"
+    description:
+      "Find blocks with hierarchical context using content and structural conditions (flexible security via secureMode)",
   },
-  
+
   findPagesByContent: {
     tool: findPagesByContentTool,
     securityLevel: "secure", // Flexible: secure mode available via secureMode parameter
-    description: "Find pages by analyzing their block content with aggregation and filtering (flexible security via secureMode)"
+    description:
+      "Find pages by analyzing their block content with aggregation and filtering (flexible security via secureMode)",
   },
-  
+
   extractHierarchyContent: {
     tool: extractHierarchyContentTool,
     securityLevel: "content",
-    description: "Extract and format hierarchical content from specific blocks with multiple output formats"
+    description:
+      "Extract and format hierarchical content from specific blocks with multiple output formats",
   },
-  
+
   combineResults: {
     tool: combineResultsTool,
     securityLevel: "secure",
-    description: "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference) - ESSENTIAL for complex OR queries by running separate searches then combining"
+    description:
+      "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference) - ESSENTIAL for complex OR queries by running separate searches then combining",
   },
-  
+
   executeDatomicQuery: {
     tool: executeDatomicQueryTool,
-    securityLevel: "secure", 
-    description: "Execute Datalog queries against Roam database - supports user-provided queries, auto-generation from criteria, and parameterized queries with variables"
+    securityLevel: "secure",
+    description:
+      "Execute Datalog queries against Roam database - supports user-provided queries, auto-generation from criteria, and parameterized queries with variables",
   },
-  
+
   extractPageReferences: {
     tool: extractPageReferencesTool,
     securityLevel: "secure",
-    description: "Extract and count page references from blocks or pages using fast database queries - perfect for analytical tasks"
+    description:
+      "Extract and count page references from blocks or pages using fast database queries - perfect for analytical tasks",
   },
-  
+
   getNodeDetails: {
     tool: getNodeDetailsTool,
     securityLevel: "content",
-    description: "Fetch detailed information about specific blocks or pages when you need more context - includes full content"
-  }
+    description:
+      "Fetch detailed information about specific blocks or pages when you need more context - includes full content",
+  },
 };
 
 /**
@@ -88,7 +97,7 @@ export const SEARCH_TOOLS: Record<string, ToolInfo> = {
  */
 export const getAvailableTools = (permissions: { contentAccess: boolean }) => {
   const availableTools = [];
-  
+
   for (const [name, info] of Object.entries(SEARCH_TOOLS)) {
     // Always include secure tools
     if (info.securityLevel === "secure") {
@@ -99,7 +108,7 @@ export const getAvailableTools = (permissions: { contentAccess: boolean }) => {
       availableTools.push(info.tool);
     }
   }
-  
+
   return availableTools;
 };
 
@@ -115,8 +124,8 @@ export const getToolInfo = (toolName: string): ToolInfo | undefined => {
  */
 export const getSecureTools = () => {
   return Object.values(SEARCH_TOOLS)
-    .filter(info => info.securityLevel === "secure")
-    .map(info => info.tool);
+    .filter((info) => info.securityLevel === "secure")
+    .map((info) => info.tool);
 };
 
 /**
@@ -124,22 +133,26 @@ export const getSecureTools = () => {
  */
 export const getContentTools = () => {
   return Object.values(SEARCH_TOOLS)
-    .filter(info => info.securityLevel === "content")
-    .map(info => info.tool);
+    .filter((info) => info.securityLevel === "content")
+    .map((info) => info.tool);
 };
 
 /**
  * List available tool names based on permissions
  */
-export const listAvailableToolNames = (permissions: { contentAccess: boolean }): string[] => {
+export const listAvailableToolNames = (permissions: {
+  contentAccess: boolean;
+}): string[] => {
   const names = [];
-  
+
   for (const [name, info] of Object.entries(SEARCH_TOOLS)) {
-    if (info.securityLevel === "secure" || 
-        (info.securityLevel === "content" && permissions.contentAccess)) {
+    if (
+      info.securityLevel === "secure" ||
+      (info.securityLevel === "content" && permissions.contentAccess)
+    ) {
       names.push(name);
     }
   }
-  
+
   return names;
 };
