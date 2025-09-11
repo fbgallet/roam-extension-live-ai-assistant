@@ -1,37 +1,51 @@
 import {
   isDailyNote,
-  generateSemanticExpansions,
   getFlattenedDescendants,
   getFlattenedAncestors,
   SearchCondition,
 } from "../../helpers/searchUtils";
-import { findPagesByTitleTool } from "../findPagesByTitleTool";
 
 import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 import { matchesCondition } from "./executors";
-import { calculateHierarchyRelevanceScore } from "./findBlocksWithHierarchyTool";
+import { calculateHierarchyRelevanceScore, expandSingleCondition } from "./findBlocksWithHierarchyTool";
 
 /**
  * Expand content conditions with semantic terms
- * Only expands when explicitly requested
+ * Uses expandSingleCondition for consistency and to avoid code duplication
  */
 export const expandConditions = async (
   conditions: any[],
   state?: any
 ): Promise<any[]> => {
-  const expandedConditions = [];
   const expansionLevel = state?.expansionLevel || 0;
+
+  // SAFETY: Prevent infinite recursion by limiting expansion depth
+  if (expansionLevel > 4) {
+    console.warn(
+      "⚠️ Maximum expansion level reached, preventing infinite loop"
+    );
+    return conditions;
+  }
+
+  // Initialize expansion cache if not exists
+  if (!state?.expansionCache) {
+    state = { ...state, expansionCache: new Map() };
+  }
 
   // Check if any conditions request semantic expansion
   const hasSemanticRequest = conditions.some(
-    (c) => c.semanticExpansion === true
+    (c) => c.semanticExpansion // Check for any truthy value, not just === true
   );
+
+  // Check for global semantic expansion (automatic expansion sets this)
+  const hasGlobalExpansion = state?.isExpansionGlobal && state?.semanticExpansion;
 
   // Only apply semantic expansion if:
   // 1. Conditions explicitly request it, OR
-  // 2. We're at expansion level 2+ (automatic expansion)
-  if (expansionLevel < 2 && !hasSemanticRequest) {
+  // 2. We're at expansion level 2+ (user-triggered expansion), OR  
+  // 3. Global expansion is enabled (automatic expansion at level 0)
+  if (expansionLevel < 2 && !hasSemanticRequest && !hasGlobalExpansion) {
     return conditions; // Return original conditions, not empty array
   }
 
@@ -39,123 +53,37 @@ export const expandConditions = async (
   const conditionsToExpand = conditions.filter(
     (c) =>
       !state?.disableSemanticExpansion &&
-      ((c.semanticExpansion && c.type === "text") ||
-        (c.type === "page_ref" && c.semanticExpansion))
+      ((c.semanticExpansion && (c.type === "text" || c.type === "page_ref")) ||
+        (hasGlobalExpansion && (c.type === "text" || c.type === "page_ref")))
   );
 
-  if (conditionsToExpand.length > 0) {
+  if (conditionsToExpand.length > 0 && !state?.expansionToasterShown) {
     updateAgentToaster(`🔍 Expanding search with related terms...`);
+    // Mark that we've shown the toaster to prevent repeated messages
+    if (state) {
+      state.expansionToasterShown = true;
+    }
   }
 
+  const expandedConditions = [];
+  
   for (const condition of conditions) {
-    let conditionWasExpanded = false;
+    // Convert legacy condition format to StructuredSearchCondition format
+    const structuredCondition = {
+      type: condition.type,
+      text: condition.text,
+      matchType: condition.matchType || "contains",
+      semanticExpansion: condition.semanticExpansion,
+      weight: condition.weight || 1.0,
+      negate: condition.negate || false,
+    };
 
-    // Handle text conditions with semantic expansion (unless disabled for combination testing)
-    if (
-      condition.semanticExpansion &&
-      condition.type === "text" &&
-      !state?.disableSemanticExpansion
-    ) {
-      try {
-        const expansionTerms = await generateSemanticExpansions(
-          condition.text,
-          condition.semanticExpansion, // Use strategy directly from condition
-          state?.userQuery, // Pass original query for better context
-          state?.modelInfo, // Pass model from execution context
-          state?.language, // Pass user language for language-aware expansion
-          undefined // No custom strategy here - would come from state.expansionGuidance if needed
-        );
-
-        if (expansionTerms.length > 0) {
-          // Add original term + expansions as separate conditions
-          expandedConditions.push(condition); // Keep original
-          for (const term of expansionTerms) {
-            expandedConditions.push({
-              ...condition,
-              text: term,
-              semanticExpansion: undefined,
-              weight: condition.weight * 0.8,
-            });
-          }
-          conditionWasExpanded = true;
-        }
-      } catch (error) {
-        console.warn(`Failed to expand condition "${condition.text}":`, error);
-      }
-    }
-
-    // Handle page_ref conditions with smart expansion using findPagesByTitleTool (unless disabled for combination testing)
-    if (
-      condition.type === "page_ref" &&
-      condition.semanticExpansion &&
-      !state?.disableSemanticExpansion
-    ) {
-      try {
-        // Use the smart expansion feature of findPagesByTitleTool
-        const result = await findPagesByTitleTool.invoke({
-          conditions: [
-            {
-              text: condition.text,
-              matchType: "exact",
-              negate: false,
-            },
-          ],
-          combineConditions: "OR",
-          includeDaily: false,
-          smartExpansion: true,
-          expansionInstruction: state?.userQuery
-            ? `Find pages related to "${condition.text}" in context: ${state.userQuery}`
-            : undefined,
-        });
-
-        const parsedResult =
-          typeof result === "string" ? JSON.parse(result) : result;
-        const expandedPages = parsedResult.success
-          ? parsedResult.data || []
-          : [];
-
-        if (expandedPages.length > 0) {
-          const pageNames = expandedPages
-            .map((page: any) => page.title)
-            .filter((name: any) => typeof name === "string");
-
-          if (pageNames.length === 1) {
-            // Single page - use simple page_ref condition
-            expandedConditions.push({
-              type: "page_ref",
-              text: pageNames[0],
-              matchType: "exact",
-              semanticExpansion: undefined,
-              weight: condition.weight,
-              negate: condition.negate || false,
-            });
-          } else if (pageNames.length > 1) {
-            // Multiple pages - use page_ref_or condition for optimal Datomic query
-            expandedConditions.push({
-              type: "page_ref_or",
-              text: pageNames.join("|"),
-              matchType: "exact",
-              semanticExpansion: undefined,
-              weight: condition.weight,
-              negate: condition.negate || false,
-              pageNames: pageNames,
-            } as any);
-          }
-
-          conditionWasExpanded = true;
-        }
-      } catch (error) {
-        console.warn(
-          `Failed to expand page_ref condition "${condition.text}":`,
-          error
-        );
-      }
-    }
-
-    // If condition wasn't expanded, keep the original
-    if (!conditionWasExpanded) {
-      expandedConditions.push(condition);
-    }
+    // Use expandSingleCondition for consistent expansion logic
+    // This now returns a single condition (original or regex/page_ref_or)
+    const expandedConditionsForThis = await expandSingleCondition(structuredCondition, state);
+    
+    // Add all expanded conditions to results
+    expandedConditions.push(...expandedConditionsForThis);
   }
 
   return expandedConditions;

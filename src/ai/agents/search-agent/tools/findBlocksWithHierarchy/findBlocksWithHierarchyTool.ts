@@ -12,6 +12,7 @@ import {
   parseSemanticExpansion,
   SearchCondition,
   extractUidsFromResults,
+  getExpansionStrategyLabel,
 } from "../../helpers/searchUtils";
 import type {
   SearchCondition as StructuredSearchCondition,
@@ -90,6 +91,49 @@ export const findBlocksWithHierarchyTool = tool(
     // Extract state from config first
     const state = config?.configurable?.state;
 
+    // Handle automatic expansion modes (matching other tools)
+    let expansionStates = {
+      isExpansionGlobal: state?.isExpansionGlobal || false,
+      semanticExpansion: state?.semanticExpansion || null,
+    };
+
+    if (state?.automaticExpansionMode) {
+      const expansionMode = state.automaticExpansionMode;
+      console.log(
+        `🔧 [FindBlocksWithHierarchy] Checking expansion mode: ${expansionMode}`
+      );
+
+      // Set expansion states based on mode (only if not already set by user actions)
+      if (!state?.isExpansionGlobal) {
+        switch (expansionMode) {
+          case "always_fuzzy":
+          case "Always with fuzzy":
+            expansionStates.isExpansionGlobal = true;
+            expansionStates.semanticExpansion = "fuzzy";
+            console.log(
+              `🔧 [FindBlocksWithHierarchy] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`
+            );
+            break;
+          case "always_synonyms":
+          case "Always with synonyms":
+            expansionStates.isExpansionGlobal = true;
+            expansionStates.semanticExpansion = "synonyms";
+            console.log(
+              `🔧 [FindBlocksWithHierarchy] Auto-enabling synonyms expansion due to mode: ${expansionMode}`
+            );
+            break;
+          case "always_all":
+          case "Always with all":
+            expansionStates.isExpansionGlobal = true;
+            expansionStates.semanticExpansion = "all";
+            console.log(
+              `🔧 [FindBlocksWithHierarchy] Auto-enabling all expansions due to mode: ${expansionMode}`
+            );
+            break;
+        }
+      }
+    }
+
     // Store automatic expansion mode for later use (moved to end as fallback)
     const shouldUseAutomaticExpansion =
       state?.automaticExpansionMode === "auto_until_result";
@@ -111,42 +155,96 @@ export const findBlocksWithHierarchyTool = tool(
       : internalInput;
 
     try {
-      const results = await findBlocksWithHierarchyImpl(finalInput, state);
+      // First attempt: Execute without expansion for auto_until_result mode
+      // For other modes (always_*), expansion is already enabled in expansionStates
+      const initialState = shouldUseAutomaticExpansion 
+        ? {
+            ...state,
+            // Disable expansion for initial attempt in auto_until_result mode
+            isExpansionGlobal: false,
+            semanticExpansion: null,
+            automaticExpansionMode: null, // Prevent sub-tools from triggering their own expansion
+          }
+        : {
+            ...state,
+            ...expansionStates,
+            // Keep original automaticExpansionMode for hierarchy tool itself
+            // Sub-tools will get disabled mode via their individual calls
+          };
+
+      const results = await findBlocksWithHierarchyImpl(finalInput, initialState);
 
       // Check if we got results
       const hasResults = Array.isArray(results) && results.length > 0;
 
-      // If no results and automatic expansion is enabled, try expansion as fallback
-      if (!hasResults && shouldUseAutomaticExpansion) {
-        // Import the helper function
-        const { automaticSemanticExpansion } = await import(
-          "../../helpers/searchUtils"
-        );
-
-        // Use automatic expansion starting from fuzzy
-        const expansionResult = await automaticSemanticExpansion(
-          finalInput,
-          (params: any, state?: any) =>
-            findBlocksWithHierarchyImpl(params, state),
-          state
-        );
-
+      // If we have results from initial attempt, return them
+      if (hasResults) {
         return createToolResult(
           true,
-          expansionResult.results,
+          results,
           undefined,
           "findBlocksWithHierarchy",
-          startTime,
-          {
-            automaticExpansion: {
-              used: expansionResult.expansionUsed,
-              attempts: expansionResult.expansionAttempts,
-              finalAttempt: expansionResult.finalAttempt,
-            },
-          }
+          startTime
         );
       }
 
+      // No results - try expansion if auto_until_result or if always_* modes are enabled
+      const shouldExpandAfterNoResults = 
+        shouldUseAutomaticExpansion || expansionStates.isExpansionGlobal;
+
+      if (shouldExpandAfterNoResults) {
+        console.log(`🔄 [FindBlocksWithHierarchy] No initial results, trying with semantic expansion...`);
+
+        if (shouldUseAutomaticExpansion) {
+          // Import the helper function
+          const { automaticSemanticExpansion } = await import(
+            "../../helpers/searchUtils"
+          );
+
+          // Use automatic expansion starting from fuzzy
+          const expansionResult = await automaticSemanticExpansion(
+            finalInput,
+            (params: any, state?: any) =>
+              findBlocksWithHierarchyImpl(params, state),
+            {
+              ...state,
+              ...expansionStates,
+            }
+          );
+
+          return createToolResult(
+            true,
+            expansionResult.results,
+            undefined,
+            "findBlocksWithHierarchy",
+            startTime,
+            {
+              automaticExpansion: {
+                used: expansionResult.expansionUsed,
+                attempts: expansionResult.expansionAttempts,
+                finalAttempt: expansionResult.finalAttempt,
+              },
+            }
+          );
+        } else {
+          // For always_* modes, try with expansion enabled
+          const expandedResults = await findBlocksWithHierarchyImpl(finalInput, {
+            ...state,
+            ...expansionStates,
+            // Keep original automaticExpansionMode - sub-tools get disabled mode via their calls
+          });
+
+          return createToolResult(
+            true,
+            expandedResults,
+            undefined,
+            "findBlocksWithHierarchy",
+            startTime
+          );
+        }
+      }
+
+      // No expansion needed or available, return original results
       return createToolResult(
         true,
         results,
@@ -385,10 +483,15 @@ const findBlocksWithHierarchyImpl = async (
       state
     );
 
-  // Step 1: Process content conditions with semantic expansion
+  // Step 1: Process content conditions with semantic expansion (CENTRALIZED)
+  // Expand once here and prevent sub-tools from expanding by setting disabled state
   const expandedContentConditions = await expandConditions(
     contentConditions,
-    state
+    {
+      ...state,
+      // Mark that expansion has been handled at hierarchy level
+      hierarchyExpansionDone: true,
+    }
   );
 
   // Step 2: Find blocks matching content conditions
@@ -893,13 +996,21 @@ const expandStructuredConditions = async (
   return expandedConditions;
 };
 
+
 /**
  * Apply semantic expansion to a single SearchCondition
  */
-const expandSingleCondition = async (
+export const expandSingleCondition = async (
   condition: StructuredSearchCondition,
   state?: any
 ): Promise<StructuredSearchCondition[]> => {
+  // Initialize expansion cache if not exists
+  if (!state?.expansionCache) {
+    state = { ...state, expansionCache: new Map() };
+  }
+
+  // Note: No need to check _expandedTerm flag since we now generate single regex conditions
+
   // Check if semantic expansion is needed - either globally or per-condition
   const hasGlobalExpansion = state?.isExpansionGlobal === true;
 
@@ -915,15 +1026,6 @@ const expandSingleCondition = async (
     effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
   }
 
-  // Start with the cleaned condition
-  const expandedConditions: StructuredSearchCondition[] = [
-    {
-      ...condition,
-      text: cleanText,
-      semanticExpansion: undefined, // Remove expansion flag from final condition
-    },
-  ];
-
   // Apply semantic expansion if needed
   if (effectiveExpansionStrategy && condition.type !== "regex") {
     try {
@@ -935,32 +1037,95 @@ const expandSingleCondition = async (
       // Determine the mode based on condition type
       const expansionMode = condition.type === "page_ref" ? "page_ref" : "text";
 
-      // Use generateSemanticExpansions
-      const expansionTerms = await generateSemanticExpansions(
-        cleanText,
-        effectiveExpansionStrategy as any,
-        state?.userQuery,
-        state?.model,
-        state?.language,
-        customStrategy,
-        expansionMode
-      );
+      // Create cache key for this condition
+      const cacheKey = `single|${cleanText}|${effectiveExpansionStrategy}|${expansionMode}|${state?.userQuery || ''}`;
+      
+      let expansionTerms;
+      if (state.expansionCache.has(cacheKey)) {
+        // Reuse cached expansion results
+        expansionTerms = state.expansionCache.get(cacheKey);
+        console.log(`🔄 [Hierarchy] Reusing cached single condition expansion for "${cleanText}"`);
+        
+        // Show expanded terms in toaster for cached results too
+        if (expansionTerms.length > 0) {
+          const { updateAgentToaster } = await import("../../../shared/agentsUtils");
+          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
+          updateAgentToaster(`🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`);
+        }
+      } else {
+        // Use generateSemanticExpansions
+        expansionTerms = await generateSemanticExpansions(
+          cleanText,
+          effectiveExpansionStrategy as any,
+          state?.userQuery,
+          state?.model,
+          state?.language,
+          customStrategy,
+          expansionMode
+        );
+        
+        // Cache the results
+        state.expansionCache.set(cacheKey, expansionTerms);
+        console.log(`💾 [Hierarchy] Cached single condition expansion for "${cleanText}": ${expansionTerms.length} terms`);
+        
+        // Show expanded terms in toaster
+        if (expansionTerms.length > 0) {
+          const { updateAgentToaster } = await import("../../../shared/agentsUtils");
+          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
+          updateAgentToaster(`🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`);
+        }
+      }
 
-      // Add expanded terms as additional conditions
-      for (const term of expansionTerms) {
-        expandedConditions.push({
-          ...condition,
-          text: term,
-          semanticExpansion: undefined,
-          weight: (condition.weight || 1.0) * 0.8, // Reduce weight for expanded terms
-        });
+      // REPLACE original condition with single expanded regex condition
+      if (expansionTerms.length > 0) {
+        const allTerms = [cleanText, ...expansionTerms];
+        
+        if (condition.type === "page_ref") {
+          // For page references, create comprehensive regex that matches [[PageName]], #PageName, and PageName:: formats
+          const escapedTerms = allTerms.map(term => 
+            term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          );
+          
+          // Use comprehensive Roam page reference pattern: [[title]], #title, or title::
+          const termAlternation = escapedTerms.join('|');
+          const pageRefRegex = `(?:\\[\\[(?:${termAlternation})\\]\\]|#(?:${termAlternation})(?!\\w)|(?:${termAlternation})::)`;
+          
+          return [{
+            ...condition,
+            type: "regex",
+            text: pageRefRegex,
+            matchType: "regex", 
+            semanticExpansion: undefined,
+            weight: condition.weight || 1.0,
+          } as any];
+        } else {
+          // For text conditions, generate simple regex pattern
+          const escapedTerms = allTerms.map(term => 
+            term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          );
+          const regexPattern = `(${escapedTerms.join('|')})`;
+          
+          return [{
+            ...condition,
+            type: "regex",
+            text: regexPattern,
+            matchType: "regex",
+            semanticExpansion: undefined,
+            weight: condition.weight || 1.0,
+          } as any];
+        }
       }
     } catch (error) {
       console.warn(`Failed to expand condition "${condition.text}":`, error);
     }
   }
 
-  return expandedConditions;
+  // If no expansion happened, return cleaned original condition
+  return [{
+    ...condition,
+    text: cleanText,
+    semanticExpansion: undefined,
+  }];
 };
 
 /**
@@ -1156,6 +1321,15 @@ const processStructuredHierarchyQuery = async (
       includeParents: options.includeParents,
       limit: options.limit,
       secureMode: options.secureMode,
+    }, {
+      configurable: {
+        state: {
+          ...state,
+          // Disable automatic expansion for sub-tools - hierarchy tool controls expansion
+          automaticExpansionMode: "disabled_by_hierarchy",
+          hierarchyExpansionDone: true,
+        }
+      }
     });
 
     // Parse the result if it's a string
@@ -1558,6 +1732,50 @@ const processStructuredHierarchyCondition = async (
         processedRightConditions.conditions,
         processedLeftConditions.combination,
         processedRightConditions.combination,
+        options,
+        state
+      );
+
+    case "<":
+      // Inverse strict hierarchy: left < right (left child, right parent) - swap conditions
+      return await executeStructuredStrictHierarchySearch(
+        processedRightConditions.conditions,
+        processedLeftConditions.conditions,
+        processedRightConditions.combination,
+        processedLeftConditions.combination,
+        options,
+        state
+      );
+
+    case "<<":
+      // Inverse deep strict hierarchy: left << right (left descendant, right ancestor) - swap conditions
+      return await executeStructuredDeepStrictHierarchySearch(
+        processedRightConditions.conditions,
+        processedLeftConditions.conditions,
+        processedRightConditions.combination,
+        processedLeftConditions.combination,
+        options,
+        state
+      );
+
+    case "<=":
+      // Inverse flexible hierarchy: left <= right (same block OR left child of right) - swap conditions
+      return await executeStructuredFlexibleHierarchySearch(
+        processedRightConditions.conditions,
+        processedLeftConditions.conditions,
+        processedRightConditions.combination,
+        processedLeftConditions.combination,
+        options,
+        state
+      );
+
+    case "<<=":
+      // Left deep flexible hierarchy: left <<= right (left descendant, right ancestor with flexibility) - swap conditions
+      return await executeStructuredFlexibleHierarchySearch(
+        processedRightConditions.conditions,
+        processedLeftConditions.conditions,
+        processedRightConditions.combination,
+        processedLeftConditions.combination,
         options,
         state
       );

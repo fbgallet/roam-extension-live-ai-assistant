@@ -2406,8 +2406,9 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     // Safety check: track zero results attempts to prevent infinite loops
     const maxZeroAttempts = 5;
 
-    if (hasZeroSuccessfulResults && !hasExpansionGuidance) {
-      // Increment counter only for final purpose results with zero data
+    if (hasZeroSuccessfulResults) {
+      // Increment counter for final purpose results with zero data
+      // Remove !hasExpansionGuidance condition that was preventing counter increments
       const finalPurposeResults = successfulResults.filter(
         (result) => result.purpose === "final"
       );
@@ -2425,6 +2426,19 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
           `🛑 [Graph] Maximum zero results attempts reached (${maxZeroAttempts}). Stopping automatic expansion.`
         );
         // Go to showResultsThenExpand to give user manual control
+        return "showResultsThenExpand";
+      }
+
+      // CRITICAL SAFETY CHECK: If LLM made no tool calls in the last message, something is wrong
+      // The LLM should either be making new tool calls or clearly stopping, not getting stuck in limbo
+      if (
+        lastMessage &&
+        (!("tool_calls" in lastMessage) || !Array.isArray(lastMessage.tool_calls) || lastMessage.tool_calls.length === 0)
+      ) {
+        console.log(
+          `🛑 [Graph] SAFETY: Assistant made no tool calls on attempt ${updatedZeroAttempts}/${maxZeroAttempts}. LLM may be stuck - forcing stop.`
+        );
+        // Force stop to prevent infinite loops where LLM doesn't make tool calls
         return "showResultsThenExpand";
       }
 
