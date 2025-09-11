@@ -220,6 +220,7 @@ const ReactSearchAgentState = Annotation.Root({
   automaticExpansionMode: Annotation<string>,
   // Direct expansion bypass flag
   isDirectExpansion: Annotation<boolean>,
+  maxDepthOverride: Annotation<number | null>,
   // Privacy mode update bypass flag
   isPrivacyModeUpdated: Annotation<boolean>,
   // Flag to indicate privacy mode was forced (skip privacy analysis in IntentParser)
@@ -270,6 +271,7 @@ const conversationRouter = async (
   // Check for direct expansion bypass first - should skip all other routing logic
   logger.debug("ConversationRouter state:", {
     isDirectExpansion: state.isDirectExpansion,
+    maxDepthOverride: state.maxDepthOverride,
     isPrivacyModeUpdated: state.isPrivacyModeUpdated,
     semanticExpansion: (state as any).semanticExpansion,
     isExpansionGlobal: (state as any).isExpansionGlobal,
@@ -279,10 +281,20 @@ const conversationRouter = async (
     console.log(
       `🔀 [ConversationRouter] Direct expansion detected → skipping to need_new_search`
     );
+    
+    // For direct expansion, we need to generate formalQuery from the userQuery
+    // since we're bypassing IntentParser but still need the formal query for expansion options
+    const formalQuery = state.userQuery; // The userQuery already contains the formatted query with operators
+    
+    
     return {
       routingDecision: "need_new_search" as const,
       reformulatedQuery: state.userQuery,
       originalSearchContext: "direct expansion request",
+      formalQuery: formalQuery, // Store the formal query in state
+      searchStrategy: "hierarchical", // Direct expansions are typically hierarchical
+      // Update IntentParser-like results for hierarchical conversion
+      forceHierarchical: Boolean(state.forceHierarchical), // Use the forceHierarchical from state
     };
   }
 
@@ -1082,6 +1094,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   console.log(
     `🔧 [Assistant] Expansion mode: ${expansionMode}, hasToolsBeenExecuted: ${hasToolsBeenExecuted}, hasNoResults: ${hasNoResults}, hasLowResults: ${hasLowResults}, requestsExactMatch: ${requestsExactMatch}`
   );
+  
 
   // Tools now handle expansion automatically (fuzzy → synonyms → related_concepts → broader_terms)
   // No need for LLM-orchestrated level expansion
@@ -1127,8 +1140,10 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   // console.log("Assistant systemPrompt :>> ", systemPrompt);
   const contextInstructions = `
 
-CRITICAL INSTRUCTION: 
-When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, always include excludeBlockUid parameter set to: "${state.rootUid}" to exclude the user's request block from results.`;
+CRITICAL INSTRUCTIONS: 
+1. When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, always include excludeBlockUid parameter set to: "${state.rootUid}" to exclude the user's request block from results.
+
+${state.forceHierarchical ? `2. HIERARCHICAL SEARCH REQUIRED: The user has requested hierarchical search (forceHierarchical=true). You MUST use findBlocksWithHierarchy tool instead of findBlocksByContent. Use depth=${state.maxDepthOverride || 1} for the hierarchical search.` : ""}`;
 
   const combinedSystemPrompt = systemPrompt + contextInstructions;
   const sys_msg = new SystemMessage({ content: combinedSystemPrompt });

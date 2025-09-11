@@ -371,8 +371,8 @@ export const llmFacingSchema = z.object({
     .number()
     .min(1)
     .max(10)
-    .default(3)
-    .describe("Maximum hierarchy traversal depth"),
+    .optional()
+    .describe("ONLY specify if user explicitly requests depth (e.g. 'depth=3'). Otherwise OMIT this field to use automatic depth based on operators."),
 
   // Optional filtering (advanced users)
   excludeBlockUid: z
@@ -399,7 +399,37 @@ export const transformLlmInputToInternalSchema = (
     hierarchyCondition: llmInput.hierarchyCondition || null,
     limit: llmInput.limit || 50,
     sortBy: llmInput.sortBy || "relevance",
-    maxHierarchyDepth: llmInput.maxDepth || 3,
+    maxHierarchyDepth: (() => {
+      // First check for state-level depth override (for direct expansion)
+      if (state?.maxDepthOverride !== null && state?.maxDepthOverride !== undefined) {
+        console.log(`🏗️ [Schema] Using maxDepthOverride from state: ${state.maxDepthOverride}`);
+        return state.maxDepthOverride;
+      }
+      
+      // If maxDepth was explicitly set by LLM, use it
+      if (llmInput.maxDepth !== undefined) {
+        return llmInput.maxDepth;
+      }
+      
+      // Intelligent defaults based on operator type
+      const hierarchyCondition = llmInput.hierarchyCondition;
+      if (hierarchyCondition?.operator) {
+        const op = hierarchyCondition.operator;
+        
+        // Deep operators should default to depth=2
+        if (op.includes(">>") || op.includes("<<") || op === "=>>") {
+          return 2;
+        }
+        
+        // Shallow operators should default to depth=1
+        if (op === ">" || op === "<" || op === "=>" || op === "<=" || op === "<=>") {
+          return 1;
+        }
+      }
+      
+      // Fallback: if no hierarchy condition or unrecognized operator, use depth=1
+      return 1;
+    })(),
     excludeBlockUid: llmInput.excludeBlockUid || null,
 
     // Default properties not exposed to LLM

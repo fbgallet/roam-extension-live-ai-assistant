@@ -1668,8 +1668,44 @@ const processStructuredHierarchyCondition = async (
     rightCombination
   );
 
-  // Execute hierarchy search based on operator
-  switch (hierarchyCondition.operator) {
+  // Auto-convert shallow operators to deep operators when maxHierarchyDepth > 1
+  let effectiveOperator = hierarchyCondition.operator;
+  if (options.maxHierarchyDepth > 1) {
+    switch (hierarchyCondition.operator) {
+      case "<=>":
+        effectiveOperator = "<<=>>"; 
+        break;
+      case "=>":
+        effectiveOperator = "=>>"; 
+        break;
+      case ">":
+        effectiveOperator = ">>"; 
+        break;
+      case "<=":
+        effectiveOperator = "<<=>>"; // Deep bidirectional for inverse flexible
+        break;
+      case "<":
+        effectiveOperator = "<<"; 
+        break;
+      // Deep operators stay the same
+      case "<<=>>":
+      case "=>>":
+      case ">>":
+      case "<<":
+      case "<<=>":
+        break;
+      default:
+        // Unknown operator, keep as-is
+        break;
+    }
+    
+    if (effectiveOperator !== hierarchyCondition.operator) {
+      console.log(`🔧 [Hierarchy] Auto-converted '${hierarchyCondition.operator}' to '${effectiveOperator}' for depth=${options.maxHierarchyDepth} search`);
+    }
+  }
+
+  // Execute hierarchy search based on effective operator
+  switch (effectiveOperator) {
     case ">":
       // Strict hierarchy: left > right (left parent, right child)
       return await executeStructuredStrictHierarchySearch(

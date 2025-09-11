@@ -100,13 +100,13 @@
   position: absolute;
   top: 100%;
   left: 0;
-  min-width: 250px;
+  min-width: 300px;
   background-color: white;
   border: 1px solid #ccc;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 9999;
-  max-height: 350px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -1487,16 +1487,16 @@
 /* Smooth halo animation for highlighted results - Orange theme */
 @keyframes haloOrange {
   0% {
-    box-shadow: 0 0 8px rgba(245, 124, 0, 0.3),
-      0 0 16px rgba(245, 124, 0, 0.2), 0 0 24px rgba(245, 124, 0, 0.1);
+    box-shadow: 0 0 8px rgba(245, 124, 0, 0.3), 0 0 16px rgba(245, 124, 0, 0.2),
+      0 0 24px rgba(245, 124, 0, 0.1);
   }
   50% {
-    box-shadow: 0 0 16px rgba(245, 124, 0, 0.5),
-      0 0 32px rgba(245, 124, 0, 0.3), 0 0 48px rgba(245, 124, 0, 0.15);
+    box-shadow: 0 0 16px rgba(245, 124, 0, 0.5), 0 0 32px rgba(245, 124, 0, 0.3),
+      0 0 48px rgba(245, 124, 0, 0.15);
   }
   100% {
-    box-shadow: 0 0 8px rgba(245, 124, 0, 0.3),
-      0 0 16px rgba(245, 124, 0, 0.2), 0 0 24px rgba(245, 124, 0, 0.1);
+    box-shadow: 0 0 8px rgba(245, 124, 0, 0.3), 0 0 16px rgba(245, 124, 0, 0.2),
+      0 0 24px rgba(245, 124, 0, 0.1);
   }
 }
 

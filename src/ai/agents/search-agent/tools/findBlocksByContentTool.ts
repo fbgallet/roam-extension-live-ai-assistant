@@ -6,6 +6,7 @@ import {
   filterByDateRange,
   createToolResult,
   generateSemanticExpansions,
+  getExpansionStrategyLabel,
   generateFuzzyRegex,
   getBlockChildren,
   getBlockParents,
@@ -847,10 +848,9 @@ const expandConditions = async (
 
         // Show semantic variations to user
         if (expansionTerms.length > 0) {
+          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
           updateAgentToaster(
-            `🔍 Semantic expansion: "${cleanText}" → ${expansionTerms.join(
-              ", "
-            )}`
+            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`
           );
         }
 
@@ -926,10 +926,9 @@ const expandConditions = async (
 
         // Show semantic variations to user
         if (expansionTerms.length > 0) {
+          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
           updateAgentToaster(
-            `🔗 Page reference expansion: "${cleanText}" → ${expansionTerms.join(
-              ", "
-            )}`
+            `🔗 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`
           );
         }
 

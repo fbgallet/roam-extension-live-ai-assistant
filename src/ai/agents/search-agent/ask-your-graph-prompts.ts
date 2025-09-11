@@ -1574,20 +1574,31 @@ Examples:
 
 **CRITICAL: Never use quotes in symbolic queries - multi-word terms are written without quotes**
 
-**1. OVER-INTERPRETATION PREVENTION:**
+**1. ESSAY/ANALYSIS REQUEST EXAMPLES:**
+- "write an essay explaining why I love music" → 'text:music~' (NOT 'text:love + text:music')
+- "analyze my relationship with productivity" → 'text:productivity~' (NOT 'text:relationship + text:productivity')  
+- "explain what I think about AI" → 'text:artificial intelligence~' (NOT 'text:think + text:AI')
+- "comprehensive view of my project management" → 'text:project management~' (semantic expansion for completeness)
+- "everything I've written about books" → 'text:book~' (comprehensive coverage)
+
+**CRITICAL DISTINCTION:**
+- **Essay/Analysis**: Extract topic only, use semantic expansion → 'text:[TOPIC]~'
+- **Specific Search**: Extract explicit conditions → 'text:[CONDITION1] + text:[CONDITION2]'
+
+**2. OVER-INTERPRETATION PREVENTION:**
 - "Find my productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
 - "Show me AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
 - "Blocks about car prices, not motorcycles" → 'text:car + text:price - text:motorcycle'
 
-**2. QUOTED PHRASE HANDLING:**
+**3. QUOTED PHRASE HANDLING:**
 - "Pages containing 'Live AI' content" → 'page:(content:(text:Live AI))' (quoted phrase = single term)
 - "Find blocks with 'machine learning algorithms'" → 'text:machine learning algorithms' (quoted multi-word phrase)
 
-**3. REFERENCE FORMAT PARSING:**
+**4. REFERENCE FORMAT PARSING:**
 - "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (also works: 'ref:(book + to read)')
 - "important tasks under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
 
-**3.5. NOT CONDITION HANDLING FOR HIERARCHICAL SEARCHES:**
+**4.5. NOT CONDITION HANDLING FOR HIERARCHICAL SEARCHES:**
 CRITICAL: For multi-condition AND queries with NOT conditions that will be converted to hierarchical search:
 
 **When forceHierarchical will be TRUE (3+ AND conditions):**
@@ -1599,21 +1610,21 @@ CRITICAL: For multi-condition AND queries with NOT conditions that will be conve
 - "Find [[Machine Learning]] and [[AI Fundamentals]] but not deep learning" → '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' 
 - Reason: Traditional hierarchical searches need explicit NOT distribution since no combination testing occurs
 
-**4. HIERARCHICAL RELATIONSHIPS:**
+**5. HIERARCHICAL RELATIONSHIPS:**
 - "Find my #recipe with sugar in descendants" → 'ref:recipe >> text:sugar'
 - "[[book]] notes with justice in main block or descendants" → 'ref:book =>> text:justice'
 
-**5. SCOPE AND EXPANSION:**
+**6. SCOPE AND EXPANSION:**
 - "Blocks about AI in my [[work]] page" → 'in:work + text:AI~' (scope + semantic expansion)
 - "Blocks containing words starting with 'work'" → 'text:work*' (fuzzy expansion)
 
-**6. PAGE SEARCH SCOPE DISTINCTIONS:**
+**7. PAGE SEARCH SCOPE DISTINCTIONS:**
 - "Pages matching /lib.*/i in their title" → 'page:(title:(regex:/lib.*/i))'
 - "Pages discussing AI and machine learning" → 'page:(content:(text:AI + text:machine learning))' (content-wide AND)
 - "Pages with AI and ML mentioned together" → 'page:(block:(text:AI + text:ML))' (same-block AND)
 - "Pages about AI or ML topics" → 'page:(content:(text:AI | text:machine learning))' (OR logic)
 
-**7. ATTRIBUTE PATTERN CONVERSION:**
+**8. ATTRIBUTE PATTERN CONVERSION:**
 - "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
 - "Pages with status completed or done" → 'regex:/^status::.*(completed|done).*/i'
 - "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
@@ -1698,24 +1709,78 @@ By default, strict search without expansion will be applied.
   - "find similar concepts to productivity" → isExpansionGlobal: true, semanticExpansion: "synonyms"
   - "semantic search with related terms" → isExpansionGlobal: true, semanticExpansion: "related_concepts"
 
-## INTENT vs QUERY DISTINCTION:
+## ESSAY/ANALYTICAL REQUEST DETECTION:
+
+**CRITICAL**: Recognize when users want comprehensive content about a topic for analysis/synthesis rather than specific matching conditions.
+
+### 🎯 **ESSAY/SYNTHESIS PATTERNS** → **Extract core topic + set analysis type**:
+
+**Pattern Recognition:**
+- "write an essay about/explaining [TOPIC]" 
+- "explain why I [VERB] [TOPIC]"
+- "analyze my relationship with [TOPIC]"
+- "comprehensive view of [TOPIC]"
+- "everything about [TOPIC]"
+- "my thoughts on [TOPIC]"
+
+**Parsing Strategy:**
+1. **Extract CORE TOPIC only** (ignore relationship/analysis terms)
+2. **Apply semantic expansion to core topic** (for comprehensive coverage)
+3. **Set analysisType: "summary"** (for synthesis/essay generation)
+4. **Use "related_concepts" expansion** for comprehensive coverage (users can request "all" or specific types if needed)
+
+**Examples:**
+- "write an essay explaining why I love music" 
+  → Search: 'text:music~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "comprehensive music analysis for essay"
+- "analyze my relationship with productivity" 
+  → Search: 'text:productivity~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "analyze productivity relationship"
+- "explain what I think about artificial intelligence"
+  → Search: 'text:artificial intelligence~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "synthesize AI thoughts"
+
+**Critical Rule:** For essay/analysis requests, prioritize COMPREHENSIVE COVERAGE over precise matching.
+
+## INTENT vs QUERY DISTINCTION (ENHANCED):
 
 **CRITICAL**: User requests often mix three different types of content that must be carefully separated:
 
 ### 🎯 **CONTENT TYPE IDENTIFICATION:**
-1. **Search Conditions** (what to find): "recipes with sugar", "blocks about AI", "pages mentioning productivity"
-2. **Meta-Comments** (context/explanation): "I want to bake cookies", "for my research", "I'm writing a report"
-3. **Post-Processing Instructions** (what to do with results): "show me the best ones", "summarize them", "count how many"
+1. **Search Target** (what topic to find): "music", "productivity", "AI"
+2. **Relationship/Context** (how user relates to topic): "why I love", "my thoughts on", "my experience with"  
+3. **Output Format** (how to present results): "write an essay", "summarize", "explain"
 
-### ⚠️ **CRITICAL PARSING RULES:**
-- **ONLY extract explicit search conditions** - ignore meta-comments and instructions
-- **Don't infer conditions from context** unless they're explicitly stated
+### ⚠️ **ENHANCED PARSING RULES:**
+
+**RULE 1: Essay/Analysis Requests**
+- **When user asks for essays/explanations about a topic** → Extract ONLY the core topic
+- **Apply semantic expansion** to get comprehensive coverage
+- **Set analysisType appropriately** for synthesis
+
+**RULE 2: Relationship Analysis**  
+- **"why I [VERB] [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:[VERB] + text:[TOPIC]'
+- **"my thoughts on [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:thoughts + text:[TOPIC]'
+- **"what I think about [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:think + text:[TOPIC]'
+
+**RULE 3: Comprehensive vs Specific**
+- **Comprehensive requests** ("everything about X", "all my X notes") → Use semantic expansion
+- **Specific condition requests** ("X that mentions Y") → Use precise conditions
+
+**LEGACY RULE: Explicit Search Conditions**
+- **ONLY extract explicit search conditions** when user specifies precise matching criteria
+- **Don't infer conditions from context** unless they're explicitly stated as requirements
 - **Separate analysis requests** from search conditions (e.g., "best" → analysisType: "compare", not search condition)
 
-### 🔍 **QUESTION-TO-SEARCH CONVERSION:**
-When user asks a question without explicit search conditions, infer the **minimum necessary conditions** to find relevant results:
+### 🔍 **ENHANCED QUESTION-TO-SEARCH CONVERSION:**
 
-**Examples:**
+**Analytical Questions (require comprehensive coverage):**
+- "Why do I love music?" → Search: 'text:music~', Analysis: "summary", semanticExpansion: "related_concepts"
+- "What are my thoughts on productivity?" → Search: 'text:productivity~', Analysis: "summary", semanticExpansion: "broader_terms"
+- "How do I feel about work?" → Search: 'text:work~', Analysis: "summary", semanticExpansion: "all"
+
+**Specific Search Questions (require precise conditions):**
+- "Which music blocks mention jazz?" → Search: 'text:music + text:jazz'
+- "What productivity tips include time blocking?" → Search: 'text:productivity + text:time blocking'
+
+**Traditional Questions (minimal conditions):**
 - "What's the best recipe?" → Search: 'text:recipe', Analysis: compare/evaluate
 - "How many tasks do I have?" → Search: 'ref:TODO', Analysis: count  
 - "What did I write about AI yesterday?" → Search: 'text:AI', Constraint: timeRange yesterday
