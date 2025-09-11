@@ -946,14 +946,36 @@ ${commonRequirements}`;
       return shouldKeep;
     }); // Return all generated terms without artificial limitation
 
+    // CRITICAL: Remove duplicates to prevent Datomic set crashes
+    const uniqueTerms = [...new Set(terms)] as string[];
+    
+    if (uniqueTerms.length !== terms.length) {
+      console.log(`🔧 Removed ${terms.length - uniqueTerms.length} duplicate terms from semantic expansions`);
+    }
+    
     console.log(
-      `🔍 Generated ${terms.length} semantic expansions for "${text}":`,
-      terms
+      `🔍 Generated ${uniqueTerms.length} semantic expansions for "${text}":`,
+      uniqueTerms
     );
-    return terms;
+    return uniqueTerms;
   } catch (error) {
     console.error("Failed to generate semantic expansions:", error);
     throw new Error(`Semantic expansion failed: ${error.message}`);
+  }
+};
+
+/**
+ * Get user-friendly label for expansion strategy
+ */
+export const getExpansionStrategyLabel = (strategy: string): string => {
+  switch (strategy) {
+    case "fuzzy": return "fuzzy";
+    case "synonyms": return "synonyms";
+    case "related_concepts": return "related terms";
+    case "broader_terms": return "broader terms";
+    case "custom": return "custom";
+    case "all": return "all types";
+    default: return strategy || "unknown";
   }
 };
 
@@ -2508,19 +2530,21 @@ export const sanitizeRegexForDatomic = (
     isCaseInsensitive = true;
   }
 
-  // Double-escape single backslashes for Datomic
-  // This handles \s -> \\s, \b -> \\b, etc.
+  // Double-escape backslashes for Datomic compatibility
+  // This handles complex patterns from semantic expansion like (?:s|ed|ing)
   const originalPattern = sanitizedPattern;
 
-  // Replace single backslashes with double backslashes, but don't touch already double-escaped ones
+  // For Datomic, all single backslashes must become double backslashes
+  // But we need to avoid double-escaping already escaped sequences
+  
   // First, temporarily replace existing double backslashes with a placeholder
   const placeholder = "___DOUBLE_BACKSLASH___";
   sanitizedPattern = sanitizedPattern.replace(/\\\\/g, placeholder);
 
-  // Now double-escape remaining single backslashes
+  // Now double-escape all remaining single backslashes
   sanitizedPattern = sanitizedPattern.replace(/\\/g, "\\\\");
 
-  // Restore the original double backslashes
+  // Restore the original double backslashes as quadruple backslashes for Datomic
   sanitizedPattern = sanitizedPattern.replace(
     new RegExp(placeholder, "g"),
     "\\\\\\\\"

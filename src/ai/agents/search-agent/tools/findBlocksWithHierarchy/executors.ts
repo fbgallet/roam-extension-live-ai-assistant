@@ -385,8 +385,16 @@ export const executeContentSearch = async (
     };
 
     // Call the tool with minimal context to avoid serialization issues
+    // CRITICAL: Disable expansion for sub-calls - expansion should only be handled at hierarchy level
     const result = await findBlocksByContentTool.invoke(toolInput, {
-      configurable: { state },
+      configurable: { 
+        state: {
+          ...state,
+          // Disable automatic expansion for sub-tools - hierarchy tool controls expansion
+          automaticExpansionMode: "disabled_by_hierarchy",
+          hierarchyExpansionDone: true,
+        }
+      },
       runName: "internal_call",
     });
     const parsedResult =
@@ -461,9 +469,12 @@ export const executeDirectHierarchySearchAndReturnChildren = async (
   state?: any
 ): Promise<any[]> => {
   // Apply semantic expansion (same as original)
-  const shouldExpand =
+  const hasConditionExpansion = 
     parentConditions.some((c) => c.semanticExpansion) ||
     childConditions.some((c) => c.semanticExpansion);
+  const hasGlobalExpansion = state?.isExpansionGlobal && state?.semanticExpansion;
+  const shouldExpand = hasConditionExpansion || hasGlobalExpansion;
+  
   const expandedParentConditions = shouldExpand
     ? await expandConditions(parentConditions, state)
     : parentConditions;
@@ -893,9 +904,10 @@ export const executeBidirectionalSearch = async (
     executeContentSearch(rightConditions, rightCombineLogic, options, state),
   ]);
 
-  updateAgentToaster(
-    `🔍 Found ${leftSearch.totalFound} blocks with '${leftTermText}', ${rightSearch.totalFound} with '${rightTermText}' - analyzing hierarchy...`
-  );
+  // Skip detailed term display since we now show expanded terms in hierarchy tool
+  // updateAgentToaster(
+  //   `🔍 Found ${leftSearch.totalFound} blocks with '${leftTermText}', ${rightSearch.totalFound} with '${rightTermText}' - analyzing hierarchy...`
+  // );
 
   // Step 2: Forward hierarchy (A > B) - A parent, B child
   console.log(`➡️ Step 2: Forward hierarchy search (A > B)`);
@@ -1038,9 +1050,10 @@ export const executeDeepBidirectionalSearch = async (
     executeContentSearch(rightConditions, rightCombineLogic, options, state),
   ]);
 
-  updateAgentToaster(
-    `🔍 Found ${leftSearch.totalFound} blocks with '${leftTermText}', ${rightSearch.totalFound} with '${rightTermText}' - analyzing hierarchy...`
-  );
+  // Skip detailed term display since we now show expanded terms in hierarchy tool
+  // updateAgentToaster(
+  //   `🔍 Found ${leftSearch.totalFound} blocks with '${leftTermText}', ${rightSearch.totalFound} with '${rightTermText}' - analyzing hierarchy...`
+  // );
 
   const allResults = new Map<string, any>(); // uid -> result object
   const ancestorList = new Set<string>(); // UIDs of A-containing blocks (ancestors)
@@ -1274,15 +1287,16 @@ export const executeFlexibleHierarchySearch = async (
     `✅ Final flexible hierarchy results: ${finalResults.length} unique blocks (${sameBlockResults.length} same-block + ${hierarchyAdded} hierarchy)`
   );
 
-  // Show counts from already-executed searches (no extra queries)
-  const leftCount = globalThis.hierarchyCounts?.[leftTermText] || "?";
-  const rightCount = globalThis.hierarchyCounts?.[rightTermText] || "?";
+  // Skip showing counts since we now show expanded terms in hierarchy tool
+  // const leftCount = globalThis.hierarchyCounts?.[leftTermText] || "?";
+  // const rightCount = globalThis.hierarchyCounts?.[rightTermText] || "?";
 
-  if (leftCount !== "?" && rightCount !== "?") {
-    updateAgentToaster(
-      `🔍 Found ${leftCount} blocks with '${leftTermText}', ${rightCount} with '${rightTermText}'`
-    );
-  }
+  // Skip detailed term display since we now show expanded terms in hierarchy tool
+  // if (leftCount !== "?" && rightCount !== "?") {
+  //   updateAgentToaster(
+  //     `🔍 Found ${leftCount} blocks with '${leftTermText}', ${rightCount} with '${rightTermText}'`
+  //   );
+  // }
 
   updateAgentToaster(
     `🔀 Flexible search: ${hierarchyResults.length} hierarchy relationships found → ${finalResults.length} total results`
@@ -1477,6 +1491,18 @@ export const matchesCondition = (content: string, condition: any): boolean => {
       matches = pageRefPattern.test(content);
       break;
 
+    case "page_ref_or":
+      // Handle OR of multiple page references
+      const pageNames = (condition as any).pageNames || condition.text.split("|");
+      matches = pageNames.some((pageName: string) => {
+        const pagePattern = new RegExp(
+          `\\[\\[${pageName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]\\]`,
+          "i"
+        );
+        return pagePattern.test(content);
+      });
+      break;
+
     case "block_ref":
       const blockRefPattern = new RegExp(
         `\\(\\(${condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)\\)`,
@@ -1533,9 +1559,12 @@ export const executeDirectHierarchySearch = async (
   state?: any
 ): Promise<any[]> => {
   // Apply semantic expansion if requested and at appropriate level
-  const shouldExpand =
+  const hasConditionExpansion = 
     parentConditions.some((c) => c.semanticExpansion) ||
     childConditions.some((c) => c.semanticExpansion);
+  const hasGlobalExpansion = state?.isExpansionGlobal && state?.semanticExpansion;
+  const shouldExpand = hasConditionExpansion || hasGlobalExpansion;
+  
   const expandedParentConditions = shouldExpand
     ? await expandConditions(parentConditions, state)
     : parentConditions;
@@ -1604,14 +1633,16 @@ export const executeDirectHierarchySearch = async (
               [?parent :block/children ?child]`;
   }
 
-  // Add parent block structure (bind ?parent-content variable)
-  query += `
+  // Add parent block structure only for AND case (OR case already has it)
+  if (childCombineLogic === "AND" && expandedChildConditions.length > 1) {
+    query += `
               ;; Parent block structure
               [?parent :block/uid ?parent-uid]
               [?parent :block/string ?parent-content]
               [?parent :block/page ?parent-page]
               [?parent-page :node/title ?parent-page-title]
               [?parent-page :block/uid ?parent-page-uid]`;
+  }
 
   // Add most selective conditions first (parent conditions)
   const parentClauses = buildHierarchyConditionClauses(
@@ -1779,6 +1810,12 @@ const buildHierarchyConditionClauses = (
       const condition = conditions[i];
       const patternIndex = i + patternOffset;
 
+      // Validate and fix condition type
+      if (!condition.type || condition.type === undefined) {
+        console.warn(`⚠️ Condition has undefined type in OR case, defaulting to 'text':`, condition);
+        condition.type = "text"; // Default to text type
+      }
+
       switch (condition.type) {
         case "page_ref":
           // Preparation clauses outside OR
@@ -1792,6 +1829,20 @@ const buildHierarchyConditionClauses = (
           orClauses.push(
             `\n                  [${blockVariable} :block/refs ?ref-page${patternIndex}]`
           );
+          break;
+
+        case "page_ref_or":
+          // Handle OR of multiple page references
+          const pageNames = (condition as any).pageNames || condition.text.split("|");
+          const pageRefOrClauses = pageNames
+            .map(
+              (pageName: string, i: number) =>
+                `\n                  [?ref-page${patternIndex}-${i} :node/title "${pageName.trim()}"]
+                  [${blockVariable} :block/refs ?ref-page${patternIndex}-${i}]`
+            )
+            .join("");
+          // For page_ref_or, all clauses go inside the OR (no preparation clauses needed)
+          orClauses.push(pageRefOrClauses);
           break;
 
         case "text":
@@ -1810,6 +1861,22 @@ const buildHierarchyConditionClauses = (
           // Preparation clauses outside OR
           preparationClauses.push(
             `\n                [(re-pattern "${pattern}") ?pattern${patternIndex}]`
+          );
+          // Only the actual matching clause inside OR
+          orClauses.push(
+            `\n                  [(re-find ?pattern${patternIndex} ${contentVariable})]`
+          );
+          break;
+
+        case "regex":
+          // For regex conditions, sanitize the pattern for Datomic
+          const sanitizedRegexOR = sanitizeRegexForDatomic(condition.text);
+          const regexPatternOR = sanitizedRegexOR.isCaseInsensitive
+            ? sanitizedRegexOR.pattern
+            : `(?i)${sanitizedRegexOR.pattern}`;
+          // Preparation clauses outside OR
+          preparationClauses.push(
+            `\n                [(re-pattern "${regexPatternOR}") ?pattern${patternIndex}]`
           );
           // Only the actual matching clause inside OR
           orClauses.push(
@@ -1855,6 +1922,12 @@ const buildSingleHierarchyConditionClause = (
 ): string => {
   let clause = "";
 
+  // Validate and fix condition type
+  if (!condition.type || condition.type === undefined) {
+    console.warn(`⚠️ Condition has undefined type, defaulting to 'text':`, condition);
+    condition.type = "text"; // Default to text type
+  }
+
   switch (condition.type) {
     case "page_ref":
       const pageRefClause = `\n                [?ref-page${patternIndex} :node/title "${condition.text}"]
@@ -1865,6 +1938,27 @@ const buildSingleHierarchyConditionClause = (
                 (not [${blockVariable} :block/refs ?ref-page${patternIndex}])`;
       } else {
         clause = pageRefClause;
+      }
+      break;
+
+    case "page_ref_or":
+      // Handle OR of multiple page references
+      const pageNames = (condition as any).pageNames || condition.text.split("|");
+      const orClauses = pageNames
+        .map(
+          (pageName: string, i: number) =>
+            `\n                  [?ref-page${patternIndex}-${i} :node/title "${pageName.trim()}"]
+                  [${blockVariable} :block/refs ?ref-page${patternIndex}-${i}]`
+        )
+        .join("");
+      
+      if (condition.negate) {
+        // For negation, we need to negate the entire OR clause
+        clause = `\n                (not (or${orClauses}
+                ))`;
+      } else {
+        clause = `\n                (or${orClauses}
+                )`;
       }
       break;
 
@@ -1892,6 +1986,23 @@ const buildSingleHierarchyConditionClause = (
       }
       break;
 
+    case "regex":
+      // For regex conditions, sanitize the pattern for Datomic
+      const sanitizedRegexAND = sanitizeRegexForDatomic(condition.text);
+      const regexPatternAND = sanitizedRegexAND.isCaseInsensitive
+        ? sanitizedRegexAND.pattern
+        : `(?i)${sanitizedRegexAND.pattern}`;
+      
+      // For negated regex conditions, bind pattern outside and only negate the matching
+      if (condition.negate) {
+        clause = `\n                [(re-pattern "${regexPatternAND}") ?pattern${patternIndex}]
+                (not [(re-find ?pattern${patternIndex} ${contentVariable})])`;
+      } else {
+        clause = `\n                [(re-pattern "${regexPatternAND}") ?pattern${patternIndex}]
+                [(re-find ?pattern${patternIndex} ${contentVariable})]`;
+      }
+      break;
+
     case "block_ref":
       const blockRefClause = `\n                [?ref-block${patternIndex} :block/uid "${condition.text}"]
                 [${blockVariable} :block/refs ?ref-block${patternIndex}]`;
@@ -1914,31 +2025,3 @@ const buildSingleHierarchyConditionClause = (
   return clause;
 };
 
-/**
- * Build page reference OR clause
- */
-const buildPageRefOrClause = (
-  condition: SearchCondition,
-  blockVariable: string,
-  patternIndex: number
-): string => {
-  return `\n                  [(ground "${condition.text}") ?page-title${patternIndex}]
-                  [?ref-page${patternIndex} :node/title ?page-title${patternIndex}]
-                  [${blockVariable} :block/refs ?ref-page${patternIndex}]`;
-};
-
-/**
- * Build text OR clause
- */
-const buildTextOrClause = (
-  condition: SearchCondition,
-  contentVariable: string,
-  patternIndex: number
-): string => {
-  const pattern =
-    condition.matchType === "regex"
-      ? condition.text
-      : `(?i).*${condition.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
-  return `\n                  [(re-pattern "${pattern}") ?pattern${patternIndex}]
-                  [(re-find ?pattern${patternIndex} ${contentVariable})]`;
-};

@@ -555,7 +555,12 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
       : `\n  * **NO SEMANTIC EXPANSION**: Do not add semanticExpansion parameter to tool calls unless explicitly instructed above`
   }
 - Use 'in:scope' for limitToPages parameter only
-- Default to 'summary' result mode for efficiency${
+- Default to 'summary' result mode for efficiency
+- **ZERO RESULTS HANDLING**: If a tool call returns zero results, you MUST either:
+  1. Make NEW tool calls with different parameters/approaches, OR
+  2. Respond with text stating no results were found and stop searching
+  - Do NOT make the same tool calls repeatedly
+  - Do NOT respond with just explanations without action${
     state.searchDetails?.timeRange
       ? `\n- **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
           state.searchDetails.timeRange
@@ -710,6 +715,21 @@ export const buildAlternativeStrategiesGuidance = (
 - **Consider multi-step workflow**: Find related content, then narrow down
 
 **Remember**: Better to find something relevant than nothing at all.
+
+### 🛑 WHAT TO DO NEXT
+
+**YOU MUST choose ONE of these actions:**
+
+1. **MAKE NEW TOOL CALLS**: If you have a different approach to try based on the strategies above
+   - Use different search terms, conditions, or tools
+   - Try simpler queries with relaxed constraints
+   - Attempt different tool combinations
+
+2. **STOP SEARCHING**: If you believe the content truly doesn't exist in the database
+   - Respond with: "I couldn't find any blocks matching your criteria. The content may not exist in your Roam database."
+   - Do NOT make the same tool calls again
+
+**CRITICAL**: Do not respond with just explanations or analysis. Either make new tool calls with different parameters, or clearly state that no results were found and stop searching.
 `;
 };
 

@@ -768,6 +768,14 @@ const expandConditions = async (
   const expandedConditions = [...conditions];
   const expansionLevel = state?.expansionLevel || 0;
 
+  // CRITICAL: Skip expansion if disabled by hierarchy tool
+  if (state?.automaticExpansionMode === "disabled_by_hierarchy" || state?.hierarchyExpansionDone) {
+    console.log(
+      `🚫 [ContentTool] Skipping semantic expansion - disabled by hierarchy tool`
+    );
+    return expandedConditions;
+  }
+
   // Check if semantic expansion is needed - either globally or per-condition
   const hasGlobalExpansion = state?.isExpansionGlobal === true;
 
@@ -1273,6 +1281,7 @@ export const findBlocksByContentTool = tool(
       };
 
       // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
+      // Skip if disabled by hierarchy tool (which sets mode to "disabled_by_hierarchy")
       if (state?.automaticExpansionMode === 'auto_until_result') {
         console.log(`🔧 [FindBlocksByContent] Using automatic expansion for auto_until_result mode`);
         
