@@ -1326,11 +1326,9 @@ export const searchBlocksWithHierarchicalConditions = async (
   const hierarchyCondition = hierarchyConditions[0]; // Use first hierarchy condition
 
   if (hierarchyCondition.direction === "descendants") {
-    // For parent > children relationship, use executeDirectHierarchySearch
-
-    // Convert parent conditions (empty in this case, using contentConditions as parents)
-    const parentConditions: SearchCondition[] = [];
-
+    // Choose between direct (level 1) and deep (levels > 1) hierarchy search
+    const levels = hierarchyCondition.levels || 1;
+    
     // Convert child conditions from hierarchy condition
     const childConditions = hierarchyCondition.conditions.map((cond: any) => ({
       type: cond.type as any,
@@ -1341,14 +1339,93 @@ export const searchBlocksWithHierarchicalConditions = async (
       negate: cond.negate || false,
     }));
 
-    return await executeDirectHierarchySearch(
-      contentConditions, // These become the parent conditions
-      combineConditions, // How to combine parent conditions
-      childConditions, // These are the child conditions from hierarchy
-      combineHierarchy, // How to combine child conditions (this should be "AND" for B + D)
-      options,
-      state
-    );
+    if (levels === 1) {
+      // Level 1: Use direct hierarchy search (current approach)
+      return await executeDirectHierarchySearch(
+        contentConditions, // These become the parent conditions
+        combineConditions, // How to combine parent conditions
+        childConditions, // These are the child conditions from hierarchy
+        combineHierarchy, // How to combine child conditions
+        options,
+        state
+      );
+    } else {
+      // Levels > 1: Use deep hierarchy search with proper multi-level support
+      console.log(`🌳 Using deep hierarchy search for ${levels} levels`);
+      
+      // Use the existing getFlattenedDescendants approach for multi-level hierarchy
+      // Find parent blocks that match contentConditions
+      const parentRawResults = await searchBlocksWithConditions(
+        contentConditions.map((cond) => ({
+          type: cond.type as any,
+          text: cond.text,
+          matchType: cond.matchType as any,
+          semanticExpansion: cond.semanticExpansion,
+          weight: cond.weight || 1,
+          negate: cond.negate || false,
+        })),
+        combineConditions,
+        options.includeDaily || true
+      );
+      
+      if (parentRawResults.length === 0) {
+        return [];
+      }
+      
+      // Convert raw results to structured objects
+      const parentResults = parentRawResults.map(([uid, content, time, pageTitle, pageUid]: any[]) => ({
+        uid,
+        content,
+        time,
+        pageTitle,
+        pageUid
+      }));
+      
+      // Get multi-level descendants using getFlattenedDescendants
+      const parentUids = parentResults.map(p => p.uid).filter(uid => uid !== undefined);
+      
+      if (parentUids.length === 0) {
+        console.warn("🔧 No valid parent UIDs found for deep hierarchy search");
+        return [];
+      }
+      
+      console.log(`🔍 Found ${parentUids.length} parent blocks, searching ${levels} levels deep`);
+      const descendantsByParent = await getFlattenedDescendants(parentUids, levels);
+      
+      // Filter descendants that match child conditions
+      const matchingResults: any[] = [];
+      for (const [parentUid, descendants] of Object.entries(descendantsByParent)) {
+        const parent = parentResults.find(p => p.uid === parentUid);
+        if (!parent) continue;
+        
+        // Check which descendants match child conditions
+        const matchingDescendants = descendants.filter((desc: any) => {
+          return childConditions.every((childCond) => {
+            const content = (desc.content || "").toLowerCase();
+            const searchTerm = childCond.text.toLowerCase();
+            
+            switch (childCond.type) {
+              case "text":
+                return content.includes(searchTerm);
+              case "page_ref":
+                return new RegExp(`\\[\\[${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\]`, 'i').test(desc.content || "");
+              default:
+                return false;
+            }
+          });
+        });
+        
+        if (matchingDescendants.length > 0) {
+          matchingResults.push({
+            ...parent,
+            matchingChildrenCount: matchingDescendants.length,
+            hierarchyLevel: levels
+          });
+        }
+      }
+      
+      return matchingResults;
+    }
   }
 
   // Fallback to original implementation for other cases

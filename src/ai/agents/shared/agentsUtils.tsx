@@ -18,6 +18,13 @@ import {
   addButtonsToToaster,
   ensureToaster,
 } from "../../../components/Toaster.js";
+import {
+  getDefaultExpansionOptions,
+  getDepthExpansionOption,
+  getBulletOptionText,
+  mapLabelToStrategy as centralizedMapLabelToStrategy,
+  EXPANSION_OPTIONS,
+} from "./expansionConstants";
 
 /**
  * Shared utilities for agents (MCP, Search, etc.)
@@ -148,24 +155,117 @@ const getPostCompletionExpansionOptions = (): string => {
   const queryKey = lastQuery.toLowerCase().trim();
   const previousExpansions = expansionHistory[queryKey] || [];
 
+  // Initialize depth expansion mapping if not exists
+  if (!(window as any).depthExpansionMapping) {
+    (window as any).depthExpansionMapping = {};
+  }
+
+  // Get current hierarchy depth from multiple sources
+  const lastIntentParserResult = (window as any).lastIntentParserResult || {};
+  const lastSearchParams = (window as any).lastSearchParams || {};
+  const lastAgentState = (window as any).lastAgentState || {};
+  const formalQuery = lastIntentParserResult.formalQuery || "";
+
+  // Try to get the actual executed depth - prioritize agent state
+  let currentDepth = 0;
+
+  // First check if we have the actual executed depth from agent state
+  if (
+    lastAgentState.maxDepthOverride !== null &&
+    lastAgentState.maxDepthOverride !== undefined
+  ) {
+    currentDepth = lastAgentState.maxDepthOverride;
+  }
+  // Then check if maxHierarchyDepth was stored from the actual execution
+  else if (lastSearchParams.maxHierarchyDepth) {
+    currentDepth = lastSearchParams.maxHierarchyDepth;
+  }
+  // Fallback: reconstruct from query
+  else {
+    // Check if there was an explicit depth request in user query
+    const depthMatch = lastQuery.match(/depth=(\d+)/);
+    if (depthMatch) {
+      currentDepth = parseInt(depthMatch[1]);
+    } else {
+      // Intelligent detection based on operator type in FORMAL QUERY
+      // Check deep operators first (with spaces to avoid false matches)
+      if (
+        formalQuery.includes(" >> ") ||
+        formalQuery.includes(" << ") ||
+        formalQuery.includes(" =>> ") ||
+        formalQuery.includes(" <<=>> ")
+      ) {
+        currentDepth = 2; // Deep operators default to 2
+      }
+      // Then check shallow operators (with spaces)
+      else if (
+        formalQuery.includes(" <=> ") ||
+        formalQuery.includes(" => ") ||
+        formalQuery.includes(" <= ") ||
+        formalQuery.includes(" > ") ||
+        formalQuery.includes(" < ")
+      ) {
+        currentDepth = 1; // Shallow operators default to 1
+      }
+    }
+  }
+
+  // Check if the last search involved hierarchical operations (use formal query)
+  const isHierarchicalSearch =
+    formalQuery.includes("<") ||
+    formalQuery.includes(">") ||
+    lastIntentParserResult.searchStrategy === "hierarchical";
+
+  // Check if the last search used block search tools (not page search tools)
+  const lastSearchWasBlockSearch = () => {
+    // Most reliable indicator: check if formalQuery starts with 'page:'
+    if (formalQuery && formalQuery.startsWith("page:(")) {
+      return false; // This is a page search
+    }
+
+    // If it's hierarchical strategy, it's definitely block search
+    if (lastIntentParserResult.searchStrategy === "hierarchical") return true;
+
+    // If it has hierarchy operators, it's block search
+    if (formalQuery && (formalQuery.includes("<") || formalQuery.includes(">")))
+      return true;
+
+    // Default: assume block search (since most searches are block searches)
+    return true;
+  };
+
+  const isBlockSearch = lastSearchWasBlockSearch();
+
   console.log("🔧 [Post-Completion] Generating expansion options:", {
     lastQuery,
     queryKey,
     previousExpansions,
     historyExists: Object.keys(expansionHistory).length > 0,
+    currentDepth,
+    isHierarchicalSearch,
+    isBlockSearch,
+    formalQuery,
+    canGoDeeper: isHierarchicalSearch && currentDepth < 3 && isBlockSearch,
   });
 
-  // Default options if no previous expansions - use new strategy system
-  const defaultOptions = `• 🤖 Auto (let the agent test progressive strategy)
-• ⚡ All at once (fuzzy + synonyms + related concepts)
-• 🔍 Fuzzy matching (typos, morphological variations)
-• 📝 Synonyms and alternative terms
-• 🧠 Related concepts and associated terms
-• 🔄 Try other search strategies (combine different approaches)`;
+  // Default options if no previous expansions - use centralized constants
+  const defaultOptions = getDefaultExpansionOptions();
 
-  // If no previous expansions, show default
+  // If no previous expansions, show default with depth option if applicable
   if (previousExpansions.length === 0) {
-    return defaultOptions;
+    let options = defaultOptions;
+
+    // Add depth expansion option if this is a hierarchical BLOCK search and we can go deeper
+    if (isHierarchicalSearch && currentDepth < 3 && isBlockSearch) {
+      const nextDepth = Math.max(1, currentDepth + 1);
+      const depthOption = getDepthExpansionOption(currentDepth, nextDepth);
+      options = `• ${depthOption}\n` + options;
+    } else if (!isHierarchicalSearch && currentDepth === 0 && isBlockSearch) {
+      // Convert flat BLOCK search to hierarchical
+      options = `• ${getBulletOptionText("hierarchical")}\n` + options;
+    }
+
+    return options;
   }
 
   // Build context-aware options based on what hasn't been tried
@@ -174,39 +274,69 @@ const getPostCompletionExpansionOptions = (): string => {
   );
   const availableOptions = [];
 
-  // Add automatic progression option first
-  if (!triedStrategies.has("automatic")) {
+  // Add depth expansion option first if applicable - use actual current depth from execution (BLOCK SEARCH ONLY)
+  if (isHierarchicalSearch && currentDepth < 3 && isBlockSearch) {
+    const nextDepth = currentDepth + 1;
+    const depthOption = getDepthExpansionOption(currentDepth, nextDepth);
+    availableOptions.push(depthOption);
+  } else if (
+    !isHierarchicalSearch &&
+    currentDepth === 0 &&
+    !triedStrategies.has("hierarchical") &&
+    isBlockSearch
+  ) {
     availableOptions.push(
-      "🤖 Automatic until results (level-to-level progression through Assistant)"
+      getBulletOptionText("hierarchical").replace("• ", "")
     );
   }
 
-  // Add all-at-once option
-  if (!triedStrategies.has("all")) {
+  // Add automatic progression option
+  if (!triedStrategies.has("automatic")) {
     availableOptions.push(
-      "⚡ All semantic expansions at once (fuzzy + synonyms + related concepts)"
+      EXPANSION_OPTIONS.auto.emoji + " " + EXPANSION_OPTIONS.auto.label
     );
   }
 
   // Add individual strategy options based on what hasn't been tried
   if (!triedStrategies.has("fuzzy")) {
     availableOptions.push(
-      "🔍 Fuzzy matching (typos, morphological variations)"
+      EXPANSION_OPTIONS.fuzzy.emoji + " " + EXPANSION_OPTIONS.fuzzy.label
     );
   }
   if (!triedStrategies.has("synonyms")) {
-    availableOptions.push("📝 Synonyms and alternative terms");
+    availableOptions.push(
+      EXPANSION_OPTIONS.synonyms.emoji + " " + EXPANSION_OPTIONS.synonyms.label
+    );
   }
   if (!triedStrategies.has("related_concepts")) {
-    availableOptions.push("🧠 Related concepts and associated terms");
+    availableOptions.push(
+      EXPANSION_OPTIONS.relatedConcepts.emoji +
+        " " +
+        EXPANSION_OPTIONS.relatedConcepts.label
+    );
   }
   if (!triedStrategies.has("broader_terms")) {
-    availableOptions.push("🌐 Broader terms and categories");
+    availableOptions.push(
+      EXPANSION_OPTIONS.broaderTerms.emoji +
+        " " +
+        EXPANSION_OPTIONS.broaderTerms.label
+    );
+  }
+
+  // Add all-at-once option
+  if (!triedStrategies.has("all")) {
+    availableOptions.push(
+      EXPANSION_OPTIONS.allAtOnce.emoji +
+        " " +
+        EXPANSION_OPTIONS.allAtOnce.label
+    );
   }
 
   // Always offer multi-strategy as a final option
   availableOptions.push(
-    "🔄 Try other search strategies (combine different approaches)"
+    EXPANSION_OPTIONS.otherStrategies.emoji +
+      " " +
+      EXPANSION_OPTIONS.otherStrategies.label
   );
 
   return availableOptions.length > 0
@@ -226,7 +356,7 @@ export const completeAgentToaster = (
   userQuery?: string,
   formalQuery?: string,
   intentParserResult?: any,
-  isConversationMode?: boolean
+  _isConversationMode?: boolean
 ): void => {
   // Clear the agent controller since processing is complete
   clearAgentController();
@@ -274,10 +404,10 @@ export const completeAgentToaster = (
       // Store IntentParser result for query management
       if (intentParserResult) {
         (window as any).lastIntentParserResult = intentParserResult;
-        
+
         // Note: Recent query storage moved to ask-your-graph-invoke.ts to ensure
         // only actual search agent executions are stored, not simple chat messages
-        
+
         // Store current queries for potential later use
         (window as any).previousUserQuery = userQuery;
         (window as any).previousFormalQuery = formalQuery;
@@ -327,52 +457,14 @@ export const completeAgentToaster = (
  * This ensures proper tracking across different expansion systems
  */
 const mapLabelToStrategy = (label: string, action: string): string => {
-  // Handle different label variations that map to the same strategy
-  const labelMappings: Record<string, string> = {
-    "Fuzzy matching (typos, morphological variations)": "fuzzy",
-    "🔍 Fuzzy matching (typos, morphological variations)": "fuzzy",
-    "Synonyms and alternative terms": "synonyms",
-    "📝 Synonyms and alternative terms": "synonyms",
-    "Related concepts and associated terms": "related_concepts",
-    "🧠 Related concepts and associated terms": "related_concepts",
-    "Broader terms and categories": "broader_terms",
-    "🌐 Broader terms and categories": "broader_terms",
-    "All semantic expansions at once (fuzzy + synonyms + related concepts)":
-      "all",
-    "⚡ All semantic expansions at once (fuzzy + synonyms + related concepts)":
-      "all",
-    "Automatic until results (level-to-level progression through Assistant)":
-      "automatic",
-    "🤖 Automatic until results (level-to-level progression through Assistant)":
-      "automatic",
-    "Auto (let the agent test progressive strategy)": "automatic",
-    "🤖 Auto (let the agent test progressive strategy)": "automatic",
-    "All at once (fuzzy + synonyms + related concepts)": "all",
-    "⚡ All at once (fuzzy + synonyms + related concepts)": "all",
-  };
+  console.log(
+    `🔧 [Strategy Mapping] Input: label="${label}", action="${action}"`
+  );
 
-  // First try to map by label
-  if (labelMappings[label]) {
-    return labelMappings[label];
-  }
-
-  // Fallback to action if available
-  if (action && typeof action === "string") {
-    return action.toLowerCase();
-  }
-
-  // Final fallback - extract strategy from label text
-  const lowerLabel = label.toLowerCase();
-  if (lowerLabel.includes("fuzzy")) return "fuzzy";
-  if (lowerLabel.includes("synonym")) return "synonyms";
-  if (lowerLabel.includes("related") || lowerLabel.includes("concept"))
-    return "related_concepts";
-  if (lowerLabel.includes("broader") || lowerLabel.includes("categor"))
-    return "broader_terms";
-  if (lowerLabel.includes("all") || lowerLabel.includes("once")) return "all";
-  if (lowerLabel.includes("auto")) return "automatic";
-
-  return action || "unknown";
+  // Use centralized mapping function
+  const result = centralizedMapLabelToStrategy(label, action);
+  console.log(`🔧 [Strategy Mapping] Result: "${result}"`);
+  return result;
 };
 
 /**
@@ -395,7 +487,7 @@ const setupPostCompletionExpansionHandler = (): void => {
     // Create new expansion handler for post-completion
     const postCompletionExpansionHandler = async (event: CustomEvent) => {
       try {
-        const { action, label, emoji } = event.detail;
+        const { action, label, emoji, depthTarget } = event.detail;
         console.log(
           `🚀 [Post-Completion Expansion] User selected: ${emoji} ${label}`
         );
@@ -469,6 +561,141 @@ const setupPostCompletionExpansionHandler = (): void => {
 • 🌐 Cross-reference exploration (tags, links, mentions)`,
             });
           }, 1000);
+          return;
+        }
+
+        // Handle depth expansion requests - use depthTarget directly
+        if (
+          depthTarget ||
+          normalizedStrategy === "deepen" ||
+          normalizedStrategy === "hierarchical"
+        ) {
+          // Initialize variables that will be used in logging
+          const lastIntentParserResult =
+            (window as any).lastIntentParserResult || {};
+          const lastSearchParams = (window as any).lastSearchParams || {};
+          const formalQuery = lastIntentParserResult.formalQuery || "";
+          let currentDepth = 0;
+          let newDepth: number;
+          let modifiedQuery: string;
+
+          if (depthTarget) {
+            // Direct depth expansion using structured data
+            // Get current depth for logging purposes
+            if (lastSearchParams.maxHierarchyDepth) {
+              currentDepth = lastSearchParams.maxHierarchyDepth;
+            } else {
+              // Quick detection for logging
+              const depthMatch = lastQuery.match(/depth=(\d+)/);
+              if (depthMatch) {
+                currentDepth = parseInt(depthMatch[1]);
+              } else if (
+                formalQuery.includes(">>") ||
+                formalQuery.includes("<<")
+              ) {
+                currentDepth = 2;
+              } else if (
+                formalQuery.includes(" <=> ") ||
+                formalQuery.includes(" => ") ||
+                formalQuery.includes(" <= ") ||
+                formalQuery.includes(" > ") ||
+                formalQuery.includes(" < ")
+              ) {
+                currentDepth = 1;
+              }
+            }
+
+            newDepth = depthTarget;
+            modifiedQuery =
+              lastQuery.replace(/depth=\d+/g, "") + ` depth=${newDepth}`;
+            console.log(
+              `🏗️ [Depth Expansion] Direct depth target: ${newDepth}`
+            );
+          } else if (normalizedStrategy === "hierarchical") {
+            // Convert flat search to hierarchical (depth 0 → 1)
+            currentDepth = 0;
+            newDepth = 1;
+            modifiedQuery = lastQuery + " depth=1";
+          } else {
+            // Fallback: Deepen existing hierarchical search (legacy path)
+            // First check if maxHierarchyDepth was stored from the actual execution
+            if (lastSearchParams.maxHierarchyDepth) {
+              currentDepth = lastSearchParams.maxHierarchyDepth;
+            }
+            // Fallback: reconstruct from operator type using FORMAL QUERY
+            else {
+              // Check if there was an explicit depth request in user query
+              const depthMatch = lastQuery.match(/depth=(\d+)/);
+              if (depthMatch) {
+                currentDepth = parseInt(depthMatch[1]);
+              } else {
+                // Intelligent detection based on operator type in FORMAL QUERY
+                // Check deep operators first (with spaces to avoid false matches)
+                if (formalQuery.includes(">>") || formalQuery.includes("<<")) {
+                  currentDepth = 2; // Deep operators default to 2
+                }
+                // Then check shallow operators (with spaces)
+                else if (
+                  formalQuery.includes(" <=> ") ||
+                  formalQuery.includes(" => ") ||
+                  formalQuery.includes(" <= ") ||
+                  formalQuery.includes(" > ") ||
+                  formalQuery.includes(" < ")
+                ) {
+                  currentDepth = 1; // Shallow operators default to 1
+                }
+              }
+            }
+
+            newDepth = Math.min(currentDepth + 1, 3);
+            modifiedQuery =
+              lastQuery.replace(/depth=\d+/g, "") + ` depth=${newDepth}`;
+          }
+
+          const finalSearchParams = {
+            ...lastParams,
+            maxDepth: newDepth,
+            // For hierarchical conversion, indicate that we want hierarchical search mode
+            forceHierarchical: normalizedStrategy === "hierarchical",
+          };
+
+          console.log(`🏗️ [Depth Expansion] Processing depth expansion:`, {
+            normalizedStrategy,
+            currentDepth,
+            newDepth,
+            originalQuery: lastQuery,
+            modifiedQuery,
+            formalQuery,
+            lastParams,
+            finalSearchParams,
+          });
+
+          // Record this expansion attempt
+          if (!expansionHistory[queryKey]) {
+            expansionHistory[queryKey] = [];
+          }
+          expansionHistory[queryKey].push({
+            strategy: normalizedStrategy,
+            label: label,
+            timestamp: Date.now(),
+            level: previousExpansions.length + 1,
+            depthExpansion: {
+              fromDepth: currentDepth,
+              toDepth: newDepth,
+            },
+          });
+          (window as any).searchExpansionHistory = expansionHistory;
+
+          // Use direct assistant bypass for depth expansion with modified query
+          await invokeExpandedSearchDirect({
+            query: modifiedQuery,
+            expansionStrategy: normalizedStrategy,
+            expansionLabel: label,
+            expansionLevel: previousExpansions.length + 1,
+            rootUid: lastRootUid,
+            searchParams: finalSearchParams,
+          });
+
           return;
         }
 

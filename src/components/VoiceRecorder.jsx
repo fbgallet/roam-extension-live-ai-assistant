@@ -42,6 +42,7 @@ import {
 import MicRecorder from "../audio/mic-recorder.js";
 import {
   displaySpinner,
+  displayAskGraphModeDialog,
   highlightHtmlElt,
   removeSpinner,
   setAsOutline,
@@ -496,23 +497,72 @@ function VoiceRecorder({
           ? blocksSelectionUids.current[0]
           : null);
       if (!instantRootUid) return;
-      askYourGraph({
-        model: instantModel.current || defaultModel,
-        rootUid: instantRootUid,
-        prompt:
-          prompt ||
-          (blocksSelectionUids.current?.length
-            ? getResolvedContentFromBlocks(
-                blocksSelectionUids.current,
-                false,
-                true
+      
+      // Calculate the prompt that will be used for Ask Your Graph
+      const calculatedPrompt = 
+        prompt ||
+        (blocksSelectionUids.current?.length
+          ? getResolvedContentFromBlocks(
+              blocksSelectionUids.current,
+              false,
+              true
+            )
+          : resolveReferences(
+              getBlockContentByUid(
+                window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
               )
-            : resolveReferences(
-                getBlockContentByUid(
-                  window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
-                )
-              )),
-      });
+            ));
+      
+      try {
+        await askYourGraph({
+          model: instantModel.current || defaultModel,
+          rootUid: instantRootUid,
+          prompt: calculatedPrompt,
+        });
+      } catch (error) {
+        if (error.message === "MODE_ESCALATION_NEEDED") {
+          // Import the dialog function and show mode selection dialog
+            displayAskGraphModeDialog({
+            currentMode: error.currentMode,
+            suggestedMode: error.suggestedMode,
+            userQuery: calculatedPrompt,
+            onModeSelect: async (selectedMode, rememberChoice) => {
+              try {
+                // Set session mode if user chose to remember
+                if (rememberChoice) {
+                  const { setSessionAskGraphMode } = await import(
+                    "../ai/agents/search-agent/ask-your-graph.ts"
+                  );
+                  setSessionAskGraphMode(selectedMode, true);
+                }
+
+                // Retry the askYourGraph call with the selected mode
+                await askYourGraph({
+                  model: instantModel.current || defaultModel,
+                  rootUid: instantRootUid,
+                  prompt: calculatedPrompt,
+                  forcePrivacyMode: selectedMode,
+                  bypassDialog: true,
+                });
+              } catch (retryError) {
+                console.error("Failed to retry Ask Your Graph:", retryError);
+                AppToaster.show({
+                  message: `Ask Your Graph failed: ${retryError.message}`,
+                  intent: "warning",
+                  timeout: 5000,
+                });
+              }
+            }
+          });
+        } else {
+          console.error("Ask Your Graph error:", error);
+          AppToaster.show({
+            message: `Ask Your Graph failed: ${error.message}`,
+            intent: "warning", 
+            timeout: 5000,
+          });
+        }
+      }
     } else {
       aiCompletionRunner({
         e,

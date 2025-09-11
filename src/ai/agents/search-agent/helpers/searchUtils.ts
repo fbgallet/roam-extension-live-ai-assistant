@@ -555,9 +555,9 @@ export const generateSemanticExpansions = async (
 ): Promise<string[]> => {
   let nbOfVariations =
     strategy === "all"
-      ? "3-5"
+      ? "3-6"
       : strategy !== "custom"
-      ? "5-8"
+      ? "6-12"
       : "as many as needed";
   const contextualInfo =
     originalQuery && originalQuery !== text
@@ -948,11 +948,15 @@ ${commonRequirements}`;
 
     // CRITICAL: Remove duplicates to prevent Datomic set crashes
     const uniqueTerms = [...new Set(terms)] as string[];
-    
+
     if (uniqueTerms.length !== terms.length) {
-      console.log(`🔧 Removed ${terms.length - uniqueTerms.length} duplicate terms from semantic expansions`);
+      console.log(
+        `🔧 Removed ${
+          terms.length - uniqueTerms.length
+        } duplicate terms from semantic expansions`
+      );
     }
-    
+
     console.log(
       `🔍 Generated ${uniqueTerms.length} semantic expansions for "${text}":`,
       uniqueTerms
@@ -969,13 +973,20 @@ ${commonRequirements}`;
  */
 export const getExpansionStrategyLabel = (strategy: string): string => {
   switch (strategy) {
-    case "fuzzy": return "fuzzy";
-    case "synonyms": return "synonyms";
-    case "related_concepts": return "related terms";
-    case "broader_terms": return "broader terms";
-    case "custom": return "custom";
-    case "all": return "all types";
-    default: return strategy || "unknown";
+    case "fuzzy":
+      return "fuzzy";
+    case "synonyms":
+      return "synonyms";
+    case "related_concepts":
+      return "related terms";
+    case "broader_terms":
+      return "broader terms";
+    case "custom":
+      return "custom";
+    case "all":
+      return "all types";
+    default:
+      return strategy || "unknown";
   }
 };
 
@@ -2536,7 +2547,7 @@ export const sanitizeRegexForDatomic = (
 
   // For Datomic, all single backslashes must become double backslashes
   // But we need to avoid double-escaping already escaped sequences
-  
+
   // First, temporarily replace existing double backslashes with a placeholder
   const placeholder = "___DOUBLE_BACKSLASH___";
   sanitizedPattern = sanitizedPattern.replace(/\\\\/g, placeholder);

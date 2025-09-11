@@ -6,10 +6,12 @@ import {
   filterByDateRange,
   createToolResult,
   generateSemanticExpansions,
+  getExpansionStrategyLabel,
   parseSemanticExpansion,
 } from "../helpers/searchUtils";
 import { baseConditionSchema } from "./conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
+import { updateAgentToaster } from "../../shared/agentsUtils";
 
 /**
  * Find pages by title conditions with flexible matching
@@ -225,6 +227,12 @@ const expandPageTitleConditions = async (
             `✅ [TitleTool] Generated ${
               expansionTerms.length
             } variations: ${expansionTerms.join(", ")}`
+          );
+          
+          // Show user-friendly expansion message
+          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
+          updateAgentToaster(
+            `📄 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`
           );
 
           // For exact matching, add each variation as a separate semantic page condition

@@ -354,6 +354,7 @@ const invokeSearchAgentInternal = async ({
 
       // Add expansion parameters for direct expansion
       isDirectExpansion: Boolean(conversationData.isDirectExpansion),
+      maxDepthOverride: (conversationData as any).maxDepthOverride || null,
       semanticExpansion: conversationData.semanticExpansion || undefined,
       isExpansionGlobal: Boolean(conversationData.isExpansionGlobal),
       // Privacy mode update bypass flag
@@ -362,6 +363,8 @@ const invokeSearchAgentInternal = async ({
       isPrivacyModeForced: Boolean(conversationData.isPrivacyModeForced),
       // Force popup-only results (skip Roam block insertion)
       forcePopupOnly: Boolean(conversationData.forcePopupOnly),
+      // Force hierarchical search mode (for flat → hierarchical conversion)
+      forceHierarchical: Boolean((conversationData as any).forceHierarchical),
       // Streaming callback for popup chat interface
       streamingCallback,
     };
@@ -370,6 +373,7 @@ const invokeSearchAgentInternal = async ({
     if (conversationData.isDirectExpansion) {
       console.log(`🔧 [Direct Expansion] Initial state created with:`, {
         isDirectExpansion: initialState.isDirectExpansion,
+        maxDepthOverride: initialState.maxDepthOverride,
         semanticExpansion: initialState.semanticExpansion,
         isExpansionGlobal: initialState.isExpansionGlobal,
         expansionLevel: initialState.expansionLevel,
@@ -870,6 +874,40 @@ const invokeSearchAgentInternal = async ({
           agentData?.isConversationMode || false
         );
 
+        // Store final agent state for expansion options (all execution paths)
+        if (typeof window !== "undefined") {
+          (window as any).lastAgentState = {
+            maxDepthOverride: initialState.maxDepthOverride,
+            isDirectExpansion: initialState.isDirectExpansion,
+            semanticExpansion: initialState.semanticExpansion,
+          };
+          
+          // Update lastIntentParserResult with the actual response data
+          if (response && response.formalQuery) {
+            (window as any).lastIntentParserResult = {
+              formalQuery: response.formalQuery,
+              searchStrategy: response.searchStrategy,
+              analysisType: response.analysisType,
+              language: response.language,
+              confidence: response.confidence,
+              datomicQuery: response.datomicQuery,
+              needsPostProcessing: response.needsPostProcessing,
+              postProcessingType: response.postProcessingType,
+              isExpansionGlobal: response.isExpansionGlobal,
+              semanticExpansion: response.semanticExpansion,
+              customSemanticExpansion: response.customSemanticExpansion,
+              searchDetails: response.searchDetails,
+            };
+          } else {
+            console.warn(`🔧 [Intent Parser] Could not update lastIntentParserResult - missing response or formalQuery`, {
+              hasResponse: !!response,
+              hasFormalQuery: !!(response?.formalQuery)
+            });
+          }
+          
+          console.log(`🔧 [Agent State] Stored final agent state:`, (window as any).lastAgentState);
+        }
+
         // Handle forcePopupOnly mode - automatically open the popup and skip Roam block insertion
         if (agentData?.forcePopupOnly) {
           console.log("🔍 [ForcePopupOnly] Opening FullResultsPopup automatically");
@@ -880,6 +918,12 @@ const invokeSearchAgentInternal = async ({
             (window as any).lastAgentResponseTargetUid = response?.targetUid;
             (window as any).lastUserQuery = response?.userQuery || finalPrompt;
             (window as any).lastFormalQuery = response?.formalQuery;
+            // Store final agent state for expansion options
+            (window as any).lastAgentState = {
+              maxDepthOverride: initialState.maxDepthOverride,
+              isDirectExpansion: initialState.isDirectExpansion,
+              semanticExpansion: initialState.semanticExpansion,
+            };
           }
 
           // Import and open the popup automatically
@@ -1050,7 +1094,7 @@ export const invokeExpandedSearchDirect = async ({
     `🚀 [Direct Expansion] Starting Level ${expansionLevel} expansion: ${expansionLabel}`
   );
   console.log(
-    `🎯 [Direct Expansion] Strategy: ${expansionStrategy}, Query: "${query}"`
+    `🎯 [Direct Expansion] Strategy: ${expansionStrategy}, Query: "${query}", maxDepth override: ${searchParams.maxDepth}`
   );
 
   // Map expansion label to semantic expansion strategy for tools
@@ -1117,6 +1161,10 @@ export const invokeExpandedSearchDirect = async ({
     exchangesSinceLastSummary: 0,
     // Preserve forcePopupOnly flag from original search
     forcePopupOnly: searchParams.agentData?.forcePopupOnly || false,
+    // Pass maxDepth override for depth expansion
+    maxDepthOverride: searchParams.maxDepth || null,
+    // Pass forceHierarchical for flat → hierarchical conversion
+    forceHierarchical: searchParams.forceHierarchical || false,
   };
 
   console.log(
@@ -1124,6 +1172,9 @@ export const invokeExpandedSearchDirect = async ({
   );
   console.log(
     `🔍 [Direct Expansion] ForcePopupOnly preserved: ${expansionAgentData.forcePopupOnly}`
+  );
+  console.log(
+    `🏗️ [Direct Expansion] maxDepthOverride: ${expansionAgentData.maxDepthOverride}`
   );
 
   // Use the standard invokeSearchAgent but with expansion parameters pre-configured

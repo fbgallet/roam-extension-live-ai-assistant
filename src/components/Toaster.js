@@ -160,9 +160,25 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
       .filter((line) => line.trim().startsWith("•"))
       .map((line) => {
         const text = line.replace("•", "").trim();
-        const emoji = text.match(/^(\p{Emoji})/u)?.[1] || "🔍";
-        const label = text.replace(/^(\p{Emoji})\s*/u, "");
-        return { emoji, label, action: text };
+        
+        // Check for depth expansion format: "text|DEPTH:N"
+        let depthTarget = null;
+        let cleanText = text;
+        if (text.includes("|DEPTH:")) {
+          const parts = text.split("|DEPTH:");
+          cleanText = parts[0];
+          depthTarget = parseInt(parts[1]);
+        }
+        
+        const emoji = cleanText.match(/^(\p{Emoji})/u)?.[1] || "🔍";
+        const label = cleanText.replace(/^(\p{Emoji})\s*/u, "");
+        
+        return { 
+          emoji, 
+          label, 
+          action: cleanText,
+          depthTarget // Add depth as structured data
+        };
       });
   };
 
@@ -175,6 +191,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
         action: option.action,
         label: option.label,
         emoji: option.emoji,
+        depthTarget: option.depthTarget, // Pass depth directly
       },
     });
     window.dispatchEvent(expansionEvent);
