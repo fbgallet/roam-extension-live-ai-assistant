@@ -13,6 +13,7 @@ import {
   SearchCondition,
   extractUidsFromResults,
   getExpansionStrategyLabel,
+  withAutomaticExpansion,
 } from "../../helpers/searchUtils";
 import type {
   SearchCondition as StructuredSearchCondition,
@@ -84,184 +85,37 @@ import {
  * Use secureMode=true to exclude full block content from results (UIDs and metadata only).
  */
 
+/**
+ * Wrapper function that handles input transformation for hierarchy tool
+ */
+const findBlocksWithHierarchyWrapper = async (input: any, state?: any) => {
+  // Transform LLM input to internal schema format with state injection
+  const internalInput = transformLlmInputToInternalSchema(input, state);
+  const isPrivateMode = state?.privateMode || internalInput.secureMode;
+
+  // Override enrichment parameters in private mode for performance and privacy
+  const finalInput = isPrivateMode
+    ? {
+        ...internalInput,
+        includeChildren: false,
+        includeParents: false,
+        childDepth: 1,
+        parentDepth: 1,
+        secureMode: true,
+      }
+    : internalInput;
+
+  return await findBlocksWithHierarchyImpl(finalInput, state);
+};
+
 export const findBlocksWithHierarchyTool = tool(
   async (input, config) => {
-    const startTime = performance.now();
-
-    // Extract state from config first
-    const state = config?.configurable?.state;
-
-    // Handle automatic expansion modes (matching other tools)
-    let expansionStates = {
-      isExpansionGlobal: state?.isExpansionGlobal || false,
-      semanticExpansion: state?.semanticExpansion || null,
-    };
-
-    if (state?.automaticExpansionMode) {
-      const expansionMode = state.automaticExpansionMode;
-      console.log(
-        `🔧 [FindBlocksWithHierarchy] Checking expansion mode: ${expansionMode}`
-      );
-
-      // Set expansion states based on mode (only if not already set by user actions)
-      if (!state?.isExpansionGlobal) {
-        switch (expansionMode) {
-          case "always_fuzzy":
-          case "Always with fuzzy":
-            expansionStates.isExpansionGlobal = true;
-            expansionStates.semanticExpansion = "fuzzy";
-            console.log(
-              `🔧 [FindBlocksWithHierarchy] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`
-            );
-            break;
-          case "always_synonyms":
-          case "Always with synonyms":
-            expansionStates.isExpansionGlobal = true;
-            expansionStates.semanticExpansion = "synonyms";
-            console.log(
-              `🔧 [FindBlocksWithHierarchy] Auto-enabling synonyms expansion due to mode: ${expansionMode}`
-            );
-            break;
-          case "always_all":
-          case "Always with all":
-            expansionStates.isExpansionGlobal = true;
-            expansionStates.semanticExpansion = "all";
-            console.log(
-              `🔧 [FindBlocksWithHierarchy] Auto-enabling all expansions due to mode: ${expansionMode}`
-            );
-            break;
-        }
-      }
-    }
-
-    // Store automatic expansion mode for later use (moved to end as fallback)
-    const shouldUseAutomaticExpansion =
-      state?.automaticExpansionMode === "auto_until_result";
-
-    // Transform LLM input to internal schema format with state injection
-    const internalInput = transformLlmInputToInternalSchema(input, state);
-    const isPrivateMode = state?.privateMode || internalInput.secureMode;
-
-    // Override enrichment parameters in private mode for performance and privacy
-    const finalInput = isPrivateMode
-      ? {
-          ...internalInput,
-          includeChildren: false,
-          includeParents: false,
-          childDepth: 1,
-          parentDepth: 1,
-          secureMode: true,
-        }
-      : internalInput;
-
-    try {
-      // First attempt: Execute without expansion for auto_until_result mode
-      // For other modes (always_*), expansion is already enabled in expansionStates
-      const initialState = shouldUseAutomaticExpansion 
-        ? {
-            ...state,
-            // Disable expansion for initial attempt in auto_until_result mode
-            isExpansionGlobal: false,
-            semanticExpansion: null,
-            automaticExpansionMode: null, // Prevent sub-tools from triggering their own expansion
-          }
-        : {
-            ...state,
-            ...expansionStates,
-            // Keep original automaticExpansionMode for hierarchy tool itself
-            // Sub-tools will get disabled mode via their individual calls
-          };
-
-      const results = await findBlocksWithHierarchyImpl(finalInput, initialState);
-
-      // Check if we got results
-      const hasResults = Array.isArray(results) && results.length > 0;
-
-      // If we have results from initial attempt, return them
-      if (hasResults) {
-        return createToolResult(
-          true,
-          results,
-          undefined,
-          "findBlocksWithHierarchy",
-          startTime
-        );
-      }
-
-      // No results - try expansion if auto_until_result or if always_* modes are enabled
-      const shouldExpandAfterNoResults = 
-        shouldUseAutomaticExpansion || expansionStates.isExpansionGlobal;
-
-      if (shouldExpandAfterNoResults) {
-        console.log(`🔄 [FindBlocksWithHierarchy] No initial results, trying with semantic expansion...`);
-
-        if (shouldUseAutomaticExpansion) {
-          // Import the helper function
-          const { automaticSemanticExpansion } = await import(
-            "../../helpers/searchUtils"
-          );
-
-          // Use automatic expansion starting from fuzzy
-          const expansionResult = await automaticSemanticExpansion(
-            finalInput,
-            (params: any, state?: any) =>
-              findBlocksWithHierarchyImpl(params, state),
-            {
-              ...state,
-              ...expansionStates,
-            }
-          );
-
-          return createToolResult(
-            true,
-            expansionResult.results,
-            undefined,
-            "findBlocksWithHierarchy",
-            startTime,
-            {
-              automaticExpansion: {
-                used: expansionResult.expansionUsed,
-                attempts: expansionResult.expansionAttempts,
-                finalAttempt: expansionResult.finalAttempt,
-              },
-            }
-          );
-        } else {
-          // For always_* modes, try with expansion enabled
-          const expandedResults = await findBlocksWithHierarchyImpl(finalInput, {
-            ...state,
-            ...expansionStates,
-            // Keep original automaticExpansionMode - sub-tools get disabled mode via their calls
-          });
-
-          return createToolResult(
-            true,
-            expandedResults,
-            undefined,
-            "findBlocksWithHierarchy",
-            startTime
-          );
-        }
-      }
-
-      // No expansion needed or available, return original results
-      return createToolResult(
-        true,
-        results,
-        undefined,
-        "findBlocksWithHierarchy",
-        startTime
-      );
-    } catch (error) {
-      console.error("FindBlocksWithHierarchy tool error:", error);
-      return createToolResult(
-        false,
-        undefined,
-        error.message,
-        "findBlocksWithHierarchy",
-        startTime
-      );
-    }
+    return withAutomaticExpansion(
+      "findBlocksWithHierarchy",
+      findBlocksWithHierarchyWrapper,
+      input,
+      config
+    );
   },
   {
     name: "findBlocksWithHierarchy",

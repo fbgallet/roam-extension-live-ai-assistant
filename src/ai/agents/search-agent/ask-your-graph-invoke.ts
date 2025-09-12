@@ -264,6 +264,19 @@ const invokeSearchAgentInternal = async ({
           "agentExpansion",
           (window as any).handleExpansionEvent
         );
+        
+        // Clean up the persistent expansion listener from previous sessions
+        if ((window as any)._currentExpansionListener) {
+          window.removeEventListener(
+            "agentExpansion", 
+            (window as any)._currentExpansionListener
+          );
+          delete (window as any)._currentExpansionListener;
+        }
+        
+        // Clean up previous agent state
+        delete (window as any).currentSearchAgentState;
+        delete (window as any).currentSearchAgentExecution;
       } catch (e) {
         // Ignore if it doesn't exist
       }
@@ -426,17 +439,16 @@ const invokeSearchAgentInternal = async ({
           try {
             console.log("🚀 [Graph] Expansion choice made:", event.detail);
 
-            // Clean up listeners and timers immediately
-            window.removeEventListener(
-              "agentExpansion",
-              expansionEventListener
-            );
+            // Clean up timers but keep expansion listener for subsequent expansions
             if (timeoutId) clearTimeout(timeoutId);
             if (abortListener)
               abortController.signal.removeEventListener(
                 "abort",
                 abortListener
               );
+              
+            // Keep the expansion listener active for multiple expansions
+            // It will be cleaned up when the toaster is closed or session ends
 
             // Update agent state with expansion consent
             if ((window as any).currentSearchAgentState) {
@@ -450,31 +462,70 @@ const invokeSearchAgentInternal = async ({
               state.expansionLabel = label;
               state.expansionLevel = (state.expansionLevel || 0) + 1;
 
-              // Set expansion strategy based on selected option
-              if (action.includes("hierarchical")) {
-                state.searchStrategy = "hierarchical";
-              } else if (
-                action.includes("fuzzy") ||
-                action.includes("semantic")
-              ) {
-                state.expansionState = {
-                  ...state.expansionState,
-                  searchStrategy: "semantic",
-                };
-              } else if (action.includes("same-block")) {
-                state.searchStrategy = "flat";
-              } else if (action.includes("multi-tool")) {
-                state.expansionState = {
-                  ...state.expansionState,
-                  searchStrategy: "multi_tool",
-                };
-              } else {
-                state.expansionState = {
-                  ...state.expansionState,
-                  searchStrategy: action,
-                }; // Generic fallback
+              // Map action/label to exact strategy using the centralized mapping function
+              const { mapLabelToStrategy } = await import("../shared/expansionConstants");
+              const strategy = mapLabelToStrategy(label, action);
+              
+              console.log(`🔧 [Expansion] Mapped "${label}" to strategy: "${strategy}"`);
+
+              // Set expansion strategy based on the mapped strategy value
+              switch (strategy) {
+                case "all":
+                  // "All at once" semantic expansion
+                  state.isExpansionGlobal = true;
+                  state.semanticExpansion = "all";
+                  console.log(`🔧 [Expansion] Set global semantic expansion: all`);
+                  break;
+                  
+                case "fuzzy":
+                case "synonyms": 
+                case "related_concepts":
+                case "broader_terms":
+                  // Individual semantic expansion strategies
+                  state.isExpansionGlobal = true;
+                  state.semanticExpansion = strategy;
+                  console.log(`🔧 [Expansion] Set global semantic expansion: ${strategy}`);
+                  break;
+                  
+                case "automatic":
+                  // Auto semantic expansion until results
+                  state.automaticExpansionMode = "auto_until_result";
+                  console.log(`🔧 [Expansion] Set automatic expansion mode: auto_until_result`);
+                  break;
+                  
+                case "hierarchical":
+                  state.searchStrategy = "hierarchical";
+                  break;
+                  
+                case "other":
+                  state.expansionState = {
+                    ...state.expansionState,
+                    searchStrategy: "multi_tool",
+                  };
+                  break;
+                  
+                default:
+                  // Handle depth expansions and other cases
+                  if (action.includes("same-block")) {
+                    state.searchStrategy = "flat";
+                  } else if (action.includes("Deepen search")) {
+                    // Handle depth expansion with depthTarget from event detail
+                    if (event.detail.depthTarget) {
+                      state.maxHierarchyDepth = event.detail.depthTarget;
+                      state.searchStrategy = "hierarchical";
+                    }
+                  } else {
+                    state.expansionState = {
+                      ...state.expansionState,
+                      searchStrategy: strategy,
+                    };
+                  }
+                  break;
               }
 
+              // Mark this as a direct expansion to skip intent parsing
+              state.isDirectExpansion = true;
+              
               // Clear pending expansion flag
               state.pendingExpansion = false;
 
@@ -508,9 +559,9 @@ const invokeSearchAgentInternal = async ({
               }
             );
 
-            // Clean up global state
-            delete (window as any).currentSearchAgentState;
-            delete (window as any).currentSearchAgentExecution;
+            // Keep global state for subsequent expansions
+            // State will be cleaned up when toaster is closed or session ends
+            console.log("🔄 [Expansion] Keeping state active for additional expansions");
 
             // Process the final response and resolve with its result
             const result = await processAgentResponse(finalResponse);
@@ -654,6 +705,9 @@ const invokeSearchAgentInternal = async ({
           ];
           window.addEventListener("agentExpansion", expansionEventListener);
           window.addEventListener("agentPrivacyMode", privacyModeEventListener);
+          
+          // Store the expansion listener reference for later cleanup
+          (window as any)._currentExpansionListener = expansionEventListener;
 
           // Store continuation function for manual triggering if needed
           (window as any).currentSearchAgentExecution = {

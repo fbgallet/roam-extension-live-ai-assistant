@@ -99,15 +99,17 @@
 .expansion-dropdown-menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0; /* Changed from left: 0 to right: 0 for better positioning */
   min-width: 300px;
   background-color: white;
   border: 1px solid #ccc;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 9999;
+  z-index: 10000; /* Increased z-index for better layering */
   max-height: 400px;
   overflow-y: auto;
+  /* Add better viewport handling */
+  transform: translateY(2px); /* Small gap from trigger */
 }
 
 .expansion-dropdown-option {
