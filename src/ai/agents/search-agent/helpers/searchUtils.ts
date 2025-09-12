@@ -4,6 +4,7 @@ import { modelViaLanggraph } from "../../langraphModelsLoader";
 import { HumanMessage } from "@langchain/core/messages";
 import { modelAccordingToProvider } from "../../../aiAPIsHub.js";
 import { defaultModel } from "../../../../index.js";
+import { updateAgentToaster } from "../../shared/agentsUtils";
 
 // Extend Window interface for TypeScript
 declare global {
@@ -966,6 +967,183 @@ ${commonRequirements}`;
     console.error("Failed to generate semantic expansions:", error);
     throw new Error(`Semantic expansion failed: ${error.message}`);
   }
+};
+
+/**
+ * Shared expansion logic for all search tools
+ * Handles semantic expansion with consistent caching and toaster updates
+ */
+export const expandConditionsShared = async (
+  conditions: any[],
+  state?: any
+): Promise<any[]> => {
+  const expandedConditions = [...conditions];
+
+  // Check if semantic expansion is needed - either globally or per-condition
+  const hasGlobalExpansion = state?.isExpansionGlobal === true;
+
+  // Check if any condition has symbols that require expansion
+  const hasSymbolExpansion = conditions.some(
+    (c) => c.text.endsWith("*") || c.text.endsWith("~")
+  );
+
+  if (!hasGlobalExpansion && !hasSymbolExpansion) {
+    return expandedConditions;
+  }
+
+  // Show expansion progress only once per session
+  const conditionsToExpand = conditions.filter(
+    (c) =>
+      !state?.disableSemanticExpansion &&
+      ((c.semanticExpansion && (c.type === "text" || c.type === "page_ref")) ||
+        (hasGlobalExpansion && (c.type === "text" || c.type === "page_ref")))
+  );
+
+  if (conditionsToExpand.length > 0 && !state?.expansionToasterShown) {
+    updateAgentToaster(`🔍 Expanding search with related terms...`);
+    // Mark that we've shown the toaster to prevent repeated messages
+    if (state) {
+      state.expansionToasterShown = true;
+    }
+  }
+
+  const finalExpandedConditions = [];
+
+  for (const condition of conditions) {
+    // Convert to structured condition format
+    const structuredCondition = {
+      type: condition.type,
+      text: condition.text,
+      matchType: condition.matchType || "contains",
+      semanticExpansion: condition.semanticExpansion,
+      weight: condition.weight || 1.0,
+      negate: condition.negate || false,
+    };
+
+    // Apply semantic expansion if needed
+    if (
+      structuredCondition.type === "regex" ||
+      (!hasGlobalExpansion && !structuredCondition.semanticExpansion)
+    ) {
+      // No expansion needed
+      finalExpandedConditions.push(structuredCondition);
+      continue;
+    }
+
+    // Parse semantic expansion from condition text
+    const { cleanText, expansionType } = parseSemanticExpansion(
+      structuredCondition.text,
+      state?.semanticExpansion
+    );
+
+    // Determine final expansion strategy: per-condition > global
+    let effectiveExpansionStrategy = expansionType;
+    if (!effectiveExpansionStrategy && hasGlobalExpansion) {
+      effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
+    }
+
+    if (effectiveExpansionStrategy && structuredCondition.type === "text") {
+      try {
+        const customStrategy =
+          effectiveExpansionStrategy === "custom"
+            ? state?.customSemanticExpansion
+            : undefined;
+
+        // Show expansion progress in toaster
+        const strategyLabel = getExpansionStrategyLabel(
+          effectiveExpansionStrategy
+        );
+
+        updateAgentToaster(`🔍 Expanding "${cleanText}" (${strategyLabel})...`);
+
+        // Initialize expansion cache if not exists
+        if (!state?.expansionCache) {
+          state = { ...state, expansionCache: new Map() };
+        }
+
+        // Create cache key for this condition
+        const cacheKey = `shared|${cleanText}|${effectiveExpansionStrategy}|text|${
+          state?.userQuery || ""
+        }`;
+
+        let expansionTerms;
+        if (state.expansionCache.has(cacheKey)) {
+          // Reuse cached expansion results
+          expansionTerms = state.expansionCache.get(cacheKey);
+          console.log(
+            `🔄 [SharedExpansion] Reusing cached expansion for "${cleanText}"`
+          );
+        } else {
+          // Generate semantic expansions
+          expansionTerms = await generateSemanticExpansions(
+            cleanText,
+            effectiveExpansionStrategy as any,
+            state?.userQuery,
+            state?.model,
+            state?.language,
+            customStrategy,
+            "text"
+          );
+
+          // Cache the results
+          state.expansionCache.set(cacheKey, expansionTerms);
+          console.log(
+            `💾 [SharedExpansion] Cached expansion for "${cleanText}": ${expansionTerms.length} terms`
+          );
+        }
+
+        // Create expanded regex condition
+        if (expansionTerms.length > 0) {
+          const allTerms = [cleanText, ...expansionTerms];
+          const escapedTerms = allTerms.map((term) =>
+            term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+          );
+          const regexPattern = `(${escapedTerms.join("|")})`;
+
+          // Show completion in toaster
+          updateAgentToaster(
+            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+              ", "
+            )}`
+          );
+
+          finalExpandedConditions.push({
+            ...structuredCondition,
+            type: "regex",
+            text: regexPattern,
+            matchType: "regex",
+            semanticExpansion: undefined,
+          });
+        } else {
+          // No expansion terms found, use clean text
+          finalExpandedConditions.push({
+            ...structuredCondition,
+            text: cleanText,
+            semanticExpansion: undefined,
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to expand condition "${structuredCondition.text}":`,
+          error
+        );
+        finalExpandedConditions.push({
+          ...structuredCondition,
+          text: cleanText,
+          semanticExpansion: undefined,
+        });
+      }
+    } else {
+      // Non-text condition or no expansion strategy
+      finalExpandedConditions.push({
+        ...structuredCondition,
+        text: cleanText,
+        semanticExpansion: undefined,
+      });
+    }
+  }
+
+  return finalExpandedConditions;
 };
 
 /**
@@ -2877,6 +3055,165 @@ export const parsePageSearchSyntax = (
     extractedQuery: query,
   };
 };
+
+/**
+ * Shared automatic expansion wrapper for all search tools
+ * Handles expansion state management, two-phase execution, and retry logic
+ *
+ * @param toolName - Name of the tool for logging and result metadata
+ * @param toolImpl - The tool implementation function
+ * @param input - Tool input parameters
+ * @param config - LangChain config with state
+ * @returns Promise with tool result including expansion metadata
+ */
+export async function withAutomaticExpansion<T, R>(
+  toolName: string,
+  toolImpl: (input: T, state?: any) => Promise<R>,
+  input: T,
+  config: any
+): Promise<string> {
+  const startTime = performance.now();
+
+  // Extract state from config
+  const state = config?.configurable?.state;
+
+  // Handle automatic expansion modes
+  let expansionStates = {
+    isExpansionGlobal: state?.isExpansionGlobal || false,
+    semanticExpansion: state?.semanticExpansion || null,
+  };
+
+  if (state?.automaticExpansionMode) {
+    const expansionMode = state.automaticExpansionMode;
+    console.log(`🔧 [${toolName}] Checking expansion mode: ${expansionMode}`);
+
+    // Set expansion states based on mode (only if not already set by user actions)
+    if (!state?.isExpansionGlobal) {
+      switch (expansionMode) {
+        case "always_fuzzy":
+        case "Always with fuzzy":
+          expansionStates.isExpansionGlobal = true;
+          expansionStates.semanticExpansion = "fuzzy";
+          console.log(
+            `🔧 [${toolName}] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`
+          );
+          break;
+        case "always_synonyms":
+        case "Always with synonyms":
+          expansionStates.isExpansionGlobal = true;
+          expansionStates.semanticExpansion = "synonyms";
+          console.log(
+            `🔧 [${toolName}] Auto-enabling synonyms expansion due to mode: ${expansionMode}`
+          );
+          break;
+        case "always_all":
+        case "Always with all":
+          expansionStates.isExpansionGlobal = true;
+          expansionStates.semanticExpansion = "all";
+          console.log(
+            `🔧 [${toolName}] Auto-enabling all expansions due to mode: ${expansionMode}`
+          );
+          break;
+      }
+    }
+  }
+
+  // Store automatic expansion mode for later use
+  const shouldUseAutomaticExpansion =
+    state?.automaticExpansionMode === "auto_until_result";
+
+  try {
+    // First attempt: Execute without expansion for auto_until_result mode
+    // For other modes (always_*), expansion is already enabled in expansionStates
+    const initialState = shouldUseAutomaticExpansion
+      ? {
+          ...state,
+          // Disable expansion for initial attempt in auto_until_result mode
+          isExpansionGlobal: false,
+          semanticExpansion: null,
+          automaticExpansionMode: null, // Prevent sub-tools from triggering their own expansion
+        }
+      : {
+          ...state,
+          ...expansionStates,
+          // Keep original automaticExpansionMode for this tool
+        };
+
+    const results = await toolImpl(input, initialState);
+
+    // Check if we got results
+    const hasResults = Array.isArray(results) && results.length > 0;
+
+    // If we have results from initial attempt, return them
+    if (hasResults) {
+      return createToolResult(true, results, undefined, toolName, startTime);
+    }
+
+    // No results - try expansion if auto_until_result or if always_* modes are enabled
+    const shouldExpandAfterNoResults =
+      shouldUseAutomaticExpansion || expansionStates.isExpansionGlobal;
+
+    if (shouldExpandAfterNoResults) {
+      console.log(
+        `🔄 [${toolName}] No initial results, trying with semantic expansion...`
+      );
+
+      if (shouldUseAutomaticExpansion) {
+        // Use automatic expansion starting from fuzzy
+        const expansionResult = await automaticSemanticExpansion(
+          input,
+          (params: T, state?: any) => toolImpl(params, state),
+          {
+            ...state,
+            ...expansionStates,
+          }
+        );
+
+        return createToolResult(
+          true,
+          expansionResult.results,
+          undefined,
+          toolName,
+          startTime,
+          {
+            automaticExpansion: {
+              used: expansionResult.expansionUsed,
+              attempts: expansionResult.expansionAttempts,
+              finalAttempt: expansionResult.finalAttempt,
+            },
+          }
+        );
+      } else {
+        // For always_* modes, try with expansion enabled
+        const expandedResults = await toolImpl(input, {
+          ...state,
+          ...expansionStates,
+          // Keep original automaticExpansionMode
+        });
+
+        return createToolResult(
+          true,
+          expandedResults,
+          undefined,
+          toolName,
+          startTime
+        );
+      }
+    }
+
+    // No expansion needed or available, return original results
+    return createToolResult(true, results, undefined, toolName, startTime);
+  } catch (error) {
+    console.error(`${toolName} tool error:`, error);
+    return createToolResult(
+      false,
+      undefined,
+      error.message,
+      toolName,
+      startTime
+    );
+  }
+}
 
 /**
  * Automatic semantic expansion for search tools
