@@ -1,19 +1,14 @@
-import { z } from "zod";
 import {
-  isDailyNote,
-  filterByDateRange,
   DatomicQueryBuilder,
   SearchCondition,
-  extractUidsFromResults,
-  sanitizeRegexForDatomic,
   PageWideQueryBuilder,
-  processConditionGroupsForPageWide,
-  parsePageSearchSyntax,
   executeDatomicQuery,
+} from "../../helpers/searchUtils";
+import {
   expandConditionsShared,
   parseSemanticExpansion,
   generateSemanticExpansions,
-} from "../../helpers/searchUtils";
+} from "../../helpers/semanticExpansion";
 import { dnpUidRegex } from "../../../../../utils/regex.js";
 import {
   searchAttributeBlocksWithCapture,
@@ -70,8 +65,6 @@ export const expandConditions = async (
       state?.semanticExpansion
     ) {
       try {
-        const { parseSemanticExpansion, generateSemanticExpansions } =
-          await import("../../helpers/searchUtils");
         const { cleanText } = parseSemanticExpansion(
           condition.text,
           state?.semanticExpansion

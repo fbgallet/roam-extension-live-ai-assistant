@@ -1,10 +1,10 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
-  createToolResult,
   executeDatomicQuery,
   extractUidsFromResults,
 } from "../helpers/searchUtils";
+import { createToolResult } from "../helpers/semanticExpansion";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 
 /**

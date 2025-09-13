@@ -4,17 +4,20 @@ import {
   executeDatomicQuery,
   isDailyNote,
   filterByDateRange,
-  createToolResult,
-  generateSemanticExpansions,
   DatomicQueryBuilder,
   SearchCondition,
   extractUidsFromResults,
   sanitizeRegexForDatomic,
-  parseSemanticExpansion,
   PageWideQueryBuilder,
   processConditionGroupsForPageWide,
   parsePageSearchSyntax,
 } from "../helpers/searchUtils";
+import {
+  generateSemanticExpansions,
+  parseSemanticExpansion,
+  createToolResult,
+  automaticSemanticExpansion,
+} from "../helpers/semanticExpansion";
 import {
   baseConditionSchema,
   conditionGroupSchema,
@@ -2101,8 +2104,7 @@ export const findPagesByContentTool = tool(
       if (state?.automaticExpansionMode === 'auto_until_result') {
         console.log(`🔧 [FindPagesByContent] Using automatic expansion for auto_until_result mode`);
         
-        // Import the helper function
-        const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+        // Use the already imported helper function
         
         // Use automatic expansion starting from fuzzy
         const expansionResult = await automaticSemanticExpansion(

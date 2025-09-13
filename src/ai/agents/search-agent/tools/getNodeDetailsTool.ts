@@ -3,9 +3,9 @@ import { z } from "zod";
 import {
   executeDatomicQuery,
   isDailyNote,
-  createToolResult,
   extractUidsFromResults,
 } from "../helpers/searchUtils";
+import { createToolResult } from "../helpers/semanticExpansion";
 
 /**
  * Get detailed information about specific nodes (blocks or pages)

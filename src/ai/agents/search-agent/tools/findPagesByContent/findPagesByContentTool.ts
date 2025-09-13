@@ -2,7 +2,6 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
   filterByDateRange,
-  createToolResult,
   extractUidsFromResults,
   parsePageSearchSyntax,
   processConditionGroupsForPageWide,
@@ -14,11 +13,7 @@ import {
   processConditionGroups,
   applyORToRegexConversion,
 } from "../conditionGroupsUtils";
-import {
-  schema,
-  llmFacingSchema,
-  FindPagesByContentInput,
-} from "./schemas";
+import { schema, llmFacingSchema, FindPagesByContentInput } from "./schemas";
 import {
   expandConditions,
   processPageWideConditions,
@@ -29,7 +24,10 @@ import {
   enrichPageResults,
   sortPageResults,
 } from "./analysisUtils";
-import { withAutomaticExpansion } from "../../helpers/searchUtils";
+import {
+  withAutomaticExpansion,
+  createToolResult,
+} from "../../helpers/semanticExpansion";
 
 /**
  * Find pages by analyzing their content blocks with aggregation and filtering
@@ -68,9 +66,12 @@ const findPagesByContentImpl = async (
     excludeBlockUid,
   } = input;
 
-  console.log(`🔧 [DEBUG] includeDaily from input destructuring:`, includeDaily);
+  console.log(
+    `🔧 [DEBUG] includeDaily from input destructuring:`,
+    includeDaily
+  );
   console.log(`🔧 [DEBUG] Full input object:`, JSON.stringify(input, null, 2));
-  
+
   // Ensure includeDaily defaults to true if undefined
   const finalIncludeDaily = includeDaily !== undefined ? includeDaily : true;
   console.log(`🔧 [DEBUG] Final includeDaily value:`, finalIncludeDaily);

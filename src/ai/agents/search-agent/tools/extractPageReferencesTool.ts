@@ -1,10 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import {
-  executeDatomicQuery,
-  isDailyNote,
-  createToolResult,
-} from "../helpers/searchUtils";
+import { executeDatomicQuery, isDailyNote } from "../helpers/searchUtils";
+import { createToolResult } from "../helpers/semanticExpansion";
 
 /**
  * Extract page references from blocks or pages

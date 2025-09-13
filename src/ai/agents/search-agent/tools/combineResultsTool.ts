@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { createToolResult } from "../helpers/searchUtils";
+import { createToolResult } from "../helpers/semanticExpansion";
 
 /**
  * Combine and deduplicate results from multiple search operations

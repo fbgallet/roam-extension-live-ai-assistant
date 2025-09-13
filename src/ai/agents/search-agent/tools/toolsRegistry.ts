@@ -1,6 +1,6 @@
 import { findPagesByTitleTool } from "./findPagesByTitleTool";
 // import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
-import { findBlocksByContentTool } from "./findBlocksByContentTool";
+import { findBlocksByContentTool } from "./findBlocksByContent/findBlocksByContentTool";
 import { findBlocksWithHierarchyTool } from "./findBlocksWithHierarchy/findBlocksWithHierarchyTool";
 import { findPagesByContentTool } from "./findPagesByContent/findPagesByContentTool";
 import { extractHierarchyContentTool } from "./extractHierarchyContentTool";
