@@ -4,9 +4,11 @@ import {
   executeDatomicQuery,
   isDailyNote,
   filterByDateRange,
-  createToolResult,
-  generateSemanticExpansions,
 } from "../helpers/searchUtils";
+import {
+  generateSemanticExpansions,
+  createToolResult,
+} from "../helpers/semanticExpansion";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 
 /**

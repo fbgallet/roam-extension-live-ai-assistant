@@ -4,11 +4,14 @@ import {
   executeDatomicQuery,
   isDailyNote,
   filterByDateRange,
-  createToolResult,
+} from "../helpers/searchUtils";
+import {
+  automaticSemanticExpansion,
   generateSemanticExpansions,
   getExpansionStrategyLabel,
   parseSemanticExpansion,
-} from "../helpers/searchUtils";
+  createToolResult,
+} from "../helpers/semanticExpansion";
 import { baseConditionSchema } from "./conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
@@ -228,11 +231,15 @@ const expandPageTitleConditions = async (
               expansionTerms.length
             } variations: ${expansionTerms.join(", ")}`
           );
-          
+
           // Show user-friendly expansion message
-          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
+          const strategyLabel = getExpansionStrategyLabel(
+            effectiveExpansionStrategy
+          );
           updateAgentToaster(
-            `📄 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`
+            `📄 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+              ", "
+            )}`
           );
 
           // For exact matching, add each variation as a separate semantic page condition
@@ -669,11 +676,6 @@ export const findPagesByTitleTool = tool(
       if (state?.automaticExpansionMode === "auto_until_result") {
         console.log(
           `🔧 [FindPagesByTitle] Using automatic expansion for auto_until_result mode`
-        );
-
-        // Import the helper function
-        const { automaticSemanticExpansion } = await import(
-          "../helpers/searchUtils"
         );
 
         // Use automatic expansion starting from fuzzy

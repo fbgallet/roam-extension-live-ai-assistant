@@ -7,14 +7,15 @@ declare global {
 }
 import {
   filterByDateRange,
-  createToolResult,
-  generateSemanticExpansions,
-  parseSemanticExpansion,
   SearchCondition,
   extractUidsFromResults,
+} from "../../helpers/searchUtils";
+import {
+  generateSemanticExpansions,
+  parseSemanticExpansion,
   getExpansionStrategyLabel,
   withAutomaticExpansion,
-} from "../../helpers/searchUtils";
+} from "../../helpers/semanticExpansion";
 import type {
   SearchCondition as StructuredSearchCondition,
   CompoundCondition,
@@ -339,14 +340,11 @@ const findBlocksWithHierarchyImpl = async (
 
   // Step 1: Process content conditions with semantic expansion (CENTRALIZED)
   // Expand once here and prevent sub-tools from expanding by setting disabled state
-  const expandedContentConditions = await expandConditions(
-    contentConditions,
-    {
-      ...state,
-      // Mark that expansion has been handled at hierarchy level
-      hierarchyExpansionDone: true,
-    }
-  );
+  const expandedContentConditions = await expandConditions(contentConditions, {
+    ...state,
+    // Mark that expansion has been handled at hierarchy level
+    hierarchyExpansionDone: true,
+  });
 
   // Step 2: Find blocks matching content conditions
   const contentMatches = await searchBlocksWithConditions(
@@ -850,7 +848,6 @@ const expandStructuredConditions = async (
   return expandedConditions;
 };
 
-
 /**
  * Apply semantic expansion to a single SearchCondition
  */
@@ -892,19 +889,31 @@ export const expandSingleCondition = async (
       const expansionMode = condition.type === "page_ref" ? "page_ref" : "text";
 
       // Create cache key for this condition
-      const cacheKey = `single|${cleanText}|${effectiveExpansionStrategy}|${expansionMode}|${state?.userQuery || ''}`;
-      
+      const cacheKey = `single|${cleanText}|${effectiveExpansionStrategy}|${expansionMode}|${
+        state?.userQuery || ""
+      }`;
+
       let expansionTerms;
       if (state.expansionCache.has(cacheKey)) {
         // Reuse cached expansion results
         expansionTerms = state.expansionCache.get(cacheKey);
-        console.log(`🔄 [Hierarchy] Reusing cached single condition expansion for "${cleanText}"`);
-        
+        console.log(
+          `🔄 [Hierarchy] Reusing cached single condition expansion for "${cleanText}"`
+        );
+
         // Show expanded terms in toaster for cached results too
         if (expansionTerms.length > 0) {
-          const { updateAgentToaster } = await import("../../../shared/agentsUtils");
-          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
-          updateAgentToaster(`🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`);
+          const { updateAgentToaster } = await import(
+            "../../../shared/agentsUtils"
+          );
+          const strategyLabel = getExpansionStrategyLabel(
+            effectiveExpansionStrategy
+          );
+          updateAgentToaster(
+            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+              ", "
+            )}`
+          );
         }
       } else {
         // Use generateSemanticExpansions
@@ -917,56 +926,70 @@ export const expandSingleCondition = async (
           customStrategy,
           expansionMode
         );
-        
+
         // Cache the results
         state.expansionCache.set(cacheKey, expansionTerms);
-        console.log(`💾 [Hierarchy] Cached single condition expansion for "${cleanText}": ${expansionTerms.length} terms`);
-        
+        console.log(
+          `💾 [Hierarchy] Cached single condition expansion for "${cleanText}": ${expansionTerms.length} terms`
+        );
+
         // Show expanded terms in toaster
         if (expansionTerms.length > 0) {
-          const { updateAgentToaster } = await import("../../../shared/agentsUtils");
-          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
-          updateAgentToaster(`🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`);
+          const { updateAgentToaster } = await import(
+            "../../../shared/agentsUtils"
+          );
+          const strategyLabel = getExpansionStrategyLabel(
+            effectiveExpansionStrategy
+          );
+          updateAgentToaster(
+            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+              ", "
+            )}`
+          );
         }
       }
 
       // REPLACE original condition with single expanded regex condition
       if (expansionTerms.length > 0) {
         const allTerms = [cleanText, ...expansionTerms];
-        
+
         if (condition.type === "page_ref") {
           // For page references, create comprehensive regex that matches [[PageName]], #PageName, and PageName:: formats
-          const escapedTerms = allTerms.map(term => 
-            term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const escapedTerms = allTerms.map((term) =>
+            term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
           );
-          
+
           // Use comprehensive Roam page reference pattern: [[title]], #title, or title::
-          const termAlternation = escapedTerms.join('|');
+          const termAlternation = escapedTerms.join("|");
           const pageRefRegex = `(?:\\[\\[(?:${termAlternation})\\]\\]|#(?:${termAlternation})(?!\\w)|(?:${termAlternation})::)`;
-          
-          return [{
-            ...condition,
-            type: "regex",
-            text: pageRefRegex,
-            matchType: "regex", 
-            semanticExpansion: undefined,
-            weight: condition.weight || 1.0,
-          } as any];
+
+          return [
+            {
+              ...condition,
+              type: "regex",
+              text: pageRefRegex,
+              matchType: "regex",
+              semanticExpansion: undefined,
+              weight: condition.weight || 1.0,
+            } as any,
+          ];
         } else {
           // For text conditions, generate simple regex pattern
-          const escapedTerms = allTerms.map(term => 
-            term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const escapedTerms = allTerms.map((term) =>
+            term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
           );
-          const regexPattern = `(${escapedTerms.join('|')})`;
-          
-          return [{
-            ...condition,
-            type: "regex",
-            text: regexPattern,
-            matchType: "regex",
-            semanticExpansion: undefined,
-            weight: condition.weight || 1.0,
-          } as any];
+          const regexPattern = `(${escapedTerms.join("|")})`;
+
+          return [
+            {
+              ...condition,
+              type: "regex",
+              text: regexPattern,
+              matchType: "regex",
+              semanticExpansion: undefined,
+              weight: condition.weight || 1.0,
+            } as any,
+          ];
         }
       }
     } catch (error) {
@@ -975,11 +998,13 @@ export const expandSingleCondition = async (
   }
 
   // If no expansion happened, return cleaned original condition
-  return [{
-    ...condition,
-    text: cleanText,
-    semanticExpansion: undefined,
-  }];
+  return [
+    {
+      ...condition,
+      text: cleanText,
+      semanticExpansion: undefined,
+    },
+  ];
 };
 
 /**
@@ -1165,26 +1190,29 @@ const processStructuredHierarchyQuery = async (
 
     // Use findBlocksByContentTool for pure content search
     // CRITICAL: Disable expansion for sub-calls - expansion should only be handled at hierarchy level
-    const result: any = await findBlocksByContentTool.invoke({
-      conditions: legacyConditions.map((cond) => ({
-        ...cond,
-        semanticExpansion: null, // Force disable expansion for sub-calls
-      })),
-      combineConditions: query.combineConditions || "AND",
-      includeChildren: options.includeChildren,
-      includeParents: options.includeParents,
-      limit: options.limit,
-      secureMode: options.secureMode,
-    }, {
-      configurable: {
-        state: {
-          ...state,
-          // Disable automatic expansion for sub-tools - hierarchy tool controls expansion
-          automaticExpansionMode: "disabled_by_hierarchy",
-          hierarchyExpansionDone: true,
-        }
+    const result: any = await findBlocksByContentTool.invoke(
+      {
+        conditions: legacyConditions.map((cond) => ({
+          ...cond,
+          semanticExpansion: null, // Force disable expansion for sub-calls
+        })),
+        combineConditions: query.combineConditions || "AND",
+        includeChildren: options.includeChildren,
+        includeParents: options.includeParents,
+        limit: options.limit,
+        secureMode: options.secureMode,
+      },
+      {
+        configurable: {
+          state: {
+            ...state,
+            // Disable automatic expansion for sub-tools - hierarchy tool controls expansion
+            automaticExpansionMode: "disabled_by_hierarchy",
+            hierarchyExpansionDone: true,
+          },
+        },
       }
-    });
+    );
 
     // Parse the result if it's a string
     if (typeof result === "string") {
@@ -1527,19 +1555,19 @@ const processStructuredHierarchyCondition = async (
   if (options.maxHierarchyDepth > 1) {
     switch (hierarchyCondition.operator) {
       case "<=>":
-        effectiveOperator = "<<=>>"; 
+        effectiveOperator = "<<=>>";
         break;
       case "=>":
-        effectiveOperator = "=>>"; 
+        effectiveOperator = "=>>";
         break;
       case ">":
-        effectiveOperator = ">>"; 
+        effectiveOperator = ">>";
         break;
       case "<=":
         effectiveOperator = "<<=>>"; // Deep bidirectional for inverse flexible
         break;
       case "<":
-        effectiveOperator = "<<"; 
+        effectiveOperator = "<<";
         break;
       // Deep operators stay the same
       case "<<=>>":
@@ -1552,9 +1580,11 @@ const processStructuredHierarchyCondition = async (
         // Unknown operator, keep as-is
         break;
     }
-    
+
     if (effectiveOperator !== hierarchyCondition.operator) {
-      console.log(`🔧 [Hierarchy] Auto-converted '${hierarchyCondition.operator}' to '${effectiveOperator}' for depth=${options.maxHierarchyDepth} search`);
+      console.log(
+        `🔧 [Hierarchy] Auto-converted '${hierarchyCondition.operator}' to '${effectiveOperator}' for depth=${options.maxHierarchyDepth} search`
+      );
     }
   }
 

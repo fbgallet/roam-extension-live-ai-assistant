@@ -4,10 +4,6 @@ import {
   executeDatomicQuery,
   isDailyNote,
   filterByDateRange,
-  createToolResult,
-  generateSemanticExpansions,
-  getExpansionStrategyLabel,
-  generateFuzzyRegex,
   getBlockChildren,
   getBlockParents,
   DatomicQueryBuilder,
@@ -17,8 +13,15 @@ import {
   fuzzyMatch,
   extractUidsFromResults,
   sanitizeRegexForDatomic,
-  parseSemanticExpansion,
 } from "../helpers/searchUtils";
+import {
+  generateSemanticExpansions,
+  getExpansionStrategyLabel,
+  generateFuzzyRegex,
+  parseSemanticExpansion,
+  createToolResult,
+  automaticSemanticExpansion,
+} from "../helpers/semanticExpansion";
 import {
   baseConditionSchema,
   conditionGroupSchema,
@@ -1284,8 +1287,7 @@ export const findBlocksByContentTool = tool(
       if (state?.automaticExpansionMode === 'auto_until_result') {
         console.log(`🔧 [FindBlocksByContent] Using automatic expansion for auto_until_result mode`);
         
-        // Import the helper function
-        const { automaticSemanticExpansion } = await import('../helpers/searchUtils');
+        // Use the already imported helper function
         
         // Use automatic expansion starting from fuzzy
         const expansionResult = await automaticSemanticExpansion(

@@ -2,10 +2,10 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
   executeDatomicQuery,
-  createToolResult,
   truncateContent,
   extractUidsFromResults,
 } from "../helpers/searchUtils";
+import { createToolResult } from "../helpers/semanticExpansion";
 
 /**
  * Extract and format hierarchical content from specific blocks
