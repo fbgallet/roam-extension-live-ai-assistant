@@ -18,6 +18,7 @@ import {
   handleRetryLogic,
   validatePermissions,
 } from "../shared/agentsUtils";
+import { mapLabelToStrategy } from "../shared/expansionConstants";
 import { deduplicateResultsByUid } from "./helpers/searchUtils";
 import { addRecentQuery } from "./helpers/queryStorage";
 import {
@@ -1151,56 +1152,13 @@ export const invokeExpandedSearchDirect = async ({
     `🎯 [Direct Expansion] Strategy: ${expansionStrategy}, Query: "${query}", maxDepth override: ${searchParams.maxDepth}`
   );
 
-  // Map expansion label to semantic expansion strategy for tools
-  const mapExpansionLabelToStrategy = (
-    expansionLabel: string,
-    expansionStrategy: string
-  ):
-    | "fuzzy"
-    | "synonyms"
-    | "related_concepts"
-    | "broader_terms"
-    | "all"
-    | null => {
-    if (
-      expansionLabel.includes("All") ||
-      expansionLabel.includes("all") ||
-      expansionLabel.includes("once")
-    ) {
-      return "all";
-    } else if (
-      expansionLabel.includes("Fuzzy") ||
-      expansionLabel.includes("fuzzy") ||
-      expansionLabel.includes("typos")
-    ) {
-      return "fuzzy";
-    } else if (
-      expansionLabel.includes("Synonyms") ||
-      expansionLabel.includes("synonyms") ||
-      expansionLabel.includes("alternative")
-    ) {
-      return "synonyms";
-    } else if (
-      expansionLabel.includes("Related") ||
-      expansionLabel.includes("related") ||
-      expansionLabel.includes("concepts")
-    ) {
-      return "related_concepts";
-    } else if (
-      expansionLabel.includes("Broader") ||
-      expansionLabel.includes("broader") ||
-      expansionLabel.includes("categories")
-    ) {
-      return "broader_terms";
-    }
-    return null;
-  };
+  // Use centralized strategy mapping function
 
   // Create expansion agent data to pass semantic expansion parameters
   const expansionAgentData = {
     isConversationMode: false,
     isDirectExpansion: true, // Flag for assistant bypass
-    semanticExpansion: mapExpansionLabelToStrategy(
+    semanticExpansion: mapLabelToStrategy(
       expansionLabel,
       expansionStrategy
     ),

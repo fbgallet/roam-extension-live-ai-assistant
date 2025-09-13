@@ -1,3 +1,5 @@
+import { EXPANSION_OPTIONS } from "../../shared/expansionConstants";
+
 /**
  * Expansion UI utilities for the search agent  
  * Handles generation of contextual expansion options for the user interface
@@ -29,25 +31,28 @@ export const getContextualExpansionOptions = (
   const options = [];
   const appliedStrategies = appliedSemanticStrategies || [];
 
-  // Define all semantic strategies with their info
+  // Use centralized expansion definitions for consistency
   const semanticStrategies = {
     fuzzy: {
-      emoji: "🔍",
-      label: "Fuzzy matching (typos, morphological variations)",
+      emoji: EXPANSION_OPTIONS.fuzzy.emoji,
+      label: EXPANSION_OPTIONS.fuzzy.label,
     },
-    synonyms: { emoji: "📝", label: "Synonyms and alternative terms" },
+    synonyms: {
+      emoji: EXPANSION_OPTIONS.synonyms.emoji, 
+      label: EXPANSION_OPTIONS.synonyms.label
+    },
     related_concepts: {
-      emoji: "🧠",
-      label: "Related concepts and associated terms",
+      emoji: EXPANSION_OPTIONS.relatedConcepts.emoji,
+      label: EXPANSION_OPTIONS.relatedConcepts.label,
     },
     broader_terms: {
-      emoji: "🔺",
-      label: "Broader categories and umbrella terms",
+      emoji: EXPANSION_OPTIONS.broaderTerms.emoji,
+      label: EXPANSION_OPTIONS.broaderTerms.label,
     },
   };
 
   // First option: "Automatic until results" (normal progression)
-  options.push("🤖 Auto (let the agent test progressive strategy)");
+  options.push(`${EXPANSION_OPTIONS.auto.emoji} ${EXPANSION_OPTIONS.auto.label}`);
 
   // Second option: "All semantic expansions at once" (only if no semantic expansion has been processed)
   const hasProcessedSemanticExpansion = appliedStrategies.some((strategy) =>
@@ -57,7 +62,7 @@ export const getContextualExpansionOptions = (
   );
 
   if (!hasProcessedSemanticExpansion) {
-    options.push("⚡ All at once (fuzzy + synonyms + related concepts)");
+    options.push(`${EXPANSION_OPTIONS.allAtOnce.emoji} ${EXPANSION_OPTIONS.allAtOnce.label}`);
   }
 
   // Add individual semantic strategies that haven't been processed yet

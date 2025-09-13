@@ -1,7 +1,7 @@
-import { findPagesByTitleTool } from "./findPagesByTitleTool";
-// import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
 import { findBlocksByContentTool } from "./findBlocksByContent/findBlocksByContentTool";
 import { findBlocksWithHierarchyTool } from "./findBlocksWithHierarchy/findBlocksWithHierarchyTool";
+import { findPagesByTitleTool } from "./findPagesByTitle/findPagesByTitleTool";
+// import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
 import { findPagesByContentTool } from "./findPagesByContent/findPagesByContentTool";
 import { extractHierarchyContentTool } from "./extractHierarchyContentTool";
 import { combineResultsTool } from "./combineResultsTool";

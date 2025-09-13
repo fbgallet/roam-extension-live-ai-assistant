@@ -38,6 +38,12 @@ export const generateSemanticExpansions = async (
     ? `\n\nLanguage: The user is working in ${userLanguage}. Generate terms appropriate for this language and consider language-specific morphological patterns.`
     : "";
 
+  // Common escaping instruction for text mode
+  const textModeEscapingInfo =
+    mode === "text"
+      ? "\n\nIMPORTANT: Do NOT escape the ? character when used for optional matching (like word?). Only escape . * + ^ $ { } [ ] \\ ' in simple terms. Keep proper regex syntax like (?:) | completely unescaped."
+      : "";
+
   // Shared requirements for all prompts to avoid duplication
   const buildCommonRequirements = (
     text: string,
@@ -71,7 +77,6 @@ Requirements:
 - PRIORITIZE simple words over phrases - single words are preferred
 - Focus on terms likely to appear in page titles or block content
 - Avoid very generic terms (like "thing", "item", "stuff")
-- Terms should be relevant for knowledge management and note-taking
 ${originalTermText}${modeGuidance}${
       previousTerms
         ? "\n- Generate completely NEW terms that complement but do not repeat the previous variations"
@@ -82,59 +87,77 @@ ${originalTermText}${modeGuidance}${
   const strategyPrompts = {
     synonyms:
       mode === "text"
-        ? `Generate synonyms and alternative terms for: "${text}". Focus on words that mean the same thing or are used interchangeably.
+        ? `Generate synonyms and alternative terms for: "${text}". Include words with similar meanings (they don't need to be exact matches), and common morphological variations or alternative phrasings only when useful for broadening search, using regex syntax.
 
-Examples for "analyze":
-exampl(?:e|es|ed|ing)
-study
-review
-investigat(?:e|es|ed|ing)
-assess
+${textModeEscapingInfo.slice(2)}
 
-Examples for "task":
-job
-assignment
-work
-duty${contextualInfo}${languageInfo}`
-        : `Generate synonyms and alternative terms for: "${text}" that could be page titles.
-
-Examples for "analyze":
-analysis
-analyzing
-examination
-study
-review
-investigation
-assessment
+Examples for "organize":
+organiz(?:e|ing|ation)
+structur(?:e|ing)
+arrang(?:e|ing)
+plan(?:ning)?
+manag(?:e|ing)
+sort(?:ed|ing)?
 
 Examples for "task":
-tasks
-job
-jobs
 assignment
-assignments
+job
 work
-duty${contextualInfo}${languageInfo}`,
+duty
+activity
+to-do
+item${contextualInfo}${languageInfo}`
+        : `Generate synonyms and alternative terms for: "${text}" that could be page titles. Include words with similar meanings and common morphological variations only when useful for broadening search.
+
+Examples for "organize":
+organizing
+organized
+organization
+structure
+structuring
+arrange
+arranging
+plan
+management
+sorting
+
+Examples for "task":
+assignment
+job
+work
+duty
+activity
+activities
+to-do
+items${contextualInfo}${languageInfo}`,
 
     related_concepts:
       mode === "text"
-        ? `Generate closely related concepts for: "${text}". Include associated ideas and terms commonly found together.
+        ? `Generate related concepts for: "${text}". Go BEYOND synonyms - include terms from the same semantic domain, commonly co-occurring concepts, and contextually associated ideas. These should expand the semantic circle but stay within the conceptual field.
 
 Examples for "project":
 planning
-manag(?:e|es|ed|ing|ement)
+manag(?:e|ing|ement)
 timeline
 milestone
 deliverable
 team
+goal
+task
+budget
+resource
 
 Examples for "write":
-writ(?:e|es|ing|ten)
-document
-draft
+writ(?:e|ing|ten)
+document(?:s|ation)?
+draft(?:s|ing)?
 content
-publish${contextualInfo}${languageInfo}`
-        : `Generate closely related concepts for: "${text}" that could be page titles.
+publish(?:ing|ed)?
+article
+note
+edit(?:ing|or)?
+revision${contextualInfo}${languageInfo}`
+        : `Generate related concepts for: "${text}" that could be page titles. Go BEYOND synonyms - include terms from the same semantic domain and contextually associated ideas.
 
 Examples for "project":
 projects
@@ -145,70 +168,92 @@ timeline
 milestones
 deliverables
 team
+goals
+tasks
+budget
+resources
 
 Examples for "write":
 writing
 written
 writer
 document
-documents
 draft
-drafts
 content
-publishing${contextualInfo}${languageInfo}`,
+publishing
+articles
+notes
+editing
+editor
+revision${contextualInfo}${languageInfo}`,
 
     broader_terms:
       mode === "text"
-        ? `Generate broader, more general terms that encompass: "${text}". Think of parent categories and umbrella terms.
+        ? `Generate broader, higher-level terms that encompass: "${text}". Think of parent categories, umbrella concepts, and abstract generalizations that SIGNIFICANTLY widen the semantic scope. These should represent conceptual hierarchies above the original term.
 
 Examples for "meeting":
-meet(?:s|ing|ings)
+meet(?:s|ing)
 event
 gathering
 session
 discussion
+communication
+conferenc(?:e|ing)
+collaboration
+interaction
+engagement
 
 Examples for "car":
-vehicl(?:e|es)
+vehicle
 transport(?:ation)?
-automobile${contextualInfo}${languageInfo}`
-        : `Generate broader, more general terms that encompass: "${text}" that could be page titles.
+automobile
+mobilit(?:y|ies)
+travel
+commut(?:e|ing)
+infrastructur(?:e)?
+logistic${contextualInfo}${languageInfo}`
+        : `Generate broader, higher-level terms that encompass: "${text}" that could be page titles. Think of parent categories and abstract generalizations that SIGNIFICANTLY widen the semantic scope.
 
 Examples for "meeting":
-meetings
 event
-events
 gathering
-gatherings
 session
-sessions
 discussions
+communication
+conference
+collaboration
+interaction
+engagement
 
 Examples for "car":
 cars
 vehicle
-vehicles
 transportation
 automobile
-automobiles${contextualInfo}${languageInfo}`,
+mobility
+travel
+commuting
+infrastructure
+logistic${contextualInfo}${languageInfo}`,
 
     fuzzy:
       mode === "text"
-        ? `Generate fuzzy variations for: "${text}". Include morphological variations, common typos, alternative spellings, and word completion for partial words.
+        ? `Generate fuzzy variations for: "${text}". Include morphological variations (systematic when they broaden search without false positives), common typos, alternative spellings, and word completion for partial words. Use regex format like organiz(?:e|es|ed|ing) when multiple variations exist.
+
+IMPORTANT: Do NOT escape the ? character when used for optional matching (like word?). Only escape . * + ^ $ { } [ ] \ in simple terms. Keep proper regex syntax like (?:) | completely unescaped.
 
 Examples for "pend" (incomplete word):
-pending
 pend(?:s|ing|ed)?
 pendin
 pendng
 pening
 
-Examples for "analyze" (complete word):
-analyz(?:e|es|ed|ing|sis)
-analize
-analise
-analisys${contextualInfo}${languageInfo}`
-        : `Generate fuzzy variations for: "${text}" that could be actual page titles. Include word completion for partial words.
+Examples for "organize" (complete word):
+organiz(?:e|es|ed|ing|ation)
+organis(?:e|es|ed|ing|ation)
+orgnaiz
+orgainze${contextualInfo}${languageInfo}`
+        : `Generate fuzzy variations for: "${text}" that could be actual page titles. Include word completion for partial words and common typos.
 
 Examples for "pend" (incomplete word):
 pending
@@ -218,12 +263,13 @@ pendin
 pendng
 pening
 
-Examples for "analyze" (complete word):
-analysis
-analyzing
-analyzed
-analize
-analise${contextualInfo}${languageInfo}`,
+Examples for "organize" (complete word):
+organizing
+organized
+organization
+organisation
+orgnaize
+orgainze${contextualInfo}${languageInfo}`,
 
     custom: customStrategy
       ? `Apply the following custom strategy to generate semantic variations for: "${text}"
@@ -544,12 +590,14 @@ export const expandConditionsShared = async (
           );
         } else {
           // Generate semantic expansions
+          const userLanguage = state?.language || "English"; // Fallback to English if language not detected
+
           expansionTerms = await generateSemanticExpansions(
             cleanText,
             effectiveExpansionStrategy as any,
             state?.userQuery,
             state?.model,
-            state?.language,
+            userLanguage,
             customStrategy,
             "text"
           );
@@ -564,10 +612,9 @@ export const expandConditionsShared = async (
         // Create expanded regex condition
         if (expansionTerms.length > 0) {
           const allTerms = [cleanText, ...expansionTerms];
-          const escapedTerms = allTerms.map((term) =>
-            term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-          );
+          const escapedTerms = allTerms.map(smartEscape);
           const regexPattern = `(${escapedTerms.join("|")})`;
+
 
           // Show completion in toaster
           updateAgentToaster(
@@ -755,6 +802,33 @@ Generate pattern for "${text}":`;
     console.error("Failed to generate fuzzy regex:", error);
     // Fallback to simple escaped pattern
     return `.*${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*`;
+  }
+};
+
+/**
+ * Smart escape function that only escapes simple text terms, not regex patterns
+ * Detects if a term is already a regex pattern and avoids double-escaping
+ */
+const smartEscape = (term: string): string => {
+  // Check if term contains regex syntax (non-capturing groups, character classes, etc.)
+  const hasRegexSyntax = /\(\?[:!]|[\[\]{}]|\|/.test(term);
+
+  // Check if term has already escaped characters (like statuse\\? instead of statuse?)
+  const hasEscapedChars = /\\[.*+?^${}()|[\]\\]/.test(term);
+
+  if (hasRegexSyntax) {
+    // Term appears to be a regex pattern - don't escape regex syntax
+    // Clean up any double-escaped question marks that shouldn't be escaped
+    return term.replace(/\\\?(?![:=!])/g, "?"); // Un-escape ? unless it's part of (?:, (?=, etc.
+  } else if (hasEscapedChars) {
+    // Term has escaped chars but no regex syntax - clean up double escaping
+    // Un-escape question marks that were incorrectly escaped
+    let cleaned = term.replace(/\\\?/g, "?");
+    // Then properly escape what should be escaped (but not ?)
+    return cleaned.replace(/[.*+^${}()|[\]\\]/g, "\\$&");
+  } else {
+    // Simple text term - escape regex special characters except ?
+    return term.replace(/[.*+^${}()|[\]\\]/g, "\\$&");
   }
 };
 

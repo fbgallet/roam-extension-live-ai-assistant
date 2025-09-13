@@ -65,8 +65,18 @@ export const getOptionText = (
 
 /**
  * Get option text with bullet point for toaster display
+ * Includes hidden strategy key for reliable parsing
  */
 export const getBulletOptionText = (
+  option: keyof typeof EXPANSION_OPTIONS
+): string => {
+  return `• ${getOptionText(option)}|KEY:${option}`;
+};
+
+/**
+ * Get option text with bullet point (legacy format without key)
+ */
+export const getBulletOptionTextLegacy = (
   option: keyof typeof EXPANSION_OPTIONS
 ): string => {
   return `• ${getOptionText(option)}`;
@@ -100,7 +110,7 @@ export const mapLabelToStrategy = (label: string, action: string): string => {
   const cleanLabel = label.replace(/^[•\s]*/, "").trim();
 
   // Direct strategy mapping
-  for (const [key, option] of Object.entries(EXPANSION_OPTIONS)) {
+  for (const [, option] of Object.entries(EXPANSION_OPTIONS)) {
     const optionText = `${option.emoji} ${option.label}`;
     const optionTextNoEmoji = option.label;
 
@@ -109,20 +119,46 @@ export const mapLabelToStrategy = (label: string, action: string): string => {
     }
   }
 
-  // Fallback to action or label
+  // Fallback to action or label  
   return action || cleanLabel.toLowerCase().replace(/\s+/g, "_");
 };
 
 /**
- * Default expansion options for post-completion
+ * Get expansion option with strategy key for structured handling
+ */
+export const getExpansionOption = (
+  optionKey: keyof typeof EXPANSION_OPTIONS
+) => {
+  const option = EXPANSION_OPTIONS[optionKey];
+  return {
+    key: optionKey,
+    emoji: option.emoji,
+    label: option.label,
+    strategy: option.strategy,
+    displayText: `${option.emoji} ${option.label}`,
+    bulletText: `• ${option.emoji} ${option.label}|KEY:${optionKey}`,
+  };
+};
+
+/**
+ * Get default expansion options as structured objects
+ */
+export const getDefaultExpansionOptionsStructured = () => {
+  return [
+    getExpansionOption("auto"),
+    getExpansionOption("fuzzy"),
+    getExpansionOption("synonyms"),
+    getExpansionOption("relatedConcepts"),
+    getExpansionOption("allAtOnce"),
+    getExpansionOption("otherStrategies"),
+  ];
+};
+
+/**
+ * Default expansion options for post-completion (legacy string format)
  */
 export const getDefaultExpansionOptions = (): string => {
-  return [
-    getBulletOptionText("auto"),
-    getBulletOptionText("fuzzy"),
-    getBulletOptionText("synonyms"),
-    getBulletOptionText("relatedConcepts"),
-    getBulletOptionText("allAtOnce"),
-    getBulletOptionText("otherStrategies"),
-  ].join("\n");
+  return getDefaultExpansionOptionsStructured()
+    .map(option => option.bulletText)
+    .join("\n");
 };

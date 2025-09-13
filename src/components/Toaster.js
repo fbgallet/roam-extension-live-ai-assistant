@@ -161,11 +161,20 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
       .map((line) => {
         const text = line.replace("•", "").trim();
         
+        // Check for strategy key format: "text|KEY:strategyKey"
+        let strategyKey = null;
+        let workingText = text;
+        if (text.includes("|KEY:")) {
+          const parts = text.split("|KEY:");
+          workingText = parts[0];
+          strategyKey = parts[1];
+        }
+        
         // Check for depth expansion format: "text|DEPTH:N"
         let depthTarget = null;
-        let cleanText = text;
-        if (text.includes("|DEPTH:")) {
-          const parts = text.split("|DEPTH:");
+        let cleanText = workingText;
+        if (workingText.includes("|DEPTH:")) {
+          const parts = workingText.split("|DEPTH:");
           cleanText = parts[0];
           depthTarget = parseInt(parts[1]);
         }
@@ -177,6 +186,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
           emoji, 
           label, 
           action: cleanText,
+          strategyKey, // Add strategy key for reliable mapping
           depthTarget // Add depth as structured data
         };
       });
@@ -191,6 +201,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
         action: option.action,
         label: option.label,
         emoji: option.emoji,
+        strategyKey: option.strategyKey, // Pass strategy key for reliable mapping
         depthTarget: option.depthTarget, // Pass depth directly
       },
     });

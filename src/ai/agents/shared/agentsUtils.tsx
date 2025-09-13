@@ -20,6 +20,8 @@ import {
 } from "../../../components/Toaster.js";
 import {
   getDefaultExpansionOptions,
+  getDefaultExpansionOptionsStructured,
+  getExpansionOption,
   getDepthExpansionOption,
   getBulletOptionText,
   mapLabelToStrategy as centralizedMapLabelToStrategy,
@@ -532,8 +534,18 @@ const setupPostCompletionExpansionHandler = (): void => {
         const previousExpansions = expansionHistory[queryKey] || [];
 
         // Check if this specific expansion has been tried before
-        // Map label to consistent strategy names to avoid false positives
-        const normalizedStrategy = mapLabelToStrategy(label, action);
+        // Use direct strategy lookup if we have a key, otherwise fall back to parsing
+        let normalizedStrategy: string;
+        
+        // Check if this is a structured event with strategy key
+        const strategyKey = event.detail.strategyKey as keyof typeof EXPANSION_OPTIONS;
+        if (strategyKey && EXPANSION_OPTIONS[strategyKey]) {
+          normalizedStrategy = EXPANSION_OPTIONS[strategyKey].strategy;
+        } else {
+          // Fallback to legacy string parsing
+          normalizedStrategy = mapLabelToStrategy(label, action);
+        }
+        
         const isRepeatExpansion = previousExpansions.some(
           (exp: any) =>
             exp.strategy === normalizedStrategy || exp.strategy === action
@@ -704,7 +716,7 @@ const setupPostCompletionExpansionHandler = (): void => {
           expansionHistory[queryKey] = [];
         }
         expansionHistory[queryKey].push({
-          strategy: action,
+          strategy: normalizedStrategy, // Use the properly mapped strategy, not raw action
           label: label,
           timestamp: Date.now(),
           level: previousExpansions.length + 1,
@@ -714,7 +726,7 @@ const setupPostCompletionExpansionHandler = (): void => {
         // Use direct assistant bypass for expansion
         await invokeExpandedSearchDirect({
           query: lastQuery,
-          expansionStrategy: action,
+          expansionStrategy: normalizedStrategy, // Use the properly mapped strategy, not raw action
           expansionLabel: label,
           expansionLevel: previousExpansions.length + 1,
           rootUid: lastRootUid,
