@@ -11,7 +11,7 @@ export interface SearchCondition {
   type: "text" | "page_ref" | "block_ref" | "regex";
   text: string;
   matchType?: "exact" | "contains" | "regex";
-  semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "custom" | "all";
+  semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "custom" | "all" | "automatic";
   weight?: number;
   negate?: boolean;
 }

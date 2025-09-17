@@ -250,8 +250,12 @@ const getPostCompletionExpansionOptions = (): string => {
     canGoDeeper: isHierarchicalSearch && currentDepth < 3 && isBlockSearch,
   });
 
-  // Default options if no previous expansions - use centralized constants
-  const defaultOptions = getDefaultExpansionOptions();
+  // Get current automatic expansion mode to filter redundant options
+  const currentAutomaticMode = (window as any).lastSearchParams?.automaticExpansionMode ||
+                               (window as any).lastAgentState?.automaticExpansionMode;
+
+  // Default options if no previous expansions - use centralized constants (filtered by current mode)
+  const defaultOptions = getDefaultExpansionOptions(currentAutomaticMode);
 
   // If no previous expansions, show default with depth option if applicable
   if (previousExpansions.length === 0) {

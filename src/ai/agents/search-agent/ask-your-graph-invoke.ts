@@ -454,9 +454,10 @@ const invokeSearchAgentInternal = async ({
             // Update agent state with expansion consent
             if ((window as any).currentSearchAgentState) {
               const state = (window as any).currentSearchAgentState;
-              const { action, label, emoji } = event.detail;
+              const { action, label, emoji, strategyKey } = event.detail;
 
               console.log(`🚀 [Expansion] User selected: ${emoji} ${label}`);
+              console.log(`🔧 [Expansion] Event detail:`, { action, label, emoji, strategyKey });
 
               // Grant expansion consent and increment expansion level
               state.expansionConsent = true;
@@ -465,9 +466,17 @@ const invokeSearchAgentInternal = async ({
 
               // Map action/label to exact strategy using the centralized mapping function
               const { mapLabelToStrategy } = await import("../shared/expansionConstants");
-              const strategy = mapLabelToStrategy(label, action);
               
-              console.log(`🔧 [Expansion] Mapped "${label}" to strategy: "${strategy}"`);
+              // Check for strategy key first (more reliable)
+              let strategy;
+              if (strategyKey) {
+                const { EXPANSION_OPTIONS } = await import("../shared/expansionConstants");
+                strategy = EXPANSION_OPTIONS[strategyKey]?.strategy || mapLabelToStrategy(label, action);
+                console.log(`🔧 [Expansion] Using strategy key "${strategyKey}" -> strategy: "${strategy}"`);
+              } else {
+                strategy = mapLabelToStrategy(label, action);
+                console.log(`🔧 [Expansion] Mapped "${label}" to strategy: "${strategy}"`);
+              }
 
               // Set expansion strategy based on the mapped strategy value
               switch (strategy) {
@@ -490,8 +499,14 @@ const invokeSearchAgentInternal = async ({
                   
                 case "automatic":
                   // Auto semantic expansion until results
+                  console.log(`🔧 [Expansion] ENTERING automatic case - current mode: ${state.automaticExpansionMode}`);
                   state.automaticExpansionMode = "auto_until_result";
+                  // Clear global semantic expansion flags since automatic mode handles its own expansion
+                  state.isExpansionGlobal = false;
+                  state.semanticExpansion = null;
                   console.log(`🔧 [Expansion] Set automatic expansion mode: auto_until_result`);
+                  console.log(`🔧 [Expansion] Cleared global expansion flags for automatic mode`);
+                  console.log(`🔧 [Expansion] Verified state.automaticExpansionMode is now: ${state.automaticExpansionMode}`);
                   break;
                   
                 case "hierarchical":
@@ -540,7 +555,11 @@ const invokeSearchAgentInternal = async ({
             }
 
             // Update toaster to show expansion is starting
-            updateAgentToaster(`🚀 ${event.detail.label}...`);
+            // Note: automatic expansion will show its own detailed progress, so skip the initial message
+            const strategy = EXPANSION_OPTIONS[strategyKey]?.strategy || mapLabelToStrategy(label, action);
+            if (strategy !== "automatic") {
+              updateAgentToaster(`🚀 ${event.detail.label}...`);
+            }
 
             // Resume the graph execution from where it left off
             console.log("🔄 [Graph] State before resume:", {
@@ -1153,15 +1172,15 @@ export const invokeExpandedSearchDirect = async ({
   );
 
   // Use centralized strategy mapping function
+  const mappedStrategy = mapLabelToStrategy(expansionLabel, expansionStrategy);
+  
+  console.log(`🔧 [Direct Expansion] Mapped strategy: "${mappedStrategy}"`);
 
   // Create expansion agent data to pass semantic expansion parameters
   const expansionAgentData = {
     isConversationMode: false,
     isDirectExpansion: true, // Flag for assistant bypass
-    semanticExpansion: mapLabelToStrategy(
-      expansionLabel,
-      expansionStrategy
-    ),
+    semanticExpansion: mappedStrategy,
     isExpansionGlobal: true,
     expansionLevel: expansionLevel,
     expansionConsent: true,
@@ -1177,10 +1196,20 @@ export const invokeExpandedSearchDirect = async ({
     maxDepthOverride: searchParams.maxDepth || null,
     // Pass forceHierarchical for flat → hierarchical conversion
     forceHierarchical: searchParams.forceHierarchical || false,
+    // Set automatic expansion mode for "automatic" strategy
+    automaticExpansionMode: mappedStrategy === "automatic" ? "auto_until_result" : undefined,
   };
+  
+  if (mappedStrategy === "automatic") {
+    console.log(`🔧 [Direct Expansion] Setting automaticExpansionMode to auto_until_result for automatic strategy`);
+  }
 
   console.log(
-    `🎯 [Direct Expansion] Mapped semantic expansion: "${expansionAgentData.semanticExpansion}"`
+    `🎯 [Direct Expansion] Final expansion data:`, {
+      semanticExpansion: expansionAgentData.semanticExpansion,
+      automaticExpansionMode: expansionAgentData.automaticExpansionMode,
+      isDirectExpansion: expansionAgentData.isDirectExpansion
+    }
   );
   console.log(
     `🔍 [Direct Expansion] ForcePopupOnly preserved: ${expansionAgentData.forcePopupOnly}`

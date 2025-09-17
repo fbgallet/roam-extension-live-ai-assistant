@@ -142,9 +142,10 @@ export const getExpansionOption = (
 
 /**
  * Get default expansion options as structured objects
+ * Optionally filter out redundant options based on current mode
  */
-export const getDefaultExpansionOptionsStructured = () => {
-  return [
+export const getDefaultExpansionOptionsStructured = (currentMode?: string) => {
+  const allOptions = [
     getExpansionOption("auto"),
     getExpansionOption("fuzzy"),
     getExpansionOption("synonyms"),
@@ -152,13 +153,21 @@ export const getDefaultExpansionOptionsStructured = () => {
     getExpansionOption("allAtOnce"),
     getExpansionOption("otherStrategies"),
   ];
+
+  // Filter out redundant options based on current expansion mode
+  if (currentMode === "auto_until_result") {
+    // If already in auto mode, exclude the "auto" option as it's redundant
+    return allOptions.filter(option => option.key !== "auto");
+  }
+
+  return allOptions;
 };
 
 /**
  * Default expansion options for post-completion (legacy string format)
  */
-export const getDefaultExpansionOptions = (): string => {
-  return getDefaultExpansionOptionsStructured()
+export const getDefaultExpansionOptions = (currentMode?: string): string => {
+  return getDefaultExpansionOptionsStructured(currentMode)
     .map(option => option.bulletText)
     .join("\n");
 };

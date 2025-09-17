@@ -53,11 +53,12 @@ export const llmFacingSchema = z.object({
             "broader_terms",
             "custom",
             "all",
+            "automatic",
           ])
           .optional()
           .default(undefined)
           .describe(
-            "Semantic expansion strategy (only when explicitly requested): fuzzy=typos/variations, synonyms=alternative terms, related_concepts=associated terms, broader_terms=categories, all=comprehensive expansion (use sparingly)"
+            "Semantic expansion strategy (only when explicitly requested): fuzzy=typos/variations, synonyms=alternative terms, related_concepts=associated terms, broader_terms=categories, all=comprehensive expansion, automatic=progressive expansion until results (use sparingly)"
           ),
         negate: z
           .boolean()

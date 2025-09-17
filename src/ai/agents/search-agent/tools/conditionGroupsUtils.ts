@@ -25,10 +25,11 @@ export const baseConditionSchema = z.object({
       "broader_terms",
       "custom",
       "all",
+      "automatic",
     ])
     .optional()
     .describe(
-      "Semantic expansion strategy. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
+      "Semantic expansion strategy. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion, 'automatic' for progressive expansion until results"
     ),
   weight: z.number().min(0).max(10).default(1.0),
   negate: z.boolean().default(false),

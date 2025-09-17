@@ -557,6 +557,23 @@ export const expandConditionsShared = async (
       effectiveExpansionStrategy = state?.semanticExpansion || "synonyms";
     }
 
+    // Handle "automatic" strategy by converting it to the automatic expansion mode
+    if (effectiveExpansionStrategy === "automatic") {
+      console.log(`🔧 [SharedExpansion] Converting "automatic" strategy to automaticExpansionMode`);
+      // Set the state to trigger automatic expansion in the tool wrapper
+      if (state) {
+        state.automaticExpansionMode = "auto_until_result";
+        state.isExpansionGlobal = false; // Clear global expansion to let automatic handle it
+        state.semanticExpansion = null;
+      }
+      finalExpandedConditions.push({
+        ...structuredCondition,
+        text: cleanText,
+        semanticExpansion: undefined,
+      });
+      continue;
+    }
+
     if (effectiveExpansionStrategy && structuredCondition.type === "text") {
       try {
         const customStrategy =
@@ -712,20 +729,24 @@ ${contextualInfo}${languageInfo}
 CRITICAL: Respond with ONLY the regex pattern - NO explanations, NO comments, NO additional text. Just the pattern itself (without delimiters). The pattern will be used as (?i)pattern.
 
 Requirements:
-- Use word boundaries and partial matching (.*word.* patterns)
-- Focus on the word root when possible
-- Include common character substitutions for typos
+- ALWAYS use word boundaries (\\b) to prevent false positives
+- Focus on the complete word root - avoid short partial matches that could match unrelated words
+- Include morphological variations (suffixes) and common typos
 - Keep pattern concise but comprehensive
 - Pattern should match the original word and its variations
-- For SHORT TERMS (1-3 chars): Be restrictive to avoid false positives - use strict word boundaries and minimal variations
+- For SHORT TERMS (1-3 chars): Be very restrictive - use strict word boundaries and minimal variations
+- NO PARTIAL PREFIXES: Don't include patterns shorter than 4-5 characters that could match unrelated words
 - KEEP STRUCTURE SIMPLE: Avoid nested alternatives (|) within groups - use flat patterns only
 
 Examples:
-- For "analytic": "analy[st]?[izt]?[cs]?[ae]?[l]?" (catches analytic, analysis, analyzing, analyst, analytical)
-- For "manage": "manag[eming]?[ement]?[r]?" (catches manage, managing, management, manager)
+- For "final": "\\bfinal[es]?[ly]?\\b" (catches final, finals, finally - but NOT "fin", "fina" which match "finance", "find")
+- For "analytic": "\\banalyti[cs]?[al]?\\b|\\banalys[eism]?[ts]?\\b" (catches analytic, analytics, analytical, analysis, analyst)
+- For "manage": "\\bmanag[eming]?[ement]?[rs]?\\b" (catches manage, managing, management, manager, managers)
 - For "write" with alternatives: "(\\bwrit[eimg]?[ens]?\\b|\\btyp[eimg]?[ens]?\\b|\\bauthor[s]?\\b)"
-- For "go" (short term): "\\bgo[nes]?\\b" (strict boundaries, only basic variations like "go", "goes", "gone" - avoid matching "logo", "argo", etc.)
-- For "organization": "organi[sz]?[ae]?tion[al]?" (catches organization, organisation, organizational)
+- For "go" (short term): "\\bgo[nes]?\\b" (strict boundaries, only basic variations like "go", "goes", "gone")
+- For "organization": "\\borgani[sz]?[ae]?tion[al]?s?\\b" (catches organization, organisation, organizational, organizations)
+
+IMPORTANT: Avoid generating partial matches shorter than 4-5 characters. For "${text}", ensure the pattern won't match unrelated words.
 
 Generate pattern for "${text}":`;
 
@@ -783,8 +804,8 @@ Generate pattern for "${text}":`;
 
     if (match && pattern.includes("|")) {
       // Only fix if it's the exact problematic pattern: \b...alternatives...\b
-      const alternatives = match[1].split("|").map((alt) => alt.trim());
-      const boundedAlternatives = alternatives.map((alt) => `\\b${alt}\\b`);
+      const alternatives = match[1].split("|").map((alt: string) => alt.trim());
+      const boundedAlternatives = alternatives.map((alt: string) => `\\b${alt}\\b`);
       pattern = `(${boundedAlternatives.join("|")})`;
     }
 
@@ -920,33 +941,43 @@ export async function automaticSemanticExpansion<T, R>(
   let bestResults: R | null = null;
   let bestResultsExpansion: string | null = null;
 
-  // Try original query first (no expansion)
-  console.log(`🔍 [AutoExpansion] Trying original query (no expansion)`);
-  attemptedExpansions.push("none");
+  // Check if this is triggered from Toaster "automatic" expansion
+  // Unique combination: isDirectExpansion + (automaticExpansionMode OR semanticExpansion="automatic")
+  const isToasterAutomatic = state?.isDirectExpansion &&
+                            (state?.automaticExpansionMode === "auto_until_result" ||
+                             state?.semanticExpansion === "automatic");
 
-  try {
-    const originalResults = await searchFunction(originalParams, state);
-    // Check if we got results (handle different return formats)
-    const hasResults =
-      (originalResults as any)?.data?.length > 0 ||
-      (originalResults as any)?.results?.length > 0 ||
-      (Array.isArray(originalResults) && originalResults.length > 0);
+  if (!isToasterAutomatic) {
+    // Try original query first (no expansion) - only for initial queries, not Toaster expansions
+    console.log(`🔍 [AutoExpansion] Trying original query (no expansion)`);
+    attemptedExpansions.push("none");
 
-    if (hasResults) {
-      console.log(
-        `✅ [AutoExpansion] Original query found results, no expansion needed`
-      );
-      return {
-        results: originalResults,
-        expansionUsed: null,
-        expansionAttempts: attemptedExpansions,
-        finalAttempt: false,
-      };
+    try {
+      const originalResults = await searchFunction(originalParams, state);
+      // Check if we got results (handle different return formats)
+      const hasResults =
+        (originalResults as any)?.data?.length > 0 ||
+        (originalResults as any)?.results?.length > 0 ||
+        (Array.isArray(originalResults) && originalResults.length > 0);
+
+      if (hasResults) {
+        console.log(
+          `✅ [AutoExpansion] Original query found results, no expansion needed`
+        );
+        return {
+          results: originalResults,
+          expansionUsed: null,
+          expansionAttempts: attemptedExpansions,
+          finalAttempt: false,
+        };
+      }
+
+      bestResults = originalResults; // Keep as fallback
+    } catch (error) {
+      console.warn(`⚠️ [AutoExpansion] Original query failed:`, error);
     }
-
-    bestResults = originalResults; // Keep as fallback
-  } catch (error) {
-    console.warn(`⚠️ [AutoExpansion] Original query failed:`, error);
+  } else {
+    console.log(`🔍 [AutoExpansion] Skipping original query - starting directly with fuzzy expansion (Toaster automatic)`);
   }
 
   // Try semantic expansions in sequence
@@ -1095,9 +1126,11 @@ export async function withAutomaticExpansion<T, R>(
 
   // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
   // Skip if disabled by hierarchy tool (which sets mode to "disabled_by_hierarchy")
-  if (state?.automaticExpansionMode === "auto_until_result") {
+  // Also handle legacy case where semanticExpansion might be set to "automatic"
+  if (state?.automaticExpansionMode === "auto_until_result" ||
+      (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal)) {
     console.log(
-      `🔧 [${toolName}] Using automatic expansion for auto_until_result mode`
+      `🔧 [${toolName}] Using automatic expansion for auto_until_result mode (or legacy automatic semanticExpansion)`
     );
 
     // Use automatic expansion starting from fuzzy
@@ -1190,7 +1223,8 @@ export async function withAutomaticExpansion<T, R>(
 
   // Store automatic expansion mode for later use
   const shouldUseAutomaticExpansion =
-    state?.automaticExpansionMode === "auto_until_result";
+    state?.automaticExpansionMode === "auto_until_result" ||
+    (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal);
 
   try {
     // First attempt: Execute without expansion for auto_until_result mode
