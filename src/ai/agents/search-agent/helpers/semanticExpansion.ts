@@ -27,7 +27,7 @@ export const generateSemanticExpansions = async (
     strategy === "all"
       ? "3-6"
       : strategy !== "custom"
-      ? "6-12"
+      ? "5-10"
       : "as many as needed";
   const contextualInfo =
     originalQuery && originalQuery !== text
@@ -38,10 +38,10 @@ export const generateSemanticExpansions = async (
     ? `\n\nLanguage: The user is working in ${userLanguage}. Generate terms appropriate for this language and consider language-specific morphological patterns.`
     : "";
 
-  // Common escaping instruction for text mode
-  const textModeEscapingInfo =
+  // Common instructions for text mode
+  const textModeInstructions =
     mode === "text"
-      ? "\n\nIMPORTANT: Do NOT escape the ? character when used for optional matching (like word?). Only escape . * + ^ $ { } [ ] \\ ' in simple terms. Keep proper regex syntax like (?:) | completely unescaped."
+      ? "\n\nIMPORTANT FOR TEXT MODE:\n- Do NOT escape the ? character when used for optional matching (like word?). Only escape . * + ^ $ { } [ ] \\ ' in simple terms. Keep proper regex syntax like (?:) | completely unescaped.\n- Use word boundaries (\b) ONLY for SHORT complete words (1-4 chars) to prevent false positives. For longer words, avoid word boundaries unless specifically needed."
       : "";
 
   // Shared requirements for all prompts to avoid duplication
@@ -57,7 +57,7 @@ export const generateSemanticExpansions = async (
       mode === "text"
         ? `
 If relevant for some variation, you can use regex patterns to match most common and meaningful morphological variations:
-- Examples: analyz(?:e|es|ed|ing), categor(?:y|ies), manage(?:s|d|ment)`
+- Examples: analyz(?:e|es|ed|ing), categor(?:y|ies), manage(?:s|d|ment)${textModeInstructions}`
         : `
 If some variations have distinct morphological variaton (plural, verbal...), generate also the most common with simple text only (no regex patterns):
 - Examples: For "analyze" → analysis, analyzing, analyzer`;
@@ -88,8 +88,6 @@ ${originalTermText}${modeGuidance}${
     synonyms:
       mode === "text"
         ? `Generate synonyms and alternative terms for: "${text}". Include words with similar meanings (they don't need to be exact matches), and common morphological variations or alternative phrasings only when useful for broadening search, using regex syntax.
-
-${textModeEscapingInfo.slice(2)}
 
 Examples for "organize":
 organiz(?:e|ing|ation)
@@ -238,22 +236,24 @@ logistic${contextualInfo}${languageInfo}`,
 
     fuzzy:
       mode === "text"
-        ? `Generate fuzzy variations for: "${text}". Include morphological variations (systematic when they broaden search without false positives), common typos, alternative spellings, and word completion for partial words. Use regex format like organiz(?:e|es|ed|ing) when multiple variations exist.
+        ? `Generate fuzzy variations for: "${text}". Focus on morphological variations and meaningful typos that broaden search without false positives. Be conservative for short words to avoid matching unrelated terms.
 
-IMPORTANT: Do NOT escape the ? character when used for optional matching (like word?). Only escape . * + ^ $ { } [ ] \ in simple terms. Keep proper regex syntax like (?:) | completely unescaped.
+Examples for "go" (very short complete word):
+\bgo(?:es|ne)?\b
 
-Examples for "pend" (incomplete word):
-pend(?:s|ing|ed)?
-pendin
-pendng
-pening
+Examples for "final" (medium word):
+final(?:s|ly)?
 
-Examples for "organize" (complete word):
-organiz(?:e|es|ed|ing|ation)
+Examples for "organize" (longer word):
+organi[sz](?:e|es|ed|ing|ation)
 organis(?:e|es|ed|ing|ation)
-orgnaiz
-orgainze${contextualInfo}${languageInfo}`
-        : `Generate fuzzy variations for: "${text}" that could be actual page titles. Include word completion for partial words and common typos.
+
+Examples for "pend" (incomplete/partial word):
+pend(?:s|ing|ed)?
+pendin[g]?
+
+AVOID generating patterns like: "finel", "fianl", "finl" for "final" - these are too aggressive and don't represent realistic typos or variations.${contextualInfo}${languageInfo}`
+        : `Generate fuzzy variations for: "${text}" that could be actual page titles. Focus on morphological variations and meaningful typos that broaden search without false positives. Be conservative for short words to avoid matching unrelated terms.
 
 Examples for "pend" (incomplete word):
 pending
@@ -559,7 +559,9 @@ export const expandConditionsShared = async (
 
     // Handle "automatic" strategy by converting it to the automatic expansion mode
     if (effectiveExpansionStrategy === "automatic") {
-      console.log(`🔧 [SharedExpansion] Converting "automatic" strategy to automaticExpansionMode`);
+      console.log(
+        `🔧 [SharedExpansion] Converting "automatic" strategy to automaticExpansionMode`
+      );
       // Set the state to trigger automatic expansion in the tool wrapper
       if (state) {
         state.automaticExpansionMode = "auto_until_result";
@@ -631,7 +633,6 @@ export const expandConditionsShared = async (
           const allTerms = [cleanText, ...expansionTerms];
           const escapedTerms = allTerms.map(smartEscape);
           const regexPattern = `(${escapedTerms.join("|")})`;
-
 
           // Show completion in toaster
           updateAgentToaster(
@@ -721,32 +722,36 @@ export const generateFuzzyRegex = async (
     ? `\n\nLanguage: The user is working in ${userLanguage}. Consider language-specific morphological patterns, common typos, and character substitutions for this language.`
     : "";
 
-  const prompt = `Generate a compact regex pattern for fuzzy matching of: "${text}". 
-Create a pattern that catches morphological variations (plural, verb, adjective, etc.), common typos, and alternative spellings.
+  const prompt = `Generate a compact regex pattern for fuzzy matching of: "${text}".
+Create a pattern that catches morphological variations and meaningful typos, being conservative for short words to avoid false positives.
 
 ${contextualInfo}${languageInfo}
 
 CRITICAL: Respond with ONLY the regex pattern - NO explanations, NO comments, NO additional text. Just the pattern itself (without delimiters). The pattern will be used as (?i)pattern.
 
+WORD LENGTH GUIDELINES:
+- SHORT words (1-4 chars): MINIMAL variations with strict word boundaries. Avoid partial patterns.
+- MEDIUM words (5-8 chars): Include common morphological variations and 1-2 careful typos.
+- LONG words (9+ chars): Include full morphological variations and common typos.
+
 Requirements:
-- ALWAYS use word boundaries (\\b) to prevent false positives
-- Focus on the complete word root - avoid short partial matches that could match unrelated words
-- Include morphological variations (suffixes) and common typos
-- Keep pattern concise but comprehensive
-- Pattern should match the original word and its variations
-- For SHORT TERMS (1-3 chars): Be very restrictive - use strict word boundaries and minimal variations
-- NO PARTIAL PREFIXES: Don't include patterns shorter than 4-5 characters that could match unrelated words
-- KEEP STRUCTURE SIMPLE: Avoid nested alternatives (|) within groups - use flat patterns only
+- Use word boundaries (\b) ONLY for SHORT complete words (1-4 chars) to prevent false positives
+- For longer words and partial terms, avoid word boundaries unless specifically needed
+- Focus on complete word patterns - avoid short partial matches that could match unrelated words
+- Include realistic morphological variations (suffixes) and common typos only
+- Keep pattern concise - avoid redundant alternatives
+- For SHORT TERMS: Be very restrictive with minimal variations only
+- NO OVERLY AGGRESSIVE TYPOS: Avoid unrealistic character scrambles like "fianl", "finl" for "final"
 
 Examples:
-- For "final": "\\bfinal[es]?[ly]?\\b" (catches final, finals, finally - but NOT "fin", "fina" which match "finance", "find")
-- For "analytic": "\\banalyti[cs]?[al]?\\b|\\banalys[eism]?[ts]?\\b" (catches analytic, analytics, analytical, analysis, analyst)
-- For "manage": "\\bmanag[eming]?[ement]?[rs]?\\b" (catches manage, managing, management, manager, managers)
-- For "write" with alternatives: "(\\bwrit[eimg]?[ens]?\\b|\\btyp[eimg]?[ens]?\\b|\\bauthor[s]?\\b)"
-- For "go" (short term): "\\bgo[nes]?\\b" (strict boundaries, only basic variations like "go", "goes", "gone")
-- For "organization": "\\borgani[sz]?[ae]?tion[al]?s?\\b" (catches organization, organisation, organizational, organizations)
+- For "go" (very short complete word): "\bgo(?:es|ne)?\b"
+- For "final" (medium word): "final(?:s|ly)?"
+- For "analytic" (longer word): "analyti(?:c|cs|cal)|analys(?:is|t)"
+- For "manage": "manag(?:e|es|ed|ing|ement|er)"
+- For "organization": "organi[sz]ation(?:al|s)?"
 
-IMPORTANT: Avoid generating partial matches shorter than 4-5 characters. For "${text}", ensure the pattern won't match unrelated words.
+AVOID patterns like: "finel", "fianl", "finl" - these don't represent realistic typos.
+For "${text}" (${text.length} chars), generate a conservative pattern that matches meaningful variations without false positives.
 
 Generate pattern for "${text}":`;
 
@@ -805,7 +810,9 @@ Generate pattern for "${text}":`;
     if (match && pattern.includes("|")) {
       // Only fix if it's the exact problematic pattern: \b...alternatives...\b
       const alternatives = match[1].split("|").map((alt: string) => alt.trim());
-      const boundedAlternatives = alternatives.map((alt: string) => `\\b${alt}\\b`);
+      const boundedAlternatives = alternatives.map(
+        (alt: string) => `\\b${alt}\\b`
+      );
       pattern = `(${boundedAlternatives.join("|")})`;
     }
 
@@ -943,9 +950,10 @@ export async function automaticSemanticExpansion<T, R>(
 
   // Check if this is triggered from Toaster "automatic" expansion
   // Unique combination: isDirectExpansion + (automaticExpansionMode OR semanticExpansion="automatic")
-  const isToasterAutomatic = state?.isDirectExpansion &&
-                            (state?.automaticExpansionMode === "auto_until_result" ||
-                             state?.semanticExpansion === "automatic");
+  const isToasterAutomatic =
+    state?.isDirectExpansion &&
+    (state?.automaticExpansionMode === "auto_until_result" ||
+      state?.semanticExpansion === "automatic");
 
   if (!isToasterAutomatic) {
     // Try original query first (no expansion) - only for initial queries, not Toaster expansions
@@ -977,7 +985,9 @@ export async function automaticSemanticExpansion<T, R>(
       console.warn(`⚠️ [AutoExpansion] Original query failed:`, error);
     }
   } else {
-    console.log(`🔍 [AutoExpansion] Skipping original query - starting directly with fuzzy expansion (Toaster automatic)`);
+    console.log(
+      `🔍 [AutoExpansion] Skipping original query - starting directly with fuzzy expansion (Toaster automatic)`
+    );
   }
 
   // Try semantic expansions in sequence
@@ -1127,8 +1137,10 @@ export async function withAutomaticExpansion<T, R>(
   // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
   // Skip if disabled by hierarchy tool (which sets mode to "disabled_by_hierarchy")
   // Also handle legacy case where semanticExpansion might be set to "automatic"
-  if (state?.automaticExpansionMode === "auto_until_result" ||
-      (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal)) {
+  if (
+    state?.automaticExpansionMode === "auto_until_result" ||
+    (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal)
+  ) {
     console.log(
       `🔧 [${toolName}] Using automatic expansion for auto_until_result mode (or legacy automatic semanticExpansion)`
     );

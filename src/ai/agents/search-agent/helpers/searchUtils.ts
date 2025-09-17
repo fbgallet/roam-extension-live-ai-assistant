@@ -20,7 +20,8 @@ export interface SearchCondition {
     | "related_concepts"
     | "broader_terms"
     | "custom"
-    | "all";
+    | "all"
+    | "automatic";
   weight?: number;
   negate?: boolean;
   regexFlags?: string;

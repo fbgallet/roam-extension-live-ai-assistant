@@ -541,7 +541,7 @@ const invokeSearchAgentInternal = async ({
 
               // Mark this as a direct expansion to skip intent parsing
               state.isDirectExpansion = true;
-              
+
               // Clear pending expansion flag
               state.pendingExpansion = false;
 
@@ -552,13 +552,12 @@ const invokeSearchAgentInternal = async ({
                   "default"
                 }`
               );
-            }
 
-            // Update toaster to show expansion is starting
-            // Note: automatic expansion will show its own detailed progress, so skip the initial message
-            const strategy = EXPANSION_OPTIONS[strategyKey]?.strategy || mapLabelToStrategy(label, action);
-            if (strategy !== "automatic") {
-              updateAgentToaster(`🚀 ${event.detail.label}...`);
+              // Update toaster to show expansion is starting
+              // Note: automatic expansion will show its own detailed progress, so skip the initial message
+              if (strategy !== "automatic") {
+                updateAgentToaster(`🚀 ${event.detail.label}...`);
+              }
             }
 
             // Resume the graph execution from where it left off
