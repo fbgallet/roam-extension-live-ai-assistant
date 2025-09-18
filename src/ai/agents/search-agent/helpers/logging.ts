@@ -4,7 +4,7 @@
  */
 
 // Environment check for debug mode
-const isDebugMode = process.env.NODE_ENV === 'development' || process.env.DEBUG_SEARCH_AGENT === 'true';
+const isDebugMode = (typeof process !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.DEBUG_SEARCH_AGENT === 'true')) || false;
 
 export const logger = {
   // Always shown - important info
