@@ -6,8 +6,8 @@ import { findPagesByContentTool } from "./findPagesByContent/findPagesByContentT
 import { extractHierarchyContentTool } from "./extractHierarchyContent/extractHierarchyContentTool";
 import { combineResultsTool } from "./combineResults/combineResultsTool";
 import { executeDatomicQueryTool } from "./executeDatomicQuery/executeDatomicQueryTool";
-import { extractPageReferencesTool } from "./extractPageReferencesTool";
-import { getNodeDetailsTool } from "./getNodeDetailsTool";
+import { extractPageReferencesTool } from "./extractPagesReferences/extractPageReferencesTool";
+import { getNodeDetailsTool } from "./getNodeDetails/getNodeDetailsTool";
 
 /**
  * Registry of all ReAct Search Agent tools with security levels
