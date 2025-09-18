@@ -112,7 +112,6 @@ const extractPageReferencesImpl = async (
   input: z.infer<typeof schema>,
   state?: any
 ) => {
-  console.log(`🔧 extractPageReferencesImpl input:`, input);
   const {
     blockUids,
     pageUids,
@@ -132,14 +131,6 @@ const extractPageReferencesImpl = async (
 
   // Handle result ID reference - access previous results from state
   if (fromResultId && state) {
-    console.log(`🔍 Resolving previous result: ${fromResultId}`);
-    console.log(`🔍 State available:`, !!state);
-    console.log(`🔍 ResultStore available:`, !!state?.resultStore);
-    console.log(
-      `🔍 Available result IDs:`,
-      Object.keys(state?.resultStore || {})
-    );
-
     const resultEntry = state.resultStore?.[fromResultId];
     if (!resultEntry) {
       const availableResults = Object.keys(state.resultStore || {});
@@ -157,15 +148,6 @@ const extractPageReferencesImpl = async (
 
     // Extract data from new or legacy structure
     const previousResult = resultEntry?.data || resultEntry;
-
-    console.log(
-      `🔍 Found previous result:`,
-      typeof previousResult,
-      Array.isArray(previousResult)
-        ? `${previousResult.length} items`
-        : "not an array"
-    );
-    console.log(`🔍 First few items:`, previousResult?.slice(0, 3));
 
     // Ensure previousResult is iterable (array)
     if (!Array.isArray(previousResult)) {
@@ -200,10 +182,6 @@ const extractPageReferencesImpl = async (
         finalPageTitles.push(item.pageTitle);
       }
     }
-
-    console.log(
-      `🔍 Extracted from previous result: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids, ${finalPageTitles.length} pageTitles`
-    );
   }
 
   // FALLBACK: If no explicit input provided, try to auto-detect compatible previous results
@@ -216,7 +194,7 @@ const extractPageReferencesImpl = async (
     state?.resultStore
   ) {
     console.log(
-      `🔄 No explicit input provided, attempting auto-fallback to recent compatible results`
+      `No explicit input provided, attempting auto-fallback to recent compatible results`
     );
 
     const compatibleResultId = findMostRecentCompatibleResult(
@@ -224,7 +202,6 @@ const extractPageReferencesImpl = async (
       ["blocks", "pages"]
     );
     if (compatibleResultId) {
-      console.log(`🔄 Auto-selected fallback result: ${compatibleResultId}`);
       fallbackResultId = compatibleResultId;
 
       // Process the fallback result

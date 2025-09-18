@@ -5,7 +5,7 @@ import { findPagesByTitleTool } from "./findPagesByTitle/findPagesByTitleTool";
 import { findPagesByContentTool } from "./findPagesByContent/findPagesByContentTool";
 import { extractHierarchyContentTool } from "./extractHierarchyContentTool";
 import { combineResultsTool } from "./combineResultsTool/combineResultsTool";
-import { executeDatomicQueryTool } from "./executeDatomicQueryTool";
+import { executeDatomicQueryTool } from "./executeDatomicQueryTool/executeDatomicQueryTool";
 import { extractPageReferencesTool } from "./extractPageReferencesTool";
 import { getNodeDetailsTool } from "./getNodeDetailsTool";
 
