@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { baseConditionSchema } from "../conditionGroupsUtils";
+import { baseConditionSchema } from "../../helpers/conditionGroupsUtils";
 
 /**
  * Schema definitions for findPagesByTitle tool

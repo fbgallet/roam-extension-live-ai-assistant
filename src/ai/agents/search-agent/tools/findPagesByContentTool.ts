@@ -28,7 +28,7 @@ import {
   hasSimpleConditions,
   validateConditionInput,
   convertSimpleToGrouped,
-} from "./conditionGroupsUtils";
+} from "../helpers/conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { findBlocksByContentTool } from "./findBlocksByContentTool";
 
@@ -2101,11 +2101,13 @@ export const findPagesByContentTool = tool(
       };
 
       // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
-      if (state?.automaticExpansionMode === 'auto_until_result') {
-        console.log(`🔧 [FindPagesByContent] Using automatic expansion for auto_until_result mode`);
-        
+      if (state?.automaticExpansionMode === "auto_until_result") {
+        console.log(
+          `🔧 [FindPagesByContent] Using automatic expansion for auto_until_result mode`
+        );
+
         // Use the already imported helper function
-        
+
         // Use automatic expansion starting from fuzzy
         const expansionResult = await automaticSemanticExpansion(
           enrichedInput,
@@ -2115,9 +2117,15 @@ export const findPagesByContentTool = tool(
 
         // Log expansion results
         if (expansionResult.expansionUsed) {
-          console.log(`✅ [FindPagesByContent] Found results with ${expansionResult.expansionUsed} expansion`);
+          console.log(
+            `✅ [FindPagesByContent] Found results with ${expansionResult.expansionUsed} expansion`
+          );
         } else {
-          console.log(`😟 [FindPagesByContent] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+          console.log(
+            `😟 [FindPagesByContent] No expansion found results, tried: ${expansionResult.expansionAttempts.join(
+              ", "
+            )}`
+          );
         }
 
         return createToolResult(
@@ -2130,8 +2138,8 @@ export const findPagesByContentTool = tool(
             automaticExpansion: {
               used: expansionResult.expansionUsed,
               attempts: expansionResult.expansionAttempts,
-              finalAttempt: expansionResult.finalAttempt
-            }
+              finalAttempt: expansionResult.finalAttempt,
+            },
           }
         );
       }

@@ -499,7 +499,7 @@ export const expandConditionsShared = async (
 
   // Check if any condition has symbols that require expansion
   const hasSymbolExpansion = conditions.some(
-    (c) => c.text.endsWith("*") || c.text.endsWith("~")
+    (c) => c.text.endsWith("*") || c.text.endsWith("~") || c.text.endsWith("~all")
   );
 
   if (!hasGlobalExpansion && !hasSymbolExpansion) {
@@ -511,7 +511,8 @@ export const expandConditionsShared = async (
     (c) =>
       !state?.disableSemanticExpansion &&
       ((c.semanticExpansion && (c.type === "text" || c.type === "page_ref")) ||
-        (hasGlobalExpansion && (c.type === "text" || c.type === "page_ref")))
+        (hasGlobalExpansion && (c.type === "text" || c.type === "page_ref")) ||
+        (hasSymbolExpansion && (c.type === "text" || c.type === "page_ref")))
   );
 
   if (conditionsToExpand.length > 0 && !state?.expansionToasterShown) {
@@ -538,7 +539,7 @@ export const expandConditionsShared = async (
     // Apply semantic expansion if needed
     if (
       structuredCondition.type === "regex" ||
-      (!hasGlobalExpansion && !structuredCondition.semanticExpansion)
+      (!hasGlobalExpansion && !structuredCondition.semanticExpansion && !hasSymbolExpansion)
     ) {
       // No expansion needed
       finalExpandedConditions.push(structuredCondition);
@@ -551,6 +552,15 @@ export const expandConditionsShared = async (
       state?.semanticExpansion
     );
 
+    console.log(`🔧 [SharedExpansion] Parsing condition:`, {
+      originalText: structuredCondition.text,
+      cleanText,
+      expansionType,
+      globalSemanticExpansion: state?.semanticExpansion,
+      hasGlobalExpansion,
+      hasSymbolExpansion
+    });
+
     // Determine final expansion strategy: per-condition > global
     let effectiveExpansionStrategy = expansionType;
     if (!effectiveExpansionStrategy && hasGlobalExpansion) {
@@ -558,9 +568,10 @@ export const expandConditionsShared = async (
     }
 
     // Handle "automatic" strategy by converting it to the automatic expansion mode
-    if (effectiveExpansionStrategy === "automatic") {
+    // But only for global expansion, not for explicit per-condition symbols
+    if (effectiveExpansionStrategy === "automatic" && !expansionType) {
       console.log(
-        `🔧 [SharedExpansion] Converting "automatic" strategy to automaticExpansionMode`
+        `🔧 [SharedExpansion] Converting global "automatic" strategy to automaticExpansionMode`
       );
       // Set the state to trigger automatic expansion in the tool wrapper
       if (state) {
@@ -1134,12 +1145,28 @@ export async function withAutomaticExpansion<T, R>(
     fuzzyThreshold: inputAny.fuzzyThreshold || 0.8,
   };
 
+  // Check if any conditions have explicit expansion symbols (* or ~) that should override automatic mode
+  const hasExplicitExpansion = (enrichedInput as any)?.conditions?.some((condition: any) =>
+    condition.text?.endsWith("*") || condition.text?.endsWith("~") || condition.text?.endsWith("~all")
+  );
+
+  console.log(`🔧 [${toolName}] Explicit expansion check:`, {
+    conditions: (enrichedInput as any)?.conditions?.map((c: any) => ({ text: c.text, type: c.type })),
+    hasExplicitExpansion,
+    automaticExpansionMode: state?.automaticExpansionMode,
+    semanticExpansion: state?.semanticExpansion,
+    isExpansionGlobal: state?.isExpansionGlobal
+  });
+
   // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
   // Skip if disabled by hierarchy tool (which sets mode to "disabled_by_hierarchy")
+  // Skip if using custom expansion (should use global expansion instead)
+  // Skip if user explicitly requested expansion with symbols (* or ~) - these override automatic mode
   // Also handle legacy case where semanticExpansion might be set to "automatic"
   if (
-    state?.automaticExpansionMode === "auto_until_result" ||
-    (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal)
+    !hasExplicitExpansion &&
+    ((state?.automaticExpansionMode === "auto_until_result" && state?.semanticExpansion !== "custom") ||
+     (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal))
   ) {
     console.log(
       `🔧 [${toolName}] Using automatic expansion for auto_until_result mode (or legacy automatic semanticExpansion)`
@@ -1198,11 +1225,11 @@ export async function withAutomaticExpansion<T, R>(
     semanticExpansion: state?.semanticExpansion || null,
   };
 
-  if (state?.automaticExpansionMode) {
+  if (state?.automaticExpansionMode && !hasExplicitExpansion) {
     const expansionMode = state.automaticExpansionMode;
     console.log(`🔧 [${toolName}] Checking expansion mode: ${expansionMode}`);
 
-    // Set expansion states based on mode (only if not already set by user actions)
+    // Set expansion states based on mode (only if not already set by user actions and no explicit symbols)
     if (!state?.isExpansionGlobal) {
       switch (expansionMode) {
         case "always_fuzzy":
@@ -1257,12 +1284,23 @@ export async function withAutomaticExpansion<T, R>(
 
     const results = await toolImpl(enrichedInput, initialState);
 
-    // Check if we got results
-    const hasResults = Array.isArray(results) && results.length > 0;
+    // Check if we got results - handle different tool result formats
+    const hasResults =
+      (Array.isArray(results) && results.length > 0) ||
+      ((results as any)?.data?.length > 0) ||
+      ((results as any)?.results?.length > 0);
 
     // If we have results from initial attempt, return them
     if (hasResults) {
-      return createToolResult(true, results, undefined, toolName, startTime);
+      // Extract actual results array from tool output
+      const actualResults = Array.isArray(results)
+        ? results
+        : (results as any)?.results || (results as any)?.data || results;
+      const metadata = Array.isArray(results)
+        ? {}
+        : (results as any)?.metadata || {};
+
+      return createToolResult(true, actualResults, undefined, toolName, startTime, metadata);
     }
 
     // No results - try expansion if auto_until_result or if always_* modes are enabled
@@ -1307,18 +1345,35 @@ export async function withAutomaticExpansion<T, R>(
           // Keep original automaticExpansionMode
         });
 
+        // Extract actual results array from tool output
+        const actualResults = Array.isArray(expandedResults)
+          ? expandedResults
+          : (expandedResults as any)?.results || (expandedResults as any)?.data || expandedResults;
+        const metadata = Array.isArray(expandedResults)
+          ? {}
+          : (expandedResults as any)?.metadata || {};
+
         return createToolResult(
           true,
-          expandedResults,
+          actualResults,
           undefined,
           toolName,
-          startTime
+          startTime,
+          metadata
         );
       }
     }
 
     // No expansion needed or available, return original results
-    return createToolResult(true, results, undefined, toolName, startTime);
+    // Extract actual results array from tool output
+    const actualResults = Array.isArray(results)
+      ? results
+      : (results as any)?.results || (results as any)?.data || results;
+    const metadata = Array.isArray(results)
+      ? {}
+      : (results as any)?.metadata || {};
+
+    return createToolResult(true, actualResults, undefined, toolName, startTime, metadata);
   } catch (error) {
     console.error(`${toolName} tool error:`, error);
     return createToolResult(

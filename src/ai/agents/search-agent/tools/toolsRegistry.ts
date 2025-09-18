@@ -4,7 +4,7 @@ import { findPagesByTitleTool } from "./findPagesByTitle/findPagesByTitleTool";
 // import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
 import { findPagesByContentTool } from "./findPagesByContent/findPagesByContentTool";
 import { extractHierarchyContentTool } from "./extractHierarchyContentTool";
-import { combineResultsTool } from "./combineResultsTool";
+import { combineResultsTool } from "./combineResultsTool/combineResultsTool";
 import { executeDatomicQueryTool } from "./executeDatomicQueryTool";
 import { extractPageReferencesTool } from "./extractPageReferencesTool";
 import { getNodeDetailsTool } from "./getNodeDetailsTool";

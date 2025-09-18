@@ -12,7 +12,7 @@ import {
   parseSemanticExpansion,
   createToolResult,
 } from "../helpers/semanticExpansion";
-import { baseConditionSchema } from "./conditionGroupsUtils";
+import { baseConditionSchema } from "../helpers/conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
 

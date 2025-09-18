@@ -1195,8 +1195,10 @@ export const invokeExpandedSearchDirect = async ({
     maxDepthOverride: searchParams.maxDepth || null,
     // Pass forceHierarchical for flat → hierarchical conversion
     forceHierarchical: searchParams.forceHierarchical || false,
-    // Set automatic expansion mode for "automatic" strategy
+    // Set automatic expansion mode for "automatic" strategy only (not for custom)
     automaticExpansionMode: mappedStrategy === "automatic" ? "auto_until_result" : undefined,
+    // Pass custom strategy for custom expansion
+    customSemanticExpansion: mappedStrategy === "custom" ? searchParams.customSemanticExpansion : undefined,
   };
   
   if (mappedStrategy === "automatic") {

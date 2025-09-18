@@ -12,7 +12,7 @@ import {
   validateConditionInput,
   processConditionGroups,
   applyORToRegexConversion,
-} from "../conditionGroupsUtils";
+} from "../../helpers/conditionGroupsUtils";
 import { schema, llmFacingSchema, FindPagesByContentInput } from "./schemas";
 import {
   expandConditions,

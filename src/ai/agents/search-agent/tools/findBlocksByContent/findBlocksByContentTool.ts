@@ -11,15 +11,15 @@ import {
   applyORToRegexConversion,
   hasGroupedConditions,
   validateConditionInput,
-} from "../conditionGroupsUtils";
+} from "../../helpers/conditionGroupsUtils";
 import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 import { schema, llmFacingSchema, FindBlocksByContentInput } from "./schemas";
 import { extractUserRequestedLimit } from "./parsers";
-import { 
-  expandConditions, 
-  applyFuzzyFiltering, 
-  enrichWithHierarchy 
+import {
+  expandConditions,
+  applyFuzzyFiltering,
+  enrichWithHierarchy,
 } from "./processors";
 import { searchBlocksWithConditions } from "./executors";
 

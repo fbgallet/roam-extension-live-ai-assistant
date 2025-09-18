@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SearchCondition } from "../helpers/searchUtils";
+import { SearchCondition } from "./searchUtils";
 
 /**
  * Shared utilities for grouped conditions across search tools
@@ -238,14 +238,22 @@ export const convertConditionsToRegex = (conditions: any[]): any => {
  * Check if input uses grouped conditions format
  */
 export const hasGroupedConditions = (input: any): boolean => {
-  return !!(input.conditionGroups && Array.isArray(input.conditionGroups) && input.conditionGroups.length > 0);
+  return !!(
+    input.conditionGroups &&
+    Array.isArray(input.conditionGroups) &&
+    input.conditionGroups.length > 0
+  );
 };
 
 /**
  * Check if input uses simple conditions format
  */
 export const hasSimpleConditions = (input: any): boolean => {
-  return !!(input.conditions && Array.isArray(input.conditions) && input.conditions.length > 0);
+  return !!(
+    input.conditions &&
+    Array.isArray(input.conditions) &&
+    input.conditions.length > 0
+  );
 };
 
 /**

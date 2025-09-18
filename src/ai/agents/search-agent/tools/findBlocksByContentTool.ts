@@ -32,7 +32,7 @@ import {
   hasSimpleConditions,
   validateConditionInput,
   convertSimpleToGrouped,
-} from "./conditionGroupsUtils";
+} from "../helpers/conditionGroupsUtils";
 import { dnpUidRegex } from "../../../../utils/regex.js";
 import { updateAgentToaster } from "../../shared/agentsUtils";
 
@@ -773,7 +773,10 @@ const expandConditions = async (
   const expansionLevel = state?.expansionLevel || 0;
 
   // CRITICAL: Skip expansion if disabled by hierarchy tool
-  if (state?.automaticExpansionMode === "disabled_by_hierarchy" || state?.hierarchyExpansionDone) {
+  if (
+    state?.automaticExpansionMode === "disabled_by_hierarchy" ||
+    state?.hierarchyExpansionDone
+  ) {
     console.log(
       `🚫 [ContentTool] Skipping semantic expansion - disabled by hierarchy tool`
     );
@@ -822,7 +825,11 @@ const expandConditions = async (
     console.log("🔍 [DEBUG] expansionType :>> ", expansionType);
 
     // Handle text conditions with semantic expansion (unless disabled for combination testing)
-    if (effectiveExpansionStrategy && condition.type === "text" && !state?.disableSemanticExpansion) {
+    if (
+      effectiveExpansionStrategy &&
+      condition.type === "text" &&
+      !state?.disableSemanticExpansion
+    ) {
       try {
         const customStrategy =
           effectiveExpansionStrategy === "custom"
@@ -851,9 +858,13 @@ const expandConditions = async (
 
         // Show semantic variations to user
         if (expansionTerms.length > 0) {
-          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
+          const strategyLabel = getExpansionStrategyLabel(
+            effectiveExpansionStrategy
+          );
           updateAgentToaster(
-            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`
+            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+              ", "
+            )}`
           );
         }
 
@@ -900,7 +911,11 @@ const expandConditions = async (
     }
 
     // Handle page_ref conditions with semantic expansion (unless disabled for combination testing)
-    if (condition.type === "page_ref" && effectiveExpansionStrategy && !state?.disableSemanticExpansion) {
+    if (
+      condition.type === "page_ref" &&
+      effectiveExpansionStrategy &&
+      !state?.disableSemanticExpansion
+    ) {
       try {
         const customStrategy =
           effectiveExpansionStrategy === "custom"
@@ -929,9 +944,13 @@ const expandConditions = async (
 
         // Show semantic variations to user
         if (expansionTerms.length > 0) {
-          const strategyLabel = getExpansionStrategyLabel(effectiveExpansionStrategy);
+          const strategyLabel = getExpansionStrategyLabel(
+            effectiveExpansionStrategy
+          );
           updateAgentToaster(
-            `🔗 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(', ')}`
+            `🔗 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+              ", "
+            )}`
           );
         }
 
@@ -1253,7 +1272,9 @@ export const findBlocksByContentTool = tool(
     try {
       // Extract state from config to access injected parameters
       const state = config?.configurable?.state;
-      console.log(`🔧 [FindBlocksByContent] Tool called with expansion mode: ${state?.automaticExpansionMode}, original fuzzy: ${llmInput.fuzzyMatching}`);
+      console.log(
+        `🔧 [FindBlocksByContent] Tool called with expansion mode: ${state?.automaticExpansionMode}, original fuzzy: ${llmInput.fuzzyMatching}`
+      );
 
       // Auto-enrich with internal parameters from agent state
       const enrichedInput = {
@@ -1284,11 +1305,13 @@ export const findBlocksByContentTool = tool(
 
       // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
       // Skip if disabled by hierarchy tool (which sets mode to "disabled_by_hierarchy")
-      if (state?.automaticExpansionMode === 'auto_until_result') {
-        console.log(`🔧 [FindBlocksByContent] Using automatic expansion for auto_until_result mode`);
-        
+      if (state?.automaticExpansionMode === "auto_until_result") {
+        console.log(
+          `🔧 [FindBlocksByContent] Using automatic expansion for auto_until_result mode`
+        );
+
         // Use the already imported helper function
-        
+
         // Use automatic expansion starting from fuzzy
         const expansionResult = await automaticSemanticExpansion(
           enrichedInput,
@@ -1298,9 +1321,15 @@ export const findBlocksByContentTool = tool(
 
         // Log expansion results
         if (expansionResult.expansionUsed) {
-          console.log(`✅ [FindBlocksByContent] Found results with ${expansionResult.expansionUsed} expansion`);
+          console.log(
+            `✅ [FindBlocksByContent] Found results with ${expansionResult.expansionUsed} expansion`
+          );
         } else {
-          console.log(`😟 [FindBlocksByContent] No expansion found results, tried: ${expansionResult.expansionAttempts.join(', ')}`);
+          console.log(
+            `😟 [FindBlocksByContent] No expansion found results, tried: ${expansionResult.expansionAttempts.join(
+              ", "
+            )}`
+          );
         }
 
         return createToolResult(
@@ -1314,8 +1343,8 @@ export const findBlocksByContentTool = tool(
             automaticExpansion: {
               used: expansionResult.expansionUsed,
               attempts: expansionResult.expansionAttempts,
-              finalAttempt: expansionResult.finalAttempt
-            }
+              finalAttempt: expansionResult.finalAttempt,
+            },
           }
         );
       }
@@ -1323,13 +1352,15 @@ export const findBlocksByContentTool = tool(
       // Handle other expansion modes (always_fuzzy, always_synonyms, always_all, etc.)
       let expansionStates = {
         isExpansionGlobal: state?.isExpansionGlobal || false,
-        semanticExpansion: state?.semanticExpansion || null
+        semanticExpansion: state?.semanticExpansion || null,
       };
 
       if (state?.automaticExpansionMode) {
         const expansionMode = state.automaticExpansionMode;
-        console.log(`🔧 [FindBlocksByContent] Checking expansion mode: ${expansionMode}`);
-        
+        console.log(
+          `🔧 [FindBlocksByContent] Checking expansion mode: ${expansionMode}`
+        );
+
         // Set expansion states based on mode (only if not already set by user actions)
         if (!state?.isExpansionGlobal) {
           switch (expansionMode) {
@@ -1337,19 +1368,25 @@ export const findBlocksByContentTool = tool(
             case "Always with fuzzy":
               expansionStates.isExpansionGlobal = true;
               expansionStates.semanticExpansion = "fuzzy";
-              console.log(`🔧 [FindBlocksByContent] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`);
+              console.log(
+                `🔧 [FindBlocksByContent] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`
+              );
               break;
             case "always_synonyms":
             case "Always with synonyms":
               expansionStates.isExpansionGlobal = true;
               expansionStates.semanticExpansion = "synonyms";
-              console.log(`🔧 [FindBlocksByContent] Auto-enabling synonyms expansion due to mode: ${expansionMode}`);
+              console.log(
+                `🔧 [FindBlocksByContent] Auto-enabling synonyms expansion due to mode: ${expansionMode}`
+              );
               break;
             case "always_all":
             case "Always with all":
               expansionStates.isExpansionGlobal = true;
               expansionStates.semanticExpansion = "all";
-              console.log(`🔧 [FindBlocksByContent] Auto-enabling all expansions due to mode: ${expansionMode}`);
+              console.log(
+                `🔧 [FindBlocksByContent] Auto-enabling all expansions due to mode: ${expansionMode}`
+              );
               break;
           }
         }
@@ -1358,7 +1395,7 @@ export const findBlocksByContentTool = tool(
         enrichedInput,
         {
           ...state,
-          ...expansionStates
+          ...expansionStates,
         }
       );
       return createToolResult(

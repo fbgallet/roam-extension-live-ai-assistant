@@ -21,7 +21,7 @@ import {
 } from "./processors";
 import { findBlocksByContentTool } from "../findBlocksByContentTool";
 import { extractChildUids } from "./findBlocksWithHierarchyTool";
-import { combineResultsTool } from "../combineResultsTool";
+import { combineResultsTool } from "../combineResultsTool/combineResultsTool";
 
 /**
  * Execute structured strict hierarchy search: left > right (left parent, right child)

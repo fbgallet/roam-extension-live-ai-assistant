@@ -3,7 +3,7 @@ import {
   baseConditionSchema,
   conditionGroupSchema,
   extendedConditionsSchema,
-} from "../conditionGroupsUtils";
+} from "../../helpers/conditionGroupsUtils";
 
 /**
  * Content condition schema for pages-by-content specific search conditions
