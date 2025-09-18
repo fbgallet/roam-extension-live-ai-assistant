@@ -238,21 +238,10 @@ const getPostCompletionExpansionOptions = (): string => {
 
   const isBlockSearch = lastSearchWasBlockSearch();
 
-  console.log("🔧 [Post-Completion] Generating expansion options:", {
-    lastQuery,
-    queryKey,
-    previousExpansions,
-    historyExists: Object.keys(expansionHistory).length > 0,
-    currentDepth,
-    isHierarchicalSearch,
-    isBlockSearch,
-    formalQuery,
-    canGoDeeper: isHierarchicalSearch && currentDepth < 3 && isBlockSearch,
-  });
-
   // Get current automatic expansion mode to filter redundant options
-  const currentAutomaticMode = (window as any).lastSearchParams?.automaticExpansionMode ||
-                               (window as any).lastAgentState?.automaticExpansionMode;
+  const currentAutomaticMode =
+    (window as any).lastSearchParams?.automaticExpansionMode ||
+    (window as any).lastAgentState?.automaticExpansionMode;
 
   // Default options if no previous expansions - use centralized constants (filtered by current mode)
   const defaultOptions = getDefaultExpansionOptions(currentAutomaticMode);
@@ -463,13 +452,9 @@ export const completeAgentToaster = (
  * This ensures proper tracking across different expansion systems
  */
 const mapLabelToStrategy = (label: string, action: string): string => {
-  console.log(
-    `🔧 [Strategy Mapping] Input: label="${label}", action="${action}"`
-  );
-
   // Use centralized mapping function
   const result = centralizedMapLabelToStrategy(label, action);
-  console.log(`🔧 [Strategy Mapping] Result: "${result}"`);
+
   return result;
 };
 
@@ -494,9 +479,6 @@ const setupPostCompletionExpansionHandler = (): void => {
     const postCompletionExpansionHandler = async (event: CustomEvent) => {
       try {
         const { action, label, emoji, depthTarget } = event.detail;
-        console.log(
-          `🚀 [Post-Completion Expansion] User selected: ${emoji} ${label}`
-        );
 
         // Update toaster to show expansion is starting
         updateAgentToaster(
@@ -540,28 +522,21 @@ const setupPostCompletionExpansionHandler = (): void => {
         // Check if this specific expansion has been tried before
         // Use direct strategy lookup if we have a key, otherwise fall back to parsing
         let normalizedStrategy: string;
-        
+
         // Check if this is a structured event with strategy key
-        const strategyKey = event.detail.strategyKey as keyof typeof EXPANSION_OPTIONS;
+        const strategyKey = event.detail
+          .strategyKey as keyof typeof EXPANSION_OPTIONS;
         if (strategyKey && EXPANSION_OPTIONS[strategyKey]) {
           normalizedStrategy = EXPANSION_OPTIONS[strategyKey].strategy;
         } else {
           // Fallback to legacy string parsing
           normalizedStrategy = mapLabelToStrategy(label, action);
         }
-        
+
         const isRepeatExpansion = previousExpansions.some(
           (exp: any) =>
             exp.strategy === normalizedStrategy || exp.strategy === action
         );
-
-        console.log(`🔧 [Post-Completion] Checking expansion history:`, {
-          label,
-          action,
-          normalizedStrategy,
-          previousExpansions,
-          isRepeatExpansion,
-        });
 
         if (isRepeatExpansion) {
           updateAgentToaster(
@@ -624,9 +599,6 @@ const setupPostCompletionExpansionHandler = (): void => {
             newDepth = depthTarget;
             modifiedQuery =
               lastQuery.replace(/depth=\d+/g, "") + ` depth=${newDepth}`;
-            console.log(
-              `🏗️ [Depth Expansion] Direct depth target: ${newDepth}`
-            );
           } else if (normalizedStrategy === "hierarchical") {
             // Convert flat search to hierarchical (depth 0 → 1)
             currentDepth = 0;
@@ -674,17 +646,6 @@ const setupPostCompletionExpansionHandler = (): void => {
             // For hierarchical conversion, indicate that we want hierarchical search mode
             forceHierarchical: normalizedStrategy === "hierarchical",
           };
-
-          console.log(`🏗️ [Depth Expansion] Processing depth expansion:`, {
-            normalizedStrategy,
-            currentDepth,
-            newDepth,
-            originalQuery: lastQuery,
-            modifiedQuery,
-            formalQuery,
-            lastParams,
-            finalSearchParams,
-          });
 
           // Record this expansion attempt
           if (!expansionHistory[queryKey]) {
@@ -745,10 +706,6 @@ const setupPostCompletionExpansionHandler = (): void => {
     // Track and add the new listener
     (window as any)._expansionListeners = [postCompletionExpansionHandler];
     window.addEventListener("agentExpansion", postCompletionExpansionHandler);
-
-    console.log(
-      "🔧 [Post-Completion] Expansion handler set up for completed search"
-    );
   }
 };
 

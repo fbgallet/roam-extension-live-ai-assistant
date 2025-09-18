@@ -1496,39 +1496,40 @@ export default {
     window.LiveAI = {};
 
     // Add ReAct Search Agent testing functions for development
-    if (process.env.NODE_ENV === "development" || true) {
-      // Always available for now
-      try {
-        // Use async import with better error handling
-        import(
-          /* webpackChunkName: "search-agent-tests" */ "./ai/agents/search-agent/tools/simple-test.js"
-        )
-          .then((testModule) => {
-            window.LiveAI.testReactSearch = {
-              testRoamAPI: testModule.testRoamAPIQueries,
-              testTool: testModule.testFindPagesByTitleTool,
-              testAgent: testModule.testReactAgent,
-              runAll: testModule.runAllTests,
-            };
-            console.log(
-              "🔧 ReAct Search Agent tests available: window.LiveAI.testReactSearch.runAll()"
-            );
-          })
-          .catch((err) => {
-            // Silently fail - tests are optional
-            console.debug(
-              "⚠️ ReAct Search Agent tests not available (development feature):",
-              err.message
-            );
-          });
-      } catch (err) {
-        // Silently fail - tests are optional development feature
-        console.debug(
-          "⚠️ ReAct Search Agent tests import failed (development feature):",
-          err.message
-        );
-      }
-    }
+    // DISABLED: Test files have been removed during refactoring
+    // if (process.env.NODE_ENV === "development" || true) {
+    //   // Always available for now
+    //   try {
+    //     // Use async import with better error handling
+    //     import(
+    //       /* webpackChunkName: "search-agent-tests" */ "./ai/agents/search-agent/tools/simple-test.js"
+    //     )
+    //       .then((testModule) => {
+    //         window.LiveAI.testReactSearch = {
+    //           testRoamAPI: testModule.testRoamAPIQueries,
+    //           testTool: testModule.testFindPagesByTitleTool,
+    //           testAgent: testModule.testReactAgent,
+    //           runAll: testModule.runAllTests,
+    //         };
+    //         console.log(
+    //           "🔧 ReAct Search Agent tests available: window.LiveAI.testReactSearch.runAll()"
+    //         );
+    //       })
+    //       .catch((err) => {
+    //         // Silently fail - tests are optional
+    //         console.debug(
+    //           "⚠️ ReAct Search Agent tests not available (development feature):",
+    //           err.message
+    //         );
+    //       });
+    //   } catch (err) {
+    //     // Silently fail - tests are optional development feature
+    //     console.debug(
+    //       "⚠️ ReAct Search Agent tests import failed (development feature):",
+    //       err.message
+    //     );
+    //   }
+    // }
 
     initializeContextMenu();
 

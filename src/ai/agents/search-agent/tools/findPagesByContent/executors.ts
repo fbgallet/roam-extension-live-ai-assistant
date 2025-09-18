@@ -2,7 +2,7 @@ import {
   executeDatomicQuery,
 } from "../../helpers/searchUtils";
 import { dnpUidRegex } from "../../../../../utils/regex.js";
-import { findBlocksByContentTool } from "../findBlocksByContentTool";
+import { findBlocksByContentTool } from "../findBlocksByContent/findBlocksByContentTool";
 import { escapeRegex, escapeForDatomic } from "./parsers";
 import type { AttributeValue } from "./schemas";
 

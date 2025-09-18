@@ -3,6 +3,7 @@ main.js
 extension.js
 .env
 package-lock.json
+*.backup
 
 # Webpack generated chunks
 src_*.js

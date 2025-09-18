@@ -465,14 +465,6 @@ ${commonRequirements}`;
     // CRITICAL: Remove duplicates to prevent Datomic set crashes
     const uniqueTerms = [...new Set(terms)] as string[];
 
-    if (uniqueTerms.length !== terms.length) {
-      console.log(
-        `🔧 Removed ${
-          terms.length - uniqueTerms.length
-        } duplicate terms from semantic expansions`
-      );
-    }
-
     console.log(
       `🔍 Generated ${uniqueTerms.length} semantic expansions for "${text}":`,
       uniqueTerms
@@ -499,7 +491,8 @@ export const expandConditionsShared = async (
 
   // Check if any condition has symbols that require expansion
   const hasSymbolExpansion = conditions.some(
-    (c) => c.text.endsWith("*") || c.text.endsWith("~") || c.text.endsWith("~all")
+    (c) =>
+      c.text.endsWith("*") || c.text.endsWith("~") || c.text.endsWith("~all")
   );
 
   if (!hasGlobalExpansion && !hasSymbolExpansion) {
@@ -539,7 +532,9 @@ export const expandConditionsShared = async (
     // Apply semantic expansion if needed
     if (
       structuredCondition.type === "regex" ||
-      (!hasGlobalExpansion && !structuredCondition.semanticExpansion && !hasSymbolExpansion)
+      (!hasGlobalExpansion &&
+        !structuredCondition.semanticExpansion &&
+        !hasSymbolExpansion)
     ) {
       // No expansion needed
       finalExpandedConditions.push(structuredCondition);
@@ -552,15 +547,6 @@ export const expandConditionsShared = async (
       state?.semanticExpansion
     );
 
-    console.log(`🔧 [SharedExpansion] Parsing condition:`, {
-      originalText: structuredCondition.text,
-      cleanText,
-      expansionType,
-      globalSemanticExpansion: state?.semanticExpansion,
-      hasGlobalExpansion,
-      hasSymbolExpansion
-    });
-
     // Determine final expansion strategy: per-condition > global
     let effectiveExpansionStrategy = expansionType;
     if (!effectiveExpansionStrategy && hasGlobalExpansion) {
@@ -570,9 +556,6 @@ export const expandConditionsShared = async (
     // Handle "automatic" strategy by converting it to the automatic expansion mode
     // But only for global expansion, not for explicit per-condition symbols
     if (effectiveExpansionStrategy === "automatic" && !expansionType) {
-      console.log(
-        `🔧 [SharedExpansion] Converting global "automatic" strategy to automaticExpansionMode`
-      );
       // Set the state to trigger automatic expansion in the tool wrapper
       if (state) {
         state.automaticExpansionMode = "auto_until_result";
@@ -615,9 +598,6 @@ export const expandConditionsShared = async (
         if (state.expansionCache.has(cacheKey)) {
           // Reuse cached expansion results
           expansionTerms = state.expansionCache.get(cacheKey);
-          console.log(
-            `🔄 [SharedExpansion] Reusing cached expansion for "${cleanText}"`
-          );
         } else {
           // Generate semantic expansions
           const userLanguage = state?.language || "English"; // Fallback to English if language not detected
@@ -634,9 +614,6 @@ export const expandConditionsShared = async (
 
           // Cache the results
           state.expansionCache.set(cacheKey, expansionTerms);
-          console.log(
-            `💾 [SharedExpansion] Cached expansion for "${cleanText}": ${expansionTerms.length} terms`
-          );
         }
 
         // Create expanded regex condition
@@ -968,7 +945,7 @@ export async function automaticSemanticExpansion<T, R>(
 
   if (!isToasterAutomatic) {
     // Try original query first (no expansion) - only for initial queries, not Toaster expansions
-    console.log(`🔍 [AutoExpansion] Trying original query (no expansion)`);
+
     attemptedExpansions.push("none");
 
     try {
@@ -980,9 +957,6 @@ export async function automaticSemanticExpansion<T, R>(
         (Array.isArray(originalResults) && originalResults.length > 0);
 
       if (hasResults) {
-        console.log(
-          `✅ [AutoExpansion] Original query found results, no expansion needed`
-        );
         return {
           results: originalResults,
           expansionUsed: null,
@@ -995,10 +969,6 @@ export async function automaticSemanticExpansion<T, R>(
     } catch (error) {
       console.warn(`⚠️ [AutoExpansion] Original query failed:`, error);
     }
-  } else {
-    console.log(
-      `🔍 [AutoExpansion] Skipping original query - starting directly with fuzzy expansion (Toaster automatic)`
-    );
   }
 
   // Try semantic expansions in sequence
@@ -1006,11 +976,6 @@ export async function automaticSemanticExpansion<T, R>(
     const expansionType = expansionSequence[i];
     const isLastAttempt = i === expansionSequence.length - 1;
 
-    console.log(
-      `🔍 [AutoExpansion] Trying expansion: ${expansionType} ${
-        isLastAttempt ? "(final attempt)" : ""
-      }`
-    );
     attemptedExpansions.push(expansionType);
 
     try {
@@ -1048,10 +1013,6 @@ export async function automaticSemanticExpansion<T, R>(
       const arrayLength = Array.isArray(expandedResults)
         ? expandedResults.length
         : 0;
-
-      console.log(
-        `🔍 [AutoExpansion] ${expansionType} results check: data=${dataLength}, results=${resultsLength}, array=${arrayLength}`
-      );
 
       const hasResults = dataLength > 0 || resultsLength > 0 || arrayLength > 0;
 
@@ -1146,17 +1107,12 @@ export async function withAutomaticExpansion<T, R>(
   };
 
   // Check if any conditions have explicit expansion symbols (* or ~) that should override automatic mode
-  const hasExplicitExpansion = (enrichedInput as any)?.conditions?.some((condition: any) =>
-    condition.text?.endsWith("*") || condition.text?.endsWith("~") || condition.text?.endsWith("~all")
+  const hasExplicitExpansion = (enrichedInput as any)?.conditions?.some(
+    (condition: any) =>
+      condition.text?.endsWith("*") ||
+      condition.text?.endsWith("~") ||
+      condition.text?.endsWith("~all")
   );
-
-  console.log(`🔧 [${toolName}] Explicit expansion check:`, {
-    conditions: (enrichedInput as any)?.conditions?.map((c: any) => ({ text: c.text, type: c.type })),
-    hasExplicitExpansion,
-    automaticExpansionMode: state?.automaticExpansionMode,
-    semanticExpansion: state?.semanticExpansion,
-    isExpansionGlobal: state?.isExpansionGlobal
-  });
 
   // Check if we should use automatic semantic expansion (ONLY for auto_until_result)
   // Skip if disabled by hierarchy tool (which sets mode to "disabled_by_hierarchy")
@@ -1165,13 +1121,10 @@ export async function withAutomaticExpansion<T, R>(
   // Also handle legacy case where semanticExpansion might be set to "automatic"
   if (
     !hasExplicitExpansion &&
-    ((state?.automaticExpansionMode === "auto_until_result" && state?.semanticExpansion !== "custom") ||
-     (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal))
+    ((state?.automaticExpansionMode === "auto_until_result" &&
+      state?.semanticExpansion !== "custom") ||
+      (state?.semanticExpansion === "automatic" && state?.isExpansionGlobal))
   ) {
-    console.log(
-      `🔧 [${toolName}] Using automatic expansion for auto_until_result mode (or legacy automatic semanticExpansion)`
-    );
-
     // Use automatic expansion starting from fuzzy
     const expansionResult = await automaticSemanticExpansion(
       enrichedInput,
@@ -1183,12 +1136,6 @@ export async function withAutomaticExpansion<T, R>(
     if (expansionResult.expansionUsed) {
       console.log(
         `✅ [${toolName}] Found results with ${expansionResult.expansionUsed} expansion`
-      );
-    } else {
-      console.log(
-        `😟 [${toolName}] No expansion found results, tried: ${expansionResult.expansionAttempts.join(
-          ", "
-        )}`
       );
     }
 
@@ -1227,7 +1174,6 @@ export async function withAutomaticExpansion<T, R>(
 
   if (state?.automaticExpansionMode && !hasExplicitExpansion) {
     const expansionMode = state.automaticExpansionMode;
-    console.log(`🔧 [${toolName}] Checking expansion mode: ${expansionMode}`);
 
     // Set expansion states based on mode (only if not already set by user actions and no explicit symbols)
     if (!state?.isExpansionGlobal) {
@@ -1236,25 +1182,19 @@ export async function withAutomaticExpansion<T, R>(
         case "Always with fuzzy":
           expansionStates.isExpansionGlobal = true;
           expansionStates.semanticExpansion = "fuzzy";
-          console.log(
-            `🔧 [${toolName}] Auto-enabling fuzzy expansion due to mode: ${expansionMode}`
-          );
+
           break;
         case "always_synonyms":
         case "Always with synonyms":
           expansionStates.isExpansionGlobal = true;
           expansionStates.semanticExpansion = "synonyms";
-          console.log(
-            `🔧 [${toolName}] Auto-enabling synonyms expansion due to mode: ${expansionMode}`
-          );
+
           break;
         case "always_all":
         case "Always with all":
           expansionStates.isExpansionGlobal = true;
           expansionStates.semanticExpansion = "all";
-          console.log(
-            `🔧 [${toolName}] Auto-enabling all expansions due to mode: ${expansionMode}`
-          );
+
           break;
       }
     }
@@ -1287,8 +1227,8 @@ export async function withAutomaticExpansion<T, R>(
     // Check if we got results - handle different tool result formats
     const hasResults =
       (Array.isArray(results) && results.length > 0) ||
-      ((results as any)?.data?.length > 0) ||
-      ((results as any)?.results?.length > 0);
+      (results as any)?.data?.length > 0 ||
+      (results as any)?.results?.length > 0;
 
     // If we have results from initial attempt, return them
     if (hasResults) {
@@ -1300,7 +1240,14 @@ export async function withAutomaticExpansion<T, R>(
         ? {}
         : (results as any)?.metadata || {};
 
-      return createToolResult(true, actualResults, undefined, toolName, startTime, metadata);
+      return createToolResult(
+        true,
+        actualResults,
+        undefined,
+        toolName,
+        startTime,
+        metadata
+      );
     }
 
     // No results - try expansion if auto_until_result or if always_* modes are enabled
@@ -1308,10 +1255,6 @@ export async function withAutomaticExpansion<T, R>(
       shouldUseAutomaticExpansion || expansionStates.isExpansionGlobal;
 
     if (shouldExpandAfterNoResults) {
-      console.log(
-        `🔄 [${toolName}] No initial results, trying with semantic expansion...`
-      );
-
       if (shouldUseAutomaticExpansion) {
         // Use automatic expansion starting from fuzzy
         const expansionResult = await automaticSemanticExpansion(
@@ -1348,7 +1291,9 @@ export async function withAutomaticExpansion<T, R>(
         // Extract actual results array from tool output
         const actualResults = Array.isArray(expandedResults)
           ? expandedResults
-          : (expandedResults as any)?.results || (expandedResults as any)?.data || expandedResults;
+          : (expandedResults as any)?.results ||
+            (expandedResults as any)?.data ||
+            expandedResults;
         const metadata = Array.isArray(expandedResults)
           ? {}
           : (expandedResults as any)?.metadata || {};
@@ -1373,7 +1318,14 @@ export async function withAutomaticExpansion<T, R>(
       ? {}
       : (results as any)?.metadata || {};
 
-    return createToolResult(true, actualResults, undefined, toolName, startTime, metadata);
+    return createToolResult(
+      true,
+      actualResults,
+      undefined,
+      toolName,
+      startTime,
+      metadata
+    );
   } catch (error) {
     console.error(`${toolName} tool error:`, error);
     return createToolResult(
@@ -1410,15 +1362,6 @@ export const createToolResult = (
     executionTime: startTime ? performance.now() - startTime : 0,
     ...(metadata && { metadata: { ...metadata, searchGuidance } }),
   };
-
-  console.log(`🔧 ${toolName} result:`, {
-    success,
-    dataType: data ? typeof data : "none",
-    dataSize: Array.isArray(data) ? data.length : data ? 1 : 0,
-    error: error || "none",
-    executionTime: result.executionTime,
-    guidance: searchGuidance?.resultQuality || "none",
-  });
 
   // Return JSON string for LangGraph ToolNode compatibility
   try {

@@ -19,7 +19,7 @@ import {
   enrichWithFullHierarchy,
   sortHierarchyResults,
 } from "./processors";
-import { findBlocksByContentTool } from "../findBlocksByContentTool";
+import { findBlocksByContentTool } from "../findBlocksByContent/findBlocksByContentTool";
 import { extractChildUids } from "./findBlocksWithHierarchyTool";
 import { combineResultsTool } from "../combineResults/combineResultsTool";
 

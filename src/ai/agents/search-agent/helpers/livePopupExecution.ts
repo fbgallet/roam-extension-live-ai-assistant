@@ -4,18 +4,21 @@
  */
 
 import { HumanMessage } from "@langchain/core/messages";
-import { ReactSearchAgent, getCurrentTokenUsage } from "../ask-your-graph-agent";
+import {
+  ReactSearchAgent,
+  getCurrentTokenUsage,
+} from "../ask-your-graph-agent";
 import { LlmInfos } from "../../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../../aiAPIsHub";
 import { defaultModel } from "../../../..";
 import { IntentParserResult } from "./queryStorage";
 import { deduplicateResultsByUid } from "./searchUtils";
-import { 
+import {
   initializeAgentToaster,
   updateAgentToaster,
   completeAgentToaster,
   errorAgentToaster,
-  formatExecutionTime
+  formatExecutionTime,
 } from "../../shared/agentsUtils";
 import { TokensUsage } from "../../langraphModelsLoader";
 
@@ -32,7 +35,9 @@ export interface PopupExecutionConfig {
 /**
  * Execute a stored query with live updates to popup
  */
-export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig): Promise<any[]> => {
+export const executeQueryWithLiveUpdates = async (
+  config: PopupExecutionConfig
+): Promise<any[]> => {
   const {
     intentParserResult,
     userQuery,
@@ -40,29 +45,28 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
     onProgress,
     onResults,
     onComplete,
-    onError
+    onError,
   } = config;
 
   // Track execution time and tokens
   const startTime = Date.now();
   let turnTokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 };
-  
+
   console.log("🐛 [Popup Execution] Starting with query:", userQuery);
-  console.log("🐛 [Popup Execution] Intent parser result:", intentParserResult);
 
   try {
     // Initialize the agent toaster for visual feedback
     const abortController = new AbortController();
     initializeAgentToaster(
-      "search", 
+      "search",
       "🔄 Re-executing stored query",
       abortController
     );
-    
+
     // Initialize the model (use preferred model if provided, otherwise default)
     const model = intentParserResult.preferredModel || defaultModel;
     const llmInfos: LlmInfos = modelAccordingToProvider(model);
-    
+
     const modelDisplayName = llmInfos.id || llmInfos.name || "Unknown model";
     onProgress?.(`🤖 Using ${modelDisplayName}`);
     updateAgentToaster(`🤖 Using ${modelDisplayName}`);
@@ -77,7 +81,7 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
       userQuery: userQuery,
       formalQuery: formalQuery || intentParserResult.formalQuery,
       messages: [new HumanMessage(userQuery)],
-      
+
       // Copy IntentParser results directly
       searchStrategy: intentParserResult.searchStrategy,
       analysisType: intentParserResult.analysisType,
@@ -94,7 +98,7 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
       // Popup execution flags
       isPopupExecution: true,
       skipDirectFormat: true,
-      
+
       // Empty initial states
       conversationHistory: [],
       isConversationMode: false,
@@ -109,41 +113,27 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
       resultStore: {},
       nextResultId: 1,
       searchTools: [], // Will be populated by loadModel
-      
+
       // Progress tracking
       popupProgressCallback: onProgress,
       popupResultsCallback: onResults,
-      
+
       // Token tracking - pass reference to be updated by the agent
-      turnTokensUsage: turnTokensUsage
+      turnTokensUsage: turnTokensUsage,
     };
 
     // Execute the agent starting from Assistant node
     onProgress?.("🚀 Executing search...");
     updateAgentToaster("🚀 Executing search...");
-    
-    console.log("🐛 [Popup Execution] About to invoke agent with state:", {
-      userQuery: initialState.userQuery,
-      formalQuery: initialState.formalQuery,
-      isPopupExecution: initialState.isPopupExecution,
-      skipDirectFormat: initialState.skipDirectFormat,
-      turnTokensUsageRef: turnTokensUsage
-    });
-    
+
     const response = await ReactSearchAgent.invoke(initialState, {
       recursionLimit: 50,
-      streamMode: "values"
-    });
-    
-    console.log("🐛 [Popup Execution] Agent response received:", {
-      resultStoreKeys: Object.keys(response.resultStore || {}),
-      toolResultsKeys: Object.keys(response.toolResults || {}),
-      hasResults: !!(response.resultStore || response.toolResults)
+      streamMode: "values",
     });
 
     // Extract results from final response
     let allResults: any[] = [];
-    
+
     if (response.resultStore) {
       Object.values(response.resultStore).forEach((store: any) => {
         if (store.data && Array.isArray(store.data)) {
@@ -162,50 +152,55 @@ export const executeQueryWithLiveUpdates = async (config: PopupExecutionConfig):
     }
 
     // Deduplicate results
-    const finalResults = deduplicateResultsByUid(allResults, "livePopupExecution");
-    
+    const finalResults = deduplicateResultsByUid(
+      allResults,
+      "livePopupExecution"
+    );
+
     onProgress?.(`✅ Search completed - found ${finalResults.length} results`);
-    updateAgentToaster(`✅ Search completed - found ${finalResults.length} results`);
+    updateAgentToaster(
+      `✅ Search completed - found ${finalResults.length} results`
+    );
     onResults?.(finalResults, false); // Final results, not partial
     onComplete?.(finalResults);
-    
+
     // Get the actual token usage from the agent's global state
     const actualTokenUsage = getCurrentTokenUsage();
-    
-    console.log("🐛 [Popup Execution] Token usage after execution:", actualTokenUsage);
-    console.log("🐛 [Popup Execution] Final results count:", finalResults.length);
-    
+
+    console.log(
+      "🐛 [Popup Execution] Token usage after execution:",
+      actualTokenUsage
+    );
+    console.log(
+      "🐛 [Popup Execution] Final results count:",
+      finalResults.length
+    );
+
     // Complete the agent toaster with success, including execution time and tokens
     const executionTime = formatExecutionTime(startTime);
-    console.log("🐛 [Popup Execution] Calling completeAgentToaster with:", {
-      executionTime,
-      actualTokenUsage,
-      resultsCount: finalResults.length
-    });
-    
+
     completeAgentToaster(
       "search",
       executionTime,
       actualTokenUsage,
       finalResults,
       undefined, // targetUid
-      undefined, // userQuery  
+      undefined, // userQuery
       undefined, // formalQuery
       undefined, // intentParserResult
       false // not conversation mode for popup execution
     );
 
     return finalResults;
-
   } catch (error) {
     console.error("Live popup execution error:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     onError?.(`❌ Search failed: ${errorMessage}`);
-    
+
     // Show error in toaster
     const errorObj = error instanceof Error ? error : new Error(errorMessage);
     errorAgentToaster(errorObj);
-    
+
     throw error;
   }
 };
@@ -218,25 +213,25 @@ export const createProgressTracker = (
   onResults?: (results: any[], isPartial?: boolean) => void
 ) => {
   let lastResultCount = 0;
-  
+
   return {
     trackToolExecution: (toolName: string, results?: any[]) => {
       const toolDisplayNames: { [key: string]: string } = {
-        'findBlocksByContent': '🔍 Searching blocks',
-        'findPagesByContent': '📄 Searching pages', 
-        'findPagesByTitle': '🏷️ Finding pages by title',
-        'findPagesSemantically': '🧠 Semantic page search',
-        'findBlocksWithHierarchy': '🌳 Hierarchical search',
-        'extractHierarchyContent': '📊 Extracting content',
-        'extractPageReferences': '🔗 Finding references',
-        'getNodeDetails': '🔍 Getting node details',
-        'executeDatomicQuery': '⚡ Database query',
-        'combineResults': '🔄 Combining results'
+        findBlocksByContent: "🔍 Searching blocks",
+        findPagesByContent: "📄 Searching pages",
+        findPagesByTitle: "🏷️ Finding pages by title",
+        findPagesSemantically: "🧠 Semantic page search",
+        findBlocksWithHierarchy: "🌳 Hierarchical search",
+        extractHierarchyContent: "📊 Extracting content",
+        extractPageReferences: "🔗 Finding references",
+        getNodeDetails: "🔍 Getting node details",
+        executeDatomicQuery: "⚡ Database query",
+        combineResults: "🔄 Combining results",
       };
-      
+
       const displayName = toolDisplayNames[toolName] || `🔧 ${toolName}`;
       onProgress?.(displayName);
-      
+
       if (results && results.length > 0) {
         const newCount = results.length;
         if (newCount > lastResultCount) {
@@ -244,6 +239,6 @@ export const createProgressTracker = (
           lastResultCount = newCount;
         }
       }
-    }
+    },
   };
 };

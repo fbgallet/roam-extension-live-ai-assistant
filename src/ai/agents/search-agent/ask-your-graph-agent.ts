@@ -256,11 +256,6 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
   // Get tools based on permissions using the registry
   searchTools = getAvailableTools(permissions);
 
-  console.log(
-    `🔧 Initialized ${searchTools.length} tools:`,
-    listAvailableToolNames(permissions)
-  );
-
   return searchTools;
 };
 
@@ -281,12 +276,11 @@ const conversationRouter = async (
     console.log(
       `🔀 [ConversationRouter] Direct expansion detected → skipping to need_new_search`
     );
-    
+
     // For direct expansion, we need to generate formalQuery from the userQuery
     // since we're bypassing IntentParser but still need the formal query for expansion options
     const formalQuery = state.userQuery; // The userQuery already contains the formatted query with operators
-    
-    
+
     return {
       routingDecision: "need_new_search" as const,
       reformulatedQuery: state.userQuery,
@@ -300,9 +294,6 @@ const conversationRouter = async (
 
   // Check for privacy mode update bypass - skip all routing since we already have IntentParser response
   if (state.isPrivacyModeUpdated) {
-    console.log(
-      `🔀 [ConversationRouter] Privacy mode updated → skipping to need_new_search`
-    );
     return {
       routingDecision: "need_new_search" as const,
       reformulatedQuery: state.userQuery,
@@ -399,9 +390,6 @@ const conversationRouter = async (
   // Decision logic
   // Special case: popup execution with pre-computed IntentParser results - skip IntentParser
   if ((state as any).isPopupExecution) {
-    console.log(
-      "🔀 [ConversationRouter] Popup execution detected - skipping IntentParser"
-    );
     return {
       routingDecision: "need_new_search" as const,
     };
@@ -587,13 +575,6 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
 
     // Handle privacy mode escalation
     if (analysis.suggestedMode && state.privateMode) {
-      console.log(
-        `🔒 [IntentParser] Privacy escalation needed: current=Private, suggested=${analysis.suggestedMode}`
-      );
-      console.log(
-        `🔒 [IntentParser] Query requires content access: "${state.userQuery}"`
-      );
-
       updateAgentToaster(
         `🔒 This query needs ${analysis.suggestedMode} mode for content analysis`
       );
@@ -609,15 +590,6 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         totalTokensUsed: updatedTotalTokens,
         timingMetrics: updatedTimingMetrics,
       };
-    }
-
-    // Log semantic expansion detection
-    if (analysis.isExpansionGlobal) {
-      console.log(
-        `🎯 [IntentParser] Global semantic expansion detected: ${
-          analysis.semanticExpansion || "synonyms"
-        }`
-      );
     }
 
     // Expansion guidance is now handled in ReAct Assistant prompt when needed
@@ -777,12 +749,6 @@ const generateCacheBasedResponse = async (
         llmCalls: 1,
       };
 
-      console.log(
-        `💾 [CacheBasedResponse] Additional LLM call: ${llmDuration}ms, ${
-          tokensUsed.input + tokensUsed.output
-        } tokens`
-      );
-
       return {
         finalResponse: response.content.toString(),
         tokensUsed,
@@ -810,11 +776,6 @@ const generateCacheBasedResponse = async (
 };
 
 const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
-  console.log(
-    `💾 [CacheProcessor] Processing request: "${
-      state.reformulatedQuery || state.userQuery
-    }"`
-  );
   // Count available results from both new and legacy systems
   const newResultsCount = Object.keys(state.resultSummaries || {}).length;
   const legacyResultsCount = Object.keys(state.cachedFullResults || {}).length;
@@ -867,10 +828,6 @@ const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
 
     // Handle HYBRID approach (new intelligent conversation mode)
     if (responseContent.startsWith("HYBRID:")) {
-      console.log(
-        `💾 [CacheProcessor] Strategy: ${responseContent.substring(0, 500)}...`
-      );
-
       // Provide both cached context and guidance for new searches to ReAct assistant
       const hybridQuery = `${state.reformulatedQuery || state.userQuery}
 
@@ -892,16 +849,6 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
 
     // Check if cache was insufficient
     if (responseContent.startsWith("INSUFFICIENT_CACHE:")) {
-      console.log(
-        `💾 [CacheProcessor] → Routing to NEW SEARCH (cache insufficient)`
-      );
-      console.log(
-        `💾 [CacheProcessor] Guidance provided: ${responseContent.substring(
-          0,
-          200
-        )}...`
-      );
-
       // Pass the guidance to ReAct assistant
       const enhancedQuery =
         (state.reformulatedQuery || state.userQuery) + "\n\n" + responseContent;
@@ -915,7 +862,6 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
     }
 
     // Cache was sufficient, prepare final response using actual result data
-    console.log(`💾 [CacheProcessor] → FINAL RESPONSE (cache sufficient)`);
 
     // For cache-sufficient responses, we should generate a proper final answer using our result data
     // This ensures consistency with the new finalResponseWriter approach
@@ -971,11 +917,8 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
 const loadModel = async (state: typeof ReactSearchAgentState.State) => {
   const startTime = state.startTime || Date.now();
 
-  console.log("state.rootUid :>> ", state.rootUid);
-
   // Reset token usage for new execution (important for popup executions)
   turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
-  console.log("🐛 [loadModel] Initialized turnTokensUsage:", turnTokensUsage);
 
   // Initialize LLM
   llm = modelViaLanggraph(state.model, turnTokensUsage);
@@ -1094,7 +1037,6 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   console.log(
     `🔧 [Assistant] Expansion mode: ${expansionMode}, hasToolsBeenExecuted: ${hasToolsBeenExecuted}, hasNoResults: ${hasNoResults}, hasLowResults: ${hasLowResults}, requestsExactMatch: ${requestsExactMatch}`
   );
-  
 
   // Tools now handle expansion automatically (fuzzy → synonyms → related_concepts → broader_terms)
   // No need for LLM-orchestrated level expansion
@@ -1110,9 +1052,6 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     );
     if (hasAutoExpansionFailure) {
       needsAlternativeStrategies = true;
-      console.log(
-        `🔄 [Assistant] Tools exhausted automatic expansion with 0 results - adding alternative strategy guidance`
-      );
     }
   }
 
@@ -1141,9 +1080,17 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   const contextInstructions = `
 
 CRITICAL INSTRUCTIONS: 
-1. When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, always include excludeBlockUid parameter set to: "${state.rootUid}" to exclude the user's request block from results.
+1. When using findBlocksByContent, findBlocksWithHierarchy, or findPagesByContent, always include excludeBlockUid parameter set to: "${
+    state.rootUid
+  }" to exclude the user's request block from results.
 
-${state.forceHierarchical ? `2. HIERARCHICAL SEARCH REQUIRED: The user has requested hierarchical search (forceHierarchical=true). You MUST use findBlocksWithHierarchy tool instead of findBlocksByContent. Use depth=${state.maxDepthOverride || 1} for the hierarchical search.` : ""}`;
+${
+  state.forceHierarchical
+    ? `2. HIERARCHICAL SEARCH REQUIRED: The user has requested hierarchical search (forceHierarchical=true). You MUST use findBlocksWithHierarchy tool instead of findBlocksByContent. Use depth=${
+        state.maxDepthOverride || 1
+      } for the hierarchical search.`
+    : ""
+}`;
 
   const combinedSystemPrompt = systemPrompt + contextInstructions;
   const sys_msg = new SystemMessage({ content: combinedSystemPrompt });
@@ -1191,10 +1138,6 @@ ${state.forceHierarchical ? `2. HIERARCHICAL SEARCH REQUIRED: The user has reque
               data: truncatedData,
             });
 
-            console.log(
-              `🔓 [Assistant] Full mode: Preserved ${truncatedData.length} results with content truncation (${msg.content.length} → ${truncatedContent.length} chars)`
-            );
-
             // Return ToolMessage with truncated but real content for full mode
             return new ToolMessage({
               content: truncatedContent,
@@ -1222,15 +1165,6 @@ ${state.forceHierarchical ? `2. HIERARCHICAL SEARCH REQUIRED: The user has reque
             };
 
             const summaryContent = JSON.stringify(summary);
-            console.log(
-              `🎯 [Assistant] ${
-                securityMode === "full"
-                  ? "Full mode (high results)"
-                  : securityMode
-              }: Replaced verbose tool result (${
-                msg.content.length
-              } chars) with summary (${summaryContent.length} chars)`
-            );
 
             // Create a new ToolMessage with the summary content
             return new ToolMessage({
@@ -1249,24 +1183,7 @@ ${state.forceHierarchical ? `2. HIERARCHICAL SEARCH REQUIRED: The user has reque
 
   const messages = [sys_msg, ...optimizedMessages];
 
-  console.log(
-    `🎯 [Assistant] System prompt length: ${combinedSystemPrompt.length} chars`
-  );
-
-  // Log expansion status
-  if (needsAlternativeStrategies) {
-    console.log(
-      `🔄 [EXPANSION] Alternative strategies guidance INCLUDED in system prompt for query: "${state.userQuery}"`
-    );
-  }
   const llmStartTime = Date.now();
-
-  // Debug popup execution and token tracking
-  console.log("🐛 [Assistant] About to make LLM call:", {
-    isPopupExecution: (state as any).isPopupExecution,
-    currentTurnTokensUsage: turnTokensUsage,
-    currentTotalTokens: state.totalTokensUsed,
-  });
 
   // Check for cancellation before LLM call
   if (state.abortSignal?.aborted) {
@@ -1523,15 +1440,10 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   if ((state as any).isPopupExecution) {
     // For popup execution, use the chatSystemPrompt as the system message
     if (state.chatSystemPrompt) {
-      console.log(
-        `🎯 [PopupExecution] Using FullResultsChat system prompt (${state.chatSystemPrompt.length} chars)`
-      );
       sys_msg = new SystemMessage({ content: state.chatSystemPrompt });
     } else {
       // Fallback for backward compatibility
-      console.log(
-        "⚠️ [PopupExecution] No chatSystemPrompt provided, falling back to buildFinalResponseSystemPrompt"
-      );
+
       const responseSystemPrompt = buildFinalResponseSystemPrompt(
         state,
         securityMode
@@ -1544,13 +1456,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       state,
       securityMode
     );
-    console.log(
-      `🎯 [FinalResponseWriter] System prompt length: ${responseSystemPrompt.length} chars`
-    );
-    console.log(
-      `🎯 [FinalResponseWriter] System prompt preview:`,
-      responseSystemPrompt.substring(0, 500) + "..."
-    );
+
     sys_msg = new SystemMessage({ content: responseSystemPrompt });
   }
 
@@ -1587,22 +1493,6 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     );
   }
 
-  console.log(
-    `🎯 [ResponseWriter] Total messages: ${messages.length}${
-      state.isDirectChat ? " (including conversation history)" : ""
-    }`
-  );
-  console.log(
-    `🎯 [ResponseWriter] System message length: ${sys_msg.content.length}`
-  );
-  if (state.isDirectChat && state.conversationHistory?.length > 0) {
-    console.log(
-      `💬 [DirectChat] Including ${state.conversationHistory.length} previous conversation messages`
-    );
-  }
-
-  console.log("messages :>> ", messages);
-
   // Use LLM without tools for pure response generation
   const llmStartTime = Date.now();
 
@@ -1638,8 +1528,6 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   let streamingTargetUid: string | undefined = undefined;
 
   if (shouldStream) {
-    console.log(`🎯 [ResponseWriter] Using streaming mode`);
-
     // Skip block creation for popup execution - streaming will be text-only
     if (!(state as any).isPopupExecution) {
       // For streaming, we need to create the response block first
@@ -1804,8 +1692,6 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
   // Handle streaming element cleanup
   if (state.wasStreamed && state.streamElement) {
-    console.log("🎯 [InsertResponse] Cleaning up streaming element");
-
     // Remove the temporary streaming element
     try {
       state.streamElement.remove();
@@ -1865,12 +1751,6 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     forceInChildren: true,
   });
 
-  console.log(
-    `✅ ReAct Search Agent completed${
-      state.wasStreamed ? " (with streaming)" : ""
-    }`
-  );
-
   // Calculate result stats for smart button logic - only count final results with actual data
   const finalResults = Object.values(state.resultStore || {}).filter(
     (result) => result?.purpose === "final" && result?.status === "active"
@@ -1924,7 +1804,6 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
 // Adaptive context expansion node with intelligent depth and truncation
 const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
-  console.log(`🌳 [ContextExpansion] Starting adaptive context expansion`);
   updateAgentToaster("🌳 Analyzing context expansion needs...");
 
   // Get final results for context expansion
@@ -1936,9 +1815,6 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   );
 
   if (finalResults.length === 0) {
-    console.log(
-      `🌳 [ContextExpansion] No final results found, skipping expansion`
-    );
     return state; // Pass through unchanged
   }
 
@@ -1947,15 +1823,8 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
 
   // Skip expansion if too many results (performance protection)
   if (resultCount > 150) {
-    console.log(
-      `🌳 [ContextExpansion] Too many results (${resultCount}), skipping expansion`
-    );
     return state;
   }
-
-  console.log(
-    `🌳 [ContextExpansion] Processing ${resultCount} results for adaptive expansion`
-  );
 
   // Determine mode and token limits
   const mode = state.privateMode
@@ -1971,7 +1840,6 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
 
   const charLimit = CHAR_LIMITS[mode];
   if (charLimit === 0) {
-    console.log(`🌳 [ContextExpansion] Private mode, no expansion`);
     return state;
   }
 
@@ -2014,10 +1882,6 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
       },
     };
 
-    console.log(
-      `🌳 [ContextExpansion] Created ${expandedResults.length} expanded results`
-    );
-
     updateAgentToaster(
       `🌳 Context expansion completed (${expandedResults.length} results)`
     );
@@ -2029,7 +1893,6 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     };
   }
 
-  console.log(`🌳 [ContextExpansion] No expansion performed`);
   return state;
 };
 
@@ -2043,9 +1906,6 @@ function calculateTotalContentLength(results: any[]): number {
 
 // Direct result formatting for simple private mode cases (no LLM needed)
 const directFormat = async (state: typeof ReactSearchAgentState.State) => {
-  console.log(
-    `🎯 [DirectFormat] Formatting results without LLM for private mode`
-  );
   updateAgentToaster("📝 Formatting results...");
 
   if (!state.resultStore || Object.keys(state.resultStore).length === 0) {
@@ -2177,10 +2037,6 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
 
   // Log result distribution for debugging
 
-  console.log(
-    `🎯 [DirectFormat] Generated direct response: ${resultText.length} chars, hasPages: ${hasPages}, hasBlocks: ${hasBlocks}, totalResults: ${totalCount}`
-  );
-
   return {
     ...state,
     finalAnswer: resultText,
@@ -2266,10 +2122,6 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
 const showPrivacyModeDialog = async (
   state: typeof ReactSearchAgentState.State
 ) => {
-  console.log(
-    `🔒 [PrivacyDialog] Query "${state.userQuery}" requires ${state.suggestedMode} mode`
-  );
-
   // Import the display function dynamically to avoid circular dependencies
   const { displayAskGraphModeDialog } = await import(
     "../../../utils/domElts.js"
@@ -2281,10 +2133,6 @@ const showPrivacyModeDialog = async (
     suggestedMode: state.suggestedMode,
     userQuery: state.userQuery,
     onModeSelect: (selectedMode: string, rememberChoice: boolean) => {
-      console.log(
-        `🔒 [PrivacyDialog] User selected mode: ${selectedMode}, remember: ${rememberChoice}`
-      );
-
       // Dispatch custom event to resume graph execution
       const event = new CustomEvent("agentPrivacyMode", {
         detail: {
@@ -2322,19 +2170,6 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     Array.isArray(lastMessage.tool_calls) &&
     lastMessage.tool_calls?.length
   ) {
-    console.log(
-      `🔀 [Graph] Assistant → TOOLS (${lastMessage.tool_calls.length} tool calls)`
-    );
-
-    // Debug logging: capture tool calls before schema validation
-    console.log("🔍 [DEBUG] RAW TOOL CALLS BEFORE VALIDATION:");
-    lastMessage.tool_calls.forEach((toolCall: any, index: number) => {
-      console.log(`🔍 [DEBUG] Tool Call ${index + 1}:`, {
-        name: toolCall.name,
-        args: JSON.stringify(toolCall.args, null, 2),
-      });
-    });
-
     return "tools";
   }
 
@@ -2377,26 +2212,15 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     !state.userQuery?.includes("summary");
 
   if (canSkipResponseWriter) {
-    console.log(
-      `🔀 [Graph] Assistant → DIRECT_FORMAT (private mode optimization)`
-    );
     return "directFormat";
   }
 
   if (canSkipForLimits) {
     // Balanced/full mode should use responseWriter for proper result processing
     if (!state.privateMode) {
-      console.log(
-        `🔀 [Graph] Assistant → RESPONSE_WRITER (balanced/full mode with user limits)`
-      );
       return "responseWriter";
     }
 
-    console.log(
-      `🔀 [Graph] Assistant → DIRECT_FORMAT (user requested limits: ${
-        state.searchDetails?.maxResults || "N/A"
-      } results, random: ${state.searchDetails?.requireRandom || false})`
-    );
     return "directFormat";
   }
 
@@ -2429,9 +2253,6 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
       );
       if (finalPurposeResults.length > 0) {
         state.zeroResultsAttempts = (state.zeroResultsAttempts || 0) + 1;
-        console.log(
-          `📊 [Graph] Incrementing zero results counter for final purpose results: ${state.zeroResultsAttempts}`
-        );
       }
 
       // Check if we've hit the safety limit (use updated counter)
@@ -2448,7 +2269,9 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
       // The LLM should either be making new tool calls or clearly stopping, not getting stuck in limbo
       if (
         lastMessage &&
-        (!("tool_calls" in lastMessage) || !Array.isArray(lastMessage.tool_calls) || lastMessage.tool_calls.length === 0)
+        (!("tool_calls" in lastMessage) ||
+          !Array.isArray(lastMessage.tool_calls) ||
+          lastMessage.tool_calls.length === 0)
       ) {
         console.log(
           `🛑 [Graph] SAFETY: Assistant made no tool calls on attempt ${updatedZeroAttempts}/${maxZeroAttempts}. LLM may be stuck - forcing stop.`
@@ -2456,10 +2279,6 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
         // Force stop to prevent infinite loops where LLM doesn't make tool calls
         return "showResultsThenExpand";
       }
-
-      console.log(
-        `🔀 [Graph] Assistant → CONTINUE WITH EXPANSION (0 results, attempt ${state.zeroResultsAttempts}/${maxZeroAttempts})`
-      );
 
       // Continue with automatic expansion
       return "assistant";
@@ -2469,21 +2288,12 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   // If we have results but can't use direct format, go to response writer
   // Simple routing based on final results - context expansion handled by dedicated node
   if (hasSufficientResults) {
-    console.log(
-      `🔀 [Graph] Assistant → RESPONSE_WRITER (${totalFinalResults} final results available)`
-    );
     return "responseWriter";
   } else {
     // No final results or tool calls - in private mode, use directFormat for "No results found"
     if (state.privateMode) {
-      console.log(
-        `🔀 [Graph] Assistant → DIRECT_FORMAT (private mode, no results)`
-      );
       return "directFormat";
     } else {
-      console.log(
-        `🔀 [Graph] Assistant → RESPONSE_WRITER (no final results or tool calls)`
-      );
       return "responseWriter";
     }
   }
@@ -2492,7 +2302,6 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
 // Routing logic after loading model - use conversation router for intelligent routing
 const routeAfterLoadModel = (state: typeof ReactSearchAgentState.State) => {
   if (state.isDirectChat) {
-    console.log(`🔀 [Graph] LoadModel → RESPONSE_WRITER (direct chat mode)`);
     return "responseWriter";
   }
 
@@ -2506,17 +2315,11 @@ const routeAfterConversationRouter = (
 ) => {
   // Check for direct expansion bypass first
   if (state.isDirectExpansion) {
-    console.log(
-      `🔀 [Graph] ConversationRouter → ASSISTANT (direct expansion bypass)`
-    );
     return "assistant";
   }
 
   // Check for privacy mode update bypass - skip IntentParser since we already have its response
   if (state.isPrivacyModeUpdated) {
-    console.log(
-      `🔀 [Graph] ConversationRouter → ASSISTANT (privacy mode updated)`
-    );
     return "assistant";
   }
 
@@ -2536,9 +2339,6 @@ const routeAfterConversationRouter = (
 // Routing logic for intent parsing
 const routeAfterIntentParsing = (state: typeof ReactSearchAgentState.State) => {
   if (state.routingDecision === "show_privacy_dialog") {
-    console.log(
-      `🔀 [Graph] IntentParser → PRIVACY_DIALOG (mode escalation needed)`
-    );
     return "showPrivacyModeDialog";
   }
 
@@ -2552,11 +2352,10 @@ const routeAfterIntentParsing = (state: typeof ReactSearchAgentState.State) => {
 const routeAfterCache = (state: typeof ReactSearchAgentState.State) => {
   // If cache processor set routingDecision to need_new_search, go to assistant
   if (state.routingDecision === "need_new_search") {
-    console.log(`🔀 [Graph] CacheProcessor → ASSISTANT (cache insufficient)`);
     return "assistant";
   }
   // Otherwise, cache was sufficient, go directly to insertResponse
-  console.log(`🔀 [Graph] CacheProcessor → INSERT RESPONSE (cache sufficient)`);
+
   return "insertResponse";
 };
 
@@ -2565,7 +2364,6 @@ const toolsWithResultLifecycle = async (
   state: typeof ReactSearchAgentState.State
 ) => {
   const toolStartTime = Date.now();
-  console.log(`🔧 [Tools] Starting tool execution...`);
 
   // Handle popup execution progress tracking
   if ((state as any).isPopupExecution && (state as any).popupProgressCallback) {
@@ -2588,8 +2386,7 @@ const toolsWithResultLifecycle = async (
         ...tool,
         invoke: async (llmInput: any, config?: any) => {
           // Tool automatically detects when to use combination testing based on condition count
-          console.log(`🔍 [HIERARCHY-TOOL] Tool will auto-detect if combination testing is needed`);
-          
+
           // Tool handles all state injection internally via config.configurable.state
           return tool.invoke(llmInput, config);
         },
@@ -2619,9 +2416,6 @@ const toolsWithResultLifecycle = async (
   const toolCallCount = result.messages.filter(
     (m) => !m.tool_calls && m.content
   ).length;
-  console.log(
-    `🔧 [Tools] Completed ${toolCallCount} tool calls in ${toolDuration}ms`
-  );
 
   // Process tool results with lifecycle management
   const updatedResultStore = processToolResultsWithLifecycle(
@@ -2675,7 +2469,6 @@ const toolsWithResultLifecycle = async (
 const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
   // Special routing for popup execution - skip all formatting and go directly to end
   if ((state as any).isPopupExecution) {
-    console.log("🔀 [Graph] TOOLS → END (popup execution mode)");
     return "__end__";
   }
 
@@ -2719,14 +2512,9 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
         : state.permissions?.contentAccess
         ? "full"
         : "balanced";
-      console.log(
-        `🔀 [Graph] TOOLS → CONTEXT_EXPANSION (${currentMode} mode: ${latestResult.data.length} results, checking expansion needs)`
-      );
+
       return "contextExpansion";
     } else if (requiresAnalysis) {
-      console.log(
-        `🔀 [Graph] TOOLS → ASSISTANT (query requires analysis: "${state.userQuery}")`
-      );
       return "assistant";
     }
   }
@@ -2742,28 +2530,16 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       automaticExpansionMode === "always_synonyms" ||
       automaticExpansionMode === "always_all")
   ) {
-    console.log(
-      `🔧 [Graph] Auto-granting expansion consent for mode: ${automaticExpansionMode}`
-    );
     state.expansionConsent = true;
   }
 
   // Show expansion options for ANY level when no results found (user should always have control)
   if (!state.expansionConsent) {
-    console.log(
-      `🔀 [Graph] TOOLS → SHOW_RESULTS_THEN_EXPAND (showing current results before expansion options)`
-    );
-
     // First, route to show current results, then interrupt for expansion
     return "showResultsThenExpand";
   }
 
   // If we have expansion consent, continue with expanded search
-  console.log(
-    `🔀 [Graph] TOOLS → ASSISTANT (expansion consent granted, strategy: ${
-      state.expansionState?.searchStrategy || state.searchStrategy || "default"
-    })`
-  );
 
   // IMPORTANT: Reset expansion consent so it doesn't persist indefinitely
   // This prevents infinite loops where every subsequent call has expansion consent
@@ -2918,9 +2694,6 @@ const handleResultLifecycle = (
   if (purpose === "replacement" && replacesResultId) {
     if (resultStore[replacesResultId]) {
       resultStore[replacesResultId].status = "superseded";
-      console.log(
-        `🔄 [ResultLifecycle] ${replacesResultId} marked as superseded by ${resultId}`
-      );
     }
   }
 
@@ -2928,9 +2701,6 @@ const handleResultLifecycle = (
   if (purpose === "completion" && completesResultId) {
     if (resultStore[completesResultId]) {
       resultStore[completesResultId].purpose = "final";
-      console.log(
-        `🔄 [ResultLifecycle] ${completesResultId} marked as final (completed by ${resultId})`
-      );
     }
   }
 
@@ -2946,12 +2716,6 @@ const handleResultLifecycle = (
     metadata, // Include metadata for access in directFormat
     error, // Track if this result had errors
   };
-
-  console.log(
-    `🔄 [ResultLifecycle] Stored ${resultId}: ${
-      data.length
-    } items, purpose: ${purpose}, status: active${error ? ", with error" : ""}`
-  );
 };
 
 // Routing functions for popup execution
@@ -2959,23 +2723,17 @@ const routeAfterResponseWriter = (
   state: typeof ReactSearchAgentState.State
 ) => {
   if ((state as any).isPopupExecution || state.forcePopupOnly) {
-    console.log(
-      `🔀 [Graph] ResponseWriter → END (popup execution or forcePopupOnly)`
-    );
     return "__end__";
   }
-  console.log(`🔀 [Graph] ResponseWriter → INSERT RESPONSE`);
+
   return "insertResponse";
 };
 
 const routeAfterDirectFormat = (state: typeof ReactSearchAgentState.State) => {
   if ((state as any).isPopupExecution || state.forcePopupOnly) {
-    console.log(
-      `🔀 [Graph] DirectFormat → END (popup execution or forcePopupOnly)`
-    );
     return "__end__";
   }
-  console.log(`🔀 [Graph] DirectFormat → INSERT RESPONSE`);
+
   return "insertResponse";
 };
 

@@ -598,12 +598,6 @@ export const deduplicateResultsByUid = (
     return true;
   });
 
-  if (deduplicated.length !== results.length) {
-    console.log(
-      `🔄 [${debugContext}] Deduplicated ${results.length} results to ${deduplicated.length} unique items`
-    );
-  }
-
   return deduplicated;
 };
 
@@ -680,14 +674,6 @@ export const shouldExpandContextInBalanced = (
       )
   );
 
-  console.log(`🌳 [ContextExpansion] Analysis:`, {
-    resultCount,
-    hasShortContent,
-    userRequestsContext,
-    hasTechnicalContent,
-    shouldExpand: hasShortContent || userRequestsContext || hasTechnicalContent,
-  });
-
   return hasShortContent || userRequestsContext || hasTechnicalContent;
 };
 
@@ -761,10 +747,6 @@ export const expandHierarchyWithDatomic = async (
           });
         });
     }
-
-    console.log(
-      `🌳 [ExpandHierarchy] Expanded ${blockUids.length} blocks → ${hierarchyData.length} context items`
-    );
   } catch (error) {
     console.error("🌳 [ExpandHierarchy] Error expanding hierarchy:", error);
     return [];
@@ -922,10 +904,6 @@ export const getBatchBlockChildren = async (
   maxDepth: number,
   secureMode: boolean = false
 ): Promise<{ [parentUid: string]: any[] }> => {
-  console.log(
-    `🚀 getBatchBlockChildren: Processing ${parentUids.length} parents, depth ${maxDepth}`
-  );
-
   if (maxDepth <= 0 || parentUids.length === 0) {
     return {};
   }
@@ -946,9 +924,6 @@ export const getBatchBlockChildren = async (
 
   try {
     const allChildren = await executeDatomicQuery(query);
-    console.log(
-      `🚀 getBatchBlockChildren: Found ${allChildren.length} direct children`
-    );
 
     // Group children by parent UID
     const childrenByParent: { [parentUid: string]: any[] } = {};
@@ -975,12 +950,6 @@ export const getBatchBlockChildren = async (
 
     // If we need more depth, recursively get grandchildren in batches
     if (maxDepth > 1) {
-      console.log(
-        `🚀 getBatchBlockChildren: Getting grandchildren (depth ${
-          maxDepth - 1
-        })`
-      );
-
       // Collect all child UIDs for next batch
       const allChildUids: string[] = [];
       Object.values(childrenByParent).forEach((children) => {
@@ -1006,11 +975,6 @@ export const getBatchBlockChildren = async (
       }
     }
 
-    console.log(
-      `🚀 getBatchBlockChildren: Completed, processed ${
-        Object.keys(childrenByParent).length
-      } parents`
-    );
     return childrenByParent;
   } catch (error) {
     console.warn(`Failed to get batch children for parents:`, error);
@@ -1031,10 +995,6 @@ export const getBatchBlockParents = async (
   maxDepth: number,
   secureMode: boolean = false
 ): Promise<{ [childUid: string]: any[] }> => {
-  console.log(
-    `🚀 getBatchBlockParents: Processing ${childUids.length} children, depth ${maxDepth}`
-  );
-
   if (maxDepth <= 0 || childUids.length === 0) {
     return {};
   }
@@ -1054,9 +1014,6 @@ export const getBatchBlockParents = async (
 
   try {
     const allParents = await executeDatomicQuery(query);
-    console.log(
-      `🚀 getBatchBlockParents: Found ${allParents.length} direct parents`
-    );
 
     // Group parents by child UID
     const parentsByChild: { [childUid: string]: any[] } = {};
@@ -1079,10 +1036,6 @@ export const getBatchBlockParents = async (
 
     // If we need more depth, recursively get grandparents in batches
     if (maxDepth > 1) {
-      console.log(
-        `🚀 getBatchBlockParents: Getting grandparents (depth ${maxDepth - 1})`
-      );
-
       // Collect all direct parent UIDs for next batch
       const allParentUids: string[] = [];
       Object.values(parentsByChild).forEach((parents) => {
@@ -1115,11 +1068,6 @@ export const getBatchBlockParents = async (
       }
     }
 
-    console.log(
-      `🚀 getBatchBlockParents: Completed, processed ${
-        Object.keys(parentsByChild).length
-      } children`
-    );
     return parentsByChild;
   } catch (error) {
     console.warn(`Failed to get batch parents for children:`, error);
@@ -1323,9 +1271,6 @@ export const getFlattenedAncestors = async (
 
   try {
     const allAncestors = await executeDatomicQuery(query);
-    console.log(
-      `🚀 getFlattenedAncestors: Single query found ${allAncestors.length} total ancestors`
-    );
 
     // Group ancestors by child UID (flattened)
     const ancestorsByChild: { [childUid: string]: any[] } = {};
@@ -1670,7 +1615,6 @@ export const extractUidsFromResults = (
 
   // Extract UIDs from previous results if fromResultId is provided
   if (fromResultId && state?.resultStore) {
-    console.log(`🔍 Extracting UIDs from previous result: ${fromResultId}`);
     const resultEntry = state.resultStore[fromResultId];
     if (!resultEntry) {
       const availableResults = Object.keys(state.resultStore || {});
@@ -1697,9 +1641,6 @@ export const extractUidsFromResults = (
           finalPageUids.push(item.pageUid);
         }
       }
-      console.log(
-        `🔍 Extracted from previous result: ${finalBlockUids.length} blockUids, ${finalPageUids.length} pageUids`
-      );
     }
   }
 
@@ -1775,10 +1716,6 @@ export const sanitizePageReferences = (parsedComponents: any): any => {
     const removedCount =
       originalLimitCount - sanitized.constraints.limitToPages.length;
     if (removedCount > 0) {
-      console.log(
-        `🧹 [PageRefSanitizer] Removed ${removedCount} duplicate pages from limitToPages to prevent double interpretation`
-      );
-
       // If no pages left in limitToPages, remove the constraint entirely
       if (sanitized.constraints.limitToPages.length === 0) {
         delete sanitized.constraints.limitToPages;
@@ -1834,12 +1771,6 @@ export const sanitizeRegexForDatomic = (
     new RegExp(placeholder, "g"),
     "\\\\\\\\"
   );
-
-  if (originalPattern !== sanitizedPattern) {
-    console.log(
-      `🧹 Double-escaped backslashes for Datomic: ${originalPattern} -> ${sanitizedPattern}`
-    );
-  }
 
   return {
     pattern: sanitizedPattern,

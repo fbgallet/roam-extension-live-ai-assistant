@@ -6,13 +6,11 @@ import {
 
 // Session state management for Ask your graph
 let currentSessionMode: string;
-let sessionModeRemembered: boolean = false;
 
 // Initialize session state from extension settings
 export function initializeAskGraphSession() {
   const askGraphMode = extensionStorage.get("askGraphMode") || "Balanced";
   currentSessionMode = askGraphMode;
-  sessionModeRemembered = false;
 }
 
 // Session management functions
@@ -22,75 +20,15 @@ export function getCurrentAskGraphMode(): string {
   );
 }
 
-export function setSessionAskGraphMode(
-  mode: string,
-  rememberForSession: boolean = false
-) {
+export function setSessionAskGraphMode(mode: string) {
   currentSessionMode = mode;
-  if (rememberForSession) {
-    sessionModeRemembered = true;
-  }
 }
 
 export function resetSessionAskGraphMode() {
   const askGraphMode = extensionStorage.get("askGraphMode") || "Balanced";
   currentSessionMode = askGraphMode;
-  sessionModeRemembered = false;
 }
 
-// Smart mode detection
-export function needsModeEscalation(
-  userQuery: string,
-  currentMode: string
-): string | false {
-  if (currentMode === "Full Access") return false;
-
-  // Keywords that suggest content processing is needed
-  const contentProcessingKeywords = [
-    "summarize",
-    "summary",
-    "what do",
-    "what does",
-    "explain",
-    "analyze",
-    "compare",
-    "contrast",
-    "tell me about",
-    "describe",
-    "elaborate",
-    "discuss",
-    "review",
-    "comment on",
-    "thoughts on",
-    "opinion",
-  ];
-
-  // Keywords that suggest full access is needed
-  const fullAccessKeywords = [
-    "deep dive",
-    "detailed analysis",
-    "comprehensive",
-    "in-depth",
-    "everything about",
-    "all information",
-    "complete picture",
-  ];
-
-  const queryLower = userQuery.toLowerCase();
-
-  if (fullAccessKeywords.some((keyword) => queryLower.includes(keyword))) {
-    return "Full Access";
-  }
-
-  if (
-    currentMode === "Private" &&
-    contentProcessingKeywords.some((keyword) => queryLower.includes(keyword))
-  ) {
-    return "Balanced";
-  }
-
-  return false;
-}
 
 export interface AskYourGraphParams {
   model?: string;
@@ -104,7 +42,6 @@ export interface AskYourGraphParams {
   forcePrivacyMode?: "Private" | "Balanced" | "Full Access"; // For command menu forcing
   forceExpansionMode?: "always_fuzzy" | "always_synonyms" | "always_all"; // For command menu forcing
   forcePopupOnly?: boolean; // For command menu forcing popup-only results
-  bypassDialog?: boolean;
 }
 
 // Main Ask your graph function with three-tier privacy system
@@ -121,7 +58,6 @@ export async function askYourGraph(params: AskYourGraphParams) {
     forcePrivacyMode, // For command menu forcing
     forceExpansionMode, // For command menu forcing
     forcePopupOnly = false, // For command menu forcing popup-only results
-    bypassDialog = false, // For continuing conversations
   } = params;
 
   // If forcePrivacyMode is specified, use it as requestedMode
@@ -130,18 +66,6 @@ export async function askYourGraph(params: AskYourGraphParams) {
   // Determine current mode
   let effectiveMode = effectiveRequestedMode || getCurrentAskGraphMode();
 
-  // Check if this is the first time using Ask Your Graph
-  if (!bypassDialog && !sessionModeRemembered) {
-    const suggestedMode = needsModeEscalation(prompt, effectiveMode);
-    if (suggestedMode && suggestedMode !== effectiveMode) {
-      // Show escalation dialog - this will be handled by the UI component
-      const escalationNeeded = new Error("MODE_ESCALATION_NEEDED");
-      (escalationNeeded as any).currentMode = effectiveMode;
-      (escalationNeeded as any).suggestedMode = suggestedMode;
-      (escalationNeeded as any).userQuery = prompt;
-      throw escalationNeeded;
-    }
-  }
 
 
   // Execute based on mode

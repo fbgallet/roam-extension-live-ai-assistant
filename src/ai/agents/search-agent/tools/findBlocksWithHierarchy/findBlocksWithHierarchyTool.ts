@@ -22,7 +22,7 @@ import type {
   HierarchyCondition,
   StructuredHierarchyQuery,
 } from "../types/index";
-import { findBlocksByContentTool } from "../findBlocksByContentTool";
+import { findBlocksByContentTool } from "../findBlocksByContent/findBlocksByContentTool";
 import { updateAgentToaster } from "../../../shared/agentsUtils";
 import {
   schema,

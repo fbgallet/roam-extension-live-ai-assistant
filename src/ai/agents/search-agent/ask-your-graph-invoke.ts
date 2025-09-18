@@ -118,18 +118,8 @@ const invokeSearchAgentInternal = async ({
 }: SearchAgentInvoker) => {
   const startTime = Date.now();
 
-
   // Create abort controller for cancellation
   const abortController = new AbortController();
-
-  // Essential debug for conversation mode and caching
-  if (agentData?.isConversationMode) {
-    console.log("🔄 Conversation mode - cached data:", {
-      cachedResultsCount: Object.keys(agentData.cachedFullResults || {}).length,
-      hasLimitedResults: agentData.hasLimitedResults,
-      historyLength: agentData.conversationHistory?.length || 0,
-    });
-  }
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
   const spinnerId = displaySpinner(rootUid);
@@ -142,7 +132,7 @@ const invokeSearchAgentInternal = async ({
   };
 
   const modeInfo = getModeInfo(privateMode, permissions);
-  
+
   // Only show toaster if not in chat mode within popup
   if (!(isPopupExecution && agentData?.isConversationMode)) {
     initializeAgentToaster(
@@ -178,23 +168,12 @@ const invokeSearchAgentInternal = async ({
       zeroResultsAttempts: 0,
     };
 
-    // Debug conversation data and history
-    console.log(`🔍 [Invoke] Conversation history check:`, {
-      hasAgentData: !!agentData,
-      agentDataConversationHistory: agentData?.conversationHistory?.length || 0,
-      conversationDataHistory: conversationData.conversationHistory?.length || 0,
-      isConversationMode: conversationData.isConversationMode
-    });
-
     // NEW: Process external context and integrate into agent's result management
     const embeddedExternalContext = agentData?.externalContext;
-    if (embeddedExternalContext?.results && embeddedExternalContext.results.length > 0) {
-      console.log(
-        `📥 Integrating external context: ${
-          embeddedExternalContext.results.length
-        } results from ${embeddedExternalContext.contextType || "unknown source"}`
-      );
-
+    if (
+      embeddedExternalContext?.results &&
+      embeddedExternalContext.results.length > 0
+    ) {
       // Create a result entry for external context
       const externalResultId = "external_context_001";
       const externalCacheEntry = {
@@ -220,7 +199,8 @@ const invokeSearchAgentInternal = async ({
         if (!conversationData.cachedFullResults) {
           conversationData.cachedFullResults = {};
         }
-        conversationData.cachedFullResults[externalResultId] = externalCacheEntry;
+        conversationData.cachedFullResults[externalResultId] =
+          externalCacheEntry;
       }
 
       // Add to result store if supported
@@ -233,16 +213,6 @@ const invokeSearchAgentInternal = async ({
           timestamp: Date.now(),
         };
       }
-
-      console.log(
-        `📥 External context integrated: ${embeddedExternalContext.results.length} results → resultStore[${externalResultId}]`
-      );
-      
-      // Debug content lengths
-      embeddedExternalContext.results.forEach((result, i) => {
-        const content = result.content || result.text || '';
-        console.log(`📝 Result ${i+1} content length: ${content.length} chars - "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
-      });
     }
 
     // Store search parameters globally for potential post-completion expansion
@@ -265,16 +235,16 @@ const invokeSearchAgentInternal = async ({
           "agentExpansion",
           (window as any).handleExpansionEvent
         );
-        
+
         // Clean up the persistent expansion listener from previous sessions
         if ((window as any)._currentExpansionListener) {
           window.removeEventListener(
-            "agentExpansion", 
+            "agentExpansion",
             (window as any)._currentExpansionListener
           );
           delete (window as any)._currentExpansionListener;
         }
-        
+
         // Clean up previous agent state
         delete (window as any).currentSearchAgentState;
         delete (window as any).currentSearchAgentExecution;
@@ -307,20 +277,6 @@ const invokeSearchAgentInternal = async ({
     }
 
     console.log(`🚀 Starting ReAct Search Agent: "${finalPrompt}"`);
-    // console.log(`🔍 Conversation parameters:`, {
-    //   conversationHistory: conversationData.conversationHistory,
-    //   conversationHistoryLength:
-    //     conversationData.conversationHistory?.length || 0,
-    //   conversationSummary: conversationData.conversationSummary,
-    //   hasLimitedResults: conversationData.hasLimitedResults,
-    //   isConversationMode: isConversationMode,
-    //   cachedResultsCount: Object.keys(conversationData.cachedFullResults || {})
-    //     .length,
-    //   toolResultsCacheCount: Object.keys(
-    //     conversationData.toolResultsCache || {}
-    //   ).length,
-    //   externalContextResults: externalContext?.results?.length || 0,
-    // });
 
     // Additional debugging for conversation history content
     if (
@@ -383,17 +339,6 @@ const invokeSearchAgentInternal = async ({
       streamingCallback,
     };
 
-    // Debug expansion parameters
-    if (conversationData.isDirectExpansion) {
-      console.log(`🔧 [Direct Expansion] Initial state created with:`, {
-        isDirectExpansion: initialState.isDirectExpansion,
-        maxDepthOverride: initialState.maxDepthOverride,
-        semanticExpansion: initialState.semanticExpansion,
-        isExpansionGlobal: initialState.isExpansionGlobal,
-        expansionLevel: initialState.expansionLevel,
-      });
-    }
-
     // Store state globally for expansion handling
     if (typeof window !== "undefined") {
       (window as any).currentSearchAgentState = initialState;
@@ -418,8 +363,6 @@ const invokeSearchAgentInternal = async ({
       (response as any).pendingPrivacyEscalation ||
       (!response.finalAnswer && !response.targetUid)
     ) {
-      console.log("🚧 [Graph] Execution interrupted - waiting for user input");
-
       // Set up a promise that resolves when user makes a choice
       return new Promise((resolve, reject) => {
         // Add a flag to prevent duplicate handling during rapid clicks
@@ -430,16 +373,11 @@ const invokeSearchAgentInternal = async ({
         // Listen for expansion events from toaster buttons
         const expansionEventListener = async (event: CustomEvent) => {
           if (isProcessingExpansion) {
-            console.log(
-              "🚫 [Graph] Expansion already in progress, ignoring duplicate event"
-            );
             return;
           }
           isProcessingExpansion = true;
 
           try {
-            console.log("🚀 [Graph] Expansion choice made:", event.detail);
-
             // Clean up timers but keep expansion listener for subsequent expansions
             if (timeoutId) clearTimeout(timeoutId);
             if (abortListener)
@@ -447,7 +385,7 @@ const invokeSearchAgentInternal = async ({
                 "abort",
                 abortListener
               );
-              
+
             // Keep the expansion listener active for multiple expansions
             // It will be cleaned up when the toaster is closed or session ends
 
@@ -457,7 +395,12 @@ const invokeSearchAgentInternal = async ({
               const { action, label, emoji, strategyKey } = event.detail;
 
               console.log(`🚀 [Expansion] User selected: ${emoji} ${label}`);
-              console.log(`🔧 [Expansion] Event detail:`, { action, label, emoji, strategyKey });
+              console.log(`🔧 [Expansion] Event detail:`, {
+                action,
+                label,
+                emoji,
+                strategyKey,
+              });
 
               // Grant expansion consent and increment expansion level
               state.expansionConsent = true;
@@ -465,17 +408,21 @@ const invokeSearchAgentInternal = async ({
               state.expansionLevel = (state.expansionLevel || 0) + 1;
 
               // Map action/label to exact strategy using the centralized mapping function
-              const { mapLabelToStrategy } = await import("../shared/expansionConstants");
-              
+              const { mapLabelToStrategy } = await import(
+                "../shared/expansionConstants"
+              );
+
               // Check for strategy key first (more reliable)
               let strategy;
               if (strategyKey) {
-                const { EXPANSION_OPTIONS } = await import("../shared/expansionConstants");
-                strategy = EXPANSION_OPTIONS[strategyKey]?.strategy || mapLabelToStrategy(label, action);
-                console.log(`🔧 [Expansion] Using strategy key "${strategyKey}" -> strategy: "${strategy}"`);
+                const { EXPANSION_OPTIONS } = await import(
+                  "../shared/expansionConstants"
+                );
+                strategy =
+                  EXPANSION_OPTIONS[strategyKey]?.strategy ||
+                  mapLabelToStrategy(label, action);
               } else {
                 strategy = mapLabelToStrategy(label, action);
-                console.log(`🔧 [Expansion] Mapped "${label}" to strategy: "${strategy}"`);
               }
 
               // Set expansion strategy based on the mapped strategy value
@@ -484,42 +431,42 @@ const invokeSearchAgentInternal = async ({
                   // "All at once" semantic expansion
                   state.isExpansionGlobal = true;
                   state.semanticExpansion = "all";
-                  console.log(`🔧 [Expansion] Set global semantic expansion: all`);
+
                   break;
-                  
+
                 case "fuzzy":
-                case "synonyms": 
+                case "synonyms":
                 case "related_concepts":
                 case "broader_terms":
                   // Individual semantic expansion strategies
                   state.isExpansionGlobal = true;
                   state.semanticExpansion = strategy;
-                  console.log(`🔧 [Expansion] Set global semantic expansion: ${strategy}`);
+                  console.log(
+                    `🔧 [Expansion] Set global semantic expansion: ${strategy}`
+                  );
                   break;
-                  
+
                 case "automatic":
                   // Auto semantic expansion until results
-                  console.log(`🔧 [Expansion] ENTERING automatic case - current mode: ${state.automaticExpansionMode}`);
+
                   state.automaticExpansionMode = "auto_until_result";
                   // Clear global semantic expansion flags since automatic mode handles its own expansion
                   state.isExpansionGlobal = false;
                   state.semanticExpansion = null;
-                  console.log(`🔧 [Expansion] Set automatic expansion mode: auto_until_result`);
-                  console.log(`🔧 [Expansion] Cleared global expansion flags for automatic mode`);
-                  console.log(`🔧 [Expansion] Verified state.automaticExpansionMode is now: ${state.automaticExpansionMode}`);
+
                   break;
-                  
+
                 case "hierarchical":
                   state.searchStrategy = "hierarchical";
                   break;
-                  
+
                 case "other":
                   state.expansionState = {
                     ...state.expansionState,
                     searchStrategy: "multi_tool",
                   };
                   break;
-                  
+
                 default:
                   // Handle depth expansions and other cases
                   if (action.includes("same-block")) {
@@ -545,14 +492,6 @@ const invokeSearchAgentInternal = async ({
               // Clear pending expansion flag
               state.pendingExpansion = false;
 
-              console.log(
-                `🔄 [Expansion] Continuing with strategy: ${
-                  state.searchStrategy ||
-                  state.expansionState?.searchStrategy ||
-                  "default"
-                }`
-              );
-
               // Update toaster to show expansion is starting
               // Note: automatic expansion will show its own detailed progress, so skip the initial message
               if (strategy !== "automatic") {
@@ -561,14 +500,6 @@ const invokeSearchAgentInternal = async ({
             }
 
             // Resume the graph execution from where it left off
-            console.log("🔄 [Graph] State before resume:", {
-              expansionConsent: (window as any).currentSearchAgentState
-                .expansionConsent,
-              expansionLevel: (window as any).currentSearchAgentState
-                .expansionLevel,
-              pendingExpansion: (window as any).currentSearchAgentState
-                .pendingExpansion,
-            });
 
             const finalResponse = await ReactSearchAgent.invoke(
               (window as any).currentSearchAgentState,
@@ -580,7 +511,6 @@ const invokeSearchAgentInternal = async ({
 
             // Keep global state for subsequent expansions
             // State will be cleaned up when toaster is closed or session ends
-            console.log("🔄 [Expansion] Keeping state active for additional expansions");
 
             // Process the final response and resolve with its result
             const result = await processAgentResponse(finalResponse);
@@ -608,16 +538,11 @@ const invokeSearchAgentInternal = async ({
           // Privacy mode event listener for handling privacy escalation
           const privacyModeEventListener = async (event: CustomEvent) => {
             if (isProcessingExpansion) {
-              console.log(
-                "🚫 [Graph] Privacy mode change already in progress, ignoring duplicate event"
-              );
               return;
             }
             isProcessingExpansion = true;
 
             try {
-              console.log("🔒 [Graph] Privacy mode choice made:", event.detail);
-
               // Clean up listeners and timers immediately
               window.removeEventListener(
                 "agentExpansion",
@@ -639,17 +564,12 @@ const invokeSearchAgentInternal = async ({
                 const state = (window as any).currentSearchAgentState;
                 const { selectedMode, rememberChoice } = event.detail;
 
-                console.log(`🔒 [Privacy] User selected mode: ${selectedMode}`);
-
                 // Update privacy mode in global settings if user wants to remember
                 if (rememberChoice) {
                   const { setSessionAskGraphMode } = await import(
                     "./ask-your-graph"
                   );
-                  setSessionAskGraphMode(selectedMode, true);
-                  console.log(
-                    `🔒 [Privacy] Remembered choice: ${selectedMode}`
-                  );
+                  setSessionAskGraphMode(selectedMode);
                 }
 
                 // Clear privacy escalation flags and update current mode
@@ -671,20 +591,8 @@ const invokeSearchAgentInternal = async ({
                 state.isPrivacyModeUpdated = true;
                 state.routingDecision = "need_new_search";
 
-                console.log(
-                  `🔒 [Privacy] Updated permissions:`,
-                  state.permissions
-                );
-                console.log(
-                  `🔒 [Privacy] Set isPrivacyModeUpdated flag:`,
-                  state.isPrivacyModeUpdated
-                );
-
                 // CRITICAL: Continue graph execution from assistant node with updated state
                 // We have the IntentParser response, now continue with updated privacy mode
-                console.log(
-                  "🔄 [Privacy] Continuing graph execution from assistant node"
-                );
 
                 // Update toaster to show privacy mode change
                 updateAgentToaster(
@@ -724,7 +632,7 @@ const invokeSearchAgentInternal = async ({
           ];
           window.addEventListener("agentExpansion", expansionEventListener);
           window.addEventListener("agentPrivacyMode", privacyModeEventListener);
-          
+
           // Store the expansion listener reference for later cleanup
           (window as any)._currentExpansionListener = expansionEventListener;
 
@@ -794,23 +702,10 @@ const invokeSearchAgentInternal = async ({
       try {
         // Extract full results for the popup functionality
         const allFullResults = [];
-        console.log(
-          "🔍 [ask-your-graph-invoke] response.cachedFullResults:",
-          response.cachedFullResults
-        );
-        console.log(
-          "🔍 [ask-your-graph-invoke] response.resultStore:",
-          response.resultStore
-        );
 
         // NEW: Check the token-optimized resultStore first (preferred)
         if (response.resultStore) {
           Object.values(response.resultStore).forEach((resultEntry: any) => {
-            console.log(
-              "🔍 [ask-your-graph-invoke] Processing resultStore entry:",
-              resultEntry
-            );
-
             // Handle new lifecycle structure: {data: Array, purpose: string, status: string, ...}
             if (
               resultEntry &&
@@ -820,10 +715,7 @@ const invokeSearchAgentInternal = async ({
               const validResults = resultEntry.data.filter(
                 (r) => r && (r.uid || r.pageUid || r.pageTitle)
               );
-              console.log(
-                "🔍 [ask-your-graph-invoke] Valid results from new structure:",
-                validResults.length
-              );
+
               allFullResults.push(...validResults);
             }
             // Handle legacy structure: direct array
@@ -831,10 +723,7 @@ const invokeSearchAgentInternal = async ({
               const validResults = resultEntry.filter(
                 (r) => r && (r.uid || r.pageUid || r.pageTitle)
               );
-              console.log(
-                "🔍 [ask-your-graph-invoke] Valid results from legacy structure:",
-                validResults.length
-              );
+
               allFullResults.push(...validResults);
             }
           });
@@ -844,18 +733,11 @@ const invokeSearchAgentInternal = async ({
         if (response.cachedFullResults && allFullResults.length === 0) {
           Object.values(response.cachedFullResults).forEach(
             (toolResults: any) => {
-              console.log(
-                "🔍 [ask-your-graph-invoke] Processing legacy cachedFullResults:",
-                toolResults
-              );
               if (Array.isArray(toolResults)) {
                 const validResults = toolResults.filter(
                   (r) => r && (r.uid || r.pageUid || r.pageTitle)
                 );
-                console.log(
-                  "🔍 [ask-your-graph-invoke] Valid results with UIDs:",
-                  validResults.length
-                );
+
                 allFullResults.push(...validResults);
               } else if (
                 toolResults &&
@@ -866,10 +748,7 @@ const invokeSearchAgentInternal = async ({
                 const validResults = toolResults.fullResults.data.filter(
                   (r) => r && (r.uid || r.pageUid || r.pageTitle)
                 );
-                console.log(
-                  "🔍 [ask-your-graph-invoke] Valid nested results with UIDs:",
-                  validResults.length
-                );
+
                 allFullResults.push(...validResults);
               }
             }
@@ -882,17 +761,12 @@ const invokeSearchAgentInternal = async ({
           "ask-your-graph-invoke"
         );
 
-        console.log(
-          "🔍 [ask-your-graph-invoke] Full results before deduplication:",
-          allFullResults.length
-        );
-        console.log(
-          "🔍 [ask-your-graph-invoke] Full results after deduplication:",
-          fullResults.length
-        );
-
         // Store this successful query as a recent query for future re-execution
-        if (response?.userQuery && response?.formalQuery && response?.searchStrategy) {
+        if (
+          response?.userQuery &&
+          response?.formalQuery &&
+          response?.searchStrategy
+        ) {
           try {
             addRecentQuery({
               userQuery: response.userQuery,
@@ -910,8 +784,8 @@ const invokeSearchAgentInternal = async ({
                 semanticExpansion: response.semanticExpansion,
                 customSemanticExpansion: response.customSemanticExpansion,
                 searchDetails: response.searchDetails,
-                preferredModel: response.model?.id || response.model?.name
-              }
+                preferredModel: response.model?.id || response.model?.name,
+              },
             });
           } catch (error) {
             console.warn("Failed to store recent query:", error);
@@ -954,7 +828,7 @@ const invokeSearchAgentInternal = async ({
             isDirectExpansion: initialState.isDirectExpansion,
             semanticExpansion: initialState.semanticExpansion,
           };
-          
+
           // Update lastIntentParserResult with the actual response data
           if (response && response.formalQuery) {
             (window as any).lastIntentParserResult = {
@@ -972,19 +846,18 @@ const invokeSearchAgentInternal = async ({
               searchDetails: response.searchDetails,
             };
           } else {
-            console.warn(`🔧 [Intent Parser] Could not update lastIntentParserResult - missing response or formalQuery`, {
-              hasResponse: !!response,
-              hasFormalQuery: !!(response?.formalQuery)
-            });
+            console.warn(
+              `🔧 [Intent Parser] Could not update lastIntentParserResult - missing response or formalQuery`,
+              {
+                hasResponse: !!response,
+                hasFormalQuery: !!response?.formalQuery,
+              }
+            );
           }
-          
-          console.log(`🔧 [Agent State] Stored final agent state:`, (window as any).lastAgentState);
         }
 
         // Handle forcePopupOnly mode - automatically open the popup and skip Roam block insertion
         if (agentData?.forcePopupOnly) {
-          console.log("🔍 [ForcePopupOnly] Opening FullResultsPopup automatically");
-          
           // Store results and metadata for the popup
           if (typeof window !== "undefined") {
             (window as any).lastAskYourGraphResults = fullResults;
@@ -1000,25 +873,26 @@ const invokeSearchAgentInternal = async ({
           }
 
           // Import and open the popup automatically
-          import("../../../components/Toaster.js").then(({ openFullResultsPopup }) => {
-            if (openFullResultsPopup) {
-              console.log("🔍 [ForcePopupOnly] Opening popup with results:", fullResults?.length || 0);
-              openFullResultsPopup(
-                fullResults, 
-                response?.targetUid, 
-                response?.userQuery || finalPrompt, 
-                response?.formalQuery
-              );
-            }
-          }).catch((error) => {
-            console.error("Failed to open FullResultsPopup:", error);
-          });
+          import("../../../components/Toaster.js")
+            .then(({ openFullResultsPopup }) => {
+              if (openFullResultsPopup) {
+                openFullResultsPopup(
+                  fullResults,
+                  response?.targetUid,
+                  response?.userQuery || finalPrompt,
+                  response?.formalQuery
+                );
+              }
+            })
+            .catch((error) => {
+              console.error("Failed to open FullResultsPopup:", error);
+            });
 
           // Return early to skip conversation buttons and Roam block insertion
           return {
             ...response,
             targetUid: null, // Skip Roam block insertion by nullifying targetUid
-            forcePopupOnly: true // Include flag in response for debugging
+            forcePopupOnly: true, // Include flag in response for debugging
           };
         }
 
@@ -1163,16 +1037,9 @@ export const invokeExpandedSearchDirect = async ({
   rootUid: string;
   searchParams: any;
 }) => {
-  console.log(
-    `🚀 [Direct Expansion] Starting Level ${expansionLevel} expansion: ${expansionLabel}`
-  );
-  console.log(
-    `🎯 [Direct Expansion] Strategy: ${expansionStrategy}, Query: "${query}", maxDepth override: ${searchParams.maxDepth}`
-  );
-
   // Use centralized strategy mapping function
   const mappedStrategy = mapLabelToStrategy(expansionLabel, expansionStrategy);
-  
+
   console.log(`🔧 [Direct Expansion] Mapped strategy: "${mappedStrategy}"`);
 
   // Create expansion agent data to pass semantic expansion parameters
@@ -1196,28 +1063,14 @@ export const invokeExpandedSearchDirect = async ({
     // Pass forceHierarchical for flat → hierarchical conversion
     forceHierarchical: searchParams.forceHierarchical || false,
     // Set automatic expansion mode for "automatic" strategy only (not for custom)
-    automaticExpansionMode: mappedStrategy === "automatic" ? "auto_until_result" : undefined,
+    automaticExpansionMode:
+      mappedStrategy === "automatic" ? "auto_until_result" : undefined,
     // Pass custom strategy for custom expansion
-    customSemanticExpansion: mappedStrategy === "custom" ? searchParams.customSemanticExpansion : undefined,
+    customSemanticExpansion:
+      mappedStrategy === "custom"
+        ? searchParams.customSemanticExpansion
+        : undefined,
   };
-  
-  if (mappedStrategy === "automatic") {
-    console.log(`🔧 [Direct Expansion] Setting automaticExpansionMode to auto_until_result for automatic strategy`);
-  }
-
-  console.log(
-    `🎯 [Direct Expansion] Final expansion data:`, {
-      semanticExpansion: expansionAgentData.semanticExpansion,
-      automaticExpansionMode: expansionAgentData.automaticExpansionMode,
-      isDirectExpansion: expansionAgentData.isDirectExpansion
-    }
-  );
-  console.log(
-    `🔍 [Direct Expansion] ForcePopupOnly preserved: ${expansionAgentData.forcePopupOnly}`
-  );
-  console.log(
-    `🏗️ [Direct Expansion] maxDepthOverride: ${expansionAgentData.maxDepthOverride}`
-  );
 
   // Use the standard invokeSearchAgent but with expansion parameters pre-configured
   return await invokeSearchAgent({
