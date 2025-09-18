@@ -27,10 +27,7 @@ import {
 } from "../shared/agentsUtils";
 
 // Import our tools registry
-import {
-  getAvailableTools,
-  listAvailableToolNames,
-} from "./tools/toolsRegistry";
+import { getAvailableTools } from "./tools/toolsRegistry";
 
 // Import search utilities
 import { deduplicateResultsByUid } from "./helpers/searchUtils";

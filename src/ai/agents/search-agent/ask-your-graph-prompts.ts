@@ -1130,23 +1130,6 @@ export const extractResultDataForPrompt = (
     return "No result data available.";
   }
 
-  // Debug: Check content lengths before processing
-  Object.entries(resultStore).forEach(([key, result]) => {
-    if (result.data && Array.isArray(result.data)) {
-      result.data.forEach((item: any, i: number) => {
-        const content = item.content || item.text || "";
-        console.log(
-          `📝 [ExtractResultData] ${key}[${i}]: UID=${
-            item.uid
-          }, content length=${content.length} chars - "${content.substring(
-            0,
-            100
-          )}${content.length > 100 ? "..." : ""}"`
-        );
-      });
-    }
-  });
-
   // Filter to only include final and active results for the final response
   const relevantEntries = Object.entries(resultStore).filter(([, result]) => {
     // Handle both new structure and legacy structure for backward compatibility
@@ -1164,9 +1147,6 @@ export const extractResultDataForPrompt = (
 
   // Fallback: if no results marked as final, include the most recent results with actual data
   if (relevantEntries.length === 0) {
-    console.log(
-      "🎯 [ExtractResultData] No final results found, using fallback to most recent results with data"
-    );
     const allEntries = Object.entries(resultStore);
 
     // Filter out entries with empty data first
@@ -1185,10 +1165,6 @@ export const extractResultDataForPrompt = (
       relevantEntries.push(...sortedEntries.slice(0, 3)); // Include up to 3 most recent with data
     }
   }
-
-  console.log(
-    `🎯 [ExtractResultData] Using ${relevantEntries.length} relevant results for final response`
-  );
 
   // DEDUPLICATION: Combine all result data and deduplicate by UID, preferring context-expanded items
   const allResultData: any[] = [];
@@ -1240,10 +1216,6 @@ export const extractResultDataForPrompt = (
   // Convert Map values to final array (not needed since we maintain allResultData directly)
   // allResultData is already populated correctly
 
-  console.log(
-    `🎯 [ExtractResultData] Deduplicated ${relevantEntries.length} result sets into ${allResultData.length} unique items`
-  );
-
   // Check if context expansion was applied
   const contextExpansionResults = relevantEntries.filter(
     ([, result]) => result?.metadata?.contextExpansion
@@ -1272,9 +1244,6 @@ export const extractResultDataForPrompt = (
         mainResults.push(...data);
       }
     }
-    console.log(
-      `🌳 [ExtractResultData] Context expansion detected: ${mainResults.length} main results + ${contextItems.length} context items`
-    );
   }
 
   // Now process the deduplicated data as a single combined result
@@ -1282,9 +1251,6 @@ export const extractResultDataForPrompt = (
 
   // Skip redundant result formatting in popup execution mode since detailed results are already provided above
   if (isPopupExecution) {
-    console.log(
-      "🎯 [ExtractResultData] Skipping redundant result formatting for popup execution mode"
-    );
     return ""; // Return empty string since detailed results are already included in the conversation context
   }
 
@@ -1304,10 +1270,7 @@ export const extractResultDataForPrompt = (
           count: item.count, // Preserve count for references
           isPage: !!item.title && !item.content, // Detect if this is a page vs block
         }));
-        console.log(
-          `🎯 [ExtractResultData] Private mode data sample:`,
-          limitedData.slice(0, 3)
-        );
+
         break;
 
       case "balanced":
@@ -1415,14 +1378,9 @@ export const extractResultDataForPrompt = (
         : `${limitedData.length} items`;
 
     formattedResults.push(`combined_results (${countDisplay}):\n${dataString}`);
-
-    console.log(
-      `🎯 [ExtractResultData] Formatted combined results:`,
-      dataString.substring(0, 200)
-    );
   } else {
     // No results found - explicitly indicate this to prevent hallucination
-    console.log("🎯 [ExtractResultData] No results with data found");
+
     formattedResults.push("No matching results found.");
   }
 
