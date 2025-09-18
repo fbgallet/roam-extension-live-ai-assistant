@@ -7,7 +7,7 @@ import {
   insertInstantButtons,
 } from "../../../utils/domElts";
 import { ReactSearchAgent } from "./ask-your-graph-agent";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import {
   initializeAgentToaster,
   updateAgentToaster,
@@ -16,7 +16,6 @@ import {
   buildAgentConversationState,
   formatExecutionTime,
   handleRetryLogic,
-  validatePermissions,
 } from "../shared/agentsUtils";
 import { mapLabelToStrategy } from "../shared/expansionConstants";
 import { deduplicateResultsByUid } from "./helpers/searchUtils";

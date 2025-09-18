@@ -4,6 +4,7 @@ import { Icon, Button, Tooltip } from "@blueprintjs/core";
 const AskGraphModeIndicator = ({
   currentMode,
   onModeChange,
+  onRightClick,
   showChangeOption = true,
   iconOnly = true, // New prop for icon-only display
 }) => {
@@ -46,7 +47,7 @@ const AskGraphModeIndicator = ({
         <br></br>
         {baseTooltips[mode] || "Unknown mode"}
         <br></br>
-        Click to cycle through modes
+        Left click: cycle modes | Right click: detailed options
       </p>
     );
 
@@ -74,6 +75,14 @@ const AskGraphModeIndicator = ({
     }
   };
 
+  const handleRightClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onRightClick) {
+      onRightClick();
+    }
+  };
+
   return (
     <Tooltip content={getModeTooltip(currentMode, showChangeOption, iconOnly)}>
       {showChangeOption ? (
@@ -84,6 +93,7 @@ const AskGraphModeIndicator = ({
             iconOnly ? "laia-askgraph-mode-icon-only" : ""
           }`}
           onClick={handleClick}
+          onContextMenu={handleRightClick}
         />
       ) : (
         <span

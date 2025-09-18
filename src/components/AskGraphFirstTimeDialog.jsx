@@ -8,8 +8,15 @@ import {
   Radio,
 } from "@blueprintjs/core";
 
-const AskGraphFirstTimeDialog = ({ isOpen, onClose, onModeSelect }) => {
-  const [selectedMode, setSelectedMode] = React.useState("Balanced");
+const AskGraphFirstTimeDialog = ({ isOpen, onClose, onModeSelect, initialMode = "Balanced" }) => {
+  const [selectedMode, setSelectedMode] = React.useState(initialMode);
+
+  // Update selected mode when dialog opens with different initial mode
+  React.useEffect(() => {
+    if (isOpen) {
+      setSelectedMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   const handleProceed = () => {
     onModeSelect(selectedMode);
@@ -54,7 +61,7 @@ const AskGraphFirstTimeDialog = ({ isOpen, onClose, onModeSelect }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="🤖 First time using Ask Your Graph"
-      className="laia-askgraph-firsttime-dialog"
+      className="laia-askgraph-firsttime-dialog bp3-dialog"
       canEscapeKeyClose={false}
       canOutsideClickClose={false}
     >
@@ -65,7 +72,7 @@ const AskGraphFirstTimeDialog = ({ isOpen, onClose, onModeSelect }) => {
           mode:
         </p>
 
-        <div className="laia-askgraph-firsttime-radio-group">
+        <div className="laia-askgraph-firsttime-radio-group" onClick={(e) => e.stopPropagation()}>
           <RadioGroup
             onChange={(e) => setSelectedMode(e.currentTarget.value)}
             selectedValue={selectedMode}

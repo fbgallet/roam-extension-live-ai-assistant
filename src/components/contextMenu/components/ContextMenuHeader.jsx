@@ -3,6 +3,7 @@ import { Icon, Tooltip, MenuDivider } from "@blueprintjs/core";
 import { displayTokensDialog } from "../../../utils/domElts";
 import { MCPDiagnostics } from "../../../ai/agents/mcp-agent/mcpDiagnostics";
 import AskGraphModeIndicator from "../../AskGraphModeIndicator";
+import AskGraphFirstTimeDialog from "../../AskGraphFirstTimeDialog";
 import { getCurrentAskGraphMode, setSessionAskGraphMode } from "../../../ai/agents/search-agent/ask-your-graph";
 
 const ContextMenuHeader = ({
@@ -18,6 +19,7 @@ const ContextMenuHeader = ({
   inputRef,
 }) => {
   const [currentMode, setCurrentMode] = useState(() => getCurrentAskGraphMode());
+  const [isAskGraphDialogOpen, setIsAskGraphDialogOpen] = useState(false);
 
   // Update mode when component mounts or when external changes occur
   useEffect(() => {
@@ -28,6 +30,19 @@ const ContextMenuHeader = ({
     console.log("🔄 Mode changed to:", newMode);
     setSessionAskGraphMode(newMode, true);
     setCurrentMode(newMode); // Update local state immediately
+  };
+
+  const handleOpenAskGraphDialog = () => {
+    setIsAskGraphDialogOpen(true);
+  };
+
+  const handleCloseAskGraphDialog = () => {
+    setIsAskGraphDialogOpen(false);
+    // Keep the context menu open after closing the dialog
+  };
+
+  const handleModeSelect = (selectedMode) => {
+    handleModeChange(selectedMode);
   };
 
   return (
@@ -110,6 +125,7 @@ const ContextMenuHeader = ({
           <AskGraphModeIndicator
             currentMode={currentMode}
             onModeChange={handleModeChange}
+            onRightClick={handleOpenAskGraphDialog}
             showChangeOption={true}
             iconOnly={true}
           />
@@ -137,6 +153,14 @@ const ContextMenuHeader = ({
             </b>
           </div>
         }
+      />
+
+      {/* Ask Graph First Time Dialog */}
+      <AskGraphFirstTimeDialog
+        isOpen={isAskGraphDialogOpen}
+        onClose={handleCloseAskGraphDialog}
+        onModeSelect={handleModeSelect}
+        initialMode={currentMode}
       />
     </>
   );
