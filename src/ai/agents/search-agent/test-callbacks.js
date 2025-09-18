@@ -8,8 +8,8 @@ import { insertStructuredAIResponse } from "../../responseInsertion";
 import { getInstantAssistantRole, chatRoles } from "../../..";
 
 // Import tools for comprehensive testing
-import { extractHierarchyContentTool } from "./tools/extractHierarchyContentTool.ts";
-import { combineResultsTool } from "./tools/combineResultsTool/combineResultsTool.ts";
+import { extractHierarchyContentTool } from "./tools/extractHierarchyContent/extractHierarchyContentTool";
+import { combineResultsTool } from "./tools/combineResults/combineResultsTool";
 import { generateDatomicQueryTool } from "./tools/generateDatomicQueryTool.ts";
 import { findBlocksWithHierarchyTool } from "./tools/findBlocksWithHierarchy/findBlocksWithHierarchyTool";
 import { findPagesByContentTool } from "./tools/findPagesByContentTool.ts";

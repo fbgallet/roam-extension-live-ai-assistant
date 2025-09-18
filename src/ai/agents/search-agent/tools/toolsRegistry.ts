@@ -3,9 +3,9 @@ import { findBlocksWithHierarchyTool } from "./findBlocksWithHierarchy/findBlock
 import { findPagesByTitleTool } from "./findPagesByTitle/findPagesByTitleTool";
 // import { findPagesSemanticallyTool } from './findPagesSemanticallyTool'; // DEPRECATED: Use findPagesByTitle with smartExpansion
 import { findPagesByContentTool } from "./findPagesByContent/findPagesByContentTool";
-import { extractHierarchyContentTool } from "./extractHierarchyContentTool";
-import { combineResultsTool } from "./combineResultsTool/combineResultsTool";
-import { executeDatomicQueryTool } from "./executeDatomicQueryTool/executeDatomicQueryTool";
+import { extractHierarchyContentTool } from "./extractHierarchyContent/extractHierarchyContentTool";
+import { combineResultsTool } from "./combineResults/combineResultsTool";
+import { executeDatomicQueryTool } from "./executeDatomicQuery/executeDatomicQueryTool";
 import { extractPageReferencesTool } from "./extractPageReferencesTool";
 import { getNodeDetailsTool } from "./getNodeDetailsTool";
 
