@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { InputGroup, Button, Popover, Icon, Portal } from "@blueprintjs/core";
 import { PageReference } from "./utils/resultProcessing";
 
@@ -23,7 +23,7 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
   const [isOpen, setIsOpen] = useState(false);
 
   // Add/remove CSS class to modal when popover opens/closes
-  React.useEffect(() => {
+  useEffect(() => {
     const modal = document.querySelector('.full-results-modal');
     if (modal) {
       if (isOpen) {

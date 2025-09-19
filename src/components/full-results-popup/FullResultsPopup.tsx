@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Button,
   HTMLSelect,
@@ -49,6 +49,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     showPaths,
     viewMode,
     pageDisplayMode,
+    expanded,
     showChat,
     chatMessages,
     chatAccessMode,
@@ -72,7 +73,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setShowMetadata,
     setShowPaths,
     setViewMode,
-    setPageDisplayMode,
+    setExpanded,
     setChatMessages,
     setChatAccessMode,
     setChatAgentData,
@@ -105,6 +106,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleExcludeReference,
     handleClearAllReferences,
     resetChatConversation,
+    handleExpandedToggle,
   } = useFullResultsState(currentResults, isOpen);
 
   // Query selection handler
@@ -385,7 +387,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setIsResizing(true);
   };
 
-  const handleResizeMove = React.useCallback(
+  const handleResizeMove = useCallback(
     (e: MouseEvent) => {
       if (isResizing) {
         e.preventDefault();
@@ -414,7 +416,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   };
 
   // Mouse event listeners for resize
-  React.useEffect(() => {
+  useEffect(() => {
     if (isResizing) {
       document.addEventListener("mousemove", handleResizeMove);
       document.addEventListener("mouseup", handleResizeEnd);
@@ -426,7 +428,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   }, [isResizing]);
 
   // Keyboard shortcuts
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFullscreen) {
         setIsFullscreen(false);
@@ -567,12 +569,21 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                     label="Metadata"
                     className="full-results-metadata-toggle"
                   />
+                  {hasBlocks && (
+                    <Checkbox
+                      checked={showPaths}
+                      onChange={() => setShowPaths(!showPaths)}
+                      label="Path"
+                      className="full-results-paths-toggle"
+                    />
+                  )}
 
-                  <Checkbox
-                    checked={showPaths}
-                    onChange={() => setShowPaths(!showPaths)}
-                    label="Block Paths"
-                    className="full-results-paths-toggle"
+                  <Button
+                    icon={expanded ? "expand-all" : "collapse-all"}
+                    onClick={handleExpandedToggle}
+                    title={expanded ? "Collapse all" : "Expand all"}
+                    minimal
+                    small
                   />
 
                   {hasBlocks && hasPages && (
@@ -584,19 +595,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       <option value="mixed">All Types</option>
                       <option value="blocks">Blocks Only</option>
                       <option value="pages">Pages Only</option>
-                    </HTMLSelect>
-                  )}
-
-                  {hasPages && viewMode !== "blocks" && (
-                    <HTMLSelect
-                      value={pageDisplayMode}
-                      onChange={(e) =>
-                        setPageDisplayMode(e.target.value as any)
-                      }
-                      className="full-results-page-display-select"
-                    >
-                      <option value="metadata">Page Title</option>
-                      <option value="embed">Page Embed</option>
                     </HTMLSelect>
                   )}
                 </div>
@@ -666,7 +664,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                     const originalIndex = currentResults.indexOf(result);
                     return (
                       <div
-                        key={originalIndex}
+                        key={`${originalIndex}-${expanded}`}
                         className="full-results-result-item"
                         data-uid={result.uid}
                       >
@@ -693,6 +691,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                             pageDisplayMode={pageDisplayMode}
                             showPaths={showPaths}
                             searchFilter={searchFilter}
+                            expanded={expanded}
                           />
                         </div>
                       </div>

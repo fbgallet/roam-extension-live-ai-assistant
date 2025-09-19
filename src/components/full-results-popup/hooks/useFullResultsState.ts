@@ -48,6 +48,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     return {
       showMetadata: stored.showMetadata ?? true, // Default to true
       showPaths: stored.showPaths ?? false, // Default to false
+      expanded: stored.expanded ?? true, // Default to true
     };
   };
 
@@ -56,6 +57,9 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
   );
   const [showPaths, setShowPaths] = useState(
     () => getStoredPreferences().showPaths
+  );
+  const [expanded, setExpanded] = useState(
+    () => getStoredPreferences().expanded
   );
 
   // View mode state
@@ -68,9 +72,10 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     const preferences = {
       showMetadata,
       showPaths,
+      expanded,
     };
     extensionStorage.set("fullResultsPreferences", preferences);
-  }, [showMetadata, showPaths]);
+  }, [showMetadata, showPaths, expanded]);
 
   // Auto-adjust sorting when switching to pages-only view
   const handleViewModeChange = (newViewMode: ViewMode) => {
@@ -441,6 +446,16 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     console.log("💬 [Hook] Reset chat conversation");
   };
 
+  const handleExpandedToggle = () => {
+    const newExpanded = !expanded;
+    setExpanded(newExpanded);
+
+    // For pages, toggle pageDisplayMode based on expanded state
+    if (hasPages && viewMode !== "blocks") {
+      setPageDisplayMode(newExpanded ? "metadata" : "embed");
+    }
+  };
+
   return {
     // State
     selectedResults,
@@ -457,6 +472,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     showPaths,
     viewMode,
     pageDisplayMode,
+    expanded,
     showChat,
     chatMessages,
     chatAccessMode,
@@ -482,6 +498,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     setShowPaths,
     setViewMode: handleViewModeChange,
     setPageDisplayMode,
+    setExpanded,
     setShowChat,
     setChatMessages,
     setChatAccessMode,
@@ -515,5 +532,6 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
     handleExcludeReference,
     handleClearAllReferences,
     resetChatConversation,
+    handleExpandedToggle,
   };
 };

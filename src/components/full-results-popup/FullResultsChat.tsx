@@ -396,7 +396,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
 
   // Reset cache when chat is closed/reopened
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isOpen) {
       setChatExpandedResults(null);
       setLastSelectedResultIds([]);

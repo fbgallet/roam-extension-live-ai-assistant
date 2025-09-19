@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { Result, PageDisplayMode } from "./types";
 import { getHighlightedContent } from "./utils/resultProcessing";
 
@@ -8,15 +8,17 @@ export const BlockRenderer: React.FC<{
   index?: number;
   showPaths?: boolean;
   searchFilter?: string;
-}> = ({ result, showPaths = false, searchFilter = "" }) => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  expanded?: boolean;
+}> = ({ result, showPaths = false, searchFilter = "", expanded = true }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (containerRef.current && result.uid) {
       try {
         (window as any).roamAlphaAPI.ui.components.renderBlock({
           uid: result.uid,
           "zoom-path?": showPaths,
+          "open?": expanded,
           el: containerRef.current,
         });
       } catch (error) {
@@ -40,7 +42,7 @@ export const BlockRenderer: React.FC<{
           result.content || result.text || JSON.stringify(result);
       }
     }
-  }, [result, showPaths, searchFilter]);
+  }, [result, showPaths, searchFilter, expanded]);
 
   return (
     <div
@@ -51,12 +53,56 @@ export const BlockRenderer: React.FC<{
   );
 };
 
+// Component to render page titles using renderString API
+export const PageTitleRenderer: React.FC<{
+  result: Result;
+}> = ({ result }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      // Get the page title
+      const pageTitle =
+        result.title ||
+        result.pageTitle ||
+        result.content ||
+        result.text ||
+        "Untitled Page";
+
+      // Create the Roam string with page reference
+      const roamString = `📄 [[${pageTitle}]]${result.isDaily ? " 📅" : ""}`;
+
+      try {
+        (window as any).roamAlphaAPI.ui.components.renderString({
+          el: containerRef.current,
+          string: roamString,
+        });
+      } catch (error) {
+        console.warn("Failed to render page title with renderString:", error);
+        // Fallback to plain text
+        containerRef.current.textContent = `📄 ${pageTitle}${result.isDaily ? " 📅" : ""}`;
+      }
+    }
+  }, [result]);
+
+  return (
+    <div className="full-results-page-metadata-view">
+      <div
+        className="full-results-page-title"
+        ref={containerRef}
+        style={{ flex: 1 }}
+      />
+    </div>
+  );
+};
+
 interface ResultContentProps {
   result: Result;
   index: number;
   pageDisplayMode: PageDisplayMode;
   showPaths?: boolean;
   searchFilter?: string;
+  expanded?: boolean;
 }
 
 export const ResultContent: React.FC<ResultContentProps> = ({
@@ -65,29 +111,15 @@ export const ResultContent: React.FC<ResultContentProps> = ({
   pageDisplayMode,
   showPaths = false,
   searchFilter = "",
+  expanded = true,
 }) => {
   // Use explicit isPage flag when available, fallback to legacy detection, default to block
   const isPage =
     result.isPage !== undefined ? result.isPage : result.uid && !result.pageUid; // Legacy: if has uid but no pageUid, assume page
 
   if (isPage && pageDisplayMode === "metadata") {
-    // Simple page title view - just show the title cleanly
-    // Use 'title' field which is the actual field name for page results
-    const pageTitle =
-      result.title ||
-      result.pageTitle ||
-      result.content ||
-      result.text ||
-      "Untitled Page";
-
-    return (
-      <div className="full-results-page-metadata-view">
-        <div className="full-results-page-title">
-          📄 {pageTitle}
-          {result.isDaily && " 📅"}
-        </div>
-      </div>
-    );
+    // Simple page title view using renderString for clickable links
+    return <PageTitleRenderer result={result} />;
   }
 
   // For blocks or page embeds, use the BlockRenderer component
@@ -96,7 +128,8 @@ export const ResultContent: React.FC<ResultContentProps> = ({
       result={result}
       showPaths={showPaths}
       searchFilter={searchFilter}
-      key={`${result.uid}-${index}`}
+      expanded={expanded}
+      key={`${result.uid}-${index}-${expanded}`}
     />
   );
 };

@@ -72,7 +72,6 @@ export const findBlocksByContentImpl = async (
   }
 
   if (hasGroupedConditions(input)) {
-    console.log("🔧 Processing grouped conditions in findBlocksByContent");
     // Process grouped conditions
     const processedGroups = await processConditionGroups(
       conditionGroups!,
@@ -88,14 +87,7 @@ export const findBlocksByContentImpl = async (
 
     finalConditions = optimizedGroups.conditions;
     finalCombineConditions = optimizedGroups.combination;
-
-    console.log(
-      `🚀 Converted ${conditionGroups!.length} condition groups to ${
-        finalConditions.length
-      } optimized conditions with ${finalCombineConditions} logic`
-    );
   } else {
-    console.log("🔧 Processing simple conditions in findBlocksByContent");
     // Use simple conditions (backward compatibility)
     finalConditions = conditions!;
     finalCombineConditions = combineConditions || "AND";
@@ -114,20 +106,10 @@ export const findBlocksByContentImpl = async (
           ? new Date(input.dateRange.end)
           : input.dateRange.end,
     };
-    console.log("📅 [findBlocksByContent] Parsed dateRange:", {
-      original: input.dateRange,
-      parsed: parsedDateRange,
-      startType: typeof parsedDateRange.start,
-      endType: typeof parsedDateRange.end,
-    });
   } else {
     console.log(
       "📅 [findBlocksByContent] No dateRange provided or invalid:",
       input.dateRange
-    );
-    console.log(
-      "📅 [findBlocksByContent] Full input received:",
-      JSON.stringify(input, null, 2)
     );
   }
 
@@ -149,17 +131,6 @@ export const findBlocksByContentImpl = async (
   }
 
   // Step 2: Build and execute search query
-
-  console.log(
-    `🔍 [DEBUG] Expanded conditions for Datomic:`,
-    expandedConditions.map((c) => ({
-      type: c.type,
-      text: c.text,
-      matchType: c.matchType,
-      semanticExpansion: c.semanticExpansion,
-      negate: c.negate,
-    }))
-  );
 
   const searchResults = await searchBlocksWithConditions(
     expandedConditions,
@@ -241,11 +212,6 @@ export const findBlocksByContentImpl = async (
 
   // Step 4: Apply date range filtering if specified
   let filteredResults = enrichedResults;
-  console.log("📅 [findBlocksByContent] About to check date filtering:", {
-    hasParsedDateRange: !!parsedDateRange,
-    parsedDateRange: parsedDateRange,
-    enrichedResultsCount: enrichedResults.length,
-  });
 
   if (parsedDateRange) {
     console.log("📅 [findBlocksByContent] Applying date range filter...");
@@ -254,15 +220,6 @@ export const findBlocksByContentImpl = async (
       filteredResults,
       parsedDateRange,
       filterMode
-    );
-    console.log("📅 [findBlocksByContent] Date filtering completed:", {
-      originalCount: enrichedResults.length,
-      filteredCount: filteredResults.length,
-      filterMode,
-    });
-  } else {
-    console.log(
-      "📅 [findBlocksByContent] Skipping date filtering - no parsedDateRange"
     );
   }
 

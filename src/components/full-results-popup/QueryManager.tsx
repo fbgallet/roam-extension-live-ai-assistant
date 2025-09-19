@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
   Dialog,
@@ -22,6 +22,36 @@ import {
   renameSavedQuery,
   getCurrentQueryInfo,
 } from "../../ai/agents/search-agent/helpers/queryStorage";
+
+// Component to render queries using renderString API for clickable links
+const QueryRenderer: React.FC<{ query: string; prefix?: string }> = ({
+  query,
+  prefix = ""
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      try {
+        (window as any).roamAlphaAPI.ui.components.renderString({
+          el: containerRef.current,
+          string: prefix + query,
+        });
+      } catch (error) {
+        console.warn("Failed to render query with renderString:", error);
+        // Fallback to plain text
+        containerRef.current.textContent = prefix + query;
+      }
+    }
+  }, [query, prefix]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ flex: 1, display: "inline" }}
+    />
+  );
+};
 
 // Types for the Select component
 interface QuerySelectItem {
@@ -616,12 +646,12 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 return (
                   <>
                     <div className="current-query-preview">
-                      <strong>Query:</strong> {currentUserQuery}
+                      <strong>Query:</strong> <QueryRenderer query={currentUserQuery} />
                     </div>
                     {currentFormalQuery &&
                       currentFormalQuery !== currentUserQuery && (
                         <div className="current-formal-query-preview">
-                          <strong>Formal Query:</strong> {currentFormalQuery}
+                          <strong>Formal Query:</strong> <QueryRenderer query={currentFormalQuery} />
                         </div>
                       )}
                   </>
@@ -636,14 +666,13 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   return (
                     <div className="stored-query-details">
                       <div className="stored-query-preview">
-                        <strong>Query:</strong> {selectedQuery.userQuery}
+                        <strong>Query:</strong> <QueryRenderer query={selectedQuery.userQuery} />
                       </div>
                       {selectedQuery.formalQuery &&
                         selectedQuery.formalQuery !==
                           selectedQuery.userQuery && (
                           <div className="stored-formal-query-preview">
-                            <strong>Formal Query:</strong>{" "}
-                            {selectedQuery.formalQuery}
+                            <strong>Formal Query:</strong> <QueryRenderer query={selectedQuery.formalQuery} />
                           </div>
                         )}
                       <div className="stored-query-metadata">
@@ -809,11 +838,11 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         <div className={Classes.DIALOG_BODY}>
           <p>Save the current query for later use:</p>
           <div className="current-query-preview">
-            <strong>Query:</strong> {currentUserQuery}
+            <strong>Query:</strong> <QueryRenderer query={currentUserQuery || ""} />
           </div>
           {currentFormalQuery && currentFormalQuery !== currentUserQuery && (
             <div className="current-formal-query-preview">
-              <strong>Formal Query:</strong> {currentFormalQuery}
+              <strong>Formal Query:</strong> <QueryRenderer query={currentFormalQuery} />
             </div>
           )}
           <InputGroup
