@@ -16,20 +16,14 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.20
+### 🆕 New in v.21
 
-- Easily use a given range of previous Daily Notes as context
-- Each LLM response has now a title that summarizes its content (option)
-- Instant tokens estimation & pricing for the selected context
-- Checkbox to include children blocks in prompt (& option to enable it by default)
-- Claude Sonnet 4, OpenAI o3-pro and Grok 3 support (including reasoning & live search)
-
-### 🆕 New in v.18
-
-- Generate or edit images with OpenAI gpt-image-1 model (see [instructions here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#images-generation))
-- Web search support for Anthropic models & Web search command in context menu
-- Generate any Mermaid diagrams (and argument map using Mermaid)
-- Generate or update Roam table or kanban (using 'table' or 'kanban' keyword in your prompt)
+- Use PDF as context for OpenAI or Anthropic models
+- Ask Your Graph agent (complete overhaul): versatile retrieval with multiple semantic expansion strategies and new interface to chat with filtered/selected results
+- MCP agent (for advanced users): make Roam an MCP client
+- New models direct support: gpt-5, Grok 4, DeepSeek V3.1
+- Added {children} option for inline context definition
+- - a lot of fixes
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -246,12 +240,52 @@ You can add your own custom style, using `#liveai/style` tag. See [here](https:/
 
 ### Query Agents
 
-Currently, 4 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first three do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask your graph" agent will have access to the data extracted by the queries to answer your question or proceed with the required processing.
+Currently, 3 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first two do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask your graph" agent can have access to the data extracted by the queries to answer your question or proceed with the required processing (depending on the choose privacy mode).
 
 - **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, [see details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent). Very reliable.
 - **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax. The results are less reliable than with the previous agent because the syntax is much more complex. It works very well for fairly simple queries, more randomly for complex ones. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-q-datomic-agent).
-- **Smart Search Agent**: transform the user requests in a set of Datomic queries relying on .q Roam API, to support more complexe queries with hierarchical conditions. In principle allows for more precise results than previous agents, but it can be slow or even cause momentary freezing for large graphs. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#smart-search-agent).
-- **Ask your graph**: relying on the results of the SmartSearch Agent, proceed to post-processing expressed in the user instructions or question. ⚠️ Use with caution, knowing that this is an experimental feature 🧪. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
+
+- **Ask Your Graph** (🆕 New in v.21): Ask anything to your entire graph, the agent will find the most relevant data to answer your request. Then you can interact and chat with the results to get the best insights!
+
+  - **Versatile retrieval**:  
+    Ask Your Graph is an agent with tools to search for nodes that meet the conditions you provide in natural language. These conditions can be
+
+    - text or exact "quotes",
+    - page references,
+    - regex patterns,
+    - attributes and their values.
+    - time intervals,
+    - specific pages only, or pages included/excluded via DNP,
+
+    Conditions can be combined logically in natural language or using symbols (+ for AND, | for OR, - for NOT). Tip: stick to simple logic so you don’t block too many results. You can always add filters later in the full results view.
+
+    For each condition, different variations can be tested to broaden the search:
+
+    - fuzzy search or syntactic variation using the `*` symbol after a word (or by explicit request),
+    - semantic variations with `~` after a mode (synonyms, related terms, broader terms, or a custom variation defined in your prompt).
+
+    These variations can be included in the initial query or applied after the first round of results. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found.
+
+    The nodes that match these conditions can be:
+
+    - blocks and their children (default search: block + direct children), up to 3 levels deep, with optional conditions for both the parent and at least one child,
+    - pages based on their title,
+    - blocks matching all conditions (specify "in same block" in your query),
+    - pages based on their full content,
+    - pages containing at least one block matching all conditions.
+
+  - **Chat with query results**:
+
+    - Once your query returns results (by default inserted in your graph, limited to 20), you can view, filter, and sort them in the full results view. You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
+    - From there, you can chat directly with the results or with a selected portion. The agent’s responses always reference the actual results. You can instantly connect what the agent says with the related blocks just by hovering over them!
+
+  - **Control the privacy level of your agent usage**:  
+    There are three privacy levels letting you decide what data may become accessible to the AI:
+    - in "private" mode, the AI will never access block content, only their uid and page titles.
+    - in "balanced" mode (and by default in the chat interface), the AI receives block content only at the response synthesis stage; all intermediate steps rely only on uids and page titles.
+    - in "full" mode, the agent may use the content and hierarchy of blocks and pages whenever needed for its search. Results can be more precise, but processing will take longer.
+
+  Ask Your Graph offers many search options, from the simplest to the most complex. Just phrase your request in natural language, the agent does the rest! But if you want to make the most of the agent’s capabilities, check out the detailed documentation: [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
 ### Live Outliner Agent
 
@@ -273,8 +307,8 @@ With Live AI, you generally have control over what you decide to send or not to 
   - DNPs send 3 levels of blocks from the last 7 days (relative)
   - You can also set tags to exclude blocks (and their children) from context
 - regarding agents:
-  - `NL query`, `NL: q Datomic query`, and `Smart Search` only send the natural language query, no graph content is sent to the LLM API !
-  - `Ask your graph`, on the other hand, sends the results of Smart Search (blocks that match the conditions + their direct parent + their first child for pre-selection, and all children up to 3 levels for pre-selected blocks, up to 20). Here, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query.
+  - `NL query`, `NL: q Datomic query`, and `Ask Your Graph` in private mode only send the natural language query, no graph content is sent to the LLM API !
+  - `Ask your graph` in chat or ballanced or full modes, on the other hand, sends to an LLM the results of queries (blocks that match the conditions + their direct parent + and all children up to 3 levels for pre-selected blocks). During the agentic processing of the user request, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query. In the chat with results interface, the user can choose which result has to be sent to the LLM.
   - `Live Outliner Agent` only sends the content of the active Live Outline.
 
 ## 6. Detailed documentation for advanced uses
@@ -291,6 +325,7 @@ With Live AI, you generally have control over what you decide to send or not to 
 
 1. [Query Agents](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md)
 2. [Live Outliner Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md)
+3. [MCP Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/mcp-agent.md)
 
 - **LLM Providers**
 

@@ -177,7 +177,8 @@ export const displaySpinner = async (targetUid) => {
     const currentIndex = frames.indexOf(container.innerText);
     const nextIndex = currentIndex + 1 < frames.length ? currentIndex + 1 : 0;
     container.innerText = frames[nextIndex];
-    if (frames[nextIndex] === " ") container.innerHTML = DOMPurify.sanitize("&nbsp;");
+    if (frames[nextIndex] === " ")
+      container.innerHTML = DOMPurify.sanitize("&nbsp;");
   }
 };
 
@@ -192,7 +193,7 @@ export const removeSpinner = (intervalId) => {
 
 export const insertParagraphForStream = (targetUid) => {
   let targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
-  console.log("targetBlockElt in insertPar... :>> ", targetBlockElt);
+
   if (!targetBlockElt) targetBlockElt = document.querySelector(".rm-block");
   const previousStreamElt = targetBlockElt.querySelector(".speech-stream");
   if (previousStreamElt) previousStreamElt.remove();
