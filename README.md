@@ -59,7 +59,8 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
 
-<img width="600" alt="Live AI controls" src="https://github.com/user-attachments/assets/f0567cce-c0d0-4736-992b-65dbce441d62" />
+<img width="600" alt="Live AI buttons" src="https://github.com/user-attachments/assets/611915cd-678a-42ef-97a5-88f9caf2fc74" />
+
 
 This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
 
