@@ -269,10 +269,10 @@ Ask anything to your entire graph, the agent will find the most relevant data to
   - pages containing at least one block matching all conditions.
 
   Examples of request:
-  `blocks mentioning [[meeting]] and finance`
-  `blocks mentioning [[meeting]] and #important, and John in on of its children`  
-  `Pages where attribute 'status' is #pending`
-  `What are the main topics of my [[meeting]] since one month ?`
+  - `blocks mentioning [[meeting]] and finance`
+  - `blocks mentioning [[meeting]] and #important, and John in on of its children`  
+  - `Pages where attribute 'status' is #pending`
+  - `What are the main topics of my [[meeting]] since one month ?`
 
 - **Fuzzy search and semantic variations**:
   For each condition, different variations can be tested to broaden the search:
@@ -283,14 +283,16 @@ Ask anything to your entire graph, the agent will find the most relevant data to
   These variations can be included in the initial query or applied after the first round of results via a menu. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found.
 
   Examples of request:
-  `[[meeting]] about finance~ since one week`
-  `All pages with design* in the title`
-  `Pages with some color~ in the title (custom semantic variation: list most common colors)`
+  - `[[meeting]] about finance~ since one week`
+  - `All pages with design* in the title`
+  - `Pages with some color~ in the title (custom semantic variation: list most common colors)`
 
 - **Chat with query results**:
 
   - Once your query returns results (by default inserted in your graph, limited to 20), you can view, filter, and sort them in the full results view. You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
   - From there, you can chat directly with the results or with a selected portion. The agent’s responses always reference the actual results. You can instantly connect what the agent says with the related blocks just by hovering over them!
+
+<img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
 
 - **Control the privacy level of your agent usage**:  
   There are three privacy levels letting you decide what data may become accessible to the LLM:
