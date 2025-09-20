@@ -10,6 +10,7 @@ import {
   AIMessage,
   ToolMessage,
 } from "@langchain/core/messages";
+import DOMPurify from "dompurify";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import {
   LlmInfos,
@@ -1564,7 +1565,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
         // Check for cancellation
         if (state.abortSignal?.aborted) {
           if (streamElt) {
-            streamElt.innerHTML += " (⚠️ stream interrupted by user)";
+            streamElt.innerHTML += DOMPurify.sanitize(" (⚠️ stream interrupted by user)");
           }
           finalAnswerContent = streamedContent; // Use what we got so far
           break;
@@ -1575,7 +1576,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
 
         // Update streaming display with detailed logging
         if (streamElt && chunkContent) {
-          streamElt.innerHTML += chunkContent;
+          streamElt.innerHTML += DOMPurify.sanitize(chunkContent);
 
           // Force a repaint by accessing offsetHeight
           streamElt.offsetHeight;
@@ -1606,8 +1607,8 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     } catch (error) {
       console.error("Streaming error:", error);
       if (streamElt) {
-        streamElt.innerHTML +=
-          " (⚠️ streaming failed, generating response normally)";
+        streamElt.innerHTML += DOMPurify.sanitize(
+          " (⚠️ streaming failed, generating response normally)");
       }
       // Fallback to non-streaming
       response = await Promise.race([llm.invoke(messages), abortPromise]);

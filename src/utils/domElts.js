@@ -1,5 +1,6 @@
 // import React from "react";
 import ReactDOM from "react-dom";
+import DOMPurify from "dompurify";
 import InstantButtons from "../components/InstantButtons";
 import {
   extensionStorage,
@@ -176,7 +177,7 @@ export const displaySpinner = async (targetUid) => {
     const currentIndex = frames.indexOf(container.innerText);
     const nextIndex = currentIndex + 1 < frames.length ? currentIndex + 1 : 0;
     container.innerText = frames[nextIndex];
-    if (frames[nextIndex] === " ") container.innerHTML = "&nbsp;";
+    if (frames[nextIndex] === " ") container.innerHTML = DOMPurify.sanitize("&nbsp;");
   }
 };
 

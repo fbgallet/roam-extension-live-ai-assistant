@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 // import { Tiktoken } from "js-tiktoken/lite"; // too big in bundle (almost 3 Mb)
 import axios from "axios";
+import DOMPurify from "dompurify";
 
 import {
   ANTHROPIC_API_KEY,
@@ -617,7 +618,7 @@ export async function claudeCompletion({
         try {
           while (true) {
             if (isCanceledStreamGlobal) {
-              streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+              streamElt.innerHTML += DOMPurify.sanitize("(⚠️ stream interrupted by user)");
               respStr = "";
               break;
             }
@@ -634,7 +635,7 @@ export async function claudeCompletion({
                   if (data.delta.type === "text_delta") {
                     const text = data.delta.text;
                     respStr += text;
-                    streamElt.innerHTML += text;
+                    streamElt.innerHTML += DOMPurify.sanitize(text);
                   } else if (data.delta.type === "thinking_delta") {
                     if (thinkingToasterStream)
                       thinkingToasterStream.innerText += data.delta.thinking;
@@ -692,7 +693,7 @@ export async function claudeCompletion({
               // + `    - > ${cit.cited_text}\n`  // text citation...
             });
           }
-          streamEltCopy = streamElt.innerHTML;
+          streamEltCopy = DOMPurify.sanitize(streamElt.innerHTML);
           if (isCanceledStreamGlobal)
             console.log("Anthropic API response stream interrupted.");
           else streamElt.remove();
@@ -916,7 +917,7 @@ export async function openaiCompletion({
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
           respStr += chunkStr;
-          streamElt.innerHTML += chunkStr;
+          streamElt.innerHTML += DOMPurify.sanitize(chunkStr);
           if (streamData?.delta?.annotations)
             annotations = streamData.delta.annotations;
           if (chunk.usage || chunk.response?.usage) {

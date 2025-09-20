@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { Result, PageDisplayMode } from "./types";
 import { getHighlightedContent } from "./utils/resultProcessing";
 
@@ -26,7 +27,7 @@ export const BlockRenderer: React.FC<{
         if (containerRef.current) {
           const { content } = getHighlightedContent(result, searchFilter);
           if (content && content.includes("<mark")) {
-            containerRef.current.innerHTML = content;
+            containerRef.current.innerHTML = DOMPurify.sanitize(content);
           } else {
             containerRef.current.textContent =
               result.content || result.text || "Unable to render block";

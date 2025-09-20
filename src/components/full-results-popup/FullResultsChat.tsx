@@ -7,6 +7,7 @@ import {
   TextArea,
   Popover,
 } from "@blueprintjs/core";
+import DOMPurify from "dompurify";
 import { invokeSearchAgent } from "../../ai/agents/search-agent/ask-your-graph-invoke";
 import { Result, ChatMessage, ChatMode } from "./types";
 import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/contextExpansion";
@@ -116,7 +117,7 @@ const renderMarkdown = (text: string): string => {
   }
   rendered = rendered.replace(/<p><\/p>/g, "");
 
-  return rendered;
+  return DOMPurify.sanitize(rendered);
 };
 
 export const FullResultsChat: React.FC<FullResultsChatProps> = ({
