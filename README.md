@@ -266,8 +266,9 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 
   Conditions can be combined logically in natural language or using symbols (+ for AND, | for OR, - for NOT). You can also ask for a limited number of result and for random results!
 
-  > [!TIP]
-  > Stick to simple logic so as not to narrow down the search too much from start. You can add filters later in the full results view, select manually most relevant results or let an LLM do this for you as a next step.
+> [!TIP]
+> Stick to simple logic so as not to narrow down the search too much from start.
+> You can add filters later in the full results view, select manually most relevant results or let an LLM do this for you as a next step.
 
   The nodes matching these conditions can be:
 
@@ -302,11 +303,12 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 
   - Once your query returns results (by default inserted in your graph, limited to 20), you can view, filter, and sort them in the full results view.
   - From there, you can chat directly with the results or with a selected portion. The agent’s responses always reference the actual results. You can instantly connect what the agent says with the related blocks just by hovering over them!
+
+  <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
+
   - You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
   - Each user query can be saved for further exploration and the 3 most recents queries remain available. Run "Open results view" command to load and chat with saved queries.
-
-<img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
-
+    
 - **Control the privacy level of your agent usage**:  
   There are three privacy levels letting you decide what data may become accessible to the LLM:
   - in "private" mode, the LLM will never access block content, only their uid and page titles.
