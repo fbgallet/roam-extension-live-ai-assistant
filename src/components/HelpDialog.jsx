@@ -10,7 +10,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         <p>
-          <strong>Live AI</strong> v.20 2025/06/06 by{" "}
+          <strong>Live AI</strong> v.21 2025/09/21 by{" "}
           <a href="https://github.com/sponsors/fbgallet" target="_blank">
             Fabrice Gallet
           </a>
@@ -27,7 +27,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
             <code>Cmd/Win + rigth-click</code>)
           </li>
           <li>
-            <em>Ask to AI (prompt in focused/selected blocks)</em> (also to
+            <em>Ask AI (prompt in focused/selected blocks)</em> (also to
             continue a conversation)
           </li>
           <li>
@@ -52,7 +52,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
             favorite templates for Live Outliner: <code>#liveai/template</code>
           </li>
         </ul>
-        <strong>Useful syntax in Query Agents</strong>:
+        <strong>Useful syntax in Query agents or Ask Your Graph</strong>:
         <ul>
           <li>
             <code>&</code> or <code>+</code> mean 'and'
@@ -64,13 +64,20 @@ const HelpDialog = ({ isOpen, onClose }) => {
             <code>-</code> means 'not'
           </li>
           <li>
-            <code>*</code> for fuzzy search, <code>~</code> for broader semantic
-            search
+            <code>*</code> for fuzzy search, <code>~</code> for semantic search
           </li>
           <li>
-            <code>parent {">"} children</code> and{" "}
-            <code>children {"<"} parent</code> for hierarchical conditions (in
-            Smart Search)
+            <code>parent {">"} direct children</code>
+            {", "}
+            <code>direct children {"<"} parent</code>
+            {", "}
+            <code>parent {">>"} children (up to depth=3)</code>
+            {", "}
+            <code>children {"<<"} parent</code>
+            {", "}
+            for hierarchical conditions,
+            <code>A {"<=>"} B</code> or <code>A {"<<=>>"} B</code>
+            {", "} for bi-directional conditions (in Ask Your Graph)
           </li>
         </ul>
         <strong>
@@ -89,7 +96,11 @@ const HelpDialog = ({ isOpen, onClose }) => {
             Translate (in English): <code>E</code>
           </li>
           <li>
-            Ask to AI, eventually using vocal note as prompt: <code>A</code>
+            Ask AI, eventually using vocal note as prompt: <code>A</code>
+          </li>
+          <li>
+            Ask Your Graph, eventually using vocal note as prompt:{" "}
+            <code>G</code>
           </li>
           <li>
             Live Outliner: <code>O</code>
@@ -182,7 +193,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Query Agents (NL queries, :q, Smart search...)
+                  Query Agents (NL queries, :q queries, Ask Your Grap)
                 </a>
               </li>
               <li>

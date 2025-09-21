@@ -346,11 +346,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           aria-label="More options"
         />
         {isOpen && (
-          <div className="full-results-simple-dropdown-menu">
+          <div className="full-results-simple-dropdown-menu bp3-menu">
             {dropdownOptions.map((option, idx) => (
               <button
                 key={idx}
-                className="full-results-simple-dropdown-item"
+                className="full-results-simple-dropdown-item bp3-menu-item"
                 onClick={() => {
                   option.action();
                   if (!isClosing) {
@@ -458,16 +458,18 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       }}
     >
       <div
-        className={`full-results-modal ${showChat ? "chat-open" : ""} ${
-          chatOnlyMode ? "chat-only" : ""
-        } ${isFullscreen ? "fullscreen" : ""} ${isResizing ? "resizing" : ""}`}
+        className={`bp3-dialog full-results-modal ${
+          showChat ? "chat-open" : ""
+        } ${chatOnlyMode ? "chat-only" : ""} ${
+          isFullscreen ? "fullscreen" : ""
+        } ${isResizing ? "resizing" : ""}`}
       >
-        <div className="full-results-header">
-          <h3 className="full-results-title">{title}</h3>
+        <div className="full-results-header bp3-dialog-header">
+          <h3 className="full-results-title bp3-heading">{title}</h3>
           <div className="full-results-header-controls">
             {showChat && (
               <button
-                className="full-results-control-button"
+                className="full-results-control-button bp3-button bp3-minimal"
                 onClick={handleChatOnlyToggle}
                 title={chatOnlyMode ? "Show results" : "Chat only"}
               >
@@ -475,7 +477,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               </button>
             )}
             <button
-              className="full-results-control-button"
+              className="full-results-control-button bp3-button bp3-minimal"
               onClick={handleFullscreenToggle}
               title={
                 isFullscreen ? "Exit fullscreen (ESC)" : "Fullscreen (F11)"
@@ -483,7 +485,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             >
               <Icon icon={isFullscreen ? "minimize" : "maximize"} size={16} />
             </button>
-            <button className="full-results-close-button" onClick={handleClose}>
+            <button
+              className="full-results-close-button bp3-button bp3-minimal bp3-dialog-close-button"
+              onClick={handleClose}
+            >
               <Icon icon="cross" size={16} />
             </button>
           </div>
@@ -498,13 +503,15 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             }}
           >
             {/* Query Management */}
-            <QueryManager
-              currentUserQuery={currentUserQuery}
-              currentFormalQuery={currentFormalQuery}
-              onQuerySelect={handleQuerySelect}
-              disabled={isExecutingQuery}
-              executionProgress={executionProgress}
-            />
+            <div>
+              <QueryManager
+                currentUserQuery={currentUserQuery}
+                currentFormalQuery={currentFormalQuery}
+                onQuerySelect={handleQuerySelect}
+                disabled={isExecutingQuery}
+                executionProgress={executionProgress}
+              />
+            </div>
 
             {/* Enhanced Controls */}
             <div className="full-results-controls">
@@ -665,7 +672,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                     return (
                       <div
                         key={`${originalIndex}-${expanded}`}
-                        className="full-results-result-item"
+                        className="full-results-result-item bp3-card"
                         data-uid={result.uid}
                       >
                         <input
@@ -762,9 +769,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         </div>
 
         {/* Action Bar - Outside content container */}
-        <div className="full-results-action-bar">
+        <div className="full-results-action-bar bp3-dialog-footer">
           <div className="full-results-selection-controls">
-            <label className="full-results-select-all-checkbox">
+            <label className="full-results-select-all-checkbox bp3-control bp3-checkbox">
               <input
                 type="checkbox"
                 checked={
@@ -776,6 +783,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 onChange={handleSelectAll}
                 className="full-results-checkbox"
               />
+              <span className="bp3-control-indicator"></span>
               Page ({paginatedResults.length})
             </label>
 
