@@ -1,8 +1,8 @@
 # Live AI
 
-**AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam, with no usage limits, paying only for what you use (probably just a few dozen cents per month).**
+**AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam. Interact with your favorite AI directly in Roam blocks, making the most of Roam’s interface to truly extend your thinking rather than just read answers! No usage limits, pay only for what you use (probably just a few dozen cents per month).**
 
-**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, etc.) and get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts and all up-to-date LLMs (even local models through Ollama or OpenAI compatible servers)!**
+**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, images, .pdf, etc.) and get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context, and all up-to-date LLMs (even local models through Ollama or OpenAI compatible servers)!**
 
 **Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, and chat with the results!**
 
@@ -18,9 +18,9 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ### 🆕 New in v.21
 
-- Ask Your Graph agent (complete overhaul): versatile retrieval with multiple semantic expansion strategies and new interface to chat with filtered/selected results
-- MCP agent (for advanced users): make Roam an MCP client
 - Use PDF as context for OpenAI or Anthropic models
+- Ask Your Graph agent (complete overhaul): deep search agent for your Roam graph, with multiple semantic expansion strategies and new interface to chat with filtered/selected results
+- MCP agent (for advanced users): make Roam an MCP client for local or distant servers !
 - New models direct support: gpt-5, Grok 4, DeepSeek V3.1
 - Added {children} option for inline context definition
 
@@ -33,7 +33,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 3. [Going further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-going-further-to-get-better-answers)
 4. [Agents (Query agents, Ask Your Graph and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
-6. [Detailed documentation for advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
+6. [Detailed documentation and advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
 
 ![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
 
@@ -59,7 +59,7 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
 
-<img width="600" alt="Live AI buttons" src="https://github.com/user-attachments/assets/611915cd-678a-42ef-97a5-88f9caf2fc74" />
+<img width="600" alt="Live AI buttons" src="https://github.com/user-attachments/assets/7aac243d-3a0d-4cd7-9d6d-c5075162fee1" />
 
 This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
 
@@ -144,7 +144,7 @@ To define the context, you can either check the corresponding box in the context
 > Thanks to this, you can easily ask your LLMs to mention or cite relevant block uids or block references as sources (they will understand these terms).
 > This is the default behavior but you can disable this feature if you feel that the uids are being handled improperly by your LLMs or are unnecessarily weighing down your prompts (more tokens)
 
-See more details on context definition and inline context [here]((https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
+See more details on context definition and inline context [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-context-definition-and-inline-context)
 
 ### About the cost
 
@@ -245,10 +245,10 @@ You can add your own custom style, using `#liveai/style` tag. See [here](https:/
 
 ### Query Agents
 
-Currently, 3 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first two do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, the "Ask your graph" agent can have access to the data extracted by the queries to answer your question or proceed with the required processing (depending on the choose privacy mode).
+Currently, 3 complementary AI Agents can help users to find precise information in their Roam Graph through natural language queries. The first two do not send any data from your graph to the LLM, they simply interpret the user's request to transform it into native Roam database queries. In contrast, "Ask your graph" agent can have access to the data extracted by the queries to answer your question or proceed with the required processing (depending on privacy mode you choose).
 
 - **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, [see details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent). Very reliable.
-- **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax. The results are less reliable than with the previous agent because the syntax is much more complex. It works very well for fairly simple queries, more randomly for complex ones. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-q-datomic-agent).
+- **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax, supporting more complexes and structured queries than the previous one. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-q-datomic-agent).
 
 ### Ask Your Graph (🆕 New in v.21)
 
@@ -262,9 +262,12 @@ Ask anything to your entire graph, the agent will find the most relevant data to
   - regex patterns,
   - attributes and their values.
   - time intervals,
-  - specific pages only, or pages included/excluded via DNP,
+  - specific pages only, or DNP only/excluded,
 
-  Conditions can be combined logically in natural language or using symbols (+ for AND, | for OR, - for NOT). Tip: stick to simple logic so as not to narrow down the search too much from the start. You can add filters later in the full results view, select manually most relevant results or let an LLM do this for you as a next step.
+  Conditions can be combined logically in natural language or using symbols (+ for AND, | for OR, - for NOT). You can also ask for a limited number of result and for random results!
+
+  > [!TIP]
+  > Stick to simple logic so as not to narrow down the search too much from start. You can add filters later in the full results view, select manually most relevant results or let an LLM do this for you as a next step.
 
   The nodes matching these conditions can be:
 
@@ -278,7 +281,7 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 
   - `blocks mentioning [[meeting]] and finance`
   - `blocks mentioning [[meeting]] and #important, and John in on of its children`
-  - `Pages where attribute 'status' is #pending`
+  - `2 random pages where attribute 'status' is #pending`
   - `What are the main topics of my [[meeting]] since one month ?`
 
 - **Fuzzy search and semantic variations**:
@@ -287,7 +290,7 @@ Ask anything to your entire graph, the agent will find the most relevant data to
   - fuzzy search or syntactic variation using the `*` symbol after a word (or by explicit request),
   - semantic variations with `~` after a mode (synonyms, related terms, broader terms, or a custom variation defined in your prompt).
 
-  These variations can be included in the initial query or applied after the first round of results via a menu. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found.
+  These variations can be included in the initial query or applied after the first round of results via a menu. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found. In settings, you can also force "always fuzzy", "always synonyms" or "always all semantic variations".
 
   Examples of request:
 
@@ -297,8 +300,10 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 
 - **Chat with query results**:
 
-  - Once your query returns results (by default inserted in your graph, limited to 20), you can view, filter, and sort them in the full results view. You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
+  - Once your query returns results (by default inserted in your graph, limited to 20), you can view, filter, and sort them in the full results view.
   - From there, you can chat directly with the results or with a selected portion. The agent’s responses always reference the actual results. You can instantly connect what the agent says with the related blocks just by hovering over them!
+  - You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
+  - Each user query can be saved for further exploration and the 3 most recents queries remain available. Run "Open results view" command to load and chat with saved queries.
 
 <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
 
@@ -334,7 +339,7 @@ With Live AI, you generally have control over what you decide to send or not to 
   - `Ask your graph` in chat or ballanced or full modes, on the other hand, sends to an LLM the results of queries (blocks that match the conditions + their direct parent + and all children up to 3 levels for pre-selected blocks). During the agentic processing of the user request, the user has no control over what is sent to the LLM, since the data captured depends on how the agent interprets the user's initial query. In the chat with results interface, the user can choose which result has to be sent to the LLM.
   - `Live Outliner Agent` only sends the content of the active Live Outline.
 
-## 6. Detailed documentation for advanced uses
+## 6. Detailed documentation and advanced uses
 
 - **Generative AI**
 
