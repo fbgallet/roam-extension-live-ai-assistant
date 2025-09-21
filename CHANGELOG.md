@@ -17,6 +17,7 @@
 
 - "Include Children" option in Live AI context menu is now working properly
 - Inline context is now properly taken into account (e.g. including children of mentioned blocks)
+- better CSS compatibility with Roam Studio & Blueprint extensions
 - OpenRouter models now work with :q Datomic agent and Gemini with Query agent
 
 ## v.20 (June 10th, 2025) DNPs context range

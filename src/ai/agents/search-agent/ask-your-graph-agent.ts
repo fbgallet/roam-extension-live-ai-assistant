@@ -928,8 +928,23 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
 
   // Only show toaster for non-popup executions to avoid duplicate messages
   if (!(state as any).isPopupExecution) {
-    const { updateAgentToaster } = await import("../shared/agentsUtils");
+    // Check if toaster stream is available and wait if needed
+    const { getAgentToasterStream } = await import("../shared/agentsUtils");
+    const toasterStream = getAgentToasterStream();
+
+    if (!toasterStream) {
+      // Wait briefly for toaster to be ready
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
     updateAgentToaster(`🤖 Using ${modelDisplayName}`);
+
+    // Show warning for thinking models
+    if (state.model.thinking) {
+      updateAgentToaster(
+        `⚠️ Thinking models can be very slow to respond with this agent.`
+      );
+    }
   }
 
   // Set default permissions (secure level only unless specified)
@@ -1565,7 +1580,9 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
         // Check for cancellation
         if (state.abortSignal?.aborted) {
           if (streamElt) {
-            streamElt.innerHTML += DOMPurify.sanitize(" (⚠️ stream interrupted by user)");
+            streamElt.innerHTML += DOMPurify.sanitize(
+              " (⚠️ stream interrupted by user)"
+            );
           }
           finalAnswerContent = streamedContent; // Use what we got so far
           break;
@@ -1608,7 +1625,8 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       console.error("Streaming error:", error);
       if (streamElt) {
         streamElt.innerHTML += DOMPurify.sanitize(
-          " (⚠️ streaming failed, generating response normally)");
+          " (⚠️ streaming failed, generating response normally)"
+        );
       }
       // Fallback to non-streaming
       response = await Promise.race([llm.invoke(messages), abortPromise]);

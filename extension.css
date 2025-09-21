@@ -45,14 +45,16 @@
   max-height: 90vh;
   font-size: 13px;
   padding: 5px;
-}
-.search-agent-toaster .bp3-toast,
-.thinking-toaster .bp3-toast,
-.mcp-toaster .bp3-toast {
   resize: both;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.search-agent-toaster .bp3-toast-message,
+.thinking-toaster .bp3-toast-message,
+.mcp-toaster .bp3-toast-message {
+  color: var(--co-app, black);
 }
 
 /* Special overflow handling for search-agent-toaster to allow dropdown to escape */
@@ -1476,7 +1478,8 @@
 }
 
 .full-results-result-item {
-  background: inherit;
+  /* background: inherit; */
+  background: var(--bc-app, white);
   margin-bottom: 8px;
   padding: 6px;
   border: 1px solid #ddd;
