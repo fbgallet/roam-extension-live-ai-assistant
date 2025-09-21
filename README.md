@@ -29,7 +29,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ## Summary
 
 1. [GETTING STARTED](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#1-getting-started)
-2. [Model-Specific Features (Voice, Web search, Image)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-voice-web-search-image)
+2. [Model-Specific Features (Voice, Web search, Image, PDF)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-voice-web-search-image)
 3. [Going further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-going-further-to-get-better-answers)
 4. [Agents (Query agents, Ask Your Graph and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
@@ -51,7 +51,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 Choose the AI models provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
-OpenAI and Anthropic currently provide the most tested models for Live AI, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation. Web Search can be achieved both with specific OpenAI or Anthropic models.
+OpenAI and Anthropic currently provide the most tested models for Live AI, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation. Web Search or PDF reading can be achieved both with specific OpenAI or Anthropic models.
 
 Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
@@ -60,7 +60,6 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
 
 <img width="600" alt="Live AI buttons" src="https://github.com/user-attachments/assets/611915cd-678a-42ef-97a5-88f9caf2fc74" />
-
 
 This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
 
@@ -93,7 +92,7 @@ Once the context menu is open, the first selected command is `Focused block as p
 
 The following 5 ingredients will be part of your requests (the last 3 are optional):
 
-- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them). Note that block references will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
+- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them) or pdf file (only OpenAI and Anthropic models). Note that block references will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
 - **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused block as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
 - **OUTPUT TARGET**: the AI model response will be inserted directly in your graph. By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
@@ -155,7 +154,7 @@ To give you an idea, a request based on about 10 pages of text (4000 words) that
 
 You can track the cost of each request and the total per model for the current and past months by clicking the `$` button at the top of Live AI context menu popup. Learn more about models and providers pricing [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens).
 
-## 2. Model-Specific Features (Voice, Web search, Image)
+## 2. Model-Specific Features (Voice, Web search, Image, PDF)
 
 ### Voice transcription
 
@@ -201,6 +200,12 @@ You can generate images directly embedded in Roam using a prompt (written in a b
 - **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background, you have to specify it in your prompt (or the model will choose by itself)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
 - **Image edition with mask**: you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+
+### Use PDF files as input
+
+OpenAI and Anthropic models supporting images as input support also `.pdf` files in your prompt or in the context. You can insert them both as simple web url or as `{{[[pdf]]: ...}}` component specific to Roam (including the firebase url where your pdf is stored).
+
+You have to know that for each page, text and an image of the page will be sent as input to the LLM: the total tokens count will be greater than for simple text input, even if there is no image in your .pdf.
 
 ## 3. Going further to get better answers
 
@@ -270,8 +275,9 @@ Ask anything to your entire graph, the agent will find the most relevant data to
   - pages containing at least one block matching all conditions.
 
   Examples of request:
+
   - `blocks mentioning [[meeting]] and finance`
-  - `blocks mentioning [[meeting]] and #important, and John in on of its children`  
+  - `blocks mentioning [[meeting]] and #important, and John in on of its children`
   - `Pages where attribute 'status' is #pending`
   - `What are the main topics of my [[meeting]] since one month ?`
 
@@ -284,6 +290,7 @@ Ask anything to your entire graph, the agent will find the most relevant data to
   These variations can be included in the initial query or applied after the first round of results via a menu. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found.
 
   Examples of request:
+
   - `[[meeting]] about finance~ since one week`
   - `All pages with design* in the title`
   - `Pages with some color~ in the title (custom semantic variation: list most common colors)`

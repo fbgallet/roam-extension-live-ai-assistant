@@ -34,6 +34,9 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | **Model**                    | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
 | ---------------------------- | ------------------------- | -------------------------- |
 | **OpenAI**                   |                           |                            |
+| gpt-5-nano                   | $0.05                     | $0.40                      |
+| gpt-5-mini                   | $0.25                     | $2.00                      |
+| gpt-5                        | $1.25                     | $10.00                     |
 | gpt-4.1-nano                 | $0.10                     | $0.40                      |
 | gpt-4.1-mini                 | $0.40                     | $1.60                      |
 | gpt-4.1                      | $2.00                     | $8.00                      |
@@ -55,6 +58,9 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | DeepSeek-V3.1                | $0.56                     | $1.68                      |
 | **Grok**                     |                           |                            |
 | grok-2-1212                  | $2.00                     | $10.00                     |
+| grok-3-mini                  | $0.30                     | $0.50                      |
+| grok-3-mini-fast             | $0.60                     | $4.00                      |
+| grok-3 & grok-4              | $3.00                     | $15.00                     |
 
 (\*) additional pricing for OpenAI Web Search models **by 1k calls** (included as input tokens for each request in Live AI tokens counter):
 

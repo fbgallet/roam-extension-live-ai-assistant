@@ -147,19 +147,19 @@ export const openaiHierarchyConditionSchema = z.object({
     .array(hierarchySearchConditionSchema)
     .min(1)
     .max(10)
-    .optional(),
+    .optional().nullable(),
   leftCombination: z.enum(["AND", "OR"]).default("AND"),
   rightConditions: z
     .array(hierarchySearchConditionSchema)
     .min(1)
     .max(10)
-    .optional(),
+    .optional().nullable(),
   rightCombination: z.enum(["AND", "OR"]).default("AND"),
 
   // Grouped conditions (new - for complex logic)
-  leftConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional(),
+  leftConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional().nullable(),
   leftGroupCombination: z.enum(["AND", "OR"]).default("AND"),
-  rightConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional(),
+  rightConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional().nullable(),
   rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
 
   maxDepth: z.union([z.number().min(1).max(10), z.null()]).default(null),
@@ -187,7 +187,7 @@ export const schema = z.object({
       z.object({
         start: z.union([z.string(), z.null()]).default(null),
         end: z.union([z.string(), z.null()]).default(null),
-        filterMode: z.enum(["created", "modified"]).optional(),
+        filterMode: z.enum(["created", "modified"]).optional().nullable(),
       }),
       z.null(),
     ])
@@ -256,8 +256,8 @@ export const schema = z.object({
     ),
 
   // Legacy internal parameters (kept for backward compatibility)
-  // structuredHierarchyCondition: z.any().optional(),
-  // structuredSearchConditions: z.any().optional(),
+  // structuredHierarchyCondition: z.any().optional().nullable(),
+  // structuredSearchConditions: z.any().optional().nullable(),
 });
 
 // Minimal LLM-facing schema for token optimization
@@ -289,7 +289,7 @@ export const llmFacingSchema = z.object({
             negate: z.boolean().default(false),
           })
         )
-        .optional()
+        .optional().nullable()
         .describe("Left side conditions for hierarchy relationship"),
       leftCombination: z.enum(["AND", "OR"]).default("AND"),
       rightConditions: z
@@ -302,7 +302,7 @@ export const llmFacingSchema = z.object({
             negate: z.boolean().default(false),
           })
         )
-        .optional()
+        .optional().nullable()
         .describe("Right side conditions for hierarchy relationship"),
       rightCombination: z.enum(["AND", "OR"]).default("AND"),
 
@@ -325,7 +325,7 @@ export const llmFacingSchema = z.object({
             combination: z.enum(["AND", "OR"]).default("AND"),
           })
         )
-        .optional()
+        .optional().nullable()
         .describe(
           "Left side condition groups for complex logic like ((A|B) AND NOT C)"
         ),
@@ -348,11 +348,11 @@ export const llmFacingSchema = z.object({
             combination: z.enum(["AND", "OR"]).default("AND"),
           })
         )
-        .optional()
+        .optional().nullable()
         .describe("Right side condition groups for complex logic"),
       rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
     })
-    .optional()
+    .optional().nullable()
     .describe(
       "Structured hierarchy condition with operator and left/right conditions"
     ),
@@ -371,13 +371,13 @@ export const llmFacingSchema = z.object({
     .number()
     .min(1)
     .max(10)
-    .optional()
+    .optional().nullable()
     .describe("ONLY specify if user explicitly requests depth (e.g. 'depth=3'). Otherwise OMIT this field to use automatic depth based on operators."),
 
   // Optional filtering (advanced users)
   excludeBlockUid: z
     .string()
-    .optional()
+    .optional().nullable()
     .describe("Block UID to exclude from results"),
 });
 

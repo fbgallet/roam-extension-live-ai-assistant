@@ -5,15 +5,15 @@ export const schema = z
     // Input - what to fetch details for
     blockUids: z
       .array(z.string())
-      .optional()
+      .optional().nullable()
       .describe("Array of block UIDs to get details for"),
     pageUids: z
       .array(z.string())
-      .optional()
+      .optional().nullable()
       .describe("Array of page UIDs to get details for"),
     fromResultId: z
       .string()
-      .optional()
+      .optional().nullable()
       .describe(
         "Get details for blocks/pages from previous result (e.g., 'findBlocksByContent_001')"
       ),

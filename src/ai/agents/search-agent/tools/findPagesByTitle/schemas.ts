@@ -8,8 +8,8 @@ import { baseConditionSchema } from "../../helpers/conditionGroupsUtils";
 
 // Extend base condition schema for page title specific needs
 export const titleConditionSchema = baseConditionSchema.extend({
-  isSemanticPage: z.boolean().optional(), // Flag for exact titles found via semantic expansion
-  expansionLevel: z.number().optional(), // Track expansion level for relevance scoring
+  isSemanticPage: z.boolean().optional().nullable(), // Flag for exact titles found via semantic expansion
+  expansionLevel: z.number().optional().nullable(), // Track expansion level for relevance scoring
 });
 
 export const schema = z.object({
@@ -20,11 +20,11 @@ export const schema = z.object({
   includeDaily: z.boolean().default(false),
   dateRange: z
     .object({
-      start: z.union([z.date(), z.string()]).optional(),
-      end: z.union([z.date(), z.string()]).optional(),
-      filterMode: z.enum(["created", "modified"]).optional(),
+      start: z.union([z.date(), z.string()]).optional().nullable(),
+      end: z.union([z.date(), z.string()]).optional().nullable(),
+      filterMode: z.enum(["created", "modified"]).optional().nullable(),
     })
-    .optional(),
+    .optional().nullable(),
   limit: z.number().min(1).max(1000).default(100),
 });
 
@@ -55,7 +55,7 @@ export const llmFacingSchema = z.object({
             "all",
             "automatic",
           ])
-          .optional()
+          .optional().nullable()
           .default(undefined)
           .describe(
             "Semantic expansion strategy (only when explicitly requested): fuzzy=typos/variations, synonyms=alternative terms, related_concepts=associated terms, broader_terms=categories, all=comprehensive expansion, automatic=progressive expansion until results (use sparingly)"
@@ -77,10 +77,10 @@ export const llmFacingSchema = z.object({
     .describe("Include Daily Note Pages in results"),
   dateRange: z
     .object({
-      start: z.string().optional().describe("Start date (YYYY-MM-DD)"),
-      end: z.string().optional().describe("End date (YYYY-MM-DD)"),
-      filterMode: z.enum(["created", "modified"]).optional(),
+      start: z.string().optional().nullable().describe("Start date (YYYY-MM-DD)"),
+      end: z.string().optional().nullable().describe("End date (YYYY-MM-DD)"),
+      filterMode: z.enum(["created", "modified"]).optional().nullable(),
     })
-    .optional()
+    .optional().nullable()
     .describe("Limit to pages created within date range"),
 });

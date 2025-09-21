@@ -104,7 +104,7 @@ export const createFullLangChainTool = (
               }
               
               if (!property.required || !property.required.includes(nestedKey)) {
-                nestedZodType = nestedZodType.optional();
+                nestedZodType = nestedZodType.optional().nullable();
               }
               
               nestedZodObject[nestedKey] = nestedZodType;
@@ -130,7 +130,7 @@ export const createFullLangChainTool = (
       }
 
       if (!inputSchema.required || !inputSchema.required.includes(key)) {
-        zodType = zodType.optional();
+        zodType = zodType.optional().nullable();
       }
 
       if (property.default !== undefined) {

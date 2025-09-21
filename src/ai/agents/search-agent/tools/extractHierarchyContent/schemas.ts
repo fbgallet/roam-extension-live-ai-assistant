@@ -69,11 +69,11 @@ export const schema = z
   .object({
     blockUids: z
       .array(z.string().min(9).max(9))
-      .optional()
+      .optional().nullable()
       .describe("Array of block UIDs to extract content from"),
     fromResultId: z
       .string()
-      .optional()
+      .optional().nullable()
       .describe(
         "Extract content from block UIDs in previous result (e.g., 'findBlocksByContent_001')"
       ),

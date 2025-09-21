@@ -4,17 +4,17 @@ export const schema = z.object({
   // Input source - either direct UIDs/titles OR result references
   blockUids: z
     .array(z.string())
-    .optional()
+    .optional().nullable()
     .describe("Array of block UIDs to extract references from"),
   pageUids: z
     .array(z.string())
-    .optional()
+    .optional().nullable()
     .describe(
       "Array of page UIDs - will extract references from all blocks in these pages"
     ),
   pageTitles: z
     .array(z.string())
-    .optional()
+    .optional().nullable()
     .describe(
       "Array of page titles - will extract references from all blocks in these pages"
     ),
@@ -22,7 +22,7 @@ export const schema = z.object({
   // NEW: Reference previous results by ID
   fromResultId: z
     .string()
-    .optional()
+    .optional().nullable()
     .describe(
       "Extract references from blocks/pages in a previous search result (e.g., 'findBlocksByContent_001')"
     ),
@@ -61,19 +61,19 @@ export const schema = z.object({
   // Result lifecycle management
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
-    .optional()
+    .optional().nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for exploration, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
   replacesResultId: z
     .string()
-    .optional()
+    .optional().nullable()
     .describe(
       "If purpose is 'replacement', specify which result ID to replace (e.g., 'extractPageReferences_001')"
     ),
   completesResultId: z
     .string()
-    .optional()
+    .optional().nullable()
     .describe(
       "If purpose is 'completion', specify which result ID this completes (e.g., 'findBlocksByContent_002')"
     ),
@@ -81,18 +81,18 @@ export const schema = z.object({
 
 // Minimal LLM-facing schema - only essential parameters
 export const llmFacingSchema = z.object({
-  blockUids: z.array(z.string()).optional().describe("Block UIDs to analyze"),
-  pageUids: z.array(z.string()).optional().describe("Page UIDs to analyze"),
-  pageTitles: z.array(z.string()).optional().describe("Page titles to analyze"),
+  blockUids: z.array(z.string()).optional().nullable().describe("Block UIDs to analyze"),
+  pageUids: z.array(z.string()).optional().nullable().describe("Page UIDs to analyze"),
+  pageTitles: z.array(z.string()).optional().nullable().describe("Page titles to analyze"),
   fromResultId: z
     .string()
-    .optional()
+    .optional().nullable()
     .describe(
       "Extract from previous search result (e.g., 'findBlocksByContent_001')"
     ),
   excludePages: z
     .array(z.string())
-    .optional()
+    .optional().nullable()
     .describe("Page titles to exclude"),
   excludeDaily: z.boolean().default(false).describe("Exclude daily note pages"),
 });

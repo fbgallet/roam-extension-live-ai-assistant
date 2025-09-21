@@ -8,7 +8,7 @@ export const resultSetSchema = z.object({
     .describe("Type of entities in this result set"),
   metadata: z
     .record(z.any())
-    .optional()
+    .optional().nullable()
     .describe("Additional metadata about the result set"),
 });
 
@@ -54,7 +54,7 @@ export const schema = z.object({
     .describe("Minimum times a UID must appear across all sets to be included"),
   maxAppearances: z
     .number()
-    .optional()
+    .optional().nullable()
     .describe("Maximum times a UID can appear across all sets"),
 
   // Output options

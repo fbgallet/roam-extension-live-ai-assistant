@@ -18,42 +18,42 @@ export const planerSchema = z.object({
             ),
           blockUid: z
             .string()
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "The unique UID of the existing block being updated, completed or moved (make sure that it's strickly 9-characters) (optional)"
             ),
           newContent: z
             .string()
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "The new content to create or to insert in the block, replacing or appended to the former (optional)"
             ),
           newChildren: z
             .string()
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "If the block created has to be the parent of a rich content to be insert as children, provide its this content here. (optional)"
             ),
           targetParentUid: z
             .string()
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "If action is 'create', 'move' or 'reorder', the unique AND existing UID (make sure that it's strickly 9-characters) of the parent block where this block should be created or inserted or reordered, or 'root' if the first level blocks are concerned. If target has no existing identifier, set to 'new', NEVER make up any identifier ! (optional)"
             ),
           newOrder: z
             .array(z.string())
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "If action is 'reorder', an array of the UIDs (only provided ones, and make sure that it's strickly 9-characters, without parentheses!) representing the new order of the concerned blocks (optional)"
             ),
           position: z
             .number()
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "Position (as a number) of a created or moved block in its new level. 0 is first, ignore this key to append as last block (optional)"
@@ -62,25 +62,25 @@ export const planerSchema = z.object({
             .object({
               open: z
                 .boolean()
-                // .optional()
+                // .optional().nullable()
                 .nullable()
                 .describe("block is expanded (true) or collapsed (false)"),
               heading: z
                 .number()
-                // .optional()
+                // .optional().nullable()
                 .nullable()
                 .describe(
                   "set to 0 for normal text (most cases), for title heading : 1 or 2 or 3"
                 ),
               "children-view-type": z
                 .string()
-                // .optional()
+                // .optional().nullable()
                 .nullable()
                 .describe(
                   "bullet|numbered|document, 'document' means 'no bullet'"
                 ),
             })
-            // .optional()
+            // .optional().nullable()
             .nullable()
             .describe(
               "Block format options: needed if action is 'format', optional if 'update', 'append' or 'create'"

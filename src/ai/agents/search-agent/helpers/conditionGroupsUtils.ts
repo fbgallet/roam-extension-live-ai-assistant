@@ -27,7 +27,7 @@ export const baseConditionSchema = z.object({
       "all",
       "automatic",
     ])
-    .optional()
+    .optional().nullable()
     .describe(
       "Semantic expansion strategy. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion, 'automatic' for progressive expansion until results"
     ),
@@ -56,7 +56,7 @@ export const extendedConditionsSchema = z.object({
   // Simple conditions (backward compatible)
   conditions: z
     .array(baseConditionSchema)
-    .optional()
+    .optional().nullable()
     .describe("Simple list of conditions for basic logic"),
   combineConditions: z
     .enum(["AND", "OR"])
@@ -66,7 +66,7 @@ export const extendedConditionsSchema = z.object({
   // Grouped conditions (new advanced feature)
   conditionGroups: z
     .array(conditionGroupSchema)
-    .optional()
+    .optional().nullable()
     .describe("Groups of conditions for complex logic like ((A|B) AND NOT C)"),
   groupCombination: z
     .enum(["AND", "OR"])
