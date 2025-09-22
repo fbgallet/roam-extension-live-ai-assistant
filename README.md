@@ -21,8 +21,13 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - Use PDF as context for OpenAI or Anthropic models
 - Ask Your Graph agent (complete overhaul): deep search agent for your Roam graph, with multiple semantic expansion strategies and new interface to chat with filtered/selected results
 - MCP agent (for advanced users): make Roam an MCP client for local or distant servers !
-- New models direct support: gpt-5, Grok 4, DeepSeek V3.1
+- New models supported natively: GPT-5, Grok 4, DeepSeek V3.1 & reasoning effort setting (see note below)
 - Added {children} option for inline context definition
+
+> [!NOTE]
+> New OpenAI **GPT-5** model is by default a reasoning model and is quite slow, way slower than previous OpenAI non-reasoning models.
+> The reasoning effort is set by default to "low" to make it more responsive; you can change this setting in the settings menu. Setting it to "minimal" will give it a reaction time close to a non-reasoning model.
+> A non-reasoning version of GPT-5 is also available for more reactive generative AI use (but it will be automatically replaced by GPT-5-mini for agent, being not compatible with tools call)
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -270,20 +275,20 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 > Stick to simple logic so as not to narrow down the search too much from start.
 > You can add filters later in the full results view, select manually most relevant results or let an LLM do this for you as a next step.
 
-  The nodes matching these conditions can be:
+The nodes matching these conditions can be:
 
-  - blocks and their children (default search: block + direct children), up to 3 levels deep, with optional conditions for both the parent and at least one child,
-  - pages based on their title,
-  - blocks matching all conditions (specify "in same block" in your query),
-  - pages based on their full content,
-  - pages containing at least one block matching all conditions.
+- blocks and their children (default search: block + direct children), up to 3 levels deep, with optional conditions for both the parent and at least one child,
+- pages based on their title,
+- blocks matching all conditions (specify "in same block" in your query),
+- pages based on their full content,
+- pages containing at least one block matching all conditions.
 
-  Examples of request:
+Examples of request:
 
-  - `blocks mentioning [[meeting]] and finance`
-  - `blocks mentioning [[meeting]] and #important, and John in on of its children`
-  - `2 random pages where attribute 'status' is #pending`
-  - `What are the main topics of my [[meeting]] since one month ?`
+- `blocks mentioning [[meeting]] and finance`
+- `blocks mentioning [[meeting]] and #important, and John in on of its children`
+- `2 random pages where attribute 'status' is #pending`
+- `What are the main topics of my [[meeting]] since one month ?`
 
 - **Fuzzy search and semantic variations**:
   For each condition, different variations can be tested to broaden the search:
@@ -308,7 +313,7 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 
   - You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
   - Each user query can be saved for further exploration and the 3 most recents queries remain available. Run "Open results view" command to load and chat with saved queries.
-    
+
 - **Control the privacy level of your agent usage**:  
   There are three privacy levels letting you decide what data may become accessible to the LLM:
   - in "private" mode, the LLM will never access block content, only their uid and page titles.

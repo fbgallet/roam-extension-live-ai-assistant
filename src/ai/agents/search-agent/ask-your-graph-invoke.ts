@@ -121,6 +121,8 @@ const invokeSearchAgentInternal = async ({
   const abortController = new AbortController();
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
+  if (llmInfos.id === "gpt-5-chat-latest")
+    llmInfos = modelAccordingToProvider("gpt-5-mini");
   const spinnerId = displaySpinner(rootUid);
 
   // Initialize toaster for progress tracking with stop functionality

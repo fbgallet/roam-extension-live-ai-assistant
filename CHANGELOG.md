@@ -9,15 +9,16 @@
 **Updates**
 
 - gpt-5, Grok 4 and DeepSeek V3.1 native support
+- reasoning effort setting for OpenAI/Anthropic/Grok thinking models (minimal/low/medium/high)
 - Added `{children}` option for inline context definition (can be used with Live AI SmartBlocks commands)
-- optimized :q queries generation (removing :block/uid clause when not needed) ?
+- Optimized :q queries generation (removing :block/uid clause when not needed) ?
 - DNP context: don't include anymore today page (unless from a non-dnp), respecting "previous DNP" indication
 
 **Fixed**
 
 - "Include Children" option in Live AI context menu is now working properly
 - Inline context is now properly taken into account (e.g. including children of mentioned blocks)
-- better CSS compatibility with Roam Studio & Blueprint extensions
+- Better CSS compatibility with Roam Studio & Blueprint extensions
 - OpenRouter models now work with :q Datomic agent and Gemini with Query agent
 
 ## v.20 (June 10th, 2025) DNPs context range

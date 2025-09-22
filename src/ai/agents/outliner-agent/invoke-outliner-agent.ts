@@ -68,6 +68,8 @@ export const invokeOutlinerAgent = async ({
     retryReasons,
     stringifiedContext;
   let llmInfos: LlmInfos = modelAccordingToProvider(model || defaultModel);
+  if (llmInfos.id === "gpt-5-chat-latest")
+    llmInfos = modelAccordingToProvider("gpt-5-mini");
   turnTokensUsage = { input_tokens: 0, output_tokens: 0 };
   if (!rootUid) rootUid = await extensionStorage.get("outlinerRootUid");
   if (!rootUid) return;

@@ -94,6 +94,8 @@ export const invokeMCPAgent = async ({
   console.log("🚀 Starting invokeMCPAgent with roamContext:", roamContext);
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
+  if (llmInfos.id === "gpt-5-chat-latest")
+    llmInfos = modelAccordingToProvider("gpt-5-mini");
   const spinnerId = displaySpinner(rootUid);
 
   displayMCPToast("");
@@ -137,7 +139,10 @@ export const invokeMCPAgent = async ({
           withUid: true,
           uidToExclude: null,
         });
-        console.log("✅ Context extracted successfully, length:", contextContent.length);
+        console.log(
+          "✅ Context extracted successfully, length:",
+          contextContent.length
+        );
       } catch (error) {
         console.error("❌ Failed to extract Roam context:", error);
         // Continue without context rather than failing
@@ -257,7 +262,6 @@ export const invokeMCPAgent = async ({
       roamContextContent: contextContent,
     });
 
-
     if (mcpToasterStream) {
       mcpToasterStream.innerText += `\n🎉 MCP Agent completed successfully!`;
     }
@@ -318,7 +322,6 @@ export const invokeMCPAgent = async ({
 
     return response;
   } catch (error) {
-
     if (mcpToasterStream) {
       mcpToasterStream.innerText += `\n💥 Error: ${error.message}`;
     }
@@ -408,7 +411,6 @@ ${conversationToSummarize}
         exchangesSinceLastSummary: 0, // Reset counter after summarization
       };
     } catch (error) {
-
       // Update toaster with error
       if (toasterElement) {
         toasterElement.innerText = toasterElement.innerText.replace(
