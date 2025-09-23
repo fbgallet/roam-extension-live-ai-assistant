@@ -960,12 +960,12 @@ DISPLAY RULES:
 - Count the exact number of items in the data and report appropriately: "Found X matching blocks/pages/results"
 
 EXACT FORMAT REQUIRED:
-For BLOCKS:
+For BLOCKS (isBlock: true)
 Found [original total] matching blocks [here are the first 20]:
 - {{[[embed-path]]: ((first-uid))}}
 - {{[[embed-path]]: ((second-uid))}}
 
-For PAGES:
+For PAGES (isPage: true):
 Found [original total] matching pages [here are the first 20]:
 - [[First Page Title]]
 - [[Second Page Title]]
@@ -985,7 +985,8 @@ Found [original total] matching results:
 - Use natural language: "I notice that...", "It looks like...", "Based on what I'm seeing..."
 - For small result sets (≤15): Show results with conversational commentary
 - For larger result sets: Highlight the most interesting findings and ask if they want to explore specific areas
-- Use block embeds {{[[embed-path]]: ((real-uid))}} for key examples you're discussing
+- For block results (isBlock:true), use block embeds '{{[[embed-path]]: ((real-uid))}}' for key examples you're discussing
+- For page results (isPage:true), use '[[title]]' syntax
 - Group results by themes with conversational explanations
 - End with engaging follow-up suggestions: "Would you like me to explore...", "I could also look into...", "Anything specific you'd like me to focus on?"
 
@@ -1001,8 +1002,8 @@ CONVERSATION FORMATTING:
 - Use your judgment to select most relevant results to display
 - For small result sets (≤15): Usually show all results with analysis
 - For larger result sets: Show most relevant results, summarize patterns and key insights
-- Use block embeds {{[[embed-path]]: ((real-uid))}} for key examples
-- For PAGE REFERENCES: List as [[Page Title]] (count references) with context
+- For PAGE REFERENCES (isPage:true): List as [[Page Title]] (count references) with context
+- Use block embeds for block results (isBlock:true) {{[[embed-path]]: ((real-uid))}} for key examples BUT DON'T embed page results
 - Add contextual comments, group by themes, and provide insights based on the data
 - When not showing all results, explain your selection approach and mention total count
 - Make your response valuable by highlighting patterns, connections, and key findings`;
