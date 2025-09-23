@@ -1,5 +1,7 @@
 import {
   chatRoles,
+  defaultModel,
+  defaultStyle,
   extensionStorage,
   getInstantAssistantRole,
   isUsingWhisper,
@@ -7,6 +9,7 @@ import {
 import {
   aiCompletionRunner,
   copyTemplate,
+  getStylePrompt,
   insertCompletion,
 } from "../ai/responseInsertion";
 import { specificContentPromptBeforeTemplate } from "../ai/prompts";
@@ -26,6 +29,9 @@ import {
 import { invokeNLQueryInterpreter } from "../ai/agents/nl-query";
 import { invokeNLDatomicQueryInterpreter } from "../ai/agents/nl-datomic-query";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
+import { invokeMCPAgent } from "../ai/agents/mcp-agent/invoke-mcp-agent";
+import { invokeSearchAgent } from "../ai/agents/search-agent/ask-your-graph-invoke";
+import { mcpManager } from "../ai/agents/mcp-agent/mcpManager";
 import {
   getContextFromSbCommand,
   getFlattenedContentFromTree,
@@ -246,9 +252,9 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     help: `Live AI text generation and chat.
       \nParameters:
       \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
-      \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
+      \n2: context or content to apply the prompt to (text | block ref | {current} | {children} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference | {replace[-]} | {append} (default: first child)
-      \n4: model (default Live AI model or model ID)
+      \n4: model (model ID or void string or "default" for default Live AI model)
       \n5: levels within the refs/log to include in the context (number, default fixed in settings)
       \n6: includes all block references in context (true/false, default: false)`,
     handler:
@@ -279,6 +285,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         });
 
         insertCompletion({
+          systemPrompt: getStylePrompt(defaultStyle),
           prompt: stringifiedPrompt,
           targetUid,
           context: stringifiedContext,
@@ -295,9 +302,9 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     help: `Live AI response following a template.
       \nParameters:
       \n1: template ({children} or block ref, default: children blocks)
-      \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
+      \n2: context or content to apply the prompt to (text | block ref | {current} | {children} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference (default: first child)
-      \n4: model (default Live AI model or model ID)
+      \n4: model (model ID or void string or "default" for default Live AI model)
       \n5: levels within the refs/log to include in the context (number, default fixed in settings)
       \n6: includes all block references in context (true/false, default: false)`,
     handler:
@@ -374,13 +381,11 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     text: "LIVEAIAGENT",
     help: `Live AI Agent calling.
       \nParameters:
-      \n1: Agent name
+      \n1: Agent name (nlquery, qquery or datomic, mcp:servername, search or askyourgraph)
       \n2: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
-      \n2: context or content to apply the prompt to (text | block ref | {current} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
+      \n2: context or content to apply the prompt to (text | block ref | {current} | {children} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference (default: first child)
-      \n4: model (default Live AI model or model ID)`,
-    // \n5: levels within the refs/log to include in the context (number, default fixed in settings)
-    // \n6: includes all block references in context (true/false, default: false),
+      \n4: model (model ID or void string or "default" for default Live AI model)`,
     handler:
       (sbContext) =>
       async (agent, prompt = "{current}", context, target, model) => {
@@ -395,7 +400,15 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
             model,
             isRoleToInsert: false,
           });
-        const agentName = agent.toLowerCase().trim().replace("agent", "");
+        let agentName = agent.toLowerCase().trim().replace("agent", "");
+        let mcpServerName = null;
+
+        // Check if it's MCP with server name format: "mcp:server name"
+        if (agentName.startsWith("mcp:")) {
+          mcpServerName = agentName.substring(4).trim(); // Remove "mcp:" prefix
+          agentName = "mcp";
+        }
+
         switch (agentName) {
           case "nlquery":
             await invokeNLQueryInterpreter({
@@ -405,8 +418,59 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
               prompt: stringifiedPrompt,
             });
             break;
+          case "qquery":
+          case "datomic":
+            await invokeNLDatomicQueryInterpreter({
+              model: instantModel || model,
+              rootUid: currentUid,
+              targetUid,
+              prompt: stringifiedPrompt,
+            });
+            break;
+          case "mcp":
+            // For MCP agent, find server by name if specified
+            const connectedServers = mcpManager.getConnectedServers();
+            if (connectedServers.length === 0) {
+              return "ERROR: No MCP servers connected. Please configure an MCP server first.";
+            }
+
+            let targetServer;
+            if (mcpServerName) {
+              // Find server by name (case insensitive, partial match)
+              targetServer = connectedServers.find((server) =>
+                server.name.toLowerCase().includes(mcpServerName.toLowerCase())
+              );
+              if (!targetServer) {
+                return `ERROR: MCP server containing "${mcpServerName}" not found. Available servers: ${connectedServers
+                  .map((s) => s.name)
+                  .join(", ")}`;
+              }
+            } else {
+              // Use first available server if no specific server name provided
+              targetServer = connectedServers[0];
+            }
+
+            await invokeMCPAgent({
+              model: instantModel || model,
+              rootUid: currentUid,
+              targetUid,
+              prompt: stringifiedPrompt,
+              serverId: targetServer.serverId,
+              serverName: targetServer.name,
+            });
+            break;
+          case "askyourgraph":
+          case "search":
+            await invokeSearchAgent({
+              model: instantModel || model,
+              rootUid: currentUid,
+              targetUid,
+              target: "",
+              prompt: stringifiedPrompt,
+            });
+            break;
           default:
-            return "ERROR: a correct agent name is needed as first parameter of this SmartBlock. Available agents: nlagent.";
+            return "ERROR: a correct agent name is needed as first parameter of this SmartBlock. Available agents: nlquery, qquery or datomic, mcp:servername, search or askyourgraph.";
         }
         return "";
       },
@@ -444,6 +508,7 @@ const getInfosFromSmartBlockParams = async ({
   includeRefs,
   isRoleToInsert = true,
 }) => {
+  if (!model || model === "default") model = defaultModel;
   const assistantRole = isRoleToInsert
     ? model
       ? getInstantAssistantRole(model)
@@ -469,16 +534,13 @@ const getInfosFromSmartBlockParams = async ({
         if (promptUid) {
           stringifiedPrompt +=
             (stringifiedPrompt ? "\n\n" : "") +
-            getFlattenedContentFromTree(
-              promptUid,
-              99,
-              // includeChildren === "false"
-              //   ? 1
-              //   : isNaN(parseInt(includeChildren))
-              //   ? 99
-              //   : parseInt(includeChildren),
-              0
-            );
+            getFlattenedContentFromTree({
+              parentUid: promptUid,
+              maxCapturing: 99,
+              maxUid: 0,
+              withDash: true,
+            });
+          console.log("stringifiedPrompt :>> ", stringifiedPrompt);
         } else
           stringifiedPrompt += (stringifiedPrompt ? "\n\n" : "") + subPrompt;
       }

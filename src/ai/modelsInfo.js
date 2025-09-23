@@ -39,11 +39,11 @@ export const getAvailableModels = (provider) => {
       return ["DeepSeek-V3.1", "DeepSeek-V3.1 Thinking"];
     case "Grok":
       return [
+        "Grok-4",
+        "Grok-3",
         "Grok-3-mini",
         "Grok-3-mini-fast",
         "Grok-3-mini-high",
-        "Grok-3",
-        "Grok-4",
         "Grok-3-fast",
         "Grok-2 Vision",
       ];

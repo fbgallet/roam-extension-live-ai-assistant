@@ -627,7 +627,9 @@ export const getDateStringFromDnpUid = (dnpUid) => {
 };
 
 export const extractNormalizedUidFromRef = (str, testIfExist = true) => {
-  if (!str || (str && !(str.length === 9 || str.length === 13))) return "";
+  if (!str) return "";
+  str = str.trim();
+  if (!(str.length === 9 || str.length === 13)) return "";
   const matchingResult = str.match(flexibleUidRegex);
   if (!matchingResult) return "";
   return testIfExist

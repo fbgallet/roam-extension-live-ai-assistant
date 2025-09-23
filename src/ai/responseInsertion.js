@@ -195,16 +195,7 @@ export const aiCompletionRunner = async ({
   // console.log("prompt in aiCompletionRunner :>> ", prompt);
   console.log("roamContext in aiCompletionRunner :>> ", roamContext);
 
-  if (style !== "Normal") {
-    let stylePromptText;
-    if (BUILTIN_STYLES.includes(style)) stylePromptText = stylePrompts[style];
-    else {
-      const customStl = customStyles.find((custom) => custom.name === style);
-      if (customStl) stylePromptText = customStl.prompt;
-    }
-    if (stylePromptText)
-      systemPrompt = introduceStylePrompt + stylePromptText + "\n";
-  }
+  systemPrompt = getStylePrompt(style);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
@@ -583,3 +574,16 @@ export async function insertChildrenBlocksRecursively(
   }
   return uidsToExclude;
 }
+
+export const getStylePrompt = (style) => {
+  if (style === "Normal") return;
+  let stylePromptText;
+  if (BUILTIN_STYLES.includes(style)) stylePromptText = stylePrompts[style];
+  else {
+    const customStl = customStyles.find((custom) => custom.name === style);
+    if (customStl) stylePromptText = customStl.prompt;
+  }
+  if (stylePromptText)
+    stylePromptText = introduceStylePrompt + stylePromptText + "\n";
+  return stylePromptText;
+};
