@@ -259,8 +259,8 @@ Currently, 3 complementary AI Agents can help users to find precise information 
 
 Ask anything to your entire graph, the agent will find the most relevant data to answer your request. Then you can interact and chat with the results to get the best insights!
 
-- **Versatile retrieval**:  
-  Ask Your Graph is an agent with tools to search for nodes that meet the conditions you provide in natural language. These conditions can be:
+#### **Versatile retrieval**:  
+Ask Your Graph is an agent with tools to search for nodes that meet the conditions you provide in natural language. These conditions can be:
 
   - text or exact "quotes",
   - page references,
@@ -285,42 +285,42 @@ The nodes matching these conditions can be:
 
 Examples of request:
 
-- `blocks mentioning [[meeting]] and finance`
-- `blocks mentioning [[meeting]] and #important, and John in on of its children`
-- `2 random pages where attribute 'status' is #pending`
-- `What are the main topics of my [[meeting]] since one month ?`
+  - `blocks mentioning [[meeting]] and finance`
+  - `blocks mentioning [[meeting]] and #important, and John in one of its children`
+  - `2 random pages where attribute 'status' is #pending`
+  - `What are the main topics of my [[meeting]] since one month ?`
 
-- **Fuzzy search and semantic variations**:
-  For each condition, different variations can be tested to broaden the search:
+#### **Fuzzy search and semantic variations**:
+For each condition, different variations can be tested to broaden the search:
 
   - fuzzy search or syntactic variation using the `*` symbol after a word (or by explicit request),
   - semantic variations with `~` after a mode (synonyms, related terms, broader terms, or a custom variation defined in your prompt).
 
-  These variations can be included in the initial query or applied after the first round of results via a menu. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found. In settings, you can also force "always fuzzy", "always synonyms" or "always all semantic variations".
+These variations can be included in the initial query or applied after the first round of results via a menu. By default, if no results are found, the agent will first try fuzzy search, then semantic variations until at least one result is found. In settings, you can also force "always fuzzy", "always synonyms" or "always all semantic variations".
 
-  Examples of request:
+Examples of request:
 
-  - `[[meeting]] about finance~ since one week`
-  - `All pages with design* in the title`
-  - `Pages with some color~ in the title (custom semantic variation: list most common colors)`
+  - `[[meeting]] about finance~ since one week` (will search for finance and a list of synonyms)
+  - `All pages with design* in the title` (fuzzy search on 'design')
+  - `Pages with some color~ in the title (custom semantic variation: list most common colors)` (LLM generated list of common colors as search terms)
 
-- **Chat with query results**:
+#### **Chat with query results**:
 
-  - Once your query returns results (by default inserted in your graph, limited to 20), you can view, filter, and sort them in the full results view.
-  - From there, you can chat directly with the results or with a selected portion. The agent’s responses always reference the actual results. You can instantly connect what the agent says with the related blocks just by hovering over them!
+  - Once your query returns results (by default inserted in your graph in Private mode, limited to 20, or selected and commented in Balanced/Full modes), you can view, filter, and sort them in the full results view.
+  - From there, you can chat directly with the results or with a selected subset of results. In its responses, the agent will reference the concerned results. You can instantly connect what the agent says with the related blocks just by hovering over them!
 
   <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
 
-  - You can also take an existing query or :q query as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
+  - You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
   - Each user query can be saved for further exploration and the 3 most recents queries remain available. Run "Open results view" command to load and chat with saved queries.
 
-- **Control the privacy level of your agent usage**:  
-  There are three privacy levels letting you decide what data may become accessible to the LLM:
-  - in "private" mode, the LLM will never access block content, only their uid and page titles.
-  - in "balanced" mode (and by default in the chat interface), the LLM receives block content only at the response synthesis stage; all intermediate steps rely only on uids and page titles.
-  - in "full" mode, the agent may use the content and hierarchy of blocks and pages whenever needed for its search. Results can be more precise, but processing will take longer.
+#### **Control the privacy level of your agent usage**:  
+There are three privacy levels letting you decide what data may become accessible to the LLM:
+  - in "Private" mode, the LLM will never access block content, only their uid and page titles.
+  - in "Balanced" mode (and by default in the chat interface), the LLM receives block content only at the response synthesis stage; all intermediate steps rely only on uids and page titles.
+  - in "Full" mode, the agent may use the content and hierarchy of blocks and pages whenever needed for its search. Results can be more precise, but processing will take longer.
 
-Ask Your Graph offers many search options, from the simplest to the most complex. Just phrase your request in natural language, the agent does the rest! But if you want to make the most of the agent’s capabilities, check out the detailed documentation: [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
+Ask Your Graph offers many search options, from the simplest to the most complex. Just phrase your request in natural language (or use voice transcription!), the agent does the rest! But if you want to make the most of the agent’s capabilities, check out the detailed documentation: [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
 ### Live Outliner Agent
 
