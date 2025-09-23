@@ -1093,7 +1093,7 @@ export async function withAutomaticExpansion<T, R>(
     purpose: inputAny.purpose || ("final" as const),
     sortBy: inputAny.sortBy || ("relevance" as const),
     sortOrder: inputAny.sortOrder || ("desc" as const),
-    limit: inputAny.limit || 500,
+    limit: inputAny.limit || 3000,
     summaryLimit: inputAny.summaryLimit || 20,
     childDepth: inputAny.childDepth || 2,
     parentDepth: inputAny.parentDepth || 1,

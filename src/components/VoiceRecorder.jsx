@@ -370,6 +370,24 @@ function VoiceRecorder({
     if (model) instantModel.current = model;
     lastCommand.current = "askYourGraph";
     blocksSelectionUids.current = getBlocksSelectionUids();
+
+    // Check if no block is focused - if so, invoke current page references
+    const currentBlock = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+    if (!currentBlock && !blocksSelectionUids.current?.length) {
+      // Import and call invokeCurrentPageReferences
+      const { invokeCurrentPageReferences } = await import("../ai/agents/search-agent/ask-your-graph-invoke");
+      try {
+        await invokeCurrentPageReferences({
+          model: instantModel.current || defaultModel,
+        });
+        initialize(true); // Reset the component state
+        return;
+      } catch (error) {
+        console.error("Error invoking current page references:", error);
+        // Fall through to normal processing if this fails
+      }
+    }
+
     initializeProcessing(e);
   };
 

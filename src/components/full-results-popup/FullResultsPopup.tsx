@@ -26,6 +26,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   permissions = { contentAccess: false },
   userQuery,
   formalQuery,
+  forceOpenChat = false,
 }) => {
   // Query execution state
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
@@ -107,7 +108,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleClearAllReferences,
     resetChatConversation,
     handleExpandedToggle,
-  } = useFullResultsState(currentResults, isOpen);
+  } = useFullResultsState(currentResults, isOpen, forceOpenChat);
 
   // Query selection handler
   const handleQuerySelect = async (query: StoredQuery | "current") => {

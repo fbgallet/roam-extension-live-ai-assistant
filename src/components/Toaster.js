@@ -430,7 +430,8 @@ export const openFullResultsPopup = (
   results,
   targetUid = null,
   userQuery = null,
-  formalQuery = null
+  formalQuery = null,
+  forceOpenChat = false
 ) => {
   // Remove any existing popup first
   const existingContainer = document.getElementById(
@@ -458,6 +459,7 @@ export const openFullResultsPopup = (
       targetUid: targetUid,
       userQuery: userQuery,
       formalQuery: formalQuery,
+      forceOpenChat: forceOpenChat,
     });
   };
 

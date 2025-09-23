@@ -877,11 +877,14 @@ const invokeSearchAgentInternal = async ({
           import("../../../components/Toaster.js")
             .then(({ openFullResultsPopup }) => {
               if (openFullResultsPopup) {
+                const userQuery = response?.userQuery || finalPrompt;
+                const forceOpenChat = userQuery?.startsWith("all linked references of [[") || false;
                 openFullResultsPopup(
                   fullResults,
                   response?.targetUid,
-                  response?.userQuery || finalPrompt,
-                  response?.formalQuery
+                  userQuery,
+                  response?.formalQuery,
+                  forceOpenChat
                 );
               }
             })
@@ -1162,4 +1165,115 @@ export const invokeSearchAgentFull = async ({
     agentData: previousAgentState,
     options,
   });
+};
+
+/**
+ * Specialized function to invoke Ask Your Graph for linked references of the current page
+ * This function handles page detection, creates the formal query, and bypasses IntentParser
+ */
+export const invokeCurrentPageReferences = async ({
+  model = defaultModel,
+  rootUid, // This might be undefined when no block is focused - we'll use currentPageUid instead
+  targetUid,
+  target,
+}: {
+  model?: string;
+  rootUid?: string; // Make optional since we might not have a focused block
+  targetUid?: string;
+  target?: string;
+}) => {
+  // Import necessary functions
+  const { getMainPageUid, getPageNameByPageUid } = await import("../../../utils/roamAPI");
+
+  try {
+    // Get current page information
+    const currentPageUid = await getMainPageUid();
+    if (!currentPageUid) {
+      throw new Error("No current page found");
+    }
+
+    // Get page name for the query
+    const pageName = getPageNameByPageUid(currentPageUid);
+    if (!pageName || pageName === "undefined") {
+      throw new Error("Could not get page name");
+    }
+
+    // Create the formal query for page references
+    const formalQuery = `ref:${pageName}`;
+    const userQuery = `all linked references of [[${pageName}]]`;
+
+    // Create agent data with pre-computed IntentParser-like state
+    const agentData = {
+      // Skip IntentParser since we already have the formal query
+      isPrivacyModeUpdated: true,
+      // Force popup-only results
+      forcePopupOnly: true,
+      // Pre-computed IntentParser-like results
+      formalQuery: formalQuery,
+      userIntent: userQuery,
+      searchStrategy: "direct" as const,
+      queryComplexity: "simple" as const,
+      strategicGuidance: {
+        approach: "single_search" as const,
+        recommendedSteps: [`Search for all blocks that reference [[${pageName}]]`],
+      },
+      language: "English",
+      confidence: 1.0,
+      // Force uids_only mode for higher limits and better performance in popup
+      searchDetails: {
+        maxResults: 3000, // Set high limit for page references
+      },
+      // Force uids_only mode at top level for the assistant to use
+      resultMode: "uids_only",
+      // Conversation state initialization
+      toolResultsCache: {},
+      cachedFullResults: {},
+      hasLimitedResults: false,
+      conversationHistory: [],
+      conversationSummary: undefined,
+      exchangesSinceLastSummary: 0,
+      isConversationMode: false,
+      resultSummaries: {},
+      resultStore: {},
+      nextResultId: 1,
+    };
+
+    // Use currentPageUid as rootUid if rootUid is not provided (no focused block)
+    const effectiveRootUid = rootUid || currentPageUid;
+
+    // Call the search agent with pre-computed state and force private mode
+    const response = await invokeSearchAgentSecure({
+      model,
+      rootUid: effectiveRootUid,
+      targetUid: targetUid || effectiveRootUid,
+      target: target || "new",
+      prompt: userQuery,
+      permissions: { contentAccess: false }, // Use secure mode
+      privateMode: true, // Force private mode since we're only showing results in popup
+      previousAgentState: agentData,
+    });
+
+    // Ensure the response includes IntentParser fields for lastIntentParserResult update
+    return {
+      ...response,
+      formalQuery: formalQuery,
+      userQuery: userQuery,
+      searchStrategy: "direct",
+      analysisType: "simple",
+      language: "English",
+      confidence: 1.0,
+      datomicQuery: formalQuery,
+      needsPostProcessing: false,
+      postProcessingType: undefined,
+      isExpansionGlobal: false,
+      semanticExpansion: undefined,
+      customSemanticExpansion: undefined,
+      searchDetails: {
+        maxResults: 3000,
+      },
+    };
+  } catch (error) {
+    console.error("Error in invokeCurrentPageReferences:", error);
+    throw error;
+  }
 };

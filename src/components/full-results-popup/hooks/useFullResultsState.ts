@@ -24,7 +24,7 @@ import {
 import { getSelectedResultsList } from "../utils/chatHelpers";
 import { extensionStorage } from "../../..";
 
-export const useFullResultsState = (results: Result[], isOpen: boolean) => {
+export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpenChat: boolean = false) => {
   // Selection state
   const [selectedResults, setSelectedResults] = useState<Set<number>>(
     new Set()
@@ -126,8 +126,8 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
       setCurrentPage(1);
       setViewMode("mixed"); // Always show mixed view by default
 
-      // Reset chat state only on popup open (not just toggle)
-      setShowChat(false);
+      // Set chat state based on forceOpenChat flag
+      setShowChat(forceOpenChat);
 
       // Reset references filters
       setIncludedReferences([]);
@@ -137,7 +137,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean) => {
       setBlockContentMap(new Map());
       setChildrenContentMap(new Map());
     }
-  }, [isOpen]);
+  }, [isOpen, forceOpenChat]);
 
   // References state
   const [availableReferences, setAvailableReferences] = useState<

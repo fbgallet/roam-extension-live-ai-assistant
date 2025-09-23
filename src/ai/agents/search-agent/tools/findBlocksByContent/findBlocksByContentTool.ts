@@ -293,6 +293,13 @@ export const findBlocksByContentImpl = async (
     );
     finalResults = finalResults.slice(0, 100);
     wasLimited = true;
+  } else if (resultMode === "uids_only" && finalResults.length > 3000) {
+    // General limit for uids_only mode for popup display (independent of security mode)
+    updateAgentToaster(
+      `⚡ Limiting to 3000 of ${finalResults.length} results for popup display`
+    );
+    finalResults = finalResults.slice(0, 3000);
+    wasLimited = true;
   } else if (resultMode === "full" && finalResults.length > 300) {
     // EMERGENCY SAFEGUARD: Full mode should NEVER return unlimited results
     updateAgentToaster(

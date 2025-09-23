@@ -642,21 +642,18 @@ export const StandaloneContextMenu = () => {
 
   const filterCommandsInternal = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
-    
+
     // Skip if command should be hidden based on current default privacy mode
     if (item.hideIfDefaultMode) {
-      const { getCurrentAskGraphMode } = require("../../ai/agents/search-agent/ask-your-graph");
+      const {
+        getCurrentAskGraphMode,
+      } = require("../../ai/agents/search-agent/ask-your-graph");
       const currentMode = getCurrentAskGraphMode();
       if (item.hideIfDefaultMode === currentMode) {
         return false;
       }
     }
-    
-    // Hide "Ask your graph - Last results" if no results are available
-    if (!query && item.id === 93) {
-      const results = window.lastAskYourGraphResults;
-      return results && Array.isArray(results) && results.length > 0;
-    }
+
     if (
       item.name === "Text to Speech" &&
       !(
@@ -677,6 +674,30 @@ export const StandaloneContextMenu = () => {
     // if any block is focused or selected, and no context is selected
     if (item.id === 102 && !hasTrueBooleanKey(roamContextRef.current))
       return false;
+
+    // ✨ ASK YOUR GRAPH CONDITIONAL FILTERING: Show different commands based on focus state
+    const hasFocusedBlock = !!focusedBlockUid?.current;
+
+    // If no block is focused, show only the new "Ask Linked References" command (id: 95) and "Open Results view" (id: 94)
+    // Hide the regular Ask Your Graph commands (id: 92, 920, 921, 922, 93)
+    if (!hasFocusedBlock) {
+      if ([92, 920, 921, 922, 93].includes(item.id)) {
+        return false; // Hide regular Ask Your Graph commands when no block is focused
+      }
+    }
+
+    // If a block is focused, show regular Ask Your Graph commands but hide the "Ask Linked References" command (id: 95)
+    if (hasFocusedBlock) {
+      if (item.id === 95) {
+        return false; // Hide "Ask Linked References" command when a block is focused
+      }
+    }
+
+    // Hide "Ask your graph - Last results" if no results are available
+    if (!query && item.id === 94) {
+      const results = window.lastAskYourGraphResults;
+      return results && Array.isArray(results) && results.length > 0;
+    }
 
     // ✨ SIMPLIFIED MCP FILTERING: Show only MCP AGENTS (no complex submenu logic needed)
 
@@ -813,7 +834,9 @@ export const StandaloneContextMenu = () => {
 
                 // Skip if subCommand should be hidden based on current default privacy mode
                 if (subCommand.hideIfDefaultMode) {
-                  const { getCurrentAskGraphMode } = require("../../ai/agents/search-agent/ask-your-graph");
+                  const {
+                    getCurrentAskGraphMode,
+                  } = require("../../ai/agents/search-agent/ask-your-graph");
                   const currentMode = getCurrentAskGraphMode();
                   if (subCommand.hideIfDefaultMode === currentMode) {
                     return null;

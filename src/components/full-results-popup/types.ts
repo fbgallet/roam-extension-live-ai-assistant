@@ -28,6 +28,8 @@ export interface FullResultsPopupProps {
   // Query information for display
   userQuery?: string;
   formalQuery?: string;
+  // Force chat to open initially
+  forceOpenChat?: boolean;
 }
 
 export type ViewMode = "blocks" | "pages" | "mixed";
