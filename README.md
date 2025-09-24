@@ -313,7 +313,7 @@ Examples of request:
 
   <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
 
-- If no block is focused, clicking on Ask Your Graph icon or running "**Ask Linked References of current page**" from the context menu open the linked references in the full view results, allowing to filter/select some of them and chat with them!
+- A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results, allowing to filter/select some of them and chat with them!
 - You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
 - Each user query can be saved for further exploration and the 3 most recents queries remain available. Run "Open results view" command to load and chat with saved queries.
 

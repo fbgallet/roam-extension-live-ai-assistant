@@ -1241,7 +1241,72 @@ export const invokeCurrentPageReferences = async ({
     // Use currentPageUid as rootUid if rootUid is not provided (no focused block)
     const effectiveRootUid = rootUid || currentPageUid;
 
-    // Call the search agent with pre-computed state and force private mode
+    // OPTIMIZATION: For simple ref queries, bypass the entire agent and call the tool directly
+    if (formalQuery.match(/^ref:[^:]+$/)) {
+      console.log(`🚀 [invokeCurrentPageReferences] Direct tool execution for: ${formalQuery}`);
+
+      // Import the tool directly
+      const { findBlocksByContentImpl } = await import("./tools/findBlocksByContent/findBlocksByContentTool");
+
+      try {
+        // Extract page name from ref:PageName
+        const pageName = formalQuery.replace('ref:', '');
+
+        // Call the tool directly with optimal parameters
+        const toolResult = await findBlocksByContentImpl({
+          conditions: [{ type: 'page_ref', text: pageName }],
+          combineConditions: 'AND',
+          includeChildren: false,
+          includeParents: false,
+          includeDaily: true,
+          dailyNotesOnly: false,
+          sortBy: 'relevance',
+          sortOrder: 'desc',
+          limit: 3000,
+          resultMode: 'uids_only',
+          secureMode: true, // Force secure mode for popup
+          userQuery: userQuery,
+          excludeBlockUid: effectiveRootUid, // Exclude the context block
+        });
+
+        // Import and open the popup directly
+        const { openFullResultsPopup } = await import("../../../components/Toaster.js");
+        if (openFullResultsPopup && toolResult.results) {
+          openFullResultsPopup(
+            toolResult.results,
+            null, // No targetUid for direct tool execution
+            userQuery,
+            formalQuery,
+            true // Force open chat
+          );
+        }
+
+        // Return a minimal response object
+        return {
+          userQuery: userQuery,
+          formalQuery: formalQuery,
+          searchStrategy: "direct",
+          analysisType: "simple",
+          language: "English",
+          confidence: 1.0,
+          datomicQuery: formalQuery,
+          needsPostProcessing: false,
+          postProcessingType: undefined,
+          isExpansionGlobal: false,
+          semanticExpansion: undefined,
+          customSemanticExpansion: undefined,
+          searchDetails: { maxResults: 3000 },
+          forceOpenChat: true,
+          directToolExecution: true, // Flag to indicate this was a direct execution
+          toolResults: toolResult,
+        };
+      } catch (toolError) {
+        console.warn("Direct tool execution failed, falling back to agent:", toolError);
+        // Fall through to normal agent execution if direct tool call fails
+      }
+    }
+
+    // Fall back to normal agent execution for complex queries or if direct execution failed
     const response = await invokeSearchAgentSecure({
       model,
       rootUid: effectiveRootUid,

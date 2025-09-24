@@ -223,14 +223,15 @@ export const BUILTIN_COMMANDS = [
   {
     id: 95,
     name: "Ask Linked References of current page",
-    callback: (args) => invokeCurrentPageReferences({
-      model: args.model,
-      rootUid: args.rootUid, // This might be undefined, which our function handles
-      targetUid: args.targetUid,
-      target: args.target,
-    }),
+    callback: (args) =>
+      invokeCurrentPageReferences({
+        model: args.model,
+        rootUid: args.rootUid, // This might be undefined, which our function handles
+        targetUid: args.targetUid,
+        target: args.target,
+      }),
     category: "QUERY AGENTS",
-    icon: "git-branch",
+    icon: "chat",
     isIncompatibleWith: {
       outliner: true,
     },

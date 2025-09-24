@@ -15,6 +15,7 @@ import AskGraphModeDialog from "../components/AskGraphModeDialog";
 import AskGraphFirstTimeDialog from "../components/AskGraphFirstTimeDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
+import { invokeCurrentPageReferences } from "../ai/agents/search-agent/ask-your-graph-invoke";
 
 export function mountComponent(
   position,
@@ -464,3 +465,64 @@ export const toggleOutlinerSelection = (targetUid, isSelected) => {
     mountComponent(position, { outlineState: isSelected }, false);
   }
 };
+
+// Event listeners for page navigation
+export function addPageNavigationListeners() {
+  window.addEventListener("popstate", onPageLoad);
+}
+
+export function removePageNavigationListeners() {
+  window.removeEventListener("popstate", onPageLoad);
+}
+
+export function onPageLoad() {
+  setTimeout(() => {
+    insertAskLinkedReferencesButton();
+  }, 50);
+}
+
+// Insert the Ask Linked References button in the references section
+function insertAskLinkedReferencesButton() {
+  // Check if we're in a context where references section exists
+  const referencesContainer = document.querySelector(".rm-reference-container");
+  if (!referencesContainer) return;
+
+  const flexContainer = referencesContainer.querySelector(".flex-h-box");
+  if (!flexContainer) return;
+
+  const mentionsSearch = flexContainer.querySelector(".rm-mentions-search");
+  if (!mentionsSearch) return;
+
+  // Check if button already exists
+  const existingButton = flexContainer.querySelector(".ask-linked-refs-button");
+  if (existingButton) return;
+
+  // Create the button
+  const button = document.createElement("button");
+  button.className = "bp3-button bp3-minimal bp3-small ask-linked-refs-button";
+  button.style.marginRight = "2px";
+  button.innerHTML = `
+    <span class="bp3-icon bp3-icon-chat" style="padding: 0 7px;"></span>
+  `;
+  button.title = "Live AI: Ask Linked Refenreces of this page";
+
+  // Add click handler
+  button.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      await invokeCurrentPageReferences({});
+    } catch (error) {
+      console.error("Error invoking current page references:", error);
+      AppToaster.show({
+        message: `Failed to ask linked references: ${error.message}`,
+        intent: "warning",
+        timeout: 5000,
+      });
+    }
+  });
+
+  // Insert button before the mentions search
+  flexContainer.insertBefore(button, mentionsSearch);
+}

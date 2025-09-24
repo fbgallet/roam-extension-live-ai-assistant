@@ -372,10 +372,13 @@ function VoiceRecorder({
     blocksSelectionUids.current = getBlocksSelectionUids();
 
     // Check if no block is focused - if so, invoke current page references
-    const currentBlock = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+    const currentBlock =
+      window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     if (!currentBlock && !blocksSelectionUids.current?.length) {
       // Import and call invokeCurrentPageReferences
-      const { invokeCurrentPageReferences } = await import("../ai/agents/search-agent/ask-your-graph-invoke");
+      const { invokeCurrentPageReferences } = await import(
+        "../ai/agents/search-agent/ask-your-graph-invoke"
+      );
       try {
         await invokeCurrentPageReferences({
           model: instantModel.current || defaultModel,
@@ -515,9 +518,9 @@ function VoiceRecorder({
           ? blocksSelectionUids.current[0]
           : null);
       if (!instantRootUid) return;
-      
+
       // Calculate the prompt that will be used for Ask Your Graph
-      const calculatedPrompt = 
+      const calculatedPrompt =
         prompt ||
         (blocksSelectionUids.current?.length
           ? getResolvedContentFromBlocks(
@@ -530,7 +533,7 @@ function VoiceRecorder({
                 window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
               )
             ));
-      
+
       try {
         await askYourGraph({
           model: instantModel.current || defaultModel,
@@ -540,7 +543,7 @@ function VoiceRecorder({
       } catch (error) {
         if (error.message === "MODE_ESCALATION_NEEDED") {
           // Import the dialog function and show mode selection dialog
-            displayAskGraphModeDialog({
+          displayAskGraphModeDialog({
             currentMode: error.currentMode,
             suggestedMode: error.suggestedMode,
             userQuery: calculatedPrompt,
@@ -570,13 +573,13 @@ function VoiceRecorder({
                   timeout: 5000,
                 });
               }
-            }
+            },
           });
         } else {
           console.error("Ask Your Graph error:", error);
           AppToaster.show({
             message: `Ask Your Graph failed: ${error.message}`,
-            intent: "warning", 
+            intent: "warning",
             timeout: 5000,
           });
         }
@@ -937,6 +940,8 @@ function VoiceRecorder({
               content={
                 <p>
                   Ask You Graph Agent (focused/selected content as prompt) (G)
+                  <br /> <br />
+                  or if no focused block: Ask Linked References of current page
                   <br /> <br />
                   <b>Right-click</b> to switch model
                 </p>

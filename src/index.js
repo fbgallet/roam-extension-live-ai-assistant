@@ -15,6 +15,9 @@ import {
   removeContainer,
   toggleComponentVisibility,
   unmountComponent,
+  addPageNavigationListeners,
+  removePageNavigationListeners,
+  onPageLoad,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
@@ -1533,6 +1536,11 @@ export default {
 
     initializeContextMenu();
 
+    // Add navigation listeners for Ask Linked References button
+    addPageNavigationListeners();
+    // Initial call to insert button on current page
+    onPageLoad();
+
     await extensionAPI.settings.panel.create(getPanelConfig());
 
     console.log("Extension loaded.");
@@ -1542,6 +1550,9 @@ export default {
     removeContainer(position);
 
     cleanupContextMenu();
+
+    // Remove navigation listeners
+    removePageNavigationListeners();
 
     console.log("Extension unloaded");
   },
