@@ -3,8 +3,9 @@
 **New features**
 
 - Ask Your Graph agent (replace previous Smart Search and Ask your Graph): retrieve, process or chat with results
+- Ask Linked References button: instant chat with linked refs (relying on Ask Your Graph)
 - MCP Agent: turn Roam into MCP Client for local or remote (HTTP) MCP servers
-- .pdf files supported in prompt or context for OpenAI or Anthropic models supporting image as input
+- PDF supported in prompt or context for OpenAI or Anthropic models supporting image as input
 
 **Updates**
 
@@ -314,3 +315,4 @@
 - Reference to focused block to append transcription or use as context was not working
 - Block selection was not taken into account if made after start of recording
 - Default settings were not visible on installation
+
