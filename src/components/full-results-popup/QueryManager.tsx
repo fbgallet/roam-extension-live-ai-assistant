@@ -26,7 +26,7 @@ import {
 // Component to render queries using renderString API for clickable links
 const QueryRenderer: React.FC<{ query: string; prefix?: string }> = ({
   query,
-  prefix = ""
+  prefix = "",
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -45,12 +45,7 @@ const QueryRenderer: React.FC<{ query: string; prefix?: string }> = ({
     }
   }, [query, prefix]);
 
-  return (
-    <div
-      ref={containerRef}
-      style={{ flex: 1, display: "inline" }}
-    />
-  );
+  return <div ref={containerRef} style={{ flex: 1, display: "inline" }} />;
 };
 
 // Types for the Select component
@@ -591,7 +586,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   };
 
   return (
-    <div className="query-manager-container">
+    <div className="query-manager-expandable">
       {/* Compact header - always visible */}
       <div
         className="query-manager-header"
@@ -646,12 +641,14 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 return (
                   <>
                     <div className="current-query-preview">
-                      <strong>Query:</strong> <QueryRenderer query={currentUserQuery} />
+                      <strong>Query:</strong>{" "}
+                      <QueryRenderer query={currentUserQuery} />
                     </div>
                     {currentFormalQuery &&
                       currentFormalQuery !== currentUserQuery && (
                         <div className="current-formal-query-preview">
-                          <strong>Formal Query:</strong> <QueryRenderer query={currentFormalQuery} />
+                          <strong>Formal Query:</strong>{" "}
+                          <QueryRenderer query={currentFormalQuery} />
                         </div>
                       )}
                   </>
@@ -665,16 +662,82 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   const selectedQuery = selectedItem.query;
                   return (
                     <div className="stored-query-details">
-                      <div className="stored-query-preview">
-                        <strong>Query:</strong> <QueryRenderer query={selectedQuery.userQuery} />
-                      </div>
-                      {selectedQuery.formalQuery &&
-                        selectedQuery.formalQuery !==
-                          selectedQuery.userQuery && (
-                          <div className="stored-formal-query-preview">
-                            <strong>Formal Query:</strong> <QueryRenderer query={selectedQuery.formalQuery} />
+                      {selectedQuery.isComposed ? (
+                        <div className="composed-query-details">
+                          <div className="composed-query-header">
+                            <strong>Composed Query</strong>
+                            <small> ({(selectedQuery.querySteps?.length || 0) + (selectedQuery.pageSelections?.length || 0)} components)</small>
                           </div>
-                        )}
+
+                          {/* Initial Query */}
+                          <div className="query-step">
+                            <div className="query-step-header">
+                              <span className="query-step-label">1. Initial Query:</span>
+                            </div>
+                            <div className="query-step-content">
+                              <QueryRenderer query={selectedQuery.userQuery} />
+                            </div>
+                            {selectedQuery.formalQuery && selectedQuery.formalQuery !== selectedQuery.userQuery && (
+                              <div className="query-step-formal">
+                                <small><strong>Formal:</strong> <QueryRenderer query={selectedQuery.formalQuery} /></small>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Additional Query Steps */}
+                          {selectedQuery.querySteps?.map((step, index) => (
+                            <div key={index} className="query-step">
+                              <div className="query-step-header">
+                                <span className="query-step-label">{index + 2}. Added Query:</span>
+                              </div>
+                              <div className="query-step-content">
+                                <QueryRenderer query={step.userQuery} />
+                              </div>
+                              {step.formalQuery && step.formalQuery !== step.userQuery && (
+                                <div className="query-step-formal">
+                                  <small><strong>Formal:</strong> <QueryRenderer query={step.formalQuery} /></small>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Page Selections */}
+                          {selectedQuery.pageSelections?.map((page, index) => (
+                            <div key={index} className="page-selection">
+                              <div className="query-step-header">
+                                <span className="query-step-label">{(selectedQuery.querySteps?.length || 0) + index + 2}. Added Pages:</span>
+                              </div>
+                              <div className="page-selection-content">
+                                <QueryRenderer query={`[[${page.title}]]`} />
+                                <small className="page-selection-options">
+                                  {page.includeContent && page.includeLinkedRefs
+                                    ? " (content + linked refs)"
+                                    : page.includeContent
+                                    ? " (content only)"
+                                    : " (linked refs only)"}
+                                  {page.dnpPeriod && ` • ${page.dnpPeriod} days`}
+                                </small>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="simple-query-details">
+                          <div className="stored-query-preview">
+                            <strong>Query:</strong>{" "}
+                            <QueryRenderer query={selectedQuery.userQuery} />
+                          </div>
+                          {selectedQuery.formalQuery &&
+                            selectedQuery.formalQuery !==
+                              selectedQuery.userQuery && (
+                              <div className="stored-formal-query-preview">
+                                <strong>Formal Query:</strong>{" "}
+                                <QueryRenderer query={selectedQuery.formalQuery} />
+                              </div>
+                            )}
+                        </div>
+                      )}
+
                       <div className="stored-query-metadata">
                         <small>
                           <strong>Created:</strong>{" "}
@@ -838,11 +901,13 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         <div className={Classes.DIALOG_BODY}>
           <p>Save the current query for later use:</p>
           <div className="current-query-preview">
-            <strong>Query:</strong> <QueryRenderer query={currentUserQuery || ""} />
+            <strong>Query:</strong>{" "}
+            <QueryRenderer query={currentUserQuery || ""} />
           </div>
           {currentFormalQuery && currentFormalQuery !== currentUserQuery && (
             <div className="current-formal-query-preview">
-              <strong>Formal Query:</strong> <QueryRenderer query={currentFormalQuery} />
+              <strong>Formal Query:</strong>{" "}
+              <QueryRenderer query={currentFormalQuery} />
             </div>
           )}
           <InputGroup

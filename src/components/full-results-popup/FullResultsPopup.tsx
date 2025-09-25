@@ -6,6 +6,7 @@ import {
   Checkbox,
   Icon,
 } from "@blueprintjs/core";
+import { Select } from "@blueprintjs/select";
 import { createChildBlock } from "../../utils/roamAPI.js";
 import { FullResultsPopupProps, Result } from "./types";
 import { FullResultsChat } from "./FullResultsChat";
@@ -14,6 +15,8 @@ import { useFullResultsState } from "./hooks/useFullResultsState";
 import { canUseChat } from "./utils/chatHelpers";
 import { ReferencesFilterPopover } from "./ReferencesFilterPopover";
 import { QueryManager } from "./QueryManager";
+import DirectContentSelector from "./DirectContentSelector";
+import QueryComposer from "./QueryComposer";
 import { StoredQuery } from "../../ai/agents/search-agent/helpers/queryStorage";
 import { executeQueryWithLiveUpdates } from "../../ai/agents/search-agent/helpers/livePopupExecution";
 
@@ -32,6 +35,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
   const [executionProgress, setExecutionProgress] = useState<string>("");
   const [currentResults, setCurrentResults] = useState(results);
+
   const [currentUserQuery, setCurrentUserQuery] = useState(userQuery);
   const [currentFormalQuery, setCurrentFormalQuery] = useState(formalQuery);
   const {
@@ -101,6 +105,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleSelectAll,
     handleSelectAllResults,
     getSelectedResultsArray,
+    forceUIRefresh,
     handleClose,
     toggleChat,
     handleIncludeReference,
@@ -108,17 +113,44 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleClearAllReferences,
     resetChatConversation,
     handleExpandedToggle,
-  } = useFullResultsState(currentResults, isOpen, forceOpenChat);
+
+    // Query Composer state and handlers
+    showQueryComposer,
+    composerQuery,
+    isComposingQuery,
+    setComposerQuery,
+    handleComposerExecute,
+    toggleQueryComposer,
+
+    // Direct Content Selector state and handlers
+    selectedPages,
+    includePageContent,
+    includeLinkedRefs,
+    dnpPeriod,
+    isAddingDirectContent,
+    availablePages,
+    isLoadingPages,
+    currentPageContext,
+    setSelectedPages,
+    setIncludePageContent,
+    setIncludeLinkedRefs,
+    setDNPPeriod,
+    handleDirectContentAdd,
+    queryAvailablePages,
+  } = useFullResultsState(currentResults, isOpen, forceOpenChat, targetUid);
 
   // Query selection handler
   const handleQuerySelect = async (query: StoredQuery | "current") => {
     if (query === "current") {
-      // Reset to original results
+      // Reset to original results with full state clearing
       setCurrentResults(results);
       setCurrentUserQuery(userQuery);
       setCurrentFormalQuery(formalQuery);
       setExecutionProgress("");
       resetChatConversation(); // Reset chat when switching back to original query
+
+      // Clear all UI state to ensure clean display
+      forceUIRefresh();
       return;
     }
 
@@ -128,8 +160,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setCurrentUserQuery(query.userQuery);
     setCurrentFormalQuery(query.formalQuery);
 
-    // Clear previous results immediately when starting new query
+    // Clear all state immediately when starting new query to ensure clean UI
     setCurrentResults([]);
+    forceUIRefresh();
     resetChatConversation(); // Reset chat when executing a new stored query
 
     try {
@@ -504,15 +537,85 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             }}
           >
             {/* Query Management */}
-            <div>
-              <QueryManager
-                currentUserQuery={currentUserQuery}
-                currentFormalQuery={currentFormalQuery}
-                onQuerySelect={handleQuerySelect}
-                disabled={isExecutingQuery}
-                executionProgress={executionProgress}
+            <div className="query-manager-container">
+              <div className="query-manager-wrapper">
+                <QueryManager
+                  currentUserQuery={currentUserQuery}
+                  currentFormalQuery={currentFormalQuery}
+                  onQuerySelect={handleQuerySelect}
+                  disabled={isExecutingQuery}
+                  executionProgress={executionProgress}
+                />
+              </div>
+
+              {/* Query Composer Button */}
+              <Button
+                icon={showQueryComposer ? "minus" : "plus"}
+                onClick={toggleQueryComposer}
+                minimal
+                title="Add new query"
+                className="query-composer-toggle"
               />
             </div>
+
+            {/* Query Tools Expandable Interface */}
+            {showQueryComposer && (
+              <div className="query-composer-interface">
+                {/* Query Composer Section */}
+                <QueryComposer
+                  composerQuery={composerQuery}
+                  isComposingQuery={isComposingQuery}
+                  onQueryChange={setComposerQuery}
+                  onExecuteQuery={async (mode: "add" | "replace", model?: string) => {
+                    // For replace mode, clear results immediately to show empty state
+                    if (mode === "replace") {
+                      setCurrentResults([]);
+                      forceUIRefresh(); // Force immediate UI update to show empty state
+                    }
+
+                    // Execute the query and get results directly in parent
+                    const newResults = await handleComposerExecute(currentResults, mode, model);
+
+                    if (newResults && newResults.length > 0) {
+                      if (mode === "replace") {
+                        setCurrentResults([...newResults]);
+                        // Force refresh AFTER setting new results
+                        forceUIRefresh();
+                      } else {
+                        // Add mode - combine with existing
+                        const existingUids = new Set(currentResults.map(r => r.uid));
+                        const uniqueNewResults = newResults.filter(r => !existingUids.has(r.uid));
+                        setCurrentResults([...currentResults, ...uniqueNewResults]);
+                        forceUIRefresh();
+                      }
+                    }
+                  }}
+                />
+
+                {/* Direct Content Selector Section */}
+                <DirectContentSelector
+                  selectedPages={selectedPages}
+                  includePageContent={includePageContent}
+                  includeLinkedRefs={includeLinkedRefs}
+                  dnpPeriod={dnpPeriod}
+                  isAddingDirectContent={isAddingDirectContent}
+                  availablePages={availablePages}
+                  isLoadingPages={isLoadingPages}
+                  currentPageContext={currentPageContext}
+                  onPageSelectionChange={setSelectedPages}
+                  onContentTypeChange={(type, checked) => {
+                    if (type === "content") setIncludePageContent(checked);
+                    else if (type === "linkedRefs")
+                      setIncludeLinkedRefs(checked);
+                  }}
+                  onDNPPeriodChange={setDNPPeriod}
+                  onAddContent={() =>
+                    handleDirectContentAdd(currentResults, setCurrentResults)
+                  }
+                  onQueryPages={queryAvailablePages}
+                />
+              </div>
+            )}
 
             {/* Enhanced Controls */}
             <div className="full-results-controls">

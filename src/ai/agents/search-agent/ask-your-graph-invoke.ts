@@ -873,24 +873,28 @@ const invokeSearchAgentInternal = async ({
             };
           }
 
-          // Import and open the popup automatically
-          import("../../../components/Toaster.js")
-            .then(({ openFullResultsPopup }) => {
-              if (openFullResultsPopup) {
-                const userQuery = response?.userQuery || finalPrompt;
-                const forceOpenChat = userQuery?.startsWith("all linked references of [[") || false;
-                openFullResultsPopup(
-                  fullResults,
-                  response?.targetUid,
-                  userQuery,
-                  response?.formalQuery,
-                  forceOpenChat
-                );
-              }
-            })
-            .catch((error) => {
-              console.error("Failed to open FullResultsPopup:", error);
-            });
+          // Import and open the popup automatically (unless called from query composer)
+          if (rootUid !== "query-composer") {
+            import("../../../components/Toaster.js")
+              .then(({ openFullResultsPopup }) => {
+                if (openFullResultsPopup) {
+                  const userQuery = response?.userQuery || finalPrompt;
+                  const forceOpenChat = userQuery?.startsWith("all linked references of [[") || false;
+                  openFullResultsPopup(
+                    fullResults,
+                    response?.targetUid,
+                    userQuery,
+                    response?.formalQuery,
+                    forceOpenChat
+                  );
+                }
+              })
+              .catch((error) => {
+                console.error("Failed to open FullResultsPopup:", error);
+              });
+          } else {
+            console.log("🔧 [QueryComposer] Skipping popup opening - called from query composer");
+          }
 
           // Return early to skip conversation buttons and Roam block insertion
           return {
@@ -1269,16 +1273,20 @@ export const invokeCurrentPageReferences = async ({
           excludeBlockUid: effectiveRootUid, // Exclude the context block
         });
 
-        // Import and open the popup directly
-        const { openFullResultsPopup } = await import("../../../components/Toaster.js");
-        if (openFullResultsPopup && toolResult.results) {
-          openFullResultsPopup(
-            toolResult.results,
-            null, // No targetUid for direct tool execution
-            userQuery,
-            formalQuery,
-            true // Force open chat
-          );
+        // Import and open the popup directly (unless called from query composer)
+        if (rootUid !== "query-composer") {
+          const { openFullResultsPopup } = await import("../../../components/Toaster.js");
+          if (openFullResultsPopup && toolResult.results) {
+            openFullResultsPopup(
+              toolResult.results,
+              null, // No targetUid for direct tool execution
+              userQuery,
+              formalQuery,
+              true // Force open chat
+            );
+          }
+        } else {
+          console.log("🔧 [QueryComposer] Skipping popup opening - called from query composer (direct tool execution)");
         }
 
         // Return a minimal response object

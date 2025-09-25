@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Result,
   ViewMode,
@@ -6,7 +6,6 @@ import {
   SortBy,
   SortOrder,
   ChatMessage,
-  ChatMode,
   DNPFilter,
 } from "../types";
 import {
@@ -22,9 +21,14 @@ import {
   detectDNPDistribution,
 } from "../utils/resultProcessing";
 import { getSelectedResultsList } from "../utils/chatHelpers";
-import { extensionStorage } from "../../..";
+import { defaultModel, extensionStorage } from "../../..";
 
-export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpenChat: boolean = false) => {
+export const useFullResultsState = (
+  results: Result[],
+  isOpen: boolean,
+  forceOpenChat: boolean = false,
+  targetUid?: string | null
+) => {
   // Selection state
   const [selectedResults, setSelectedResults] = useState<Set<number>>(
     new Set()
@@ -34,6 +38,12 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
   );
   const [isClosing, setIsClosing] = useState(false);
 
+  // Current page context state
+  const [currentPageContext, setCurrentPageContext] = useState<{
+    uid: string | null;
+    title: string | null;
+  }>({ uid: null, title: null });
+
   // Filtering and sorting state
   const [searchFilter, setSearchFilter] = useState("");
   const [pageFilter, setPageFilter] = useState("all");
@@ -42,6 +52,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [resultsPerPage, setResultsPerPage] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
+
   // Load preferences from storage or use defaults
   const getStoredPreferences = () => {
     const stored = extensionStorage.get("fullResultsPreferences") || {};
@@ -116,6 +127,33 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
   const [includedReferences, setIncludedReferences] = useState<string[]>([]);
   const [excludedReferences, setExcludedReferences] = useState<string[]>([]);
 
+  // Query Composer state (Phase 1)
+  const [showQueryComposer, setShowQueryComposer] = useState(false);
+  const [composerQuery, setComposerQuery] = useState("");
+  const [isComposingQuery, setIsComposingQuery] = useState(false);
+
+  // Direct Content Selector state
+  const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [includePageContent, setIncludePageContent] = useState(true);
+  const [includeLinkedRefs, setIncludeLinkedRefs] = useState(true);
+  const [dnpPeriod, setDNPPeriod] = useState<number>(7); // Default to last 7 days
+  const [isAddingDirectContent, setIsAddingDirectContent] = useState(false);
+  const [availablePages, setAvailablePages] = useState<string[]>([]);
+  const [isLoadingPages, setIsLoadingPages] = useState(false);
+
+  // Force refresh mechanism - This is the key fix for the UI refresh issue
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Function to force UI refresh when new results are set
+  const forceUIRefresh = useCallback(() => {
+    console.log("🔄 [useFullResultsState] Forcing UI refresh for new results");
+    setRefreshTrigger(prev => prev + 1);
+    // Reset pagination to first page
+    setCurrentPage(1);
+    // Clear selected results
+    setSelectedResults(new Set());
+  }, []);
+
   // Reset state when popup opens
   useEffect(() => {
     if (isOpen) {
@@ -136,8 +174,97 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
       setFilteredAndSortedResults([]);
       setBlockContentMap(new Map());
       setChildrenContentMap(new Map());
+
+      // Reset refresh trigger
+      setRefreshTrigger(0);
+
+      // Reset query composer state
+      setShowQueryComposer(false);
+      setComposerQuery("");
+      setIsComposingQuery(false);
+
+      // Reset direct content selector state
+      setSelectedPages([]);
+      setIncludePageContent(true);
+      setIncludeLinkedRefs(true);
+      setDNPPeriod(7);
+      setIsAddingDirectContent(false);
+      setAvailablePages([]);
+      setIsLoadingPages(false);
     }
   }, [isOpen, forceOpenChat]);
+
+  // Initialize current page context when popup opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const initializeCurrentPageContext = async () => {
+      let pageUid: string | null = null;
+      let pageTitle: string | null = null;
+
+      try {
+        // First priority: Use targetUid if it represents a page context
+        if (targetUid) {
+          // Import helper function to determine if targetUid is a page
+          const { getPageUidByBlockUid } = await import(
+            "../../../utils/roamAPI.js"
+          );
+
+          // Check if targetUid is itself a page UID or get its page
+          const pageUidFromTarget = getPageUidByBlockUid(targetUid);
+          if (pageUidFromTarget) {
+            pageUid = pageUidFromTarget;
+            pageTitle =
+              window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(pageUid) ||
+              null;
+          } else {
+            // targetUid might be a page UID itself
+            pageTitle =
+              window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(targetUid) ||
+              null;
+            if (pageTitle) {
+              pageUid = targetUid;
+            }
+          }
+        }
+
+        // Second priority: Use currently opened page if no valid targetUid context
+        if (!pageUid || !pageTitle) {
+          const currentOpenUid =
+            window.roamAlphaAPI?.ui?.mainWindow?.getOpenPageOrBlockUid?.();
+          if (currentOpenUid) {
+            // Import helper to get page UID from potentially block UID
+            const { getPageUidByBlockUid } = await import(
+              "../../../utils/roamAPI.js"
+            );
+
+            // Get the actual page UID (in case currentOpenUid is a block UID)
+            const actualPageUid =
+              getPageUidByBlockUid(currentOpenUid) || currentOpenUid;
+            const actualPageTitle =
+              window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(actualPageUid);
+
+            if (actualPageTitle) {
+              pageUid = actualPageUid;
+              pageTitle = actualPageTitle;
+            }
+          }
+        }
+
+        setCurrentPageContext({ uid: pageUid, title: pageTitle });
+        console.log(
+          `📄 [CurrentPageContext] Initialized: ${
+            pageTitle || "No page context"
+          } (${pageUid || "No UID"})`
+        );
+      } catch (error) {
+        console.warn("⚠️ [CurrentPageContext] Error initializing:", error);
+        setCurrentPageContext({ uid: null, title: null });
+      }
+    };
+
+    initializeCurrentPageContext();
+  }, [isOpen, targetUid]);
 
   // References state
   const [availableReferences, setAvailableReferences] = useState<
@@ -160,6 +287,9 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
       const { shouldShowDNPFilter } = detectDNPDistribution(results);
 
       console.log("🔍 Analyzing results structure:", results);
+      console.log(
+        `🔍 [useFullResultsState] Processing ${results.length} results for UI calculations`
+      );
       console.log(
         `Found ${hasBlocks ? "blocks" : "no blocks"} and ${
           hasPages ? "pages" : "no pages"
@@ -256,7 +386,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
     Result[]
   >([]);
 
-  // Apply filtering and sorting asynchronously
+  // Apply filtering and sorting asynchronously - INCLUDES REFRESH TRIGGER FIX
   useEffect(() => {
     const applyFiltering = async () => {
       try {
@@ -316,6 +446,7 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
     dnpFilter,
     blockContentMap,
     childrenContentMap,
+    refreshTrigger, // CRITICAL: Include refreshTrigger to force re-filtering when new results are set
   ]);
 
   // Pagination
@@ -456,6 +587,505 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
     }
   };
 
+  // Query Composer handlers
+  const handleComposerExecute = useCallback(async (
+    currentResults: any[],
+    mode: "add" | "replace",
+    model?: string
+  ): Promise<any[] | null> => {
+    if (!composerQuery.trim()) return null;
+
+    setIsComposingQuery(true);
+
+    try {
+      console.log(
+        `🔧 [QueryComposer] Executing query: "${composerQuery}" in mode: ${mode}`
+      );
+
+      // Import the search agent invoke function
+      const { invokeSearchAgentSecure } = await import(
+        "../../../ai/agents/search-agent/ask-your-graph-invoke"
+      );
+
+      // Store the current window.lastAskYourGraphResults to restore it later
+      const previousResults = (window as any).lastAskYourGraphResults;
+
+      // Execute the new query - let IntentParser process the natural language
+      await invokeSearchAgentSecure({
+        model: model || defaultModel,
+        rootUid: "query-composer", // Unique identifier for composer queries
+        targetUid: "query-composer",
+        target: mode === "add" ? "add" : "replace", // Use target to indicate mode
+        prompt: composerQuery, // Natural language query for IntentParser
+        permissions: { contentAccess: false }, // Secure mode - no content processing
+        privateMode: true, // Private mode - only UIDs, no content processing
+        previousAgentState: {
+          forcePopupOnly: true, // Prevent block insertion - results only for composer
+        },
+      });
+
+      // Get the results from the global state (where the agent stores them)
+      const newResults = (window as any).lastAskYourGraphResults || [];
+      console.log(
+        `✅ [QueryComposer] Query executed, got ${newResults.length} results`
+      );
+
+      // Restore the previous results to avoid interfering with the main popup
+      (window as any).lastAskYourGraphResults = previousResults;
+
+      if (newResults && Array.isArray(newResults) && newResults.length > 0) {
+        console.log(
+          `✅ [QueryComposer] Query executed successfully, returning ${newResults.length} results`
+        );
+        return newResults;
+      } else {
+        console.warn(
+          `⚠️ [QueryComposer] Query returned no valid results:`,
+          newResults
+        );
+      }
+    } catch (error) {
+      console.error("Query composer execution failed:", error);
+    } finally {
+      setIsComposingQuery(false);
+    }
+
+    return null;
+  }, [composerQuery]);
+
+  const toggleQueryComposer = () => {
+    setShowQueryComposer(!showQueryComposer);
+    if (!showQueryComposer) {
+      setComposerQuery("");
+    }
+  };
+
+  // Page querying functionality - optimized to query only matching pages
+  const queryAvailablePages = async (query: string = "") => {
+    if (isLoadingPages) return;
+
+    setIsLoadingPages(true);
+    try {
+      let matchingPages: string[] = [];
+
+      if (!query || query.trim().length === 0) {
+        // If no query, show some recent or commonly used pages instead of all pages
+        const recentPagesQuery = `[:find ?title :where [?page :node/title ?title] :limit 30]`;
+        const recentResults = await window.roamAlphaAPI.q(recentPagesQuery);
+
+        if (recentResults && Array.isArray(recentResults)) {
+          matchingPages = recentResults
+            .map((result) => (Array.isArray(result) ? result[0] : result))
+            .filter(
+              (title) => typeof title === "string" && title.trim().length > 0
+            );
+        }
+      } else {
+        // Use re-pattern syntax and exclude daily notes (MM-DD-YYYY format)
+        const escapedQuery = query.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+        const dnpPattern =
+          "^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)[0-9][0-9]$";
+
+        const regexQuery = `[:find ?title :where
+          [?page :node/title ?title]
+          [(re-pattern "(?i)${escapedQuery}") ?search-pattern]
+          [(re-find ?search-pattern ?title)]
+          [(re-pattern "${dnpPattern}") ?dnp-pattern]
+          (not [(re-find ?dnp-pattern ?title)])
+        ]`;
+
+        console.log(
+          `🔍 [PageQuery] Executing query for "${query}":`,
+          regexQuery
+        );
+
+        const searchResults = await window.roamAlphaAPI.q(regexQuery);
+        console.log(`🔍 [PageQuery] Raw results:`, searchResults);
+
+        if (searchResults && Array.isArray(searchResults)) {
+          matchingPages = searchResults
+            .map((result) => (Array.isArray(result) ? result[0] : result))
+            .filter(
+              (title) => typeof title === "string" && title.trim().length > 0
+            );
+        }
+      }
+
+      // Sort by relevance: exact match → starts with → contains (case-insensitive)
+      const sortedPages = matchingPages
+        .sort((a, b) => {
+          const lowerA = a.toLowerCase();
+          const lowerB = b.toLowerCase();
+          const lowerQuery = query.toLowerCase();
+
+          // Priority scoring (lower score = higher priority)
+          const getScore = (title: string) => {
+            const lowerTitle = title.toLowerCase();
+            if (lowerTitle === lowerQuery) return 0; // Exact match
+            if (lowerTitle.startsWith(lowerQuery)) return 1; // Starts with
+            return 2; // Contains elsewhere
+          };
+
+          const scoreA = getScore(lowerA);
+          const scoreB = getScore(lowerB);
+
+          // First sort by relevance score
+          if (scoreA !== scoreB) {
+            return scoreA - scoreB;
+          }
+
+          // If same relevance, sort alphabetically
+          return a.localeCompare(b);
+        })
+        .slice(0, 30); // Limit to 30 results
+
+      setAvailablePages(sortedPages);
+      console.log(
+        `✅ [PageQuery] Found ${sortedPages.length} pages matching "${query}"`
+      );
+    } catch (error) {
+      console.error(`❌ [PageQuery] Error querying pages:`, error);
+      setAvailablePages([]);
+    } finally {
+      setIsLoadingPages(false);
+    }
+  };
+
+  // Load available pages on component mount
+  useEffect(() => {
+    if (isOpen && availablePages.length === 0) {
+      queryAvailablePages();
+    }
+  }, [isOpen]);
+
+  // Direct Content Selector handlers
+  const handleDirectContentAdd = async (
+    currentResults: any[],
+    setCurrentResults: (results: any[]) => void
+  ) => {
+    if (!includePageContent && !includeLinkedRefs) {
+      console.warn("⚠️ [DirectContent] No content types selected");
+      return;
+    }
+
+    setIsAddingDirectContent(true);
+    const newResults: any[] = [];
+
+    try {
+      console.log(
+        `🔧 [DirectContent] Adding content from: ${selectedPages.length} selected pages`
+      );
+      console.log(
+        `📋 [DirectContent] Selected pages: ${selectedPages.join(", ")}`
+      );
+      console.log(
+        `📋 [DirectContent] Content types: ${
+          includePageContent ? "content" : ""
+        } ${includeLinkedRefs ? "linkedRefs" : ""}`
+      );
+
+      let targetPageTitle = `${selectedPages.length} selected pages`;
+      let pageData: Array<{ title: string; uid: string | null }> = [];
+
+      // Process each selected page - keep both title and UID
+      for (const pageSelection of selectedPages) {
+        if (pageSelection === "current") {
+          // Use current page context established when popup opened
+          if (currentPageContext.uid && currentPageContext.title) {
+            pageData.push({
+              title: currentPageContext.title,
+              uid: currentPageContext.uid,
+            });
+          } else {
+            console.warn(
+              "⚠️ [DirectContent] No current page context available"
+            );
+          }
+        } else if (pageSelection === "dnp") {
+          // Get Daily Notes Pages for the specified period using getYesterdayDate utility
+          const { getYesterdayDate } = await import(
+            "../../../utils/roamAPI.js"
+          );
+
+          console.log(
+            `🗓️ [DirectContent] Getting DNPs for last ${dnpPeriod} days`
+          );
+
+          let currentDate = new Date(); // Start from today
+          let foundDnpCount = 0;
+
+          for (let i = 0; i < dnpPeriod; i++) {
+            // Get previous date for each iteration (going backwards in time)
+            if (i > 0) {
+              currentDate = getYesterdayDate(currentDate);
+            }
+
+            // Generate the DNP UID format (MM-DD-YYYY)
+            const dnpUid = `${String(currentDate.getMonth() + 1).padStart(
+              2,
+              "0"
+            )}-${String(currentDate.getDate()).padStart(
+              2,
+              "0"
+            )}-${currentDate.getFullYear()}`;
+
+            // Convert to proper page title using Roam's dateToPageTitle API
+            const pageTitle =
+              window.roamAlphaAPI?.util?.dateToPageTitle?.(currentDate);
+
+            console.log(
+              `🗓️ [DirectContent] Checking DNP: ${dnpUid} -> "${pageTitle}"`
+            );
+
+            // Check if the DNP page exists using the UID (which we already have)
+            const pageExists =
+              window.roamAlphaAPI?.util?.getPageUidByPageTitle?.(pageTitle);
+
+            if (pageExists || pageTitle) {
+              // We can use the dnpUid directly as the page UID, and pageTitle as the display title
+              pageData.push({
+                title: pageTitle || dnpUid, // Use proper title if available, fallback to UID
+                uid: dnpUid, // The DNP UID is the page UID
+              });
+              foundDnpCount++;
+              console.log(
+                `✅ [DirectContent] Found DNP: "${pageTitle}" (UID: ${dnpUid})`
+              );
+            } else {
+              console.log(
+                `⚠️ [DirectContent] DNP not found: ${dnpUid} -> "${pageTitle}"`
+              );
+            }
+          }
+
+          console.log(
+            `🗓️ [DirectContent] Found ${foundDnpCount} out of ${dnpPeriod} DNPs`
+          );
+
+          if (foundDnpCount === 0) {
+            console.warn(
+              `⚠️ [DirectContent] No Daily Notes Pages found for the last ${dnpPeriod} days. Make sure you have created some DNPs.`
+            );
+          }
+        } else {
+          // Specific page selected from autocomplete - we already have the title!
+          const { getPageUidByPageName } = await import(
+            "../../../utils/roamAPI.js"
+          );
+          const pageUid = getPageUidByPageName(pageSelection);
+          if (pageUid) {
+            pageData.push({
+              title: pageSelection, // Use the original title from selection
+              uid: pageUid,
+            });
+            console.log(
+              `✅ [DirectContent] Found UID for "${pageSelection}": ${pageUid}`
+            );
+          } else {
+            console.warn(
+              `⚠️ [DirectContent] Could not find UID for page: "${pageSelection}"`
+            );
+          }
+        }
+      }
+
+      console.log(
+        `🔍 [DirectContent] Found ${pageData.length} page(s) for ${targetPageTitle}`
+      );
+
+      // Process each page using both title and UID
+      for (const { title: pageTitle, uid: pageUid } of pageData) {
+        if (!pageUid) {
+          console.warn(
+            `⚠️ [DirectContent] Skipping page "${pageTitle}" - no UID found`
+          );
+          continue;
+        }
+
+        if (includePageContent) {
+          // Add page content directly with full metadata consistent with normal queries
+          try {
+            const pageQuery = `[:find ?page-uid ?page-title ?page-created ?page-modified (pull ?page [:block/uid :block/string :node/title {:block/children ...}])
+              :where
+              [?page :block/uid ?page-uid]
+              [?page :node/title ?page-title]
+              [?page :create/time ?page-created]
+              [?page :edit/time ?page-modified]
+              [(= ?page-uid "${pageUid}")]]`;
+
+            const pageData = await window.roamAlphaAPI.q(pageQuery);
+
+            if (pageData && pageData.length > 0) {
+              const [pageUid, pageTitle, pageCreated, pageModified, pullData] =
+                pageData[0];
+              const { isDailyNote } = await import(
+                "../../../ai/agents/search-agent/helpers/searchUtils"
+              );
+
+              // Add the page itself as a result with full metadata
+              newResults.push({
+                uid: pageUid,
+                title: pageTitle,
+                content: pullData[":block/string"] || `Page: ${pageTitle}`,
+                created: new Date(pageCreated),
+                modified: new Date(pageModified),
+                pageTitle: pageTitle,
+                pageUid: pageUid,
+                isDaily: isDailyNote(pageUid),
+                totalBlocks: pullData[":block/children"]?.length || 0,
+                isPage: true,
+                children: [],
+                parents: [],
+                expansionLevel: 0,
+              });
+
+              // Add children blocks recursively with consistent metadata
+              const addChildrenBlocks = (
+                children: any[],
+                parentPageTitle: string,
+                parentPageUid: string
+              ) => {
+                if (!children || !Array.isArray(children)) return;
+
+                children.forEach((child) => {
+                  if (child[":block/uid"] && child[":block/string"]) {
+                    newResults.push({
+                      uid: child[":block/uid"],
+                      content: child[":block/string"],
+                      created: new Date(pageCreated), // Use page creation date as fallback
+                      modified: new Date(pageModified), // Use page modification date as fallback
+                      pageTitle: parentPageTitle,
+                      pageUid: parentPageUid,
+                      isDaily: isDailyNote(parentPageUid),
+                      children: [],
+                      parents: [],
+                      isPage: false,
+                      expansionLevel: 0,
+                    });
+                  }
+
+                  // Recursively add children
+                  if (child[":block/children"]) {
+                    addChildrenBlocks(
+                      child[":block/children"],
+                      parentPageTitle,
+                      parentPageUid
+                    );
+                  }
+                });
+              };
+
+              if (pullData[":block/children"]) {
+                addChildrenBlocks(
+                  pullData[":block/children"],
+                  pageTitle,
+                  pageUid
+                );
+              }
+            }
+          } catch (error) {
+            console.error(
+              `❌ [DirectContent] Error adding page content for ${pageTitle}:`,
+              error
+            );
+          }
+        }
+
+        if (includeLinkedRefs) {
+          // Add linked references using findBlocksByContent tool with consistent metadata
+          try {
+            // Import the tool
+            const { findBlocksByContentImpl } = await import(
+              "../../../ai/agents/search-agent/tools/findBlocksByContent/findBlocksByContentTool"
+            );
+
+            const linkedRefs = await findBlocksByContentImpl({
+              conditions: [
+                {
+                  type: "page_ref",
+                  text: pageTitle,
+                  matchType: "contains",
+                },
+              ],
+              includeChildren: true,
+              includeParents: false,
+              includeDaily: true, // Include Daily Notes in linked references search
+              resultMode: "full",
+              limit: 1000,
+              secureMode: false,
+            });
+
+            // Process linked references results - they already have full metadata
+            if (
+              linkedRefs &&
+              linkedRefs.results &&
+              Array.isArray(linkedRefs.results)
+            ) {
+              linkedRefs.results.forEach((ref: any) => {
+                // The results from findBlocksByContentImpl already have consistent metadata
+                if (ref.uid && ref.content) {
+                  newResults.push({
+                    ...ref, // Use the full metadata structure from the tool
+                    referenceContext: `References: ${pageTitle}`,
+                  });
+                }
+              });
+            }
+          } catch (error) {
+            console.error(
+              `❌ [DirectContent] Error adding linked references for ${pageTitle}:`,
+              error
+            );
+          }
+        }
+      }
+
+      console.log(
+        `✅ [DirectContent] Collected ${newResults.length} results from ${targetPageTitle}`
+      );
+
+      // Add to current results if we have new content
+      if (newResults.length > 0) {
+        const existingUids = new Set(
+          currentResults.map((r) => r.uid).filter(Boolean)
+        );
+        let addedCount = 0;
+        const combinedResults = [...currentResults];
+
+        for (const newResult of newResults) {
+          if (newResult.uid && !existingUids.has(newResult.uid)) {
+            combinedResults.push(newResult);
+            existingUids.add(newResult.uid);
+            addedCount++;
+          }
+        }
+
+        console.log(
+          `📊 [DirectContent] Added ${addedCount} new results (${
+            newResults.length - addedCount
+          } duplicates filtered)`
+        );
+        setCurrentResults([...combinedResults]);
+
+        // Clear filtered results to trigger re-filtering
+        setFilteredAndSortedResults([]);
+
+        // Success feedback
+        console.log(
+          `✨ [DirectContent] Successfully added content from ${targetPageTitle}`
+        );
+      } else {
+        console.warn(
+          `⚠️ [DirectContent] No content found for ${targetPageTitle}`
+        );
+      }
+    } catch (error) {
+      console.error("❌ [DirectContent] Failed to add direct content:", error);
+    } finally {
+      setIsAddingDirectContent(false);
+    }
+  };
+
   return {
     // State
     selectedResults,
@@ -483,6 +1113,21 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
     mainContentWidth,
     isResizing,
 
+    // Query Composer state
+    showQueryComposer,
+    composerQuery,
+    isComposingQuery,
+
+    // Direct Content Selector state
+    selectedPages,
+    includePageContent,
+    includeLinkedRefs,
+    dnpPeriod,
+    isAddingDirectContent,
+    availablePages,
+    isLoadingPages,
+    currentPageContext,
+
     // Setters
     setSelectedResults,
     setDropdownStates,
@@ -509,6 +1154,20 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
     setMainContentWidth,
     setIsResizing,
 
+    // Query Composer setters
+    setShowQueryComposer,
+    setComposerQuery,
+    setIsComposingQuery,
+
+    // Direct Content Selector setters
+    setSelectedPages,
+    setIncludePageContent,
+    setIncludeLinkedRefs,
+    setDNPPeriod,
+    setIsAddingDirectContent,
+    setAvailablePages,
+    setIsLoadingPages,
+
     // Computed values
     uniquePages,
     hasBlocks,
@@ -533,5 +1192,16 @@ export const useFullResultsState = (results: Result[], isOpen: boolean, forceOpe
     handleClearAllReferences,
     resetChatConversation,
     handleExpandedToggle,
+
+    // Query Composer handlers
+    handleComposerExecute,
+    toggleQueryComposer,
+
+    // Direct Content Selector handlers
+    handleDirectContentAdd,
+    queryAvailablePages,
+
+    // UI refresh function for external components
+    forceUIRefresh,
   };
 };

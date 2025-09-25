@@ -1546,6 +1546,10 @@
   transform: translateX(15px);
 }
 
+.rm-api-render--page {
+  margin-left: 8px;
+}
+
 .full-results-action-bar {
   width: 100%;
   display: flex;
@@ -2458,17 +2462,17 @@ body > .bp4-portal > .bp4-popover {
 
 /* Page Metadata View Styles */
 .full-results-page-metadata-view {
-  padding: 12px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border-left: 4px solid #0d6efd;
+  margin-left: 8px;
+  background: inherit;
 }
 
 .full-results-page-title {
-  font-size: 16px;
   font-weight: 600;
   color: #212529;
-  margin-bottom: 8px;
+}
+
+.full-results-page-title .rm-embed-container {
+  margin-right: 0px;
 }
 
 .full-results-page-count {
@@ -3301,7 +3305,7 @@ textarea.bp3-input.full-results-chat-input {
 }
 
 /* Elegant Query Manager Styles */
-.query-manager-container {
+.query-manager-expandable {
   border: 1px solid rgba(167, 182, 194, 0.4);
   border-radius: 8px;
   background: inherit;
@@ -3344,6 +3348,23 @@ textarea.bp3-input.full-results-chat-input {
 }
 
 .query-manager-header-actions {
+  flex-shrink: 0;
+}
+
+/* Query Composer Header */
+.query-composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.query-composer-header h6 {
+  margin: 0;
+  flex: 1;
+}
+
+.query-composer-model-selector {
   flex-shrink: 0;
 }
 
@@ -3596,5 +3617,413 @@ textarea.bp3-input.full-results-chat-input {
   .query-manager-query-content {
     font-size: 12px;
     padding: 8px 10px;
+  }
+}
+
+/* Query Composer Styles */
+
+/* Main container with query manager and composer button */
+.query-manager-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.query-manager-container > .query-manager-wrapper {
+  flex: 1;
+}
+
+/* Query composer expandable interface */
+.query-composer-interface {
+  background: inherit;
+  border: 1px solid rgba(167, 182, 194, 0.4);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Query composer */
+.query-composer-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.query-composer-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 8px;
+}
+
+.query-composer-actions .bp3-button {
+  font-size: 14px;
+  padding: 5px 8px;
+  transition: all 0.2s ease;
+  width: 145px;
+  justify-content: start;
+}
+
+/* Tool sections within the interface */
+.query-tool-section {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(167, 182, 194, 0.2);
+}
+
+.query-tool-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.query-tool-section h6 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+}
+
+/* Mode selector */
+.query-composer-mode-selector {
+  margin-bottom: 16px;
+}
+
+.query-composer-mode-selector .bp3-html-select select {
+  font-size: 14px;
+  padding: 8px 32px 8px 12px;
+  min-width: 200px;
+  border: 1px solid rgba(167, 182, 194, 0.4);
+  border-radius: 6px;
+  background: inherit;
+  color: inherit;
+}
+
+/* Input area */
+.query-composer-input {
+  flex: 1;
+}
+
+.query-composer-textarea {
+  width: 100%;
+  border: 1px solid rgba(167, 182, 194, 0.4);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: inherit;
+  background: inherit;
+  line-height: 1.5;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.query-composer-textarea:focus {
+  outline: none;
+  border-color: #137cbd;
+  box-shadow: 0 0 0 2px rgba(19, 124, 189, 0.2);
+}
+
+.query-composer-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: rgba(167, 182, 194, 0.1);
+}
+
+.query-composer-textarea::placeholder {
+  /* color: rgba(167, 182, 194, 0.8); */
+  font-style: italic;
+}
+
+/* Responsive design for query composer */
+@media (max-width: 768px) {
+  .query-manager-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .query-composer-toggle {
+    margin-top: 0;
+    margin-right: 3px;
+    align-self: center;
+  }
+
+  .query-composer-interface {
+    padding: 8px;
+  }
+
+  .query-composer-textarea {
+    font-size: 13px;
+    padding: 8px;
+  }
+
+  .query-composer-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .query-composer-actions .bp3-button {
+    font-size: 13px;
+    padding: 6px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .query-composer-interface {
+    padding: 6px;
+  }
+
+  .query-composer-textarea {
+    font-size: 12px;
+    padding: 6px;
+    min-height: 48px;
+  }
+
+  .query-composer-actions .bp3-button {
+    font-size: 12px;
+    padding: 5px 12px;
+  }
+}
+
+/* Direct Content Selector Styles */
+
+.direct-content-page-selector {
+  margin-bottom: 12px;
+}
+
+/* Input row with MultiSelect and Add button on same line */
+.direct-content-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.direct-content-input-row .direct-content-page-multiselect {
+  flex: 1;
+  min-width: 0; /* Allows flex item to shrink below its content size */
+}
+
+.direct-content-add-button {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  width: 145px;
+  justify-content: start;
+}
+
+.direct-content-page-select {
+  width: 100%;
+  font-size: 14px;
+}
+
+.direct-content-types {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.direct-content-checkbox {
+  margin: 0;
+  font-size: 13px;
+}
+
+.direct-content-checkbox .bp3-control-indicator {
+  margin-right: 6px;
+}
+
+/* Enhanced DNP Period Selector */
+.direct-content-dnp-period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 4px 0;
+}
+
+.direct-content-period-label {
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+  white-space: nowrap;
+}
+
+.direct-content-dnp-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.direct-content-dnp-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: 3px;
+  background: var(--color-background, white);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.direct-content-dnp-button:hover:not(:disabled) {
+  background: var(--color-background-hover, #f5f5f5);
+}
+
+.direct-content-dnp-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.direct-content-custom-days {
+  width: 60px !important;
+  font-size: 12px !important;
+}
+
+.direct-content-custom-days .bp3-input {
+  padding: 4px 6px !important;
+  font-size: 12px !important;
+}
+
+.direct-content-dnp-label {
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+  white-space: nowrap;
+}
+
+/* Inline DNP selector (on same line as checkboxes) */
+.direct-content-dnp-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.direct-content-dnp-separator {
+  color: var(--color-text-secondary, #666);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+.direct-content-dnp-button-inline {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: 3px;
+  background: var(--color-background, white);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.direct-content-dnp-button-inline:hover:not(:disabled) {
+  background: var(--color-background-hover, #f5f5f5);
+}
+
+.direct-content-dnp-button-inline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.direct-content-custom-days-inline {
+  font-size: 11px !important;
+}
+
+.direct-content-custom-days-inline .bp3-input {
+  width: 45px !important;
+  padding: 2px 4px !important;
+  font-size: 11px !important;
+  height: 20px !important;
+}
+
+/* Blueprint Select for Page Selection */
+.page-select-button {
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.page-select-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 3px;
+  margin: 2px 4px;
+}
+
+.page-select-option:hover,
+.page-select-option.active {
+  background-color: var(--color-background-secondary, #f5f8fa);
+}
+
+.page-select-option.special-option {
+  font-weight: 600;
+  color: var(--color-primary, #137cbd);
+}
+
+.page-option-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Blueprint MultiSelect for Page Selection */
+.direct-content-page-multiselect {
+  width: 100%;
+}
+
+.direct-content-page-multiselect .bp3-tag-input {
+  min-height: 35px;
+}
+
+.direct-content-page-multiselect .bp3-tag {
+  /* Match full-results-type-badge.page styling */
+  background: #e3f2fd !important;
+  color: #1565c0 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px !important;
+  padding: 3px 8px !important;
+  margin: 2px !important;
+  max-width: 150px;
+}
+
+.direct-content-page-multiselect .bp3-tag .bp3-icon {
+  margin-right: 2px;
+}
+
+/* Special pages (primary intent) with slightly different styling */
+.direct-content-page-multiselect .bp3-tag.bp3-intent-primary {
+  background: #1565c0 !important;
+  color: white !important;
+}
+
+/* Compact mode adjustments */
+@media (max-width: 768px) {
+  .direct-content-types {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .query-tool-section {
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+  }
+
+  .query-tool-section h6 {
+    font-size: 12px;
   }
 }

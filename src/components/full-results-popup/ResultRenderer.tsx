@@ -71,7 +71,9 @@ export const PageTitleRenderer: React.FC<{
         "Untitled Page";
 
       // Create the Roam string with page reference
-      const roamString = `📄 [[${pageTitle}]]${result.isDaily ? " 📅" : ""}`;
+      const roamString = `{{embed: [[${pageTitle}]]}}${
+        result.isDaily ? " 📅" : ""
+      }`;
 
       try {
         (window as any).roamAlphaAPI.ui.components.renderString({
@@ -81,7 +83,9 @@ export const PageTitleRenderer: React.FC<{
       } catch (error) {
         console.warn("Failed to render page title with renderString:", error);
         // Fallback to plain text
-        containerRef.current.textContent = `📄 ${pageTitle}${result.isDaily ? " 📅" : ""}`;
+        containerRef.current.textContent = `📄 ${pageTitle}${
+          result.isDaily ? " 📅" : ""
+        }`;
       }
     }
   }, [result]);

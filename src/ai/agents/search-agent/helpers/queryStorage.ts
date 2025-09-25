@@ -28,6 +28,19 @@ export interface IntentParserResult {
   };
 }
 
+export interface PageSelection {
+  title: string;
+  uid: string;
+  includeContent: boolean;
+  includeLinkedRefs: boolean;
+  dnpPeriod?: number; // For DNP pages
+}
+
+export interface QueryStep {
+  userQuery: string;
+  formalQuery: string;
+}
+
 export interface StoredQuery {
   id: string;
   timestamp: Date;
@@ -35,6 +48,10 @@ export interface StoredQuery {
   formalQuery: string;
   intentParserResult: IntentParserResult;
   name?: string; // For saved queries
+  // New fields for composed queries
+  isComposed?: boolean;
+  querySteps?: QueryStep[]; // Array of successive queries (only "add" mode queries)
+  pageSelections?: PageSelection[]; // Array of added pages
 }
 
 export interface QueryStorage {
@@ -108,18 +125,83 @@ export const addRecentQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>): vo
  */
 export const saveQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>, customName?: string): string => {
   const queries = getStoredQueries();
-  
+
   const newQuery: StoredQuery = {
     ...query,
     id: generateQueryId(),
     timestamp: new Date(),
     name: customName || generateQueryName(query.userQuery)
   };
-  
+
   queries.saved.push(newQuery);
   saveQueries(queries);
-  
+
   return newQuery.id;
+};
+
+/**
+ * Save a composed query with query steps and page selections
+ */
+export const saveComposedQuery = (
+  baseQuery: Omit<StoredQuery, 'id' | 'timestamp' | 'isComposed' | 'querySteps' | 'pageSelections'>,
+  querySteps: QueryStep[],
+  pageSelections: PageSelection[],
+  customName?: string
+): string => {
+  const queries = getStoredQueries();
+
+  const composedQuery: StoredQuery = {
+    ...baseQuery,
+    id: generateQueryId(),
+    timestamp: new Date(),
+    name: customName || generateComposedQueryName(baseQuery.userQuery, querySteps, pageSelections),
+    isComposed: true,
+    querySteps,
+    pageSelections
+  };
+
+  queries.saved.push(composedQuery);
+  saveQueries(queries);
+
+  return composedQuery.id;
+};
+
+/**
+ * Update an existing query to make it composed by adding query steps or page selections
+ */
+export const updateToComposedQuery = (
+  queryId: string,
+  newQuerySteps?: QueryStep[],
+  newPageSelections?: PageSelection[]
+): boolean => {
+  const queries = getStoredQueries();
+
+  // Look in both recent and saved queries
+  const allQueries = [...queries.recent, ...queries.saved];
+  const existingQuery = allQueries.find(q => q.id === queryId);
+
+  if (!existingQuery) {
+    return false;
+  }
+
+  // Update the query to be composed
+  existingQuery.isComposed = true;
+  existingQuery.querySteps = [
+    ...(existingQuery.querySteps || []),
+    ...(newQuerySteps || [])
+  ];
+  existingQuery.pageSelections = [
+    ...(existingQuery.pageSelections || []),
+    ...(newPageSelections || [])
+  ];
+
+  // Update the name to reflect it's composed
+  if (!existingQuery.name?.includes('(Composed)')) {
+    existingQuery.name = (existingQuery.name || generateQueryName(existingQuery.userQuery)) + ' (Composed)';
+  }
+
+  saveQueries(queries);
+  return true;
 };
 
 /**
@@ -175,7 +257,7 @@ export const clearAllQueries = (): void => {
  * Generate a unique ID for queries
  */
 const generateQueryId = (): string => {
-  return `query_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `query_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 };
 
 /**
@@ -187,8 +269,35 @@ const generateQueryName = (userQuery: string): string => {
   if (cleaned.length <= 50) {
     return cleaned;
   }
-  
+
   return cleaned.substring(0, 47) + '...';
+};
+
+/**
+ * Generate a readable name for a composed query
+ */
+const generateComposedQueryName = (
+  baseQuery: string,
+  querySteps: QueryStep[],
+  pageSelections: PageSelection[]
+): string => {
+  const baseName = generateQueryName(baseQuery);
+  const stepCount = querySteps.length;
+  const pageCount = pageSelections.length;
+
+  const components = [];
+  if (stepCount > 0) {
+    components.push(`${stepCount} additional ${stepCount === 1 ? 'query' : 'queries'}`);
+  }
+  if (pageCount > 0) {
+    components.push(`${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`);
+  }
+
+  if (components.length > 0) {
+    return `${baseName} (+ ${components.join(', ')})`;
+  }
+
+  return `${baseName} (Composed)`;
 };
 
 /**
@@ -200,4 +309,51 @@ export const getCurrentQueryInfo = (): { userQuery?: string; formalQuery?: strin
     formalQuery: (window as any).lastFormalQuery || undefined,
     intentParserResult: (window as any).lastIntentParserResult || undefined
   };
+};
+
+/**
+ * Get query execution plan for a composed query
+ */
+export const getComposedQueryExecutionPlan = (query: StoredQuery): {
+  initialQuery: { userQuery: string; formalQuery: string; intentParserResult: IntentParserResult };
+  additionalSteps: Array<{
+    type: 'query' | 'pages';
+    data: QueryStep | PageSelection[];
+  }>;
+} | null => {
+  if (!query.isComposed) {
+    return null;
+  }
+
+  const plan = {
+    initialQuery: {
+      userQuery: query.userQuery,
+      formalQuery: query.formalQuery,
+      intentParserResult: query.intentParserResult
+    },
+    additionalSteps: [] as Array<{
+      type: 'query' | 'pages';
+      data: QueryStep | PageSelection[];
+    }>
+  };
+
+  // Add query steps
+  if (query.querySteps) {
+    query.querySteps.forEach(step => {
+      plan.additionalSteps.push({
+        type: 'query',
+        data: step
+      });
+    });
+  }
+
+  // Add page selections (group them together for efficiency)
+  if (query.pageSelections && query.pageSelections.length > 0) {
+    plan.additionalSteps.push({
+      type: 'pages',
+      data: query.pageSelections
+    });
+  }
+
+  return plan;
 };
