@@ -3356,7 +3356,7 @@ textarea.bp3-input.full-results-chat-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .query-composer-header h6 {
@@ -3384,7 +3384,7 @@ textarea.bp3-input.full-results-chat-input {
 
 /* Query Details */
 .query-manager-query-details {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .query-manager-query-item {
@@ -3524,7 +3524,7 @@ textarea.bp3-input.full-results-chat-input {
 .current-query-preview,
 .stored-query-preview {
   margin-bottom: 8px;
-  padding: 10px 12px;
+  padding: 8px;
   background: rgba(19, 124, 189, 0.1);
   border: 1px solid rgba(167, 182, 194, 0.4);
   border-left: 4px solid #137cbd;
@@ -3537,8 +3537,8 @@ textarea.bp3-input.full-results-chat-input {
 
 .current-formal-query-preview,
 .stored-formal-query-preview {
-  margin: 8px 0 12px 0;
-  padding: 10px 12px;
+  margin: 8px 0 4px 0;
+  padding: 8px;
   background: rgba(168, 84, 247, 0.1);
   border: 1px solid rgba(167, 182, 194, 0.4);
   border-left: 4px solid #a854f7;
@@ -3679,12 +3679,16 @@ textarea.bp3-input.full-results-chat-input {
 }
 
 .query-tool-section h6 {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: inherit;
   opacity: 0.8;
   letter-spacing: 0.5px;
+}
+
+.direct-content-section .query-tool-section h6 {
+  margin: 8px 0;
 }
 
 /* Mode selector */
@@ -3709,13 +3713,14 @@ textarea.bp3-input.full-results-chat-input {
 
 .query-composer-textarea {
   width: 100%;
+  min-height: 70px;
   border: 1px solid rgba(167, 182, 194, 0.4);
   border-radius: 6px;
-  padding: 12px;
-  font-size: 14px;
+  padding: 8px;
+  font-size: 13px;
   font-family: inherit;
   color: inherit;
-  background: inherit;
+  /* background: inherit; */
   line-height: 1.5;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -3791,7 +3796,7 @@ textarea.bp3-input.full-results-chat-input {
 /* Direct Content Selector Styles */
 
 .direct-content-page-selector {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 /* Input row with MultiSelect and Add button on same line */
@@ -3824,7 +3829,6 @@ textarea.bp3-input.full-results-chat-input {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 

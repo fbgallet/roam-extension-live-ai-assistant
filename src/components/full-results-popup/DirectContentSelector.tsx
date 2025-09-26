@@ -224,7 +224,7 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
 
   return (
     <div className="query-tool-section">
-      <h6>Direct Pages Selection</h6>
+      <h6>Complete results with selected Pages or their linked referencs</h6>
 
       <div className="direct-content-page-selector">
         <div className="direct-content-input-row">

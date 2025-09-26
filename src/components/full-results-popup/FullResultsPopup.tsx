@@ -15,8 +15,6 @@ import { useFullResultsState } from "./hooks/useFullResultsState";
 import { canUseChat } from "./utils/chatHelpers";
 import { ReferencesFilterPopover } from "./ReferencesFilterPopover";
 import { QueryManager } from "./QueryManager";
-import DirectContentSelector from "./DirectContentSelector";
-import QueryComposer from "./QueryComposer";
 import { StoredQuery } from "../../ai/agents/search-agent/helpers/queryStorage";
 import { executeQueryWithLiveUpdates } from "../../ai/agents/search-agent/helpers/livePopupExecution";
 
@@ -115,12 +113,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     handleExpandedToggle,
 
     // Query Composer state and handlers
-    showQueryComposer,
     composerQuery,
     isComposingQuery,
     setComposerQuery,
     handleComposerExecute,
-    toggleQueryComposer,
 
     // Direct Content Selector state and handlers
     selectedPages,
@@ -545,24 +541,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   onQuerySelect={handleQuerySelect}
                   disabled={isExecutingQuery}
                   executionProgress={executionProgress}
-                />
-              </div>
 
-              {/* Query Composer Button */}
-              <Button
-                icon={showQueryComposer ? "minus" : "plus"}
-                onClick={toggleQueryComposer}
-                minimal
-                title="Add new query"
-                className="query-composer-toggle"
-              />
-            </div>
-
-            {/* Query Tools Expandable Interface */}
-            {showQueryComposer && (
-              <div className="query-composer-interface">
-                {/* Query Composer Section */}
-                <QueryComposer
+                  // Query Composer props
                   composerQuery={composerQuery}
                   isComposingQuery={isComposingQuery}
                   onQueryChange={setComposerQuery}
@@ -590,10 +570,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       }
                     }
                   }}
-                />
 
-                {/* Direct Content Selector Section */}
-                <DirectContentSelector
+                  // Direct Content Selector props
                   selectedPages={selectedPages}
                   includePageContent={includePageContent}
                   includeLinkedRefs={includeLinkedRefs}
@@ -602,20 +580,22 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   availablePages={availablePages}
                   isLoadingPages={isLoadingPages}
                   currentPageContext={currentPageContext}
-                  onPageSelectionChange={setSelectedPages}
-                  onContentTypeChange={(type, checked) => {
-                    if (type === "content") setIncludePageContent(checked);
-                    else if (type === "linkedRefs")
-                      setIncludeLinkedRefs(checked);
-                  }}
-                  onDNPPeriodChange={setDNPPeriod}
-                  onAddContent={() =>
-                    handleDirectContentAdd(currentResults, setCurrentResults)
-                  }
-                  onQueryPages={queryAvailablePages}
+
+                  // Direct Content Selector handlers
+                  setSelectedPages={setSelectedPages}
+                  setIncludePageContent={setIncludePageContent}
+                  setIncludeLinkedRefs={setIncludeLinkedRefs}
+                  setDNPPeriod={setDNPPeriod}
+                  handleDirectContentAdd={handleDirectContentAdd}
+                  queryAvailablePages={queryAvailablePages}
+
+                  // Results management
+                  currentResults={currentResults}
+                  setCurrentResults={setCurrentResults}
                 />
               </div>
-            )}
+
+            </div>
 
             {/* Enhanced Controls */}
             <div className="full-results-controls">

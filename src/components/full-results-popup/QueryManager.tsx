@@ -4,24 +4,23 @@ import {
   Dialog,
   Classes,
   InputGroup,
-  Menu,
   MenuItem,
+  Collapse,
   Popover,
   Position,
-  Collapse,
-  ContextMenu,
+  Menu,
 } from "@blueprintjs/core";
 import { Select, ItemRenderer } from "@blueprintjs/select";
-import ModelsMenu from "../ModelsMenu";
-import { defaultModel } from "../..";
 import {
   StoredQuery,
   getStoredQueries,
   saveQuery,
-  deleteSavedQuery,
   renameSavedQuery,
+  deleteSavedQuery,
   getCurrentQueryInfo,
 } from "../../ai/agents/search-agent/helpers/queryStorage";
+import QueryComposer from "./QueryComposer";
+import DirectContentSelector from "./DirectContentSelector";
 
 // Component to render queries using renderString API for clickable links
 const QueryRenderer: React.FC<{ query: string; prefix?: string }> = ({
@@ -66,6 +65,37 @@ interface QueryManagerProps {
   onQuerySelect: (query: StoredQuery | "current") => void;
   disabled?: boolean;
   executionProgress?: string;
+
+  // Query Composer props
+  composerQuery: string;
+  isComposingQuery: boolean;
+  onQueryChange: (query: string) => void;
+  onExecuteQuery: (mode: "add" | "replace", model?: string) => Promise<void>;
+
+  // Direct Content Selector props
+  selectedPages: string[];
+  includePageContent: boolean;
+  includeLinkedRefs: boolean;
+  dnpPeriod: number;
+  isAddingDirectContent: boolean;
+  availablePages: string[];
+  isLoadingPages: boolean;
+  currentPageContext: { uid: string | null; title: string | null };
+
+  // Direct Content Selector handlers
+  setSelectedPages: (pages: string[]) => void;
+  setIncludePageContent: (include: boolean) => void;
+  setIncludeLinkedRefs: (include: boolean) => void;
+  setDNPPeriod: (period: number) => void;
+  handleDirectContentAdd: (
+    currentResults: any[],
+    setCurrentResults: (results: any[]) => void
+  ) => void;
+  queryAvailablePages: (query?: string) => void;
+
+  // Results management for DirectContentSelector
+  currentResults: any[];
+  setCurrentResults: (results: any[]) => void;
 }
 
 export const QueryManager: React.FC<QueryManagerProps> = ({
@@ -74,6 +104,34 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   onQuerySelect,
   disabled = false,
   executionProgress,
+
+  // Query Composer props
+  composerQuery,
+  isComposingQuery,
+  onQueryChange,
+  onExecuteQuery,
+
+  // Direct Content Selector props
+  selectedPages,
+  includePageContent,
+  includeLinkedRefs,
+  dnpPeriod,
+  isAddingDirectContent,
+  availablePages,
+  isLoadingPages,
+  currentPageContext,
+
+  // Direct Content Selector handlers
+  setSelectedPages,
+  setIncludePageContent,
+  setIncludeLinkedRefs,
+  setDNPPeriod,
+  handleDirectContentAdd,
+  queryAvailablePages,
+
+  // Results management
+  currentResults,
+  setCurrentResults,
 }) => {
   const [queries, setQueries] = useState(getStoredQueries());
   const getInitialSelectedValue = () => {
@@ -89,8 +147,11 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   );
   const [isExpanded, setIsExpanded] = useState(!currentUserQuery); // Auto-expand when no current query
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(defaultModel);
-  const [showModelMenu, setShowModelMenu] = useState(false);
+
+  // Query Tools section state
+
+  // Track loaded query for UI feedback
+  const [loadedQuery, setLoadedQuery] = useState<StoredQuery | null>(null);
 
   // Dialogs
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -452,43 +513,34 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     }
 
     setSelectedValue(item.id);
-    // Just update selection, don't execute query yet
-  };
 
-  const handleLoadQuery = async (model?: string) => {
-    if (disabled || isLoading || selectedValue === "current" || !selectedValue)
-      return;
+    // Auto-load query into composer when selected (except for "current")
+    if (item.id !== "current" && item.query) {
+      // Load the query text into the composer
+      onQueryChange(item.query.userQuery);
 
-    // Find the selected item
-    const selectedItem = baseSelectItems.find(
-      (item) => item.id === selectedValue
-    );
+      // Store the loaded query for UI feedback
+      setLoadedQuery(item.query);
 
-    if (selectedItem && selectedItem.query) {
-      setIsLoading(true);
-      try {
-        // Pass the selected model or default model to the query execution
-        const queryWithModel = {
-          ...selectedItem.query,
-          preferredModel: model || selectedModel,
-        };
-        onQuerySelect(queryWithModel);
-      } finally {
-        setIsLoading(false);
-      }
+      // Expand the section so user can see the execution buttons
+      setIsExpanded(true);
+
+      console.log(
+        `📥 [QueryManager] Auto-loaded query into composer: "${item.query.userQuery}"`
+      );
     }
   };
 
-  // Handler for model selection from ModelsMenu
-  const handleModelSelection = async ({ model }) => {
-    await handleLoadQuery(model);
-    setShowModelMenu(false);
-  };
+  const handleDeleteQuery = (queryId: string) => {
+    if (deleteSavedQuery(queryId)) {
+      setQueries(getStoredQueries());
 
-  // Handler for right-click on Run button
-  const handleRunButtonContextMenu = (event: React.MouseEvent) => {
-    event.preventDefault();
-    setShowModelMenu(true);
+      // If the deleted query was selected, switch back to current
+      if (selectedValue === queryId) {
+        setSelectedValue("current");
+        onQuerySelect("current");
+      }
+    }
   };
 
   const handleSaveQuery = () => {
@@ -526,27 +578,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     setRenameValue("");
   };
 
-  const handleDeleteQuery = (queryId: string) => {
-    if (deleteSavedQuery(queryId)) {
-      setQueries(getStoredQueries());
-
-      // If the deleted query was selected, switch back to current
-      if (selectedValue === queryId) {
-        setSelectedValue("current");
-        onQuerySelect("current");
-      }
-    }
-  };
-
-  const openRenameDialog = (queryId: string) => {
-    const query = queries.saved.find((q) => q.id === queryId);
-    if (query) {
-      setRenameQueryId(queryId);
-      setRenameValue(query.name || query.userQuery);
-      setShowRenameDialog(true);
-    }
-  };
-
   const generateDefaultName = (userQuery: string): string => {
     const cleaned = userQuery.trim().replace(/\s+/g, " ");
     return cleaned.length <= 80 ? cleaned : cleaned.substring(0, 77) + "...";
@@ -554,35 +585,30 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
   const canSaveCurrent = () => {
     const currentInfo = getCurrentQueryInfo();
-    return currentInfo.userQuery && currentInfo.intentParserResult;
-  };
 
-  const renderQueryActions = (query: StoredQuery) => {
-    if (!queries.saved.some((q) => q.id === query.id)) return null;
+    // Must have a valid query
+    if (!currentInfo.userQuery || !currentInfo.intentParserResult) {
+      console.log(
+        "🔒 [QueryManager] Save disabled: No valid query or intent parser result"
+      );
+      return false;
+    }
 
-    return (
-      <Popover
-        content={
-          <Menu>
-            <MenuItem
-              icon="edit"
-              text="Rename"
-              onClick={() => openRenameDialog(query.id)}
-            />
-            <MenuItem
-              icon="trash"
-              text="Delete"
-              intent="danger"
-              onClick={() => handleDeleteQuery(query.id)}
-            />
-          </Menu>
-        }
-        position={Position.BOTTOM_RIGHT}
-        minimal
-      >
-        <Button icon="more" minimal small disabled={disabled} />
-      </Popover>
-    );
+    // If there's a loaded query, only allow saving if the current query is different
+    if (loadedQuery) {
+      const isDifferent =
+        currentInfo.userQuery.trim() !== loadedQuery.userQuery.trim();
+      console.log("🔒 [QueryManager] Save check for loaded query:", {
+        currentQuery: currentInfo.userQuery.trim(),
+        loadedQuery: loadedQuery.userQuery.trim(),
+        isDifferent,
+      });
+      return isDifferent;
+    }
+
+    // If no loaded query, can save
+    console.log("✅ [QueryManager] Save enabled: No loaded query");
+    return true;
   };
 
   return (
@@ -622,6 +648,100 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
           </span>
         </div>
         <div className="query-manager-header-actions">
+          {/* Load stored queries button */}
+          <QuerySelect
+            items={groupedSelectItems}
+            itemRenderer={renderQueryItem}
+            itemPredicate={filterPredicate}
+            onItemSelect={handleSelectionChange}
+            activeItem={currentSelectedItem}
+            disabled={disabled || isLoading || baseSelectItems.length === 0}
+            filterable={true}
+            resetOnClose={false}
+            resetOnSelect={false}
+            inputProps={{
+              placeholder: "Search queries...",
+            }}
+            popoverProps={{
+              minimal: true,
+              position: Position.BOTTOM_RIGHT,
+              onInteraction: (
+                _nextOpenState: boolean,
+                e?: React.SyntheticEvent<HTMLElement>
+              ) => {
+                if (e) {
+                  e.stopPropagation();
+                }
+              },
+            }}
+          >
+            <Button
+              icon="upload"
+              minimal
+              small
+              disabled={disabled || baseSelectItems.length === 0}
+              title="Load stored query"
+            />
+          </QuerySelect>
+
+          {/* Save current query button */}
+          <Button
+            icon="floppy-disk"
+            minimal
+            small
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              setShowSaveDialog(true);
+            }}
+            disabled={!canSaveCurrent() || disabled}
+            title={
+              loadedQuery
+                ? "Save modified query (disabled for unchanged loaded queries)"
+                : "Save current query"
+            }
+          />
+
+          {/* Rename button for saved queries */}
+          {selectedValue !== "current" &&
+            queries.saved.some((q) => q.id === selectedValue) && (
+              <Button
+                icon="edit"
+                minimal
+                small
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  const query = queries.saved.find(
+                    (q) => q.id === selectedValue
+                  );
+                  if (query) {
+                    setRenameQueryId(selectedValue);
+                    setRenameValue(query.name || query.userQuery);
+                    setShowRenameDialog(true);
+                  }
+                }}
+                disabled={disabled}
+                title="Rename query"
+              />
+            )}
+
+          {/* Delete button for saved queries */}
+          {selectedValue !== "current" &&
+            queries.saved.some((q) => q.id === selectedValue) && (
+              <Button
+                icon="trash"
+                minimal
+                small
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  handleDeleteQuery(selectedValue);
+                }}
+                disabled={disabled}
+                title="Delete query"
+                intent="danger"
+              />
+            )}
+
+          {/* Expand/collapse caret */}
           <Button
             icon={isExpanded ? "chevron-up" : "chevron-down"}
             minimal
@@ -666,38 +786,60 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                         <div className="composed-query-details">
                           <div className="composed-query-header">
                             <strong>Composed Query</strong>
-                            <small> ({(selectedQuery.querySteps?.length || 0) + (selectedQuery.pageSelections?.length || 0)} components)</small>
+                            <small>
+                              {" "}
+                              (
+                              {(selectedQuery.querySteps?.length || 0) +
+                                (selectedQuery.pageSelections?.length ||
+                                  0)}{" "}
+                              components)
+                            </small>
                           </div>
 
                           {/* Initial Query */}
                           <div className="query-step">
                             <div className="query-step-header">
-                              <span className="query-step-label">1. Initial Query:</span>
+                              <span className="query-step-label">
+                                1. Initial Query:
+                              </span>
                             </div>
                             <div className="query-step-content">
                               <QueryRenderer query={selectedQuery.userQuery} />
                             </div>
-                            {selectedQuery.formalQuery && selectedQuery.formalQuery !== selectedQuery.userQuery && (
-                              <div className="query-step-formal">
-                                <small><strong>Formal:</strong> <QueryRenderer query={selectedQuery.formalQuery} /></small>
-                              </div>
-                            )}
+                            {selectedQuery.formalQuery &&
+                              selectedQuery.formalQuery !==
+                                selectedQuery.userQuery && (
+                                <div className="query-step-formal">
+                                  <small>
+                                    <strong>Formal:</strong>{" "}
+                                    <QueryRenderer
+                                      query={selectedQuery.formalQuery}
+                                    />
+                                  </small>
+                                </div>
+                              )}
                           </div>
 
                           {/* Additional Query Steps */}
                           {selectedQuery.querySteps?.map((step, index) => (
                             <div key={index} className="query-step">
                               <div className="query-step-header">
-                                <span className="query-step-label">{index + 2}. Added Query:</span>
+                                <span className="query-step-label">
+                                  {index + 2}. Added Query:
+                                </span>
                               </div>
                               <div className="query-step-content">
                                 <QueryRenderer query={step.userQuery} />
                               </div>
-                              {step.formalQuery && step.formalQuery !== step.userQuery && (
-                                <div className="query-step-formal">
-                                  <small><strong>Formal:</strong> <QueryRenderer query={step.formalQuery} /></small>
-                                </div>
-                              )}
+                              {step.formalQuery &&
+                                step.formalQuery !== step.userQuery && (
+                                  <div className="query-step-formal">
+                                    <small>
+                                      <strong>Formal:</strong>{" "}
+                                      <QueryRenderer query={step.formalQuery} />
+                                    </small>
+                                  </div>
+                                )}
                             </div>
                           ))}
 
@@ -705,7 +847,12 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                           {selectedQuery.pageSelections?.map((page, index) => (
                             <div key={index} className="page-selection">
                               <div className="query-step-header">
-                                <span className="query-step-label">{(selectedQuery.querySteps?.length || 0) + index + 2}. Added Pages:</span>
+                                <span className="query-step-label">
+                                  {(selectedQuery.querySteps?.length || 0) +
+                                    index +
+                                    2}
+                                  . Added Pages:
+                                </span>
                               </div>
                               <div className="page-selection-content">
                                 <QueryRenderer query={`[[${page.title}]]`} />
@@ -715,7 +862,8 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                                     : page.includeContent
                                     ? " (content only)"
                                     : " (linked refs only)"}
-                                  {page.dnpPeriod && ` • ${page.dnpPeriod} days`}
+                                  {page.dnpPeriod &&
+                                    ` • ${page.dnpPeriod} days`}
                                 </small>
                               </div>
                             </div>
@@ -732,7 +880,9 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                               selectedQuery.userQuery && (
                               <div className="stored-formal-query-preview">
                                 <strong>Formal Query:</strong>{" "}
-                                <QueryRenderer query={selectedQuery.formalQuery} />
+                                <QueryRenderer
+                                  query={selectedQuery.formalQuery}
+                                />
                               </div>
                             )}
                         </div>
@@ -759,127 +909,12 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
               return (
                 <div className="no-current-query-message">
                   <p>
-                    📝 No last query available. Select a query from the dropdown
-                    below to view its details.
+                    📝 No last query available. Use the load button (📤) in the
+                    header to select a stored query, or compose a new one below.
                   </p>
                 </div>
               );
             })()}
-          </div>
-
-          {/* Query Selector */}
-          <div className="query-manager-selector">
-            <div className="query-manager-selector-main">
-              <QuerySelect
-                items={groupedSelectItems}
-                itemRenderer={renderQueryItem}
-                itemPredicate={filterPredicate}
-                onItemSelect={handleSelectionChange}
-                activeItem={currentSelectedItem}
-                disabled={disabled || isLoading}
-                filterable={true}
-                resetOnClose={false}
-                resetOnSelect={false}
-                inputProps={{
-                  placeholder: "Search queries...",
-                }}
-                popoverProps={{
-                  minimal: true,
-                }}
-              >
-                <Button
-                  text={
-                    currentSelectedItem
-                      ? currentSelectedItem.label
-                      : baseSelectItems.length === 0
-                      ? "No queries available"
-                      : "Select a query..."
-                  }
-                  rightIcon="caret-down"
-                  disabled={
-                    disabled || isLoading || baseSelectItems.length === 0
-                  }
-                  fill
-                  className="query-manager-dropdown"
-                  style={{ textAlign: "left", justifyContent: "flex-start" }}
-                />
-              </QuerySelect>
-
-              {isLoading && (
-                <span className="query-manager-loading">⏳ Loading...</span>
-              )}
-            </div>
-
-            <div className="query-manager-selector-actions">
-              {selectedValue && selectedValue !== "current" && (
-                <div style={{ position: "relative" }}>
-                  <Popover
-                    content={
-                      <ModelsMenu
-                        callback={handleModelSelection}
-                        command={{ name: "Execute Query" }}
-                        prompt=""
-                        setModel={setSelectedModel}
-                        roleStructure="menuitem"
-                        isConversationToContinue={false}
-                      />
-                    }
-                    position={Position.BOTTOM}
-                    isOpen={showModelMenu}
-                    onClose={() => setShowModelMenu(false)}
-                    minimal
-                  >
-                    <Button
-                      text={
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
-                          <span>Run</span>
-                          <span
-                            style={{ fontSize: "0.7em", fontWeight: "normal" }}
-                          >
-                            (
-                            {selectedModel === defaultModel
-                              ? defaultModel
-                              : selectedModel}
-                            )
-                          </span>
-                        </div>
-                      }
-                      icon="play"
-                      intent="primary"
-                      small
-                      onClick={() => handleLoadQuery()}
-                      onContextMenu={handleRunButtonContextMenu}
-                      disabled={disabled || isLoading}
-                      title={`Execute with ${selectedModel} (right-click to change model)`}
-                    />
-                  </Popover>
-                </div>
-              )}
-
-              <Button
-                icon="floppy-disk"
-                minimal
-                small
-                onClick={() => setShowSaveDialog(true)}
-                disabled={!canSaveCurrent() || disabled}
-                title="Save last query"
-              />
-
-              {selectedValue !== "current" &&
-                queries.saved.some((q) => q.id === selectedValue) && (
-                  <div className="query-manager-query-actions">
-                    {renderQueryActions(
-                      queries.saved.find((q) => q.id === selectedValue)!
-                    )}
-                  </div>
-                )}
-            </div>
           </div>
 
           {/* Execution Progress */}
@@ -888,6 +923,52 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
               {executionProgress}
             </div>
           )}
+
+          {/* Query Composer Section */}
+          <div className="query-composer-section">
+            <QueryComposer
+              composerQuery={composerQuery}
+              isComposingQuery={isComposingQuery}
+              onQueryChange={(newQuery) => {
+                onQueryChange(newQuery);
+                // Clear loaded query if user modifies the text
+                if (loadedQuery && newQuery !== loadedQuery.userQuery) {
+                  setLoadedQuery(null);
+                }
+              }}
+              onExecuteQuery={(mode, model) => {
+                // Always go through IntentParser for proper dynamic interpretation
+                return onExecuteQuery(mode, model);
+              }}
+            />
+          </div>
+
+          {/* Direct Content Selector Section */}
+          <div className="direct-content-section">
+            <DirectContentSelector
+              selectedPages={selectedPages}
+              includePageContent={includePageContent}
+              includeLinkedRefs={includeLinkedRefs}
+              dnpPeriod={dnpPeriod}
+              isAddingDirectContent={isAddingDirectContent}
+              availablePages={availablePages}
+              isLoadingPages={isLoadingPages}
+              currentPageContext={currentPageContext}
+              onPageSelectionChange={setSelectedPages}
+              onContentTypeChange={(type, checked) => {
+                if (type === "content") {
+                  setIncludePageContent(checked);
+                } else if (type === "linkedRefs") {
+                  setIncludeLinkedRefs(checked);
+                }
+              }}
+              onDNPPeriodChange={setDNPPeriod}
+              onAddContent={() =>
+                handleDirectContentAdd(currentResults, setCurrentResults)
+              }
+              onQueryPages={queryAvailablePages}
+            />
+          </div>
         </div>
       </Collapse>
 

@@ -27,13 +27,11 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
   return (
     <div className="query-tool-section">
       <div className="query-composer-header">
-        <h6>Run a new query to complete or replace results</h6>
+        <h6>New query to complete or replace results</h6>
         <div className="query-composer-model-selector">
           <Popover
             isOpen={isModelMenuOpen}
-            onInteraction={(nextOpenState) =>
-              setIsModelMenuOpen(nextOpenState)
-            }
+            onInteraction={(nextOpenState) => setIsModelMenuOpen(nextOpenState)}
             content={
               <ModelsMenu
                 callback={handleModelSelection}
