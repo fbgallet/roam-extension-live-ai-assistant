@@ -8,6 +8,7 @@ import {
   ChatMessage,
   DNPFilter,
 } from "../types";
+import { StoredQuery } from "../../../ai/agents/search-agent/helpers/queryStorage";
 import {
   filterAndSortResults,
   paginateResults,
@@ -43,6 +44,11 @@ export const useFullResultsState = (
     uid: string | null;
     title: string | null;
   }>({ uid: null, title: null });
+
+  // Query Composer state
+  const [composerQuery, setComposerQuery] = useState("");
+  const [isComposingQuery, setIsComposingQuery] = useState(false);
+  const [showQueryComposer, setShowQueryComposer] = useState(false);
 
   // Filtering and sorting state
   const [searchFilter, setSearchFilter] = useState("");
@@ -127,11 +133,6 @@ export const useFullResultsState = (
   const [includedReferences, setIncludedReferences] = useState<string[]>([]);
   const [excludedReferences, setExcludedReferences] = useState<string[]>([]);
 
-  // Query Composer state (Phase 1)
-  const [showQueryComposer, setShowQueryComposer] = useState(false);
-  const [composerQuery, setComposerQuery] = useState("");
-  const [isComposingQuery, setIsComposingQuery] = useState(false);
-
   // Direct Content Selector state
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [includePageContent, setIncludePageContent] = useState(true);
@@ -147,7 +148,7 @@ export const useFullResultsState = (
   // Function to force UI refresh when new results are set
   const forceUIRefresh = useCallback(() => {
     console.log("🔄 [useFullResultsState] Forcing UI refresh for new results");
-    setRefreshTrigger(prev => prev + 1);
+    setRefreshTrigger((prev) => prev + 1);
     // Reset pagination to first page
     setCurrentPage(1);
     // Clear selected results
@@ -588,77 +589,220 @@ export const useFullResultsState = (
   };
 
   // Query Composer handlers
-  const handleComposerExecute = useCallback(async (
-    currentResults: any[],
-    mode: "add" | "replace",
-    model?: string
-  ): Promise<any[] | null> => {
-    if (!composerQuery.trim()) return null;
+  // Toggle query composer visibility
+  const toggleQueryComposer = useCallback(() => {
+    setShowQueryComposer((prev) => !prev);
+  }, []);
 
-    setIsComposingQuery(true);
+  const handleComposerExecute = useCallback(
+    async (
+      currentResults: any[],
+      mode: "add" | "replace",
+      model?: string
+    ): Promise<any[] | null> => {
+      if (!composerQuery.trim()) return null;
 
-    try {
-      console.log(
-        `🔧 [QueryComposer] Executing query: "${composerQuery}" in mode: ${mode}`
-      );
+      setIsComposingQuery(true);
 
-      // Import the search agent invoke function
-      const { invokeSearchAgentSecure } = await import(
-        "../../../ai/agents/search-agent/ask-your-graph-invoke"
-      );
-
-      // Store the current window.lastAskYourGraphResults to restore it later
-      const previousResults = (window as any).lastAskYourGraphResults;
-
-      // Execute the new query - let IntentParser process the natural language
-      await invokeSearchAgentSecure({
-        model: model || defaultModel,
-        rootUid: "query-composer", // Unique identifier for composer queries
-        targetUid: "query-composer",
-        target: mode === "add" ? "add" : "replace", // Use target to indicate mode
-        prompt: composerQuery, // Natural language query for IntentParser
-        permissions: { contentAccess: false }, // Secure mode - no content processing
-        privateMode: true, // Private mode - only UIDs, no content processing
-        previousAgentState: {
-          forcePopupOnly: true, // Prevent block insertion - results only for composer
-        },
-      });
-
-      // Get the results from the global state (where the agent stores them)
-      const newResults = (window as any).lastAskYourGraphResults || [];
-      console.log(
-        `✅ [QueryComposer] Query executed, got ${newResults.length} results`
-      );
-
-      // Restore the previous results to avoid interfering with the main popup
-      (window as any).lastAskYourGraphResults = previousResults;
-
-      if (newResults && Array.isArray(newResults) && newResults.length > 0) {
+      try {
         console.log(
-          `✅ [QueryComposer] Query executed successfully, returning ${newResults.length} results`
+          `🔧 [QueryComposer] Executing query: "${composerQuery}" in mode: ${mode}`
         );
-        return newResults;
-      } else {
-        console.warn(
-          `⚠️ [QueryComposer] Query returned no valid results:`,
-          newResults
+
+        // Import the search agent invoke function
+        const { invokeSearchAgentSecure } = await import(
+          "../../../ai/agents/search-agent/ask-your-graph-invoke"
         );
+
+        // Store the current window.lastAskYourGraphResults to restore it later
+        const previousResults = (window as any).lastAskYourGraphResults;
+
+        // Execute the new query - let IntentParser process the natural language
+        await invokeSearchAgentSecure({
+          model: model || defaultModel,
+          rootUid: "query-composer", // Unique identifier for composer queries
+          targetUid: "query-composer",
+          target: mode === "add" ? "add" : "replace", // Use target to indicate mode
+          prompt: composerQuery, // Natural language query for IntentParser
+          permissions: { contentAccess: false }, // Secure mode - no content processing
+          privateMode: true, // Private mode - only UIDs, no content processing
+          previousAgentState: {
+            forcePopupOnly: true, // Prevent block insertion - results only for composer
+          },
+        });
+
+        // Get the results from the global state (where the agent stores them)
+        const newResults = (window as any).lastAskYourGraphResults || [];
+        console.log(
+          `✅ [QueryComposer] Query executed, got ${newResults.length} results`
+        );
+
+        // Restore the previous results to avoid interfering with the main popup
+        (window as any).lastAskYourGraphResults = previousResults;
+
+        if (newResults && Array.isArray(newResults) && newResults.length > 0) {
+          console.log(
+            `✅ [QueryComposer] Query executed successfully, returning ${newResults.length} results`
+          );
+
+          if (mode === "replace") {
+            // For replace mode, save as a new query (not composed) and update global state
+            const { addRecentQuery } = await import(
+              "../../../ai/agents/search-agent/helpers/queryStorage"
+            );
+            const currentInfo = (window as any).lastIntentParserResult;
+            if (currentInfo) {
+              addRecentQuery({
+                userQuery: composerQuery,
+                formalQuery: currentInfo.formalQuery || composerQuery,
+                intentParserResult: currentInfo,
+              });
+
+              // Update global state so QueryManager shows the new query
+              (window as any).lastUserQuery = composerQuery;
+              (window as any).lastFormalQuery =
+                currentInfo.formalQuery || composerQuery;
+              // lastIntentParserResult is already set by the agent execution above
+            }
+          } else {
+            // Add mode: Create or update composed query
+            console.log(
+              `🔍 [QueryComposer] ADD MODE - Current results: ${currentResults.length}, New results: ${newResults.length}`
+            );
+
+            // For add mode, update the current query to be composed or add to existing composed query
+            const { updateToComposedQuery, getStoredQueries } = await import(
+              "../../../ai/agents/search-agent/helpers/queryStorage"
+            );
+
+            // For add mode: check if we have original query context for composition
+            const originalQueryInfo = (window as any)
+              .__originalQueryForComposition;
+            const queries = getStoredQueries();
+            console.log(`🔍 [QueryComposer] Current stored queries:`, {
+              recentCount: queries.recent.length,
+              savedCount: queries.saved.length,
+              recentQueries: queries.recent.map((q) => ({
+                id: q.id,
+                userQuery: q.userQuery,
+                isComposed: q.isComposed,
+              })),
+              hasOriginalContext: !!originalQueryInfo,
+            });
+
+            let targetQuery: StoredQuery | null = null;
+
+            if (originalQueryInfo) {
+              // We have original query context - find the original query to compose with
+              const allQueries = [...queries.recent, ...queries.saved];
+              targetQuery = allQueries.find(
+                (q) => q.userQuery === originalQueryInfo.userQuery
+              );
+
+              console.log(
+                `🔗 [QueryComposer] Using original query for composition:`,
+                {
+                  originalQueryText: originalQueryInfo.userQuery,
+                  foundInStorage: !!targetQuery,
+                  newQueryToAdd: composerQuery,
+                }
+              );
+
+              // Clear the original query context after using it
+              (window as any).__originalQueryForComposition = null;
+            } else if (queries.recent.length > 0) {
+              // Fallback: use the most recent query as the base for composition
+              targetQuery = queries.recent[0];
+              console.log(
+                `🔍 [QueryComposer] No original context - using most recent query:`,
+                {
+                  baseQueryId: targetQuery.id,
+                  baseQueryText: targetQuery.userQuery,
+                  baseQueryIsComposed: targetQuery.isComposed,
+                  existingSteps: targetQuery.querySteps?.length || 0,
+                  newQueryToAdd: composerQuery,
+                }
+              );
+            }
+
+            if (targetQuery) {
+              const currentInfo = (window as any).lastIntentParserResult;
+
+              if (currentInfo) {
+                // Create a temporary composed query structure in memory (NOT saved to storage)
+
+                console.log(
+                  `🔗 [QueryComposer] Creating temporary composed query from:`,
+                  {
+                    baseQuery: targetQuery.userQuery,
+                    addedQuery: composerQuery,
+                    originalQueryId: targetQuery.id,
+                  }
+                );
+
+                // Create temporary composed query structure
+                const tempComposedQuery = {
+                  id: `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+                  timestamp: new Date(),
+                  userQuery: targetQuery.userQuery, // Use original base query
+                  formalQuery: targetQuery.formalQuery || targetQuery.userQuery,
+                  intentParserResult: targetQuery.intentParserResult,
+                  isComposed: true,
+                  querySteps: [
+                    {
+                      userQuery: composerQuery,
+                      formalQuery: currentInfo.formalQuery || composerQuery,
+                    },
+                  ],
+                  pageSelections: [], // No page selections for now
+                };
+
+                console.log(
+                  `✅ [QueryComposer] Created temporary composed query (NOT saved to storage)`,
+                  {
+                    id: tempComposedQuery.id,
+                    baseQuery: tempComposedQuery.userQuery,
+                    querySteps: tempComposedQuery.querySteps.length,
+                    isComposed: tempComposedQuery.isComposed
+                  }
+                );
+
+                // Store the temporary composed query in window for current session
+                (window as any).__currentComposedQuery = tempComposedQuery;
+
+                // Return special flag to indicate composed query was created
+                (newResults as any).__composedQueryCreated = true;
+                (newResults as any).__composedQueryId = tempComposedQuery.id;
+                (newResults as any).__tempComposedQuery = tempComposedQuery;
+              } else {
+                console.warn(
+                  `⚠️ [QueryComposer] No IntentParser result available for composition`
+                );
+              }
+            } else {
+              console.warn(
+                `⚠️ [QueryComposer] No recent queries available for composition`
+              );
+            }
+          }
+
+          return newResults;
+        } else {
+          console.warn(
+            `⚠️ [QueryComposer] Query returned no valid results:`,
+            newResults
+          );
+        }
+      } catch (error) {
+        console.error("Query composer execution failed:", error);
+      } finally {
+        setIsComposingQuery(false);
       }
-    } catch (error) {
-      console.error("Query composer execution failed:", error);
-    } finally {
-      setIsComposingQuery(false);
-    }
 
-    return null;
-  }, [composerQuery]);
-
-  const toggleQueryComposer = () => {
-    setShowQueryComposer(!showQueryComposer);
-    if (!showQueryComposer) {
-      setComposerQuery("");
-    }
-  };
+      return null;
+    },
+    [composerQuery]
+  );
 
   // Page querying functionality - optimized to query only matching pages
   const queryAvailablePages = async (query: string = "") => {
@@ -1113,11 +1257,6 @@ export const useFullResultsState = (
     mainContentWidth,
     isResizing,
 
-    // Query Composer state
-    showQueryComposer,
-    composerQuery,
-    isComposingQuery,
-
     // Direct Content Selector state
     selectedPages,
     includePageContent,
@@ -1193,7 +1332,10 @@ export const useFullResultsState = (
     resetChatConversation,
     handleExpandedToggle,
 
-    // Query Composer handlers
+    // Query Composer state and handlers
+    composerQuery,
+    isComposingQuery,
+    showQueryComposer,
     handleComposerExecute,
     toggleQueryComposer,
 

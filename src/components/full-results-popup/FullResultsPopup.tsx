@@ -36,6 +36,13 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
   const [currentUserQuery, setCurrentUserQuery] = useState(userQuery);
   const [currentFormalQuery, setCurrentFormalQuery] = useState(formalQuery);
+
+  // Two-section composition UI state
+  const [originalQueryForComposition, setOriginalQueryForComposition] = useState<{
+    userQuery: string;
+    formalQuery: string;
+  } | null>(null);
+  const [loadedQuery, setLoadedQuery] = useState<StoredQuery | null>(null);
   const {
     // State
     selectedResults,
@@ -136,6 +143,40 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   } = useFullResultsState(currentResults, isOpen, forceOpenChat, targetUid);
 
   // Query selection handler
+  // Clear all results and query context for fresh start
+  const handleClearAll = () => {
+    console.log("🧹 [FullResultsPopup] Clearing all - results and query context");
+
+    // Clear results
+    setCurrentResults([]);
+
+    // Clear query context
+    setCurrentUserQuery("");
+    setCurrentFormalQuery("");
+
+    // Clear composition context
+    setOriginalQueryForComposition(null);
+    setLoadedQuery(null);
+
+    // Clear window globals used for composition and query storage
+    delete (window as any).__originalQueryForComposition;
+    delete (window as any).lastUserQuery;
+    delete (window as any).lastFormalQuery;
+    delete (window as any).lastIntentParserResult;
+
+    // Clear composer state
+    setComposerQuery("");
+
+    // Clear execution state
+    setExecutionProgress("");
+
+    // Clear any UI state and force refresh
+    forceUIRefresh();
+    resetChatConversation();
+
+    console.log("✅ [FullResultsPopup] Clear all completed - currentUserQuery:", "", "currentFormalQuery:", "");
+  };
+
   const handleQuerySelect = async (query: StoredQuery | "current") => {
     if (query === "current") {
       // Reset to original results with full state clearing
@@ -145,12 +186,48 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       setExecutionProgress("");
       resetChatConversation(); // Reset chat when switching back to original query
 
+      // Clear composition context
+      setOriginalQueryForComposition(null);
+      setLoadedQuery(null);
+
       // Clear all UI state to ensure clean display
       forceUIRefresh();
       return;
     }
 
-    // Execute stored query
+
+    // If we currently have an active query, don't execute immediately - set up for composition
+    console.log("🔍 [FullResultsPopup] Query selection check:", {
+      currentUserQuery,
+      hasCurrentQuery: !!(currentUserQuery && currentUserQuery.trim()),
+      loadingQuery: query.userQuery
+    });
+
+    if (currentUserQuery && currentUserQuery.trim()) {
+      console.log("🔗 [FullResultsPopup] Loading query for composition with existing query");
+
+      // Store the original query information and loaded query for two-section UI
+      setOriginalQueryForComposition({
+        userQuery: currentUserQuery,
+        formalQuery: currentFormalQuery
+      });
+      setLoadedQuery(query);
+
+      // Also store in window for composition logic compatibility
+      (window as any).__originalQueryForComposition = {
+        userQuery: currentUserQuery,
+        formalQuery: currentFormalQuery
+      };
+
+      console.log("🔗 [FullResultsPopup] Prepared for composition:", {
+        original: currentUserQuery,
+        loaded: query.userQuery
+      });
+
+      return; // Don't execute the query yet - wait for "Add to results"
+    }
+
+    // If no current results, execute the stored query normally
     setIsExecutingQuery(true);
     setExecutionProgress("Running query with Ask your Graph agent...");
     setCurrentUserQuery(query.userQuery);
@@ -541,6 +618,15 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   onQuerySelect={handleQuerySelect}
                   disabled={isExecutingQuery}
                   executionProgress={executionProgress}
+                  onQueriesUpdate={() => {
+                    // This enables the refresh mechanism
+                    console.log("🔄 [FullResultsPopup] QueryManager refresh enabled");
+                  }}
+                  onClearAll={handleClearAll}
+
+                  // Two-section composition UI
+                  originalQueryForComposition={originalQueryForComposition}
+                  loadedQuery={loadedQuery}
 
                   // Query Composer props
                   composerQuery={composerQuery}
@@ -549,6 +635,15 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   onExecuteQuery={async (mode: "add" | "replace", model?: string) => {
                     // For replace mode, clear results immediately to show empty state
                     if (mode === "replace") {
+                      // Clear composition context IMMEDIATELY for fresh start
+                      console.log("🧹 [FullResultsPopup] New query (replace mode) - clearing composition context");
+                      setOriginalQueryForComposition(null);
+                      setLoadedQuery(null);
+                      delete (window as any).__originalQueryForComposition;
+                      delete (window as any).lastUserQuery;
+                      delete (window as any).lastFormalQuery;
+                      delete (window as any).lastIntentParserResult;
+
                       setCurrentResults([]);
                       forceUIRefresh(); // Force immediate UI update to show empty state
                     }
@@ -557,7 +652,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                     const newResults = await handleComposerExecute(currentResults, mode, model);
 
                     if (newResults && newResults.length > 0) {
+                      // Update current query context with the executed query
                       if (mode === "replace") {
+                        // For replace mode, update the current query to the newly executed query
+                        setCurrentUserQuery(composerQuery);
+                        setCurrentFormalQuery(composerQuery); // Will be updated later if it's a composed query
                         setCurrentResults([...newResults]);
                         // Force refresh AFTER setting new results
                         forceUIRefresh();
@@ -567,6 +666,45 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                         const uniqueNewResults = newResults.filter(r => !existingUids.has(r.uid));
                         setCurrentResults([...currentResults, ...uniqueNewResults]);
                         forceUIRefresh();
+                      }
+
+                      // Check if a composed query was created and refresh QueryManager
+                      if ((newResults as any).__composedQueryCreated) {
+                        console.log("🔗 [FullResultsPopup] Temporary composed query created, updating current state");
+
+                        // Get the temporary composed query from the results
+                        const tempComposedQuery = (newResults as any).__tempComposedQuery;
+                        if (tempComposedQuery) {
+                          console.log("🔗 [FullResultsPopup] Updating current query to temporary composed query:", tempComposedQuery.userQuery);
+
+                          // Update the current query state to reflect the composed query
+                          setCurrentUserQuery(tempComposedQuery.userQuery);
+                          setCurrentFormalQuery(tempComposedQuery.formalQuery);
+
+                          // Add to recent queries (normal behavior for executed queries)
+                          const { addRecentQuery, getStoredQueries } = await import("../../ai/agents/search-agent/helpers/queryStorage");
+                          addRecentQuery(tempComposedQuery);
+                          console.log("✅ [FullResultsPopup] Added temporary composed query to recent queries");
+
+                          // Verify the composed query was properly added with full structure
+                          const updatedQueries = getStoredQueries();
+                          const addedComposedQuery = updatedQueries.recent.find(q => q.id === tempComposedQuery.id);
+                          console.log("🔍 [FullResultsPopup] Verification of added composed query:", {
+                            found: !!addedComposedQuery,
+                            isComposed: addedComposedQuery?.isComposed,
+                            querySteps: addedComposedQuery?.querySteps?.length || 0,
+                            queryStepsDetails: addedComposedQuery?.querySteps?.map(step => step.userQuery) || []
+                          });
+                        }
+
+                        // Clear composition context after successful composition
+                        setOriginalQueryForComposition(null);
+                        setLoadedQuery(null);
+
+                        // Refresh the QueryManager to show the updated query list and selection
+                        if ((window as any).__queryManagerRefresh) {
+                          (window as any).__queryManagerRefresh();
+                        }
                       }
                     }
                   }}

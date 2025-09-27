@@ -1,3 +1,5 @@
+@import "./src/components/full-results-popup/QueryRenderer.css";
+
 :root {
   --icon-color-left: var(--co-left-sidebar__icon, #5c7080);
   --icon-color-top: var(--co-button__minimal-icon, #5c7080);
@@ -3356,7 +3358,7 @@ textarea.bp3-input.full-results-chat-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .query-composer-header h6 {
@@ -3413,7 +3415,6 @@ textarea.bp3-input.full-results-chat-input {
   border-radius: 6px;
   border: 1px solid rgba(167, 182, 194, 0.3);
   background: inherit;
-  max-height: 60px; /* ~2.5 lines */
   overflow-y: auto;
   word-wrap: break-word;
   transition: border-color 0.2s ease;

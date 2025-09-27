@@ -8,6 +8,7 @@ interface QueryComposerProps {
   isComposingQuery: boolean;
   onQueryChange: (query: string) => void;
   onExecuteQuery: (mode: "add" | "replace", model?: string) => void;
+  hasActiveQuery?: boolean; // Whether there's an active query to add to
 }
 
 const QueryComposer: React.FC<QueryComposerProps> = ({
@@ -15,6 +16,7 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
   isComposingQuery,
   onQueryChange,
   onExecuteQuery,
+  hasActiveQuery = false,
 }) => {
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -69,18 +71,7 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
         <div className="query-composer-actions">
           <Button
             icon={"play"}
-            text={isComposingQuery ? "Executing..." : "Add to results"}
-            intent="primary"
-            onClick={() => {
-              onExecuteQuery("add", selectedModel);
-            }}
-            disabled={!composerQuery.trim() || isComposingQuery}
-            loading={isComposingQuery}
-            title={isComposingQuery ? "Executing..." : "Add to current results"}
-          />
-          <Button
-            icon={"refresh"}
-            text={isComposingQuery ? "Executing..." : "Replace results"}
+            text={isComposingQuery ? "Executing..." : "New query"}
             intent="warning"
             onClick={() => {
               onExecuteQuery("replace", selectedModel);
@@ -89,6 +80,25 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
             loading={isComposingQuery}
             title={
               isComposingQuery ? "Executing..." : "Replace current results"
+            }
+          />
+          <Button
+            icon={"plus"}
+            text={isComposingQuery ? "Executing..." : "Add query"}
+            intent="primary"
+            onClick={() => {
+              onExecuteQuery("add", selectedModel);
+            }}
+            disabled={
+              !composerQuery.trim() || isComposingQuery || !hasActiveQuery
+            }
+            loading={isComposingQuery}
+            title={
+              isComposingQuery
+                ? "Executing..."
+                : !hasActiveQuery
+                ? "No active query to add to - run a query first"
+                : "Add to current results"
             }
           />
         </div>

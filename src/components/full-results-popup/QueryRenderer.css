@@ -1,0 +1,250 @@
+/* QueryRenderer Component Styles */
+
+.query-renderer {
+  margin-bottom: 2px;
+}
+
+.query-renderer-main {
+  display: flex;
+  align-items: flex-start;
+}
+
+.query-renderer-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 4px;
+  min-height: 20px;
+  padding: 1px 0;
+}
+
+.query-renderer-label {
+  color: #5c7080;
+  font-size: 12px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.query-renderer-toggle {
+  margin-left: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.query-renderer-toggle:hover {
+  opacity: 1;
+}
+
+.query-renderer-details {
+  margin-top: 4px;
+  padding: 4px 8px;
+  background-color: #f5f8fa;
+  border-left: 2px solid #e1e8ed;
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+.query-renderer-formal {
+  margin-bottom: 8px;
+  color: #5c7080;
+}
+
+.query-renderer-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.query-metadata-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #738694;
+  font-size: 11px;
+}
+
+/* Two-Section Composition UI */
+.composition-mode {
+  border: 1px solid #e1e8ed;
+  border-radius: 4px;
+  background-color: #fafbfc;
+  padding: 6px;
+  margin-bottom: 8px;
+}
+
+.active-query-section,
+.loaded-query-section {
+  margin-bottom: 8px;
+  padding: 6px;
+  border-radius: 3px;
+}
+
+.active-query-section {
+  background-color: #ebf1f5;
+  border-left: 4px solid #2965cc;
+}
+
+.loaded-query-section {
+  background-color: #f5f8fa;
+  border-left: 4px solid #8a9ba8;
+}
+
+.section-header {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #182026;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.section-header small {
+  font-weight: 400;
+  color: #5c7080;
+  font-size: 10px;
+}
+
+.composition-actions {
+  margin-top: 4px;
+  padding: 4px 6px;
+  background-color: #ffffff;
+  border-radius: 2px;
+  border: 1px dashed #d3d8de;
+}
+
+.composition-hint {
+  color: #5c7080;
+  font-style: italic;
+  font-size: 11px;
+}
+
+/* Composed Query Display */
+.composed-query-display,
+.simple-query-display {
+  margin-bottom: 6px;
+}
+
+.composed-steps {
+  margin-left: 8px;
+}
+
+.composed-series {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.query-with-plus {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.query-plus {
+  font-size: 12px;
+  font-weight: bold;
+  color: #5c7080;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.query-plus-content {
+  flex: 1;
+}
+
+.query-step {
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  background-color: #f5f8fa;
+  border-radius: 2px;
+  border-left: 2px solid #d3d8de;
+}
+
+.page-selection {
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  background-color: #fef5e7;
+  border-radius: 2px;
+  border-left: 2px solid #ffb366;
+}
+
+.page-selection-header {
+  margin-bottom: 2px;
+  color: #a66321;
+  font-size: 11px;
+}
+
+.page-selection-content {
+  font-size: 11px;
+  color: #5c7080;
+}
+
+/* User query styling */
+.query-manager-query-content.user-query {
+  border-left: 4px solid #137cbd;
+  background: rgba(19, 124, 189, 0.1);
+  padding: 6px 8px;
+  margin-bottom: 4px;
+}
+
+/* Dark theme support */
+.bp5-dark .query-renderer-details {
+  background-color: #30404d;
+  border-left-color: #5c7080;
+}
+
+.bp5-dark .query-renderer-label {
+  color: #a7b6c2;
+}
+
+.bp5-dark .query-renderer-formal {
+  color: #a7b6c2;
+}
+
+.bp5-dark .query-metadata-item {
+  color: #8a9ba8;
+}
+
+.bp5-dark .composition-mode {
+  background-color: #30404d;
+  border-color: #5c7080;
+}
+
+.bp5-dark .active-query-section {
+  background-color: #394b59;
+  border-left-color: #48aff0;
+}
+
+.bp5-dark .loaded-query-section {
+  background-color: #30404d;
+  border-left-color: #a7b6c2;
+}
+
+.bp5-dark .section-header {
+  color: #f5f8fa;
+}
+
+.bp5-dark .composition-actions {
+  background-color: #394b59;
+  border-color: #5c7080;
+}
+
+.bp5-dark .query-step {
+  background-color: #394b59;
+  border-left-color: #5c7080;
+}
+
+.bp5-dark .page-selection {
+  background-color: #3d3613;
+  border-left-color: #d69e2e;
+}
+
+.bp5-dark .query-plus {
+  color: #a7b6c2;
+}
+
+.bp5-dark .query-manager-query-content.user-query {
+  border-left: 4px solid #48aff0;
+  background: rgba(72, 175, 240, 0.15);
+}
