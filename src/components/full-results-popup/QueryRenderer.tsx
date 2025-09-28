@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button, Collapse, Icon } from "@blueprintjs/core";
-import { StoredQuery } from "../../ai/agents/search-agent/helpers/queryStorage";
+import { StoredQuery, IntentParserResult } from "./utils/queryStorage";
+import { UnifiedQuery } from "./types/QueryTypes";
 
 // Simple component to render queries using renderString API for clickable links
 const RoamQueryRenderer: React.FC<{ query: string }> = ({ query }) => {
@@ -34,46 +35,155 @@ interface QueryRendererProps {
     isComposed?: boolean;
     querySteps?: any[];
   };
+  intentParserResult?: IntentParserResult;
   showLabel?: boolean;
   label?: string;
   compact?: boolean;
+  // New props for unified query support
+  unifiedQuery?: UnifiedQuery;
+  visualComposed?: boolean; // Whether to show composed structure visually
+  skipStylingWrapper?: boolean; // Whether to skip the blue background wrapper (when parent provides it)
 }
 
 export const QueryRenderer: React.FC<QueryRendererProps> = ({
   query,
   formalQuery,
   metadata,
+  intentParserResult,
   showLabel = true,
   label = "Query",
   compact = true,
+  unifiedQuery,
+  visualComposed = false,
+  skipStylingWrapper = false,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
 
+  // Determine if we should show visual composed structure
+  const effectiveUnifiedQuery = unifiedQuery || (metadata?.isComposed ? {
+    userQuery: query,
+    formalQuery: formalQuery || query,
+    isComposed: true,
+    querySteps: metadata.querySteps || [],
+    pageSelections: [],
+  } as UnifiedQuery : null);
+
+  const shouldShowVisualComposed = visualComposed && effectiveUnifiedQuery?.isComposed &&
+    (effectiveUnifiedQuery.querySteps.length > 0 || effectiveUnifiedQuery.pageSelections?.length > 0);
+
   const hasDetails = formalQuery && formalQuery !== query;
   const hasMetadata = metadata && (metadata.timestamp || metadata.resultCount || metadata.dateRange);
+  const hasSearchDetails = intentParserResult?.searchDetails && (
+    intentParserResult.searchDetails.timeRange ||
+    intentParserResult.searchDetails.depthLimit ||
+    intentParserResult.searchDetails.maxResults ||
+    intentParserResult.searchDetails.requireRandom
+  );
 
-  return (
-    <div className="query-renderer">
-      <div className="query-renderer-main">
-        <div className="query-renderer-content">
-          {showLabel && (
-            <span className="query-renderer-label">
-              <strong>{label}:</strong>{" "}
-            </span>
-          )}
-          <RoamQueryRenderer query={query} />
-
-          {(hasDetails || hasMetadata) && (
-            <Button
-              minimal
-              small
-              icon={showDetails ? "chevron-up" : "chevron-down"}
-              onClick={() => setShowDetails(!showDetails)}
-              className="query-renderer-toggle"
-              title="Show/hide details"
+  // If showing visual composed structure, render it differently
+  if (shouldShowVisualComposed) {
+    return (
+      <div className="query-renderer composed-visual">
+        <div className="composed-series">
+          {/* Base Query */}
+          <div className="query-manager-query-content user-query">
+            <QueryRenderer
+              query={effectiveUnifiedQuery.userQuery}
+              formalQuery={effectiveUnifiedQuery.formalQuery}
+              intentParserResult={effectiveUnifiedQuery.intentParserResult}
+              label="Query 1"
+              showLabel={true}
+              skipStylingWrapper={true}
+              // Base query gets its own expandability if it has details
             />
-          )}
+          </div>
+
+          {/* Query Steps */}
+          {effectiveUnifiedQuery.querySteps.map((step, index) => (
+            <div key={index} className="query-with-plus">
+              <div className="query-plus">+</div>
+              <div className="query-plus-content">
+                <div className="query-manager-query-content user-query">
+                  {step.isComposed ? (
+                    // If step itself is composed, use UnifiedQueryRenderer with recursion
+                    <UnifiedQueryRenderer
+                      unifiedQuery={{
+                        userQuery: step.userQuery,
+                        formalQuery: step.formalQuery,
+                        intentParserResult: step.intentParserResult,
+                        isComposed: step.isComposed,
+                        querySteps: step.querySteps || [],
+                        pageSelections: step.pageSelections || [],
+                      }}
+                      label={`Query ${index + 2}`}
+                      showLabel={true}
+                      visualComposed={true}
+                      skipStylingWrapper={true}
+                    />
+                  ) : (
+                    // Simple step
+                    <QueryRenderer
+                      query={step.userQuery}
+                      formalQuery={step.formalQuery}
+                      intentParserResult={step.intentParserResult}
+                      label={`Query ${index + 2}`}
+                      showLabel={true}
+                      skipStylingWrapper={true}
+                      // Each step gets its own expandability if it has details
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Page Selections */}
+          {effectiveUnifiedQuery.pageSelections?.map((page, index) => (
+            <div key={`page-${index}`} className="query-with-plus">
+              <div className="query-plus">+</div>
+              <div className="query-plus-content">
+                <div className="query-manager-query-content user-query">
+                  <div className="query-renderer-content">
+                    <span className="query-renderer-label">
+                      <strong>Query {(effectiveUnifiedQuery.querySteps?.length || 0) + index + 2}:</strong>{" "}
+                    </span>
+                    <RoamQueryRenderer query={`Page: ${page.title}`} />
+                    {(page.includeContent || page.includeLinkedRefs) && (
+                      <span className="query-page-options">
+                        {" "}({page.includeContent ? "with content" : "title only"})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+      </div>
+    );
+  }
+
+  // Standard single query rendering
+  const content = (
+    <>
+      <div className="query-renderer-content">
+        {showLabel && (
+          <span className="query-renderer-label">
+            <strong>{label}:</strong>{" "}
+          </span>
+        )}
+        <RoamQueryRenderer query={query} />
+
+        {(hasDetails || hasMetadata || hasSearchDetails) && (
+          <Button
+            minimal
+            small
+            icon={showDetails ? "chevron-up" : "chevron-down"}
+            onClick={() => setShowDetails(!showDetails)}
+            className="query-renderer-toggle"
+            title="Show/hide details"
+          />
+        )}
       </div>
 
       <Collapse isOpen={showDetails}>
@@ -113,8 +223,49 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
               )}
             </div>
           )}
+
+          {hasSearchDetails && (
+            <div className="query-renderer-search-details">
+              <div className="query-search-details-header">
+                <strong>Search Parameters:</strong>
+              </div>
+              {intentParserResult?.searchDetails?.timeRange && (
+                <span className="query-metadata-item">
+                  <Icon icon="calendar" size={12} />{" "}
+                  {new Date(intentParserResult.searchDetails.timeRange.start).toLocaleDateString()}
+                  {" → "}
+                  {new Date(intentParserResult.searchDetails.timeRange.end).toLocaleDateString()}
+                </span>
+              )}
+              {intentParserResult?.searchDetails?.depthLimit && (
+                <span className="query-metadata-item">
+                  <Icon icon="diagram-tree" size={12} />{" "}
+                  Depth: {intentParserResult.searchDetails.depthLimit}
+                </span>
+              )}
+              {intentParserResult?.searchDetails?.maxResults && (
+                <span className="query-metadata-item">
+                  <Icon icon="numerical" size={12} />{" "}
+                  Max: {intentParserResult.searchDetails.maxResults} results
+                </span>
+              )}
+              {intentParserResult?.searchDetails?.requireRandom && (
+                <span className="query-metadata-item">
+                  <Icon icon="random" size={12} />{" "}
+                  Random sampling
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </Collapse>
+    </>
+  );
+
+  // Apply wrapper conditionally
+  return skipStylingWrapper ? content : (
+    <div className="query-manager-query-content user-query">
+      {content}
     </div>
   );
 };
@@ -125,6 +276,7 @@ interface StoredQueryRendererProps {
   showLabel?: boolean;
   label?: string;
   resultCount?: number;
+  visualComposed?: boolean;
 }
 
 export const StoredQueryRenderer: React.FC<StoredQueryRendererProps> = ({
@@ -132,11 +284,13 @@ export const StoredQueryRenderer: React.FC<StoredQueryRendererProps> = ({
   showLabel = true,
   label = "Query",
   resultCount,
+  visualComposed = true,
 }) => {
   return (
     <QueryRenderer
       query={storedQuery.userQuery}
       formalQuery={storedQuery.formalQuery}
+      intentParserResult={storedQuery.intentParserResult}
       metadata={{
         timestamp: storedQuery.timestamp,
         resultCount: resultCount,
@@ -145,6 +299,56 @@ export const StoredQueryRenderer: React.FC<StoredQueryRendererProps> = ({
       }}
       showLabel={showLabel}
       label={label}
+      unifiedQuery={{
+        userQuery: storedQuery.userQuery,
+        formalQuery: storedQuery.formalQuery,
+        intentParserResult: storedQuery.intentParserResult,
+        isComposed: storedQuery.isComposed || false,
+        querySteps: storedQuery.querySteps || [],
+        pageSelections: storedQuery.pageSelections || [],
+        id: storedQuery.id,
+        timestamp: storedQuery.timestamp,
+        name: storedQuery.name,
+      }}
+      visualComposed={visualComposed}
+    />
+  );
+};
+
+// Convenience component for UnifiedQuery objects with visual composed display
+interface UnifiedQueryRendererProps {
+  unifiedQuery: UnifiedQuery;
+  showLabel?: boolean;
+  label?: string;
+  resultCount?: number;
+  visualComposed?: boolean;
+  skipStylingWrapper?: boolean;
+}
+
+export const UnifiedQueryRenderer: React.FC<UnifiedQueryRendererProps> = ({
+  unifiedQuery,
+  showLabel = true,
+  label = "Query",
+  resultCount,
+  visualComposed = true,
+  skipStylingWrapper = false,
+}) => {
+  return (
+    <QueryRenderer
+      query={unifiedQuery.userQuery}
+      formalQuery={unifiedQuery.formalQuery}
+      intentParserResult={unifiedQuery.intentParserResult}
+      metadata={{
+        timestamp: unifiedQuery.timestamp,
+        resultCount: resultCount,
+        isComposed: unifiedQuery.isComposed,
+        querySteps: unifiedQuery.querySteps,
+      }}
+      showLabel={showLabel}
+      label={label}
+      unifiedQuery={unifiedQuery}
+      visualComposed={visualComposed}
+      skipStylingWrapper={skipStylingWrapper}
     />
   );
 };

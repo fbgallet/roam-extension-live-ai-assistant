@@ -19,7 +19,7 @@ import {
 } from "../shared/agentsUtils";
 import { mapLabelToStrategy } from "../shared/expansionConstants";
 import { deduplicateResultsByUid } from "./helpers/searchUtils";
-import { addRecentQuery } from "./helpers/queryStorage";
+import { addRecentQuery } from "../../../components/full-results-popup/utils/queryStorage";
 import {
   clearAgentController,
   markAgentAsStopped,

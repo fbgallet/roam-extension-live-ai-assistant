@@ -25,6 +25,9 @@ export interface IntentParserResult {
       enabled: boolean;
       strategy?: string;
     };
+    depthLimit?: number;
+    maxResults?: number;
+    requireRandom?: boolean;
   };
 }
 
@@ -36,9 +39,22 @@ export interface PageSelection {
   dnpPeriod?: number; // For DNP pages
 }
 
+// Storage types for unified system
+export type StorageType = 'temporary' | 'recent' | 'saved';
+
+// Unified storage options
+export interface UnifiedStorageOptions {
+  type: StorageType;
+  customName?: string; // For saved queries
+}
+
 export interface QueryStep {
   userQuery: string;
   formalQuery: string;
+  intentParserResult?: IntentParserResult;
+  isComposed?: boolean;
+  querySteps?: QueryStep[]; // Recursive - steps can have their own steps
+  pageSelections?: PageSelection[];
 }
 
 export interface StoredQuery {
@@ -94,7 +110,7 @@ export const getStoredQueries = (): QueryStorage => {
 /**
  * Save queries to localStorage
  */
-const saveQueries = (queries: QueryStorage): void => {
+export const saveQueries = (queries: QueryStorage): void => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
   } catch (error) {
@@ -301,7 +317,8 @@ const generateComposedQueryName = (
 };
 
 /**
- * Get current query info (from global storage)
+ * Get current query info (from window - only for initial popup state)
+ * This should only be used when opening the popup from external triggers
  */
 export const getCurrentQueryInfo = (): { userQuery?: string; formalQuery?: string; intentParserResult?: IntentParserResult } => {
   return {
@@ -356,4 +373,128 @@ export const getComposedQueryExecutionPlan = (query: StoredQuery): {
   }
 
   return plan;
+};
+
+// =============================================================================
+// UNIFIED QUERY SYSTEM
+// =============================================================================
+
+/**
+ * FIXED: Robust query composition function that handles all composition scenarios correctly
+ */
+export const composeQueries = (
+  baseQuery: StoredQuery | Omit<StoredQuery, 'id' | 'timestamp'>,
+  additionalQuery: StoredQuery | Omit<StoredQuery, 'id' | 'timestamp'> | QueryStep
+): Omit<StoredQuery, 'id' | 'timestamp'> => {
+
+  // Extract steps from base query (NEVER include the base query itself as a step)
+  const baseSteps: QueryStep[] = [];
+
+  // If base query is composed, extract ONLY its additional steps (not the base)
+  if ('isComposed' in baseQuery && baseQuery.isComposed && baseQuery.querySteps) {
+    baseSteps.push(...baseQuery.querySteps);
+  }
+
+  // Extract steps from additional query
+  const additionalSteps: QueryStep[] = [];
+
+  if ('userQuery' in additionalQuery && 'formalQuery' in additionalQuery) {
+    // Check if it's a QueryStep (just has userQuery and formalQuery)
+    if (!('isComposed' in additionalQuery)) {
+      // It's a pure QueryStep - add it directly with all its properties
+      additionalSteps.push({
+        userQuery: additionalQuery.userQuery,
+        formalQuery: additionalQuery.formalQuery || additionalQuery.userQuery,
+        intentParserResult: (additionalQuery as any).intentParserResult,
+        isComposed: (additionalQuery as any).isComposed,
+        querySteps: (additionalQuery as any).querySteps,
+        pageSelections: (additionalQuery as any).pageSelections,
+      });
+    } else if (additionalQuery.isComposed && additionalQuery.querySteps) {
+      // It's a composed query - add its base as a step PLUS all its steps
+      additionalSteps.push({
+        userQuery: additionalQuery.userQuery,
+        formalQuery: additionalQuery.formalQuery || additionalQuery.userQuery,
+        intentParserResult: additionalQuery.intentParserResult,
+        isComposed: false, // The base becomes a simple step
+        querySteps: [],
+        pageSelections: [],
+      });
+      additionalSteps.push(...additionalQuery.querySteps);
+    } else {
+      // It's a simple query - add as single step with all available metadata
+      additionalSteps.push({
+        userQuery: additionalQuery.userQuery,
+        formalQuery: additionalQuery.formalQuery || additionalQuery.userQuery,
+        intentParserResult: additionalQuery.intentParserResult,
+        isComposed: false,
+        querySteps: [],
+        pageSelections: [],
+      });
+    }
+  }
+
+  // Combine page selections
+  const basePageSelections = ('isComposed' in baseQuery && baseQuery.isComposed) ? (baseQuery.pageSelections || []) : [];
+  const additionalPageSelections = ('isComposed' in additionalQuery && additionalQuery.isComposed) ? (additionalQuery.pageSelections || []) : [];
+
+  // Create the composed query - base query stays as userQuery, everything else becomes steps
+  const composedQuery: Omit<StoredQuery, 'id' | 'timestamp'> = {
+    userQuery: baseQuery.userQuery, // Base query is NEVER duplicated in steps
+    formalQuery: baseQuery.formalQuery || baseQuery.userQuery,
+    intentParserResult: baseQuery.intentParserResult,
+    isComposed: true,
+    querySteps: [...baseSteps, ...additionalSteps],
+    pageSelections: [...basePageSelections, ...additionalPageSelections]
+  };
+
+  return composedQuery;
+};
+
+/**
+ * Unified function to store queries with different storage types
+ * Note: For temporary storage, caller should use React state instead of this function
+ */
+export const storeQuery = (
+  query: Omit<StoredQuery, 'id' | 'timestamp'>,
+  options: UnifiedStorageOptions,
+  onTemporaryStore?: (query: StoredQuery) => void
+): string => {
+  const queryWithMetadata: StoredQuery = {
+    ...query,
+    id: generateQueryId(),
+    timestamp: new Date(),
+    name: options.customName || (query.isComposed ?
+      generateComposedQueryName(query.userQuery, query.querySteps || [], query.pageSelections || []) :
+      undefined)
+  };
+
+  switch (options.type) {
+    case 'temporary':
+      // Use callback to store in React state instead of window
+      if (onTemporaryStore) {
+        onTemporaryStore(queryWithMetadata);
+      } else {
+        // Fallback to window for backward compatibility
+        console.warn('Temporary storage without callback - consider using React state');
+        (window as any).__currentComposedQuery = queryWithMetadata;
+        (window as any).__currentComposedQueryId = queryWithMetadata.id;
+      }
+      return queryWithMetadata.id;
+
+    case 'recent':
+      const queries = getStoredQueries();
+      queries.recent = [queryWithMetadata, ...queries.recent].slice(0, MAX_RECENT_QUERIES);
+      saveQueries(queries);
+      return queryWithMetadata.id;
+
+    case 'saved':
+      const savedQueries = getStoredQueries();
+      savedQueries.saved.push(queryWithMetadata);
+      saveQueries(savedQueries);
+      return queryWithMetadata.id;
+
+    default:
+      throw new Error(`Unknown storage type: ${options.type}`);
+  }
 };

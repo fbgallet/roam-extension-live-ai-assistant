@@ -3372,6 +3372,8 @@ textarea.bp3-input.full-results-chat-input {
 
 /* Expanded content */
 .query-manager-expanded {
+  max-height: 550px;
+  overflow-y: scroll;
   padding: 8px;
   border-top: 1px solid rgba(167, 182, 194, 0.4);
   background: inherit;

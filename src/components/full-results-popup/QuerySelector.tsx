@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, HTMLSelect, Dialog, Classes, InputGroup, Menu, MenuItem, Popover, Position } from "@blueprintjs/core";
-import { StoredQuery, getStoredQueries, saveQuery, deleteSavedQuery, getCurrentQueryInfo } from "../../ai/agents/search-agent/helpers/queryStorage";
+import { StoredQuery, getStoredQueries, saveQuery, deleteSavedQuery, getCurrentQueryInfo } from "./utils/queryStorage";
 
 interface QuerySelectorProps {
   currentUserQuery?: string;

@@ -8,7 +8,13 @@ import {
   ChatMessage,
   DNPFilter,
 } from "../types";
-import { StoredQuery } from "../../../ai/agents/search-agent/helpers/queryStorage";
+import { StoredQuery } from "../utils/queryStorage";
+import {
+  UnifiedQuery,
+  QueryContext,
+  storedQueryToUnified,
+  createSimpleQuery,
+} from "../types/QueryTypes";
 import {
   filterAndSortResults,
   paginateResults,
@@ -49,6 +55,15 @@ export const useFullResultsState = (
   const [composerQuery, setComposerQuery] = useState("");
   const [isComposingQuery, setIsComposingQuery] = useState(false);
   const [showQueryComposer, setShowQueryComposer] = useState(false);
+
+  // Unified Query State (replaces fragmented window-based state)
+  const [queryContext, setQueryContext] = useState<QueryContext>({
+    currentQuery: null,
+    originalQuery: null,
+    loadedQuery: null,
+    isCompositionMode: false,
+    selectedQueryId: "",
+  });
 
   // Filtering and sorting state
   const [searchFilter, setSearchFilter] = useState("");
@@ -588,6 +603,50 @@ export const useFullResultsState = (
     }
   };
 
+  // Unified Query Management Functions
+  const updateQueryContext = useCallback((updates: Partial<QueryContext>) => {
+    setQueryContext(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  const setCurrentQuery = useCallback((query: UnifiedQuery | null) => {
+    updateQueryContext({ currentQuery: query });
+  }, [updateQueryContext]);
+
+  const setOriginalQuery = useCallback((query: UnifiedQuery | null) => {
+    updateQueryContext({ originalQuery: query });
+  }, [updateQueryContext]);
+
+  const setLoadedQuery = useCallback((query: UnifiedQuery | null) => {
+    updateQueryContext({ loadedQuery: query });
+  }, [updateQueryContext]);
+
+  const enterCompositionMode = useCallback((original: UnifiedQuery, loaded: UnifiedQuery) => {
+    updateQueryContext({
+      originalQuery: original,
+      loadedQuery: loaded,
+      isCompositionMode: true,
+    });
+  }, [updateQueryContext]);
+
+  const exitCompositionMode = useCallback(() => {
+    updateQueryContext({
+      originalQuery: null,
+      loadedQuery: null,
+      isCompositionMode: false,
+    });
+  }, [updateQueryContext]);
+
+  // Helper to get current query from window state (for external component integration)
+  const getCurrentQueryFromWindow = useCallback((): UnifiedQuery | null => {
+    const userQuery = (window as any).lastUserQuery;
+    const formalQuery = (window as any).lastFormalQuery;
+    const intentParserResult = (window as any).lastIntentParserResult;
+
+    if (!userQuery) return null;
+
+    return createSimpleQuery(userQuery, formalQuery, intentParserResult);
+  }, []);
+
   // Query Composer handlers
   // Toggle query composer visibility
   const toggleQueryComposer = useCallback(() => {
@@ -648,7 +707,7 @@ export const useFullResultsState = (
           if (mode === "replace") {
             // For replace mode, save as a new query (not composed) and update global state
             const { addRecentQuery } = await import(
-              "../../../ai/agents/search-agent/helpers/queryStorage"
+              "../utils/queryStorage"
             );
             const currentInfo = (window as any).lastIntentParserResult;
             if (currentInfo) {
@@ -670,14 +729,22 @@ export const useFullResultsState = (
               `🔍 [QueryComposer] ADD MODE - Current results: ${currentResults.length}, New results: ${newResults.length}`
             );
 
-            // For add mode, update the current query to be composed or add to existing composed query
-            const { updateToComposedQuery, getStoredQueries } = await import(
-              "../../../ai/agents/search-agent/helpers/queryStorage"
+            // For add mode, use unified system to get stored queries
+            const { getStoredQueries } = await import(
+              "../utils/queryStorage"
             );
 
             // For add mode: check if we have original query context for composition
             const originalQueryInfo = (window as any)
               .__originalQueryForComposition;
+
+            // Clear any stale temporary queries before starting new composition
+            if (originalQueryInfo && originalQueryInfo.isComposed && originalQueryInfo.querySteps && originalQueryInfo.querySteps.length > 2) {
+              console.warn("🧹 [QueryComposer] Clearing stale accumulated query before composition");
+              delete (window as any).__originalQueryForComposition;
+              delete (window as any).__currentComposedQuery;
+              delete (window as any).__currentComposedQueryId;
+            }
             const queries = getStoredQueries();
             console.log(`🔍 [QueryComposer] Current stored queries:`, {
               recentCount: queries.recent.length,
@@ -693,34 +760,80 @@ export const useFullResultsState = (
             let targetQuery: StoredQuery | null = null;
 
             if (originalQueryInfo) {
-              // We have original query context - find the original query to compose with
-              const allQueries = [...queries.recent, ...queries.saved];
-              targetQuery = allQueries.find(
-                (q) => q.userQuery === originalQueryInfo.userQuery
-              );
-
-              console.log(
-                `🔗 [QueryComposer] Using original query for composition:`,
-                {
-                  originalQueryText: originalQueryInfo.userQuery,
-                  foundInStorage: !!targetQuery,
-                  newQueryToAdd: composerQuery,
+              // Check if originalQueryInfo is a full StoredQuery object or just a simple object
+              if (originalQueryInfo.id && originalQueryInfo.timestamp) {
+                // It's a full StoredQuery object - be selective about cleaning
+                // Only strip steps if there are signs of memory leak accumulation
+                if (originalQueryInfo.isComposed && originalQueryInfo.querySteps && originalQueryInfo.querySteps.length > 2) {
+                  console.log("🧹 [QueryComposer] Creating fresh simple query from over-accumulated base (", originalQueryInfo.querySteps.length, "steps) to prevent memory leak");
+                  // Create a fresh simple query from just the base
+                  targetQuery = {
+                    id: originalQueryInfo.id,
+                    timestamp: originalQueryInfo.timestamp,
+                    userQuery: originalQueryInfo.userQuery,
+                    formalQuery: originalQueryInfo.formalQuery || originalQueryInfo.userQuery,
+                    intentParserResult: originalQueryInfo.intentParserResult,
+                    isComposed: false,
+                    querySteps: [],
+                    pageSelections: []
+                  };
+                } else {
+                  // Use it directly - preserve legitimate composed queries (A+B) and simple queries
+                  targetQuery = originalQueryInfo;
+                  console.log("✅ [QueryComposer] Preserving", originalQueryInfo.isComposed ? "composed" : "simple", "query with", originalQueryInfo.querySteps?.length || 0, "steps");
                 }
-              );
+                console.log(
+                  `🔗 [QueryComposer] FOUND original by ID:`,
+                  {
+                    originalQueryId: targetQuery.id,
+                    originalUserQuery: targetQuery.userQuery,
+                    isComposed: targetQuery.isComposed,
+                    existingSteps: targetQuery.querySteps?.length || 0,
+                    existingStepsDetails: targetQuery.querySteps?.map(step => step.userQuery) || [],
+                    newQueryToAdd: composerQuery
+                  }
+                );
+              } else {
+                // It's a simple object - find the query in storage
+                const allQueries = [...queries.recent, ...queries.saved];
+                targetQuery = allQueries.find(
+                  (q) => q.userQuery === originalQueryInfo.userQuery
+                );
+
+                console.log(
+                  `🔗 [QueryComposer] Using original query for composition (found in storage):`,
+                  {
+                    originalQueryText: originalQueryInfo.userQuery,
+                    foundInStorage: !!targetQuery,
+                    newQueryToAdd: composerQuery,
+                  }
+                );
+              }
 
               // Clear the original query context after using it
               (window as any).__originalQueryForComposition = null;
             } else if (queries.recent.length > 0) {
-              // Fallback: use the most recent query as the base for composition
-              targetQuery = queries.recent[0];
+              // Fallback: Find the best query for composition
+              // Don't use a query that has the same userQuery as what we're trying to add
+              const potentialBases = queries.recent.filter(q => q.userQuery !== composerQuery);
+
+              if (potentialBases.length > 0) {
+                // Prefer composed queries, or use the most recent different query
+                targetQuery = potentialBases.find(q => q.isComposed) || potentialBases[0];
+              } else {
+                // Last resort: use most recent query even if it matches
+                targetQuery = queries.recent[0];
+              }
+
               console.log(
-                `🔍 [QueryComposer] No original context - using most recent query:`,
+                `🔍 [QueryComposer] No original context - using fallback query:`,
                 {
                   baseQueryId: targetQuery.id,
                   baseQueryText: targetQuery.userQuery,
                   baseQueryIsComposed: targetQuery.isComposed,
                   existingSteps: targetQuery.querySteps?.length || 0,
                   newQueryToAdd: composerQuery,
+                  filteredCandidates: potentialBases.length,
                 }
               );
             }
@@ -729,46 +842,49 @@ export const useFullResultsState = (
               const currentInfo = (window as any).lastIntentParserResult;
 
               if (currentInfo) {
-                // Create a temporary composed query structure in memory (NOT saved to storage)
+                // Use the unified composition system
+                const { composeQueries, storeQuery } = await import(
+                  "../utils/queryStorage"
+                );
 
                 console.log(
-                  `🔗 [QueryComposer] Creating temporary composed query from:`,
+                  `🔗 [QueryComposer] Using unified composition system:`,
                   {
                     baseQuery: targetQuery.userQuery,
+                    baseIsComposed: targetQuery.isComposed,
+                    baseSteps: targetQuery.querySteps?.length || 0,
                     addedQuery: composerQuery,
-                    originalQueryId: targetQuery.id,
                   }
                 );
 
-                // Create temporary composed query structure
-                const tempComposedQuery = {
-                  id: `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
-                  timestamp: new Date(),
-                  userQuery: targetQuery.userQuery, // Use original base query
-                  formalQuery: targetQuery.formalQuery || targetQuery.userQuery,
-                  intentParserResult: targetQuery.intentParserResult,
-                  isComposed: true,
-                  querySteps: [
-                    {
-                      userQuery: composerQuery,
-                      formalQuery: currentInfo.formalQuery || composerQuery,
-                    },
-                  ],
-                  pageSelections: [], // No page selections for now
+                // Create the additional query step with full metadata
+                const additionalStep = {
+                  userQuery: composerQuery,
+                  formalQuery: currentInfo.formalQuery || composerQuery,
+                  intentParserResult: currentInfo, // Capture full intentParserResult
+                  isComposed: false,
+                  querySteps: [],
+                  pageSelections: [],
                 };
 
+                // Compose the queries using the unified system
+                const composedQuery = composeQueries(targetQuery, additionalStep);
+
+                // Store temporarily
+                const tempQueryId = storeQuery(composedQuery, { type: 'temporary' });
+
                 console.log(
-                  `✅ [QueryComposer] Created temporary composed query (NOT saved to storage)`,
+                  `✅ [QueryComposer] Created composed query with unified system:`,
                   {
-                    id: tempComposedQuery.id,
-                    baseQuery: tempComposedQuery.userQuery,
-                    querySteps: tempComposedQuery.querySteps.length,
-                    isComposed: tempComposedQuery.isComposed
+                    id: tempQueryId,
+                    baseQuery: composedQuery.userQuery,
+                    totalSteps: composedQuery.querySteps?.length || 0,
+                    allSteps: composedQuery.querySteps?.map(step => step.userQuery) || []
                   }
                 );
 
-                // Store the temporary composed query in window for current session
-                (window as any).__currentComposedQuery = tempComposedQuery;
+                // Get the stored query for consistency
+                const tempComposedQuery = (window as any).__currentComposedQuery;
 
                 // Return special flag to indicate composed query was created
                 (newResults as any).__composedQueryCreated = true;
