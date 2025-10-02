@@ -32,7 +32,8 @@ export const getAvailableModels = (provider) => {
         "Claude Haiku 3.5",
         "Claude Sonnet 3.5",
         "Claude Sonnet 4",
-        "Claude Sonnet 4 Thinking",
+        "Claude Sonnet 4.5",
+        "Claude Sonnet 4.5 Thinking",
         "Claude Opus 4.1",
       ];
     case "DeepSeek":
@@ -72,7 +73,8 @@ export const tokensLimit = {
   "Claude Sonnet 3.7": 200000,
   // "Claude Sonnet 3.7 Thinking": 200000,
   "Claude Sonnet 4": 200000,
-  "Claude Sonnet 4 Thinking": 200000,
+  "Claude Sonnet 4.5": 200000,
+  "Claude Sonnet 4.5 Thinking": 200000,
   "Claude Opus 4.1": 200000,
   "deepseek-chat": 128000,
   "deepseek-reasoner": 128000,
@@ -185,6 +187,10 @@ export const modelsPricing = {
     input: 15,
     output: 75,
   },
+  "claude-sonnet-4-5-20250929": {
+    input: 3,
+    output: 15,
+  },
   "claude-opus-4-1-20250805": {
     input: 15,
     output: 75,
@@ -288,18 +294,27 @@ export function normalizeClaudeModel(model, getShortName) {
     case "claude opus 4.1":
       model = getShortName ? "Claude Opus 4.1" : "claude-opus-4-1-20250805";
       break;
+    case "claude-sonnet":
+    case "claude-sonnet-4.5":
+    case "claude-sonnet-4-5":
+    case "claude-sonnet-4-5-20250929":
+    case "claude sonnet 4.5":
+      model = getShortName ? "Claude Sonnet 4.5" : "claude-sonnet-4-5-20250929";
+      break;
+    case "claude-sonnet-4-5-20250929+thinking":
+    case "claude-sonnet-4.5+thinking":
+    case "claude sonnet 4.5 thinking":
+    case "claude sonnet 4 thinking":
+      model = getShortName
+        ? "Claude Sonnet 4.5 Thinking"
+        : "claude-sonnet-4-5-20250929+thinking";
+      break;
     case "claude-sonnet-4":
     case "claude-sonnet-4-20250514":
     case "claude sonnet 4":
       model = getShortName ? "Claude Sonnet 4" : "claude-sonnet-4-20250514";
       break;
     // claude-3-7-sonnet-latest
-    case "claude-sonnet-4-20250514+thinking":
-    case "claude sonnet 4 thinking":
-      model = getShortName
-        ? "Claude Sonnet 4 Thinking"
-        : "claude-sonnet-4-20250514+thinking";
-      break;
     case "claude-sonnet-3.5":
     case "claude-3-5-sonnet-20241022":
     case "claude sonnet 3.5":

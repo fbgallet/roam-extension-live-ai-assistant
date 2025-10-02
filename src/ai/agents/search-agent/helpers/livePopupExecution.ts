@@ -11,7 +11,7 @@ import {
 import { LlmInfos } from "../../langraphModelsLoader";
 import { modelAccordingToProvider } from "../../../aiAPIsHub";
 import { defaultModel } from "../../../..";
-import { IntentParserResult } from "../../../components/full-results-popup/utils/queryStorage";
+import { IntentParserResult } from "../../../../components/full-results-popup/utils/queryStorage.js";
 import { deduplicateResultsByUid } from "./searchUtils";
 import {
   initializeAgentToaster,

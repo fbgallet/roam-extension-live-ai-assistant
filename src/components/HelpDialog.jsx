@@ -126,6 +126,13 @@ const HelpDialog = ({ isOpen, onClose }) => {
           <a href="https://x.com/fbgallet" target="_blank">
             @fbgallet
           </a>
+          or on Bluesky:
+          <a
+            href="https://bsky.app/profile/fbgallet.bsky.social"
+            target="_blank"
+          >
+            @fbgallet.bsky.social
+          </a>
           .
         </p>
         <p>

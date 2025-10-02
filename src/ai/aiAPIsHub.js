@@ -501,8 +501,11 @@ export async function claudeCompletion({
             ].concat(prompt);
       let thinkingToaster;
       const options = {
-        max_tokens:
-          model.includes("3-5") || model.includes("3.5") ? 8192 : 4096,
+        max_tokens: model.includes("sonnet")
+          ? 64000
+          : model.includes("opus")
+          ? 32000
+          : 8192,
         model: thinking ? model.replace("+thinking", "") : model,
         messages,
       };
@@ -618,7 +621,9 @@ export async function claudeCompletion({
         try {
           while (true) {
             if (isCanceledStreamGlobal) {
-              streamElt.innerHTML += DOMPurify.sanitize("(⚠️ stream interrupted by user)");
+              streamElt.innerHTML += DOMPurify.sanitize(
+                "(⚠️ stream interrupted by user)"
+              );
               respStr = "";
               break;
             }

@@ -9,20 +9,28 @@ import {
   renameSavedQuery,
   getCurrentQueryInfo,
 } from "../utils/queryStorage";
+import {
+  UnifiedQuery,
+  QueryContext,
+  storedQueryToUnified,
+  createSimpleQuery,
+} from "../types/QueryTypes";
 
 interface UseQueryManagerProps {
   currentResults: Result[];
   currentUserQuery?: string;
   currentFormalQuery?: string;
   onQuerySelect: (query: StoredQuery | "current") => void;
+  onQueryLoadedIntoComposer?: (query: StoredQuery) => void;
   onQueryChange: (query: string) => void;
   onClearAll?: () => void;
   disabled?: boolean;
-  originalQueryForComposition?: {
-    userQuery: string;
-    formalQuery: string;
-  };
+  originalQueryForComposition?: UnifiedQuery; // Changed to support full composed queries
   loadedQuery?: StoredQuery;
+  tempComposedQuery?: StoredQuery | null; // NEW: Temporary composed query from React state
+
+  // NEW: Callbacks for external state management
+  onOriginalQueryForCompositionChange?: (query: UnifiedQuery | null) => void;
 }
 
 export interface UseQueryManagerReturn {
@@ -62,6 +70,9 @@ export interface UseQueryManagerReturn {
   canSaveCurrent: () => boolean;
   generateDefaultName: (userQuery: string) => string;
   actionsMenuContent: JSX.Element;
+
+  // Query utilities (callback-based external state)
+  getCurrentUnifiedQuery: () => UnifiedQuery | null;
 }
 
 export const useQueryManager = ({
@@ -69,11 +80,14 @@ export const useQueryManager = ({
   currentUserQuery,
   currentFormalQuery,
   onQuerySelect,
+  onQueryLoadedIntoComposer,
   onQueryChange,
   onClearAll,
   disabled,
   originalQueryForComposition,
   loadedQuery,
+  tempComposedQuery,
+  onOriginalQueryForCompositionChange,
 }: UseQueryManagerProps): UseQueryManagerReturn => {
   // State
   const [queries, setQueries] = useState<QueryStorage>({
@@ -95,6 +109,9 @@ export const useQueryManager = ({
 
   // Track loaded query for UI feedback
   const [uiLoadedQuery, setUILoadedQuery] = useState<StoredQuery | null>(null);
+
+  // External state management: Query context is managed by FullResultsPopup
+  // useQueryManager provides logic and calls callbacks to update external state
 
   // Function to refresh queries from storage
   const refreshQueries = useCallback(() => {
@@ -123,13 +140,48 @@ export const useQueryManager = ({
     } else {
     }
 
-
     // If we have a current query but selectedValue is not "current", switch to current
     // This handles the case after composition where we want to show the composed query
     if (currentUserQuery && selectedValue !== "current") {
       setSelectedValue("current");
     }
   }, [currentUserQuery, selectedValue]);
+
+  // Query Management Functions (callback-based for external state)
+  const getCurrentUnifiedQuery = useCallback((): UnifiedQuery | null => {
+    if (currentUserQuery) {
+      return createSimpleQuery(
+        currentUserQuery,
+        currentFormalQuery,
+        (window as any).lastIntentParserResult
+      );
+    }
+    return null;
+  }, [currentUserQuery, currentFormalQuery]);
+
+  const notifyOriginalQueryChange = useCallback(
+    (query: UnifiedQuery | null) => {
+      // Notify external state manager (FullResultsPopup)
+      if (onOriginalQueryForCompositionChange) {
+        onOriginalQueryForCompositionChange(query);
+      }
+
+      // Maintain backward compatibility by setting window variable for external components
+      if (query) {
+        (window as any).__originalQueryForComposition = {
+          userQuery: query.userQuery,
+          formalQuery: query.formalQuery,
+          intentParserResult: query.intentParserResult,
+          isComposed: query.isComposed,
+          querySteps: query.querySteps || [],
+          pageSelections: query.pageSelections || [],
+        };
+      } else {
+        delete (window as any).__originalQueryForComposition;
+      }
+    },
+    [onOriginalQueryForCompositionChange]
+  );
 
   // Watch for changes in currentUserQuery and switch to "current" when it updates
   // This ensures that after composition, we show the composed query as "current"
@@ -167,6 +219,16 @@ export const useQueryManager = ({
     setQueries(getStoredQueries());
   }, []);
 
+  // Refresh queries when tempComposedQuery changes (e.g., after composition)
+  useEffect(() => {
+    if (tempComposedQuery) {
+      console.log(
+        "🔄 [QueryManager] tempComposedQuery changed, refreshing queries from storage"
+      );
+      refreshQueries();
+    }
+  }, [tempComposedQuery, refreshQueries]);
+
   const handleSelectionChange = useCallback(
     (item: any) => {
       if (disabled) return;
@@ -182,123 +244,36 @@ export const useQueryManager = ({
       if (item.id === "current") {
         onQuerySelect("current");
       } else if (item.query) {
-        // Log all query loading for debugging (composed and simple)
-        console.log("📋 [QueryManager] Loading query:", {
-          id: item.query.id,
-          userQuery: item.query.userQuery,
-          isComposed: item.query.isComposed,
-          hasQuerySteps: !!item.query.querySteps,
-          queryStepsCount: item.query.querySteps?.length || 0,
-          hasPageSelections: !!item.query.pageSelections,
-          pageSelectionsCount: item.query.pageSelections?.length || 0,
-          fullQuery: item.query, // Log the full object to inspect its structure
-        });
-
-        if (item.query.isComposed) {
-          console.log("🔗 [QueryManager] >>> COMPOSED query details:", {
-            querySteps:
-              item.query.querySteps?.map((step) => step.userQuery) || [],
-            pageSelections:
-              item.query.pageSelections?.map((page) => page.title) || [],
-          });
-        } else {
-          console.log("📝 [QueryManager] >>> SIMPLE query");
-        }
-
-        // Only trigger composition logic if there's already a current query
-        // Otherwise, just load the query into the interface without executing
+        // Only trigger onQuerySelect (which may execute) if there's already a current query
+        // Otherwise, just load the query into the composer
         if (currentUserQuery) {
-          console.log(
-            "🔄 [QueryManager] Current query exists - triggering composition logic"
-          );
           onQuerySelect(item.query);
         } else {
-          console.log(
-            "📋 [QueryManager] No current query - just loading into interface"
-          );
-          // Don't call onQuerySelect to avoid automatic execution
+          // Notify parent that query was loaded (so it can store the full structure)
+          if (onQueryLoadedIntoComposer) {
+            onQueryLoadedIntoComposer(item.query);
+          }
         }
       }
 
       // Auto-load query into composer when selected (except for "current")
       if (item.id !== "current" && item.query) {
-        // If there's a current query, store it as the original query for composition
-        if (currentUserQuery && currentFormalQuery) {
-          // First check if there's a current composed query ID that matches
-          const currentComposedQueryId = (window as any).__currentComposedQueryId;
-          const tempComposedQuery = (window as any).__currentComposedQuery;
-
-          if (tempComposedQuery && tempComposedQuery.userQuery === currentUserQuery) {
-            // Use the temporary composed query from memory, but create a fresh copy to prevent accumulation
-            (window as any).__originalQueryForComposition = {
-              userQuery: tempComposedQuery.userQuery,
-              formalQuery: tempComposedQuery.formalQuery,
-              intentParserResult: tempComposedQuery.intentParserResult,
-              isComposed: tempComposedQuery.isComposed,
-              querySteps: tempComposedQuery.querySteps || [],
-              pageSelections: tempComposedQuery.pageSelections || [],
-              id: tempComposedQuery.id,
-              timestamp: tempComposedQuery.timestamp
-            };
-          } else if (currentComposedQueryId) {
-            // Check if we can find the composed query by ID in storage
-            const allQueries = [...queries.recent, ...queries.saved];
-            const currentStoredQuery = allQueries.find(
-              (q) => q.id === currentComposedQueryId
-            );
-
-            if (currentStoredQuery && currentStoredQuery.isComposed) {
-              // Store the full composed query structure found by ID
-              (window as any).__originalQueryForComposition = currentStoredQuery;
-            } else {
-              // Fallback: look by userQuery
-              const queryByText = allQueries.find(
-                (q) => q.userQuery === currentUserQuery && q.isComposed
-              );
-
-              (window as any).__originalQueryForComposition = queryByText || {
-                userQuery: currentUserQuery,
-                formalQuery: currentFormalQuery
-              };
-            }
-          } else {
-            // Check if the current query is a composed query in storage
-            const allQueries = [...queries.recent, ...queries.saved];
-            const currentStoredQuery = allQueries.find(
-              (q) => q.userQuery === currentUserQuery
-            );
-
-            if (currentStoredQuery && currentStoredQuery.isComposed) {
-              // Store the full composed query structure
-              (window as any).__originalQueryForComposition = currentStoredQuery;
-            } else {
-              // Store as simple query
-              (window as any).__originalQueryForComposition = {
-                userQuery: currentUserQuery,
-                formalQuery: currentFormalQuery
-              };
-            }
-          }
-        }
-
-        // Load the query text into the composer
         onQueryChange(item.query.userQuery);
-
-        // Store the loaded query for UI feedback
         setUILoadedQuery(item.query);
-
-        // Expand the section so user can see the execution buttons
         setIsExpanded(true);
-
-        // If no current query, show helpful message
-        if (!currentUserQuery) {
-          console.log(
-            "💡 [QueryManager] Query loaded into composer - user can choose to execute, modify, or load another"
-          );
-        }
       }
     },
-    [disabled, currentUserQuery, currentFormalQuery, onQuerySelect, onQueryChange]
+    [
+      disabled,
+      currentUserQuery,
+      currentFormalQuery,
+      tempComposedQuery,
+      queries.recent,
+      queries.saved,
+      onQuerySelect,
+      onQueryChange,
+      notifyOriginalQueryChange,
+    ]
   );
 
   const handleDeleteQuery = useCallback(
@@ -393,30 +368,31 @@ export const useQueryManager = ({
     // Use unified system to find and save the current query
     const { storeQuery } = await import("../utils/queryStorage");
 
-    // Check if there's a temporary composed query that matches
-    const tempComposedQuery = (window as any).__currentComposedQuery;
-
     let queryToSave;
 
+    // Check if there's a temporary composed query that matches (from React state)
     if (tempComposedQuery && tempComposedQuery.userQuery === currentUserQuery) {
       // Use the temporary composed query structure
       const { id, timestamp, ...queryWithoutMeta } = tempComposedQuery;
       queryToSave = queryWithoutMeta;
-      console.log("💾 [QueryManager] Saving temporary composed query with unified system");
+      console.log(
+        "💾 [QueryManager] Saving temporary composed query with unified system"
+      );
     } else {
       // Check if current query is in storage
       const allQueries = [...queries.recent, ...queries.saved];
-      const currentStoredQuery = allQueries.find(
-        (q) => q.userQuery === currentUserQuery && q.isComposed
-      ) || allQueries.find(
-        (q) => q.userQuery === currentInfo.userQuery
-      );
+      const currentStoredQuery =
+        allQueries.find(
+          (q) => q.userQuery === currentUserQuery && q.isComposed
+        ) || allQueries.find((q) => q.userQuery === currentInfo.userQuery);
 
       if (currentStoredQuery?.isComposed) {
         // Save existing composed query structure
         const { id, timestamp, ...queryWithoutMeta } = currentStoredQuery;
         queryToSave = queryWithoutMeta;
-        console.log("💾 [QueryManager] Saving existing composed query with unified system");
+        console.log(
+          "💾 [QueryManager] Saving existing composed query with unified system"
+        );
       } else {
         // Create simple query structure
         queryToSave = {
@@ -425,19 +401,21 @@ export const useQueryManager = ({
           intentParserResult: currentInfo.intentParserResult,
           isComposed: false,
           querySteps: [],
-          pageSelections: []
+          pageSelections: [],
         };
-        console.log("💾 [QueryManager] Saving simple query with unified system");
+        console.log(
+          "💾 [QueryManager] Saving simple query with unified system"
+        );
       }
     }
 
     // Save using unified system
-    storeQuery(queryToSave, { type: 'saved', customName: queryName });
+    storeQuery(queryToSave, { type: "saved", customName: queryName });
 
     setQueries(getStoredQueries());
     setShowSaveDialog(false);
     setSaveQueryName("");
-  }, [queries, currentUserQuery, saveQueryName]);
+  }, [queries, currentUserQuery, tempComposedQuery, saveQueryName]);
 
   const handleRenameQuery = useCallback(() => {
     if (renameQueryId && renameValue.trim()) {
@@ -531,8 +509,8 @@ export const useQueryManager = ({
         {/* Clear all queries option - show if there are any stored queries */}
         {(queries.recent.length > 0 || queries.saved.length > 0) && (
           <MenuItem
-            icon="clean"
-            text="Clear all stored queries"
+            icon="trash"
+            text="Delete ALL stored queries ⚠️"
             intent="danger"
             onClick={() => {
               setShowClearAllDialog(true);
@@ -588,5 +566,8 @@ export const useQueryManager = ({
     canSaveCurrent,
     generateDefaultName,
     actionsMenuContent,
+
+    // Query utilities (callback-based external state)
+    getCurrentUnifiedQuery,
   };
 };

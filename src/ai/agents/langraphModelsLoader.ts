@@ -109,7 +109,11 @@ export function modelViaLanggraph(
     });
   } else if (llmInfos.provider === "Anthropic") {
     if (llmInfos.id.includes("+thinking")) {
-      options.maxTokens = 32000;
+      options.maxTokens = llmInfos.id.includes("sonnet")
+        ? 64000
+        : llmInfos.id.includes("opus")
+        ? 32000
+        : 8192;
       options.thinking = { type: "enabled", budget_tokens: 1024 };
       options.streaming = true;
     }

@@ -405,7 +405,7 @@ const ModelsMenu = ({
             />
           )}
           <MenuItem
-            icon={defaultModel === "Claude Sonnet 4" && "pin"}
+            icon={defaultModel === "Claude Sonnet 4.5" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -414,13 +414,13 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="Claude Sonnet 4"
+            text="Claude Sonnet 4.5"
             labelElement="200k"
           />
           {!isWebSearch && (
             <>
               <MenuItem
-                icon={defaultModel === "Claude Sonnet 4 Thinking" && "pin"}
+                icon={defaultModel === "Claude Sonnet 4.5 Thinking" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -429,7 +429,7 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="Claude Sonnet 4 Thinking"
+                text="Claude Sonnet 4.5 Thinking"
                 labelElement="200k"
               />
               <MenuItem
@@ -473,7 +473,7 @@ const ModelsMenu = ({
                   labelElement="200k"
                 />
                 <MenuItem
-                  icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
+                  icon={defaultModel === "Claude Sonnet 4" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -482,7 +482,7 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Claude Sonnet 3.7"
+                  text="Claude Sonnet 4"
                   labelElement="200k"
                 />
               </MenuItem>
