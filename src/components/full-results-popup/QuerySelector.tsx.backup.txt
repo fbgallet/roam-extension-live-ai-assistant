@@ -1,0 +1,224 @@
+import React, { useState, useEffect } from "react";
+import { Button, HTMLSelect, Dialog, Classes, InputGroup, Menu, MenuItem, Popover, Position } from "@blueprintjs/core";
+import { StoredQuery, getStoredQueries, saveQuery, deleteSavedQuery, getCurrentQueryInfo } from "./utils/queryStorage";
+
+interface QuerySelectorProps {
+  currentUserQuery?: string;
+  currentFormalQuery?: string;
+  onQuerySelect: (query: StoredQuery | 'current') => void;
+  onSaveCurrentQuery?: () => void;
+  disabled?: boolean;
+}
+
+export const QuerySelector: React.FC<QuerySelectorProps> = ({
+  currentUserQuery,
+  currentFormalQuery,
+  onQuerySelect,
+  onSaveCurrentQuery,
+  disabled = false
+}) => {
+  const [queries, setQueries] = useState(getStoredQueries());
+  const [selectedValue, setSelectedValue] = useState<string>('current');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveQueryName, setSaveQueryName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Refresh queries when component mounts or updates
+  useEffect(() => {
+    setQueries(getStoredQueries());
+  }, []);
+
+  const handleSelectionChange = async (value: string) => {
+    if (disabled || isLoading) return;
+    
+    setSelectedValue(value);
+    
+    if (value === 'current') {
+      onQuerySelect('current');
+      return;
+    }
+    
+    // Find the selected query
+    const allQueries = [...queries.recent, ...queries.saved];
+    const selectedQuery = allQueries.find(q => q.id === value);
+    
+    if (selectedQuery) {
+      setIsLoading(true);
+      try {
+        onQuerySelect(selectedQuery);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleSaveQuery = () => {
+    const currentInfo = getCurrentQueryInfo();
+    
+    if (!currentInfo.userQuery || !currentInfo.intentParserResult) {
+      console.warn('No current query to save');
+      return;
+    }
+    
+    const queryName = saveQueryName.trim() || generateDefaultName(currentInfo.userQuery);
+    
+    saveQuery({
+      userQuery: currentInfo.userQuery,
+      formalQuery: currentInfo.formalQuery || currentInfo.userQuery,
+      intentParserResult: currentInfo.intentParserResult,
+      isComposed: false,
+      querySteps: [],
+      pageSelections: [],
+    }, queryName);
+    
+    // Refresh the queries list
+    setQueries(getStoredQueries());
+    setShowSaveDialog(false);
+    setSaveQueryName('');
+    
+    if (onSaveCurrentQuery) {
+      onSaveCurrentQuery();
+    }
+  };
+
+  const handleDeleteQuery = (queryId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    if (deleteSavedQuery(queryId)) {
+      setQueries(getStoredQueries());
+      
+      // If the deleted query was selected, switch back to current
+      if (selectedValue === queryId) {
+        setSelectedValue('current');
+        onQuerySelect('current');
+      }
+    }
+  };
+
+  const generateDefaultName = (userQuery: string): string => {
+    const cleaned = userQuery.trim().replace(/\s+/g, ' ');
+    return cleaned.length <= 50 ? cleaned : cleaned.substring(0, 47) + '...';
+  };
+
+  const formatTimestamp = (timestamp: Date): string => {
+    const now = new Date();
+    const diff = now.getTime() - timestamp.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) {
+      return 'Today';
+    } else if (days === 1) {
+      return 'Yesterday';
+    } else if (days < 7) {
+      return `${days} days ago`;
+    } else {
+      return timestamp.toLocaleDateString();
+    }
+  };
+
+  const canSaveCurrent = () => {
+    const currentInfo = getCurrentQueryInfo();
+    return currentInfo.userQuery && currentInfo.intentParserResult;
+  };
+
+  return (
+    <div className="query-selector-container">
+      <div className="query-selector-main">
+        <HTMLSelect
+          value={selectedValue}
+          onChange={(e) => handleSelectionChange(e.target.value)}
+          disabled={disabled || isLoading}
+          className="query-selector-dropdown"
+        >
+          {/* Current Query */}
+          <option value="current">
+            🔍 Current Query{currentUserQuery ? ` (${currentUserQuery.length > 30 ? currentUserQuery.substring(0, 30) + '...' : currentUserQuery})` : ''}
+          </option>
+          
+          {/* Recent Queries */}
+          {queries.recent.length > 0 && (
+            <optgroup label="📅 Recent Queries">
+              {queries.recent.map((query) => (
+                <option key={query.id} value={query.id}>
+                  {formatTimestamp(query.timestamp)} - {query.userQuery.length > 40 ? query.userQuery.substring(0, 40) + '...' : query.userQuery}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          
+          {/* Saved Queries */}
+          {queries.saved.length > 0 && (
+            <optgroup label="⭐ Saved Queries">
+              {queries.saved.map((query) => (
+                <option key={query.id} value={query.id}>
+                  {query.name || query.userQuery}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </HTMLSelect>
+        
+        {isLoading && (
+          <span className="query-selector-loading">⏳ Loading...</span>
+        )}
+      </div>
+      
+      <div className="query-selector-actions">
+        <Button
+          icon="floppy-disk"
+          minimal
+          small
+          onClick={() => setShowSaveDialog(true)}
+          disabled={!canSaveCurrent() || disabled}
+          title="Save current query"
+        />
+        
+        {selectedValue !== 'current' && queries.saved.some(q => q.id === selectedValue) && (
+          <Button
+            icon="trash"
+            minimal
+            small
+            intent="danger"
+            onClick={(e) => handleDeleteQuery(selectedValue, e)}
+            disabled={disabled}
+            title="Delete saved query"
+          />
+        )}
+      </div>
+      
+      {/* Save Query Dialog */}
+      <Dialog
+        isOpen={showSaveDialog}
+        onClose={() => setShowSaveDialog(false)}
+        title="Save Query"
+        className="save-query-dialog"
+      >
+        <div className={Classes.DIALOG_BODY}>
+          <p>Save the current query for later use:</p>
+          <div className="current-query-preview">
+            <strong>Query:</strong> {currentUserQuery}
+          </div>
+          {currentFormalQuery && currentFormalQuery !== currentUserQuery && (
+            <div className="current-formal-query-preview">
+              <strong>Formal Query:</strong> {currentFormalQuery}
+            </div>
+          )}
+          <InputGroup
+            placeholder="Enter a name for this query (optional)"
+            value={saveQueryName}
+            onChange={(e) => setSaveQueryName(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div className={Classes.DIALOG_FOOTER}>
+          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+            <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+            <Button intent="primary" onClick={handleSaveQuery}>
+              Save Query
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </div>
+  );
+};

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, HTMLSelect, Popover } from "@blueprintjs/core";
+import { Button, HTMLSelect, Popover, Collapse, Icon } from "@blueprintjs/core";
 import ModelsMenu from "../ModelsMenu";
 import { defaultModel } from "../..";
 
@@ -9,6 +9,11 @@ interface QueryComposerProps {
   onQueryChange: (query: string) => void;
   onExecuteQuery: (mode: "add" | "replace", model?: string) => void;
   hasActiveQuery?: boolean; // Whether there's an active query to add to
+  hasLoadedQuery?: boolean; // Whether there's a loaded query ready to run
+  isExpanded?: boolean; // Control expansion from parent
+  onToggleExpanded?: () => void; // Callback to toggle expansion
+  executingMode?: "add" | "replace" | null; // Which button is currently executing
+  showInputSection?: boolean; // Whether to show the collapsible input section
 }
 
 const QueryComposer: React.FC<QueryComposerProps> = ({
@@ -17,6 +22,11 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
   onQueryChange,
   onExecuteQuery,
   hasActiveQuery = false,
+  hasLoadedQuery = false,
+  isExpanded = true,
+  onToggleExpanded,
+  executingMode = null,
+  showInputSection = true,
 }) => {
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -28,8 +38,44 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
 
   return (
     <div className="query-tool-section">
-      <div className="query-composer-header">
-        <h6>New query to complete or replace results</h6>
+      {showInputSection && (
+        <>
+          <div
+            className="query-composer-header"
+            onClick={(e) => {
+              console.log("🖱️ [QueryComposer Header] Clicked");
+              onToggleExpanded?.();
+            }}
+            style={{ cursor: "pointer", gap: "8px" }}
+          >
+            <Icon icon="manually-entered-data" />
+            <h6>Type a custom query</h6>
+            <Button
+              minimal
+              small
+              icon={isExpanded ? "chevron-up" : "chevron-down"}
+              disabled={isComposingQuery}
+            />
+          </div>
+
+          <Collapse isOpen={isExpanded}>
+            <div className="query-composer-wrapper">
+              <div className="query-composer-input">
+                <textarea
+                  className="query-composer-textarea"
+                  placeholder="Type a new query..."
+                  value={composerQuery}
+                  onChange={(e) => onQueryChange(e.target.value)}
+                  disabled={isComposingQuery}
+                  rows={2}
+                />
+              </div>
+            </div>
+          </Collapse>
+        </>
+      )}
+
+      <div className="query-composer-actions">
         <div className="query-composer-model-selector">
           <Popover
             isOpen={isModelMenuOpen}
@@ -43,7 +89,8 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
                 isConversationToContinue={false}
               />
             }
-            placement="top"
+            placement="bottom-start"
+            minimal
           >
             <Button
               minimal
@@ -55,53 +102,55 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
             />
           </Popover>
         </div>
-      </div>
-
-      <div className="query-composer-wrapper">
-        <div className="query-composer-input">
-          <textarea
-            className="query-composer-textarea"
-            placeholder="Enter your additional query..."
-            value={composerQuery}
-            onChange={(e) => onQueryChange(e.target.value)}
-            disabled={isComposingQuery}
-            rows={2}
-          />
-        </div>
-        <div className="query-composer-actions">
-          <Button
-            icon={"play"}
-            text={isComposingQuery ? "Executing..." : "New query"}
-            intent="warning"
-            onClick={() => {
-              onExecuteQuery("replace", selectedModel);
-            }}
-            disabled={!composerQuery.trim() || isComposingQuery}
-            loading={isComposingQuery}
-            title={
-              isComposingQuery ? "Executing..." : "Replace current results"
-            }
-          />
+        <Button
+          icon={"play"}
+          text={
+            executingMode === "replace"
+              ? "Executing..."
+              : hasActiveQuery
+              ? "New query"
+              : "Run query"
+          }
+          intent="warning"
+          onClick={() => {
+            console.log("▶️ [Run Query Button] Clicked");
+            onExecuteQuery("replace", selectedModel);
+          }}
+          disabled={
+            (!composerQuery.trim() && !hasLoadedQuery) || isComposingQuery
+          }
+          loading={executingMode === "replace"}
+          title={
+            executingMode === "replace"
+              ? "Executing..."
+              : `${
+                  hasLoadedQuery
+                    ? "Run loaded query"
+                    : hasActiveQuery
+                    ? "Replace current results"
+                    : "Run query"
+                } (hasLoadedQuery=${hasLoadedQuery})`
+          }
+        />
+        {hasActiveQuery && (
           <Button
             icon={"plus"}
-            text={isComposingQuery ? "Executing..." : "Add query"}
+            text={executingMode === "add" ? "Executing..." : "Add query"}
             intent="primary"
             onClick={() => {
               onExecuteQuery("add", selectedModel);
             }}
-            disabled={
-              !composerQuery.trim() || isComposingQuery || !hasActiveQuery
-            }
-            loading={isComposingQuery}
+            disabled={(!composerQuery.trim() && !hasLoadedQuery) || isComposingQuery}
+            loading={executingMode === "add"}
             title={
-              isComposingQuery
+              executingMode === "add"
                 ? "Executing..."
-                : !hasActiveQuery
-                ? "No active query to add to - run a query first"
+                : hasLoadedQuery
+                ? "Add loaded query to current results"
                 : "Add to current results"
             }
           />
-        </div>
+        )}
       </div>
     </div>
   );

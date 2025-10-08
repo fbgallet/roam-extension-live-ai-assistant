@@ -248,3 +248,200 @@
   border-left: 4px solid #48aff0;
   background: rgba(72, 175, 240, 0.15);
 }
+
+/* Query preview in save dialog */
+.current-query-preview {
+  margin: 10px 0;
+  padding: 8px;
+  background: rgba(19, 124, 189, 0.05);
+  border-radius: 3px;
+}
+
+.bp5-dark .current-query-preview {
+  background: rgba(72, 175, 240, 0.08);
+}
+
+/* Unified Query Progress Tracker */
+.query-progress-tracker {
+  padding: 12px 14px;
+  margin: 8px 12px;
+  background: linear-gradient(135deg, #fef5e7 0%, #fdebd0 100%);
+  border-left: 4px solid #d9822b;
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  animation: fadeInSlide 0.3s ease-out;
+}
+
+.query-progress-message {
+  font-size: 13px;
+  font-weight: 500;
+  color: #a66321;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(217, 130, 43, 0.2);
+}
+
+.query-progress-message:only-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.query-progress-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  margin-top: 4px;
+  color: #bf7326;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.query-progress-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  align-items: center;
+}
+
+.query-progress-status {
+  flex: 1;
+  color: #5c4525;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.query-progress-status strong {
+  color: #a66321;
+  font-weight: 600;
+  min-width: 50px;
+  display: inline-block;
+}
+
+.query-progress-count {
+  margin-left: 12px;
+  padding: 2px 8px;
+  background-color: rgba(217, 130, 43, 0.15);
+  border-radius: 3px;
+  color: #a66321;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.bp5-dark .query-progress-tracker {
+  background: linear-gradient(135deg, #3d3325 0%, #332a1f 100%);
+  border-left-color: #d9822b;
+}
+
+.bp5-dark .query-progress-message {
+  color: #ffa940;
+  border-bottom-color: rgba(217, 130, 43, 0.3);
+}
+
+.bp5-dark .query-progress-title {
+  color: #ffa940;
+}
+
+.bp5-dark .query-progress-status {
+  color: #d0b694;
+}
+
+.bp5-dark .query-progress-status strong {
+  color: #ffa940;
+}
+
+.bp5-dark .query-progress-count {
+  background-color: rgba(217, 130, 43, 0.25);
+  color: #ffa940;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Query Composer Collapsible Header */
+.query-composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f5f8fa;
+  border-bottom: 1px solid #e1e8ed;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.query-composer-header:hover {
+  background: #ebf1f5;
+}
+
+.query-composer-header h6 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #394b59;
+}
+
+.bp5-dark .query-composer-header {
+  background: #30404d;
+  border-bottom-color: #5c7080;
+}
+
+.bp5-dark .query-composer-header:hover {
+  background: #394b59;
+}
+
+.bp5-dark .query-composer-header h6 {
+  color: #d8e1e8;
+}
+
+/* Editable Query Text */
+.editable-query-view {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.editable-query-text {
+  flex: 1;
+  color: #182026;
+  font-size: 13px;
+}
+
+.editable-query-edit-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.editable-query-view:hover .editable-query-edit-btn {
+  opacity: 1;
+}
+
+.editable-query-editing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.editable-query-input {
+  flex: 1;
+}
+
+.editable-query-actions {
+  display: flex;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.bp5-dark .editable-query-text {
+  color: #f5f8fa;
+}

@@ -134,12 +134,23 @@ const invokeSearchAgentInternal = async ({
 
   const modeInfo = getModeInfo(privateMode, permissions);
 
-  // Only show toaster if not in chat mode within popup
-  if (!(isPopupExecution && agentData?.isConversationMode)) {
+  // Only show toaster if not in chat mode within popup AND not in forcePopupOnly mode
+  const shouldSuppressToaster = (isPopupExecution && agentData?.isConversationMode) || agentData?.forcePopupOnly;
+
+  if (!shouldSuppressToaster) {
     initializeAgentToaster(
       "search",
       `${modeInfo.icon} ${modeInfo.name} mode`,
-      abortController
+      abortController,
+      false // suppressToaster = false
+    );
+  } else if (agentData?.forcePopupOnly) {
+    // Still initialize without toaster for forcePopupOnly (needed for abort controller)
+    initializeAgentToaster(
+      "search",
+      `${modeInfo.icon} ${modeInfo.name} mode`,
+      abortController,
+      true // suppressToaster = true
     );
   }
 
@@ -787,6 +798,9 @@ const invokeSearchAgentInternal = async ({
                 searchDetails: response.searchDetails,
                 preferredModel: response.model?.id || response.model?.name,
               },
+              isComposed: false,
+              querySteps: [],
+              pageSelections: [],
             });
           } catch (error) {
             console.warn("Failed to store recent query:", error);
@@ -859,6 +873,9 @@ const invokeSearchAgentInternal = async ({
 
         // Handle forcePopupOnly mode - automatically open the popup and skip Roam block insertion
         if (agentData?.forcePopupOnly) {
+          // Add fullResults to response object for direct access (avoids window race conditions)
+          (response as any).fullResults = fullResults;
+
           // Store results and metadata for the popup
           if (typeof window !== "undefined") {
             (window as any).lastAskYourGraphResults = fullResults;
@@ -873,8 +890,9 @@ const invokeSearchAgentInternal = async ({
             };
           }
 
-          // Import and open the popup automatically (unless called from query composer)
-          if (rootUid !== "query-composer") {
+          // Import and open the popup automatically (unless called from query composer OR composed query execution)
+          // Don't open popup for composed query sub-executions (they aggregate results elsewhere)
+          if (rootUid !== "query-composer" && !rootUid.startsWith("composed-")) {
             import("../../../components/Toaster.js")
               .then(({ openFullResultsPopup }) => {
                 if (openFullResultsPopup) {
@@ -893,7 +911,7 @@ const invokeSearchAgentInternal = async ({
                 console.error("Failed to open FullResultsPopup:", error);
               });
           } else {
-            console.log("🔧 [QueryComposer] Skipping popup opening - called from query composer");
+            console.log("🔧 [Skip popup] Called from query composer or composed query execution");
           }
 
           // Return early to skip conversation buttons and Roam block insertion

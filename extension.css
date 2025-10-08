@@ -3655,8 +3655,7 @@ textarea.bp3-input.full-results-chat-input {
 
 .query-composer-actions {
   display: flex;
-  flex-direction: column;
-  justify-content: space-around;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -3664,8 +3663,12 @@ textarea.bp3-input.full-results-chat-input {
   font-size: 14px;
   padding: 5px 8px;
   transition: all 0.2s ease;
-  width: 145px;
+  width: 135px;
   justify-content: start;
+}
+
+.query-composer-actions .query-composer-model-selector .bp3-button {
+  width: fit-content;
 }
 
 /* Tool sections within the interface */
@@ -3819,7 +3822,7 @@ textarea.bp3-input.full-results-chat-input {
   display: flex;
   align-items: center;
   white-space: nowrap;
-  width: 145px;
+  width: 135px;
   justify-content: start;
 }
 

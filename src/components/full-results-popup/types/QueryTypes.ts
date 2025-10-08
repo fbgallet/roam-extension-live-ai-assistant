@@ -76,14 +76,15 @@ export interface QueryActions {
 
 /**
  * Convert between StoredQuery and UnifiedQuery formats
+ * Ensures all required fields have proper defaults
  */
 export const storedQueryToUnified = (stored: StoredQuery): UnifiedQuery => ({
   userQuery: stored.userQuery,
   formalQuery: stored.formalQuery || stored.userQuery,
   intentParserResult: stored.intentParserResult,
-  isComposed: stored.isComposed || false,
-  querySteps: stored.querySteps || [],
-  pageSelections: stored.pageSelections || [],
+  isComposed: stored.isComposed ?? false,
+  querySteps: stored.querySteps ?? [],
+  pageSelections: stored.pageSelections ?? [],
   id: stored.id,
   timestamp: stored.timestamp,
   name: stored.name,
@@ -93,9 +94,9 @@ export const unifiedQueryToStored = (unified: UnifiedQuery): Omit<StoredQuery, '
   userQuery: unified.userQuery,
   formalQuery: unified.formalQuery,
   intentParserResult: unified.intentParserResult,
-  isComposed: unified.isComposed,
-  querySteps: unified.querySteps,
-  pageSelections: unified.pageSelections,
+  isComposed: unified.isComposed ?? false,
+  querySteps: unified.querySteps ?? [],
+  pageSelections: unified.pageSelections ?? [],
   name: unified.name,
 });
 

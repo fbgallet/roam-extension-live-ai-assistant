@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { flushSync } from "react-dom";
 import {
   Button,
   HTMLSelect,
@@ -16,8 +17,17 @@ import { canUseChat } from "./utils/chatHelpers";
 import { ReferencesFilterPopover } from "./ReferencesFilterPopover";
 import { QueryManager } from "./QueryManager";
 import { StoredQuery } from "./utils/queryStorage";
-import { UnifiedQuery, createSimpleQuery, storedQueryToUnified, unifiedQueryToStored } from "./types/QueryTypes";
-import { executeQueryWithLiveUpdates } from "../../ai/agents/search-agent/helpers/livePopupExecution";
+import {
+  UnifiedQuery,
+  createSimpleQuery,
+  storedQueryToUnified,
+  unifiedQueryToStored,
+} from "./types/QueryTypes";
+import {
+  executeQueryWithLiveUpdates,
+  executeComposedQuery,
+  executeComposedQueryParallel,
+} from "../../ai/agents/search-agent/helpers/livePopupExecution";
 
 const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   results,
@@ -33,17 +43,114 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   // Query execution state
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
   const [executionProgress, setExecutionProgress] = useState<string>("");
-  const [currentResults, setCurrentResults] = useState(results);
+
+  // Per-query progress tracking for composed queries
+  const [queryProgress, setQueryProgress] = useState<
+    Record<string, { status: string; count?: number }>
+  >({});
+
+  // Use internal state - initialize ONCE from props, NEVER sync after that
+  const [currentResults, setCurrentResults] = useState<any[]>(results);
+
+  const [pendingQueryExecution, setPendingQueryExecution] = useState<{
+    query: StoredQuery;
+    mode: "replace";
+  } | null>(null);
 
   const [currentUserQuery, setCurrentUserQuery] = useState(userQuery);
   const [currentFormalQuery, setCurrentFormalQuery] = useState(formalQuery);
 
+  // Execute composed query with visual feedback
+  useEffect(() => {
+    if (!pendingQueryExecution) return;
+
+    const { query } = pendingQueryExecution;
+    setPendingQueryExecution(null);
+
+    console.log("🎯 [useEffect] Composed query execution triggered");
+
+    const execute = async () => {
+      try {
+        console.log("🚀 [useEffect execute] Starting composed query execution");
+
+        // Set initial progress message
+        setExecutionProgress(`🔄 Running composed query: ${query.querySteps.length + 1} queries in parallel...`);
+
+        // Initialize progress tracking for each query
+        const initialProgress: Record<string, {status: string, count?: number}> = {};
+        initialProgress['base'] = { status: '⏳ Queued...' };
+        query.querySteps.forEach((_, i) => {
+          initialProgress[`step${i + 1}`] = { status: '⏳ Queued...' };
+        });
+        setQueryProgress(initialProgress);
+
+        // Execute with progress callbacks
+        console.log("📞 [useEffect execute] Calling executeComposedQueryParallel");
+        const finalResults = await executeComposedQueryParallel(query, {
+          onProgress: (queryId: string, message: string) => {
+            setQueryProgress(prev => ({
+              ...prev,
+              [queryId]: { status: message }
+            }));
+          },
+          onQueryComplete: (queryId: string, results: any[], resultCount: number) => {
+            setQueryProgress(prev => ({
+              ...prev,
+              [queryId]: { status: '✅ Completed', count: resultCount }
+            }));
+          },
+          onAllComplete: (results: any[], summary: Array<{id: string, query: string, count: number}>, executionTime?: string, tokens?: any) => {
+            const totalBefore = summary.reduce((sum, s) => sum + s.count, 0);
+            let message = `✅ Composed query completed - ${results.length} results (from ${totalBefore} before deduplication)`;
+            if (executionTime) {
+              message += ` • ${executionTime}`;
+            }
+            if (tokens && (tokens.input_tokens > 0 || tokens.output_tokens > 0)) {
+              message += ` • ${tokens.input_tokens + tokens.output_tokens} tokens`;
+            }
+            setExecutionProgress(message);
+            setTimeout(() => {
+              setExecutionProgress("");
+              setQueryProgress({});
+            }, 5000);
+          },
+          onError: (error: string) => {
+            setExecutionProgress(`❌ Composed query failed: ${error}`);
+            setQueryProgress({});
+            setTimeout(() => setExecutionProgress(""), 5000);
+          }
+        });
+
+        console.log("✅ [useEffect execute] Execute Complete -", finalResults.length, "results");
+        console.log("📝 [useEffect execute] Setting currentResults to", finalResults.length, "results");
+
+        // Update ALL state at once AFTER execution completes
+        setCurrentResults(finalResults);
+        setCurrentUserQuery(query.userQuery);
+        setCurrentFormalQuery(query.formalQuery);
+        (window as any).lastAskYourGraphResults = finalResults;
+        console.log("✓ [useEffect execute] All state updated, clearing isExecutingQuery");
+        setIsExecutingQuery(false);
+      } catch (error) {
+        console.error("Execution failed:", error);
+        setExecutionProgress(`❌ Execution error: ${error instanceof Error ? error.message : String(error)}`);
+        setQueryProgress({});
+        setTimeout(() => setExecutionProgress(""), 5000);
+        setIsExecutingQuery(false);
+      }
+    };
+
+    execute();
+  }, [pendingQueryExecution]);
+
   // Store the currently active query with full structure (eliminates need for storage lookups)
   // This is the SOURCE OF TRUTH for the current query
-  const [currentActiveQuery, setCurrentActiveQuery] = useState<StoredQuery | null>(null);
+  const [currentActiveQuery, setCurrentActiveQuery] =
+    useState<StoredQuery | null>(null);
 
   // Track temporary composed query (before saving to permanent storage)
-  const [tempComposedQuery, setTempComposedQuery] = useState<StoredQuery | null>(null);
+  const [tempComposedQuery, setTempComposedQuery] =
+    useState<StoredQuery | null>(null);
 
   // Track if we're currently composing to prevent duplicate compositions
   const [isComposingNow, setIsComposingNow] = useState(false);
@@ -70,25 +177,36 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       delete (window as any).previousFormalQuery;
       delete (window as any).previousIntentParserResult;
       delete (window as any).lastAgentResponseTargetUid;
-      console.log("🧹 [FullResultsPopup] Cleared ALL temporary storage on popup open");
+      console.log(
+        "🧹 [FullResultsPopup] Cleared ALL temporary storage on popup open"
+      );
     }
   }, [isOpen]);
 
   // Two-section composition UI state
   // External state management for query composition (accessed by multiple modules)
-  const [originalQueryForComposition, setOriginalQueryForComposition] = useState<UnifiedQuery | StoredQuery | {
-    userQuery: string;
-    formalQuery: string;
-  } | null>(null);
+  const [originalQueryForComposition, setOriginalQueryForComposition] =
+    useState<
+      | UnifiedQuery
+      | StoredQuery
+      | {
+          userQuery: string;
+          formalQuery: string;
+        }
+      | null
+    >(null);
 
   // Convert originalQueryForComposition to UnifiedQuery
   const originalQueryAsUnified: UnifiedQuery | null = React.useMemo(() => {
     if (!originalQueryForComposition) return null;
 
-    if ('isComposed' in originalQueryForComposition && typeof originalQueryForComposition.isComposed === 'boolean') {
+    if (
+      "isComposed" in originalQueryForComposition &&
+      typeof originalQueryForComposition.isComposed === "boolean"
+    ) {
       // It's already a UnifiedQuery (has required isComposed boolean)
       return originalQueryForComposition as UnifiedQuery;
-    } else if ('id' in originalQueryForComposition) {
+    } else if ("id" in originalQueryForComposition) {
       // It's a StoredQuery
       return storedQueryToUnified(originalQueryForComposition as StoredQuery);
     } else {
@@ -101,7 +219,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   }, [originalQueryForComposition]);
 
   // Convert current user/formal query to UnifiedQuery with composed query detection
-  const [currentQueryAsUnified, setCurrentQueryAsUnified] = useState<UnifiedQuery | null>(null);
+  const [currentQueryAsUnified, setCurrentQueryAsUnified] =
+    useState<UnifiedQuery | null>(null);
 
   React.useEffect(() => {
     const updateCurrentQuery = async () => {
@@ -117,7 +236,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       }
 
       // Priority 2: Use tempComposedQuery (for just-composed queries)
-      if (tempComposedQuery && tempComposedQuery.userQuery === currentUserQuery) {
+      if (
+        tempComposedQuery &&
+        tempComposedQuery.userQuery === currentUserQuery
+      ) {
         setCurrentQueryAsUnified(storedQueryToUnified(tempComposedQuery));
         return;
       }
@@ -127,8 +249,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         const { getStoredQueries } = await import("./utils/queryStorage");
         const queries = getStoredQueries();
         const allQueries = [...queries.recent, ...queries.saved];
-        const matchingComposedQuery = allQueries.find(q =>
-          q.userQuery === currentUserQuery && q.isComposed
+        const matchingComposedQuery = allQueries.find(
+          (q) => q.userQuery === currentUserQuery && q.isComposed
         );
 
         if (matchingComposedQuery) {
@@ -140,13 +262,25 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       }
 
       // Default to simple query
-      setCurrentQueryAsUnified(createSimpleQuery(currentUserQuery, currentFormalQuery || currentUserQuery));
+      setCurrentQueryAsUnified(
+        createSimpleQuery(
+          currentUserQuery,
+          currentFormalQuery || currentUserQuery
+        )
+      );
     };
 
     updateCurrentQuery();
-  }, [currentUserQuery, currentFormalQuery, currentActiveQuery, tempComposedQuery]);
+  }, [
+    currentUserQuery,
+    currentFormalQuery,
+    currentActiveQuery,
+    tempComposedQuery,
+  ]);
 
   const [loadedQuery, setLoadedQuery] = useState<StoredQuery | null>(null);
+  const [originalLoadedQuery, setOriginalLoadedQuery] = useState<StoredQuery | null>(null); // Track original before edits
+
   const {
     // State
     selectedResults,
@@ -249,7 +383,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   // Query selection handler
   // Clear all results and query context for fresh start
   const handleClearAll = () => {
-    console.log("🧹 [FullResultsPopup] Clearing all - results and query context");
+    console.log(
+      "🧹 [FullResultsPopup] Clearing all - results and query context"
+    );
 
     // Clear results
     setCurrentResults([]);
@@ -261,6 +397,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     // Clear composition context
     setOriginalQueryForComposition(null);
     setLoadedQuery(null);
+    setOriginalLoadedQuery(null);
     setTempComposedQuery(null);
 
     // Clear ALL window query state that can cause accumulation
@@ -308,12 +445,13 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       return;
     }
 
-
     // If we currently have an active query, don't execute immediately - set up for composition
     if (currentUserQuery && currentUserQuery.trim()) {
-
       // Check if there's a current composed query that should be preserved entirely
-      let originalQueryInfo: UnifiedQuery | StoredQuery | { userQuery: string; formalQuery: string; };
+      let originalQueryInfo:
+        | UnifiedQuery
+        | StoredQuery
+        | { userQuery: string; formalQuery: string };
 
       // Priority 1: Use currentQueryAsUnified if it's already composed
       if (currentQueryAsUnified && currentQueryAsUnified.isComposed) {
@@ -324,14 +462,16 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         const { getStoredQueries } = await import("./utils/queryStorage");
         const queries = getStoredQueries();
         const allQueries = [...queries.recent, ...queries.saved];
-        const currentStoredQuery = allQueries.find(q => q.userQuery === currentUserQuery && q.isComposed);
+        const currentStoredQuery = allQueries.find(
+          (q) => q.userQuery === currentUserQuery && q.isComposed
+        );
 
         if (currentStoredQuery) {
           originalQueryInfo = storedQueryToUnified(currentStoredQuery);
         } else {
           originalQueryInfo = {
             userQuery: currentUserQuery,
-            formalQuery: currentFormalQuery
+            formalQuery: currentFormalQuery,
           };
         }
       }
@@ -359,32 +499,64 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setCurrentUserQuery(query.userQuery);
     setCurrentFormalQuery(query.formalQuery);
 
+    console.log("🚀 [FullResultsPopup] Executing stored query:", {
+      userQuery: query.userQuery,
+      isComposed: query.isComposed,
+      queryStepsLength: query.querySteps?.length || 0,
+      willUseComposedExecution: query.isComposed && query.querySteps.length > 0,
+    });
+
     // Clear all state immediately when starting new query to ensure clean UI
     setCurrentResults([]);
     forceUIRefresh();
     resetChatConversation(); // Reset chat when executing a new stored query
 
     try {
+      // Check if this is a composed query that needs multi-step execution
+      if (query.isComposed && query.querySteps.length > 0) {
+        console.log(
+          "🚀 [handleQuerySelect] Scheduling parallel execution for composed query:",
+          {
+            isComposed: query.isComposed,
+            queryStepsLength: query.querySteps.length,
+            baseQuery: query.userQuery,
+            steps: query.querySteps.map((s) => s.userQuery),
+          }
+        );
+
+        // Use the parallel execution via effect (same as onExecuteQuery path)
+        setPendingQueryExecution({ query, mode: "replace" });
+        console.log(
+          "✅ [handleQuerySelect] setPendingQueryExecution called, returning early"
+        );
+        return; // Exit early - effect will handle execution
+      }
+
+      // Simple query - execute normally
+      console.log("📝 [handleQuerySelect] Simple query - executing directly");
       await executeQueryWithLiveUpdates({
-        intentParserResult: query.intentParserResult,
+        intentParserResult: query.intentParserResult!,
         userQuery: query.userQuery,
         formalQuery: query.formalQuery,
         onProgress: (message: string) => {
-          setExecutionProgress(
-            `Running query with Ask your Graph agent... ${message}`
-          );
+          setExecutionProgress(`🔍 ${message}`);
         },
         onResults: (partialResults: any[], isPartial?: boolean) => {
           if (!isPartial) {
             setCurrentResults(partialResults);
           }
         },
-        onComplete: (finalResults: any[]) => {
+        onComplete: (finalResults: any[], executionTime?: string, tokens?: any) => {
           setCurrentResults(finalResults);
-          setExecutionProgress(
-            `✅ Query completed - ${finalResults.length} results found`
-          );
-          setTimeout(() => setExecutionProgress(""), 3000);
+          let message = `✅ Query completed - ${finalResults.length} results found`;
+          if (executionTime) {
+            message += ` • ${executionTime}`;
+          }
+          if (tokens && (tokens.input_tokens > 0 || tokens.output_tokens > 0)) {
+            message += ` • ${tokens.input_tokens + tokens.output_tokens} tokens`;
+          }
+          setExecutionProgress(message);
+          setTimeout(() => setExecutionProgress(""), 5000);
         },
         onError: (error: string) => {
           setExecutionProgress(`❌ Query failed: ${error}`);
@@ -741,192 +913,331 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 <QueryManager
                   currentQuery={currentQueryAsUnified}
                   onQuerySelect={handleQuerySelect}
-                  onQueryLoadedIntoComposer={(query: StoredQuery) => {
+                  onQueryLoadedIntoComposer={(query: StoredQuery, forceResetOriginal?: boolean) => {
+                    console.log("📥 [onQueryLoadedIntoComposer] Loading query into composer:", {
+                      userQuery: query.userQuery,
+                      isComposed: query.isComposed,
+                      stepsCount: query.querySteps?.length || 0,
+                      id: query.id,
+                      forceResetOriginal,
+                    });
+                    console.log("📥 [onQueryLoadedIntoComposer] Setting lastLoadedQueryRef and loadedQuery state");
                     lastLoadedQueryRef.current = query;
+                    setLoadedQuery(query);
+                    // Track original query for detecting edits (only if not already editing)
+                    if (forceResetOriginal || !originalLoadedQuery || originalLoadedQuery.id !== query.id) {
+                      setOriginalLoadedQuery(query);
+                    }
+                    console.log("📥 [onQueryLoadedIntoComposer] State updated");
                   }}
                   disabled={isExecutingQuery}
                   executionProgress={executionProgress}
+                  queryProgress={queryProgress}
                   onQueriesUpdate={() => {
                     // Refresh mechanism enabled
                   }}
                   onClearAll={handleClearAll}
-
                   // Two-section composition UI
                   originalQueryForComposition={originalQueryAsUnified}
                   loadedQuery={loadedQuery}
+                  originalLoadedQuery={originalLoadedQuery}
                   tempComposedQuery={tempComposedQuery}
-
                   // Query Composer props
                   composerQuery={composerQuery}
                   isComposingQuery={isComposingQuery}
                   onQueryChange={setComposerQuery}
-                  onExecuteQuery={async (mode: "add" | "replace", model?: string) => {
-
+                  onExecuteQuery={async (
+                    mode: "add" | "replace",
+                    model?: string
+                  ) => {
                     // Prevent concurrent executions
                     if (isExecutingQuery) {
-                      console.warn("⚠️ [FullResultsPopup] Query already executing, skipping");
+                      console.warn(
+                        "⚠️ [FullResultsPopup] Query already executing, skipping"
+                      );
                       return;
                     }
 
                     setIsExecutingQuery(true);
 
                     try {
-                    // IMPORTANT: Preserve loaded query if executing it
-                    if (mode === "replace") {
+                      // IMPORTANT: Check if we're executing a loaded composed query
                       const queryToExecute = lastLoadedQueryRef.current;
-                      if (queryToExecute && queryToExecute.userQuery === composerQuery) {
+
+                      console.log("🔎 [New Query Button] Checking execution path:", {
+                        mode,
+                        hasQueryToExecute: !!queryToExecute,
+                        queryToExecuteUserQuery: queryToExecute?.userQuery,
+                        composerQuery,
+                        queriesMatch: queryToExecute?.userQuery === composerQuery,
+                        isComposed: queryToExecute?.isComposed,
+                        stepsCount: queryToExecute?.querySteps?.length || 0,
+                      });
+
+                      if (
+                        mode === "replace" &&
+                        queryToExecute &&
+                        (queryToExecute.userQuery === composerQuery || (!composerQuery.trim() && loadedQuery))
+                      ) {
+                        // This is a loaded query being executed (either matches composer or loaded without composer text)
+                        console.log(
+                          "✅ [FullResultsPopup] Executing loaded query:",
+                          {
+                            userQuery: queryToExecute.userQuery,
+                            isComposed: queryToExecute.isComposed,
+                            stepsCount: queryToExecute.querySteps?.length || 0,
+                          }
+                        );
+
                         setCurrentActiveQuery(queryToExecute);
-                      } else {
+
+                        // Check if it's a composed query that needs multi-step execution
+                        if (
+                          queryToExecute.isComposed &&
+                          queryToExecute.querySteps.length > 0
+                        ) {
+                          console.log(
+                            "🚀 [FullResultsPopup] Scheduling COMPOSED query execution in effect:",
+                            {
+                              querySteps: queryToExecute.querySteps.length,
+                              currentResultsLength: currentResults.length,
+                            }
+                          );
+
+                          // Clear results and set progress BEFORE execution starts
+                          setExecutionProgress(`🔄 Preparing composed query: ${queryToExecute.querySteps.length + 1} queries...`);
+                          console.log("🧹 [FullResultsPopup] Clearing results before composed execution");
+                          setCurrentResults([]);
+                          forceUIRefresh(); // Force immediate UI update to show empty state
+
+                          // Clear state
+                          setOriginalQueryForComposition(null);
+                          setLoadedQuery(null);
+                          lastLoadedQueryRef.current = null;
+
+                          // Trigger execution in effect (allows React to re-render between updates)
+                          console.log("⚡ [FullResultsPopup] Setting pendingQueryExecution to trigger useEffect");
+                          setPendingQueryExecution({
+                            query: queryToExecute,
+                            mode: "replace",
+                          });
+
+                          return; // Don't continue with normal execution
+                        }
+                      } else if (mode === "replace") {
                         setCurrentActiveQuery(null);
                         lastLoadedQueryRef.current = null;
                       }
-                    }
 
-                    // For replace mode, clear results immediately to show empty state
-                    if (mode === "replace") {
-                      setOriginalQueryForComposition(null);
-                      setLoadedQuery(null);
-                      delete (window as any).__originalQueryForComposition;
-                      delete (window as any).lastUserQuery;
-                      delete (window as any).lastFormalQuery;
-                      delete (window as any).lastIntentParserResult;
-                      delete (window as any).previousUserQuery;
-                      delete (window as any).previousFormalQuery;
-                      delete (window as any).previousIntentParserResult;
-                      delete (window as any).lastAgentResponseTargetUid;
-
-                      setCurrentResults([]);
-                      forceUIRefresh(); // Force immediate UI update to show empty state
-                    }
-
-                    const newResults = await handleComposerExecute(currentResults, mode, model);
-
-                    if (newResults && newResults.length > 0) {
-                      // Update current query context with the executed query
+                      // For replace mode, clear results immediately to show empty state
                       if (mode === "replace") {
-                        setCurrentUserQuery(composerQuery);
-                        setCurrentFormalQuery(composerQuery);
+                        setOriginalQueryForComposition(null);
+                        setLoadedQuery(null);
+                        delete (window as any).__originalQueryForComposition;
+                        delete (window as any).lastUserQuery;
+                        delete (window as any).lastFormalQuery;
+                        delete (window as any).lastIntentParserResult;
+                        delete (window as any).previousUserQuery;
+                        delete (window as any).previousFormalQuery;
+                        delete (window as any).previousIntentParserResult;
+                        delete (window as any).lastAgentResponseTargetUid;
 
-                        // Clear loadedQuery since it's now the active query
-                        if (loadedQuery) {
-                          setLoadedQuery(null);
-                        }
+                        setCurrentResults([]);
+                        forceUIRefresh(); // Force immediate UI update to show empty state
+                      }
 
-                        setCurrentResults([...newResults]);
-                        // Force refresh AFTER setting new results
-                        forceUIRefresh();
-                      } else {
-                        // Add mode - combine with existing AND create composed query
-                        const existingUids = new Set(currentResults.map(r => r.uid));
-                        const uniqueNewResults = newResults.filter(r => !existingUids.has(r.uid));
-                        setCurrentResults([...currentResults, ...uniqueNewResults]);
+                      // Set execution progress for simple queries
+                      const queryText = composerQuery.trim() || queryToExecute?.userQuery || '';
+                      setExecutionProgress(`🔄 Executing query: ${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}`);
 
-                        // Create composed query if there's a current query
-                        if (currentQueryAsUnified && !isComposingNow) {
-                          console.log("🔍 [FullResultsPopup] Checking for duplicate before composition:", {
-                            composerQuery,
-                            currentSteps: currentQueryAsUnified.querySteps?.map(s => s.userQuery) || [],
-                            isComposed: currentQueryAsUnified.isComposed
-                          });
+                      const newResults = await handleComposerExecute(
+                        currentResults,
+                        mode,
+                        model,
+                        queryText // Pass the query text (either from composer or loaded query)
+                      );
 
-                          // Check if we're already adding this exact query (prevent duplicates)
-                          const alreadyHasThisStep = currentQueryAsUnified.querySteps?.some(
-                            step => step.userQuery === composerQuery
+                      if (newResults && newResults.length > 0) {
+                        // Update current query context with the executed query
+                        if (mode === "replace") {
+                          const executedQuery = composerQuery.trim() || queryToExecute?.userQuery || '';
+                          setCurrentUserQuery(executedQuery);
+                          setCurrentFormalQuery(executedQuery);
+
+                          // Clear loadedQuery since it's now the active query
+                          if (loadedQuery) {
+                            setLoadedQuery(null);
+                          }
+
+                          setCurrentResults([...newResults]);
+                          // Force refresh AFTER setting new results
+                          forceUIRefresh();
+                        } else {
+                          // Add mode - combine with existing AND create composed query
+                          const existingUids = new Set(
+                            currentResults.map((r) => r.uid)
                           );
+                          const uniqueNewResults = newResults.filter(
+                            (r) => !existingUids.has(r.uid)
+                          );
+                          setCurrentResults([
+                            ...currentResults,
+                            ...uniqueNewResults,
+                          ]);
 
-                          if (alreadyHasThisStep) {
-                            console.warn("⚠️ [FullResultsPopup] Query already in steps, skipping composition:", composerQuery);
-                          } else {
-                            setIsComposingNow(true); // Set flag to prevent re-entry
-
-                            console.log("🔗 [FullResultsPopup] Creating composed query from:", {
-                              current: currentQueryAsUnified.userQuery,
-                              additional: composerQuery,
-                              currentSteps: currentQueryAsUnified.querySteps?.length || 0
-                            });
-
-                            const { composeQueries } = await import("./utils/queryStorage");
-                            const currentIntentParser = (window as any).lastIntentParserResult;
-
-                            // Check if we're adding a loaded query (which may be composed) or a typed query
-                            let additionalQueryToCompose: any;
-
-                            if (loadedQuery && loadedQuery.userQuery === composerQuery) {
-                              // We're adding a loaded query - use its full structure (may include steps)
-                              console.log("📚 [FullResultsPopup] Adding loaded query with full structure:", {
-                                userQuery: loadedQuery.userQuery,
-                                isComposed: loadedQuery.isComposed,
-                                steps: loadedQuery.querySteps?.length || 0
-                              });
-                              additionalQueryToCompose = loadedQuery;
-                            } else {
-                              // We're adding a typed query - create simple step
-                              console.log("✏️ [FullResultsPopup] Adding typed query as simple step");
-                              additionalQueryToCompose = {
-                                userQuery: composerQuery,
-                                formalQuery: currentIntentParser?.formalQuery || composerQuery,
-                                intentParserResult: currentIntentParser,
-                              };
-                            }
-
-                            // Convert UnifiedQuery to StoredQuery format for composition
-                            const baseQueryForComposition = unifiedQueryToStored(currentQueryAsUnified);
-
-                            // Compose with current query
-                            const composedQuery = composeQueries(
-                              baseQueryForComposition,
-                              additionalQueryToCompose
+                          // Create composed query if there's a current query
+                          if (currentQueryAsUnified && !isComposingNow) {
+                            console.log(
+                              "🔍 [FullResultsPopup] Checking for duplicate before composition:",
+                              {
+                                composerQuery,
+                                currentSteps:
+                                  currentQueryAsUnified.querySteps?.map(
+                                    (s) => s.userQuery
+                                  ) || [],
+                                isComposed: currentQueryAsUnified.isComposed,
+                              }
                             );
 
-                          console.log("🔗 [FullResultsPopup] Composed query:", {
-                            userQuery: composedQuery.userQuery,
-                            stepsCount: composedQuery.querySteps?.length || 0,
-                            isComposed: composedQuery.isComposed
-                          });
+                            // Check if we're already adding this exact query (prevent duplicates)
+                            const alreadyHasThisStep =
+                              currentQueryAsUnified.querySteps?.some(
+                                (step) => step.userQuery === composerQuery
+                              );
 
-                          // Store in React state as temporary composed query
-                          const tempQuery = {
-                            ...composedQuery,
-                            id: `temp_${Date.now()}`,
-                            timestamp: new Date()
-                          };
+                            if (alreadyHasThisStep) {
+                              console.warn(
+                                "⚠️ [FullResultsPopup] Query already in steps, skipping composition:",
+                                composerQuery
+                              );
+                            } else {
+                              setIsComposingNow(true); // Set flag to prevent re-entry
 
-                          // Set the composed query as the current active query (SOURCE OF TRUTH)
-                          setCurrentActiveQuery(tempQuery);
-                          setTempComposedQuery(tempQuery);
-                          setCurrentUserQuery(composedQuery.userQuery);
-                          setCurrentFormalQuery(composedQuery.formalQuery);
+                              console.log(
+                                "🔗 [FullResultsPopup] Creating composed query from:",
+                                {
+                                  current: currentQueryAsUnified.userQuery,
+                                  additional: composerQuery,
+                                  currentSteps:
+                                    currentQueryAsUnified.querySteps?.length ||
+                                    0,
+                                }
+                              );
 
-                          // Add to recent queries
-                          const { getStoredQueries, saveQueries } = await import("./utils/queryStorage");
-                          const queries = getStoredQueries();
-                          queries.recent = [tempQuery, ...queries.recent].slice(0, 10);
-                          saveQueries(queries);
+                              const { composeQueries } = await import(
+                                "./utils/queryStorage"
+                              );
+                              const currentIntentParser = (window as any)
+                                .lastIntentParserResult;
 
-                          console.log("✅ [FullResultsPopup] Composed query created and set as currentActiveQuery:", {
-                            id: tempQuery.id,
-                            steps: tempQuery.querySteps?.length || 0
-                          });
+                              // Check if we're adding a loaded query (which may be composed) or a typed query
+                              let additionalQueryToCompose: any;
 
-                            // Clear the loaded query and composition context to switch UI to composed view
-                            setLoadedQuery(null);
-                            setOriginalQueryForComposition(null);
+                              if (
+                                loadedQuery &&
+                                (loadedQuery.userQuery === composerQuery || !composerQuery.trim())
+                              ) {
+                                // We're adding a loaded query - use its full structure (may include steps)
+                                console.log(
+                                  "📚 [FullResultsPopup] Adding loaded query with full structure:",
+                                  {
+                                    userQuery: loadedQuery.userQuery,
+                                    isComposed: loadedQuery.isComposed,
+                                    steps: loadedQuery.querySteps?.length || 0,
+                                    hasIntentParserResult:
+                                      !!loadedQuery.intentParserResult,
+                                  }
+                                );
+                                additionalQueryToCompose = loadedQuery;
+                              } else {
+                                // We're adding a typed query - create simple step
+                                console.log(
+                                  "✏️ [FullResultsPopup] Adding typed query as simple step"
+                                );
+                                additionalQueryToCompose = {
+                                  userQuery: composerQuery,
+                                  formalQuery:
+                                    currentIntentParser?.formalQuery ||
+                                    composerQuery,
+                                  intentParserResult: currentIntentParser,
+                                };
+                              }
 
-                            // Reset composing flag after a short delay to prevent immediate re-entry
-                            setTimeout(() => setIsComposingNow(false), 100);
+                              // Convert UnifiedQuery to StoredQuery format for composition
+                              const baseQueryForComposition =
+                                unifiedQueryToStored(currentQueryAsUnified);
+
+                              // Compose with current query
+                              const composedQuery = composeQueries(
+                                baseQueryForComposition,
+                                additionalQueryToCompose
+                              );
+
+                              console.log(
+                                "🔗 [FullResultsPopup] Composed query:",
+                                {
+                                  userQuery: composedQuery.userQuery,
+                                  stepsCount:
+                                    composedQuery.querySteps?.length || 0,
+                                  isComposed: composedQuery.isComposed,
+                                }
+                              );
+
+                              // Store in React state as temporary composed query
+                              const tempQuery = {
+                                ...composedQuery,
+                                id: `temp_${Date.now()}`,
+                                timestamp: new Date(),
+                              };
+
+                              // Set the composed query as the current active query (SOURCE OF TRUTH)
+                              setCurrentActiveQuery(tempQuery);
+                              setTempComposedQuery(tempQuery);
+                              setCurrentUserQuery(composedQuery.userQuery);
+                              setCurrentFormalQuery(composedQuery.formalQuery);
+
+                              // Add to recent queries
+                              const { getStoredQueries, saveQueries } =
+                                await import("./utils/queryStorage");
+                              const queries = getStoredQueries();
+                              queries.recent = [
+                                tempQuery,
+                                ...queries.recent,
+                              ].slice(0, 10);
+                              saveQueries(queries);
+
+                              console.log(
+                                "✅ [FullResultsPopup] Composed query created and set as currentActiveQuery:",
+                                {
+                                  id: tempQuery.id,
+                                  steps: tempQuery.querySteps?.length || 0,
+                                }
+                              );
+
+                              // Clear the loaded query and composition context to switch UI to composed view
+                              setLoadedQuery(null);
+                              setOriginalQueryForComposition(null);
+
+                              // Reset composing flag after a short delay to prevent immediate re-entry
+                              setTimeout(() => setIsComposingNow(false), 100);
+                            }
+                          } else if (!currentQueryAsUnified) {
+                            console.log(
+                              "ℹ️ [FullResultsPopup] No current query - just adding results without composition"
+                            );
                           }
-                        } else if (!currentQueryAsUnified) {
-                          console.log("ℹ️ [FullResultsPopup] No current query - just adding results without composition");
-                        }
 
-                        forceUIRefresh();
+                          forceUIRefresh();
+                        }
                       }
-                    }
+
+                      // Clear progress message after successful execution
+                      setExecutionProgress(`✅ Query completed - ${newResults?.length || 0} results`);
+                      setTimeout(() => setExecutionProgress(""), 3000);
                     } finally {
                       setIsExecutingQuery(false);
                     }
                   }}
-
                   // Direct Content Selector props
                   selectedPages={selectedPages}
                   includePageContent={includePageContent}
@@ -936,7 +1247,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   availablePages={availablePages}
                   isLoadingPages={isLoadingPages}
                   currentPageContext={currentPageContext}
-
                   // Direct Content Selector handlers
                   setSelectedPages={setSelectedPages}
                   setIncludePageContent={setIncludePageContent}
@@ -944,19 +1254,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   setDNPPeriod={setDNPPeriod}
                   handleDirectContentAdd={handleDirectContentAdd}
                   queryAvailablePages={queryAvailablePages}
-
                   // Results management
                   currentResults={currentResults}
                   setCurrentResults={setCurrentResults}
-
                   // External state management callback
                   onOriginalQueryForCompositionChange={(query) => {
-                    console.log("🔄 [FullResultsPopup] QueryManager updating original query state:", query);
+                    console.log(
+                      "🔄 [FullResultsPopup] QueryManager updating original query state:",
+                      query
+                    );
                     setOriginalQueryForComposition(query);
                   }}
                 />
               </div>
-
             </div>
 
             {/* Enhanced Controls */}
@@ -1317,8 +1627,12 @@ export const openLastAskYourGraphResults = () => {
         // Only use window query state if there are actual results, otherwise use null
         // This prevents stale query state from appearing when opening popup fresh
         const hasActualResults = lastResults && lastResults.length > 0;
-        const userQuery = hasActualResults ? ((window as any).lastUserQuery || null) : null;
-        const formalQuery = hasActualResults ? ((window as any).lastFormalQuery || null) : null;
+        const userQuery = hasActualResults
+          ? (window as any).lastUserQuery || null
+          : null;
+        const formalQuery = hasActualResults
+          ? (window as any).lastFormalQuery || null
+          : null;
         openFullResultsPopup(lastResults, targetUid, userQuery, formalQuery);
       }
     })

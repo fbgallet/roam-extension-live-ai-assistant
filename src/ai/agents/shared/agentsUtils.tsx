@@ -39,12 +39,26 @@ let agentToasterInstance: any = null;
 
 /**
  * Initialize agent toaster for progress tracking with stop functionality
+ * @param suppressToaster - If true, skip toaster creation (for forcePopupOnly mode)
  */
 export const initializeAgentToaster = (
   agentType: string,
   serverInfo?: string,
-  abortController?: AbortController
+  abortController?: AbortController,
+  suppressToaster: boolean = false
 ): HTMLElement | null => {
+  // If suppressToaster is true, skip toaster creation entirely
+  if (suppressToaster) {
+    console.log("🔇 [initializeAgentToaster] Suppressing toaster (forcePopupOnly mode)");
+    // Set abort controller for stop functionality even without toaster
+    if (abortController) {
+      setAgentController(abortController);
+    }
+    // Clear any previous full results
+    clearAgentFullResults();
+    return null;
+  }
+
   // Set abort controller for stop functionality
   if (abortController) {
     setAgentController(abortController);

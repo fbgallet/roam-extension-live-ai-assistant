@@ -37,15 +37,20 @@ const QuerySelect = Select.ofType<QuerySelectItem>();
 interface QueryManagerProps {
   currentQuery?: UnifiedQuery;
   onQuerySelect: (query: StoredQuery | "current") => void;
-  onQueryLoadedIntoComposer?: (query: StoredQuery) => void; // Callback when query is loaded into composer (not executed)
+  onQueryLoadedIntoComposer?: (
+    query: StoredQuery,
+    forceResetOriginal?: boolean
+  ) => void; // Callback when query is loaded into composer (not executed)
   disabled?: boolean;
   executionProgress?: string;
+  queryProgress?: Record<string, { status: string; count?: number }>; // Per-query progress for composed queries
   onQueriesUpdate?: () => void; // Callback to notify when queries are updated
   onClearAll?: () => void; // Callback to clear results and query context for fresh start
 
   // Two-section composition UI
   originalQueryForComposition?: UnifiedQuery;
   loadedQuery?: StoredQuery;
+  originalLoadedQuery?: StoredQuery | null; // Original query before edits, for detecting changes
   tempComposedQuery?: StoredQuery | null; // Temporary composed query from React state
 
   // Query Composer props
@@ -89,12 +94,14 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   onQueryLoadedIntoComposer,
   disabled = false,
   executionProgress,
+  queryProgress,
   onQueriesUpdate,
   onClearAll,
 
   // Two-section composition UI
   originalQueryForComposition,
   loadedQuery,
+  originalLoadedQuery,
   tempComposedQuery,
 
   // Query Composer props
@@ -128,6 +135,66 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   // External state management callback
   onOriginalQueryForCompositionChange,
 }) => {
+  console.log("🚀 [QueryManager] Component rendering - VERSION 2.0");
+
+  // Composer UI state
+  const [isComposerExpanded, setIsComposerExpanded] = React.useState(
+    !currentQuery
+  ); // Expanded when no query
+  const [executingMode, setExecutingMode] = React.useState<
+    "add" | "replace" | null
+  >(null);
+  const previousQueryRef = React.useRef(currentQuery);
+
+  // Auto-expand/collapse based on query state
+  React.useEffect(() => {
+    const hadQuery = !!previousQueryRef.current;
+    const hasQuery = !!currentQuery;
+
+    // Auto-expand when going from "has query" to "no query"
+    if (hadQuery && !hasQuery) {
+      setIsComposerExpanded(true);
+    }
+    // Auto-collapse when a query is loaded
+    else if (!hadQuery && hasQuery) {
+      setIsComposerExpanded(false);
+    }
+
+    previousQueryRef.current = currentQuery;
+  }, [currentQuery]);
+
+  // Auto-collapse/expand based on loaded query and whether it's been run
+  React.useEffect(() => {
+    console.log(
+      "📋 [QueryManager] loadedQuery changed:",
+      loadedQuery ? loadedQuery.userQuery : "null"
+    );
+    console.log("📋 [QueryManager] currentQuery:", currentQuery?.userQuery);
+    console.log("📋 [QueryManager] hasLoadedQuery will be:", !!loadedQuery);
+
+    if (loadedQuery) {
+      // Check if loaded query has been run (matches currentQuery)
+      const isLoadedQueryRun = currentQuery &&
+        currentQuery.userQuery === loadedQuery.userQuery;
+
+      if (isLoadedQueryRun) {
+        // Loaded query has been run - expand for composition
+        console.log("📋 [QueryManager] Loaded query has been run - expanding composer for composition");
+        setIsComposerExpanded(true);
+      } else {
+        // Loaded query not yet run - collapse composer
+        console.log("📋 [QueryManager] Loaded query not run - collapsing composer");
+        setIsComposerExpanded(false);
+      }
+    } else {
+      // No loaded query - expand if no current query
+      if (!currentQuery) {
+        console.log("📋 [QueryManager] No loaded query or current query - expanding composer");
+        setIsComposerExpanded(true);
+      }
+    }
+  }, [loadedQuery, currentQuery]);
+
   // Use the extracted hook for all state and logic
   const {
     queries,
@@ -166,9 +233,58 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     disabled,
     originalQueryForComposition,
     loadedQuery,
+    originalLoadedQuery,
     tempComposedQuery,
     onOriginalQueryForCompositionChange,
   });
+
+  // Handler for editing loaded query
+  const handleEditLoadedQuery = React.useCallback(
+    (newQuery: string, context?: { stepIndex?: number }) => {
+      if (!loadedQuery) return;
+
+      console.log("✏️ [QueryManager] Editing loaded query:", {
+        newQuery,
+        context,
+      });
+
+      let updatedQuery: StoredQuery;
+
+      if (context?.stepIndex !== undefined && loadedQuery.isComposed) {
+        // Editing a step in a composed query
+        const updatedSteps = [...(loadedQuery.querySteps || [])];
+        updatedSteps[context.stepIndex] = {
+          ...updatedSteps[context.stepIndex],
+          userQuery: newQuery,
+          intentParserResult: undefined, // Force re-parsing
+        };
+
+        updatedQuery = {
+          ...loadedQuery,
+          querySteps: updatedSteps,
+        };
+        console.log(
+          "✏️ [QueryManager] Updated step",
+          context.stepIndex,
+          "in composed query"
+        );
+      } else {
+        // Editing base query (simple or base of composed)
+        updatedQuery = {
+          ...loadedQuery,
+          userQuery: newQuery,
+          intentParserResult: undefined, // Force re-parsing on next execution
+        };
+        console.log("✏️ [QueryManager] Updated base query");
+      }
+
+      // Update the loaded query state (don't save to storage yet - user will save manually)
+      if (onQueryLoadedIntoComposer) {
+        onQueryLoadedIntoComposer(updatedQuery);
+      }
+    },
+    [loadedQuery, refreshQueries, onQueryLoadedIntoComposer]
+  );
 
   // Expose refresh function to parent component
   React.useEffect(() => {
@@ -198,6 +314,16 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   const createSelectItems = (): QuerySelectItem[] => {
     const items: QuerySelectItem[] = [];
 
+    // Safety check: if queries is undefined, return empty array
+    if (!queries) {
+      console.error(
+        "❌ [QueryManager] queries is undefined in createSelectItems"
+      );
+      return items;
+    }
+
+    console.log("✅ [QueryManager] queries in createSelectItems:", queries);
+
     // Add current query if available
     if (currentQuery?.userQuery) {
       items.push({
@@ -213,43 +339,65 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     }
 
     // Add recent queries
-    queries.recent.forEach((query) => {
-      const truncatedQuery =
-        query.userQuery.length > 70
-          ? query.userQuery.substring(0, 67) + "..."
-          : query.userQuery;
+    if (queries?.recent) {
+      queries.recent.forEach((query) => {
+        // Skip queries with invalid userQuery
+        if (!query.userQuery) {
+          console.warn(
+            "⚠️ [QueryManager] Skipping query with undefined userQuery:",
+            query
+          );
+          return;
+        }
 
-      items.push({
-        id: query.id,
-        type: "recent",
-        query: query,
-        label: truncatedQuery,
-        description: formatTimestamp(query.timestamp), // Timestamp as description/label
-        group: "📅 Recent Queries",
+        const truncatedQuery =
+          query.userQuery.length > 70
+            ? query.userQuery.substring(0, 67) + "..."
+            : query.userQuery;
+
+        items.push({
+          id: query.id,
+          type: "recent",
+          query: query,
+          label: truncatedQuery,
+          description: formatTimestamp(query.timestamp), // Timestamp as description/label
+          group: "📅 Recent Queries",
+        });
       });
-    });
+    }
 
     // Add saved queries
-    queries.saved.forEach((query) => {
-      const displayLabel = query.name || query.userQuery;
-      const truncatedLabel =
-        displayLabel.length > 70
-          ? displayLabel.substring(0, 67) + "..."
-          : displayLabel;
+    if (queries?.saved) {
+      queries.saved.forEach((query) => {
+        // Skip queries with invalid userQuery
+        if (!query.userQuery) {
+          console.warn(
+            "⚠️ [QueryManager] Skipping saved query with undefined userQuery:",
+            query
+          );
+          return;
+        }
 
-      items.push({
-        id: query.id,
-        type: "saved",
-        query: query,
-        label: truncatedLabel,
-        description: query.name
-          ? query.userQuery.length > 70
-            ? query.userQuery.substring(0, 67) + "..."
-            : query.userQuery
-          : undefined,
-        group: "⭐ Saved Queries",
+        const displayLabel = query.name || query.userQuery;
+        const truncatedLabel =
+          displayLabel.length > 70
+            ? displayLabel.substring(0, 67) + "..."
+            : displayLabel;
+
+        items.push({
+          id: query.id,
+          type: "saved",
+          query: query,
+          label: truncatedLabel,
+          description: query.name
+            ? query.userQuery.length > 70
+              ? query.userQuery.substring(0, 67) + "..."
+              : query.userQuery
+            : undefined,
+          group: "⭐ Saved Queries",
+        });
       });
-    });
+    }
 
     return items;
   };
@@ -274,36 +422,38 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     // Group the filtered items
     const groups: { [key: string]: QuerySelectItem[] } = {};
 
-    filteredItems.forEach((item) => {
-      if (!groups[item.group]) {
-        groups[item.group] = [];
-      }
-      groups[item.group].push(item);
-    });
+    if (filteredItems.length)
+      filteredItems.forEach((item) => {
+        if (!groups[item.group]) {
+          groups[item.group] = [];
+        }
+        groups[item.group].push(item);
+      });
 
     const result: QuerySelectItem[] = [];
 
     // Add items with group headers (only if group has items)
-    Object.entries(groups).forEach(([groupName, groupItems], groupIndex) => {
-      // Only add group header if there are items in this group
-      if (groupItems.length > 0) {
-        // Add a virtual group header item (if there are multiple groups with items AND the group has a name)
-        if (Object.keys(groups).length > 1 && groupName.trim() !== "") {
-          result.push({
-            id: `__group_${groupIndex}`,
-            type: "current", // dummy type
-            label: groupName,
-            group: groupName,
-            description: `${groupItems.length} item${
-              groupItems.length !== 1 ? "s" : ""
-            }`,
-          } as QuerySelectItem);
-        }
+    if (Object.entries(groups).length)
+      Object.entries(groups).forEach(([groupName, groupItems], groupIndex) => {
+        // Only add group header if there are items in this group
+        if (groupItems.length > 0) {
+          // Add a virtual group header item (if there are multiple groups with items AND the group has a name)
+          if (Object.keys(groups).length > 1 && groupName.trim() !== "") {
+            result.push({
+              id: `__group_${groupIndex}`,
+              type: "current", // dummy type
+              label: groupName,
+              group: groupName,
+              description: `${groupItems.length} item${
+                groupItems.length !== 1 ? "s" : ""
+              }`,
+            } as QuerySelectItem);
+          }
 
-        // Add the actual items
-        result.push(...groupItems);
-      }
-    });
+          // Add the actual items
+          result.push(...groupItems);
+        }
+      });
 
     return result;
   };
@@ -534,7 +684,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   }`
                 : "Last query:"
               : selectedValue === "" || !selectedValue
-              ? "No query selected - click to load saved queries"
+              ? "No query selected - click to load saved queries or compose a new one below"
               : (() => {
                   const allQueries = [...queries.recent, ...queries.saved];
                   const selectedQuery = allQueries.find(
@@ -731,6 +881,8 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                         storedQuery={loadedQuery}
                         showLabel={false}
                         visualComposed={true}
+                        editable={true}
+                        onEdit={handleEditLoadedQuery}
                       />
                       <div className="composition-actions">
                         <small className="composition-hint">
@@ -800,12 +952,67 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 );
                 if (selectedItem && selectedItem.query) {
                   const selectedQuery = selectedItem.query;
+
+                  const handleEditSelectedQuery = (
+                    newQuery: string,
+                    context?: { stepIndex?: number }
+                  ) => {
+                    console.log("✏️ [QueryManager] Editing selected query:", {
+                      newQuery,
+                      context,
+                    });
+
+                    // Use loadedQuery if available (it has the latest edits), otherwise use selectedQuery
+                    const baseQuery = loadedQuery || selectedQuery;
+                    let updatedQuery: StoredQuery;
+
+                    if (
+                      context?.stepIndex !== undefined &&
+                      baseQuery.isComposed
+                    ) {
+                      // Editing a step in a composed query
+                      const updatedSteps = [...(baseQuery.querySteps || [])];
+                      updatedSteps[context.stepIndex] = {
+                        ...updatedSteps[context.stepIndex],
+                        userQuery: newQuery,
+                        intentParserResult: undefined, // Force re-parsing
+                      };
+
+                      updatedQuery = {
+                        ...baseQuery,
+                        querySteps: updatedSteps,
+                      };
+                      console.log(
+                        "✏️ [QueryManager] Updated step",
+                        context.stepIndex,
+                        "in selected composed query"
+                      );
+                    } else {
+                      // Editing base query (simple or base of composed)
+                      updatedQuery = {
+                        ...baseQuery,
+                        userQuery: newQuery,
+                        intentParserResult: undefined, // Force re-parsing
+                      };
+                      console.log(
+                        "✏️ [QueryManager] Updated base of selected query"
+                      );
+                    }
+
+                    // Update the loaded query state (don't save to storage yet - user will save manually)
+                    if (onQueryLoadedIntoComposer) {
+                      onQueryLoadedIntoComposer(updatedQuery);
+                    }
+                  };
+
                   return (
                     <div className="stored-query-details">
                       <StoredQueryRenderer
-                        storedQuery={selectedQuery}
+                        storedQuery={loadedQuery || selectedQuery}
                         showLabel={false}
                         visualComposed={true}
+                        editable={true}
+                        onEdit={handleEditSelectedQuery}
                       />
 
                       <div className="stored-query-metadata">
@@ -826,21 +1033,45 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
               }
 
               // Default message when no query available
-              return (
-                <div className="no-current-query-message">
-                  <p>
-                    📝 No last query available. Use the load button in the
-                    header to select a stored query, or compose a new one below.
-                  </p>
-                </div>
-              );
+              // return (
+              //   <div className="no-current-query-message">
+              //     <p>
+              //       No last query available. Use the load button in the header
+              //       to select a stored query, or compose a new one below.
+              //     </p>
+              //   </div>
+              // );
             })()}
           </div>
 
-          {/* Execution Progress */}
-          {executionProgress && (
-            <div className="query-manager-execution-progress">
-              {executionProgress}
+          {/* Unified Execution Progress - shows after query display, before composer */}
+          {(executionProgress ||
+            (queryProgress && Object.keys(queryProgress).length > 0)) && (
+            <div className="query-progress-tracker">
+              {executionProgress && (
+                <div className="query-progress-message">
+                  {executionProgress}
+                </div>
+              )}
+              {queryProgress && Object.keys(queryProgress).length > 0 && (
+                <>
+                  <div className="query-progress-title">
+                    Parallel execution:
+                  </div>
+                  {Object.entries(queryProgress).map(([queryId, info]) => (
+                    <div key={queryId} className="query-progress-item">
+                      <span className="query-progress-status">
+                        <strong>{queryId}:</strong> {info.status}
+                      </span>
+                      {info.count !== undefined && (
+                        <span className="query-progress-count">
+                          ({info.count} results)
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
 
@@ -855,16 +1086,39 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 // Note: loaded query state is managed internally by the hook
               }}
               onExecuteQuery={async (mode, model) => {
-                // Execute the query - composition logic is handled in FullResultsPopup
-                const result = await onExecuteQuery(mode, model);
+                // Set executing mode for button-specific loading state
+                setExecutingMode(mode);
 
-                // Clear the composer input after execution
-                onQueryChange("");
+                try {
+                  // Execute the query - composition logic is handled in FullResultsPopup
+                  const result = await onExecuteQuery(mode, model);
 
-                return result;
+                  // Clear the composer input after execution
+                  onQueryChange("");
+
+                  return result;
+                } finally {
+                  // Clear executing mode when done
+                  setExecutingMode(null);
+                }
               }}
               hasActiveQuery={
                 !!(currentQuery?.userQuery && currentQuery.userQuery.trim())
+              }
+              hasLoadedQuery={!!loadedQuery}
+              isExpanded={isComposerExpanded}
+              onToggleExpanded={() => {
+                console.log(
+                  "🔄 [QueryComposer] Toggling expansion:",
+                  !isComposerExpanded
+                );
+                setIsComposerExpanded(!isComposerExpanded);
+              }}
+              executingMode={executingMode}
+              showInputSection={
+                !disabled && // Don't show during execution
+                (currentResults.length > 0 || !currentQuery) && // Show when results exist OR no active query (fresh start)
+                (!loadedQuery || (currentQuery && currentQuery.userQuery === loadedQuery.userQuery))
               }
             />
           </div>
@@ -902,35 +1156,101 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
       <Dialog
         isOpen={showSaveDialog}
         onClose={() => setShowSaveDialog(false)}
-        title="Save Query"
+        title={
+          loadedQuery &&
+          originalLoadedQuery &&
+          loadedQuery.userQuery !== originalLoadedQuery.userQuery
+            ? "Save Edited Query"
+            : "Save Query"
+        }
         className="save-query-dialog"
       >
         <div className={Classes.DIALOG_BODY}>
-          <p>Save the current query for later use:</p>
-          <div className="current-query-preview">
-            <strong>Query:</strong>{" "}
-            <QueryRenderer query={currentQuery?.userQuery || ""} />
-          </div>
-          {currentQuery?.formalQuery &&
-            currentQuery.formalQuery !== currentQuery.userQuery && (
-              <div className="current-formal-query-preview">
-                <strong>Formal Query:</strong>{" "}
-                <QueryRenderer query={currentQuery?.formalQuery || ""} />
+          {loadedQuery &&
+          originalLoadedQuery &&
+          loadedQuery.userQuery !== originalLoadedQuery.userQuery ? (
+            <>
+              <p>
+                The loaded query has been edited. How would you like to save it?
+              </p>
+              <div className="current-query-preview">
+                <strong>Edited Query:</strong>{" "}
+                <QueryRenderer query={loadedQuery.userQuery} />
               </div>
-            )}
-          <InputGroup
-            placeholder="Enter a name for this query (optional)"
-            value={saveQueryName}
-            onChange={(e) => setSaveQueryName(e.target.value)}
-            autoFocus
-          />
+              <div
+                style={{ marginTop: "10px", fontSize: "0.9em", color: "#666" }}
+              >
+                <strong>Original:</strong> {originalLoadedQuery.userQuery}
+              </div>
+              <InputGroup
+                placeholder="Enter a name for the new query (if saving as new)"
+                value={saveQueryName}
+                onChange={(e) => setSaveQueryName(e.target.value)}
+                autoFocus
+                style={{ marginTop: "15px" }}
+              />
+            </>
+          ) : (
+            <>
+              <p>Save the current query for later use:</p>
+              <div className="current-query-preview">
+                <strong>Query:</strong>{" "}
+                <QueryRenderer query={currentQuery?.userQuery || ""} />
+              </div>
+              {currentQuery?.formalQuery &&
+                currentQuery.formalQuery !== currentQuery.userQuery && (
+                  <div className="current-formal-query-preview">
+                    <strong>Formal Query:</strong>{" "}
+                    <QueryRenderer query={currentQuery?.formalQuery || ""} />
+                  </div>
+                )}
+              <InputGroup
+                placeholder="Enter a name for this query (optional)"
+                value={saveQueryName}
+                onChange={(e) => setSaveQueryName(e.target.value)}
+                autoFocus
+              />
+            </>
+          )}
         </div>
         <div className={Classes.DIALOG_FOOTER}>
           <div className={Classes.DIALOG_FOOTER_ACTIONS}>
             <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
-            <Button intent="primary" onClick={handleSaveQuery}>
-              Save Query
-            </Button>
+            {loadedQuery &&
+            originalLoadedQuery &&
+            loadedQuery.userQuery !== originalLoadedQuery.userQuery ? (
+              <>
+                <Button
+                  intent="warning"
+                  onClick={() => {
+                    // Replace existing query
+                    const { updateQuery } = require("./utils/queryStorage");
+                    if (loadedQuery.id) {
+                      updateQuery(loadedQuery.id, {
+                        userQuery: loadedQuery.userQuery,
+                        intentParserResult: undefined,
+                      });
+                      // Update originalLoadedQuery to match so it's no longer "edited"
+                      if (onQueryLoadedIntoComposer) {
+                        onQueryLoadedIntoComposer(loadedQuery, true); // Force reset original
+                      }
+                      refreshQueries();
+                    }
+                    setShowSaveDialog(false);
+                    setSaveQueryName("");
+                  }}
+                >
+                  Replace Existing
+                </Button>
+                <Button intent="primary" onClick={handleSaveQuery}>
+                  Save as New
+                </Button>
+              </>
+            ) : (
+              <Button intent="primary" onClick={handleSaveQuery}>
+                Save Query
+              </Button>
+            )}
           </div>
         </div>
       </Dialog>

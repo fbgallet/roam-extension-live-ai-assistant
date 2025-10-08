@@ -1498,6 +1498,16 @@ export default {
 
     window.LiveAI = {};
 
+    // Add cleanup function for broken queries (temporary)
+    import("./components/full-results-popup/utils/queryStorage.ts")
+      .then((module) => {
+        window.LiveAI.cleanupBrokenQueries = module.cleanupBrokenQueries;
+        console.log("🧹 Query cleanup available: window.LiveAI.cleanupBrokenQueries()");
+      })
+      .catch((err) => {
+        console.debug("⚠️ Cleanup function not available:", err.message);
+      });
+
     // Add ReAct Search Agent testing functions for development
     // DISABLED: Test files have been removed during refactoring
     // if (process.env.NODE_ENV === "development" || true) {

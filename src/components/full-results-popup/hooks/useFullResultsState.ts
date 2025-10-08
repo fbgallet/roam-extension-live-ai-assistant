@@ -36,6 +36,8 @@ export const useFullResultsState = (
   forceOpenChat: boolean = false,
   targetUid?: string | null
 ) => {
+  console.log(`🎯 [useFullResultsState] Hook called with ${results.length} results, isOpen: ${isOpen}`);
+
   // Selection state
   const [selectedResults, setSelectedResults] = useState<Set<number>>(
     new Set()
@@ -328,8 +330,10 @@ export const useFullResultsState = (
   // Extract block/children content from original results (this doesn't need to change with filters)
   useEffect(() => {
     const extractContentData = async () => {
+      console.log(`🔍 [useFullResultsState] Extracting content from ${results.length} results...`);
       try {
         const contentData = await getBlockAndChildrenContent(results);
+        console.log(`✅ [useFullResultsState] Content extraction complete: ${contentData.blockContent.size} blocks, ${contentData.childrenContent.size} children`);
         setBlockContentMap(contentData.blockContent);
         setChildrenContentMap(contentData.childrenContent);
       } catch (error) {
@@ -342,6 +346,7 @@ export const useFullResultsState = (
     if (results.length > 0) {
       extractContentData();
     } else {
+      console.log(`⚠️ [useFullResultsState] No results to extract content from (length: ${results.length})`);
       setBlockContentMap(new Map());
       setChildrenContentMap(new Map());
     }
@@ -405,6 +410,7 @@ export const useFullResultsState = (
   // Apply filtering and sorting asynchronously - INCLUDES REFRESH TRIGGER FIX
   useEffect(() => {
     const applyFiltering = async () => {
+      console.log(`🔄 [useFullResultsState] Filtering effect triggered with ${results.length} results, refreshTrigger: ${refreshTrigger}`);
       try {
         // First apply references filtering
         const referencesFiltered = await filterResultsByReferences(
@@ -428,6 +434,7 @@ export const useFullResultsState = (
           childrenContentMap
         );
 
+        console.log(`✅ [useFullResultsState] Filtering complete: ${finalResults.length} filtered results from ${results.length} total`);
         setFilteredAndSortedResults(finalResults);
       } catch (error) {
         console.error("Failed to filter results:", error);
@@ -657,15 +664,17 @@ export const useFullResultsState = (
     async (
       currentResults: any[],
       mode: "add" | "replace",
-      model?: string
+      model?: string,
+      queryToExecute?: string
     ): Promise<any[] | null> => {
-      if (!composerQuery.trim()) return null;
+      const queryText = queryToExecute || composerQuery;
+      if (!queryText.trim()) return null;
 
       setIsComposingQuery(true);
 
       try {
         console.log(
-          `🔧 [QueryComposer] Executing query: "${composerQuery}" in mode: ${mode}`
+          `🔧 [QueryComposer] Executing query: "${queryText}" in mode: ${mode}`
         );
 
         // Import the search agent invoke function
@@ -682,7 +691,7 @@ export const useFullResultsState = (
           rootUid: "query-composer", // Unique identifier for composer queries
           targetUid: "query-composer",
           target: mode === "add" ? "add" : "replace", // Use target to indicate mode
-          prompt: composerQuery, // Natural language query for IntentParser
+          prompt: queryText, // Natural language query for IntentParser
           permissions: { contentAccess: false }, // Secure mode - no content processing
           privateMode: true, // Private mode - only UIDs, no content processing
           previousAgentState: {
@@ -715,6 +724,9 @@ export const useFullResultsState = (
                 userQuery: composerQuery,
                 formalQuery: currentInfo.formalQuery || composerQuery,
                 intentParserResult: currentInfo,
+                isComposed: false,
+                querySteps: [],
+                pageSelections: [],
               });
 
               // Update global state so QueryManager shows the new query

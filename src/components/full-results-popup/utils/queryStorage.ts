@@ -1,6 +1,32 @@
 /**
- * Query storage utilities for Ask Your Graph agent
- * Manages recent and saved queries with IntentParser output
+ * Query Storage Utilities for Ask Your Graph Agent
+ *
+ * CLEAN QUERY STRUCTURE:
+ * ======================
+ *
+ * StoredQuery {
+ *   // Identification
+ *   id: string                    // Unique identifier
+ *   timestamp: Date               // When query was created/saved
+ *   name?: string                 // Optional custom name (for saved queries)
+ *
+ *   // Base Query (the primary/first query)
+ *   userQuery: string             // Natural language query from user
+ *   formalQuery: string           // Formal/structured query (defaults to userQuery)
+ *   intentParserResult?: {...}    // Optional AI parser output with search strategy, etc.
+ *
+ *   // Composition (for both simple and composed queries)
+ *   isComposed: boolean           // true if has querySteps or pageSelections
+ *   querySteps: QueryStep[]       // Additional queries composed with base (empty for simple)
+ *   pageSelections: PageSelection[] // Pages added directly (empty if none)
+ * }
+ *
+ * IMPORTANT:
+ * - All queries (simple and composed) have the SAME structure
+ * - Simple queries have isComposed=false, querySteps=[], pageSelections=[]
+ * - Composed queries have isComposed=true with non-empty querySteps or pageSelections
+ * - The base query (userQuery/formalQuery) is NEVER duplicated in querySteps
+ * - intentParserResult is preserved and used for re-execution with same strategy
  */
 
 export interface IntentParserResult {
@@ -57,17 +83,25 @@ export interface QueryStep {
   pageSelections?: PageSelection[];
 }
 
+/**
+ * Core structure for storing queries
+ * This is the single source of truth for both simple and composed queries
+ */
 export interface StoredQuery {
+  // Core identification
   id: string;
   timestamp: Date;
+  name?: string; // Optional custom name for saved queries
+
+  // Base query (the first/primary query)
   userQuery: string;
   formalQuery: string;
-  intentParserResult: IntentParserResult;
-  name?: string; // For saved queries
-  // New fields for composed queries
-  isComposed?: boolean;
-  querySteps?: QueryStep[]; // Array of successive queries (only "add" mode queries)
-  pageSelections?: PageSelection[]; // Array of added pages
+  intentParserResult?: IntentParserResult; // Optional - may not exist for older queries or manually typed queries
+
+  // Composition structure
+  isComposed: boolean; // True if this query has additional steps or page selections
+  querySteps: QueryStep[]; // Additional query steps (empty array for simple queries)
+  pageSelections: PageSelection[]; // Page selections (empty array if none)
 }
 
 export interface QueryStorage {
@@ -79,7 +113,23 @@ const STORAGE_KEY = 'askYourGraphQueries';
 const MAX_RECENT_QUERIES = 3;
 
 /**
+ * Sanitize a query object to ensure it has all required fields with proper defaults
+ */
+const sanitizeQuery = (q: any): StoredQuery => ({
+  id: q.id,
+  timestamp: new Date(q.timestamp),
+  name: q.name,
+  userQuery: q.userQuery,
+  formalQuery: q.formalQuery || q.userQuery,
+  intentParserResult: q.intentParserResult, // Preserve as-is (can be undefined)
+  isComposed: q.isComposed ?? false,
+  querySteps: q.querySteps ?? [],
+  pageSelections: q.pageSelections ?? [],
+});
+
+/**
  * Get all stored queries from localStorage
+ * Automatically sanitizes queries to ensure consistent structure
  */
 export const getStoredQueries = (): QueryStorage => {
   try {
@@ -87,19 +137,13 @@ export const getStoredQueries = (): QueryStorage => {
     if (!stored) {
       return { recent: [], saved: [] };
     }
-    
+
     const parsed = JSON.parse(stored);
-    
-    // Convert timestamps back to Date objects
+
+    // Convert timestamps and sanitize structure
     return {
-      recent: (parsed.recent || []).map((q: any) => ({
-        ...q,
-        timestamp: new Date(q.timestamp)
-      })),
-      saved: (parsed.saved || []).map((q: any) => ({
-        ...q,
-        timestamp: new Date(q.timestamp)
-      }))
+      recent: (parsed.recent || []).map(sanitizeQuery),
+      saved: (parsed.saved || []).map(sanitizeQuery)
     };
   } catch (error) {
     console.warn('Error loading stored queries:', error);
@@ -221,19 +265,98 @@ export const updateToComposedQuery = (
 };
 
 /**
+ * Update an existing query in storage (saved or recent)
+ */
+export const updateQuery = (id: string, updates: Partial<StoredQuery>): boolean => {
+  const queries = getStoredQueries();
+
+  // Try to find in saved queries first
+  let queryIndex = queries.saved.findIndex(q => q.id === id);
+  let isSaved = true;
+
+  // If not found, try recent queries
+  if (queryIndex === -1) {
+    queryIndex = queries.recent.findIndex(q => q.id === id);
+    isSaved = false;
+  }
+
+  // Query not found
+  if (queryIndex === -1) {
+    return false;
+  }
+
+  // Update the query
+  const targetArray = isSaved ? queries.saved : queries.recent;
+  targetArray[queryIndex] = {
+    ...targetArray[queryIndex],
+    ...updates,
+    // Preserve id and timestamp unless explicitly updated
+    id: targetArray[queryIndex].id,
+    timestamp: updates.timestamp || targetArray[queryIndex].timestamp,
+  };
+
+  saveQueries(queries);
+  return true;
+};
+
+/**
+ * Clean up broken queries with undefined or empty userQuery (TEMPORARY)
+ */
+export const cleanupBrokenQueries = (): { removedCount: number; queries: string[] } => {
+  const queries = getStoredQueries();
+  const removedIds: string[] = [];
+
+  const initialSavedLength = queries.saved.length;
+  const initialRecentLength = queries.recent.length;
+
+  // Filter out queries with invalid userQuery
+  queries.saved = queries.saved.filter(q => {
+    if (!q.userQuery || q.userQuery.trim() === '') {
+      removedIds.push(q.id);
+      console.warn('🗑️ [Cleanup] Removing broken saved query:', q.id, q);
+      return false;
+    }
+    return true;
+  });
+
+  queries.recent = queries.recent.filter(q => {
+    if (!q.userQuery || q.userQuery.trim() === '') {
+      removedIds.push(q.id);
+      console.warn('🗑️ [Cleanup] Removing broken recent query:', q.id, q);
+      return false;
+    }
+    return true;
+  });
+
+  const totalRemoved = (initialSavedLength - queries.saved.length) + (initialRecentLength - queries.recent.length);
+
+  if (totalRemoved > 0) {
+    saveQueries(queries);
+    console.log(`✅ [Cleanup] Removed ${totalRemoved} broken queries`);
+  } else {
+    console.log('✅ [Cleanup] No broken queries found');
+  }
+
+  return {
+    removedCount: totalRemoved,
+    queries: removedIds
+  };
+};
+
+/**
  * Delete a saved query by ID
  */
 export const deleteSavedQuery = (id: string): boolean => {
   const queries = getStoredQueries();
   const initialLength = queries.saved.length;
-  
+
   queries.saved = queries.saved.filter(q => q.id !== id);
-  
+
   if (queries.saved.length < initialLength) {
     saveQueries(queries);
     return true;
   }
-  
+
   return false;
 };
 
@@ -440,12 +563,13 @@ export const composeQueries = (
 
   // Create the composed query - base query stays as userQuery, everything else becomes steps
   const composedQuery: Omit<StoredQuery, 'id' | 'timestamp'> = {
-    userQuery: baseQuery.userQuery, // Base query is NEVER duplicated in steps
+    userQuery: baseQuery.userQuery,
     formalQuery: baseQuery.formalQuery || baseQuery.userQuery,
     intentParserResult: baseQuery.intentParserResult,
     isComposed: true,
     querySteps: [...baseSteps, ...additionalSteps],
-    pageSelections: [...basePageSelections, ...additionalPageSelections]
+    pageSelections: [...basePageSelections, ...additionalPageSelections],
+    name: ('name' in baseQuery) ? baseQuery.name : undefined
   };
 
   return composedQuery;

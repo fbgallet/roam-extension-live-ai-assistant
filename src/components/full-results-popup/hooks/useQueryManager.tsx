@@ -21,12 +21,13 @@ interface UseQueryManagerProps {
   currentUserQuery?: string;
   currentFormalQuery?: string;
   onQuerySelect: (query: StoredQuery | "current") => void;
-  onQueryLoadedIntoComposer?: (query: StoredQuery) => void;
+  onQueryLoadedIntoComposer?: (query: StoredQuery, forceResetOriginal?: boolean) => void;
   onQueryChange: (query: string) => void;
   onClearAll?: () => void;
   disabled?: boolean;
   originalQueryForComposition?: UnifiedQuery; // Changed to support full composed queries
   loadedQuery?: StoredQuery;
+  originalLoadedQuery?: StoredQuery | null; // Original query before edits, for detecting changes
   tempComposedQuery?: StoredQuery | null; // NEW: Temporary composed query from React state
 
   // NEW: Callbacks for external state management
@@ -86,6 +87,7 @@ export const useQueryManager = ({
   disabled,
   originalQueryForComposition,
   loadedQuery,
+  originalLoadedQuery,
   tempComposedQuery,
   onOriginalQueryForCompositionChange,
 }: UseQueryManagerProps): UseQueryManagerReturn => {
@@ -146,6 +148,11 @@ export const useQueryManager = ({
       setSelectedValue("current");
     }
   }, [currentUserQuery, selectedValue]);
+
+  // Load queries from storage on mount
+  useEffect(() => {
+    refreshQueries();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Query Management Functions (callback-based for external state)
   const getCurrentUnifiedQuery = useCallback((): UnifiedQuery | null => {
@@ -244,21 +251,20 @@ export const useQueryManager = ({
       if (item.id === "current") {
         onQuerySelect("current");
       } else if (item.query) {
+        // ALWAYS notify parent that query was loaded (so it can store the full structure in lastLoadedQueryRef)
+        if (onQueryLoadedIntoComposer) {
+          onQueryLoadedIntoComposer(item.query);
+        }
+
         // Only trigger onQuerySelect (which may execute) if there's already a current query
         // Otherwise, just load the query into the composer
         if (currentUserQuery) {
           onQuerySelect(item.query);
-        } else {
-          // Notify parent that query was loaded (so it can store the full structure)
-          if (onQueryLoadedIntoComposer) {
-            onQueryLoadedIntoComposer(item.query);
-          }
         }
       }
 
-      // Auto-load query into composer when selected (except for "current")
+      // Track loaded query for UI display (but don't auto-fill composer)
       if (item.id !== "current" && item.query) {
-        onQueryChange(item.query.userQuery);
         setUILoadedQuery(item.query);
         setIsExpanded(true);
       }
@@ -355,6 +361,22 @@ export const useQueryManager = ({
   }, [onClearAll, onQueryChange]);
 
   const handleSaveQuery = useCallback(async () => {
+    // Check if we're saving an edited loaded query (prioritize this)
+    if (loadedQuery && originalLoadedQuery && loadedQuery.userQuery !== originalLoadedQuery.userQuery) {
+      // Saving edited loaded query as new
+      const queryName = saveQueryName.trim() || generateDefaultName(loadedQuery.userQuery);
+      const { storeQuery } = await import("../utils/queryStorage");
+      const { id, timestamp, ...queryWithoutMeta } = loadedQuery;
+
+      console.log("💾 [QueryManager] Saving edited loaded query as new with unified system");
+      storeQuery(queryWithoutMeta, { type: "saved", customName: queryName });
+
+      setQueries(getStoredQueries());
+      setShowSaveDialog(false);
+      setSaveQueryName("");
+      return;
+    }
+
     const currentInfo = getCurrentQueryInfo();
 
     if (!currentInfo.userQuery || !currentInfo.intentParserResult) {
@@ -415,7 +437,7 @@ export const useQueryManager = ({
     setQueries(getStoredQueries());
     setShowSaveDialog(false);
     setSaveQueryName("");
-  }, [queries, currentUserQuery, tempComposedQuery, saveQueryName]);
+  }, [queries, currentUserQuery, tempComposedQuery, saveQueryName, loadedQuery, originalLoadedQuery]);
 
   const handleRenameQuery = useCallback(() => {
     if (renameQueryId && renameValue.trim()) {
@@ -455,6 +477,19 @@ export const useQueryManager = ({
   }, []);
 
   const canSaveCurrent = useCallback(() => {
+    // If loaded query has been edited (different from original), enable save
+    if (loadedQuery && originalLoadedQuery) {
+      const hasBeenEdited = loadedQuery.userQuery.trim() !== originalLoadedQuery.userQuery.trim();
+      console.log("🔍 [canSaveCurrent] Loaded query edited check:", {
+        current: loadedQuery.userQuery,
+        original: originalLoadedQuery.userQuery,
+        hasBeenEdited
+      });
+      if (hasBeenEdited) {
+        return true;
+      }
+    }
+
     const currentInfo = getCurrentQueryInfo();
 
     // Must have a valid query
@@ -471,7 +506,7 @@ export const useQueryManager = ({
 
     // If no loaded query, can save
     return true;
-  }, [loadedQuery]);
+  }, [loadedQuery, originalLoadedQuery]);
 
   // Memoize the actions menu content to prevent excessive re-renders
   const actionsMenuContent = useMemo(() => {

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Button, Collapse, Icon } from "@blueprintjs/core";
 import { StoredQuery, IntentParserResult } from "./utils/queryStorage";
 import { UnifiedQuery } from "./types/QueryTypes";
+import EditableQueryText from "./EditableQueryText";
 
 // Simple component to render queries using renderString API for clickable links
 const RoamQueryRenderer: React.FC<{ query: string }> = ({ query }) => {
@@ -43,6 +44,9 @@ interface QueryRendererProps {
   unifiedQuery?: UnifiedQuery;
   visualComposed?: boolean; // Whether to show composed structure visually
   skipStylingWrapper?: boolean; // Whether to skip the blue background wrapper (when parent provides it)
+  // Edit functionality
+  onEdit?: (newQuery: string, context?: { stepIndex?: number }) => void; // Callback when query is edited (stepIndex for composed queries)
+  editable?: boolean; // Whether to show edit button
 }
 
 export const QueryRenderer: React.FC<QueryRendererProps> = ({
@@ -56,6 +60,8 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
   unifiedQuery,
   visualComposed = false,
   skipStylingWrapper = false,
+  onEdit,
+  editable = false,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
 
@@ -94,7 +100,11 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
               label="Query 1"
               showLabel={true}
               skipStylingWrapper={true}
-              // Base query gets its own expandability if it has details
+              editable={editable}
+              onEdit={onEdit ? (newQuery) => {
+                // Edit base query (no stepIndex means base query)
+                onEdit(newQuery);
+              } : undefined}
             />
           </div>
 
@@ -129,7 +139,11 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
                       label={`Query ${index + 2}`}
                       showLabel={true}
                       skipStylingWrapper={true}
-                      // Each step gets its own expandability if it has details
+                      editable={editable}
+                      onEdit={onEdit ? (newQuery) => {
+                        // Edit step (pass stepIndex)
+                        onEdit(newQuery, { stepIndex: index });
+                      } : undefined}
                     />
                   )}
                 </div>
@@ -164,15 +178,27 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
   }
 
   // Standard single query rendering
+  console.log("🎨 [QueryRenderer] Rendering query:", { query: query.substring(0, 50), editable, hasOnEdit: !!onEdit });
+
   const content = (
     <>
       <div className="query-renderer-content">
-        {showLabel && (
-          <span className="query-renderer-label">
-            <strong>{label}:</strong>{" "}
-          </span>
+        {editable && onEdit ? (
+          <EditableQueryText
+            query={query}
+            onSave={onEdit}
+            label={showLabel ? label : undefined}
+          />
+        ) : (
+          <>
+            {showLabel && (
+              <span className="query-renderer-label">
+                <strong>{label}:</strong>{" "}
+              </span>
+            )}
+            <RoamQueryRenderer query={query} />
+          </>
         )}
-        <RoamQueryRenderer query={query} />
 
         {(hasDetails || hasMetadata || hasSearchDetails) && (
           <Button
@@ -277,6 +303,8 @@ interface StoredQueryRendererProps {
   label?: string;
   resultCount?: number;
   visualComposed?: boolean;
+  editable?: boolean;
+  onEdit?: (newQuery: string, context?: { stepIndex?: number }) => void;
 }
 
 export const StoredQueryRenderer: React.FC<StoredQueryRendererProps> = ({
@@ -285,6 +313,8 @@ export const StoredQueryRenderer: React.FC<StoredQueryRendererProps> = ({
   label = "Query",
   resultCount,
   visualComposed = true,
+  editable = false,
+  onEdit,
 }) => {
   return (
     <QueryRenderer
@@ -299,6 +329,8 @@ export const StoredQueryRenderer: React.FC<StoredQueryRendererProps> = ({
       }}
       showLabel={showLabel}
       label={label}
+      editable={editable}
+      onEdit={onEdit}
       unifiedQuery={{
         userQuery: storedQuery.userQuery,
         formalQuery: storedQuery.formalQuery,
@@ -323,6 +355,8 @@ interface UnifiedQueryRendererProps {
   resultCount?: number;
   visualComposed?: boolean;
   skipStylingWrapper?: boolean;
+  editable?: boolean;
+  onEdit?: (newQuery: string, context?: { stepIndex?: number }) => void;
 }
 
 export const UnifiedQueryRenderer: React.FC<UnifiedQueryRendererProps> = ({
@@ -332,6 +366,8 @@ export const UnifiedQueryRenderer: React.FC<UnifiedQueryRendererProps> = ({
   resultCount,
   visualComposed = true,
   skipStylingWrapper = false,
+  editable = false,
+  onEdit,
 }) => {
   return (
     <QueryRenderer
@@ -345,6 +381,8 @@ export const UnifiedQueryRenderer: React.FC<UnifiedQueryRendererProps> = ({
         querySteps: unifiedQuery.querySteps,
       }}
       showLabel={showLabel}
+      editable={editable}
+      onEdit={onEdit}
       label={label}
       unifiedQuery={unifiedQuery}
       visualComposed={visualComposed}
