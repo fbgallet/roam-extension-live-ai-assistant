@@ -29,6 +29,7 @@ interface UseQueryManagerProps {
   loadedQuery?: StoredQuery;
   originalLoadedQuery?: StoredQuery | null; // Original query before edits, for detecting changes
   tempComposedQuery?: StoredQuery | null; // NEW: Temporary composed query from React state
+  sessionPageSelections?: import("../utils/queryStorage").PageSelection[]; // NEW: Page selections in current session
 
   // NEW: Callbacks for external state management
   onOriginalQueryForCompositionChange?: (query: UnifiedQuery | null) => void;
@@ -89,6 +90,7 @@ export const useQueryManager = ({
   loadedQuery,
   originalLoadedQuery,
   tempComposedQuery,
+  sessionPageSelections = [],
   onOriginalQueryForCompositionChange,
 }: UseQueryManagerProps): UseQueryManagerReturn => {
   // State
@@ -394,11 +396,19 @@ export const useQueryManager = ({
 
     // Check if there's a temporary composed query that matches (from React state)
     if (tempComposedQuery && tempComposedQuery.userQuery === currentUserQuery) {
-      // Use the temporary composed query structure
+      // Use the temporary composed query structure, adding session page selections
       const { id, timestamp, ...queryWithoutMeta } = tempComposedQuery;
-      queryToSave = queryWithoutMeta;
+      queryToSave = {
+        ...queryWithoutMeta,
+        pageSelections: [
+          ...(queryWithoutMeta.pageSelections || []),
+          ...sessionPageSelections
+        ],
+        isComposed: queryWithoutMeta.isComposed || sessionPageSelections.length > 0,
+      };
       console.log(
-        "💾 [QueryManager] Saving temporary composed query with unified system"
+        "💾 [QueryManager] Saving temporary composed query with session page selections:",
+        sessionPageSelections.length
       );
     } else {
       // Check if current query is in storage
@@ -409,24 +419,32 @@ export const useQueryManager = ({
         ) || allQueries.find((q) => q.userQuery === currentInfo.userQuery);
 
       if (currentStoredQuery?.isComposed) {
-        // Save existing composed query structure
+        // Save existing composed query structure, adding session page selections
         const { id, timestamp, ...queryWithoutMeta } = currentStoredQuery;
-        queryToSave = queryWithoutMeta;
+        queryToSave = {
+          ...queryWithoutMeta,
+          pageSelections: [
+            ...(queryWithoutMeta.pageSelections || []),
+            ...sessionPageSelections
+          ],
+        };
         console.log(
-          "💾 [QueryManager] Saving existing composed query with unified system"
+          "💾 [QueryManager] Saving existing composed query with session page selections:",
+          sessionPageSelections.length
         );
       } else {
-        // Create simple query structure
+        // Create simple query structure, adding session page selections
         queryToSave = {
           userQuery: currentInfo.userQuery,
           formalQuery: currentInfo.formalQuery || currentInfo.userQuery,
           intentParserResult: currentInfo.intentParserResult,
-          isComposed: false,
+          isComposed: sessionPageSelections.length > 0,
           querySteps: [],
-          pageSelections: [],
+          pageSelections: sessionPageSelections,
         };
         console.log(
-          "💾 [QueryManager] Saving simple query with unified system"
+          "💾 [QueryManager] Saving simple query with session page selections:",
+          sessionPageSelections.length
         );
       }
     }

@@ -308,7 +308,7 @@
 .query-progress-status {
   flex: 1;
   color: #5c4525;
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
 }
 
 .query-progress-status strong {

@@ -115,6 +115,7 @@ export async function aiCompletion({
   let completionOptions = {
     aiClient: llm.library,
     model: llm.id,
+    provider: llm.provider,
     systemPrompt,
     prompt,
     command,

@@ -468,6 +468,7 @@ export function isAPIKeyNeeded(llm) {
 export async function claudeCompletion({
   model,
   prompt,
+  provider,
   command,
   systemPrompt,
   content = "",
@@ -553,7 +554,6 @@ export async function claudeCompletion({
       if (modelTemperature !== null) options.temperature = modelTemperature;
       if (streamResponse && responseFormat === "text") options.stream = true;
 
-      console.log("options :>> ", options);
       // No data is stored on the server or displayed in any log
       // const { data } = await axios.post(
       //   "https://site--ai-api-back--2bhrm4wg9nqn.code.run/anthropic/message",
@@ -566,7 +566,11 @@ export async function claudeCompletion({
           pdfLinkRegex.test(JSON.stringify(prompt)) ||
           pdfLinkRegex.test(content)
         ) {
-          options.messages = await addPdfUrlToMessages(messages, content, true);
+          options.messages = await addPdfUrlToMessages(
+            messages,
+            content,
+            provider
+          );
         } else
           options.messages = await addImagesUrlToMessages(
             messages,
@@ -574,6 +578,7 @@ export async function claudeCompletion({
             true
           );
       }
+      console.log("options :>> ", options);
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -755,6 +760,7 @@ export async function claudeCompletion({
 export async function openaiCompletion({
   aiClient,
   model,
+  provider,
   systemPrompt,
   prompt,
   command,
@@ -784,7 +790,7 @@ export async function openaiCompletion({
       pdfLinkRegex.test(content)
     ) {
       withPdf = true;
-      messages = await addPdfUrlToMessages(messages, content);
+      messages = await addPdfUrlToMessages(messages, content, provider);
     } else messages = await addImagesUrlToMessages(messages, content);
   }
 
@@ -800,7 +806,7 @@ export async function openaiCompletion({
       model: model,
       stream: isToStream,
     };
-    if (model === "o3-pro" || withPdf) {
+    if (model === "o3-pro" || (withPdf && provider !== "openRouter")) {
       options.input = messages;
       options["text"] = { format: { type: responseFormat } };
       options.stream = model === "o3-pro" ? false : streamResponse;
@@ -865,7 +871,7 @@ export async function openaiCompletion({
       ]);
     } else {
       response =
-        model === "o3-pro" || withPdf
+        model === "o3-pro" || (withPdf && provider !== "openRouter")
           ? await aiClient.responses.create(options)
           : await aiClient.chat.completions.create(options);
     }
@@ -1150,7 +1156,7 @@ const isModelSupportingImage = (model) => {
   return false;
 };
 
-const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
+const addPdfUrlToMessages = async (messages, content, provider) => {
   for (let i = 1; i < messages.length; i++) {
     pdfLinkRegex.lastIndex = 0;
     const matchingPdfInPrompt = Array.from(
@@ -1162,7 +1168,7 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
     if (matchingPdfInPrompt.length) {
       messages[i].content = [
         {
-          type: isAnthropicModel ? "text" : "input_text",
+          type: provider !== "OpenAI" ? "text" : "input_text",
           text: messages[i].content,
         },
       ];
@@ -1176,7 +1182,7 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
       const pdfRole = await getFormatedPdfRole(
         matchingPdfInPrompt[j][1],
         matchingPdfInPrompt[j][2],
-        isAnthropicModel
+        provider
       );
 
       messages[i].content.push(pdfRole);
@@ -1193,7 +1199,7 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
           role: "user",
           content: [
             {
-              type: isAnthropicModel ? "text" : "input_text",
+              type: provider !== "OpenAI" ? "text" : "input_text",
               text: "Pdf(s) provided in the context:",
             },
           ],
@@ -1201,7 +1207,7 @@ const addPdfUrlToMessages = async (messages, content, isAnthropicModel) => {
       const pdfRole = await getFormatedPdfRole(
         matchingPdfInContext[i][1],
         matchingPdfInContext[i][2],
-        isAnthropicModel
+        provider
       );
       messages[1].content.push(pdfRole);
     }

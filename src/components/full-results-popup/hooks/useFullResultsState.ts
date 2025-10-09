@@ -8,7 +8,7 @@ import {
   ChatMessage,
   DNPFilter,
 } from "../types";
-import { StoredQuery } from "../utils/queryStorage";
+import { StoredQuery, PageSelection } from "../utils/queryStorage";
 import {
   UnifiedQuery,
   QueryContext,
@@ -879,14 +879,15 @@ export const useFullResultsState = (
   const handleDirectContentAdd = async (
     currentResults: any[],
     setCurrentResults: (results: any[]) => void
-  ) => {
+  ): Promise<PageSelection[]> => {
     if (!includePageContent && !includeLinkedRefs) {
       console.warn("⚠️ [DirectContent] No content types selected");
-      return;
+      return [];
     }
 
     setIsAddingDirectContent(true);
     const newResults: any[] = [];
+    const addedPageSelections: PageSelection[] = [];
 
     try {
       console.log(
@@ -912,6 +913,13 @@ export const useFullResultsState = (
             pageData.push({
               title: currentPageContext.title,
               uid: currentPageContext.uid,
+            });
+            // Add to page selections for query composition
+            addedPageSelections.push({
+              title: currentPageContext.title,
+              uid: currentPageContext.uid,
+              includeContent: includePageContent,
+              includeLinkedRefs: includeLinkedRefs,
             });
           } else {
             console.warn(
@@ -984,6 +992,17 @@ export const useFullResultsState = (
               `⚠️ [DirectContent] No Daily Notes Pages found for the last ${dnpPeriod} days. Make sure you have created some DNPs.`
             );
           }
+
+          // Add DNP as a special page selection (will be represented as a group)
+          if (foundDnpCount > 0) {
+            addedPageSelections.push({
+              title: `Daily Notes (${dnpPeriod} days)`,
+              uid: "dnp", // Special UID to indicate DNP group
+              includeContent: includePageContent,
+              includeLinkedRefs: includeLinkedRefs,
+              dnpPeriod: dnpPeriod,
+            });
+          }
         } else {
           // Specific page selected from autocomplete - we already have the title!
           const { getPageUidByPageName } = await import(
@@ -995,6 +1014,13 @@ export const useFullResultsState = (
               title: pageSelection, // Use the original title from selection
               uid: pageUid,
             });
+            // Add to page selections for query composition
+            addedPageSelections.push({
+              title: pageSelection,
+              uid: pageUid,
+              includeContent: includePageContent,
+              includeLinkedRefs: includeLinkedRefs,
+            });
             console.log(
               `✅ [DirectContent] Found UID for "${pageSelection}": ${pageUid}`
             );
@@ -1005,6 +1031,10 @@ export const useFullResultsState = (
           }
         }
       }
+
+      console.log(
+        `📋 [DirectContent] Created ${addedPageSelections.length} page selections for composition`
+      );
 
       console.log(
         `🔍 [DirectContent] Found ${pageData.length} page(s) for ${targetPageTitle}`
@@ -1196,8 +1226,12 @@ export const useFullResultsState = (
           `⚠️ [DirectContent] No content found for ${targetPageTitle}`
         );
       }
+
+      // Return page selections for composition
+      return addedPageSelections;
     } catch (error) {
       console.error("❌ [DirectContent] Failed to add direct content:", error);
+      return [];
     } finally {
       setIsAddingDirectContent(false);
     }

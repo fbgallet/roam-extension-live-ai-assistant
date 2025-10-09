@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Button,
   Dialog,
@@ -8,6 +8,7 @@ import {
   Collapse,
   Popover,
   Position,
+  Icon,
 } from "@blueprintjs/core";
 import { Select, ItemRenderer } from "@blueprintjs/select";
 import { StoredQuery } from "./utils/queryStorage";
@@ -19,7 +20,8 @@ import {
   UnifiedQueryRenderer,
   StoredQueryRenderer,
 } from "./QueryRenderer";
-import "./QueryRenderer.css";
+import "./style/queryManager.css";
+import "./style/queryRenderer.css";
 import { useQueryManager } from "./hooks/useQueryManager";
 
 // Types for the Select component
@@ -77,7 +79,7 @@ interface QueryManagerProps {
   handleDirectContentAdd: (
     currentResults: any[],
     setCurrentResults: (results: any[]) => void
-  ) => void;
+  ) => Promise<import("./utils/queryStorage").PageSelection[]>;
   queryAvailablePages: (query?: string) => void;
 
   // Results management for DirectContentSelector
@@ -138,16 +140,31 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   console.log("🚀 [QueryManager] Component rendering - VERSION 2.0");
 
   // Composer UI state
-  const [isComposerExpanded, setIsComposerExpanded] = React.useState(
+  const [isComposerExpanded, setIsComposerExpanded] = useState(
     !currentQuery
   ); // Expanded when no query
-  const [executingMode, setExecutingMode] = React.useState<
+  const [executingMode, setExecutingMode] = useState<
     "add" | "replace" | null
   >(null);
-  const previousQueryRef = React.useRef(currentQuery);
+  const previousQueryRef = useRef(currentQuery);
+
+  // Track page selections added in current session (not saved yet)
+  const [sessionPageSelections, setSessionPageSelections] = useState<
+    import("./utils/queryStorage").PageSelection[]
+  >([]);
+
+  // Load page selections from loaded query
+  useEffect(() => {
+    if (loadedQuery?.pageSelections && loadedQuery.pageSelections.length > 0) {
+      console.log(
+        `📋 [QueryManager] Loading ${loadedQuery.pageSelections.length} page selections from loaded query`
+      );
+      setSessionPageSelections(loadedQuery.pageSelections);
+    }
+  }, [loadedQuery]);
 
   // Auto-expand/collapse based on query state
-  React.useEffect(() => {
+  useEffect(() => {
     const hadQuery = !!previousQueryRef.current;
     const hasQuery = !!currentQuery;
 
@@ -164,7 +181,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   }, [currentQuery]);
 
   // Auto-collapse/expand based on loaded query and whether it's been run
-  React.useEffect(() => {
+  useEffect(() => {
     console.log(
       "📋 [QueryManager] loadedQuery changed:",
       loadedQuery ? loadedQuery.userQuery : "null"
@@ -174,22 +191,28 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
     if (loadedQuery) {
       // Check if loaded query has been run (matches currentQuery)
-      const isLoadedQueryRun = currentQuery &&
-        currentQuery.userQuery === loadedQuery.userQuery;
+      const isLoadedQueryRun =
+        currentQuery && currentQuery.userQuery === loadedQuery.userQuery;
 
       if (isLoadedQueryRun) {
         // Loaded query has been run - expand for composition
-        console.log("📋 [QueryManager] Loaded query has been run - expanding composer for composition");
+        console.log(
+          "📋 [QueryManager] Loaded query has been run - expanding composer for composition"
+        );
         setIsComposerExpanded(true);
       } else {
         // Loaded query not yet run - collapse composer
-        console.log("📋 [QueryManager] Loaded query not run - collapsing composer");
+        console.log(
+          "📋 [QueryManager] Loaded query not run - collapsing composer"
+        );
         setIsComposerExpanded(false);
       }
     } else {
       // No loaded query - expand if no current query
       if (!currentQuery) {
-        console.log("📋 [QueryManager] No loaded query or current query - expanding composer");
+        console.log(
+          "📋 [QueryManager] No loaded query or current query - expanding composer"
+        );
         setIsComposerExpanded(true);
       }
     }
@@ -235,11 +258,12 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     loadedQuery,
     originalLoadedQuery,
     tempComposedQuery,
+    sessionPageSelections,
     onOriginalQueryForCompositionChange,
   });
 
   // Handler for editing loaded query
-  const handleEditLoadedQuery = React.useCallback(
+  const handleEditLoadedQuery = useCallback(
     (newQuery: string, context?: { stepIndex?: number }) => {
       if (!loadedQuery) return;
 
@@ -287,7 +311,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   );
 
   // Expose refresh function to parent component
-  React.useEffect(() => {
+  useEffect(() => {
     if (onQueriesUpdate) {
       (window as any).__queryManagerRefresh = refreshQueries;
     }
@@ -1044,6 +1068,57 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
             })()}
           </div>
 
+          {/* Page Selections Display */}
+          {sessionPageSelections.length > 0 && (
+            <div className="query-page-selections">
+              <div className="page-selections-header">
+                <Icon icon="document" size={14} />
+                <span>Added Pages ({sessionPageSelections.length}):</span>
+              </div>
+              <div className="page-selections-tags">
+                {sessionPageSelections.map((pageSelection, index) => (
+                  <span
+                    key={`${pageSelection.uid}-${index}`}
+                    className="bp3-tag bp3-minimal"
+                  >
+                    {pageSelection.includeContent && (
+                      <Icon
+                        icon="document"
+                        size={12}
+                        title="Page content included"
+                        style={{ marginRight: 4 }}
+                      />
+                    )}
+                    {pageSelection.includeLinkedRefs && (
+                      <Icon
+                        icon="link"
+                        size={12}
+                        title="Linked references included"
+                        style={{ marginRight: 4 }}
+                      />
+                    )}
+                    {pageSelection.title}
+                    {pageSelection.dnpPeriod && (
+                      <span style={{ opacity: 0.7, fontSize: "11px" }}>
+                        {" "}
+                        ({pageSelection.dnpPeriod}d)
+                      </span>
+                    )}
+                    <button
+                      className="bp3-tag-remove"
+                      onClick={() => {
+                        setSessionPageSelections((prev) =>
+                          prev.filter((_, i) => i !== index)
+                        );
+                      }}
+                      title="Remove"
+                    />
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Unified Execution Progress - shows after query display, before composer */}
           {(executionProgress ||
             (queryProgress && Object.keys(queryProgress).length > 0)) && (
@@ -1118,7 +1193,9 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
               showInputSection={
                 !disabled && // Don't show during execution
                 (currentResults.length > 0 || !currentQuery) && // Show when results exist OR no active query (fresh start)
-                (!loadedQuery || (currentQuery && currentQuery.userQuery === loadedQuery.userQuery))
+                (!loadedQuery ||
+                  (currentQuery &&
+                    currentQuery.userQuery === loadedQuery.userQuery))
               }
             />
           </div>
@@ -1143,9 +1220,23 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 }
               }}
               onDNPPeriodChange={setDNPPeriod}
-              onAddContent={() =>
-                handleDirectContentAdd(currentResults, setCurrentResults)
-              }
+              onAddContent={async () => {
+                const addedPageSelections = await handleDirectContentAdd(
+                  currentResults,
+                  setCurrentResults
+                );
+
+                // Add to session state for UI display (NO auto-save)
+                if (addedPageSelections.length > 0) {
+                  console.log(
+                    `📋 [QueryManager] Added ${addedPageSelections.length} page selections to session (will be saved when user saves query)`
+                  );
+                  setSessionPageSelections((prev) => [
+                    ...prev,
+                    ...addedPageSelections,
+                  ]);
+                }
+              }}
               onQueryPages={queryAvailablePages}
             />
           </div>

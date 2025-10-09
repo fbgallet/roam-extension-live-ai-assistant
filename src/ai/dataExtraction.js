@@ -1199,7 +1199,7 @@ export const concatAdditionalPrompt = (prompt, additionalPrompt) => {
 export const getFormatedPdfRole = async (
   externalUrl,
   firebaseUrl,
-  isAnthropicModel
+  provider
 ) => {
   // pdf in encrypted graphs have to be decrypted and sent as file to API
   let file, pdfData64;
@@ -1208,8 +1208,10 @@ export const getFormatedPdfRole = async (
     pdfData64 = await fileToBase64(file);
   }
 
+  console.log("provider :>> ", provider);
+
   let pdfRole;
-  if (isAnthropicModel) {
+  if (provider === "Anthropic") {
     pdfRole = {
       type: "document",
       source: file
@@ -1222,6 +1224,14 @@ export const getFormatedPdfRole = async (
             type: "url",
             url: externalUrl || firebaseUrl,
           },
+    };
+  } else if (provider === "openRouter") {
+    pdfRole = {
+      type: "file",
+      file: {
+        filename: file?.name || "document.pdf",
+        file_data: file ? pdfData64 : externalUrl || firebaseUrl,
+      },
     };
   } else {
     pdfRole = file
