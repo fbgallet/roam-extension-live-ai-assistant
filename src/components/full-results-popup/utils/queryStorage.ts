@@ -166,17 +166,23 @@ export const saveQueries = (queries: QueryStorage): void => {
  * Add a query to recent list (automatically manages the 3-query limit)
  */
 export const addRecentQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>): void => {
+  // VALIDATION: Don't save queries without userQuery AND without pageSelections
+  if (!query.userQuery && (!query.pageSelections || query.pageSelections.length === 0)) {
+    console.warn("⚠️ [addRecentQuery] Skipping query without userQuery or pageSelections");
+    return;
+  }
+
   const queries = getStoredQueries();
-  
+
   const newQuery: StoredQuery = {
     ...query,
     id: generateQueryId(),
     timestamp: new Date()
   };
-  
+
   // Add to front and limit to MAX_RECENT_QUERIES
   queries.recent = [newQuery, ...queries.recent].slice(0, MAX_RECENT_QUERIES);
-  
+
   saveQueries(queries);
 };
 

@@ -29,6 +29,8 @@ import {
 } from "../utils/resultProcessing";
 import { getSelectedResultsList } from "../utils/chatHelpers";
 import { defaultModel, extensionStorage } from "../../..";
+import { handleDirectContentAdd as directContentHandler } from "../utils/directContentHandler";
+import { addRecentQuery } from "../utils/queryStorage";
 
 export const useFullResultsState = (
   results: Result[],
@@ -36,8 +38,6 @@ export const useFullResultsState = (
   forceOpenChat: boolean = false,
   targetUid?: string | null
 ) => {
-  console.log(`🎯 [useFullResultsState] Hook called with ${results.length} results, isOpen: ${isOpen}`);
-
   // Selection state
   const [selectedResults, setSelectedResults] = useState<Set<number>>(
     new Set()
@@ -164,7 +164,6 @@ export const useFullResultsState = (
 
   // Function to force UI refresh when new results are set
   const forceUIRefresh = useCallback(() => {
-    console.log("🔄 [useFullResultsState] Forcing UI refresh for new results");
     setRefreshTrigger((prev) => prev + 1);
     // Reset pagination to first page
     setCurrentPage(1);
@@ -270,11 +269,6 @@ export const useFullResultsState = (
         }
 
         setCurrentPageContext({ uid: pageUid, title: pageTitle });
-        console.log(
-          `📄 [CurrentPageContext] Initialized: ${
-            pageTitle || "No page context"
-          } (${pageUid || "No UID"})`
-        );
       } catch (error) {
         console.warn("⚠️ [CurrentPageContext] Error initializing:", error);
         setCurrentPageContext({ uid: null, title: null });
@@ -304,21 +298,6 @@ export const useFullResultsState = (
       const { hasBlocks, hasPages } = detectResultTypes(results);
       const { shouldShowDNPFilter } = detectDNPDistribution(results);
 
-      console.log("🔍 Analyzing results structure:", results);
-      console.log(
-        `🔍 [useFullResultsState] Processing ${results.length} results for UI calculations`
-      );
-      console.log(
-        `Found ${hasBlocks ? "blocks" : "no blocks"} and ${
-          hasPages ? "pages" : "no pages"
-        }`
-      );
-      console.log(
-        `DNP filter should ${
-          shouldShowDNPFilter ? "be shown" : "be hidden"
-        } (mixed DNP/non-DNP: ${shouldShowDNPFilter})`
-      );
-
       return {
         uniquePages: pages,
         hasBlocks,
@@ -330,10 +309,9 @@ export const useFullResultsState = (
   // Extract block/children content from original results (this doesn't need to change with filters)
   useEffect(() => {
     const extractContentData = async () => {
-      console.log(`🔍 [useFullResultsState] Extracting content from ${results.length} results...`);
       try {
         const contentData = await getBlockAndChildrenContent(results);
-        console.log(`✅ [useFullResultsState] Content extraction complete: ${contentData.blockContent.size} blocks, ${contentData.childrenContent.size} children`);
+
         setBlockContentMap(contentData.blockContent);
         setChildrenContentMap(contentData.childrenContent);
       } catch (error) {
@@ -346,7 +324,9 @@ export const useFullResultsState = (
     if (results.length > 0) {
       extractContentData();
     } else {
-      console.log(`⚠️ [useFullResultsState] No results to extract content from (length: ${results.length})`);
+      console.log(
+        `⚠️ [useFullResultsState] No results to extract content from (length: ${results.length})`
+      );
       setBlockContentMap(new Map());
       setChildrenContentMap(new Map());
     }
@@ -373,10 +353,7 @@ export const useFullResultsState = (
         );
 
         const references = await extractPageReferences(baseFiltered);
-        console.log(
-          `Extracted ${references.length} page references from filtered results:`,
-          references
-        );
+
         setAvailableReferences(references);
       } catch (error) {
         console.error(
@@ -410,7 +387,6 @@ export const useFullResultsState = (
   // Apply filtering and sorting asynchronously - INCLUDES REFRESH TRIGGER FIX
   useEffect(() => {
     const applyFiltering = async () => {
-      console.log(`🔄 [useFullResultsState] Filtering effect triggered with ${results.length} results, refreshTrigger: ${refreshTrigger}`);
       try {
         // First apply references filtering
         const referencesFiltered = await filterResultsByReferences(
@@ -434,7 +410,6 @@ export const useFullResultsState = (
           childrenContentMap
         );
 
-        console.log(`✅ [useFullResultsState] Filtering complete: ${finalResults.length} filtered results from ${results.length} total`);
         setFilteredAndSortedResults(finalResults);
       } catch (error) {
         console.error("Failed to filter results:", error);
@@ -597,7 +572,6 @@ export const useFullResultsState = (
     setChatMessages([]);
     setChatAgentData(null);
     setChatExpandedResults(null);
-    console.log("💬 [Hook] Reset chat conversation");
   };
 
   const handleExpandedToggle = () => {
@@ -612,28 +586,40 @@ export const useFullResultsState = (
 
   // Unified Query Management Functions
   const updateQueryContext = useCallback((updates: Partial<QueryContext>) => {
-    setQueryContext(prev => ({ ...prev, ...updates }));
+    setQueryContext((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  const setCurrentQuery = useCallback((query: UnifiedQuery | null) => {
-    updateQueryContext({ currentQuery: query });
-  }, [updateQueryContext]);
+  const setCurrentQuery = useCallback(
+    (query: UnifiedQuery | null) => {
+      updateQueryContext({ currentQuery: query });
+    },
+    [updateQueryContext]
+  );
 
-  const setOriginalQuery = useCallback((query: UnifiedQuery | null) => {
-    updateQueryContext({ originalQuery: query });
-  }, [updateQueryContext]);
+  const setOriginalQuery = useCallback(
+    (query: UnifiedQuery | null) => {
+      updateQueryContext({ originalQuery: query });
+    },
+    [updateQueryContext]
+  );
 
-  const setLoadedQuery = useCallback((query: UnifiedQuery | null) => {
-    updateQueryContext({ loadedQuery: query });
-  }, [updateQueryContext]);
+  const setLoadedQuery = useCallback(
+    (query: UnifiedQuery | null) => {
+      updateQueryContext({ loadedQuery: query });
+    },
+    [updateQueryContext]
+  );
 
-  const enterCompositionMode = useCallback((original: UnifiedQuery, loaded: UnifiedQuery) => {
-    updateQueryContext({
-      originalQuery: original,
-      loadedQuery: loaded,
-      isCompositionMode: true,
-    });
-  }, [updateQueryContext]);
+  const enterCompositionMode = useCallback(
+    (original: UnifiedQuery, loaded: UnifiedQuery) => {
+      updateQueryContext({
+        originalQuery: original,
+        loadedQuery: loaded,
+        isCompositionMode: true,
+      });
+    },
+    [updateQueryContext]
+  );
 
   const exitCompositionMode = useCallback(() => {
     updateQueryContext({
@@ -673,10 +659,6 @@ export const useFullResultsState = (
       setIsComposingQuery(true);
 
       try {
-        console.log(
-          `🔧 [QueryComposer] Executing query: "${queryText}" in mode: ${mode}`
-        );
-
         // Import the search agent invoke function
         const { invokeSearchAgentSecure } = await import(
           "../../../ai/agents/search-agent/ask-your-graph-invoke"
@@ -701,25 +683,15 @@ export const useFullResultsState = (
 
         // Get the results from the global state (where the agent stores them)
         const newResults = (window as any).lastAskYourGraphResults || [];
-        console.log(
-          `✅ [QueryComposer] Query executed, got ${newResults.length} results`
-        );
 
         // Restore the previous results to avoid interfering with the main popup
         (window as any).lastAskYourGraphResults = previousResults;
 
         if (newResults && Array.isArray(newResults) && newResults.length > 0) {
-          console.log(
-            `✅ [QueryComposer] Query executed successfully, returning ${newResults.length} results`
-          );
-
           if (mode === "replace") {
             // For replace mode, save as a new query (not composed) and update global state
-            const { addRecentQuery } = await import(
-              "../utils/queryStorage"
-            );
             const currentInfo = (window as any).lastIntentParserResult;
-            if (currentInfo) {
+            if (currentInfo && composerQuery.trim()) {
               addRecentQuery({
                 userQuery: composerQuery,
                 formalQuery: currentInfo.formalQuery || composerQuery,
@@ -737,14 +709,6 @@ export const useFullResultsState = (
             }
           } else {
             // Add mode: Delegate composition to the QueryManager
-            console.log(
-              `🔍 [QueryComposer] ADD MODE - Delegating composition to QueryManager`,
-              {
-                currentResults: currentResults.length,
-                newResults: newResults.length,
-                composerQuery
-              }
-            );
 
             // NOTE: The actual composition logic is now handled by useQueryManager
             // through its unified query state management system. useFullResultsState
@@ -755,8 +719,6 @@ export const useFullResultsState = (
 
             // Just return the results with a flag to indicate this was an add mode execution
             (newResults as any).__isAddModeExecution = true;
-
-            console.log(`✅ [QueryComposer] Add mode execution completed, composition handled by QueryManager`);
           }
 
           return newResults;
@@ -811,13 +773,7 @@ export const useFullResultsState = (
           (not [(re-find ?dnp-pattern ?title)])
         ]`;
 
-        console.log(
-          `🔍 [PageQuery] Executing query for "${query}":`,
-          regexQuery
-        );
-
         const searchResults = await window.roamAlphaAPI.q(regexQuery);
-        console.log(`🔍 [PageQuery] Raw results:`, searchResults);
 
         if (searchResults && Array.isArray(searchResults)) {
           matchingPages = searchResults
@@ -857,9 +813,6 @@ export const useFullResultsState = (
         .slice(0, 30); // Limit to 30 results
 
       setAvailablePages(sortedPages);
-      console.log(
-        `✅ [PageQuery] Found ${sortedPages.length} pages matching "${query}"`
-      );
     } catch (error) {
       console.error(`❌ [PageQuery] Error querying pages:`, error);
       setAvailablePages([]);
@@ -891,355 +844,39 @@ export const useFullResultsState = (
     const addRefs = includeRefs ?? includeLinkedRefs;
     const dnpDays = dnpPeriodDays ?? dnpPeriod;
 
-    if (!addContent && !addRefs) {
-      console.warn("⚠️ [DirectContent] No content types selected");
-      return [];
-    }
-
     setIsAddingDirectContent(true);
-    const newResults: any[] = [];
-    const addedPageSelections: PageSelection[] = [];
 
     try {
-      console.log(
-        `🔧 [DirectContent] Adding content from: ${pages.length} selected pages`
-      );
-      console.log(
-        `📋 [DirectContent] Selected pages: ${pages.join(", ")}`
-      );
-      console.log(
-        `📋 [DirectContent] Content types: ${
-          addContent ? "content" : ""
-        } ${addRefs ? "linkedRefs" : ""}`
-      );
+      // Call the extracted handler
+      const result = await directContentHandler(currentResults, {
+        selectedPages: pages,
+        includePageContent: addContent,
+        includeLinkedRefs: addRefs,
+        dnpPeriod: dnpDays,
+        currentPageContext,
+      });
 
-      let targetPageTitle = `${pages.length} selected pages`;
-      let pageData: Array<{ title: string; uid: string | null }> = [];
-
-      // Process each selected page - keep both title and UID
-      for (const pageSelection of pages) {
-        if (pageSelection === "current") {
-          // Use current page context established when popup opened
-          if (currentPageContext.uid && currentPageContext.title) {
-            pageData.push({
-              title: currentPageContext.title,
-              uid: currentPageContext.uid,
-            });
-            // Add to page selections for query composition
-            addedPageSelections.push({
-              title: currentPageContext.title,
-              uid: currentPageContext.uid,
-              includeContent: addContent,
-              includeLinkedRefs: addRefs,
-            });
-          } else {
-            console.warn(
-              "⚠️ [DirectContent] No current page context available"
-            );
-          }
-        } else if (pageSelection === "dnp") {
-          // Get Daily Notes Pages for the specified period using getYesterdayDate utility
-          const { getYesterdayDate } = await import(
-            "../../../utils/roamAPI.js"
-          );
-
-          console.log(
-            `🗓️ [DirectContent] Getting DNPs for last ${dnpDays} days`
-          );
-
-          let currentDate = new Date(); // Start from today
-          let foundDnpCount = 0;
-
-          for (let i = 0; i < dnpDays; i++) {
-            // Get previous date for each iteration (going backwards in time)
-            if (i > 0) {
-              currentDate = getYesterdayDate(currentDate);
-            }
-
-            // Generate the DNP UID format (MM-DD-YYYY)
-            const dnpUid = `${String(currentDate.getMonth() + 1).padStart(
-              2,
-              "0"
-            )}-${String(currentDate.getDate()).padStart(
-              2,
-              "0"
-            )}-${currentDate.getFullYear()}`;
-
-            // Convert to proper page title using Roam's dateToPageTitle API
-            const pageTitle =
-              window.roamAlphaAPI?.util?.dateToPageTitle?.(currentDate);
-
-            console.log(
-              `🗓️ [DirectContent] Checking DNP: ${dnpUid} -> "${pageTitle}"`
-            );
-
-            // Check if the DNP page exists using the UID (which we already have)
-            const pageExists =
-              window.roamAlphaAPI?.util?.getPageUidByPageTitle?.(pageTitle);
-
-            if (pageExists || pageTitle) {
-              // We can use the dnpUid directly as the page UID, and pageTitle as the display title
-              pageData.push({
-                title: pageTitle || dnpUid, // Use proper title if available, fallback to UID
-                uid: dnpUid, // The DNP UID is the page UID
-              });
-              foundDnpCount++;
-              console.log(
-                `✅ [DirectContent] Found DNP: "${pageTitle}" (UID: ${dnpUid})`
-              );
-            } else {
-              console.log(
-                `⚠️ [DirectContent] DNP not found: ${dnpUid} -> "${pageTitle}"`
-              );
-            }
-          }
-
-          console.log(
-            `🗓️ [DirectContent] Found ${foundDnpCount} out of ${dnpDays} DNPs`
-          );
-
-          if (foundDnpCount === 0) {
-            console.warn(
-              `⚠️ [DirectContent] No Daily Notes Pages found for the last ${dnpDays} days. Make sure you have created some DNPs.`
-            );
-          }
-
-          // Add DNP as a special page selection (will be represented as a group)
-          if (foundDnpCount > 0) {
-            addedPageSelections.push({
-              title: `Daily Notes (${dnpDays} days)`,
-              uid: "dnp", // Special UID to indicate DNP group
-              includeContent: addContent,
-              includeLinkedRefs: addRefs,
-              dnpPeriod: dnpDays,
-            });
-          }
-        } else {
-          // Specific page selected from autocomplete - we already have the title!
-          const { getPageUidByPageName } = await import(
-            "../../../utils/roamAPI.js"
-          );
-          const pageUid = getPageUidByPageName(pageSelection);
-          if (pageUid) {
-            pageData.push({
-              title: pageSelection, // Use the original title from selection
-              uid: pageUid,
-            });
-            // Add to page selections for query composition
-            addedPageSelections.push({
-              title: pageSelection,
-              uid: pageUid,
-              includeContent: addContent,
-              includeLinkedRefs: addRefs,
-            });
-            console.log(
-              `✅ [DirectContent] Found UID for "${pageSelection}": ${pageUid}`
-            );
-          } else {
-            console.warn(
-              `⚠️ [DirectContent] Could not find UID for page: "${pageSelection}"`
-            );
-          }
-        }
-      }
-
-      console.log(
-        `📋 [DirectContent] Created ${addedPageSelections.length} page selections for composition`
-      );
-
-      console.log(
-        `🔍 [DirectContent] Found ${pageData.length} page(s) for ${targetPageTitle}`
-      );
-
-      // Process each page using both title and UID
-      for (const { title: pageTitle, uid: pageUid } of pageData) {
-        if (!pageUid) {
-          console.warn(
-            `⚠️ [DirectContent] Skipping page "${pageTitle}" - no UID found`
-          );
-          continue;
-        }
-
-        if (addContent) {
-          // Add page content directly with full metadata consistent with normal queries
-          try {
-            const pageQuery = `[:find ?page-uid ?page-title ?page-created ?page-modified (pull ?page [:block/uid :block/string :node/title {:block/children ...}])
-              :where
-              [?page :block/uid ?page-uid]
-              [?page :node/title ?page-title]
-              [?page :create/time ?page-created]
-              [?page :edit/time ?page-modified]
-              [(= ?page-uid "${pageUid}")]]`;
-
-            const pageData = await window.roamAlphaAPI.q(pageQuery);
-
-            if (pageData && pageData.length > 0) {
-              const [pageUid, pageTitle, pageCreated, pageModified, pullData] =
-                pageData[0];
-              const { isDailyNote } = await import(
-                "../../../ai/agents/search-agent/helpers/searchUtils"
-              );
-
-              // Add the page itself as a result with full metadata
-              newResults.push({
-                uid: pageUid,
-                title: pageTitle,
-                content: pullData[":block/string"] || `Page: ${pageTitle}`,
-                created: new Date(pageCreated),
-                modified: new Date(pageModified),
-                pageTitle: pageTitle,
-                pageUid: pageUid,
-                isDaily: isDailyNote(pageUid),
-                totalBlocks: pullData[":block/children"]?.length || 0,
-                isPage: true,
-                children: [],
-                parents: [],
-                expansionLevel: 0,
-              });
-
-              // Add children blocks recursively with consistent metadata
-              const addChildrenBlocks = (
-                children: any[],
-                parentPageTitle: string,
-                parentPageUid: string
-              ) => {
-                if (!children || !Array.isArray(children)) return;
-
-                children.forEach((child) => {
-                  if (child[":block/uid"] && child[":block/string"]) {
-                    newResults.push({
-                      uid: child[":block/uid"],
-                      content: child[":block/string"],
-                      created: new Date(pageCreated), // Use page creation date as fallback
-                      modified: new Date(pageModified), // Use page modification date as fallback
-                      pageTitle: parentPageTitle,
-                      pageUid: parentPageUid,
-                      isDaily: isDailyNote(parentPageUid),
-                      children: [],
-                      parents: [],
-                      isPage: false,
-                      expansionLevel: 0,
-                    });
-                  }
-
-                  // Recursively add children
-                  if (child[":block/children"]) {
-                    addChildrenBlocks(
-                      child[":block/children"],
-                      parentPageTitle,
-                      parentPageUid
-                    );
-                  }
-                });
-              };
-
-              if (pullData[":block/children"]) {
-                addChildrenBlocks(
-                  pullData[":block/children"],
-                  pageTitle,
-                  pageUid
-                );
-              }
-            }
-          } catch (error) {
-            console.error(
-              `❌ [DirectContent] Error adding page content for ${pageTitle}:`,
-              error
-            );
-          }
-        }
-
-        if (addRefs) {
-          // Add linked references using findBlocksByContent tool with consistent metadata
-          try {
-            // Import the tool
-            const { findBlocksByContentImpl } = await import(
-              "../../../ai/agents/search-agent/tools/findBlocksByContent/findBlocksByContentTool"
-            );
-
-            const linkedRefs = await findBlocksByContentImpl({
-              conditions: [
-                {
-                  type: "page_ref",
-                  text: pageTitle,
-                  matchType: "contains",
-                },
-              ],
-              includeChildren: true,
-              includeParents: false,
-              includeDaily: true, // Include Daily Notes in linked references search
-              resultMode: "full",
-              limit: 1000,
-              secureMode: false,
-            });
-
-            // Process linked references results - they already have full metadata
-            if (
-              linkedRefs &&
-              linkedRefs.results &&
-              Array.isArray(linkedRefs.results)
-            ) {
-              linkedRefs.results.forEach((ref: any) => {
-                // The results from findBlocksByContentImpl already have consistent metadata
-                if (ref.uid && ref.content) {
-                  newResults.push({
-                    ...ref, // Use the full metadata structure from the tool
-                    referenceContext: `References: ${pageTitle}`,
-                  });
-                }
-              });
-            }
-          } catch (error) {
-            console.error(
-              `❌ [DirectContent] Error adding linked references for ${pageTitle}:`,
-              error
-            );
-          }
-        }
-      }
-
-      console.log(
-        `✅ [DirectContent] Collected ${newResults.length} results from ${targetPageTitle}`
-      );
-
-      // Add to current results if we have new content
-      if (newResults.length > 0) {
+      // Add new results to current results if we have any
+      if (result.newResults.length > 0) {
         const existingUids = new Set(
           currentResults.map((r) => r.uid).filter(Boolean)
         );
-        let addedCount = 0;
         const combinedResults = [...currentResults];
 
-        for (const newResult of newResults) {
+        for (const newResult of result.newResults) {
           if (newResult.uid && !existingUids.has(newResult.uid)) {
             combinedResults.push(newResult);
             existingUids.add(newResult.uid);
-            addedCount++;
           }
         }
 
-        console.log(
-          `📊 [DirectContent] Added ${addedCount} new results (${
-            newResults.length - addedCount
-          } duplicates filtered)`
-        );
         setCurrentResults([...combinedResults]);
 
         // Clear filtered results to trigger re-filtering
         setFilteredAndSortedResults([]);
-
-        // Success feedback
-        console.log(
-          `✨ [DirectContent] Successfully added content from ${targetPageTitle}`
-        );
-      } else {
-        console.warn(
-          `⚠️ [DirectContent] No content found for ${targetPageTitle}`
-        );
       }
 
-      // Return page selections for composition
-      return addedPageSelections;
+      return result.addedPageSelections;
     } catch (error) {
       console.error("❌ [DirectContent] Failed to add direct content:", error);
       return [];

@@ -8,6 +8,7 @@ import {
   deleteSavedQuery,
   renameSavedQuery,
   getCurrentQueryInfo,
+  storeQuery,
 } from "../utils/queryStorage";
 import {
   UnifiedQuery,
@@ -130,22 +131,6 @@ export const useQueryManager = ({
       ...storedQueries.recent,
       ...storedQueries.saved,
     ].filter((q) => q.isComposed);
-    if (composedQueries.length > 0) {
-      console.log(
-        "🔗 [QueryManager] Composed queries in storage:",
-        composedQueries.map((q) => ({
-          id: q.id,
-          userQuery: q.userQuery,
-          isComposed: q.isComposed,
-          querySteps: q.querySteps?.length || 0,
-          queryStepsDetails: q.querySteps?.map((step) => step.userQuery) || [],
-          pageSelections: q.pageSelections?.length || 0,
-          pageSelectionsDetails:
-            q.pageSelections?.map((page) => page.title) || [],
-        }))
-      );
-    } else {
-    }
 
     // If we have a current query but selectedValue is not "current", switch to current
     // This handles the case after composition where we want to show the composed query
@@ -215,10 +200,7 @@ export const useQueryManager = ({
       !isValidStoredQuerySelected
     ) {
       // Only switch to current if we're not viewing a valid stored query
-      console.log(
-        "🔄 [QueryManager] useEffect switching to current from:",
-        selectedValue
-      );
+
       setSelectedValue("current");
     } else if (!currentUserQuery && selectedValue === "current") {
       // When currentUserQuery is cleared, reset to empty selection
@@ -226,17 +208,9 @@ export const useQueryManager = ({
     }
   }, [currentUserQuery, selectedValue, queries.recent, queries.saved]);
 
-  // Refresh queries when component mounts or updates
-  useEffect(() => {
-    setQueries(getStoredQueries());
-  }, []);
-
   // Refresh queries when tempComposedQuery changes (e.g., after composition)
   useEffect(() => {
     if (tempComposedQuery) {
-      console.log(
-        "🔄 [QueryManager] tempComposedQuery changed, refreshing queries from storage"
-      );
       refreshQueries();
     }
   }, [tempComposedQuery, refreshQueries]);
@@ -289,8 +263,6 @@ export const useQueryManager = ({
 
   const handleDeleteQuery = useCallback(
     (queryId: string) => {
-      console.log("🗑️ [QueryManager] Attempting to delete query:", queryId);
-
       // Try to delete from saved queries first
       let deleted = deleteSavedQuery(queryId);
 
@@ -310,13 +282,10 @@ export const useQueryManager = ({
               JSON.stringify(currentQueries)
             );
             deleted = true;
-            console.log("🗑️ [QueryManager] Deleted query from recent queries");
           } catch (error) {
             console.error("Error saving queries after deletion:", error);
           }
         }
-      } else {
-        console.log("🗑️ [QueryManager] Deleted query from saved queries");
       }
 
       if (deleted) {
@@ -329,9 +298,6 @@ export const useQueryManager = ({
 
           // Clear results when deleting the currently viewed query
           if (onClearAll) {
-            console.log(
-              "🧹 [QueryManager] Clearing results after deleting current query"
-            );
             onClearAll();
           }
         }
@@ -346,10 +312,6 @@ export const useQueryManager = ({
   );
 
   const handleClearResults = useCallback(() => {
-    console.log(
-      "🧹 [QueryManager] Clearing results - resetting query selection"
-    );
-
     if (onClearAll) {
       // Use parent's clear all function for complete reset
       onClearAll();
@@ -366,11 +328,6 @@ export const useQueryManager = ({
   }, [onClearAll, onQueryChange]);
 
   const handleSaveQuery = useCallback(async () => {
-    const { storeQuery } = await import("../utils/queryStorage");
-
-    console.log("sessionPageSelections :>> ", sessionPageSelections);
-    console.log("currentUserQuery :>> ", currentUserQuery);
-
     // PRIORITY 1: Check if we have a stored query with page selections added
     // This happens when user runs query A, then adds pages to it
     if (sessionPageSelections.length > 0 && currentUserQuery) {
@@ -386,14 +343,6 @@ export const useQueryManager = ({
           saveQueryName.trim() || generateDefaultName(storedQuery.userQuery);
         const { id, timestamp, ...queryWithoutMeta } = storedQuery;
 
-        console.log(
-          "💾 [QueryManager] Saving stored query with added page selections:",
-          {
-            queryId: storedQuery.id,
-            pageSelections: sessionPageSelections.length,
-          }
-        );
-
         const queryToSave = {
           ...queryWithoutMeta,
           pageSelections: [
@@ -402,11 +351,6 @@ export const useQueryManager = ({
           ],
           isComposed: true,
         };
-
-        console.log("💾 [handleSaveQuery] About to call storeQuery with:", {
-          queryToSave,
-          pageSelectionsCount: queryToSave.pageSelections?.length || 0
-        });
 
         storeQuery(queryToSave, { type: "saved", customName: queryName });
 
@@ -427,11 +371,6 @@ export const useQueryManager = ({
       const queryName =
         saveQueryName.trim() || generateDefaultName(loadedQuery.userQuery);
       const { id, timestamp, ...queryWithoutMeta } = loadedQuery;
-
-      console.log("💾 [QueryManager] Saving loaded query with modifications:", {
-        hasTextEdits: originalLoadedQuery?.userQuery !== loadedQuery.userQuery,
-        hasPageSelections: sessionPageSelections.length > 0,
-      });
 
       // Add session page selections to the query
       const queryToSave = {
@@ -474,10 +413,12 @@ export const useQueryManager = ({
       (currentInfo.userQuery
         ? generateDefaultName(currentInfo.userQuery)
         : (() => {
-            const pageNames = sessionPageSelections.map(p => p.title);
-            const firstPages = pageNames.slice(0, 3).join(', ');
+            const pageNames = sessionPageSelections.map((p) => p.title);
+            const firstPages = pageNames.slice(0, 3).join(", ");
             const remaining = pageNames.length - 3;
-            return remaining > 0 ? `${firstPages}, +${remaining} more` : firstPages;
+            return remaining > 0
+              ? `${firstPages}, +${remaining} more`
+              : firstPages;
           })());
 
     // storeQuery already imported at the top of this function
@@ -496,10 +437,6 @@ export const useQueryManager = ({
         isComposed:
           queryWithoutMeta.isComposed || sessionPageSelections.length > 0,
       };
-      console.log(
-        "💾 [QueryManager] Saving temporary composed query with session page selections:",
-        sessionPageSelections.length
-      );
     } else {
       // Check if current query is in storage
       const allQueries = [...queries.recent, ...queries.saved];
@@ -518,10 +455,6 @@ export const useQueryManager = ({
             ...sessionPageSelections,
           ],
         };
-        console.log(
-          "💾 [QueryManager] Saving existing composed query with session page selections:",
-          sessionPageSelections.length
-        );
       } else {
         // Create simple query structure, adding session page selections
         queryToSave = {
@@ -532,10 +465,6 @@ export const useQueryManager = ({
           querySteps: [],
           pageSelections: sessionPageSelections,
         };
-        console.log(
-          "💾 [QueryManager] Saving simple query with session page selections:",
-          sessionPageSelections.length
-        );
       }
     }
 
@@ -571,7 +500,6 @@ export const useQueryManager = ({
     // Clear all queries from localStorage
     try {
       localStorage.removeItem("askYourGraphQueries");
-      console.log("✅ [QueryManager] All stored queries cleared");
     } catch (error) {
       console.error("Error clearing stored queries:", error);
     }
@@ -602,10 +530,6 @@ export const useQueryManager = ({
 
     // If there are session page selections, enable save (query has been modified with page additions)
     if (sessionPageSelections && sessionPageSelections.length > 0) {
-      console.log(
-        "🔍 [canSaveCurrent] Session page selections exist:",
-        sessionPageSelections.length
-      );
       return true;
     }
 
@@ -613,11 +537,7 @@ export const useQueryManager = ({
     if (loadedQuery && originalLoadedQuery) {
       const hasBeenEdited =
         loadedQuery.userQuery.trim() !== originalLoadedQuery.userQuery.trim();
-      console.log("🔍 [canSaveCurrent] Loaded query edited check:", {
-        current: loadedQuery.userQuery,
-        original: originalLoadedQuery.userQuery,
-        hasBeenEdited,
-      });
+
       if (hasBeenEdited) {
         return true;
       }

@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Button,
-  Dialog,
-  Classes,
-  InputGroup,
   MenuItem,
   Collapse,
   Popover,
@@ -16,7 +13,6 @@ import { UnifiedQuery } from "./types/QueryTypes";
 import QueryComposer from "./QueryComposer";
 import DirectContentSelector from "./DirectContentSelector";
 import {
-  QueryRenderer,
   UnifiedQueryRenderer,
   StoredQueryRenderer,
 } from "./QueryRenderer";
@@ -30,6 +26,9 @@ import {
   groupedItems,
 } from "./utils/querySelectItems";
 import { updateQuery } from "./utils/queryStorage";
+import { SaveQueryDialog } from "./dialogs/SaveQueryDialog";
+import { RenameQueryDialog } from "./dialogs/RenameQueryDialog";
+import { ClearAllQueriesDialog } from "./dialogs/ClearAllQueriesDialog";
 
 const QuerySelect = Select.ofType<QuerySelectItem>();
 
@@ -273,16 +272,18 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     return stored || null;
   }, [currentQuery?.id, loadedQuery?.id, queries, sessionPageSelections]);
 
-  // Handler for editing loaded query
-  const handleEditLoadedQuery = useCallback(
-    (newQuery: string, context?: { stepIndex?: number }) => {
-      if (!loadedQuery) return;
-
+  // Generic handler for editing any query (loaded or selected)
+  const handleEditQuery = useCallback(
+    (
+      baseQuery: StoredQuery,
+      newQuery: string,
+      context?: { stepIndex?: number }
+    ) => {
       let updatedQuery: StoredQuery;
 
-      if (context?.stepIndex !== undefined && loadedQuery.isComposed) {
+      if (context?.stepIndex !== undefined && baseQuery.isComposed) {
         // Editing a step in a composed query
-        const updatedSteps = [...(loadedQuery.querySteps || [])];
+        const updatedSteps = [...(baseQuery.querySteps || [])];
         updatedSteps[context.stepIndex] = {
           ...updatedSteps[context.stepIndex],
           userQuery: newQuery,
@@ -290,13 +291,13 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         };
 
         updatedQuery = {
-          ...loadedQuery,
+          ...baseQuery,
           querySteps: updatedSteps,
         };
       } else {
         // Editing base query (simple or base of composed)
         updatedQuery = {
-          ...loadedQuery,
+          ...baseQuery,
           userQuery: newQuery,
           intentParserResult: undefined, // Force re-parsing on next execution
         };
@@ -307,7 +308,16 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         onQueryLoadedIntoComposer(updatedQuery);
       }
     },
-    [loadedQuery, refreshQueries, onQueryLoadedIntoComposer]
+    [onQueryLoadedIntoComposer]
+  );
+
+  // Handler for editing loaded query (wrapper for backward compatibility)
+  const handleEditLoadedQuery = useCallback(
+    (newQuery: string, context?: { stepIndex?: number }) => {
+      if (!loadedQuery) return;
+      handleEditQuery(loadedQuery, newQuery, context);
+    },
+    [loadedQuery, handleEditQuery]
   );
 
   // Expose refresh function to parent component
@@ -780,45 +790,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 if (selectedItem && selectedItem.query) {
                   const selectedQuery = selectedItem.query;
 
-                  const handleEditSelectedQuery = (
-                    newQuery: string,
-                    context?: { stepIndex?: number }
-                  ) => {
-                    // Use loadedQuery if available (it has the latest edits), otherwise use selectedQuery
-                    const baseQuery = loadedQuery || selectedQuery;
-                    let updatedQuery: StoredQuery;
-
-                    if (
-                      context?.stepIndex !== undefined &&
-                      baseQuery.isComposed
-                    ) {
-                      // Editing a step in a composed query
-                      const updatedSteps = [...(baseQuery.querySteps || [])];
-                      updatedSteps[context.stepIndex] = {
-                        ...updatedSteps[context.stepIndex],
-                        userQuery: newQuery,
-                        intentParserResult: undefined, // Force re-parsing
-                      };
-
-                      updatedQuery = {
-                        ...baseQuery,
-                        querySteps: updatedSteps,
-                      };
-                    } else {
-                      // Editing base query (simple or base of composed)
-                      updatedQuery = {
-                        ...baseQuery,
-                        userQuery: newQuery,
-                        intentParserResult: undefined, // Force re-parsing
-                      };
-                    }
-
-                    // Update the loaded query state (don't save to storage yet - user will save manually)
-                    if (onQueryLoadedIntoComposer) {
-                      onQueryLoadedIntoComposer(updatedQuery);
-                    }
-                  };
-
                   return (
                     <div className="stored-query-details">
                       <StoredQueryRenderer
@@ -826,7 +797,11 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                         showLabel={false}
                         visualComposed={true}
                         editable={true}
-                        onEdit={handleEditSelectedQuery}
+                        onEdit={(newQuery, context) => {
+                          // Use loadedQuery if available (it has the latest edits), otherwise use selectedQuery
+                          const baseQuery = loadedQuery || selectedQuery;
+                          handleEditQuery(baseQuery, newQuery, context);
+                        }}
                       />
 
                       <div className="stored-query-metadata">
@@ -1046,194 +1021,63 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
       </Collapse>
 
       {/* Save Query Dialog */}
-      <Dialog
+      <SaveQueryDialog
         isOpen={showSaveDialog}
         onClose={() => setShowSaveDialog(false)}
-        title={
-          storedQueryToReplace
-            ? "Save Modified Query"
-            : loadedQuery &&
-              originalLoadedQuery &&
-              loadedQuery.userQuery !== originalLoadedQuery.userQuery
-            ? "Save Edited Query"
-            : "Save Query"
-        }
-        className="save-query-dialog"
-      >
-        <div className={Classes.DIALOG_BODY}>
-          {storedQueryToReplace ||
-          (loadedQuery &&
-            originalLoadedQuery?.userQuery !== loadedQuery.userQuery) ? (
-            <>
-              <p>
-                The query has been{" "}
-                {sessionPageSelections.length > 0
-                  ? "modified with page selections"
-                  : "edited"}
-                . How would you like to save it?
-              </p>
-              <QueryRenderer
-                query={
-                  storedQueryToReplace?.userQuery ||
-                  loadedQuery?.userQuery ||
-                  currentQuery?.userQuery ||
-                  ""
-                }
-              />
-              {sessionPageSelections.length > 0 && (
-                <div
-                  style={{
-                    marginTop: "10px",
-                    fontSize: "0.9em",
-                    color: "#666",
-                  }}
-                >
-                  <strong>Added Pages:</strong> {sessionPageSelections.length}{" "}
-                  page selection(s)
-                </div>
-              )}
-              <InputGroup
-                placeholder="Enter a name for the new query (if saving as new)"
-                value={saveQueryName}
-                onChange={(e) => setSaveQueryName(e.target.value)}
-                autoFocus
-                style={{ marginTop: "15px" }}
-              />
-            </>
-          ) : (
-            <>
-              <p>Save the current query for later use:</p>
-              <QueryRenderer query={currentQuery?.userQuery || ""} />
-              {sessionPageSelections.length === 0 &&
-                currentQuery?.formalQuery &&
-                currentQuery.formalQuery !== currentQuery.userQuery && (
-                  <div className="current-formal-query-preview">
-                    <strong>Formal Query:</strong>{" "}
-                    <QueryRenderer query={currentQuery?.formalQuery || ""} />
-                  </div>
-                )}
-              <InputGroup
-                placeholder="Enter a name for this query (optional)"
-                value={saveQueryName}
-                onChange={(e) => setSaveQueryName(e.target.value)}
-                autoFocus
-              />
-            </>
-          )}
-        </div>
-        <div className={Classes.DIALOG_FOOTER}>
-          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-            <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
-            {storedQueryToReplace ||
-            (loadedQuery &&
-              originalLoadedQuery?.userQuery !== loadedQuery.userQuery) ? (
-              <>
-                <Button
-                  intent="warning"
-                  onClick={() => {
-                    // Replace existing query with page selections
-                    const queryToReplace = storedQueryToReplace || loadedQuery;
+        onSave={handleSaveQuery}
+        onReplaceExisting={() => {
+          // Replace existing query with page selections
+          const queryToReplace = storedQueryToReplace || loadedQuery;
 
-                    if (queryToReplace?.id) {
-                      const success = updateQuery(queryToReplace.id, {
-                        userQuery:
-                          loadedQuery?.userQuery || queryToReplace.userQuery,
-                        formalQuery:
-                          loadedQuery?.formalQuery ||
-                          queryToReplace.formalQuery,
-                        intentParserResult:
-                          loadedQuery?.intentParserResult ||
-                          queryToReplace.intentParserResult,
-                        pageSelections: [
-                          ...(queryToReplace.pageSelections || []),
-                          ...sessionPageSelections,
-                        ],
-                        isComposed: true,
-                      });
+          if (queryToReplace?.id) {
+            updateQuery(queryToReplace.id, {
+              userQuery: loadedQuery?.userQuery || queryToReplace.userQuery,
+              formalQuery:
+                loadedQuery?.formalQuery || queryToReplace.formalQuery,
+              intentParserResult:
+                loadedQuery?.intentParserResult ||
+                queryToReplace.intentParserResult,
+              pageSelections: [
+                ...(queryToReplace.pageSelections || []),
+                ...sessionPageSelections,
+              ],
+              isComposed: true,
+            });
 
-                      refreshQueries();
-                      setSessionPageSelections([]);
-                    } else {
-                      console.warn(
-                        "⚠️ [QueryManager] No queryToReplace.id found!"
-                      );
-                    }
-                    setShowSaveDialog(false);
-                    setSaveQueryName("");
-                  }}
-                >
-                  Replace Existing
-                </Button>
-                <Button intent="primary" onClick={handleSaveQuery}>
-                  Save as New
-                </Button>
-              </>
-            ) : (
-              <Button intent="primary" onClick={handleSaveQuery}>
-                Save Query
-              </Button>
-            )}
-          </div>
-        </div>
-      </Dialog>
+            refreshQueries();
+            setSessionPageSelections([]);
+          } else {
+            console.warn("⚠️ [QueryManager] No queryToReplace.id found!");
+          }
+          setShowSaveDialog(false);
+          setSaveQueryName("");
+        }}
+        saveQueryName={saveQueryName}
+        onSaveQueryNameChange={setSaveQueryName}
+        currentQuery={currentQuery}
+        loadedQuery={loadedQuery}
+        originalLoadedQuery={originalLoadedQuery}
+        storedQueryToReplace={storedQueryToReplace}
+        sessionPageSelections={sessionPageSelections}
+      />
 
       {/* Rename Query Dialog */}
-      <Dialog
+      <RenameQueryDialog
         isOpen={showRenameDialog}
         onClose={() => setShowRenameDialog(false)}
-        title="Rename Query"
-        className="rename-query-dialog"
-      >
-        <div className={Classes.DIALOG_BODY}>
-          <p>Enter a new name for this query:</p>
-          <InputGroup
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div className={Classes.DIALOG_FOOTER}>
-          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-            <Button onClick={() => setShowRenameDialog(false)}>Cancel</Button>
-            <Button intent="primary" onClick={handleRenameQuery}>
-              Rename
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+        onRename={handleRenameQuery}
+        renameValue={renameValue}
+        onRenameValueChange={setRenameValue}
+      />
 
       {/* Clear All Queries Dialog */}
-      <Dialog
+      <ClearAllQueriesDialog
         isOpen={showClearAllDialog}
         onClose={() => setShowClearAllDialog(false)}
-        title="Delete All Stored Queries ⚠️"
-        className="clear-all-queries-dialog"
-      >
-        <div className={Classes.DIALOG_BODY}>
-          <p>
-            ⚠️ This will permanently delete all stored queries (both recent and
-            saved).
-          </p>
-          <p>
-            <strong>Current stored queries:</strong>
-          </p>
-          <ul>
-            <li>Recent queries: {queries.recent.length}</li>
-            <li>Saved queries: {queries.saved.length}</li>
-          </ul>
-          <p>
-            <strong>This action cannot be undone.</strong>
-          </p>
-        </div>
-        <div className={Classes.DIALOG_FOOTER}>
-          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-            <Button onClick={() => setShowClearAllDialog(false)}>Cancel</Button>
-            <Button intent="danger" onClick={handleClearAllQueries}>
-              Clear All Queries
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+        onClearAll={handleClearAllQueries}
+        recentCount={queries.recent.length}
+        savedCount={queries.saved.length}
+      />
     </div>
   );
 };
