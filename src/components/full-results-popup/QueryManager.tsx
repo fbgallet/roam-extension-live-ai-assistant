@@ -23,16 +23,13 @@ import {
 import "./style/queryManager.css";
 import "./style/queryRenderer.css";
 import { useQueryManager } from "./hooks/useQueryManager";
-
-// Types for the Select component
-interface QuerySelectItem {
-  id: string;
-  type: "current" | "recent" | "saved";
-  query?: StoredQuery;
-  label: string;
-  description?: string;
-  group: string;
-}
+import {
+  QuerySelectItem,
+  formatTimestamp,
+  createSelectItems,
+  groupedItems,
+} from "./utils/querySelectItems";
+import { updateQuery } from "./utils/queryStorage";
 
 const QuerySelect = Select.ofType<QuerySelectItem>();
 
@@ -320,202 +317,9 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     }
   }, [refreshQueries, onQueriesUpdate]);
 
-  // Format timestamp helper function
-  const formatTimestamp = (timestamp: Date): string => {
-    const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) {
-      return "Today";
-    } else if (days === 1) {
-      return "Yesterday";
-    } else if (days < 7) {
-      return `${days} days ago`;
-    } else {
-      return timestamp.toLocaleDateString();
-    }
-  };
-
-  // Convert queries to select items
-  const createSelectItems = (): QuerySelectItem[] => {
-    const items: QuerySelectItem[] = [];
-
-    // Safety check: if queries is undefined, return empty array
-    if (!queries) {
-      console.error(
-        "❌ [QueryManager] queries is undefined in createSelectItems"
-      );
-      return items;
-    }
-
-    // Add current query if available
-    if (currentQuery?.userQuery) {
-      items.push({
-        id: "current",
-        type: "current",
-        label: "🔍 Last Query",
-        description:
-          currentQuery.userQuery.length > 70
-            ? currentQuery.userQuery.substring(0, 67) + "..."
-            : currentQuery.userQuery,
-        group: "", // No group - standalone item
-      });
-    }
-
-    // Add recent queries
-    if (queries?.recent) {
-      queries.recent.forEach((query) => {
-        // Skip queries without both userQuery AND pageSelections
-        if (
-          !query.userQuery &&
-          (!query.pageSelections || query.pageSelections.length === 0)
-        ) {
-          console.warn(
-            "⚠️ [QueryManager] Skipping query without userQuery or pageSelections:",
-            query
-          );
-          return;
-        }
-
-        // Generate display text: use userQuery if available, otherwise show page selections
-        const displayText =
-          query.userQuery ||
-          (query.pageSelections && query.pageSelections.length > 0
-            ? (() => {
-                const pageNames = query.pageSelections.map((p) => p.title);
-                const firstPages = pageNames.slice(0, 2).join(", ");
-                const remaining = pageNames.length - 2;
-                return remaining > 0
-                  ? `📄 ${firstPages}, +${remaining} more`
-                  : `📄 ${firstPages}`;
-              })()
-            : "Empty query");
-
-        const truncatedQuery =
-          displayText.length > 70
-            ? displayText.substring(0, 67) + "..."
-            : displayText;
-
-        items.push({
-          id: query.id,
-          type: "recent",
-          query: query,
-          label: truncatedQuery,
-          description: formatTimestamp(query.timestamp), // Timestamp as description/label
-          group: "📅 Recent Queries",
-        });
-      });
-    }
-
-    // Add saved queries
-    if (queries?.saved) {
-      queries.saved.forEach((query) => {
-        // Skip queries without both userQuery AND pageSelections
-        if (
-          !query.userQuery &&
-          (!query.pageSelections || query.pageSelections.length === 0)
-        ) {
-          console.warn(
-            "⚠️ [QueryManager] Skipping saved query without userQuery or pageSelections:",
-            query
-          );
-          return;
-        }
-
-        // Generate display label: use name if available, otherwise userQuery, otherwise show page selections
-        const displayLabel =
-          query.name ||
-          query.userQuery ||
-          (query.pageSelections && query.pageSelections.length > 0
-            ? (() => {
-                const pageNames = query.pageSelections.map((p) => p.title);
-                const firstPages = pageNames.slice(0, 2).join(", ");
-                const remaining = pageNames.length - 2;
-                return remaining > 0
-                  ? `📄 ${firstPages}, +${remaining} more`
-                  : `📄 ${firstPages}`;
-              })()
-            : "Empty query");
-        const truncatedLabel =
-          displayLabel.length > 70
-            ? displayLabel.substring(0, 67) + "..."
-            : displayLabel;
-
-        items.push({
-          id: query.id,
-          type: "saved",
-          query: query,
-          label: truncatedLabel,
-          description:
-            query.name && query.userQuery
-              ? query.userQuery.length > 70
-                ? query.userQuery.substring(0, 67) + "..."
-                : query.userQuery
-              : undefined,
-          group: "⭐ Saved Queries",
-        });
-      });
-    }
-
-    return items;
-  };
-
-  // Group items by their group property with smart filtering support
-  const groupedItems = (
-    items: QuerySelectItem[],
-    filterQuery: string = ""
-  ): QuerySelectItem[] => {
-    // First, filter items if there's a filter query
-    const filteredItems = filterQuery.trim()
-      ? items.filter((item) => {
-          const lowerQuery = filterQuery.toLowerCase();
-          return (
-            item.label.toLowerCase().includes(lowerQuery) ||
-            (item.description &&
-              item.description.toLowerCase().includes(lowerQuery))
-          );
-        })
-      : items;
-
-    // Group the filtered items
-    const groups: { [key: string]: QuerySelectItem[] } = {};
-
-    if (filteredItems.length)
-      filteredItems.forEach((item) => {
-        if (!groups[item.group]) {
-          groups[item.group] = [];
-        }
-        groups[item.group].push(item);
-      });
-
-    const result: QuerySelectItem[] = [];
-
-    // Add items with group headers (only if group has items)
-    if (Object.entries(groups).length)
-      Object.entries(groups).forEach(([groupName, groupItems], groupIndex) => {
-        // Only add group header if there are items in this group
-        if (groupItems.length > 0) {
-          // Add a virtual group header item (if there are multiple groups with items AND the group has a name)
-          if (Object.keys(groups).length > 1 && groupName.trim() !== "") {
-            result.push({
-              id: `__group_${groupIndex}`,
-              type: "current", // dummy type
-              label: groupName,
-              group: groupName,
-              description: `${groupItems.length} item${
-                groupItems.length !== 1 ? "s" : ""
-              }`,
-            } as QuerySelectItem);
-          }
-
-          // Add the actual items
-          result.push(...groupItems);
-        }
-      });
-
-    return result;
-  };
+  // Get all select items with grouping (using imported utilities)
+  const baseSelectItems = createSelectItems(queries, currentQuery);
+  const groupedSelectItems = groupedItems(baseSelectItems);
 
   // Render individual select items with group support
   const renderQueryItem: ItemRenderer<QuerySelectItem> = (
@@ -692,8 +496,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     // If it's a group header, check if any item in its group matches the filter
     if (item.id.startsWith("__group_")) {
       // For group headers, we need to check if any items in this group would match
-      const baseItems = createSelectItems();
-      const itemsInThisGroup = baseItems.filter(
+      const itemsInThisGroup = baseSelectItems.filter(
         (baseItem) => baseItem.group === item.group
       );
 
@@ -715,10 +518,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
       (item.description && item.description.toLowerCase().includes(lowerQuery))
     );
   };
-
-  // Get all select items with grouping (now using basic grouping, filtering handled by predicate)
-  const baseSelectItems = createSelectItems();
-  const groupedSelectItems = groupedItems(baseSelectItems);
 
   // Find currently selected item (search in base items, not grouped items with headers)
   const currentSelectedItem = baseSelectItems.find(
@@ -1187,13 +986,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
               return (
                 <div className="query-page-selections">
-                  {/* <div className="page-selections-header">
-                  <Icon icon="document" size={14} />
-                  <span>
-                    Page Selections ({uniquePageSelections.length}
-                    {sessionPageSelections.length > 0 && `, ${sessionPageSelections.length} new`}):
-                  </span>
-                </div> */}
                   <div className="page-selections-tags">
                     {uniquePageSelections.map((pageSelection, index) => {
                       const isFromSession = sessionPageSelections.some(
@@ -1280,8 +1072,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   : "edited"}
                 . How would you like to save it?
               </p>
-              {/* <div className="current-query-preview">
-                <strong>Query:</strong>{" "} */}
               <QueryRenderer
                 query={
                   storedQueryToReplace?.userQuery ||
@@ -1290,7 +1080,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   ""
                 }
               />
-              {/* </div> */}
               {sessionPageSelections.length > 0 && (
                 <div
                   style={{
@@ -1314,10 +1103,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
           ) : (
             <>
               <p>Save the current query for later use:</p>
-              {/* <div className="current-query-preview">
-                <strong>Query:</strong>{" "} */}
               <QueryRenderer query={currentQuery?.userQuery || ""} />
-              {/* </div> */}
               {sessionPageSelections.length === 0 &&
                 currentQuery?.formalQuery &&
                 currentQuery.formalQuery !== currentQuery.userQuery && (
@@ -1346,7 +1132,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   intent="warning"
                   onClick={() => {
                     // Replace existing query with page selections
-                    const { updateQuery } = require("./utils/queryStorage");
                     const queryToReplace = storedQueryToReplace || loadedQuery;
 
                     if (queryToReplace?.id) {
