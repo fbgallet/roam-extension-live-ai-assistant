@@ -15,6 +15,7 @@ import {
   storedQueryToUnified,
   createSimpleQuery,
 } from "../types/QueryTypes";
+import { getCurrentTokenUsage } from "../../../ai/agents/search-agent/ask-your-graph-agent";
 import {
   filterAndSortResults,
   paginateResults,
@@ -652,11 +653,12 @@ export const useFullResultsState = (
       mode: "add" | "replace",
       model?: string,
       queryToExecute?: string
-    ): Promise<any[] | null> => {
+    ): Promise<{ results: any[]; executionTime?: string; tokens?: any } | null> => {
       const queryText = queryToExecute || composerQuery;
       if (!queryText.trim()) return null;
 
       setIsComposingQuery(true);
+      const startTime = Date.now();
 
       try {
         // Import the search agent invoke function
@@ -683,6 +685,10 @@ export const useFullResultsState = (
 
         // Get the results from the global state (where the agent stores them)
         const newResults = (window as any).lastAskYourGraphResults || [];
+
+        // Capture execution metadata
+        const executionTime = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+        const tokens = getCurrentTokenUsage();
 
         // Restore the previous results to avoid interfering with the main popup
         (window as any).lastAskYourGraphResults = previousResults;
@@ -721,7 +727,7 @@ export const useFullResultsState = (
             (newResults as any).__isAddModeExecution = true;
           }
 
-          return newResults;
+          return { results: newResults, executionTime, tokens };
         } else {
           console.warn(
             `⚠️ [QueryComposer] Query returned no valid results:`,

@@ -15,7 +15,12 @@ import { useFullResultsState } from "./hooks/useFullResultsState";
 import { canUseChat } from "./utils/chatHelpers";
 import { ReferencesFilterPopover } from "./ReferencesFilterPopover";
 import { QueryManager } from "./QueryManager";
-import { StoredQuery, getStoredQueries, composeQueries, saveQueries } from "./utils/queryStorage";
+import {
+  StoredQuery,
+  getStoredQueries,
+  composeQueries,
+  saveQueries,
+} from "./utils/queryStorage";
 import {
   UnifiedQuery,
   createSimpleQuery,
@@ -160,12 +165,12 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             setTimeout(() => {
               setExecutionProgress("");
               setQueryProgress({});
-            }, 5000);
+            }, 6000);
           },
           onError: (error: string) => {
             setExecutionProgress(ProgressMessages.composedQueryFailed(error));
             setQueryProgress({});
-            setTimeout(() => setExecutionProgress(""), 5000);
+            setTimeout(() => setExecutionProgress(""), 6000);
           },
         });
 
@@ -574,15 +579,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           tokens?: any
         ) => {
           setCurrentResults(finalResults);
-          let message = `✅ Query completed - ${finalResults.length} results found`;
-          if (executionTime) {
-            message += ` • ${executionTime}`;
-          }
-          if (tokens && (tokens.input_tokens > 0 || tokens.output_tokens > 0)) {
-            message += ` • ${
-              tokens.input_tokens + tokens.output_tokens
-            } tokens`;
-          }
+          let message = ProgressMessages.simpleQueryComplete(
+            finalResults.length,
+            executionTime,
+            tokens
+          );
           setExecutionProgress(message);
 
           // Execute page selections if they exist in the query
@@ -1102,6 +1103,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
                       // Handle pageSelections-only queries (no userQuery)
                       let newResults: any[] = [];
+                      let executionTime: string | undefined;
+                      let tokens: any | undefined;
 
                       if (queryText) {
                         setExecutionProgress(
@@ -1109,12 +1112,17 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                             queryText.length > 50 ? "..." : ""
                           }`
                         );
-                        newResults = await handleComposerExecute(
+                        const executionResult = await handleComposerExecute(
                           currentResults,
                           mode,
                           model,
                           queryText // Pass the query text (either from composer or loaded query)
                         );
+                        if (executionResult) {
+                          newResults = executionResult.results;
+                          executionTime = executionResult.executionTime;
+                          tokens = executionResult.tokens;
+                        }
                       } else if (
                         queryToExecute?.pageSelections &&
                         queryToExecute.pageSelections.length > 0
@@ -1151,11 +1159,13 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                             queryToExecute?.pageSelections &&
                             queryToExecute.pageSelections.length > 0
                           ) {
-                            const pageSelectionResult = await executeStoredPageSelections(
-                              queryToExecute.pageSelections,
-                              newResults,
-                              (progressMsg) => setExecutionProgress(progressMsg)
-                            );
+                            const pageSelectionResult =
+                              await executeStoredPageSelections(
+                                queryToExecute.pageSelections,
+                                newResults,
+                                (progressMsg) =>
+                                  setExecutionProgress(progressMsg)
+                              );
 
                             // Update results with page selection results
                             setCurrentResults(pageSelectionResult.finalResults);
@@ -1171,14 +1181,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                               );
                             } else {
                               // PageSelections-only: count pages and blocks
-                              const pageCount = pageSelectionResult.finalResults.filter(
-                                (r: any) => r.isPage === true
-                              ).length;
-                              const blockCount = pageSelectionResult.finalResults.filter(
-                                (r: any) => r.isPage !== true
-                              ).length;
+                              const pageCount =
+                                pageSelectionResult.finalResults.filter(
+                                  (r: any) => r.isPage === true
+                                ).length;
+                              const blockCount =
+                                pageSelectionResult.finalResults.filter(
+                                  (r: any) => r.isPage !== true
+                                ).length;
                               setExecutionProgress(
-                                ProgressMessages.pageSelectionWithCounts(pageCount, blockCount)
+                                ProgressMessages.pageSelectionWithCounts(
+                                  pageCount,
+                                  blockCount
+                                )
                               );
                             }
                           }
@@ -1297,9 +1312,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                         // Message already set by pageSelections execution logic above
                       } else {
                         setExecutionProgress(
-                          `✅ Query completed - ${
-                            newResults?.length || 0
-                          } results`
+                          ProgressMessages.simpleQueryComplete(
+                            newResults?.length || 0,
+                            executionTime,
+                            tokens
+                          )
                         );
                       }
                       setTimeout(() => setExecutionProgress(""), 3000);
