@@ -22,6 +22,10 @@ import {
   saveQueries,
 } from "./utils/queryStorage";
 import {
+  updateWindowQueryStorage,
+  captureWindowQueryState,
+} from "./utils/windowStorage";
+import {
   UnifiedQuery,
   createSimpleQuery,
   storedQueryToUnified,
@@ -44,6 +48,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   permissions = { contentAccess: false },
   userQuery,
   formalQuery,
+  intentParserResult,
   forceOpenChat = false,
 }) => {
   // Query execution state
@@ -178,7 +183,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         setCurrentResults(finalResults);
         setCurrentUserQuery(query.userQuery);
         setCurrentFormalQuery(query.formalQuery);
-        (window as any).lastAskYourGraphResults = finalResults;
+
+        // Update window storage with complete query structure
+        // This ensures reopening popup shows this query with all its steps/pageSelections
+        updateWindowQueryStorage(finalResults, query, targetUid);
 
         setIsExecutingQuery(false);
       } catch (error) {
@@ -213,24 +221,26 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   // This allows us to preserve the full query structure when executing via Run button
   const lastLoadedQueryRef = useRef<StoredQuery | null>(null);
 
-  // Clear temporary storage when popup opens to prevent accumulation
+  // Capture and preserve complete window query state before clearing
+  // This ensures we can restore full state (including steps/pageSelections) when reopening
+  const [preservedQueryState] = React.useState(() => {
+    return captureWindowQueryState();
+  });
+
+  // Clear ONLY temporary composition storage when popup opens
+  // DO NOT clear lastAskYourGraphResults and lastQuery - they should persist across open/close cycles!
   React.useEffect(() => {
     if (isOpen) {
       // Clear React state for temporary composed query
       setTempComposedQuery(null);
 
-      // Clear ALL window query state that might cause accumulation
+      // Clear ONLY composition-related temporary storage (not the main query/results storage)
       delete (window as any).__currentComposedQuery;
       delete (window as any).__currentComposedQueryId;
       delete (window as any).__originalQueryForComposition;
-      delete (window as any).lastUserQuery;
-      delete (window as any).lastFormalQuery;
-      delete (window as any).lastIntentParserResult;
-      delete (window as any).lastAskYourGraphResults;
       delete (window as any).previousUserQuery;
       delete (window as any).previousFormalQuery;
       delete (window as any).previousIntentParserResult;
-      delete (window as any).lastAgentResponseTargetUid;
     }
   }, [isOpen]);
 
@@ -455,6 +465,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     delete (window as any).lastFormalQuery;
     delete (window as any).lastIntentParserResult;
     delete (window as any).lastAskYourGraphResults;
+    delete (window as any).lastQuery;
     delete (window as any).previousUserQuery;
     delete (window as any).previousFormalQuery;
     delete (window as any).previousIntentParserResult;
@@ -615,6 +626,12 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               } tokens`;
             }
             setExecutionProgress(message);
+
+            // Update window storage with page selection results
+            updateWindowQueryStorage(pageSelectionResult.finalResults, query, targetUid);
+          } else {
+            // Update window storage with query results (no page selections)
+            updateWindowQueryStorage(finalResults, query, targetUid);
           }
 
           setTimeout(() => setExecutionProgress(""), 5000);
@@ -1196,6 +1213,18 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                                 )
                               );
                             }
+
+                            // Update window storage with page selection results
+                            // Case: Query executed from INSIDE FullResultsPopup (QueryManager)
+                            if (queryToExecute) {
+                              updateWindowQueryStorage(pageSelectionResult.finalResults, queryToExecute, targetUid);
+                            }
+                          } else {
+                            // Update window storage with query results (no page selections)
+                            // Case: Query executed from INSIDE FullResultsPopup (QueryManager)
+                            if (queryToExecute) {
+                              updateWindowQueryStorage(newResults, queryToExecute, targetUid);
+                            }
                           }
 
                           // Clear loadedQuery AFTER execution completes (including page selections)
@@ -1715,7 +1744,10 @@ export const openLastAskYourGraphResults = () => {
         const formalQuery = hasActualResults
           ? (window as any).lastFormalQuery || null
           : null;
-        openFullResultsPopup(lastResults, targetUid, userQuery, formalQuery);
+        const intentParserResult = hasActualResults
+          ? (window as any).lastIntentParserResult || null
+          : null;
+        openFullResultsPopup(lastResults, targetUid, userQuery, formalQuery, false, intentParserResult);
       }
     })
     .catch(() => {

@@ -378,6 +378,7 @@ export const addButtonsToToaster = (
     const targetUid = window.lastAgentResponseTargetUid || null;
     const userQuery = window.lastUserQuery || null;
     const formalQuery = window.lastFormalQuery || null;
+    const intentParserResult = window.lastIntentParserResult || null;
 
     buttons.push(
       <Button
@@ -386,7 +387,7 @@ export const addButtonsToToaster = (
         {...props}
         intent="primary"
         icon="list-detail-view"
-        onClick={() => openFullResultsPopup(currentFullResults, targetUid, userQuery, formalQuery)}
+        onClick={() => openFullResultsPopup(currentFullResults, targetUid, userQuery, formalQuery, false, intentParserResult)}
       />
     );
   }
@@ -431,7 +432,8 @@ export const openFullResultsPopup = (
   targetUid = null,
   userQuery = null,
   formalQuery = null,
-  forceOpenChat = false
+  forceOpenChat = false,
+  intentParserResult = null
 ) => {
   // Remove any existing popup first
   const existingContainer = document.getElementById(
@@ -459,6 +461,7 @@ export const openFullResultsPopup = (
       targetUid: targetUid,
       userQuery: userQuery,
       formalQuery: formalQuery,
+      intentParserResult: intentParserResult,
       forceOpenChat: forceOpenChat,
     });
   };

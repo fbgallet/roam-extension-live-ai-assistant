@@ -28,6 +28,7 @@ export interface FullResultsPopupProps {
   // Query information for display
   userQuery?: string;
   formalQuery?: string;
+  intentParserResult?: any; // IntentParserResult from queryStorage
   // Force chat to open initially
   forceOpenChat?: boolean;
 }

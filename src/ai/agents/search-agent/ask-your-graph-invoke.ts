@@ -898,12 +898,15 @@ const invokeSearchAgentInternal = async ({
                 if (openFullResultsPopup) {
                   const userQuery = response?.userQuery || finalPrompt;
                   const forceOpenChat = userQuery?.startsWith("all linked references of [[") || false;
+                  // Get intentParserResult from window (was set at line 849)
+                  const intentParserResult = (window as any).lastIntentParserResult;
                   openFullResultsPopup(
                     fullResults,
                     response?.targetUid,
                     userQuery,
                     response?.formalQuery,
-                    forceOpenChat
+                    forceOpenChat,
+                    intentParserResult
                   );
                 }
               })
@@ -1295,12 +1298,15 @@ export const invokeCurrentPageReferences = async ({
         if (rootUid !== "query-composer") {
           const { openFullResultsPopup } = await import("../../../components/Toaster.js");
           if (openFullResultsPopup && toolResult.results) {
+            // Get intentParserResult from window if available
+            const intentParserResult = (window as any).lastIntentParserResult;
             openFullResultsPopup(
               toolResult.results,
               null, // No targetUid for direct tool execution
               userQuery,
               formalQuery,
-              true // Force open chat
+              true, // Force open chat
+              intentParserResult
             );
           }
         } else {
