@@ -1102,7 +1102,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       if (
                         mode === "replace" &&
                         queryToExecute &&
-                        (queryToExecute.userQuery === composerQuery || (!composerQuery.trim() && loadedQuery))
+                        (queryToExecute.userQuery === composerQuery ||
+                         (!composerQuery.trim() && loadedQuery) ||
+                         (!queryToExecute.userQuery && queryToExecute.pageSelections && queryToExecute.pageSelections.length > 0))
                       ) {
                         // This is a loaded query being executed (either matches composer or loaded without composer text)
                         console.log(
@@ -1181,25 +1183,37 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
                       // Set execution progress for simple queries
                       const queryText = composerQuery.trim() || queryToExecute?.userQuery || '';
-                      setExecutionProgress(`🔄 Executing query: ${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}`);
 
-                      const newResults = await handleComposerExecute(
-                        currentResults,
-                        mode,
-                        model,
-                        queryText // Pass the query text (either from composer or loaded query)
-                      );
+                      // Handle pageSelections-only queries (no userQuery)
+                      let newResults: any[] = [];
 
-                      if (newResults && newResults.length > 0) {
+                      if (queryText) {
+                        setExecutionProgress(`🔄 Executing query: ${queryText.substring(0, 50)}${queryText.length > 50 ? '...' : ''}`);
+                        newResults = await handleComposerExecute(
+                          currentResults,
+                          mode,
+                          model,
+                          queryText // Pass the query text (either from composer or loaded query)
+                        );
+                      } else if (queryToExecute?.pageSelections && queryToExecute.pageSelections.length > 0) {
+                        // PageSelections-only query - skip the query execution step
+                        setExecutionProgress(`📄 Loading ${queryToExecute.pageSelections.length} page selection(s)...`);
+                        console.log("📋 [FullResultsPopup] PageSelections-only query detected, skipping query execution");
+                      }
+
+                      // Handle results or pageSelections-only queries
+                      if (newResults.length > 0 || (queryToExecute?.pageSelections && queryToExecute.pageSelections.length > 0)) {
                         // Update current query context with the executed query
                         if (mode === "replace") {
                           const executedQuery = composerQuery.trim() || queryToExecute?.userQuery || '';
                           setCurrentUserQuery(executedQuery);
                           setCurrentFormalQuery(executedQuery);
 
-                          setCurrentResults([...newResults]);
-                          // Force refresh AFTER setting new results
-                          forceUIRefresh();
+                          if (newResults.length > 0) {
+                            setCurrentResults([...newResults]);
+                            // Force refresh AFTER setting new results
+                            forceUIRefresh();
+                          }
 
                           // Execute page selections if they exist in the loaded query
                           if (queryToExecute?.pageSelections && queryToExecute.pageSelections.length > 0) {
@@ -1246,7 +1260,14 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                             // Update final progress message
                             const finalCount = accumulatedResults.length;
                             const addedCount = finalCount - newResults.length;
-                            setExecutionProgress(`✅ Query completed - ${finalCount} results (${newResults.length} from query + ${addedCount} from pages)`);
+                            if (newResults.length > 0) {
+                              setExecutionProgress(`✅ Query completed - ${finalCount} results (${newResults.length} from query + ${addedCount} from pages)`);
+                            } else {
+                              // PageSelections-only: count pages (isPage: true) and blocks (isPage: false or undefined)
+                              const pageCount = accumulatedResults.filter(r => r.isPage === true).length;
+                              const blockCount = accumulatedResults.filter(r => r.isPage !== true).length;
+                              setExecutionProgress(`✅ Page selection: ${pageCount} page(s) and ${blockCount} block(s) loaded`);
+                            }
                           }
 
                           // Clear loadedQuery AFTER execution completes (including page selections)
@@ -1414,7 +1435,12 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       }
 
                       // Clear progress message after successful execution
-                      setExecutionProgress(`✅ Query completed - ${newResults?.length || 0} results`);
+                      if (queryToExecute?.pageSelections && queryToExecute.pageSelections.length > 0 && (!newResults || newResults.length === 0)) {
+                        // PageSelections-only query - don't show misleading "0 results" message
+                        // Message already set by pageSelections execution logic above
+                      } else {
+                        setExecutionProgress(`✅ Query completed - ${newResults?.length || 0} results`);
+                      }
                       setTimeout(() => setExecutionProgress(""), 3000);
                     } finally {
                       setIsExecutingQuery(false);

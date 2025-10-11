@@ -457,13 +457,28 @@ export const useQueryManager = ({
     // PRIORITY 3: Standard save for new queries
     const currentInfo = getCurrentQueryInfo();
 
-    if (!currentInfo.userQuery || !currentInfo.intentParserResult) {
+    // Allow saving if we have either a userQuery OR pageSelections
+    if (!currentInfo.userQuery && sessionPageSelections.length === 0) {
       console.warn("No current query to save");
       return;
     }
 
+    // Only require intentParserResult if we have a userQuery
+    if (currentInfo.userQuery && !currentInfo.intentParserResult) {
+      console.warn("No intent parser result for current query");
+      return;
+    }
+
     const queryName =
-      saveQueryName.trim() || generateDefaultName(currentInfo.userQuery);
+      saveQueryName.trim() ||
+      (currentInfo.userQuery
+        ? generateDefaultName(currentInfo.userQuery)
+        : (() => {
+            const pageNames = sessionPageSelections.map(p => p.title);
+            const firstPages = pageNames.slice(0, 3).join(', ');
+            const remaining = pageNames.length - 3;
+            return remaining > 0 ? `${firstPages}, +${remaining} more` : firstPages;
+          })());
 
     // storeQuery already imported at the top of this function
     let queryToSave;
@@ -510,8 +525,8 @@ export const useQueryManager = ({
       } else {
         // Create simple query structure, adding session page selections
         queryToSave = {
-          userQuery: currentInfo.userQuery,
-          formalQuery: currentInfo.formalQuery || currentInfo.userQuery,
+          userQuery: currentInfo.userQuery || "", // Can be empty for pageSelections-only queries
+          formalQuery: currentInfo.formalQuery || currentInfo.userQuery || "",
           intentParserResult: currentInfo.intentParserResult,
           isComposed: sessionPageSelections.length > 0,
           querySteps: [],

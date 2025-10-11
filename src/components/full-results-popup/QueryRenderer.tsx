@@ -66,25 +66,34 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
   const [showDetails, setShowDetails] = useState(false);
 
   // Determine if we should show visual composed structure
-  const effectiveUnifiedQuery = unifiedQuery || (metadata?.isComposed ? {
-    userQuery: query,
-    formalQuery: formalQuery || query,
-    isComposed: true,
-    querySteps: metadata.querySteps || [],
-    pageSelections: [],
-  } as UnifiedQuery : null);
+  const effectiveUnifiedQuery =
+    unifiedQuery ||
+    (metadata?.isComposed
+      ? ({
+          userQuery: query,
+          formalQuery: formalQuery || query,
+          isComposed: true,
+          querySteps: metadata.querySteps || [],
+          pageSelections: [],
+        } as UnifiedQuery)
+      : null);
 
-  const shouldShowVisualComposed = visualComposed && effectiveUnifiedQuery?.isComposed &&
-    (effectiveUnifiedQuery.querySteps.length > 0 || effectiveUnifiedQuery.pageSelections?.length > 0);
+  const shouldShowVisualComposed =
+    visualComposed &&
+    effectiveUnifiedQuery?.isComposed &&
+    (effectiveUnifiedQuery.querySteps.length > 0 ||
+      effectiveUnifiedQuery.pageSelections?.length > 0);
 
   const hasDetails = formalQuery && formalQuery !== query;
-  const hasMetadata = metadata && (metadata.timestamp || metadata.resultCount || metadata.dateRange);
-  const hasSearchDetails = intentParserResult?.searchDetails && (
-    intentParserResult.searchDetails.timeRange ||
-    intentParserResult.searchDetails.depthLimit ||
-    intentParserResult.searchDetails.maxResults ||
-    intentParserResult.searchDetails.requireRandom
-  );
+  const hasMetadata =
+    metadata &&
+    (metadata.timestamp || metadata.resultCount || metadata.dateRange);
+  const hasSearchDetails =
+    intentParserResult?.searchDetails &&
+    (intentParserResult.searchDetails.timeRange ||
+      intentParserResult.searchDetails.depthLimit ||
+      intentParserResult.searchDetails.maxResults ||
+      intentParserResult.searchDetails.requireRandom);
 
   // If showing visual composed structure, render it differently
   if (shouldShowVisualComposed) {
@@ -93,19 +102,34 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
         <div className="composed-series">
           {/* Base Query */}
           <div className="query-manager-query-content user-query">
-            <QueryRenderer
-              query={effectiveUnifiedQuery.userQuery}
-              formalQuery={effectiveUnifiedQuery.formalQuery}
-              intentParserResult={effectiveUnifiedQuery.intentParserResult}
-              label="Query 1"
-              showLabel={true}
-              skipStylingWrapper={true}
-              editable={editable}
-              onEdit={onEdit ? (newQuery) => {
-                // Edit base query (no stepIndex means base query)
-                onEdit(newQuery);
-              } : undefined}
-            />
+            {effectiveUnifiedQuery.userQuery ? (
+              <QueryRenderer
+                query={effectiveUnifiedQuery.userQuery}
+                formalQuery={effectiveUnifiedQuery.formalQuery}
+                intentParserResult={effectiveUnifiedQuery.intentParserResult}
+                label="Query 1"
+                showLabel={true}
+                skipStylingWrapper={true}
+                editable={editable}
+                onEdit={
+                  onEdit
+                    ? (newQuery) => {
+                        // Edit base query (no stepIndex means base query)
+                        onEdit(newQuery);
+                      }
+                    : undefined
+                }
+              />
+            ) : (
+              <div className="query-renderer-content">
+                <span
+                  className="query-renderer-label"
+                  style={{ color: "#999", fontStyle: "italic" }}
+                >
+                  No natural language query, page selection only
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Query Steps */}
@@ -140,10 +164,14 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
                       showLabel={true}
                       skipStylingWrapper={true}
                       editable={editable}
-                      onEdit={onEdit ? (newQuery) => {
-                        // Edit step (pass stepIndex)
-                        onEdit(newQuery, { stepIndex: index });
-                      } : undefined}
+                      onEdit={
+                        onEdit
+                          ? (newQuery) => {
+                              // Edit step (pass stepIndex)
+                              onEdit(newQuery, { stepIndex: index });
+                            }
+                          : undefined
+                      }
                     />
                   )}
                 </div>
@@ -159,12 +187,18 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
   }
 
   // Standard single query rendering
-  console.log("🎨 [QueryRenderer] Rendering query:", { query: query.substring(0, 50), editable, hasOnEdit: !!onEdit });
 
   const content = (
     <>
       <div className="query-renderer-content">
-        {editable && onEdit ? (
+        {!query ? (
+          <span
+            className="query-renderer-label"
+            style={{ color: "#999", fontStyle: "italic" }}
+          >
+            No natural language query, page selection only
+          </span>
+        ) : editable && onEdit ? (
           <EditableQueryText
             query={query}
             onSave={onEdit}
@@ -212,20 +246,19 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
               )}
               {metadata.resultCount !== undefined && (
                 <span className="query-metadata-item">
-                  <Icon icon="numerical" size={12} />{" "}
-                  {metadata.resultCount} results
+                  <Icon icon="numerical" size={12} /> {metadata.resultCount}{" "}
+                  results
                 </span>
               )}
               {metadata.dateRange && (
                 <span className="query-metadata-item">
-                  <Icon icon="calendar" size={12} />{" "}
-                  {metadata.dateRange}
+                  <Icon icon="calendar" size={12} /> {metadata.dateRange}
                 </span>
               )}
               {metadata.isComposed && (
                 <span className="query-metadata-item">
-                  <Icon icon="layers" size={12} />{" "}
-                  Composed ({(metadata.querySteps?.length || 0) + 1} parts)
+                  <Icon icon="layers" size={12} /> Composed (
+                  {(metadata.querySteps?.length || 0) + 1} parts)
                 </span>
               )}
             </div>
@@ -239,27 +272,30 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
               {intentParserResult?.searchDetails?.timeRange && (
                 <span className="query-metadata-item">
                   <Icon icon="calendar" size={12} />{" "}
-                  {new Date(intentParserResult.searchDetails.timeRange.start).toLocaleDateString()}
+                  {new Date(
+                    intentParserResult.searchDetails.timeRange.start
+                  ).toLocaleDateString()}
                   {" → "}
-                  {new Date(intentParserResult.searchDetails.timeRange.end).toLocaleDateString()}
+                  {new Date(
+                    intentParserResult.searchDetails.timeRange.end
+                  ).toLocaleDateString()}
                 </span>
               )}
               {intentParserResult?.searchDetails?.depthLimit && (
                 <span className="query-metadata-item">
-                  <Icon icon="diagram-tree" size={12} />{" "}
-                  Depth: {intentParserResult.searchDetails.depthLimit}
+                  <Icon icon="diagram-tree" size={12} /> Depth:{" "}
+                  {intentParserResult.searchDetails.depthLimit}
                 </span>
               )}
               {intentParserResult?.searchDetails?.maxResults && (
                 <span className="query-metadata-item">
-                  <Icon icon="numerical" size={12} />{" "}
-                  Max: {intentParserResult.searchDetails.maxResults} results
+                  <Icon icon="numerical" size={12} /> Max:{" "}
+                  {intentParserResult.searchDetails.maxResults} results
                 </span>
               )}
               {intentParserResult?.searchDetails?.requireRandom && (
                 <span className="query-metadata-item">
-                  <Icon icon="random" size={12} />{" "}
-                  Random sampling
+                  <Icon icon="random" size={12} /> Random sampling
                 </span>
               )}
             </div>
@@ -270,10 +306,10 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
   );
 
   // Apply wrapper conditionally
-  return skipStylingWrapper ? content : (
-    <div className="query-manager-query-content user-query">
-      {content}
-    </div>
+  return skipStylingWrapper ? (
+    content
+  ) : (
+    <div className="query-manager-query-content user-query">{content}</div>
   );
 };
 

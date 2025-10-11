@@ -137,8 +137,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   // External state management callback
   onOriginalQueryForCompositionChange,
 }) => {
-  console.log("🚀 [QueryManager] Component rendering - VERSION 2.0");
-
   // Composer UI state
   const [isComposerExpanded, setIsComposerExpanded] = useState(!currentQuery); // Expanded when no query
   const [executingMode, setExecutingMode] = useState<"add" | "replace" | null>(
@@ -161,9 +159,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
     // Only clear if we're loading a DIFFERENT query (not null, and different from previous)
     if (currentId && currentId !== previousId) {
-      console.log(
-        `📋 [QueryManager] Different query loaded (${previousId} -> ${currentId}), clearing session page selections`
-      );
       setSessionPageSelections([]);
     }
 
@@ -194,13 +189,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
   // Auto-collapse/expand based on loaded query and whether it's been run
   useEffect(() => {
-    console.log(
-      "📋 [QueryManager] loadedQuery changed:",
-      loadedQuery ? loadedQuery.userQuery : "null"
-    );
-    console.log("📋 [QueryManager] currentQuery:", currentQuery?.userQuery);
-    console.log("📋 [QueryManager] hasLoadedQuery will be:", !!loadedQuery);
-
     if (loadedQuery) {
       // Check if loaded query has been run (matches currentQuery)
       const isLoadedQueryRun =
@@ -208,23 +196,16 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
       if (isLoadedQueryRun) {
         // Loaded query has been run - keep composer collapsed
-        console.log(
-          "📋 [QueryManager] Loaded query has been run - keeping composer collapsed"
-        );
+
         setIsComposerExpanded(false);
       } else {
         // Loaded query not yet run - collapse composer
-        console.log(
-          "📋 [QueryManager] Loaded query not run - collapsing composer"
-        );
+
         setIsComposerExpanded(false);
       }
     } else {
       // No loaded query - expand if no current query
       if (!currentQuery) {
-        console.log(
-          "📋 [QueryManager] No loaded query or current query - expanding composer"
-        );
         setIsComposerExpanded(true);
       }
     }
@@ -292,14 +273,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     const allQueries = [...queries.recent, ...queries.saved];
     const stored = allQueries.find((q) => q.id === queryId);
 
-    console.log("🔍 [storedQueryToReplace] Checking for query to replace:", {
-      queryId,
-      found: !!stored,
-      sessionPageSelections: sessionPageSelections.length,
-      storedId: stored?.id,
-      storedUserQuery: stored?.userQuery,
-    });
-
     return stored || null;
   }, [currentQuery?.id, loadedQuery?.id, queries, sessionPageSelections]);
 
@@ -307,11 +280,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   const handleEditLoadedQuery = useCallback(
     (newQuery: string, context?: { stepIndex?: number }) => {
       if (!loadedQuery) return;
-
-      console.log("✏️ [QueryManager] Editing loaded query:", {
-        newQuery,
-        context,
-      });
 
       let updatedQuery: StoredQuery;
 
@@ -328,11 +296,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
           ...loadedQuery,
           querySteps: updatedSteps,
         };
-        console.log(
-          "✏️ [QueryManager] Updated step",
-          context.stepIndex,
-          "in composed query"
-        );
       } else {
         // Editing base query (simple or base of composed)
         updatedQuery = {
@@ -340,7 +303,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
           userQuery: newQuery,
           intentParserResult: undefined, // Force re-parsing on next execution
         };
-        console.log("✏️ [QueryManager] Updated base query");
       }
 
       // Update the loaded query state (don't save to storage yet - user will save manually)
@@ -387,8 +349,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
       return items;
     }
 
-    console.log("✅ [QueryManager] queries in createSelectItems:", queries);
-
     // Add current query if available
     if (currentQuery?.userQuery) {
       items.push({
@@ -406,19 +366,36 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     // Add recent queries
     if (queries?.recent) {
       queries.recent.forEach((query) => {
-        // Skip queries with invalid userQuery
-        if (!query.userQuery) {
+        // Skip queries without both userQuery AND pageSelections
+        if (
+          !query.userQuery &&
+          (!query.pageSelections || query.pageSelections.length === 0)
+        ) {
           console.warn(
-            "⚠️ [QueryManager] Skipping query with undefined userQuery:",
+            "⚠️ [QueryManager] Skipping query without userQuery or pageSelections:",
             query
           );
           return;
         }
 
+        // Generate display text: use userQuery if available, otherwise show page selections
+        const displayText =
+          query.userQuery ||
+          (query.pageSelections && query.pageSelections.length > 0
+            ? (() => {
+                const pageNames = query.pageSelections.map((p) => p.title);
+                const firstPages = pageNames.slice(0, 2).join(", ");
+                const remaining = pageNames.length - 2;
+                return remaining > 0
+                  ? `📄 ${firstPages}, +${remaining} more`
+                  : `📄 ${firstPages}`;
+              })()
+            : "Empty query");
+
         const truncatedQuery =
-          query.userQuery.length > 70
-            ? query.userQuery.substring(0, 67) + "..."
-            : query.userQuery;
+          displayText.length > 70
+            ? displayText.substring(0, 67) + "..."
+            : displayText;
 
         items.push({
           id: query.id,
@@ -434,16 +411,32 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     // Add saved queries
     if (queries?.saved) {
       queries.saved.forEach((query) => {
-        // Skip queries with invalid userQuery
-        if (!query.userQuery) {
+        // Skip queries without both userQuery AND pageSelections
+        if (
+          !query.userQuery &&
+          (!query.pageSelections || query.pageSelections.length === 0)
+        ) {
           console.warn(
-            "⚠️ [QueryManager] Skipping saved query with undefined userQuery:",
+            "⚠️ [QueryManager] Skipping saved query without userQuery or pageSelections:",
             query
           );
           return;
         }
 
-        const displayLabel = query.name || query.userQuery;
+        // Generate display label: use name if available, otherwise userQuery, otherwise show page selections
+        const displayLabel =
+          query.name ||
+          query.userQuery ||
+          (query.pageSelections && query.pageSelections.length > 0
+            ? (() => {
+                const pageNames = query.pageSelections.map((p) => p.title);
+                const firstPages = pageNames.slice(0, 2).join(", ");
+                const remaining = pageNames.length - 2;
+                return remaining > 0
+                  ? `📄 ${firstPages}, +${remaining} more`
+                  : `📄 ${firstPages}`;
+              })()
+            : "Empty query");
         const truncatedLabel =
           displayLabel.length > 70
             ? displayLabel.substring(0, 67) + "..."
@@ -454,11 +447,12 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
           type: "saved",
           query: query,
           label: truncatedLabel,
-          description: query.name
-            ? query.userQuery.length > 70
-              ? query.userQuery.substring(0, 67) + "..."
-              : query.userQuery
-            : undefined,
+          description:
+            query.name && query.userQuery
+              ? query.userQuery.length > 70
+                ? query.userQuery.substring(0, 67) + "..."
+                : query.userQuery
+              : undefined,
           group: "⭐ Saved Queries",
         });
       });
@@ -892,25 +886,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
               if (isCompositionMode) {
                 // Two-section UI: Active Query + Loaded Query
-                console.log(
-                  "🔍 [QueryManager] Composition mode - displaying:",
-                  {
-                    original: {
-                      userQuery: originalQueryForComposition.userQuery,
-                      isComposed: originalQueryForComposition.isComposed,
-                      steps:
-                        originalQueryForComposition.querySteps?.map(
-                          (s) => s.userQuery
-                        ) || [],
-                    },
-                    loaded: {
-                      userQuery: loadedQuery.userQuery,
-                      isComposed: loadedQuery.isComposed,
-                      steps:
-                        loadedQuery.querySteps?.map((s) => s.userQuery) || [],
-                    },
-                  }
-                );
 
                 return (
                   <div className="composition-mode">
@@ -962,23 +937,11 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 selectedValue === "current" &&
                 currentQuery?.userQuery
               ) {
-                // Regular current query display
-                console.log("🔍 [QueryManager] Rendering current query:", {
-                  userQuery: currentQuery.userQuery,
-                  isComposed: currentQuery.isComposed,
-                  queryStepsCount: currentQuery.querySteps?.length || 0,
-                  hasTempComposedQuery: !!tempComposedQuery,
-                });
-
                 // Check if current query is composed (either from UnifiedQuery or tempComposedQuery)
                 if (
                   currentQuery.isComposed &&
                   (currentQuery.querySteps?.length || 0) > 0
                 ) {
-                  console.log(
-                    "🔗 [QueryManager] Displaying composed query from currentQuery"
-                  );
-
                   // Use tempComposedQuery if available, otherwise convert UnifiedQuery to StoredQuery
                   const queryToDisplay =
                     tempComposedQuery &&
@@ -999,7 +962,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                   );
                 } else {
                   // Show simple current query
-                  console.log("📝 [QueryManager] Displaying simple query");
+
                   return (
                     <div className="simple-query-display">
                       <UnifiedQueryRenderer
@@ -1022,11 +985,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                     newQuery: string,
                     context?: { stepIndex?: number }
                   ) => {
-                    console.log("✏️ [QueryManager] Editing selected query:", {
-                      newQuery,
-                      context,
-                    });
-
                     // Use loadedQuery if available (it has the latest edits), otherwise use selectedQuery
                     const baseQuery = loadedQuery || selectedQuery;
                     let updatedQuery: StoredQuery;
@@ -1047,11 +1005,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                         ...baseQuery,
                         querySteps: updatedSteps,
                       };
-                      console.log(
-                        "✏️ [QueryManager] Updated step",
-                        context.stepIndex,
-                        "in selected composed query"
-                      );
                     } else {
                       // Editing base query (simple or base of composed)
                       updatedQuery = {
@@ -1059,9 +1012,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                         userQuery: newQuery,
                         intentParserResult: undefined, // Force re-parsing
                       };
-                      console.log(
-                        "✏️ [QueryManager] Updated base of selected query"
-                      );
                     }
 
                     // Update the loaded query state (don't save to storage yet - user will save manually)
@@ -1166,10 +1116,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
               hasLoadedQuery={!!loadedQuery}
               isExpanded={isComposerExpanded}
               onToggleExpanded={() => {
-                console.log(
-                  "🔄 [QueryComposer] Toggling expansion:",
-                  !isComposerExpanded
-                );
                 setIsComposerExpanded(!isComposerExpanded);
               }}
               executingMode={executingMode}
@@ -1211,9 +1157,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
                 // Add to session state for UI display (NO auto-save)
                 if (addedPageSelections.length > 0) {
-                  console.log(
-                    `📋 [QueryManager] Added ${addedPageSelections.length} page selections to session (will be saved when user saves query)`
-                  );
                   setSessionPageSelections((prev) => [
                     ...prev,
                     ...addedPageSelections,
@@ -1407,20 +1350,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                     const queryToReplace = storedQueryToReplace || loadedQuery;
 
                     if (queryToReplace?.id) {
-                      console.log(
-                        "🔄 [QueryManager] Replacing existing query with page selections:",
-                        {
-                          queryId: queryToReplace.id,
-                          queryUserQuery: queryToReplace.userQuery,
-                          currentPageSelections:
-                            queryToReplace.pageSelections?.length || 0,
-                          addingPageSelections: sessionPageSelections.length,
-                          sessionPages: sessionPageSelections.map(
-                            (p) => p.title
-                          ),
-                        }
-                      );
-
                       const success = updateQuery(queryToReplace.id, {
                         userQuery:
                           loadedQuery?.userQuery || queryToReplace.userQuery,
@@ -1437,10 +1366,6 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                         isComposed: true,
                       });
 
-                      console.log(
-                        "🔄 [QueryManager] updateQuery result:",
-                        success
-                      );
                       refreshQueries();
                       setSessionPageSelections([]);
                     } else {

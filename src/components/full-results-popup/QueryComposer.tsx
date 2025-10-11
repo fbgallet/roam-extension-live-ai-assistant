@@ -43,7 +43,6 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
           <div
             className="query-composer-header"
             onClick={(e) => {
-              console.log("🖱️ [QueryComposer Header] Clicked");
               onToggleExpanded?.();
             }}
             style={{ cursor: "pointer", gap: "8px" }}
@@ -113,7 +112,6 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
           }
           intent="warning"
           onClick={() => {
-            console.log("▶️ [Run Query Button] Clicked");
             onExecuteQuery("replace", selectedModel);
           }}
           disabled={
@@ -140,7 +138,9 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
             onClick={() => {
               onExecuteQuery("add", selectedModel);
             }}
-            disabled={(!composerQuery.trim() && !hasLoadedQuery) || isComposingQuery}
+            disabled={
+              (!composerQuery.trim() && !hasLoadedQuery) || isComposingQuery
+            }
             loading={executingMode === "add"}
             title={
               executingMode === "add"
