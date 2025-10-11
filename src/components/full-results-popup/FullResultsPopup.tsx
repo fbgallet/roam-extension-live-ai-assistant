@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { flushSync } from "react-dom";
 import {
   Button,
   HTMLSelect,
@@ -7,7 +6,7 @@ import {
   Checkbox,
   Icon,
 } from "@blueprintjs/core";
-import { Select } from "@blueprintjs/select";
+
 import { createChildBlock } from "../../utils/roamAPI.js";
 import { FullResultsPopupProps, Result } from "./types";
 import { FullResultsChat } from "./FullResultsChat";
@@ -164,7 +163,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             }, 5000);
           },
           onError: (error: string) => {
-            setExecutionProgress(`❌ Composed query failed: ${error}`);
+            setExecutionProgress(ProgressMessages.composedQueryFailed(error));
             setQueryProgress({});
             setTimeout(() => setExecutionProgress(""), 5000);
           },
@@ -180,9 +179,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       } catch (error) {
         console.error("Execution failed:", error);
         setExecutionProgress(
-          `❌ Execution error: ${
+          ProgressMessages.executionError(
             error instanceof Error ? error.message : String(error)
-          }`
+          )
         );
         setQueryProgress({});
         setTimeout(() => setExecutionProgress(""), 5000);
@@ -562,7 +561,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         userQuery: query.userQuery,
         formalQuery: query.formalQuery,
         onProgress: (message: string) => {
-          setExecutionProgress(`🔍 ${message}`);
+          setExecutionProgress(ProgressMessages.queryRunning(message));
         },
         onResults: (partialResults: any[], isPartial?: boolean) => {
           if (!isPartial) {
@@ -620,7 +619,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           setTimeout(() => setExecutionProgress(""), 5000);
         },
         onError: (error: string) => {
-          setExecutionProgress(`❌ Query failed: ${error}`);
+          setExecutionProgress(ProgressMessages.simpleQueryFailed(error));
           setTimeout(() => setExecutionProgress(""), 5000);
         },
       });

@@ -222,6 +222,11 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
     }
   };
 
+  const isToDisable =
+    selectedPages.length === 0 ||
+    (!includePageContent && !includeLinkedRefs) ||
+    isAddingDirectContent;
+
   return (
     <div className="query-tool-section">
       <h6>Complete results with selected Pages or their linked references</h6>
@@ -267,11 +272,7 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
               // Clear selection after adding content
               onPageSelectionChange([]);
             }}
-            disabled={
-              selectedPages.length === 0 ||
-              (!includePageContent && !includeLinkedRefs) ||
-              isAddingDirectContent
-            }
+            disabled={isToDisable}
             loading={isAddingDirectContent}
             text={isAddingDirectContent ? "Adding..." : "Add to results"}
             title={
@@ -288,78 +289,80 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
         </div>
       </div>
 
-      <div className="direct-content-types">
-        <label className="bp3-control bp3-checkbox direct-content-checkbox">
-          <input
-            type="checkbox"
-            checked={includePageContent}
-            onChange={(e) => onContentTypeChange("content", e.target.checked)}
-            disabled={isAddingDirectContent}
-          />
-          <span className="bp3-control-indicator"></span>
-          Page
-        </label>
-        <label className="bp3-control bp3-checkbox direct-content-checkbox">
-          <input
-            type="checkbox"
-            checked={includeLinkedRefs}
-            onChange={(e) =>
-              onContentTypeChange("linkedRefs", e.target.checked)
-            }
-            disabled={isAddingDirectContent}
-          />
-          <span className="bp3-control-indicator"></span>
-          Linked references
-        </label>
-
-        {/* Inline DNP Period Selector (conditional) */}
-        {selectedPages.includes("dnp") && (
-          <div className="direct-content-dnp-inline">
-            <span className="direct-content-dnp-separator">DNP Period</span>
-            <Select
-              items={DNP_PERIOD_OPTIONS}
-              itemRenderer={renderDnpPeriodItem}
-              onItemSelect={handleDnpPeriodChange}
-              filterable={false}
-              popoverProps={{
-                minimal: true,
-                position: "bottom-left",
-              }}
-              className="direct-content-dnp-select-inline"
+      {!isToDisable && (
+        <div className="direct-content-types">
+          <label className="bp3-control bp3-checkbox direct-content-checkbox">
+            <input
+              type="checkbox"
+              checked={includePageContent}
+              onChange={(e) => onContentTypeChange("content", e.target.checked)}
               disabled={isAddingDirectContent}
-            >
-              <button
-                className="direct-content-dnp-button-inline"
+            />
+            <span className="bp3-control-indicator"></span>
+            Page
+          </label>
+          <label className="bp3-control bp3-checkbox direct-content-checkbox">
+            <input
+              type="checkbox"
+              checked={includeLinkedRefs}
+              onChange={(e) =>
+                onContentTypeChange("linkedRefs", e.target.checked)
+              }
+              disabled={isAddingDirectContent}
+            />
+            <span className="bp3-control-indicator"></span>
+            Linked references
+          </label>
+
+          {/* Inline DNP Period Selector (conditional) */}
+          {selectedPages.includes("dnp") && (
+            <div className="direct-content-dnp-inline">
+              <span className="direct-content-dnp-separator">DNP Period</span>
+              <Select
+                items={DNP_PERIOD_OPTIONS}
+                itemRenderer={renderDnpPeriodItem}
+                onItemSelect={handleDnpPeriodChange}
+                filterable={false}
+                popoverProps={{
+                  minimal: true,
+                  position: "bottom-left",
+                }}
+                className="direct-content-dnp-select-inline"
                 disabled={isAddingDirectContent}
               >
-                {DNP_PERIOD_OPTIONS.find(
-                  (opt) => opt.value === selectedDnpPeriod
-                )?.label || "1 week"}
-                <Icon icon="caret-down" size={10} />
-              </button>
-            </Select>
-
-            {selectedDnpPeriod === "Custom" && (
-              <>
-                <NumericInput
-                  value={customDays}
-                  min={1}
-                  max={9999}
-                  onValueChange={(value) => {
-                    setCustomDays(value);
-                    onDNPPeriodChange(value);
-                  }}
-                  placeholder="days"
-                  className="direct-content-custom-days-inline"
+                <button
+                  className="direct-content-dnp-button-inline"
                   disabled={isAddingDirectContent}
-                  buttonPosition="none"
-                />
-                <>days</>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+                >
+                  {DNP_PERIOD_OPTIONS.find(
+                    (opt) => opt.value === selectedDnpPeriod
+                  )?.label || "1 week"}
+                  <Icon icon="caret-down" size={10} />
+                </button>
+              </Select>
+
+              {selectedDnpPeriod === "Custom" && (
+                <>
+                  <NumericInput
+                    value={customDays}
+                    min={1}
+                    max={9999}
+                    onValueChange={(value) => {
+                      setCustomDays(value);
+                      onDNPPeriodChange(value);
+                    }}
+                    placeholder="days"
+                    className="direct-content-custom-days-inline"
+                    disabled={isAddingDirectContent}
+                    buttonPosition="none"
+                  />
+                  <>days</>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

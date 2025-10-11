@@ -157,6 +157,7 @@ export const StandaloneContextMenu = () => {
     lastBuiltinCommand,
     isFirstBlock,
     roamContextRef,
+    styleRef,
 
     // Functions
     handleClose,
@@ -555,7 +556,7 @@ export const StandaloneContextMenu = () => {
         prompt: prompt || getInstantPrompt(),
         context: hasTrueBooleanKey(roamContext) ? roamContext : null,
         model,
-        style,
+        style: styleRef.current,
       });
   };
 
@@ -591,7 +592,7 @@ export const StandaloneContextMenu = () => {
       rootUid,
       targetBlock,
       additionalPrompt,
-      style,
+      style: styleRef.current,
       defaultLgg,
       customLgg,
       isOutlinerAgent,
@@ -617,7 +618,7 @@ export const StandaloneContextMenu = () => {
           rootUid,
           focusedBlockUid,
           roamContext,
-          style,
+          style: styleRef.current,
           getInstantPrompt: () =>
             getInstantPrompt(command, true, {
               focusedBlockUid,

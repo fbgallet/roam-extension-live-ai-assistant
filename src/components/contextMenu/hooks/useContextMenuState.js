@@ -85,11 +85,17 @@ export const useContextMenuState = () => {
   const lastBuiltinCommand = useRef(null);
   const isFirstBlock = useRef(null);
   const roamContextRef = useRef(roamContext);
+  const styleRef = useRef(style);
 
   // Update roamContextRef when roamContext changes
   useEffect(() => {
     roamContextRef.current = roamContext;
   }, [roamContext]);
+
+  // Update styleRef when style changes
+  useEffect(() => {
+    styleRef.current = style;
+  }, [style]);
 
   // Handle close functionality
   const handleClose = (shouldResetContext = true) => {
@@ -204,6 +210,7 @@ export const useContextMenuState = () => {
     lastBuiltinCommand,
     isFirstBlock,
     roamContextRef,
+    styleRef,
 
     // Functions
     handleClose,
