@@ -582,13 +582,14 @@ const getInfosFromSmartBlockParams = async ({
       targetUid = uid || (await createChildBlock(currentUid, assistantRole));
   }
   if (isContentToReplace) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
     await window.roamAlphaAPI.updateBlock({
       block: {
-        uid: currentUid,
+        uid: targetUid,
         string: target === "{replace-}" ? "" : assistantRole,
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 200));
   }
   return {
     stringifiedPrompt: prompt,

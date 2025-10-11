@@ -69,6 +69,9 @@ export const handleBasicCommand = async ({
       capturedRoamContext.blockArgument.push(rootUid);
     }
 
+    console.log("style in handler :>> ", style);
+    console.log("command :>> ", command);
+
     await aiCompletionRunner({
       e,
       sourceUid: focusedBlockUid.current,

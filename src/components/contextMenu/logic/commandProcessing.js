@@ -485,6 +485,7 @@ export const handleClickOnCommand = async ({
       capturedRoamContext.block = true;
       capturedRoamContext.blockArgument.push(rootUid);
     }
+    console.log("style from commandProcessing :>> ", style);
     aiCompletionRunner({
       e,
       sourceUid: focusedBlockUid.current,

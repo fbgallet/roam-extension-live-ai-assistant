@@ -427,9 +427,12 @@ export function modelAccordingToProvider(model) {
         llm.id = model + "-preview";
         llm.name = model;
       }
-    } else if (model === "gpt-5 (not reasoning)") {
+    } else if (
+      model === "gpt-5-chat-latest" ||
+      model === "gpt-5 (not reasoning)"
+    ) {
       llm.id = "gpt-5-chat-latest";
-      llm.name = "gpt-5";
+      llm.name = "gpt-5 (not reasoning)";
     } else llm.id = model || "gpt-4.1-mini";
     llm.library = openaiLibrary;
   }

@@ -878,9 +878,20 @@ export const useFullResultsState = (
   // Direct Content Selector handlers
   const handleDirectContentAdd = async (
     currentResults: any[],
-    setCurrentResults: (results: any[]) => void
+    setCurrentResults: (results: any[]) => void,
+    // Optional parameters - if not provided, use state values
+    pagesToAdd?: string[],
+    includeContent?: boolean,
+    includeRefs?: boolean,
+    dnpPeriodDays?: number
   ): Promise<PageSelection[]> => {
-    if (!includePageContent && !includeLinkedRefs) {
+    // Use parameters or fall back to state
+    const pages = pagesToAdd ?? selectedPages;
+    const addContent = includeContent ?? includePageContent;
+    const addRefs = includeRefs ?? includeLinkedRefs;
+    const dnpDays = dnpPeriodDays ?? dnpPeriod;
+
+    if (!addContent && !addRefs) {
       console.warn("⚠️ [DirectContent] No content types selected");
       return [];
     }
@@ -891,22 +902,22 @@ export const useFullResultsState = (
 
     try {
       console.log(
-        `🔧 [DirectContent] Adding content from: ${selectedPages.length} selected pages`
+        `🔧 [DirectContent] Adding content from: ${pages.length} selected pages`
       );
       console.log(
-        `📋 [DirectContent] Selected pages: ${selectedPages.join(", ")}`
+        `📋 [DirectContent] Selected pages: ${pages.join(", ")}`
       );
       console.log(
         `📋 [DirectContent] Content types: ${
-          includePageContent ? "content" : ""
-        } ${includeLinkedRefs ? "linkedRefs" : ""}`
+          addContent ? "content" : ""
+        } ${addRefs ? "linkedRefs" : ""}`
       );
 
-      let targetPageTitle = `${selectedPages.length} selected pages`;
+      let targetPageTitle = `${pages.length} selected pages`;
       let pageData: Array<{ title: string; uid: string | null }> = [];
 
       // Process each selected page - keep both title and UID
-      for (const pageSelection of selectedPages) {
+      for (const pageSelection of pages) {
         if (pageSelection === "current") {
           // Use current page context established when popup opened
           if (currentPageContext.uid && currentPageContext.title) {
@@ -918,8 +929,8 @@ export const useFullResultsState = (
             addedPageSelections.push({
               title: currentPageContext.title,
               uid: currentPageContext.uid,
-              includeContent: includePageContent,
-              includeLinkedRefs: includeLinkedRefs,
+              includeContent: addContent,
+              includeLinkedRefs: addRefs,
             });
           } else {
             console.warn(
@@ -933,13 +944,13 @@ export const useFullResultsState = (
           );
 
           console.log(
-            `🗓️ [DirectContent] Getting DNPs for last ${dnpPeriod} days`
+            `🗓️ [DirectContent] Getting DNPs for last ${dnpDays} days`
           );
 
           let currentDate = new Date(); // Start from today
           let foundDnpCount = 0;
 
-          for (let i = 0; i < dnpPeriod; i++) {
+          for (let i = 0; i < dnpDays; i++) {
             // Get previous date for each iteration (going backwards in time)
             if (i > 0) {
               currentDate = getYesterdayDate(currentDate);
@@ -984,23 +995,23 @@ export const useFullResultsState = (
           }
 
           console.log(
-            `🗓️ [DirectContent] Found ${foundDnpCount} out of ${dnpPeriod} DNPs`
+            `🗓️ [DirectContent] Found ${foundDnpCount} out of ${dnpDays} DNPs`
           );
 
           if (foundDnpCount === 0) {
             console.warn(
-              `⚠️ [DirectContent] No Daily Notes Pages found for the last ${dnpPeriod} days. Make sure you have created some DNPs.`
+              `⚠️ [DirectContent] No Daily Notes Pages found for the last ${dnpDays} days. Make sure you have created some DNPs.`
             );
           }
 
           // Add DNP as a special page selection (will be represented as a group)
           if (foundDnpCount > 0) {
             addedPageSelections.push({
-              title: `Daily Notes (${dnpPeriod} days)`,
+              title: `Daily Notes (${dnpDays} days)`,
               uid: "dnp", // Special UID to indicate DNP group
-              includeContent: includePageContent,
-              includeLinkedRefs: includeLinkedRefs,
-              dnpPeriod: dnpPeriod,
+              includeContent: addContent,
+              includeLinkedRefs: addRefs,
+              dnpPeriod: dnpDays,
             });
           }
         } else {
@@ -1018,8 +1029,8 @@ export const useFullResultsState = (
             addedPageSelections.push({
               title: pageSelection,
               uid: pageUid,
-              includeContent: includePageContent,
-              includeLinkedRefs: includeLinkedRefs,
+              includeContent: addContent,
+              includeLinkedRefs: addRefs,
             });
             console.log(
               `✅ [DirectContent] Found UID for "${pageSelection}": ${pageUid}`
@@ -1049,7 +1060,7 @@ export const useFullResultsState = (
           continue;
         }
 
-        if (includePageContent) {
+        if (addContent) {
           // Add page content directly with full metadata consistent with normal queries
           try {
             const pageQuery = `[:find ?page-uid ?page-title ?page-created ?page-modified (pull ?page [:block/uid :block/string :node/title {:block/children ...}])
@@ -1138,7 +1149,7 @@ export const useFullResultsState = (
           }
         }
 
-        if (includeLinkedRefs) {
+        if (addRefs) {
           // Add linked references using findBlocksByContent tool with consistent metadata
           try {
             // Import the tool

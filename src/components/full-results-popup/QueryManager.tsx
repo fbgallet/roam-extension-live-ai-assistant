@@ -140,12 +140,10 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
   console.log("🚀 [QueryManager] Component rendering - VERSION 2.0");
 
   // Composer UI state
-  const [isComposerExpanded, setIsComposerExpanded] = useState(
-    !currentQuery
-  ); // Expanded when no query
-  const [executingMode, setExecutingMode] = useState<
-    "add" | "replace" | null
-  >(null);
+  const [isComposerExpanded, setIsComposerExpanded] = useState(!currentQuery); // Expanded when no query
+  const [executingMode, setExecutingMode] = useState<"add" | "replace" | null>(
+    null
+  );
   const previousQueryRef = useRef(currentQuery);
 
   // Track page selections added in current session (not saved yet)
@@ -153,15 +151,29 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     import("./utils/queryStorage").PageSelection[]
   >([]);
 
-  // Load page selections from loaded query
+  // Clear session page selections when a DIFFERENT query is loaded
+  // Track previous loaded query ID to detect actual changes
+  const previousLoadedQueryIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (loadedQuery?.pageSelections && loadedQuery.pageSelections.length > 0) {
+    const currentId = loadedQuery?.id || null;
+    const previousId = previousLoadedQueryIdRef.current;
+
+    // Only clear if we're loading a DIFFERENT query (not null, and different from previous)
+    if (currentId && currentId !== previousId) {
       console.log(
-        `📋 [QueryManager] Loading ${loadedQuery.pageSelections.length} page selections from loaded query`
+        `📋 [QueryManager] Different query loaded (${previousId} -> ${currentId}), clearing session page selections`
       );
-      setSessionPageSelections(loadedQuery.pageSelections);
+      setSessionPageSelections([]);
     }
-  }, [loadedQuery]);
+
+    previousLoadedQueryIdRef.current = currentId;
+  }, [loadedQuery?.id]);
+
+  // Session page selections are cleared when:
+  // 1. A new query is loaded (line 158-165)
+  // 2. User explicitly clears via handleClearAll (passed from parent)
+  // DO NOT clear on query/results changes as that happens during normal execution
 
   // Auto-expand/collapse based on query state
   useEffect(() => {
@@ -195,11 +207,11 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         currentQuery && currentQuery.userQuery === loadedQuery.userQuery;
 
       if (isLoadedQueryRun) {
-        // Loaded query has been run - expand for composition
+        // Loaded query has been run - keep composer collapsed
         console.log(
-          "📋 [QueryManager] Loaded query has been run - expanding composer for composition"
+          "📋 [QueryManager] Loaded query has been run - keeping composer collapsed"
         );
-        setIsComposerExpanded(true);
+        setIsComposerExpanded(false);
       } else {
         // Loaded query not yet run - collapse composer
         console.log(
@@ -252,7 +264,11 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     onQuerySelect,
     onQueryLoadedIntoComposer,
     onQueryChange,
-    onClearAll,
+    onClearAll: () => {
+      // Clear session page selections before calling parent's onClearAll
+      setSessionPageSelections([]);
+      onClearAll?.();
+    },
     disabled,
     originalQueryForComposition,
     loadedQuery,
@@ -261,6 +277,31 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
     sessionPageSelections,
     onOriginalQueryForCompositionChange,
   });
+
+  // Check if current query exists in storage and has been modified
+  const storedQueryToReplace = React.useMemo(() => {
+    // We need the current query's ID to find the correct stored query
+    // If currentQuery has an ID, use it. Otherwise, check loadedQuery.
+    const queryId = currentQuery?.id || loadedQuery?.id;
+
+    if (!queryId || sessionPageSelections.length === 0) {
+      return null;
+    }
+
+    // Find matching query in storage by ID (reliable)
+    const allQueries = [...queries.recent, ...queries.saved];
+    const stored = allQueries.find((q) => q.id === queryId);
+
+    console.log("🔍 [storedQueryToReplace] Checking for query to replace:", {
+      queryId,
+      found: !!stored,
+      sessionPageSelections: sessionPageSelections.length,
+      storedId: stored?.id,
+      storedUserQuery: stored?.userQuery,
+    });
+
+    return stored || null;
+  }, [currentQuery?.id, loadedQuery?.id, queries, sessionPageSelections]);
 
   // Handler for editing loaded query
   const handleEditLoadedQuery = useCallback(
@@ -1056,68 +1097,10 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 }
               }
 
-              // Default message when no query available
-              // return (
-              //   <div className="no-current-query-message">
-              //     <p>
-              //       No last query available. Use the load button in the header
-              //       to select a stored query, or compose a new one below.
-              //     </p>
-              //   </div>
-              // );
+              // Default: return null when no query to display
+              return null;
             })()}
           </div>
-
-          {/* Page Selections Display */}
-          {sessionPageSelections.length > 0 && (
-            <div className="query-page-selections">
-              <div className="page-selections-header">
-                <Icon icon="document" size={14} />
-                <span>Added Pages ({sessionPageSelections.length}):</span>
-              </div>
-              <div className="page-selections-tags">
-                {sessionPageSelections.map((pageSelection, index) => (
-                  <span
-                    key={`${pageSelection.uid}-${index}`}
-                    className="bp3-tag bp3-minimal"
-                  >
-                    {pageSelection.includeContent && (
-                      <Icon
-                        icon="document"
-                        size={12}
-                        title="Page content included"
-                        style={{ marginRight: 4 }}
-                      />
-                    )}
-                    {pageSelection.includeLinkedRefs && (
-                      <Icon
-                        icon="link"
-                        size={12}
-                        title="Linked references included"
-                        style={{ marginRight: 4 }}
-                      />
-                    )}
-                    {pageSelection.title}
-                    {pageSelection.dnpPeriod && (
-                      <span style={{ opacity: 0.7, fontSize: "11px" }}>
-                        {" "}
-                        ({pageSelection.dnpPeriod}d)
-                      </span>
-                    )}
-                    <button
-                      className="bp3-tag-remove"
-                      onClick={() => {
-                        setSessionPageSelections((prev) =>
-                          prev.filter((_, i) => i !== index)
-                        );
-                      }}
-                      title="Remove"
-                    />
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Unified Execution Progress - shows after query display, before composer */}
           {(executionProgress ||
@@ -1239,6 +1222,90 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
               }}
               onQueryPages={queryAvailablePages}
             />
+            {/* Page Selections Display */}
+            {(() => {
+              // Combine current query page selections + loaded query page selections + session page selections
+              // After execution, currentQuery will have the page selections from the executed query
+              const currentPageSelections = currentQuery?.pageSelections || [];
+              const loadedPageSelections = loadedQuery?.pageSelections || [];
+              const allPageSelections = [
+                ...currentPageSelections,
+                ...loadedPageSelections,
+                ...sessionPageSelections,
+              ];
+
+              // Remove duplicates by title
+              const uniquePageSelections = allPageSelections.filter(
+                (page, index, self) =>
+                  index === self.findIndex((p) => p.title === page.title)
+              );
+
+              if (uniquePageSelections.length === 0) return null;
+
+              return (
+                <div className="query-page-selections">
+                  {/* <div className="page-selections-header">
+                  <Icon icon="document" size={14} />
+                  <span>
+                    Page Selections ({uniquePageSelections.length}
+                    {sessionPageSelections.length > 0 && `, ${sessionPageSelections.length} new`}):
+                  </span>
+                </div> */}
+                  <div className="page-selections-tags">
+                    {uniquePageSelections.map((pageSelection, index) => {
+                      const isFromSession = sessionPageSelections.some(
+                        (sp) => sp.title === pageSelection.title
+                      );
+                      return (
+                        <span
+                          key={`${pageSelection.uid}-${index}`}
+                          className={`bp3-tag ${
+                            isFromSession ? "bp3-intent-success" : "bp3-minimal"
+                          }`}
+                        >
+                          {pageSelection.includeContent && (
+                            <Icon
+                              icon="document"
+                              size={12}
+                              title="Page content included"
+                              style={{ marginRight: 4 }}
+                            />
+                          )}
+                          {pageSelection.includeLinkedRefs && (
+                            <Icon
+                              icon="link"
+                              size={12}
+                              title="Linked references included"
+                              style={{ marginRight: 4 }}
+                            />
+                          )}
+                          {pageSelection.title}
+                          {pageSelection.dnpPeriod && (
+                            <span style={{ opacity: 0.7, fontSize: "11px" }}>
+                              {" "}
+                              ({pageSelection.dnpPeriod}d)
+                            </span>
+                          )}
+                          {isFromSession && (
+                            <button
+                              className="bp3-tag-remove"
+                              onClick={() => {
+                                const sessionIndex =
+                                  index - loadedPageSelections.length;
+                                setSessionPageSelections((prev) =>
+                                  prev.filter((_, i) => i !== sessionIndex)
+                                );
+                              }}
+                              title="Remove"
+                            />
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </Collapse>
@@ -1248,31 +1315,51 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         isOpen={showSaveDialog}
         onClose={() => setShowSaveDialog(false)}
         title={
-          loadedQuery &&
-          originalLoadedQuery &&
-          loadedQuery.userQuery !== originalLoadedQuery.userQuery
+          storedQueryToReplace
+            ? "Save Modified Query"
+            : loadedQuery &&
+              originalLoadedQuery &&
+              loadedQuery.userQuery !== originalLoadedQuery.userQuery
             ? "Save Edited Query"
             : "Save Query"
         }
         className="save-query-dialog"
       >
         <div className={Classes.DIALOG_BODY}>
-          {loadedQuery &&
-          originalLoadedQuery &&
-          loadedQuery.userQuery !== originalLoadedQuery.userQuery ? (
+          {storedQueryToReplace ||
+          (loadedQuery &&
+            originalLoadedQuery?.userQuery !== loadedQuery.userQuery) ? (
             <>
               <p>
-                The loaded query has been edited. How would you like to save it?
+                The query has been{" "}
+                {sessionPageSelections.length > 0
+                  ? "modified with page selections"
+                  : "edited"}
+                . How would you like to save it?
               </p>
-              <div className="current-query-preview">
-                <strong>Edited Query:</strong>{" "}
-                <QueryRenderer query={loadedQuery.userQuery} />
-              </div>
-              <div
-                style={{ marginTop: "10px", fontSize: "0.9em", color: "#666" }}
-              >
-                <strong>Original:</strong> {originalLoadedQuery.userQuery}
-              </div>
+              {/* <div className="current-query-preview">
+                <strong>Query:</strong>{" "} */}
+              <QueryRenderer
+                query={
+                  storedQueryToReplace?.userQuery ||
+                  loadedQuery?.userQuery ||
+                  currentQuery?.userQuery ||
+                  ""
+                }
+              />
+              {/* </div> */}
+              {sessionPageSelections.length > 0 && (
+                <div
+                  style={{
+                    marginTop: "10px",
+                    fontSize: "0.9em",
+                    color: "#666",
+                  }}
+                >
+                  <strong>Added Pages:</strong> {sessionPageSelections.length}{" "}
+                  page selection(s)
+                </div>
+              )}
               <InputGroup
                 placeholder="Enter a name for the new query (if saving as new)"
                 value={saveQueryName}
@@ -1284,11 +1371,12 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
           ) : (
             <>
               <p>Save the current query for later use:</p>
-              <div className="current-query-preview">
-                <strong>Query:</strong>{" "}
-                <QueryRenderer query={currentQuery?.userQuery || ""} />
-              </div>
-              {currentQuery?.formalQuery &&
+              {/* <div className="current-query-preview">
+                <strong>Query:</strong>{" "} */}
+              <QueryRenderer query={currentQuery?.userQuery || ""} />
+              {/* </div> */}
+              {sessionPageSelections.length === 0 &&
+                currentQuery?.formalQuery &&
                 currentQuery.formalQuery !== currentQuery.userQuery && (
                   <div className="current-formal-query-preview">
                     <strong>Formal Query:</strong>{" "}
@@ -1307,25 +1395,58 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
         <div className={Classes.DIALOG_FOOTER}>
           <div className={Classes.DIALOG_FOOTER_ACTIONS}>
             <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
-            {loadedQuery &&
-            originalLoadedQuery &&
-            loadedQuery.userQuery !== originalLoadedQuery.userQuery ? (
+            {storedQueryToReplace ||
+            (loadedQuery &&
+              originalLoadedQuery?.userQuery !== loadedQuery.userQuery) ? (
               <>
                 <Button
                   intent="warning"
                   onClick={() => {
-                    // Replace existing query
+                    // Replace existing query with page selections
                     const { updateQuery } = require("./utils/queryStorage");
-                    if (loadedQuery.id) {
-                      updateQuery(loadedQuery.id, {
-                        userQuery: loadedQuery.userQuery,
-                        intentParserResult: undefined,
+                    const queryToReplace = storedQueryToReplace || loadedQuery;
+
+                    if (queryToReplace?.id) {
+                      console.log(
+                        "🔄 [QueryManager] Replacing existing query with page selections:",
+                        {
+                          queryId: queryToReplace.id,
+                          queryUserQuery: queryToReplace.userQuery,
+                          currentPageSelections:
+                            queryToReplace.pageSelections?.length || 0,
+                          addingPageSelections: sessionPageSelections.length,
+                          sessionPages: sessionPageSelections.map(
+                            (p) => p.title
+                          ),
+                        }
+                      );
+
+                      const success = updateQuery(queryToReplace.id, {
+                        userQuery:
+                          loadedQuery?.userQuery || queryToReplace.userQuery,
+                        formalQuery:
+                          loadedQuery?.formalQuery ||
+                          queryToReplace.formalQuery,
+                        intentParserResult:
+                          loadedQuery?.intentParserResult ||
+                          queryToReplace.intentParserResult,
+                        pageSelections: [
+                          ...(queryToReplace.pageSelections || []),
+                          ...sessionPageSelections,
+                        ],
+                        isComposed: true,
                       });
-                      // Update originalLoadedQuery to match so it's no longer "edited"
-                      if (onQueryLoadedIntoComposer) {
-                        onQueryLoadedIntoComposer(loadedQuery, true); // Force reset original
-                      }
+
+                      console.log(
+                        "🔄 [QueryManager] updateQuery result:",
+                        success
+                      );
                       refreshQueries();
+                      setSessionPageSelections([]);
+                    } else {
+                      console.warn(
+                        "⚠️ [QueryManager] No queryToReplace.id found!"
+                      );
                     }
                     setShowSaveDialog(false);
                     setSaveQueryName("");

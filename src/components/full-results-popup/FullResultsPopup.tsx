@@ -99,7 +99,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               [queryId]: { status: '✅ Completed', count: resultCount }
             }));
           },
-          onAllComplete: (results: any[], summary: Array<{id: string, query: string, count: number}>, executionTime?: string, tokens?: any) => {
+          onAllComplete: async (results: any[], summary: Array<{id: string, query: string, count: number}>, executionTime?: string, tokens?: any) => {
             const totalBefore = summary.reduce((sum, s) => sum + s.count, 0);
             let message = `✅ Composed query completed - ${results.length} results (from ${totalBefore} before deduplication)`;
             if (executionTime) {
@@ -109,6 +109,61 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               message += ` • ${tokens.input_tokens + tokens.output_tokens} tokens`;
             }
             setExecutionProgress(message);
+
+            // Execute page selections if they exist in the query
+            if (query.pageSelections && query.pageSelections.length > 0) {
+              console.log(
+                `📋 [Composed Query] Executing ${query.pageSelections.length} page selections`
+              );
+
+              setExecutionProgress(`📄 Adding ${query.pageSelections.length} page selection(s)...`);
+
+              // Accumulate results across iterations
+              let accumulatedResults = results;
+
+              for (let i = 0; i < query.pageSelections.length; i++) {
+                const pageSelection = query.pageSelections[i];
+                const pagesToAdd = pageSelection.uid === "dnp" ? ["dnp"] : [pageSelection.title];
+
+                setExecutionProgress(`📄 Adding page ${i + 1}/${query.pageSelections.length}: ${pageSelection.title}...`);
+
+                console.log(`📋 [Composed Query] Adding page selection: ${pageSelection.title}`, {
+                  includeContent: pageSelection.includeContent,
+                  includeLinkedRefs: pageSelection.includeLinkedRefs,
+                });
+
+                // Use a custom setter that captures the updated results
+                let updatedResults = accumulatedResults;
+                const customSetter = (results: any[]) => {
+                  updatedResults = results;
+                  setCurrentResults(results);
+                };
+
+                await handleDirectContentAdd(
+                  accumulatedResults,
+                  customSetter,
+                  pagesToAdd,
+                  pageSelection.includeContent,
+                  pageSelection.includeLinkedRefs,
+                  pageSelection.dnpPeriod
+                );
+
+                accumulatedResults = updatedResults;
+              }
+
+              // Update final message with page selections info
+              const finalCount = accumulatedResults.length;
+              const addedCount = finalCount - results.length;
+              message = `✅ Composed query completed - ${finalCount} results (${results.length} from queries + ${addedCount} from pages)`;
+              if (executionTime) {
+                message += ` • ${executionTime}`;
+              }
+              if (tokens && (tokens.input_tokens > 0 || tokens.output_tokens > 0)) {
+                message += ` • ${tokens.input_tokens + tokens.output_tokens} tokens`;
+              }
+              setExecutionProgress(message);
+            }
+
             setTimeout(() => {
               setExecutionProgress("");
               setQueryProgress({});
@@ -424,6 +479,14 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   };
 
   const handleQuerySelect = async (query: StoredQuery | "current") => {
+    console.log("🔍 [handleQuerySelect] Called with query:", {
+      isCurrentString: query === "current",
+      userQuery: query !== "current" ? query.userQuery : "current",
+      hasPageSelections: query !== "current" ? !!query.pageSelections : false,
+      pageSelectionsCount: query !== "current" ? query.pageSelections?.length || 0 : 0,
+      queryObject: query
+    });
+
     if (query === "current") {
       // Reset to original results with full state clearing
       setCurrentResults(results);
@@ -533,7 +596,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       }
 
       // Simple query - execute normally
-      console.log("📝 [handleQuerySelect] Simple query - executing directly");
+      console.log("📝 [handleQuerySelect] Simple query - executing directly", {
+        hasPageSelections: !!query.pageSelections,
+        pageSelectionsCount: query.pageSelections?.length || 0,
+        pageSelections: query.pageSelections
+      });
       await executeQueryWithLiveUpdates({
         intentParserResult: query.intentParserResult!,
         userQuery: query.userQuery,
@@ -546,7 +613,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             setCurrentResults(partialResults);
           }
         },
-        onComplete: (finalResults: any[], executionTime?: string, tokens?: any) => {
+        onComplete: async (finalResults: any[], executionTime?: string, tokens?: any) => {
           setCurrentResults(finalResults);
           let message = `✅ Query completed - ${finalResults.length} results found`;
           if (executionTime) {
@@ -556,6 +623,64 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             message += ` • ${tokens.input_tokens + tokens.output_tokens} tokens`;
           }
           setExecutionProgress(message);
+
+          // Execute page selections if they exist in the query
+          if (query.pageSelections && query.pageSelections.length > 0) {
+            console.log(
+              `📋 [handleQuerySelect] Executing ${query.pageSelections.length} page selections from loaded query`
+            );
+
+            setExecutionProgress(`📄 Adding ${query.pageSelections.length} page selection(s)...`);
+
+            // Accumulate results across iterations
+            let accumulatedResults = finalResults;
+
+            // Execute each page selection by calling handleDirectContentAdd with parameters
+            for (let i = 0; i < query.pageSelections.length; i++) {
+              const pageSelection = query.pageSelections[i];
+              const pagesToAdd = pageSelection.uid === "dnp" ? ["dnp"] : [pageSelection.title];
+
+              setExecutionProgress(`📄 Adding page ${i + 1}/${query.pageSelections.length}: ${pageSelection.title}...`);
+
+              console.log(`📋 [handleQuerySelect] Adding page selection: ${pageSelection.title}`, {
+                includeContent: pageSelection.includeContent,
+                includeLinkedRefs: pageSelection.includeLinkedRefs,
+                dnpPeriod: pageSelection.dnpPeriod
+              });
+
+              // Use a custom setter that captures the updated results
+              let updatedResults = accumulatedResults;
+              const customSetter = (results: any[]) => {
+                updatedResults = results;
+                setCurrentResults(results);
+              };
+
+              await handleDirectContentAdd(
+                accumulatedResults,
+                customSetter,
+                pagesToAdd,
+                pageSelection.includeContent,
+                pageSelection.includeLinkedRefs,
+                pageSelection.dnpPeriod
+              );
+
+              // Update accumulated results for next iteration
+              accumulatedResults = updatedResults;
+            }
+
+            // Update final message with page selections info
+            const finalCount = accumulatedResults.length;
+            const addedCount = finalCount - finalResults.length;
+            message = `✅ Query completed - ${finalCount} results (${finalResults.length} from query + ${addedCount} from pages)`;
+            if (executionTime) {
+              message += ` • ${executionTime}`;
+            }
+            if (tokens && (tokens.input_tokens > 0 || tokens.output_tokens > 0)) {
+              message += ` • ${tokens.input_tokens + tokens.output_tokens} tokens`;
+            }
+            setExecutionProgress(message);
+          }
+
           setTimeout(() => setExecutionProgress(""), 5000);
         },
         onError: (error: string) => {
@@ -986,9 +1111,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                             userQuery: queryToExecute.userQuery,
                             isComposed: queryToExecute.isComposed,
                             stepsCount: queryToExecute.querySteps?.length || 0,
+                            pageSelectionsCount: queryToExecute.pageSelections?.length || 0,
                           }
                         );
 
+                        // IMPORTANT: Set as current active query so page selections persist in UI
                         setCurrentActiveQuery(queryToExecute);
 
                         // Check if it's a composed query that needs multi-step execution
@@ -1032,7 +1159,13 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       // For replace mode, clear results immediately to show empty state
                       if (mode === "replace") {
                         setOriginalQueryForComposition(null);
-                        setLoadedQuery(null);
+
+                        // DON'T clear loadedQuery if we're executing it - keep it visible during execution
+                        // Only clear if it's NOT the query being executed
+                        if (!queryToExecute || (queryToExecute.userQuery !== loadedQuery?.userQuery)) {
+                          setLoadedQuery(null);
+                        }
+
                         delete (window as any).__originalQueryForComposition;
                         delete (window as any).lastUserQuery;
                         delete (window as any).lastFormalQuery;
@@ -1064,14 +1197,63 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                           setCurrentUserQuery(executedQuery);
                           setCurrentFormalQuery(executedQuery);
 
-                          // Clear loadedQuery since it's now the active query
-                          if (loadedQuery) {
-                            setLoadedQuery(null);
-                          }
-
                           setCurrentResults([...newResults]);
                           // Force refresh AFTER setting new results
                           forceUIRefresh();
+
+                          // Execute page selections if they exist in the loaded query
+                          if (queryToExecute?.pageSelections && queryToExecute.pageSelections.length > 0) {
+                            console.log(
+                              `📋 [onExecuteQuery] Executing ${queryToExecute.pageSelections.length} page selections from loaded query`
+                            );
+
+                            setExecutionProgress(`📄 Adding ${queryToExecute.pageSelections.length} page selection(s)...`);
+
+                            // Accumulate results across iterations
+                            let accumulatedResults = newResults;
+
+                            for (let i = 0; i < queryToExecute.pageSelections.length; i++) {
+                              const pageSelection = queryToExecute.pageSelections[i];
+                              const pagesToAdd = pageSelection.uid === "dnp" ? ["dnp"] : [pageSelection.title];
+
+                              setExecutionProgress(`📄 Adding page ${i + 1}/${queryToExecute.pageSelections.length}: ${pageSelection.title}...`);
+
+                              console.log(`📋 [onExecuteQuery] Adding page selection: ${pageSelection.title}`, {
+                                includeContent: pageSelection.includeContent,
+                                includeLinkedRefs: pageSelection.includeLinkedRefs,
+                                dnpPeriod: pageSelection.dnpPeriod
+                              });
+
+                              // Use a custom setter that captures the updated results
+                              let updatedResults = accumulatedResults;
+                              const customSetter = (results: any[]) => {
+                                updatedResults = results;
+                                setCurrentResults(results);
+                              };
+
+                              await handleDirectContentAdd(
+                                accumulatedResults,
+                                customSetter,
+                                pagesToAdd,
+                                pageSelection.includeContent,
+                                pageSelection.includeLinkedRefs,
+                                pageSelection.dnpPeriod
+                              );
+
+                              accumulatedResults = updatedResults;
+                            }
+
+                            // Update final progress message
+                            const finalCount = accumulatedResults.length;
+                            const addedCount = finalCount - newResults.length;
+                            setExecutionProgress(`✅ Query completed - ${finalCount} results (${newResults.length} from query + ${addedCount} from pages)`);
+                          }
+
+                          // Clear loadedQuery AFTER execution completes (including page selections)
+                          // This ensures page selections remain visible during execution
+                          if (loadedQuery) {
+                            setLoadedQuery(null);
+                          }
                         } else {
                           // Add mode - combine with existing AND create composed query
                           const existingUids = new Set(

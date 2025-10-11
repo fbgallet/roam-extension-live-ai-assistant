@@ -151,27 +151,8 @@ export const QueryRenderer: React.FC<QueryRendererProps> = ({
             </div>
           ))}
 
-          {/* Page Selections */}
-          {effectiveUnifiedQuery.pageSelections?.map((page, index) => (
-            <div key={`page-${index}`} className="query-with-plus">
-              <div className="query-plus">+</div>
-              <div className="query-plus-content">
-                <div className="query-manager-query-content user-query">
-                  <div className="query-renderer-content">
-                    <span className="query-renderer-label">
-                      <strong>Query {(effectiveUnifiedQuery.querySteps?.length || 0) + index + 2}:</strong>{" "}
-                    </span>
-                    <RoamQueryRenderer query={`Page: ${page.title}`} />
-                    {(page.includeContent || page.includeLinkedRefs) && (
-                      <span className="query-page-options">
-                        {" "}({page.includeContent ? "with content" : "title only"})
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+          {/* Page Selections - Now displayed in dedicated .query-page-selections section in QueryManager */}
+          {/* Removed duplicate display here - page selections are shown as tags in QueryManager */}
         </div>
       </div>
     );

@@ -4,7 +4,11 @@ import { displayTokensDialog } from "../../../utils/domElts";
 import { MCPDiagnostics } from "../../../ai/agents/mcp-agent/mcpDiagnostics";
 import AskGraphModeIndicator from "../../AskGraphModeIndicator";
 import AskGraphFirstTimeDialog from "../../AskGraphFirstTimeDialog";
-import { getCurrentAskGraphMode, setSessionAskGraphMode } from "../../../ai/agents/search-agent/ask-your-graph";
+import {
+  getCurrentAskGraphMode,
+  setSessionAskGraphMode,
+} from "../../../ai/agents/search-agent/ask-your-graph";
+import { modelAccordingToProvider } from "../../../ai/aiAPIsHub";
 
 const ContextMenuHeader = ({
   defaultModel,
@@ -18,7 +22,9 @@ const ContextMenuHeader = ({
   handleClose,
   inputRef,
 }) => {
-  const [currentMode, setCurrentMode] = useState(() => getCurrentAskGraphMode());
+  const [currentMode, setCurrentMode] = useState(() =>
+    getCurrentAskGraphMode()
+  );
   const [isAskGraphDialogOpen, setIsAskGraphDialogOpen] = useState(false);
 
   // Update mode when component mounts or when external changes occur
@@ -120,7 +126,7 @@ const ContextMenuHeader = ({
               }}
             />
           </Tooltip>
-          
+
           {/* Ask Graph Mode Indicator */}
           <AskGraphModeIndicator
             currentMode={currentMode}
@@ -129,7 +135,7 @@ const ContextMenuHeader = ({
             showChangeOption={true}
             iconOnly={true}
           />
-          
+
           <Tooltip
             content="Close context menu"
             disabled={window.roamAlphaAPI.platform.isMobile}
@@ -147,9 +153,12 @@ const ContextMenuHeader = ({
           <div>
             Default model:{" "}
             <b>
-              {defaultModel
+              {
+                modelAccordingToProvider(defaultModel).name
+                /* {defaultModel
                 .replace("openRouter/", "")
-                .replace("groq/", "")}
+                .replace("groq/", "")} */
+              }
             </b>
           </div>
         }

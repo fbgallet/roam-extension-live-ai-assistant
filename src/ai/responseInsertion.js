@@ -196,7 +196,9 @@ export const aiCompletionRunner = async ({
   // console.log("prompt in aiCompletionRunner :>> ", prompt);
   console.log("roamContext in aiCompletionRunner :>> ", roamContext);
 
+  console.log("style :>> ", style);
   systemPrompt = getStylePrompt(style);
+  console.log("systemPrompt as style :>> ", systemPrompt);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);

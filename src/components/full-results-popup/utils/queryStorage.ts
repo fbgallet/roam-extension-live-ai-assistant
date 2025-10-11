@@ -287,13 +287,23 @@ export const updateQuery = (id: string, updates: Partial<StoredQuery>): boolean 
 
   // Update the query
   const targetArray = isSaved ? queries.saved : queries.recent;
-  targetArray[queryIndex] = {
+  const updatedQuery = {
     ...targetArray[queryIndex],
     ...updates,
     // Preserve id and timestamp unless explicitly updated
     id: targetArray[queryIndex].id,
     timestamp: updates.timestamp || targetArray[queryIndex].timestamp,
   };
+
+  console.log("💾 [updateQuery] Updating query:", {
+    id,
+    isSaved,
+    oldPageSelections: targetArray[queryIndex].pageSelections?.length || 0,
+    newPageSelections: updatedQuery.pageSelections?.length || 0,
+    pageSelections: updatedQuery.pageSelections
+  });
+
+  targetArray[queryIndex] = updatedQuery;
 
   saveQueries(queries);
   return true;
@@ -584,6 +594,14 @@ export const storeQuery = (
   options: UnifiedStorageOptions,
   onTemporaryStore?: (query: StoredQuery) => void
 ): string => {
+  console.log("💾 [storeQuery] Storing query:", {
+    type: options.type,
+    userQuery: query.userQuery,
+    pageSelections: query.pageSelections?.length || 0,
+    pageSelectionsData: query.pageSelections,
+    isComposed: query.isComposed
+  });
+
   const queryWithMetadata: StoredQuery = {
     ...query,
     id: generateQueryId(),
@@ -592,6 +610,12 @@ export const storeQuery = (
       generateComposedQueryName(query.userQuery, query.querySteps || [], query.pageSelections || []) :
       undefined)
   };
+
+  console.log("💾 [storeQuery] Query with metadata:", {
+    id: queryWithMetadata.id,
+    pageSelections: queryWithMetadata.pageSelections?.length || 0,
+    pageSelectionsData: queryWithMetadata.pageSelections
+  });
 
   switch (options.type) {
     case 'temporary':

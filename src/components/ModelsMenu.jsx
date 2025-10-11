@@ -73,6 +73,9 @@ const ModelsMenu = ({
       case "GPT 4o":
         model = "gpt-4o";
         break;
+      case "gpt-5 (not reasoning)":
+        model = "gpt-5-chat-latest";
+        break;
     }
     if (prefix === "openRouter/") {
       model = modelId;
@@ -212,7 +215,7 @@ const ModelsMenu = ({
                 labelElement="400k"
               />
               <MenuItem
-                icon={defaultModel === "gpt-5 (not reasoning)" && "pin"}
+                icon={defaultModel === "gpt-5-chat-latest" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}

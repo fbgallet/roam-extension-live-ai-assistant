@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { 
-  extensionStorage, 
-  defaultStyle, 
-  includeChildrenByDefault, 
+import {
+  extensionStorage,
+  defaultStyle,
+  includeChildrenByDefault,
   logPagesNbDefault,
-  defaultModel 
+  defaultModel,
 } from "../../..";
 import { BUILTIN_COMMANDS } from "../../../ai/prebuildCommands";
 import { mcpManager } from "../../../ai/agents/mcp-agent/mcpManager";
@@ -32,7 +32,7 @@ export const useContextMenuState = () => {
   const [displayModelsMenu, setDisplayModelsMenu] = useState(false);
   const [displayAddPrompt, setDisplayAddPrompt] = useState(false);
   const [isMCPConfigOpen, setIsMCPConfigOpen] = useState(false);
-  
+
   // Command and Context State
   const [commands, setCommands] = useState(BUILTIN_COMMANDS);
   const [userCommands, setUserCommands] = useState([]);
@@ -40,31 +40,37 @@ export const useContextMenuState = () => {
   const [templates, setTemplates] = useState([]);
   const [stableMcpCommands, setStableMcpCommands] = useState([]);
   const [activeCommand, setActiveCommand] = useState();
-  
+
   // User Preferences
-  const [isChildrenTreeToInclude, setIsChildrenTreeToInclude] = useState(includeChildrenByDefault);
+  const [isChildrenTreeToInclude, setIsChildrenTreeToInclude] = useState(
+    includeChildrenByDefault
+  );
   const [targetBlock, setTargetBlock] = useState("auto");
   const [style, setStyle] = useState(defaultStyle);
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
-  
+
   // Mode State
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [isCompletionOnly, setIsCompletionOnly] = useState(false);
   const [isInConversation, setIsInConversation] = useState(false);
-  
+
   // Context State
   const [roamContext, setRoamContext] = useState({ ...voidRoamContext });
   const [rootUid, setRootUid] = useState(null);
   const [dnpPeriod, setDnpPeriod] = useState("0");
   const [customDays, setCustomDays] = useState(parseInt(logPagesNbDefault));
   const [estimatedTokens, setEstimatedTokens] = useState(null);
-  
+
   // Language State
-  const [defaultLgg, setDefaultLgg] = useState(extensionStorage.get("translationDefaultLgg"));
-  const [customLgg, setCustomLgg] = useState(extensionStorage.get("translationCustomLgg"));
-  
+  const [defaultLgg, setDefaultLgg] = useState(
+    extensionStorage.get("translationDefaultLgg")
+  );
+  const [customLgg, setCustomLgg] = useState(
+    extensionStorage.get("translationCustomLgg")
+  );
+
   // Refs for current values
   const inputRef = useRef(null);
   const popoverRef = useRef(null);
@@ -79,7 +85,7 @@ export const useContextMenuState = () => {
   const lastBuiltinCommand = useRef(null);
   const isFirstBlock = useRef(null);
   const roamContextRef = useRef(roamContext);
-  
+
   // Update roamContextRef when roamContext changes
   useEffect(() => {
     roamContextRef.current = roamContext;
@@ -115,46 +121,75 @@ export const useContextMenuState = () => {
 
   return {
     // UI State
-    isOpen, setIsOpen,
-    isMenuToDisplay, setIsMenuToDisplay,
-    isHelpOpen, setIsHelpOpen,
-    position, setPosition,
-    displayModelsMenu, setDisplayModelsMenu,
-    displayAddPrompt, setDisplayAddPrompt,
-    isMCPConfigOpen, setIsMCPConfigOpen,
-    
+    isOpen,
+    setIsOpen,
+    isMenuToDisplay,
+    setIsMenuToDisplay,
+    isHelpOpen,
+    setIsHelpOpen,
+    position,
+    setPosition,
+    displayModelsMenu,
+    setDisplayModelsMenu,
+    displayAddPrompt,
+    setDisplayAddPrompt,
+    isMCPConfigOpen,
+    setIsMCPConfigOpen,
+
     // Command and Context State
-    commands, setCommands,
-    userCommands, setUserCommands,
-    liveOutlines, setLiveOutlines,
-    templates, setTemplates,
-    stableMcpCommands, setStableMcpCommands,
-    activeCommand, setActiveCommand,
-    
+    commands,
+    setCommands,
+    userCommands,
+    setUserCommands,
+    liveOutlines,
+    setLiveOutlines,
+    templates,
+    setTemplates,
+    stableMcpCommands,
+    setStableMcpCommands,
+    activeCommand,
+    setActiveCommand,
+
     // User Preferences
-    isChildrenTreeToInclude, setIsChildrenTreeToInclude,
-    targetBlock, setTargetBlock,
-    style, setStyle,
-    isPinnedStyle, setIsPinnedStyle,
-    additionalPrompt, setAdditionalPrompt,
-    model, setModel,
-    
+    isChildrenTreeToInclude,
+    setIsChildrenTreeToInclude,
+    targetBlock,
+    setTargetBlock,
+    style,
+    setStyle,
+    isPinnedStyle,
+    setIsPinnedStyle,
+    additionalPrompt,
+    setAdditionalPrompt,
+    model,
+    setModel,
+
     // Mode State
-    isOutlinerAgent, setIsOutlinerAgent,
-    isCompletionOnly, setIsCompletionOnly,
-    isInConversation, setIsInConversation,
-    
+    isOutlinerAgent,
+    setIsOutlinerAgent,
+    isCompletionOnly,
+    setIsCompletionOnly,
+    isInConversation,
+    setIsInConversation,
+
     // Context State
-    roamContext, setRoamContext,
-    rootUid, setRootUid,
-    dnpPeriod, setDnpPeriod,
-    customDays, setCustomDays,
-    estimatedTokens, setEstimatedTokens,
-    
+    roamContext,
+    setRoamContext,
+    rootUid,
+    setRootUid,
+    dnpPeriod,
+    setDnpPeriod,
+    customDays,
+    setCustomDays,
+    estimatedTokens,
+    setEstimatedTokens,
+
     // Language State
-    defaultLgg, setDefaultLgg,
-    customLgg, setCustomLgg,
-    
+    defaultLgg,
+    setDefaultLgg,
+    customLgg,
+    setCustomLgg,
+
     // Refs
     inputRef,
     popoverRef,
@@ -169,9 +204,9 @@ export const useContextMenuState = () => {
     lastBuiltinCommand,
     isFirstBlock,
     roamContextRef,
-    
+
     // Functions
     handleClose,
-    voidRoamContext
+    voidRoamContext,
   };
 };

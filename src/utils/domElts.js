@@ -483,6 +483,10 @@ export function onPageLoad() {
 
 // Insert the Ask Linked References button in the references section
 function insertAskLinkedReferencesButton() {
+  // Don't insert the button in daily log
+  const logPages = document.querySelector(".roam-log-container");
+  if (logPages) return;
+
   // Check if we're in a context where references section exists
   const referencesContainer = document.querySelector(".rm-reference-container");
   if (!referencesContainer) return;

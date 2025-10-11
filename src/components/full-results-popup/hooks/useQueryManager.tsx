@@ -21,7 +21,10 @@ interface UseQueryManagerProps {
   currentUserQuery?: string;
   currentFormalQuery?: string;
   onQuerySelect: (query: StoredQuery | "current") => void;
-  onQueryLoadedIntoComposer?: (query: StoredQuery, forceResetOriginal?: boolean) => void;
+  onQueryLoadedIntoComposer?: (
+    query: StoredQuery,
+    forceResetOriginal?: boolean
+  ) => void;
   onQueryChange: (query: string) => void;
   onClearAll?: () => void;
   disabled?: boolean;
@@ -363,15 +366,87 @@ export const useQueryManager = ({
   }, [onClearAll, onQueryChange]);
 
   const handleSaveQuery = useCallback(async () => {
-    // Check if we're saving an edited loaded query (prioritize this)
-    if (loadedQuery && originalLoadedQuery && loadedQuery.userQuery !== originalLoadedQuery.userQuery) {
-      // Saving edited loaded query as new
-      const queryName = saveQueryName.trim() || generateDefaultName(loadedQuery.userQuery);
-      const { storeQuery } = await import("../utils/queryStorage");
+    const { storeQuery } = await import("../utils/queryStorage");
+
+    console.log("sessionPageSelections :>> ", sessionPageSelections);
+    console.log("currentUserQuery :>> ", currentUserQuery);
+
+    // PRIORITY 1: Check if we have a stored query with page selections added
+    // This happens when user runs query A, then adds pages to it
+    if (sessionPageSelections.length > 0 && currentUserQuery) {
+      // Find the stored query that matches current query
+      const allQueries = [...queries.recent, ...queries.saved];
+      const storedQuery = allQueries.find(
+        (q) => q.userQuery === currentUserQuery
+      );
+
+      if (storedQuery) {
+        // Saving existing query with added page selections as new
+        const queryName =
+          saveQueryName.trim() || generateDefaultName(storedQuery.userQuery);
+        const { id, timestamp, ...queryWithoutMeta } = storedQuery;
+
+        console.log(
+          "💾 [QueryManager] Saving stored query with added page selections:",
+          {
+            queryId: storedQuery.id,
+            pageSelections: sessionPageSelections.length,
+          }
+        );
+
+        const queryToSave = {
+          ...queryWithoutMeta,
+          pageSelections: [
+            ...(queryWithoutMeta.pageSelections || []),
+            ...sessionPageSelections,
+          ],
+          isComposed: true,
+        };
+
+        console.log("💾 [handleSaveQuery] About to call storeQuery with:", {
+          queryToSave,
+          pageSelectionsCount: queryToSave.pageSelections?.length || 0
+        });
+
+        storeQuery(queryToSave, { type: "saved", customName: queryName });
+
+        setQueries(getStoredQueries());
+        setShowSaveDialog(false);
+        setSaveQueryName("");
+        return;
+      }
+    }
+
+    // PRIORITY 2: Check if we're saving a loaded query with modifications (text edits or page selections)
+    if (
+      loadedQuery &&
+      (originalLoadedQuery?.userQuery !== loadedQuery.userQuery ||
+        sessionPageSelections.length > 0)
+    ) {
+      // Saving loaded query with modifications as new
+      const queryName =
+        saveQueryName.trim() || generateDefaultName(loadedQuery.userQuery);
       const { id, timestamp, ...queryWithoutMeta } = loadedQuery;
 
-      console.log("💾 [QueryManager] Saving edited loaded query as new with unified system");
-      storeQuery(queryWithoutMeta, { type: "saved", customName: queryName });
+      console.log("💾 [QueryManager] Saving loaded query with modifications:", {
+        hasTextEdits: originalLoadedQuery?.userQuery !== loadedQuery.userQuery,
+        hasPageSelections: sessionPageSelections.length > 0,
+      });
+
+      // Add session page selections to the query
+      const queryToSave = {
+        ...queryWithoutMeta,
+        pageSelections: [
+          ...(queryWithoutMeta.pageSelections || []),
+          ...sessionPageSelections,
+        ],
+        isComposed:
+          (queryWithoutMeta.pageSelections?.length || 0) +
+            sessionPageSelections.length >
+            0 || queryWithoutMeta.isComposed,
+      };
+
+      storeQuery(queryToSave, { type: "saved", customName: queryName });
 
       setQueries(getStoredQueries());
       setShowSaveDialog(false);
@@ -379,6 +454,7 @@ export const useQueryManager = ({
       return;
     }
 
+    // PRIORITY 3: Standard save for new queries
     const currentInfo = getCurrentQueryInfo();
 
     if (!currentInfo.userQuery || !currentInfo.intentParserResult) {
@@ -389,9 +465,7 @@ export const useQueryManager = ({
     const queryName =
       saveQueryName.trim() || generateDefaultName(currentInfo.userQuery);
 
-    // Use unified system to find and save the current query
-    const { storeQuery } = await import("../utils/queryStorage");
-
+    // storeQuery already imported at the top of this function
     let queryToSave;
 
     // Check if there's a temporary composed query that matches (from React state)
@@ -402,9 +476,10 @@ export const useQueryManager = ({
         ...queryWithoutMeta,
         pageSelections: [
           ...(queryWithoutMeta.pageSelections || []),
-          ...sessionPageSelections
+          ...sessionPageSelections,
         ],
-        isComposed: queryWithoutMeta.isComposed || sessionPageSelections.length > 0,
+        isComposed:
+          queryWithoutMeta.isComposed || sessionPageSelections.length > 0,
       };
       console.log(
         "💾 [QueryManager] Saving temporary composed query with session page selections:",
@@ -425,7 +500,7 @@ export const useQueryManager = ({
           ...queryWithoutMeta,
           pageSelections: [
             ...(queryWithoutMeta.pageSelections || []),
-            ...sessionPageSelections
+            ...sessionPageSelections,
           ],
         };
         console.log(
@@ -455,7 +530,15 @@ export const useQueryManager = ({
     setQueries(getStoredQueries());
     setShowSaveDialog(false);
     setSaveQueryName("");
-  }, [queries, currentUserQuery, tempComposedQuery, saveQueryName, loadedQuery, originalLoadedQuery]);
+  }, [
+    queries,
+    currentUserQuery,
+    tempComposedQuery,
+    saveQueryName,
+    loadedQuery,
+    originalLoadedQuery,
+    sessionPageSelections,
+  ]);
 
   const handleRenameQuery = useCallback(() => {
     if (renameQueryId && renameValue.trim()) {
@@ -495,23 +578,38 @@ export const useQueryManager = ({
   }, []);
 
   const canSaveCurrent = useCallback(() => {
+    const currentInfo = getCurrentQueryInfo();
+
+    // Must have a valid query OR session page selections
+    if (!currentInfo.userQuery && sessionPageSelections.length === 0) {
+      return false;
+    }
+
+    // If there are session page selections, enable save (query has been modified with page additions)
+    if (sessionPageSelections && sessionPageSelections.length > 0) {
+      console.log(
+        "🔍 [canSaveCurrent] Session page selections exist:",
+        sessionPageSelections.length
+      );
+      return true;
+    }
+
     // If loaded query has been edited (different from original), enable save
     if (loadedQuery && originalLoadedQuery) {
-      const hasBeenEdited = loadedQuery.userQuery.trim() !== originalLoadedQuery.userQuery.trim();
+      const hasBeenEdited =
+        loadedQuery.userQuery.trim() !== originalLoadedQuery.userQuery.trim();
       console.log("🔍 [canSaveCurrent] Loaded query edited check:", {
         current: loadedQuery.userQuery,
         original: originalLoadedQuery.userQuery,
-        hasBeenEdited
+        hasBeenEdited,
       });
       if (hasBeenEdited) {
         return true;
       }
     }
 
-    const currentInfo = getCurrentQueryInfo();
-
-    // Must have a valid query
-    if (!currentInfo.userQuery || !currentInfo.intentParserResult) {
+    // Must have intentParserResult for new queries
+    if (!currentInfo.intentParserResult) {
       return false;
     }
 
@@ -524,7 +622,7 @@ export const useQueryManager = ({
 
     // If no loaded query, can save
     return true;
-  }, [loadedQuery, originalLoadedQuery]);
+  }, [loadedQuery, originalLoadedQuery, sessionPageSelections]);
 
   // Memoize the actions menu content to prevent excessive re-renders
   const actionsMenuContent = useMemo(() => {

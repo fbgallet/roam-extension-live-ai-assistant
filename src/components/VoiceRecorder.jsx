@@ -57,6 +57,7 @@ import { AppToaster } from "./Toaster.js";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
 import { askYourGraph } from "../ai/agents/search-agent/ask-your-graph.ts";
 import ModelsMenu from "./ModelsMenu.jsx";
+import { openLastAskYourGraphResults } from "./full-results-popup/FullResultsPopup";
 
 function VoiceRecorder({
   blockUid,
@@ -375,6 +376,12 @@ function VoiceRecorder({
     const currentBlock =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     if (!currentBlock && !blocksSelectionUids.current?.length) {
+      // on daily logs, open last results
+      if (document.querySelector(".roam-log-container")) {
+        openLastAskYourGraphResults();
+        return;
+      }
+
       // Import and call invokeCurrentPageReferences
       const { invokeCurrentPageReferences } = await import(
         "../ai/agents/search-agent/ask-your-graph-invoke"
