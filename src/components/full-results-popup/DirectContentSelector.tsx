@@ -74,7 +74,10 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
   // Get current page title from context
   const getCurrentPageTitle = (): string | null => {
     if (currentPageContext?.title) {
-      console.log("✅ [DirectContentSelector] Using currentPageContext:", currentPageContext);
+      console.log(
+        "✅ [DirectContentSelector] Using currentPageContext:",
+        currentPageContext
+      );
       return currentPageContext.title;
     }
 
@@ -90,14 +93,19 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
 
     // Only add "Current Page" if we have a current page
     if (currentPageTitle) {
-      console.log("✅ [DirectContentSelector] Adding 'Current Page' option:", currentPageTitle);
+      console.log(
+        "✅ [DirectContentSelector] Adding 'Current Page' option:",
+        currentPageTitle
+      );
       specialOptions.push({
         value: "current",
         label: `Current Page: ${currentPageTitle}`,
         isSpecial: true,
       });
     } else {
-      console.warn("⚠️ [DirectContentSelector] No current page title - 'Current Page' option not added");
+      console.warn(
+        "⚠️ [DirectContentSelector] No current page title - 'Current Page' option not added"
+      );
     }
 
     specialOptions.push({
@@ -111,14 +119,6 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
       label: page,
       isSpecial: false,
     }));
-
-    console.log("📋 [DirectContentSelector] Page options created:", {
-      specialOptionsCount: specialOptions.length,
-      regularPagesCount: regularPageOptions.length,
-      totalOptions: specialOptions.length + regularPageOptions.length,
-      hasCurrentPage: !!currentPageTitle,
-      currentPageContext,
-    });
 
     return [...specialOptions, ...regularPageOptions];
   }, [currentPageContext, availablePages]); // Re-create when these change

@@ -322,6 +322,7 @@ export function modelAccordingToProvider(model) {
     id: "",
     name: "",
     library: undefined,
+    tokensLimit: 128000
   };
   model = model && model.toLowerCase();
 
@@ -336,7 +337,7 @@ export function modelAccordingToProvider(model) {
         ? openRouterModels[0]
         : undefined;
     const openRouterInfos = openRouterModelsInfo.find((m) => m.id === llm.id);
-
+    llm.tokensLimit = openRouterInfos?.contextLength * 1024 || 128000;
     llm.name = llm.id && openRouterInfos ? openRouterInfos.name : llm.id;
     llm.library = openrouterLibrary;
   } else if (model.includes("ollama")) {
@@ -357,7 +358,7 @@ export function modelAccordingToProvider(model) {
         ? model.replace("groq/", "")
         : groqModels.length
         ? groqModels[0]
-        : undefined;
+        : undefined;    
     llm.library = groqLibrary;
   } else if (model.includes("custom")) {
     llm.provider = "custom";
@@ -435,6 +436,9 @@ export function modelAccordingToProvider(model) {
     llm.library = openaiLibrary;
   }
   if (!llm.name) llm.name = llm.id;
+  if (llm.provider !== "openRouter") {
+    if (tokensLimit[llm.id]) llm.tokensLimit = tokensLimit[llm.id];
+  }
   if (!llm.id) {
     AppToaster.show({
       message: `No model available in the settings for the current provider: ${llm.provider}.`,

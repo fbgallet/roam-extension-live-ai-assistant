@@ -14,6 +14,7 @@ import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/c
 import { extensionStorage, defaultModel } from "../..";
 import ModelsMenu from "../ModelsMenu";
 import { getPageUidByPageName } from "../../utils/roamAPI";
+import {modelAccordingToProvider} from "../../ai/aiAPIsHub";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -395,7 +396,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     []
   ); // Track result selection changes
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
+  const [modelTokensLimit, setModelTokensLimit] = useState<number>(modelAccordingToProvider(defaultModel).tokensLimit || 128000);
 
+  console.log("modelTokensLimit:", modelTokensLimit);
   // Reset cache when chat is closed/reopened
   useEffect(() => {
     if (!isOpen) {
@@ -403,6 +406,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setLastSelectedResultIds([]);
     }
   }, [isOpen, setChatExpandedResults]);
+
+  // Update tokensLimit when model is changed
+  useEffect(() => {
+    setModelTokensLimit(modelAccordingToProvider(selectedModel).tokensLimit || 128000);
+  }, [selectedModel]);
 
   const getSelectedResultsForChat = () => {
     // Create copies to prevent mutation of shared objects from parent component
@@ -518,19 +526,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       if (selectionChanged || !chatExpandedResults) {
         setLastSelectedResultIds(currentResultIds);
 
-
+        
+        
         // Perform expansion once and cache the expanded objects
-        // Use proper expansion budgets based on access mode
+        // Use proper expansion budgets based on access mode and model context window
+        // expansionBudget is expressed in approx. maximum characters
         const expansionBudget =
-          chatAccessMode === "Full Access" ? 200000 : 80000; // ~50k vs ~20k tokens
-        const charLimit = Math.min(
-          expansionBudget,
-          Math.max(50000, contextResults.length * 2000)
-        );
+          chatAccessMode === "Full Access" ? modelTokensLimit * 3 : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
         expandedResults = await performAdaptiveExpansion(
           contextResults.map((result) => ({ ...result })), // Pass deep copies to prevent any mutation
           // [...contextResults],
-          charLimit,
+          expansionBudget,
           0,
           chatAccessMode // Pass access mode to influence depth strategy
         );
@@ -592,6 +598,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           return `Result ${index + 1}:\n${parts.join("\n")}`;
         })
         .join("\n\n---\n\n");
+
+      console.log("Exact context used for the chat: ", resultsContext)
 
       // Build conversation history from chat messages
       const currentConversationHistory = buildConversationHistory(chatMessages);
@@ -964,8 +972,8 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 </strong>{" "}
                 mode:{" "}
                 {chatAccessMode === "Balanced"
-                  ? "2 children levels maximum, and context limited to 80 000 characters (approx. 20 000 tokens)"
-                  : "up to 4 children levels, and broader context up to 200 000 characters (approx. 50 000 tokens)"}{" "}
+                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(modelTokensLimit * 0.5 / 1000)}k tokens (50% of llm context window, approx. ${Math.floor(modelTokensLimit * 2 / 1000 / 6)}k words)`
+                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(modelTokensLimit * 0.75 / 1000)}k tokens (75% of llm context window, approx. ${Math.floor(modelTokensLimit * 3 / 1000 / 6)}k words)`}{" "}
                 {/* TODO: Future evolution - Deep Analysis mode
                 {chatMode === "agent" ? (
                   <>

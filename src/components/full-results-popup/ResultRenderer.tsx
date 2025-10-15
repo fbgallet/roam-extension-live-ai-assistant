@@ -186,7 +186,7 @@ export const ResultMetadata: React.FC<ResultMetadataProps> = ({
   return (
     <div className="full-results-metadata">
       <span className={`full-results-type-badge ${isPage ? "page" : "block"}`}>
-        {isPage ? "📄 Page" : "📝 Block"}
+        {isPage ? (result.isDaily ? "📅 Daily note" : "📄 Page") : "📝 Block"}
       </span>
       {result.modified && (
         <span
@@ -203,8 +203,9 @@ export const ResultMetadata: React.FC<ResultMetadataProps> = ({
           onClick={() => handlePageTitleClick(result.pageTitle!)}
           title="Click to copy page reference"
         >
-          {result.pageTitle}
-          {result.isDaily && " 📅"}
+          {result.pageTitle?.length > 40 // Limit arbitrarily set at approximately 12,500 tokens (for English)
+            ? result.pageTitle.substring(0, 40) + "..."
+            : result.pageTitle}
         </span>
       )}
       {result.count && (

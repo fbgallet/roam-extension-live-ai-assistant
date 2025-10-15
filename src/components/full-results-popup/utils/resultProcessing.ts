@@ -10,74 +10,77 @@ export interface FilterAndSortOptions {
 }
 
 export const filterAndSortResults = async (
-  results: Result[], 
+  results: Result[],
   options: FilterAndSortOptions,
   blockContentMap?: Map<string, string>,
   childrenContentMap?: Map<string, string[]>
 ): Promise<Result[]> => {
-  const { searchFilter, pageFilter, sortBy, sortOrder, viewMode, dnpFilter } = options;
-  
-  let filtered = results.filter(result => {
+  const { searchFilter, pageFilter, sortBy, sortOrder, viewMode, dnpFilter } =
+    options;
+
+  let filtered = results.filter((result) => {
     // View mode filter - use same logic as detection
     const isBlock = result.uid && result.pageUid;
     const isPage = result.uid && !result.pageUid;
-    
+
     if (viewMode === "blocks" && !isBlock) return false;
     if (viewMode === "pages" && !isPage) return false;
     // "mixed" shows both
-    
+
     // DNP filter
     if (dnpFilter !== "all") {
-      const resultIsDNP = result.isDaily !== undefined 
-        ? result.isDaily 
-        : isDailyNotePage(result.pageTitle || "");
-      
+      const resultIsDNP =
+        result.isDaily !== undefined
+          ? result.isDaily
+          : isDailyNotePage(result.pageTitle || "");
+
       if (dnpFilter === "dnp-only" && !resultIsDNP) return false;
       if (dnpFilter === "no-dnp" && resultIsDNP) return false;
     }
-    
+
     // Enhanced search filter - includes actual block content and children content
     if (searchFilter) {
       const searchLower = searchFilter.toLowerCase();
-      
+
       // Check actual block content from Roam API
-      let blockContent = '';
+      let blockContent = "";
       if (blockContentMap && result.uid) {
-        blockContent = blockContentMap.get(result.uid) || '';
+        blockContent = blockContentMap.get(result.uid) || "";
       }
       // Fallback to result content fields (probably empty based on debug)
-      const fallbackContent = result.content || result.text || result.string || '';
+      const fallbackContent =
+        result.content || result.text || result.string || "";
       const actualContent = blockContent || fallbackContent;
-      
+
       const matchesContent = actualContent.toLowerCase().includes(searchLower);
-      
+
       // Check page title
       const matchesPage = result.pageTitle?.toLowerCase().includes(searchLower);
-      
+
       // Check children content if available
       let matchesChildren = false;
       if (childrenContentMap && result.uid) {
         const childrenTexts = childrenContentMap.get(result.uid) || [];
-        matchesChildren = childrenTexts.some(childText => 
+        matchesChildren = childrenTexts.some((childText) =>
           childText.toLowerCase().includes(searchLower)
         );
       }
-      
+
       if (!matchesContent && !matchesPage && !matchesChildren) return false;
     }
-    
+
     // Page filter
     if (pageFilter !== "all" && result.pageTitle !== pageFilter) {
       return false;
     }
-    
+
     return true;
   });
 
   // Sort results
   filtered.sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sortBy) {
       case "date":
         const dateA = new Date(a.modified || a.created || 0);
@@ -89,17 +92,21 @@ export const filterAndSortResults = async (
         break;
       case "content-alpha":
         // Get actual content from the content map and sort alphabetically
-        const contentAlphaA = blockContentMap?.get(a.uid || '') || a.content || a.text || "";
-        const contentAlphaB = blockContentMap?.get(b.uid || '') || b.content || b.text || "";
+        const contentAlphaA =
+          blockContentMap?.get(a.uid || "") || a.content || a.text || "";
+        const contentAlphaB =
+          blockContentMap?.get(b.uid || "") || b.content || b.text || "";
         // Extract only alphanumeric characters for sorting comparison
-        const alphaOnlyA = contentAlphaA.replace(/[^a-zA-Z0-9\s]/g, '').trim();
-        const alphaOnlyB = contentAlphaB.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+        const alphaOnlyA = contentAlphaA.replace(/[^a-zA-Z0-9\s]/g, "").trim();
+        const alphaOnlyB = contentAlphaB.replace(/[^a-zA-Z0-9\s]/g, "").trim();
         comparison = alphaOnlyA.localeCompare(alphaOnlyB);
         break;
       case "content-length":
         // Get actual content from the content map and sort by length
-        const contentLengthA = blockContentMap?.get(a.uid || '') || a.content || a.text || "";
-        const contentLengthB = blockContentMap?.get(b.uid || '') || b.content || b.text || "";
+        const contentLengthA =
+          blockContentMap?.get(a.uid || "") || a.content || a.text || "";
+        const contentLengthB =
+          blockContentMap?.get(b.uid || "") || b.content || b.text || "";
         comparison = contentLengthA.length - contentLengthB.length;
         break;
       case "relevance":
@@ -110,7 +117,7 @@ export const filterAndSortResults = async (
         comparison = indexA - indexB;
         break;
     }
-    
+
     return sortOrder === "desc" ? -comparison : comparison;
   });
 
@@ -118,8 +125,8 @@ export const filterAndSortResults = async (
 };
 
 export const paginateResults = (
-  results: Result[], 
-  currentPage: number, 
+  results: Result[],
+  currentPage: number,
   resultsPerPage: number
 ): Result[] => {
   const startIndex = (currentPage - 1) * resultsPerPage;
@@ -127,7 +134,7 @@ export const paginateResults = (
 };
 
 export const calculateTotalPages = (
-  totalResults: number, 
+  totalResults: number,
   resultsPerPage: number
 ): number => {
   return Math.ceil(totalResults / resultsPerPage);
@@ -135,7 +142,7 @@ export const calculateTotalPages = (
 
 export const getUniquePages = (results: Result[]): Set<string> => {
   const pages = new Set<string>();
-  results.forEach(result => {
+  results.forEach((result) => {
     if (result.pageTitle) {
       pages.add(result.pageTitle);
     }
@@ -143,31 +150,33 @@ export const getUniquePages = (results: Result[]): Set<string> => {
   return pages;
 };
 
-export const detectResultTypes = (results: Result[]): { hasBlocks: boolean; hasPages: boolean } => {
+export const detectResultTypes = (
+  results: Result[]
+): { hasBlocks: boolean; hasPages: boolean } => {
   let hasBlocks = false;
   let hasPages = false;
-  
-  results.forEach(result => {
+
+  results.forEach((result) => {
     // Detect if this is a block result or page result
     // Block: has both uid AND pageUid (block is inside a page)
     // Page: has uid but NO pageUid (page itself doesn't have a parent page)
     const isBlockResult = result.uid && result.pageUid;
     const isPageResult = result.uid && !result.pageUid;
-    
+
     if (isBlockResult) {
       hasBlocks = true;
     } else if (isPageResult) {
       hasPages = true;
     }
   });
-  
+
   return { hasBlocks, hasPages };
 };
 
 // Function to check if a page title is a Daily Notes Page
 export const isDailyNotePage = (pageTitle: string): boolean => {
   if (!pageTitle) return false;
-  
+
   // Common DNP patterns:
   // MM-dd-yyyy (e.g., "12-25-2023")
   // MMMM do, yyyy (e.g., "December 25th, 2023")
@@ -178,16 +187,18 @@ export const isDailyNotePage = (pageTitle: string): boolean => {
     /^\d{4}-\d{1,2}-\d{1,2}$/, // yyyy-MM-dd
     /^\d{1,2}\/\d{1,2}\/\d{4}$/, // MM/dd/yyyy
   ];
-  
-  return patterns.some(pattern => pattern.test(pageTitle));
+
+  return patterns.some((pattern) => pattern.test(pageTitle));
 };
 
 // Function to detect DNP distribution in results
-export const detectDNPDistribution = (results: Result[]): { hasDNP: boolean; hasNonDNP: boolean; shouldShowDNPFilter: boolean } => {
+export const detectDNPDistribution = (
+  results: Result[]
+): { hasDNP: boolean; hasNonDNP: boolean; shouldShowDNPFilter: boolean } => {
   let hasDNP = false;
   let hasNonDNP = false;
-  
-  results.forEach(result => {
+
+  results.forEach((result) => {
     if (result.pageTitle) {
       if (isDailyNotePage(result.pageTitle)) {
         hasDNP = true;
@@ -206,31 +217,43 @@ export const detectDNPDistribution = (results: Result[]): { hasDNP: boolean; has
       hasNonDNP = true;
     }
   });
-  
+
   // Only show DNP filter if there's a mix of both DNP and non-DNP
   const shouldShowDNPFilter = hasDNP && hasNonDNP;
-  
+
   return { hasDNP, hasNonDNP, shouldShowDNPFilter };
 };
 
 // Text highlighting utility
-export const highlightSearchTerm = (text: string, searchTerm: string): string => {
+export const highlightSearchTerm = (
+  text: string,
+  searchTerm: string
+): string => {
   if (!searchTerm || !text) return text;
-  
-  const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')})`, 'gi');
+
+  const regex = new RegExp(
+    `(${searchTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")})`,
+    "gi"
+  );
   return text.replace(regex, '<mark class="search-highlight">$1</mark>');
 };
 
 // Function to get highlighted content for rendering
-export const getHighlightedContent = (result: Result, searchFilter: string): { content: string; hasHighlight: boolean } => {
+export const getHighlightedContent = (
+  result: Result,
+  searchFilter: string
+): { content: string; hasHighlight: boolean } => {
   if (!searchFilter) {
-    return { content: result.content || result.text || '', hasHighlight: false };
+    return {
+      content: result.content || result.text || "",
+      hasHighlight: false,
+    };
   }
-  
-  const originalContent = result.content || result.text || '';
+
+  const originalContent = result.content || result.text || "";
   const highlightedContent = highlightSearchTerm(originalContent, searchFilter);
   const hasHighlight = highlightedContent !== originalContent;
-  
+
   return { content: highlightedContent, hasHighlight };
 };
 
@@ -303,61 +326,84 @@ let lastCacheUpdate = 0;
 const CACHE_DURATION = 30000; // 30 seconds
 
 // Performance limit: Skip children content for large result sets
-const MAX_BLOCKS_FOR_CHILDREN_CONTENT = 300;
+const MAX_BLOCKS_FOR_CHILDREN_CONTENT = 500;
 
 // Function to get both block content and children content for search
-export const getBlockAndChildrenContent = async (results: Result[]): Promise<{
+export const getBlockAndChildrenContent = async (
+  results: Result[]
+): Promise<{
   blockContent: Map<string, string>;
   childrenContent: Map<string, string[]>;
 }> => {
   const now = Date.now();
-  
+
   // Check if cache is still valid
-  if (now - lastCacheUpdate < CACHE_DURATION && blockContentCache.size > 0 && childrenContentCache.size > 0) {
+  if (
+    now - lastCacheUpdate < CACHE_DURATION &&
+    blockContentCache.size > 0 &&
+    childrenContentCache.size > 0
+  ) {
     return {
       blockContent: blockContentCache,
-      childrenContent: childrenContentCache
+      childrenContent: childrenContentCache,
     };
   }
 
   const blockUids = results
-    .filter(result => result.uid)
-    .map(result => result.uid);
+    .filter((result) => result.uid)
+    .map((result) => result.uid);
 
   if (blockUids.length === 0) {
     return {
       blockContent: new Map(),
-      childrenContent: new Map()
+      childrenContent: new Map(),
     };
   }
 
-  const shouldFetchChildren = blockUids.length <= MAX_BLOCKS_FOR_CHILDREN_CONTENT;
+  const shouldFetchChildren =
+    blockUids.length <= MAX_BLOCKS_FOR_CHILDREN_CONTENT;
 
   try {
     // Always fetch block content, conditionally fetch children content
     const queries = [window.roamAlphaAPI.q(BLOCK_CONTENT_QUERY, blockUids)];
-    
+
     if (shouldFetchChildren) {
       queries.push(window.roamAlphaAPI.q(CHILDREN_CONTENT_QUERY, blockUids));
     }
-    
-    const [blockContentResults, childrenContentResults] = await Promise.all(queries);
-    
+
+    const [blockContentResults, childrenContentResults] = await Promise.all(
+      queries
+    );
+
     // Clear and populate block content cache
     blockContentCache.clear();
     if (blockContentResults && Array.isArray(blockContentResults)) {
       blockContentResults.forEach(([content, blockUid]) => {
-        if (content && blockUid && typeof content === 'string' && typeof blockUid === 'string') {
+        if (
+          content &&
+          blockUid &&
+          typeof content === "string" &&
+          typeof blockUid === "string"
+        ) {
           blockContentCache.set(blockUid, content);
         }
       });
     }
-    
+
     // Clear and populate children content cache (only if fetched)
     childrenContentCache.clear();
-    if (shouldFetchChildren && childrenContentResults && Array.isArray(childrenContentResults)) {
+    if (
+      shouldFetchChildren &&
+      childrenContentResults &&
+      Array.isArray(childrenContentResults)
+    ) {
       childrenContentResults.forEach(([content, parentUid]) => {
-        if (content && parentUid && typeof content === 'string' && typeof parentUid === 'string') {
+        if (
+          content &&
+          parentUid &&
+          typeof content === "string" &&
+          typeof parentUid === "string"
+        ) {
           if (!childrenContentCache.has(parentUid)) {
             childrenContentCache.set(parentUid, []);
           }
@@ -365,34 +411,38 @@ export const getBlockAndChildrenContent = async (results: Result[]): Promise<{
         }
       });
     }
-    
+
     lastCacheUpdate = now;
-    
+
     return {
       blockContent: blockContentCache,
-      childrenContent: childrenContentCache
+      childrenContent: childrenContentCache,
     };
   } catch (error) {
-    console.warn('Failed to query block and children content:', error);
+    console.warn("Failed to query block and children content:", error);
     return {
       blockContent: new Map(),
-      childrenContent: new Map()
+      childrenContent: new Map(),
     };
   }
 };
 
 // Legacy function for backward compatibility
-export const getChildrenContent = async (results: Result[]): Promise<Map<string, string[]>> => {
+export const getChildrenContent = async (
+  results: Result[]
+): Promise<Map<string, string[]>> => {
   const { childrenContent } = await getBlockAndChildrenContent(results);
   return childrenContent;
 };
 
 // Extract all page references and their counts from results
-export const extractPageReferences = async (results: Result[]): Promise<PageReference[]> => {
+export const extractPageReferences = async (
+  results: Result[]
+): Promise<PageReference[]> => {
   const referenceMap = new Map<string, PageReference>();
-  
+
   // First, add all page titles where blocks are located (result pages)
-  results.forEach(result => {
+  results.forEach((result) => {
     if (result.pageTitle) {
       const existing = referenceMap.get(result.pageTitle);
       if (existing) {
@@ -404,7 +454,7 @@ export const extractPageReferences = async (results: Result[]): Promise<PageRefe
           count: 1,
           isDaily: result.isDaily || isDailyNotePage(result.pageTitle),
           isResultPage: true, // This page contains result blocks
-          isReferencedPage: false
+          isReferencedPage: false,
         });
       }
     }
@@ -412,26 +462,33 @@ export const extractPageReferences = async (results: Result[]): Promise<PageRefe
 
   // Extract all block UIDs from the results
   const blockUids = results
-    .filter(result => result.uid)
-    .map(result => result.uid);
+    .filter((result) => result.uid && !result.isPage)
+    .map((result) => result.uid);
 
-  if (blockUids.length === 0) {
+  // Extract all page UIDs from the results
+  const pageUids = results
+    .filter((result) => result.isPage)
+    .map((result) => result.uid);
+
+  if (blockUids.length === 0 && pageUids.length === 0) {
     return Array.from(referenceMap.values());
   }
 
   try {
     // Run all three queries in parallel
-    const [selfRefs, childrenRefs, parentRefs] = await Promise.all([
-      window.roamAlphaAPI.q(SELF_REFERENCES_QUERY, blockUids),
-      window.roamAlphaAPI.q(CHILDREN_REFERENCES_QUERY, blockUids),
-      window.roamAlphaAPI.q(PARENT_REFERENCES_QUERY, blockUids)
-    ]);
+    const [selfRefs, childrenRefs, parentRefs, pageContentRefs] =
+      await Promise.all([
+        window.roamAlphaAPI.q(SELF_REFERENCES_QUERY, blockUids),
+        window.roamAlphaAPI.q(CHILDREN_REFERENCES_QUERY, blockUids),
+        window.roamAlphaAPI.q(PARENT_REFERENCES_QUERY, blockUids),
+        window.roamAlphaAPI.q(CHILDREN_REFERENCES_QUERY, pageUids),
+      ]);
 
     // Helper function to process referenced pages
     const processReferences = (refs: any[]) => {
       if (refs && Array.isArray(refs)) {
         refs.forEach(([pageTitle]) => {
-          if (pageTitle && typeof pageTitle === 'string') {
+          if (pageTitle && typeof pageTitle === "string") {
             const existing = referenceMap.get(pageTitle);
             if (existing) {
               existing.count++;
@@ -439,13 +496,13 @@ export const extractPageReferences = async (results: Result[]): Promise<PageRefe
             } else {
               // Check if it's a daily note format
               const isDaily = isDailyNotePage(pageTitle);
-              
+
               referenceMap.set(pageTitle, {
                 title: pageTitle,
                 count: 1,
                 isDaily: isDaily,
                 isResultPage: false, // This page doesn't contain results
-                isReferencedPage: true // This page is referenced by results
+                isReferencedPage: true, // This page is referenced by results
               });
             }
           }
@@ -457,18 +514,21 @@ export const extractPageReferences = async (results: Result[]): Promise<PageRefe
     processReferences(selfRefs);
     processReferences(childrenRefs);
     processReferences(parentRefs);
-
+    processReferences(pageContentRefs);
   } catch (error) {
-    console.warn('Failed to query block references using Roam API, falling back to text parsing:', error);
-    
+    console.warn(
+      "Failed to query block references using Roam API, falling back to text parsing:",
+      error
+    );
+
     // Fallback to text parsing if the API query fails
-    results.forEach(result => {
-      const content = result.content || result.text || '';
-      
+    results.forEach((result) => {
+      const content = result.content || result.text || "";
+
       // Extract [[page]] references
       const pageMatches = content.match(/\[\[([^\]]+)\]\]/g);
       if (pageMatches) {
-        pageMatches.forEach(match => {
+        pageMatches.forEach((match) => {
           const pageTitle = match.slice(2, -2);
           const existing = referenceMap.get(pageTitle);
           if (existing) {
@@ -480,16 +540,16 @@ export const extractPageReferences = async (results: Result[]): Promise<PageRefe
               count: 1,
               isDaily: isDailyNotePage(pageTitle),
               isResultPage: false,
-              isReferencedPage: true
+              isReferencedPage: true,
             });
           }
         });
       }
-      
+
       // Extract #tag references
       const tagMatches = content.match(/#([a-zA-Z0-9\-_\/]+)/g);
       if (tagMatches) {
-        tagMatches.forEach(match => {
+        tagMatches.forEach((match) => {
           const pageTitle = match.slice(1);
           const existing = referenceMap.get(pageTitle);
           if (existing) {
@@ -501,26 +561,25 @@ export const extractPageReferences = async (results: Result[]): Promise<PageRefe
               count: 1,
               isDaily: false,
               isResultPage: false,
-              isReferencedPage: true
+              isReferencedPage: true,
             });
           }
         });
       }
     });
   }
-  
+
   // Convert to array and sort by count (descending) then by title
-  return Array.from(referenceMap.values())
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return a.title.localeCompare(b.title);
-    });
+  return Array.from(referenceMap.values()).sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.title.localeCompare(b.title);
+  });
 };
 
 // Filter results based on included and excluded references using Roam API
 export const filterResultsByReferences = async (
-  results: Result[], 
-  includedRefs: string[], 
+  results: Result[],
+  includedRefs: string[],
   excludedRefs: string[]
 ): Promise<Result[]> => {
   if (includedRefs.length === 0 && excludedRefs.length === 0) {
@@ -548,23 +607,27 @@ export const filterResultsByReferences = async (
   }
 
   // If only DNP filtering is needed, handle it directly
-  if (processedIncludedRefs.length === 0 && processedExcludedRefs.length === 0) {
-    return results.filter(result => {
-      const resultIsDNP = result.isDaily !== undefined 
-        ? result.isDaily 
-        : isDailyNotePage(result.pageTitle || "");
-      
+  if (
+    processedIncludedRefs.length === 0 &&
+    processedExcludedRefs.length === 0
+  ) {
+    return results.filter((result) => {
+      const resultIsDNP =
+        result.isDaily !== undefined
+          ? result.isDaily
+          : isDailyNotePage(result.pageTitle || "");
+
       if (includeOnlyDNP && !resultIsDNP) return false;
       if (excludeAllDNP && resultIsDNP) return false;
-      
+
       return true;
     });
   }
 
   // Get block UIDs for API query
   const blockUids = results
-    .filter(result => result.uid)
-    .map(result => result.uid);
+    .filter((result) => result.uid)
+    .map((result) => result.uid);
 
   if (blockUids.length === 0) {
     return results; // No blocks to filter
@@ -573,9 +636,9 @@ export const filterResultsByReferences = async (
   try {
     // Create a map to store which references each block has
     const blockRefMap = new Map<string, Set<string>>();
-    
+
     // Initialize with page titles
-    results.forEach(result => {
+    results.forEach((result) => {
       if (result.uid && result.pageTitle) {
         if (!blockRefMap.has(result.uid)) {
           blockRefMap.set(result.uid, new Set());
@@ -588,13 +651,18 @@ export const filterResultsByReferences = async (
     const [selfRefs, childrenRefs, parentRefs] = await Promise.all([
       window.roamAlphaAPI.q(SELF_REFERENCES_QUERY, blockUids),
       window.roamAlphaAPI.q(CHILDREN_REFERENCES_QUERY, blockUids),
-      window.roamAlphaAPI.q(PARENT_REFERENCES_QUERY, blockUids)
+      window.roamAlphaAPI.q(PARENT_REFERENCES_QUERY, blockUids),
     ]);
 
     // Process self references
     if (selfRefs && Array.isArray(selfRefs)) {
       selfRefs.forEach(([pageTitle, blockUid]) => {
-        if (pageTitle && blockUid && typeof pageTitle === 'string' && typeof blockUid === 'string') {
+        if (
+          pageTitle &&
+          blockUid &&
+          typeof pageTitle === "string" &&
+          typeof blockUid === "string"
+        ) {
           if (!blockRefMap.has(blockUid)) {
             blockRefMap.set(blockUid, new Set());
           }
@@ -606,7 +674,12 @@ export const filterResultsByReferences = async (
     // Process children references (associate with parent block)
     if (childrenRefs && Array.isArray(childrenRefs)) {
       childrenRefs.forEach(([pageTitle, parentUid]) => {
-        if (pageTitle && parentUid && typeof pageTitle === 'string' && typeof parentUid === 'string') {
+        if (
+          pageTitle &&
+          parentUid &&
+          typeof pageTitle === "string" &&
+          typeof parentUid === "string"
+        ) {
           if (!blockRefMap.has(parentUid)) {
             blockRefMap.set(parentUid, new Set());
           }
@@ -618,7 +691,12 @@ export const filterResultsByReferences = async (
     // Process parent references (associate with child block)
     if (parentRefs && Array.isArray(parentRefs)) {
       parentRefs.forEach(([pageTitle, childUid]) => {
-        if (pageTitle && childUid && typeof pageTitle === 'string' && typeof childUid === 'string') {
+        if (
+          pageTitle &&
+          childUid &&
+          typeof pageTitle === "string" &&
+          typeof childUid === "string"
+        ) {
           if (!blockRefMap.has(childUid)) {
             blockRefMap.set(childUid, new Set());
           }
@@ -628,96 +706,108 @@ export const filterResultsByReferences = async (
     }
 
     // Filter results based on references and DNP
-    return results.filter(result => {
+    return results.filter((result) => {
       if (!result.uid) return true; // Keep results without UIDs
-      
+
       const resultRefs = blockRefMap.get(result.uid) || new Set();
-      const resultIsDNP = result.isDaily !== undefined 
-        ? result.isDaily 
-        : isDailyNotePage(result.pageTitle || "");
-      
+      const resultIsDNP =
+        result.isDaily !== undefined
+          ? result.isDaily
+          : isDailyNotePage(result.pageTitle || "");
+
       // Check DNP exclusions first
       if (excludeAllDNP && resultIsDNP) return false;
-      
+
       // Check standard exclusions (exclusions take priority)
       for (const excludedRef of processedExcludedRefs) {
         if (resultRefs.has(excludedRef)) {
           return false;
         }
       }
-      
+
       // Check inclusions
       let hasRequiredIncludes = true;
-      
+
       // If "All Daily Notes" is included, result must be DNP
       if (includeOnlyDNP && !resultIsDNP) {
         hasRequiredIncludes = false;
       }
-      
+
       // Check standard inclusions (if any are specified, at least one must match)
       if (processedIncludedRefs.length > 0) {
-        hasRequiredIncludes = hasRequiredIncludes && processedIncludedRefs.some(includedRef => resultRefs.has(includedRef));
+        hasRequiredIncludes =
+          hasRequiredIncludes &&
+          processedIncludedRefs.some((includedRef) =>
+            resultRefs.has(includedRef)
+          );
       }
-      
+
       return hasRequiredIncludes;
     });
-
   } catch (error) {
-    console.warn('Failed to filter using Roam API, falling back to text parsing:', error);
-    
+    console.warn(
+      "Failed to filter using Roam API, falling back to text parsing:",
+      error
+    );
+
     // Fallback to text-based filtering
-    return results.filter(result => {
-      const content = result.content || result.text || '';
-      const pageTitle = result.pageTitle || '';
-      const resultIsDNP = result.isDaily !== undefined 
-        ? result.isDaily 
-        : isDailyNotePage(pageTitle);
-      
+    return results.filter((result) => {
+      const content = result.content || result.text || "";
+      const pageTitle = result.pageTitle || "";
+      const resultIsDNP =
+        result.isDaily !== undefined
+          ? result.isDaily
+          : isDailyNotePage(pageTitle);
+
       // Check DNP exclusions first
       if (excludeAllDNP && resultIsDNP) return false;
-      
+
       // Get all references in this result
       const resultRefs = new Set<string>();
-      
+
       // Add page title
       if (pageTitle) resultRefs.add(pageTitle);
-      
+
       // Add [[page]] references from content
       const pageMatches = content.match(/\[\[([^\]]+)\]\]/g);
       if (pageMatches) {
-        pageMatches.forEach(match => {
+        pageMatches.forEach((match) => {
           resultRefs.add(match.slice(2, -2));
         });
       }
-      
+
       // Add #tag references from content
       const tagMatches = content.match(/#([a-zA-Z0-9\-_\/]+)/g);
       if (tagMatches) {
-        tagMatches.forEach(match => {
+        tagMatches.forEach((match) => {
           resultRefs.add(match.slice(1));
         });
       }
-      
+
       // Check standard exclusions (exclusions take priority)
       for (const excludedRef of processedExcludedRefs) {
         if (resultRefs.has(excludedRef)) {
           return false;
         }
       }
-      
+
       // Check inclusions
       let hasRequiredIncludes = true;
-      
+
       // If "All Daily Notes" is included, result must be DNP
       if (includeOnlyDNP && !resultIsDNP) {
         hasRequiredIncludes = false;
       }
-      
+
       // Check standard inclusions (if any are specified, at least one must match)
       if (processedIncludedRefs.length > 0) {
-        hasRequiredIncludes = hasRequiredIncludes && processedIncludedRefs.some(includedRef => resultRefs.has(includedRef));
+        hasRequiredIncludes =
+          hasRequiredIncludes &&
+          processedIncludedRefs.some((includedRef) =>
+            resultRefs.has(includedRef)
+          );
       }
-      
+
       return hasRequiredIncludes;
     });
   }

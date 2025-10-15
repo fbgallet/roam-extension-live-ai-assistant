@@ -1,7 +1,6 @@
 import React from "react";
 import { Tooltip } from "@blueprintjs/core";
-import { estimateTokensPricing } from "../../../ai/aiAPIsHub";
-import { tokensLimit } from "../../../ai/modelsInfo";
+import { estimateTokensPricing, modelAccordingToProvider } from "../../../ai/aiAPIsHub";
 
 const TokenEstimateDisplay = ({ estimatedTokens, defaultModel }) => {
   const insertEstimatedCost = () => {
@@ -12,6 +11,8 @@ const TokenEstimateDisplay = ({ estimatedTokens, defaultModel }) => {
   if (!estimatedTokens || estimatedTokens === "0") {
     return null;
   }
+
+  const modelTokensLimit = modelAccordingToProvider(defaultModel).tokensLimit;
 
   return (
     <div className="estimate-tokens">
@@ -30,11 +31,11 @@ const TokenEstimateDisplay = ({ estimatedTokens, defaultModel }) => {
         <div>
           Estimated context tokens: {estimatedTokens.toLocaleString()}
           {insertEstimatedCost()}
-          {tokensLimit[defaultModel] &&
-            parseInt(estimatedTokens) > tokensLimit[defaultModel] && (
+          {modelTokensLimit &&
+            parseInt(estimatedTokens) > modelTokensLimit && (
               <div style={{ color: "red", fontSize: "smaller" }}>
                 Context window for this model is{" "}
-                {tokensLimit[defaultModel].toLocaleString()}.
+                {modelTokensLimit.toLocaleString()}.
               </div>
             )}
         </div>

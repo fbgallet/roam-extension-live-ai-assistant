@@ -12,10 +12,7 @@ import { StoredQuery } from "./utils/queryStorage";
 import { UnifiedQuery } from "./types/QueryTypes";
 import QueryComposer from "./QueryComposer";
 import DirectContentSelector from "./DirectContentSelector";
-import {
-  UnifiedQueryRenderer,
-  StoredQueryRenderer,
-} from "./QueryRenderer";
+import { UnifiedQueryRenderer, StoredQueryRenderer } from "./QueryRenderer";
 import "./style/queryManager.css";
 import "./style/queryRenderer.css";
 import { useQueryManager } from "./hooks/useQueryManager";
@@ -989,7 +986,9 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                               style={{ marginRight: 4 }}
                             />
                           )}
-                          {pageSelection.title}
+                          {pageSelection.title.length > 30 // Limit arbitrarily set at approximately 12,500 tokens (for English)
+                            ? pageSelection.title.substring(0, 30) + "..."
+                            : pageSelection.title}
                           {pageSelection.dnpPeriod && (
                             <span style={{ opacity: 0.7, fontSize: "11px" }}>
                               {" "}
