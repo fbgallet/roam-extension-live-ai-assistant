@@ -412,10 +412,7 @@ export function modelAccordingToProvider(model) {
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
-    if (
-      model.startsWith("o") ||
-      (model.includes("gpt-5") && model !== "gpt-5 (not reasoning)")
-    ) {
+    if (model.startsWith("o") || model.includes("gpt-5")) {
       llm.thinking = true;
     }
     if (model.includes("search")) {
@@ -433,6 +430,7 @@ export function modelAccordingToProvider(model) {
     ) {
       llm.id = "gpt-5-chat-latest";
       llm.name = "gpt-5 (not reasoning)";
+      llm.thinking = false;
     } else llm.id = model || "gpt-4.1-mini";
     llm.library = openaiLibrary;
   }

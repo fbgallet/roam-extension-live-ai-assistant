@@ -1727,14 +1727,19 @@ export default FullResultsPopup;
 
 // Shared utility function for opening last Ask Your Graph results
 // Used by both command palette and context menu
-export const openLastAskYourGraphResults = () => {
+export const openLastAskYourGraphResults = async () => {
   const lastResults = (window as any).lastAskYourGraphResults || [];
+
+  // Get the CURRENT page UID (not the stored one from when query was originally run)
+  const { getMainViewUid } = await import("../../utils/roamAPI.js");
+  const currentPageUid = await getMainViewUid();
 
   // Import and use the popup function - open even with empty results
   import("../Toaster.js")
     .then(({ openFullResultsPopup }) => {
       if (openFullResultsPopup) {
-        const targetUid = (window as any).lastAgentResponseTargetUid || null;
+        // Use current page UID so DirectContentSelector shows the actual current page
+        const targetUid = currentPageUid || null;
         // Only use window query state if there are actual results, otherwise use null
         // This prevents stale query state from appearing when opening popup fresh
         const hasActualResults = lastResults && lastResults.length > 0;

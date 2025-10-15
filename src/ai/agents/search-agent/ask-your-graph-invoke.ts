@@ -135,7 +135,9 @@ const invokeSearchAgentInternal = async ({
   const modeInfo = getModeInfo(privateMode, permissions);
 
   // Only show toaster if not in chat mode within popup AND not in forcePopupOnly mode
-  const shouldSuppressToaster = (isPopupExecution && agentData?.isConversationMode) || agentData?.forcePopupOnly;
+  const shouldSuppressToaster =
+    (isPopupExecution && agentData?.isConversationMode) ||
+    agentData?.forcePopupOnly;
 
   if (!shouldSuppressToaster) {
     initializeAgentToaster(
@@ -892,14 +894,20 @@ const invokeSearchAgentInternal = async ({
 
           // Import and open the popup automatically (unless called from query composer OR composed query execution)
           // Don't open popup for composed query sub-executions (they aggregate results elsewhere)
-          if (rootUid !== "query-composer" && !rootUid.startsWith("composed-")) {
+          if (
+            rootUid !== "query-composer" &&
+            !rootUid.startsWith("composed-")
+          ) {
             import("../../../components/Toaster.js")
               .then(({ openFullResultsPopup }) => {
                 if (openFullResultsPopup) {
                   const userQuery = response?.userQuery || finalPrompt;
-                  const forceOpenChat = userQuery?.startsWith("all linked references of [[") || false;
+                  const forceOpenChat =
+                    userQuery?.startsWith("all linked references of [[") ||
+                    false;
                   // Get intentParserResult from window (was set at line 849)
-                  const intentParserResult = (window as any).lastIntentParserResult;
+                  const intentParserResult = (window as any)
+                    .lastIntentParserResult;
                   openFullResultsPopup(
                     fullResults,
                     response?.targetUid,
@@ -914,7 +922,9 @@ const invokeSearchAgentInternal = async ({
                 console.error("Failed to open FullResultsPopup:", error);
               });
           } else {
-            console.log("🔧 [Skip popup] Called from query composer or composed query execution");
+            console.log(
+              "🔧 [Skip popup] Called from query composer or composed query execution"
+            );
           }
 
           // Return early to skip conversation buttons and Roam block insertion
@@ -1208,7 +1218,9 @@ export const invokeCurrentPageReferences = async ({
   target?: string;
 }) => {
   // Import necessary functions
-  const { getMainPageUid, getPageNameByPageUid } = await import("../../../utils/roamAPI");
+  const { getMainPageUid, getPageNameByPageUid } = await import(
+    "../../../utils/roamAPI"
+  );
 
   try {
     // Get current page information
@@ -1240,7 +1252,9 @@ export const invokeCurrentPageReferences = async ({
       queryComplexity: "simple" as const,
       strategicGuidance: {
         approach: "single_search" as const,
-        recommendedSteps: [`Search for all blocks that reference [[${pageName}]]`],
+        recommendedSteps: [
+          `Search for all blocks that reference [[${pageName}]]`,
+        ],
       },
       language: "English",
       confidence: 1.0,
@@ -1268,41 +1282,65 @@ export const invokeCurrentPageReferences = async ({
 
     // OPTIMIZATION: For simple ref queries, bypass the entire agent and call the tool directly
     if (formalQuery.match(/^ref:[^:]+$/)) {
-      console.log(`🚀 [invokeCurrentPageReferences] Direct tool execution for: ${formalQuery}`);
+      console.log(
+        `🚀 [invokeCurrentPageReferences] Direct tool execution for: ${formalQuery}`
+      );
 
       // Import the tool directly
-      const { findBlocksByContentImpl } = await import("./tools/findBlocksByContent/findBlocksByContentTool");
+      const { findBlocksByContentImpl } = await import(
+        "./tools/findBlocksByContent/findBlocksByContentTool"
+      );
 
       try {
         // Extract page name from ref:PageName
-        const pageName = formalQuery.replace('ref:', '');
+        const pageName = formalQuery.replace("ref:", "");
 
         // Call the tool directly with optimal parameters
         const toolResult = await findBlocksByContentImpl({
-          conditions: [{ type: 'page_ref', text: pageName }],
-          combineConditions: 'AND',
+          conditions: [{ type: "page_ref", text: pageName }],
+          combineConditions: "AND",
           includeChildren: false,
           includeParents: false,
           includeDaily: true,
           dailyNotesOnly: false,
-          sortBy: 'relevance',
-          sortOrder: 'desc',
+          sortBy: "relevance",
+          sortOrder: "desc",
           limit: 3000,
-          resultMode: 'uids_only',
+          resultMode: "uids_only",
           secureMode: true, // Force secure mode for popup
           userQuery: userQuery,
           excludeBlockUid: effectiveRootUid, // Exclude the context block
         });
 
+        // Add the current page itself to the results
+        // This allows users to easily add the current page via DirectContentSelector
+        if (toolResult.results && currentPageUid) {
+          const currentPageResult = {
+            uid: currentPageUid,
+            pageUid: currentPageUid,
+            pageTitle: pageName,
+            isPage: true,
+            // Note: content will be loaded on demand by the popup
+          };
+
+          // Add to beginning of results array
+          toolResult.results = [...toolResult.results, currentPageResult];
+        }
+
         // Import and open the popup directly (unless called from query composer)
         if (rootUid !== "query-composer") {
-          const { openFullResultsPopup } = await import("../../../components/Toaster.js");
+          const { openFullResultsPopup } = await import(
+            "../../../components/Toaster.js"
+          );
           if (openFullResultsPopup && toolResult.results) {
             // Get intentParserResult from window if available
             const intentParserResult = (window as any).lastIntentParserResult;
+
+            // IMPORTANT: Pass currentPageUid as targetUid so the popup can properly populate currentPageContext
+            // This allows the DirectContentSelector to show "Current Page" option
             openFullResultsPopup(
               toolResult.results,
-              null, // No targetUid for direct tool execution
+              currentPageUid, // Pass current page UID for proper context
               userQuery,
               formalQuery,
               true, // Force open chat
@@ -1310,7 +1348,9 @@ export const invokeCurrentPageReferences = async ({
             );
           }
         } else {
-          console.log("🔧 [QueryComposer] Skipping popup opening - called from query composer (direct tool execution)");
+          console.log(
+            "🔧 [QueryComposer] Skipping popup opening - called from query composer (direct tool execution)"
+          );
         }
 
         // Return a minimal response object
@@ -1333,7 +1373,10 @@ export const invokeCurrentPageReferences = async ({
           toolResults: toolResult,
         };
       } catch (toolError) {
-        console.warn("Direct tool execution failed, falling back to agent:", toolError);
+        console.warn(
+          "Direct tool execution failed, falling back to agent:",
+          toolError
+        );
         // Fall through to normal agent execution if direct tool call fails
       }
     }

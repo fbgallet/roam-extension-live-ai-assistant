@@ -189,62 +189,62 @@
 }
 
 /* Dark theme support */
-.bp5-dark .query-renderer-details {
+.bp3-dark .query-renderer-details {
   background-color: #30404d;
   border-left-color: #5c7080;
 }
 
-.bp5-dark .query-renderer-label {
+.bp3-dark .query-renderer-label {
   color: #a7b6c2;
 }
 
-.bp5-dark .query-renderer-formal {
+.bp3-dark .query-renderer-formal {
   color: #a7b6c2;
 }
 
-.bp5-dark .query-metadata-item {
+.bp3-dark .query-metadata-item {
   color: #8a9ba8;
 }
 
-.bp5-dark .composition-mode {
+.bp3-dark .composition-mode {
   background-color: #30404d;
   border-color: #5c7080;
 }
 
-.bp5-dark .active-query-section {
+.bp3-dark .active-query-section {
   background-color: #394b59;
   border-left-color: #48aff0;
 }
 
-.bp5-dark .loaded-query-section {
+.bp3-dark .loaded-query-section {
   background-color: #30404d;
   border-left-color: #a7b6c2;
 }
 
-.bp5-dark .section-header {
+.bp3-dark .section-header {
   color: #f5f8fa;
 }
 
-.bp5-dark .composition-actions {
+.bp3-dark .composition-actions {
   background-color: #394b59;
   border-color: #5c7080;
 }
 
-.bp5-dark .query-step {
+.bp3-dark .query-step {
   background-color: #394b59;
   border-left-color: #5c7080;
 }
 
-.bp5-dark .page-selection {
+.bp3-dark .page-selection {
   background-color: #3d3613;
   border-left-color: #d69e2e;
 }
 
-.bp5-dark .query-plus {
+.bp3-dark .query-plus {
   color: #a7b6c2;
 }
 
-.bp5-dark .query-manager-query-content.user-query {
+.bp3-dark .query-manager-query-content.user-query {
   border-left: 4px solid #48aff0;
   background: rgba(72, 175, 240, 0.15);
 }
@@ -257,7 +257,7 @@
   border-radius: 3px;
 }
 
-.bp5-dark .current-query-preview {
+.bp3-dark .current-query-preview {
   background: rgba(72, 175, 240, 0.08);
 }
 
@@ -328,29 +328,29 @@
   font-size: 11px;
 }
 
-.bp5-dark .query-progress-tracker {
+.bp3-dark .query-progress-tracker {
   background: linear-gradient(135deg, #3d3325 0%, #332a1f 100%);
   border-left-color: #d9822b;
 }
 
-.bp5-dark .query-progress-message {
+.bp3-dark .query-progress-message {
   color: #ffa940;
   border-bottom-color: rgba(217, 130, 43, 0.3);
 }
 
-.bp5-dark .query-progress-title {
+.bp3-dark .query-progress-title {
   color: #ffa940;
 }
 
-.bp5-dark .query-progress-status {
+.bp3-dark .query-progress-status {
   color: #d0b694;
 }
 
-.bp5-dark .query-progress-status strong {
+.bp3-dark .query-progress-status strong {
   color: #ffa940;
 }
 
-.bp5-dark .query-progress-count {
+.bp3-dark .query-progress-count {
   background-color: rgba(217, 130, 43, 0.25);
   color: #ffa940;
 }
@@ -388,16 +388,16 @@
   color: #394b59;
 }
 
-.bp5-dark .query-composer-header {
+.bp3-dark .query-composer-header {
   background: #30404d;
   border-bottom-color: #5c7080;
 }
 
-.bp5-dark .query-composer-header:hover {
+.bp3-dark .query-composer-header:hover {
   background: #394b59;
 }
 
-.bp5-dark .query-composer-header h6 {
+.bp3-dark .query-composer-header h6 {
   color: #d8e1e8;
 }
 
@@ -441,6 +441,6 @@
   margin-right: 4px;
 }
 
-.bp5-dark .editable-query-text {
+.bp3-dark .editable-query-text {
   color: #f5f8fa;
 }

@@ -28,6 +28,11 @@ import {
   getBlockAndChildrenContent,
   detectDNPDistribution,
 } from "../utils/resultProcessing";
+import {
+  getPageUidByBlockUid,
+  getPageNameByPageUid,
+  getMainViewUid,
+} from "../../../utils/roamAPI.js";
 import { getSelectedResultsList } from "../utils/chatHelpers";
 import { defaultModel, extensionStorage } from "../../..";
 import { handleDirectContentAdd as directContentHandler } from "../utils/directContentHandler";
@@ -223,24 +228,18 @@ export const useFullResultsState = (
       try {
         // First priority: Use targetUid if it represents a page context
         if (targetUid) {
-          // Import helper function to determine if targetUid is a page
-          const { getPageUidByBlockUid } = await import(
-            "../../../utils/roamAPI.js"
-          );
-
           // Check if targetUid is itself a page UID or get its page
           const pageUidFromTarget = getPageUidByBlockUid(targetUid);
           if (pageUidFromTarget) {
             pageUid = pageUidFromTarget;
-            pageTitle =
-              window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(pageUid) ||
-              null;
+            pageTitle = getPageNameByPageUid(pageUid);
+            if (pageTitle === "undefined") pageTitle = null;
           } else {
             // targetUid might be a page UID itself
-            pageTitle =
-              window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(targetUid) ||
-              null;
-            if (pageTitle) {
+            pageTitle = getPageNameByPageUid(targetUid);
+            if (pageTitle === "undefined") {
+              pageTitle = null;
+            } else {
               pageUid = targetUid;
             }
           }
@@ -248,21 +247,15 @@ export const useFullResultsState = (
 
         // Second priority: Use currently opened page if no valid targetUid context
         if (!pageUid || !pageTitle) {
-          const currentOpenUid =
-            window.roamAlphaAPI?.ui?.mainWindow?.getOpenPageOrBlockUid?.();
+          // Await the async call to get the current open UID
+          const currentOpenUid = await getMainViewUid();
           if (currentOpenUid) {
-            // Import helper to get page UID from potentially block UID
-            const { getPageUidByBlockUid } = await import(
-              "../../../utils/roamAPI.js"
-            );
-
             // Get the actual page UID (in case currentOpenUid is a block UID)
             const actualPageUid =
               getPageUidByBlockUid(currentOpenUid) || currentOpenUid;
-            const actualPageTitle =
-              window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(actualPageUid);
+            const actualPageTitle = getPageNameByPageUid(actualPageUid);
 
-            if (actualPageTitle) {
+            if (actualPageTitle && actualPageTitle !== "undefined") {
               pageUid = actualPageUid;
               pageTitle = actualPageTitle;
             }

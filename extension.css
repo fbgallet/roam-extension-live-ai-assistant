@@ -8,6 +8,14 @@
 
 /* SETTINGS */
 
+#context-menu-container {
+  position: absolute;
+  z-index: 0;
+}
+#full-results-popup-container {
+  z-index: 0;
+}
+
 .rm-settings .liveai-settings-smallinput > input[type="text"] {
   min-width: 50px;
   width: 80px;
@@ -1668,13 +1676,13 @@
 }
 
 /* Ensure Blueprint popovers appear above modal overlay */
-.bp3-popover2 {
+/* .bp3-popover2 {
   z-index: 10000 !important;
 }
 
 .bp3-overlay {
   z-index: 10000 !important;
-}
+} */
 
 /* Simple custom dropdown styling */
 .full-results-simple-dropdown {
@@ -2116,13 +2124,13 @@
   z-index: 2000000 !important; /* Much higher than full-results modal */
 }
 
-.references-filter-portal .bp4-popover {
+.references-filter-portal .bp3-popover {
   z-index: 2000001 !important;
   max-height: 500px;
   overflow: hidden;
 }
 
-.references-filter-portal .bp4-popover-content {
+.references-filter-portal .bp3-popover-content {
   z-index: 2000002 !important;
 }
 
@@ -2238,7 +2246,7 @@
   font-weight: 500;
 }
 
-.reference-button.daily-notes-button .bp4-icon {
+.reference-button.daily-notes-button .bp3-icon {
   margin-right: 2px;
 }
 
@@ -2307,37 +2315,37 @@
 }
 
 /* Additional z-index overrides for the popover */
-.bp4-portal .bp4-popover.references-filter-popover-container {
+/* .bp3-portal .bp3-popover.references-filter-popover-container {
   z-index: 2000003 !important;
 }
 
-.bp4-portal .bp4-popover-content {
+.bp3-portal .bp3-popover-content {
   z-index: 2000004 !important;
-}
+} */
 
 /* Target any Blueprint popover that contains our filter content */
-.bp4-popover:has(.roam-references-filter-popover) {
+/* .bp3-popover:has(.roam-references-filter-popover) {
   z-index: 2000005 !important;
-}
+} */
 
 /* Fallback for browsers that don't support :has() */
-.bp4-popover[data-popover-content*="roam-references-filter"] {
+/* .bp3-popover[data-popover-content*="roam-references-filter"] {
   z-index: 2000005 !important;
-}
+} */
 
 /* Target the specific popover overlay class */
-.references-filter-popover-overlay {
+/* .references-filter-popover-overlay {
   z-index: 2000010 !important;
 }
 
-.references-filter-popover-overlay .bp4-popover-content {
+.references-filter-popover-overlay .bp3-popover-content {
   z-index: 2000011 !important;
-}
+} */
 
 /* Global override for any Blueprint popover in portal */
-body > .bp4-portal > .bp4-popover {
+/* body > .bp3-portal > .bp3-popover {
   z-index: 2000012 !important;
-}
+} */
 
 /* Fix overflow issue - allow popover to show outside modal bounds */
 .full-results-modal:has(.references-filter-trigger) {
@@ -2384,7 +2392,7 @@ body > .bp4-portal > .bp4-popover {
   font-size: 12px;
 }
 
-.full-results-per-page-compact .bp4-html-select select {
+.full-results-per-page-compact .bp3-html-select select {
   font-size: 12px;
   padding: 2px 20px 2px 6px;
   min-height: 24px;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Button, Icon, Tag, NumericInput } from "@blueprintjs/core";
 import { MultiSelect, ItemRenderer, Select } from "@blueprintjs/select";
 
@@ -71,39 +71,33 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
     return matchingOption ? matchingOption.value : "Custom";
   });
 
-  // Get current page title from context or fallback to live API
+  // Get current page title from context
   const getCurrentPageTitle = (): string | null => {
-    // First priority: Use provided context from popup state
     if (currentPageContext?.title) {
+      console.log("✅ [DirectContentSelector] Using currentPageContext:", currentPageContext);
       return currentPageContext.title;
     }
 
-    // Fallback: Live API call (for edge cases)
-    try {
-      const currentPageUid =
-        window.roamAlphaAPI?.ui?.mainWindow?.getOpenPageOrBlockUid?.();
-      if (!currentPageUid) return null;
-
-      const currentPageTitle =
-        window.roamAlphaAPI?.util?.getPageTitleByPageUid?.(currentPageUid);
-      return currentPageTitle || null;
-    } catch {
-      return null;
-    }
+    console.warn("⚠️ [DirectContentSelector] No currentPageContext provided");
+    return null;
   };
 
   // Create page options combining special options with available pages
-  const createPageOptions = (): PageOption[] => {
+  // Use useMemo to re-create options when currentPageContext or availablePages change
+  const pageOptions = useMemo(() => {
     const currentPageTitle = getCurrentPageTitle();
     const specialOptions: PageOption[] = [];
 
     // Only add "Current Page" if we have a current page
     if (currentPageTitle) {
+      console.log("✅ [DirectContentSelector] Adding 'Current Page' option:", currentPageTitle);
       specialOptions.push({
         value: "current",
         label: `Current Page: ${currentPageTitle}`,
         isSpecial: true,
       });
+    } else {
+      console.warn("⚠️ [DirectContentSelector] No current page title - 'Current Page' option not added");
     }
 
     specialOptions.push({
@@ -112,16 +106,22 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
       isSpecial: true,
     });
 
-    const pageOptions: PageOption[] = availablePages.map((page) => ({
+    const regularPageOptions: PageOption[] = availablePages.map((page) => ({
       value: page,
       label: page,
       isSpecial: false,
     }));
 
-    return [...specialOptions, ...pageOptions];
-  };
+    console.log("📋 [DirectContentSelector] Page options created:", {
+      specialOptionsCount: specialOptions.length,
+      regularPagesCount: regularPageOptions.length,
+      totalOptions: specialOptions.length + regularPageOptions.length,
+      hasCurrentPage: !!currentPageTitle,
+      currentPageContext,
+    });
 
-  const pageOptions = createPageOptions();
+    return [...specialOptions, ...regularPageOptions];
+  }, [currentPageContext, availablePages]); // Re-create when these change
 
   // Blueprint Select item renderer
   const renderPageOption: ItemRenderer<PageOption> = (
@@ -243,7 +243,7 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
             selectedItems={getSelectedPageOptions()}
             popoverProps={{
               minimal: true,
-              position: "bottom-left",
+              position: "bottom-right",
             }}
             fill={true}
             placeholder="Select pages..."
@@ -251,7 +251,13 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
             resetOnSelect={true}
             className="direct-content-page-multiselect"
             tagInputProps={{
-              onRemove: handlePageRemove,
+              onRemove: (_value: React.ReactNode, index: number) => {
+                // Extract the actual page value from selectedPages by index
+                const pageToRemove = selectedPages[index];
+                if (pageToRemove) {
+                  handlePageRemove(pageToRemove);
+                }
+              },
               disabled: isAddingDirectContent,
               tagProps: (value: string) => {
                 const pageOption = pageOptions.find(
