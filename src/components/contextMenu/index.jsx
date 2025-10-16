@@ -917,14 +917,15 @@ export const StandaloneContextMenu = () => {
         : items.find((cmd) => cmd.id === 0);
       customCommand.prompt = query + ":\n";
       filteredItems.push(customCommand);
-      // display a selectin of commands that can handle a custom basic content
+      // display a selection of commands that can handle a custom basic content
       if (!rootUid) {
         const commandsToApplyToCustomPrompt = items.filter(
           (cmd) =>
             cmd.id === 11 ||
             cmd.id === 154 ||
             cmd.id === 1460 ||
-            cmd.name === "Web search"
+            cmd.name === "Web search" ||
+            cmd.name === "Fetch URL (with Claude)"
           // cmd.category === "QUERY AGENTS"
         );
         commandsToApplyToCustomPrompt.forEach((cmd) => {

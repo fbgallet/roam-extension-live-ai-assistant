@@ -51,6 +51,7 @@ export const handleBasicCommand = async ({
     command.id === 10 ||
     command.id === 100 ||
     command.name === "Web search" ||
+    command.id === 191 || // Fetch URL
     command.isCompletionOnly ||
     (!rootUid && command.id !== 20 && command.id !== 21) ||
     (rootUid &&

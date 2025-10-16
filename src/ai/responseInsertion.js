@@ -11,6 +11,7 @@ import {
   extensionStorage,
   uidsInPrompt,
   isTitleToAdd,
+  ANTHROPIC_API_KEY,
 } from "..";
 import {
   addContentToBlock,
@@ -191,7 +192,7 @@ export const aiCompletionRunner = async ({
   isButtonToInsert = true,
   forceNotInConversation = false,
 }) => {
-  const withAssistantRole = target === "new" ? true : false;
+  let withAssistantRole = target === "new" ? true : false;
 
   // console.log("prompt in aiCompletionRunner :>> ", prompt);
   console.log("roamContext in aiCompletionRunner :>> ", roamContext);
@@ -205,6 +206,21 @@ export const aiCompletionRunner = async ({
     if (!instantModel) instantModel = extensionStorage.get("webModel");
     command = "Web search";
     prompt = "";
+  }
+
+  if (prompt === "Fetch url") {
+    if (!ANTHROPIC_API_KEY) {
+      AppToaster.show({
+        message: `An Anthropic API key is needed for the fetch API feature`,
+        timeout: 10000,
+      });
+      return;
+    }
+    instantModel = "claude-haiku-4-5-20251001";
+    command = "Fetch url";
+    prompt = "";
+    target = "new w/o";
+    withAssistantRole = false;
   }
 
   // console.log("includeUids from aiCompletionRunner :>> ", includeUids);

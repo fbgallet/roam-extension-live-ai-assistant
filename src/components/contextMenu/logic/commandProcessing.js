@@ -218,7 +218,7 @@ export const handleClickOnCommand = async ({
   if (!prompt && command.category !== "CUSTOM PROMPTS") {
     prompt = command.prompt
       ? completionCommands[command.prompt]
-      : command.id !== 19
+      : command.id !== 19 && command.id !== 191
       ? ""
       : command.prompt;
     if (command.customPrompt)
@@ -235,7 +235,8 @@ export const handleClickOnCommand = async ({
   }
   if (
     (command.id === 11 || Math.floor(command.id / 100) === 11) &&
-    command.id !== 19
+    command.id !== 19 &&
+    command.id !== 191
   ) {
     const selectedLgg =
       command.id === 11
@@ -250,7 +251,7 @@ export const handleClickOnCommand = async ({
     prompt = prompt.replace("<language>", selectedLgg);
   }
 
-  if (command.id === 19) prompt = command.prompt;
+  if (command.id === 19 || command.id === 191) prompt = command.prompt;
 
   let conversationStyle;
   if (command.name === "Continue the conversation") {
@@ -470,6 +471,7 @@ export const handleClickOnCommand = async ({
     command.id === 10 ||
     command.id === 100 ||
     command.name === "Web search" ||
+    command.id === 191 || // Fetch url
     isCompletionOnly ||
     (!rootUid && command.id !== 20 && command.id !== 21) ||
     (rootUid &&

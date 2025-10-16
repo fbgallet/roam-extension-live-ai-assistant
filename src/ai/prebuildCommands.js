@@ -67,6 +67,18 @@ export const BUILTIN_COMMANDS = [
       outliner: true,
     },
   },
+  {
+    id: 191,
+    name: "Fetch URL (with Claude)",
+    icon: "globe-network",
+    category: "",
+    prompt: "Fetch url",
+    includeUids: false,
+    isSub: true,
+    isIncompatibleWith: {
+      outliner: false,
+    },
+  },
   // OUTLINER AGENT COMMANDS
   {
     id: 2,

@@ -512,6 +512,13 @@ export async function claudeCompletion({
               },
             ].concat(prompt);
       let thinkingToaster;
+      const headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+
+        "content-type": "application/json",
+        "anthropic-dangerous-direct-browser-access": "true",
+      };
       const options = {
         max_tokens:
           model.includes("sonnet") ||
@@ -528,19 +535,21 @@ export async function claudeCompletion({
       if (streamResponse && responseFormat === "text") options.stream = true;
 
       let isUrlToFetch;
-      if (urlRegex.test(JSON.stringify(prompt))) {
+      if (command === "Fetch url" || urlRegex.test(JSON.stringify(prompt))) {
         options.tools = [
           {
             type: "web_fetch_20250910",
             name: "web_fetch",
             max_uses: 5,
-            citations: { enabled: true },
+            citations: { enabled: command === "Fetch url" ? false : true },
           },
         ];
         isUrlToFetch = true;
+        headers["anthropic-beta"] = "web-fetch-2025-09-10";
       }
+      if (command === "Fetch url") options.stream = false;
 
-      if (command === "Web search")
+      if (command === "Web search") {
         options.tools = [
           {
             type: "web_search_20250305",
@@ -554,7 +563,8 @@ export async function claudeCompletion({
             citations: { enabled: True },
           },
         ];
-      else if (command === "MCP Agent") {
+        headers["anthropic-beta"] = "web-fetch-2025-09-10";
+      } else if (command === "MCP Agent") {
         options.tools = tools;
       }
 
@@ -604,13 +614,7 @@ export async function claudeCompletion({
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: {
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "web-fetch-2025-09-10",
-          "content-type": "application/json",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
+        headers,
         body: JSON.stringify(options),
       });
 
@@ -667,7 +671,7 @@ export async function claudeCompletion({
                     const text = data.delta.text;
                     respStr += text;
                     streamElt.innerHTML += DOMPurify.sanitize(text);
-                  } else if (data.delta.type === "thinking_delta") {
+                  } else if (data.delta?.type === "thinking_delta") {
                     if (thinkingToasterStream)
                       thinkingToasterStream.innerText += data.delta.thinking;
                   } else if (data.delta?.type === "citations_delta") {
@@ -696,7 +700,9 @@ export async function claudeCompletion({
                   if (citations.length - 1 > lastCitationIndex) {
                     const cit =
                       citations.length && citations[++lastCitationIndex];
-                    const src = ` ([source](${cit.url}))`;
+                    const src = cit.cited_text
+                      ? ` \n  - > "${cit.cited_text.replaceAll("\n", " ")}"`
+                      : ` ([source](${cit.url}))`;
                     respStr = respStr.trim() + src;
                   }
                 }
@@ -716,8 +722,8 @@ export async function claudeCompletion({
           });
           return "";
         } finally {
-          // console.log("citations :>> ", citations);
-          if (citations.length) {
+          console.log("citations :>> ", citations);
+          if (citations.length && citations.find((cit) => cit.url)) {
             respStr += "\n\nWeb sources:\n";
             citations.forEach((cit) => {
               respStr += `  - [${cit.title}](${cit.url})\n`;
@@ -731,7 +737,26 @@ export async function claudeCompletion({
         }
       } else {
         const data = await response.json();
-        respStr = data.content[0].text;
+        // console.log("data :>> ", data);
+        if (command === "Fetch url") {
+          let fetchedData = data.content.find(
+            (res) => res.type === "web_fetch_tool_result"
+          );
+          if (fetchedData) {
+            if (fetchedData.content.error_code) {
+              respStr =
+                "⚠️ Error: " +
+                fetchedData.content.error_code +
+                "\n" +
+                (data.content.at(-1).text || "");
+            } else
+              respStr =
+                "### " +
+                fetchedData.content.content.title +
+                "\n" +
+                fetchedData.content.content.source.data;
+          } else return "No data to fetch from url";
+        } else respStr = data.content[0].text;
         if (data.usage) {
           usage["input_tokens"] = data.usage["input_tokens"];
           usage["output_tokens"] = data.usage["output_tokens"];
