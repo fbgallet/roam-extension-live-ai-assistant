@@ -49,7 +49,7 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
-import { pdfLinkRegex, roamImageRegex } from "../utils/regex";
+import { pdfLinkRegex, roamImageRegex, urlRegex } from "../utils/regex";
 import { AppToaster, displayThinkingToast } from "../components/Toaster";
 import {
   getFormatedPdfRole,
@@ -524,7 +524,22 @@ export async function claudeCompletion({
         model: thinking ? model.replace("+thinking", "") : model,
         messages,
       };
-      // console.log("command :>> ", command);
+      if (modelTemperature !== null) options.temperature = modelTemperature;
+      if (streamResponse && responseFormat === "text") options.stream = true;
+
+      let isUrlToFetch;
+      if (urlRegex.test(JSON.stringify(prompt))) {
+        options.tools = [
+          {
+            type: "web_fetch_20250910",
+            name: "web_fetch",
+            max_uses: 5,
+            citations: { enabled: true },
+          },
+        ];
+        isUrlToFetch = true;
+      }
+
       if (command === "Web search")
         options.tools = [
           {
@@ -532,21 +547,17 @@ export async function claudeCompletion({
             name: "web_search",
             max_uses: 5,
           },
+          {
+            type: "web_fetch_20250910",
+            name: "web_fetch",
+            max_uses: 5,
+            citations: { enabled: True },
+          },
         ];
       else if (command === "MCP Agent") {
         options.tools = tools;
       }
 
-      if (
-        model.includes("3-7") ||
-        model.includes("3.7") ||
-        model.includes("-4")
-      ) {
-        options.max_tokens = model.toLowerCase().includes("opus")
-          ? 32000
-          : 64000;
-        // options.betas = ["output-128k-2025-02-19"];
-      }
       if (thinking) {
         options.thinking = {
           type: "enabled",
@@ -564,9 +575,6 @@ export async function claudeCompletion({
         input_tokens: 0,
         output_tokens: 0,
       };
-      // if (content) options.system = content;
-      if (modelTemperature !== null) options.temperature = modelTemperature;
-      if (streamResponse && responseFormat === "text") options.stream = true;
 
       // No data is stored on the server or displayed in any log
       // const { data } = await axios.post(
@@ -575,7 +583,7 @@ export async function claudeCompletion({
       // );
       // See server code here: https://github.com/fbgallet/ai-api-back
 
-      if (isModelSupportingImage(model)) {
+      if (!isUrlToFetch && isModelSupportingImage(model)) {
         if (
           pdfLinkRegex.test(JSON.stringify(prompt)) ||
           pdfLinkRegex.test(content)
@@ -599,8 +607,7 @@ export async function claudeCompletion({
         headers: {
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
-          "anthropic-beta":
-            "output-128k-2025-02-19,token-efficient-tools-2025-02-19",
+          "anthropic-beta": "web-fetch-2025-09-10",
           "content-type": "application/json",
           "anthropic-dangerous-direct-browser-access": "true",
         },
@@ -613,7 +620,7 @@ export async function claudeCompletion({
       let respStr = "";
       // console.log("response :>> ", response);
 
-      if (streamResponse && responseFormat === "text") {
+      if (options.stream && streamResponse && responseFormat === "text") {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let streamEltCopy = "";
