@@ -93,7 +93,7 @@ const ModelsMenu = ({
     return (
       <>
         <MenuItem
-          icon={defaultModel === "gpt-4o-mini-search" && "pin"}
+          icon={defaultModel === "gpt-5-search-api" && "pin"}
           onClick={(e) => {
             handleClickOnModel(e);
           }}
@@ -102,7 +102,7 @@ const ModelsMenu = ({
           }}
           onContextMenu={(e) => handleContextMenu(e)}
           tabindex="0"
-          text="gpt-4o-mini-search"
+          text="gpt-5-search-api"
           labelElement="128k"
         />
         <MenuItem
@@ -116,6 +116,19 @@ const ModelsMenu = ({
           onContextMenu={(e) => handleContextMenu(e)}
           tabindex="0"
           text="gpt-4o-search"
+          labelElement="128k"
+        />
+        <MenuItem
+          icon={defaultModel === "gpt-4o-mini-search" && "pin"}
+          onClick={(e) => {
+            handleClickOnModel(e);
+          }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e);
+          }}
+          onContextMenu={(e) => handleContextMenu(e)}
+          tabindex="0"
+          text="gpt-4o-mini-search"
           labelElement="128k"
         />
       </>

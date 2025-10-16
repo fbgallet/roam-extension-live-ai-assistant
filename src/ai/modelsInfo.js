@@ -15,6 +15,7 @@ export const getAvailableModels = (provider) => {
         "gpt-5-mini",
         "gpt-5",
         "gpt-5-chat-latest",
+        "gpt-5-search-api",
         "gpt-4.1-nano",
         "gpt-4.1-mini",
         "gpt-4.1",
@@ -57,6 +58,7 @@ export const tokensLimit = {
   "gpt-5-chat-latest": 400000,
   "gpt-5-mini": 400000,
   "gpt-5-nano": 400000,
+  "gpt-5-search-api": 128000,
   "gpt-4.1-nano": 1047576,
   "gpt-4.1-mini": 1047576,
   "gpt-4.1": 1047576,
@@ -109,6 +111,10 @@ export const modelsPricing = {
     output: 10,
   },
   "gpt-5-chat-latest": {
+    input: 1.25,
+    output: 10,
+  },
+  "gpt-5-search-api": {
     input: 1.25,
     output: 10,
   },
@@ -244,6 +250,7 @@ export const modelsPricing = {
 };
 
 export const additionalPricingPerRequest = {
+  "gpt-5-search-api": 0.01,
   "gpt-4o-mini-search-preview-low": 0.025,
   "gpt-4o-mini-search-preview-medium": 0.0275,
   "gpt-4o-mini-search-preview-high": 0.03,

@@ -414,17 +414,22 @@ export function modelAccordingToProvider(model) {
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
-    if (model.startsWith("o") || model.includes("gpt-5")) {
+    if (
+      model.startsWith("o") ||
+      (model.includes("gpt-5") &&
+        !model.includes("chat") &&
+        !model.includes("search"))
+    ) {
       llm.thinking = true;
     }
     if (model.includes("search")) {
       llm.web = true;
+      llm.id = model;
+      llm.name = model;
       if (model.includes("-preview")) {
-        llm.id = model;
         llm.name = model.replace("-preview", "");
-      } else {
+      } else if (!model.includes("gpt-5")) {
         llm.id = model + "-preview";
-        llm.name = model;
       }
     } else if (
       model === "gpt-5-chat-latest" ||
@@ -833,10 +838,10 @@ export async function openaiCompletion({
     if (
       model.includes("o3") ||
       model.includes("o4") ||
-      (model.includes("gpt-5") && model !== "gpt-5-chat-latest")
+      (model.includes("gpt-5") &&
+        model !== "gpt-5-chat-latest" &&
+        model !== "gpt-5-search-api")
     ) {
-      console.log("HERE", reasoningEffort);
-
       if (withPdf) options["reasoning"] = { effort: reasoningEffort };
       else options["reasoning_effort"] = reasoningEffort;
     }
@@ -847,10 +852,13 @@ export async function openaiCompletion({
       (model.includes("gpt") || model.includes("o1") || model.includes("o3"))
     )
       options.temperature = 1.3;
-    if (model.includes("-search-preview"))
-      options.web_search_options = {
-        search_context_size: websearchContext,
-      };
+
+    // search_context_size seems deprecated
+    // if (model.includes("-search-preview") || model.includes("-search-api"))
+    //   options.web_search_options = {
+    //     search_context_size: websearchContext,
+    //   };
+
     if (model.includes("grok")) {
       options["search_parameters"] = {
         mode: command === "Web search" ? "on" : "auto",
