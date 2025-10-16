@@ -714,6 +714,12 @@ const invokeSearchAgentInternal = async ({
     // Helper function to process agent response
     async function processAgentResponse(response: any): Promise<any> {
       try {
+        // Debug: Check if tokensUsage is in the response
+        console.log(
+          "🔍 [processAgentResponse] Response tokensUsage:",
+          response.tokensUsage
+        );
+
         // Extract full results for the popup functionality
         const allFullResults = [];
 

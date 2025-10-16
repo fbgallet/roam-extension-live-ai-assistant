@@ -30,14 +30,15 @@ export const getAvailableModels = (provider) => {
       return [
         "Claude Haiku",
         "Claude Haiku 3.5",
-        "Claude Sonnet 3.5",
+        "Claude Haiku 4.5",
+        "Claude Sonnet 3.7",
         "Claude Sonnet 4",
         "Claude Sonnet 4.5",
         "Claude Sonnet 4.5 Thinking",
         "Claude Opus 4.1",
       ];
     case "DeepSeek":
-      return ["DeepSeek-V3.1", "DeepSeek-V3.1 Thinking"];
+      return ["DeepSeek-V3.2", "DeepSeek-V3.2 Thinking"];
     case "Grok":
       return [
         "Grok-4",
@@ -69,6 +70,7 @@ export const tokensLimit = {
   "o3-mini": 200000,
   "claude-3-haiku-20240307": 200000,
   "claude-3-5-haiku-20241022": 200000,
+  "claude-haiku-4-5-20251001": 200000,
   "claude-3-5-sonnet-20241022": 200000,
   "claude-3-7-sonnet-20250219": 200000,
   // "Claude Sonnet 3.7 Thinking": 200000,
@@ -171,6 +173,10 @@ export const modelsPricing = {
     input: 0.8,
     output: 4,
   },
+  "claude-haiku-4-5-20251001": {
+    input: 1,
+    output: 5,
+  },
   "claude-3-5-sonnet-20241022": {
     input: 3,
     output: 15,
@@ -196,12 +202,12 @@ export const modelsPricing = {
     output: 75,
   },
   "deepseek-chat": {
-    input: 0.56,
-    output: 1.68,
+    input: 0.28,
+    output: 0.42,
   },
-  "deepseek-reasoner": {
-    input: 0.56,
-    output: 1.68,
+  "deepseek-chat": {
+    input: 0.28,
+    output: 0.42,
   },
   "grok-2-1212": {
     input: 2,
@@ -333,6 +339,11 @@ export function normalizeClaudeModel(model, getShortName) {
       model = getShortName
         ? "Claude Sonnet 3.7 Thinking"
         : "claude-3-7-sonnet-20250219+thinking";
+      break;
+    case "claude-haiku-4-5-20251001":
+    case "claude haiku 4.5":
+    case "claude-haiku-4.5":
+      model = getShortName ? "Claude Haiku 4.5" : "claude-haiku-4-5-20251001";
       break;
     case "claude-haiku-3.5":
     case "claude-3-5-haiku-20241022":

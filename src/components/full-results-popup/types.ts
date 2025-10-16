@@ -15,6 +15,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  tokensIn?: number;
+  tokensOut?: number;
 }
 
 export interface FullResultsPopupProps {

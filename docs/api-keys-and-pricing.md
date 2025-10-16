@@ -27,9 +27,9 @@ By default, logging of your inputs & outputs in OpenRouter's settings is enabled
 
 Pricing currently used in cost calculations in Live AI Assistant
 
-In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like gpt-5, o3, Claude Sonnet 4 Thinking, deepseek-v3.1 Thinking, etc.).
+In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like gpt-5, o3, Claude Sonnet 4 Thinking, deepseek-v3 Thinking, etc.).
 
-NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI Assistant. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI Assistant are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
+NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI Assistant are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
 
 | **Model**                    | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
 | ---------------------------- | ------------------------- | -------------------------- |
@@ -37,11 +37,8 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | gpt-5-nano                   | $0.05                     | $0.40                      |
 | gpt-5-mini                   | $0.25                     | $2.00                      |
 | gpt-5                        | $1.25                     | $10.00                     |
-| gpt-4.1-nano                 | $0.10                     | $0.40                      |
 | gpt-4.1-mini                 | $0.40                     | $1.60                      |
 | gpt-4.1                      | $2.00                     | $8.00                      |
-| gpt-4o-mini                  | $0.15                     | $0.60                      |
-| gpt-4o                       | $2.50                     | $10.00                     |
 | gpt-4o-mini-search-preview\* | $0.15                     | $0.60                      |
 | gpt-4o-search-preview\*      | $2.50                     | $10.00                     |
 | gpt-image-1\*\*              | text: $5, image: \*10     | $40.00                     |
@@ -49,13 +46,12 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | o3                           | $2.00                     | $8.00                      |
 | o3-pro                       | $20.00                    | $80.00                     |
 | **Anthropic**                |                           |                            |
-| claude-3-haiku-20240307      | $0.25                     | $1.25                      |
 | claude-3-5-haiku-20241022    | $0.80                     | $4.00                      |
-| claude-3-5-sonnet-20241022   | $3.00                     | $15.00                     |
-| claude-sonnet-4-20250514     | $3.00                     | $15.00                     |
-| claude-opus-4-20250514       | $15.00                    | $75.00                     |
+| claude-haiku-4-5-20251001    | $1.00                     | $5.00                      |
+| claude-sonnet-4-5-20250929   | $3.00                     | $15.00                     |
+| claude-opus-4-1-20250805     | $15.00                    | $75.00                     |
 | **DeepSeek**                 |                           |                            |
-| DeepSeek-V3.1                | $0.56                     | $1.68                      |
+| DeepSeek-V3.2                | $0.28                     | $0.42                      |
 | **Grok**                     |                           |                            |
 | grok-2-1212                  | $2.00                     | $10.00                     |
 | grok-3-mini                  | $0.30                     | $0.50                      |

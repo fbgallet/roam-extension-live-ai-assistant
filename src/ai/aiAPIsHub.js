@@ -322,7 +322,7 @@ export function modelAccordingToProvider(model) {
     id: "",
     name: "",
     library: undefined,
-    tokensLimit: 128000
+    tokensLimit: 128000,
   };
   model = model && model.toLowerCase();
 
@@ -358,7 +358,7 @@ export function modelAccordingToProvider(model) {
         ? model.replace("groq/", "")
         : groqModels.length
         ? groqModels[0]
-        : undefined;    
+        : undefined;
     llm.library = groqLibrary;
   } else if (model.includes("custom")) {
     llm.provider = "custom";
@@ -380,13 +380,14 @@ export function modelAccordingToProvider(model) {
     }
   } else if (model.includes("deepseek")) {
     llm.provider = "DeepSeek";
-    if (model === "deepseek-v3.1 thinking" || model === "deepseek-reasoner") {
+    model = model.replace("v3.1", "v3.2");
+    if (model === "deepseek-v3.2 thinking" || model === "deepseek-reasoner") {
       llm.id = "deepseek-reasoner";
-      llm.name = "DeepSeek-V3.1 Thinking";
+      llm.name = "DeepSeek-V3.2 Thinking";
       llm.thinking = true;
     } else {
       llm.id = "deepseek-chat";
-      llm.name = "DeepSeek-V3.1";
+      llm.name = "DeepSeek-V3.2";
     }
     llm.library = deepseekLibrary;
   } else if (model.includes("grok")) {
@@ -507,11 +508,14 @@ export async function claudeCompletion({
             ].concat(prompt);
       let thinkingToaster;
       const options = {
-        max_tokens: model.includes("sonnet")
-          ? 64000
-          : model.includes("opus")
-          ? 32000
-          : 8192,
+        max_tokens:
+          model.includes("sonnet") ||
+          model.includes("4-5") ||
+          model.includes("4.5")
+            ? 64000
+            : model.includes("opus")
+            ? 32000
+            : 8192,
         model: thinking ? model.replace("+thinking", "") : model,
         messages,
       };
@@ -1145,12 +1149,7 @@ const isModelSupportingImage = (model) => {
     model === "o3"
   )
     return true;
-  if (
-    model.includes("claude-3-5") ||
-    model.includes("sonnet") ||
-    model.includes("opus")
-  )
-    return true;
+  if (model.includes("claude")) return true;
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find(
       (m) => m.id.toLowerCase() === model

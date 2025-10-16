@@ -2836,6 +2836,19 @@
   color: #6c757d;
 }
 
+.full-results-chat-tokens {
+  font-size: 10px;
+  color: #8a939b;
+  opacity: 0.8;
+}
+
+.full-results-chat-total-tokens {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
 .full-results-chat-copy-link {
   font-size: 11px;
   color: #6c757d;

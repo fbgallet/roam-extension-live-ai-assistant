@@ -380,7 +380,7 @@ const ModelsMenu = ({
         <>
           {openaiLibrary && <MenuDivider />}
           <MenuItem
-            icon={defaultModel === "Claude Haiku 3.5" && "pin"}
+            icon={defaultModel === "Claude Haiku 4.5" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -389,24 +389,9 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="Claude Haiku 3.5"
+            text="Claude Haiku 4.5"
             labelElement="200k"
           />
-          {isWebSearch && (
-            <MenuItem
-              icon={defaultModel === "Claude Sonnet 3.5" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="Claude Sonnet 3.5"
-              labelElement="200k"
-            />
-          )}
           <MenuItem
             icon={defaultModel === "Claude Sonnet 4.5" && "pin"}
             onClick={(e) => {
@@ -450,7 +435,7 @@ const ModelsMenu = ({
               />
               <MenuItem text="Claude older models">
                 <MenuItem
-                  icon={defaultModel === "Claude Haiku" && "pin"}
+                  icon={defaultModel === "Claude Haiku 3.5" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -459,11 +444,11 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Claude Haiku"
+                  text="Claude Haiku 3.5"
                   labelElement="200k"
                 />
                 <MenuItem
-                  icon={defaultModel === "Claude Sonnet 3.5" && "pin"}
+                  icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -472,7 +457,7 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Claude Sonnet 3.5"
+                  text="Claude Sonnet 3.7"
                   labelElement="200k"
                 />
                 <MenuItem
@@ -502,7 +487,7 @@ const ModelsMenu = ({
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
-                icon={defaultModel === "DeepSeek-V3.1" && "pin"}
+                icon={defaultModel === "DeepSeek-V3.2" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -511,11 +496,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="DeepSeek-V3.1"
+                text="DeepSeek-V3.2"
                 labelElement="128k"
               />
               <MenuItem
-                icon={defaultModel === "DeepSeek-V3.1 Thinking" && "pin"}
+                icon={defaultModel === "DeepSeek-V3.2 Thinking" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -524,7 +509,7 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="DeepSeek-V3.1 Thinking"
+                text="DeepSeek-V3.2 Thinking"
                 labelElement="128k"
               />
             </>

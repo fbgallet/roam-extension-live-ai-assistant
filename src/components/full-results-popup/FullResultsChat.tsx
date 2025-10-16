@@ -54,6 +54,19 @@ const buildConversationHistory = (chatMessages: ChatMessage[]) => {
   }));
 };
 
+// Calculate total tokens used in the conversation
+const calculateTotalTokens = (chatMessages: ChatMessage[]) => {
+  let totalIn = 0;
+  let totalOut = 0;
+
+  chatMessages.forEach((msg) => {
+    if (msg.tokensIn !== undefined) totalIn += msg.tokensIn;
+    if (msg.tokensOut !== undefined) totalOut += msg.tokensOut;
+  });
+
+  return { totalIn, totalOut };
+};
+
 // Simple markdown renderer for chat messages
 const renderMarkdown = (text: string): string => {
   if (!text) return "";
@@ -94,22 +107,28 @@ const renderMarkdown = (text: string): string => {
     '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">📄 {{[[embed-path]]: (($2))}}]</a>'
   );
 
-  // Simple block reference ((uid)) - convert to [source block](((uid)))
+  // Simple block reference ((uid)) 
   rendered = rendered.replace(
     /\(\(([^\(].*?)\)\)/g,
-    '<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">(($1))</a>'
+    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
+  );
+
+  // convert to [link](((uid)))
+  rendered = rendered.replace(
+    /\[([^\]].*?)\]\(\((.*)\)\)/g,
+    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">$1<span class="bp3-icon bp3-icon-flow-end"></span></a>`
   );
 
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
     /\[\[([^\]]+)\]\]/g,
-    '<a href="#" data-page-title="$1" class="roam-page-ref-chat" title="Click: Filter by this page • Shift+click: Open in sidebar">[[$1]]</a>'
+    '<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar">$1</a><span class="rm-page-ref__brackets">]]</span>'
   );
 
   // Tag references #tag - make clickable
   rendered = rendered.replace(
     /#([a-zA-Z0-9_-]+)/g,
-    '<a href="#" data-page-title="$1" class="roam-tag-ref-chat" title="Click: Filter by this tag • Shift+click: Open in sidebar">#$1</a>'
+    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag • Shift+click: Open in sidebar">#$1</a>'
   );
 
   // Wrap in paragraphs (but not if it starts with a header or list)
@@ -398,7 +417,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
   const [modelTokensLimit, setModelTokensLimit] = useState<number>(modelAccordingToProvider(defaultModel).tokensLimit || 128000);
 
-  console.log("modelTokensLimit:", modelTokensLimit);
+  // Calculate total tokens used in the conversation
+  const { totalIn, totalOut } = React.useMemo(
+    () => calculateTotalTokens(chatMessages),
+    [chatMessages]
+  );
+
   // Reset cache when chat is closed/reopened
   useEffect(() => {
     if (!isOpen) {
@@ -641,7 +665,7 @@ RESPONSE GUIDELINES:
 - **Be concise and focused** - 2-3 key insights, not lengthy explanations (unless user asks for detail)
 - **Conversational and insightful** - like a thoughtful colleague reviewing the data
 - **Leverage hierarchical context** - use Parent context, Children outline, and Page context to understand each block's true meaning and purpose
-- **Reference specific blocks** - ALWAYS use strict '((uid))' syntax when mentioning content from blocks (CRITICAL: always DOUBLE parentheses). For single block: ((uid)), for multiple blocks: ((uid1)), ((uid2)), ((uid3)). You can be explicit: (source block: ((uid)))
+- **Reference specific blocks** - ALWAYS use strict '((uid))' syntax when mentioning content from blocks (CRITICAL: always DOUBLE parentheses). For single block: '((uid))' or make a short part of your response a link to the source block using this syntax: '[part of your reponse](((uid)))', for multiple blocks: '[source blocks: ((uid1)), ((uid2)), ((uid3))]'.
 - **Reference pages** - Always use the syntax '[[page title]]' or #tag (where tag is a page title without space) when you have to mention page titles.
 
 Remember: The user wants concise understanding and analysis, not lengthy recaps. Use the rich context (parent/children/page) to truly understand what each block represents.`;
@@ -737,6 +761,9 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 
       const agentResult = await invokeSearchAgent(agentOptions);
 
+      // Debug token usage
+      console.log("🔍 [Chat] Agent result tokensUsage:", agentResult.tokensUsage);
+
       // Update agent data for next conversation turn and extract any new results
       const newAgentData = {
         toolResultsCache: agentResult.toolResultsCache,
@@ -821,6 +848,8 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         role: "assistant",
         content: finalContent,
         timestamp: new Date(),
+        tokensIn: agentResult.tokensUsage?.input_tokens,
+        tokensOut: agentResult.tokensUsage?.output_tokens,
       };
 
       // Update chat messages first - use functional update to avoid stale closure
@@ -873,13 +902,18 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
           )}
         </div>
         <div className="full-results-chat-info">
-          {selectedResults.length > 0 ? (
-            <span>
-              Chatting about {selectedResults.length} selected results
-            </span>
-          ) : (
-            <span>Chatting about {allResults.length} visible results</span>
-          )}
+          <span>
+            {selectedResults.length > 0 ? (
+              <>Chatting about {selectedResults.length} selected results</>
+            ) : (
+              <>Chatting about {allResults.length} visible results</>
+            )}
+            {(totalIn > 0 || totalOut > 0) && (
+              <span className="full-results-chat-total-tokens">
+                {" "}• Total tokens in: {totalIn.toLocaleString()}, out: {totalOut.toLocaleString()}
+              </span>
+            )}
+          </span>
           {hasExpandedResults && (
             <span className="full-results-chat-expansion-badge">
               <Icon
@@ -972,8 +1006,8 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 </strong>{" "}
                 mode:{" "}
                 {chatAccessMode === "Balanced"
-                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(modelTokensLimit * 0.5 / 1000)}k tokens (50% of llm context window, approx. ${Math.floor(modelTokensLimit * 2 / 1000 / 6)}k words)`
-                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(modelTokensLimit * 0.75 / 1000)}k tokens (75% of llm context window, approx. ${Math.floor(modelTokensLimit * 3 / 1000 / 6)}k words)`}{" "}
+                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(modelTokensLimit * 0.5 / 1000)}k tokens (50% of model context window, approx. ${Math.floor(modelTokensLimit * 2 / 1000 / 6)}k words)`
+                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(modelTokensLimit * 0.75 / 1000)}k tokens (75% of model context window, approx. ${Math.floor(modelTokensLimit * 3 / 1000 / 6)}k words)`}{" "}
                 {/* TODO: Future evolution - Deep Analysis mode
                 {chatMode === "agent" ? (
                   <>
@@ -1009,6 +1043,11 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 <div className="full-results-chat-message-footer">
                   <span className="full-results-chat-timestamp">
                     {message.timestamp.toLocaleTimeString()}
+                    {message.tokensIn !== undefined && message.tokensOut !== undefined && (
+                      <span className="full-results-chat-tokens">
+                        {" "}• Tokens in: {message.tokensIn.toLocaleString()}, out: {message.tokensOut.toLocaleString()}
+                      </span>
+                    )}
                   </span>
                   {message.role === "assistant" && (
                     <span

@@ -5,7 +5,7 @@ import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { updateTokenCounter } from "../modelsInfo";
-import { reasoningEffort } from "../..";
+import { modelTemperature, reasoningEffort } from "../..";
 
 export interface LlmInfos {
   provider: string;
@@ -30,6 +30,7 @@ export function modelViaLanggraph(
 
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {
+      console.log("llmOutput :>> ", output.llmOutput);
       console.log(
         "Used tokens",
         output.llmOutput?.tokenUsage || output.llmOutput?.usage
@@ -42,10 +43,10 @@ export function modelViaLanggraph(
           output.llmOutput?.tokenUsage?.completionTokens ||
           output.llmOutput?.usage?.output_tokens,
       };
-      if (usage.input_tokens && usage.output_tokens) {
+      if (usage.input_tokens || usage.output_tokens) {
         if (turnTokensUsage) {
-          turnTokensUsage.input_tokens += usage.input_tokens;
-          turnTokensUsage.output_tokens += usage.output_tokens;
+          turnTokensUsage.input_tokens += usage.input_tokens || 0;
+          turnTokensUsage.output_tokens += usage.output_tokens || 0;
         } else updateTokenCounter(llmInfos.id, usage);
       }
     },
@@ -58,7 +59,7 @@ export function modelViaLanggraph(
     maxRetries: 2,
   };
   if (llmInfos.provider !== "ollama") options.apiKey = llmInfos.library?.apiKey;
-  else options.temperature = 0;
+  else if (modelTemperature !== null) options.temperature = modelTemperature;
   if (structuredOutput && llmInfos.provider === "groq")
     options.response_format = "json_object";
   if (structuredOutput && llmInfos.provider === "openRouter")
@@ -108,18 +109,23 @@ export function modelViaLanggraph(
       maxRetries: 2,
     });
   } else if (llmInfos.provider === "Anthropic") {
-    if (llmInfos.id.includes("+thinking")) {
-      options.maxTokens = llmInfos.id.includes("sonnet")
+    options.maxTokens =
+      llmInfos.id.includes("sonnet") || llmInfos.id.includes("4-5")
         ? 64000
         : llmInfos.id.includes("opus")
         ? 32000
         : 8192;
+    options.streaming = true;
+    if (llmInfos.id.includes("+thinking")) {
       options.thinking = { type: "enabled", budget_tokens: 1024 };
-      options.streaming = true;
     }
+
     llm = new ChatAnthropic({
       model: llmInfos.id.replace("+thinking", ""),
       ...options,
+      invocationKwargs: {
+        top_p: undefined,
+      },
       clientOptions: {
         baseURL: llmInfos.library.baseURL,
         dangerouslyAllowBrowser: true,

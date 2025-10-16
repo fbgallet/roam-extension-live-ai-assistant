@@ -229,6 +229,8 @@ const ReactSearchAgentState = Annotation.Root({
   forcePopupOnly: Annotation<boolean | undefined>,
   // Streaming callback for popup chat interface
   streamingCallback: Annotation<((content: string) => void) | undefined>,
+  // Token usage for this turn (returned to caller)
+  tokensUsage: Annotation<TokensUsage | undefined>,
 });
 
 // Global variables for the agent
@@ -920,6 +922,8 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
 
   // Initialize LLM
   llm = modelViaLanggraph(state.model, turnTokensUsage);
+
+  console.log("llm :>> ", llm);
 
   // Show model information in toaster
   const modelDisplayName =
@@ -1672,6 +1676,14 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     toolCalls: state.timingMetrics?.toolCalls || 0,
   };
 
+  // Debug: Check popup execution status
+  console.log(
+    "🔍 [Assistant] isPopupExecution:",
+    (state as any).isPopupExecution,
+    "turnTokensUsage:",
+    turnTokensUsage
+  );
+
   return {
     messages: [...state.messages, response],
     finalAnswer: finalAnswerContent,
@@ -1682,6 +1694,8 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     wasStreamed: shouldStream,
     // Pass the created target UID for streaming (if created)
     streamingTargetUid: shouldStream ? streamingTargetUid : undefined,
+    // Token usage - always include for all execution modes
+    tokensUsage: { ...turnTokensUsage },
     // IMPORTANT: For popup execution, include conversation state since we skip insertResponse
     ...((state as any).isPopupExecution && {
       // Return same conversation state as insertResponse would
@@ -1785,6 +1799,9 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     state.expansionGuidance?.includes("zero_results") ||
     state.expansionGuidance?.includes("Progressive expansion needed");
 
+  // Debug token usage before return
+  console.log("🔍 [insertResponse] Returning tokensUsage:", turnTokensUsage);
+
   return {
     targetUid,
     finalAnswer: lastMessage,
@@ -1801,6 +1818,8 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     conversationSummary: state.conversationSummary,
     exchangesSinceLastSummary: (state as any).exchangesSinceLastSummary,
     isConversationMode: state.isConversationMode,
+    // Token usage for this turn
+    tokensUsage: { ...turnTokensUsage },
     // Enhanced expansion metadata for smart buttons - focus on successful final results only
     expansionState: {
       lastResultCount: totalFinalResults, // Only count successful final results (no errors)
