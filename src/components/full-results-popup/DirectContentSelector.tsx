@@ -243,7 +243,8 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
             selectedItems={getSelectedPageOptions()}
             popoverProps={{
               minimal: true,
-              position: "bottom-right",
+              position: "bottom-left",
+              popoverClassName: "direct-content-popover-multiselect",
             }}
             fill={true}
             placeholder="Select pages..."

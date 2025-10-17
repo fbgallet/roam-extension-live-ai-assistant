@@ -11,8 +11,8 @@ export const getAvailableModels = (provider) => {
   switch (provider) {
     case "OpenAI":
       return [
-        "gpt-5",
         "gpt-5-chat-latest",
+        "gpt-5",
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-5-search-api",
@@ -249,21 +249,22 @@ export const modelsPricing = {
   },
 };
 
-export const additionalPricingPerRequest = {
-  "gpt-5-search-api": 0.01,
-  "gpt-4o-mini-search-preview-low": 0.025,
-  "gpt-4o-mini-search-preview-medium": 0.0275,
-  "gpt-4o-mini-search-preview-high": 0.03,
-  "gpt-4o-search-preview-low": 0.03,
-  "gpt-4o-search-preview-medium": 0.035,
-  "gpt-4o-search-preview-high": 0.05,
-};
+// Deprecated for now on OpenAI API
+// export const additionalPricingPerRequest = {
+//   "gpt-5-search-api": 0.01,
+//   "gpt-4o-mini-search-preview-low": 0.025,
+//   "gpt-4o-mini-search-preview-medium": 0.0275,
+//   "gpt-4o-mini-search-preview-high": 0.03,
+//   "gpt-4o-search-preview-low": 0.03,
+//   "gpt-4o-search-preview-medium": 0.035,
+//   "gpt-4o-search-preview-high": 0.05,
+// };
 
-function getAdditionalPricingPerRequest(model, level) {
-  const additionalPricing =
-    additionalPricingPerRequest[`${model}-${level}`] || 0;
-  return additionalPricing;
-}
+// function getAdditionalPricingPerRequest(model, level) {
+//   const additionalPricing =
+//     additionalPricingPerRequest[`${model}-${level}`] || 0;
+//   return additionalPricing;
+// }
 
 export function openRouterModelPricing(model, inOrOut) {
   const modelInfo = openRouterModelsInfo.find((mdl) => mdl.id === model);
@@ -405,12 +406,13 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
 
   // addtional cost for Web search OpenAI models per request (converted in input tokens)
   if (model.includes("-search") && typeof input_tokens === "number") {
-    const additionalCost = getAdditionalPricingPerRequest(
-      model,
-      websearchContext
-    );
+    // const additionalCost = getAdditionalPricingPerRequest(
+    //   model,
+    //   websearchContext
+    // );
+
     const additionalTokens = Math.ceil(
-      additionalCost / (modelsPricing[model].input / 1000000)
+      0.01 / (modelsPricing[model].input / 1000000)
     );
     input_tokens += additionalTokens || 0;
   }

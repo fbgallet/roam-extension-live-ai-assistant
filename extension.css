@@ -1446,25 +1446,27 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  min-height: 34px;
   padding-bottom: 6px;
+  margin-bottom: 6px;
   border-bottom: 1px solid rgba(167, 182, 194, 0.4);
 }
 
-.full-results-title {
+h3.full-results-title.bp3-heading {
   margin: 0;
-  font-size: 20px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .full-results-close-button {
   background: none;
   border: 1px solid rgba(167, 182, 194, 0.4);
-  border-radius: 4px;
-  font-size: 18px;
+  border-radius: 8px;
+  font-size: 16px;
   cursor: pointer;
-  padding: 6px 8px;
-  width: 32px;
-  height: 32px;
+  padding: 4px;
+  width: 26px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1559,17 +1561,6 @@
 
 .rm-api-render--page {
   margin-left: 8px;
-}
-
-.full-results-action-bar {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  margin-left: 0px;
-  margin-top: 8px;
-  padding: 8px;
 }
 
 .full-results-buttons-container {
@@ -2416,26 +2407,29 @@
   }
 }
 
-/* Enhanced Action Bar */
+/* Enhanced Action Bar - Fixed at bottom of results panel */
 .full-results-action-bar {
+  position: relative;
+  width: 100%;
+  gap: 8px;
+  margin-left: 0px;
+  padding: 4px 6px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  /* background: #f8f9fa; */
-  background: inherit;
-  border: 1px solid rgba(167, 182, 194, 0.4);
-  border-radius: 6px;
+  border-top: 1px solid rgba(167, 182, 194, 0.3);
+  margin-bottom: 6px;
+  border-radius: 0;
   flex-wrap: wrap;
   flex-shrink: 0;
-  /* border-top: 2px solid #dee2e6; */
-  /* box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1); */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  z-index: 5;
 }
 
 .full-results-selection-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 2px;
   flex-wrap: wrap;
 }
 
@@ -2452,6 +2446,10 @@
 
 .full-results-select-all-checkbox > input[type="checkbox"] {
   margin: 0;
+}
+
+.full-results-select-all-checkbox.bp3-control .bp3-control-indicator {
+  margin-right: 5px;
 }
 
 .full-results-buttons-container {
@@ -2563,39 +2561,55 @@
   flex-shrink: 0;
 }
 
-/* Chat Interface Styles - Phase 7 */
-/* Removed - using consolidated definition below */
+/* Chat Interface Styles - Modern Redesign */
 
 .full-results-chat-header {
   padding: 8px;
-  border-bottom: 1px solid rgba(167, 182, 194, 0.4);
-  background: inherit;
+  border-bottom: 1px solid rgba(167, 182, 194, 0.15);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.8),
+    rgba(247, 249, 250, 0.5)
+  );
+  backdrop-filter: blur(10px);
 }
 
-.full-results-chat-header-main {
+.full-results-chat-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 12px;
 }
 
-.full-results-chat-header h4 {
-  margin: 0;
-  color: inherit;
-  font-size: 16px;
-  font-weight: 600;
+.full-results-chat-info-text {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #5c7080;
+  flex: 1;
+  min-width: 0;
+}
+
+.full-results-chat-info-text span {
+  flex: 1;
+  min-width: 0;
 }
 
 .full-results-chat-header-controls {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.full-results-chat-info {
-  font-size: 13px;
-  color: inherit;
-  opacity: 0.7;
-  margin-bottom: 4px;
+.full-results-chat-header-controls .bp3-button {
+  opacity: 0.6;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.full-results-chat-header-controls .bp3-button:hover {
+  opacity: 1;
+  transform: scale(1.1);
 }
 
 .full-results-chat-warning {
@@ -2607,75 +2621,97 @@
   border: 1px solid rgba(167, 182, 194, 0.4);
 }
 
-/* Removed - using consolidated definition below */
-
+/* Modern Welcome Message */
 .full-results-chat-welcome {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding: 8px;
 }
 
 .full-results-chat-assistant-avatar {
-  font-size: 24px;
+  font-size: 32px;
   flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 .full-results-chat-assistant-message {
-  background: inherit;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(167, 182, 194, 0.4);
+  background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(167, 182, 194, 0.2);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   flex: 1;
 }
 
+/* Modern Suggestion Pills */
 .full-results-chat-suggestions {
   display: flex;
-  gap: 6px;
-  padding: 6px 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0 4px 0;
 }
 
 .full-results-chat-suggestions button {
-  background: rgba(19, 124, 189, 0.1);
-  border: 1px solid rgba(167, 182, 194, 0.4);
-  color: #137cbd;
-  padding: 6px 10px;
-  border-radius: 16px;
-  font-size: 12px;
+  background: linear-gradient(
+    135deg,
+    rgba(102, 126, 234, 0.1) 0%,
+    rgba(118, 75, 162, 0.1) 100%
+  );
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  color: #667eea;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.1);
 }
 
 .full-results-chat-suggestions button:hover {
-  background: rgba(19, 124, 189, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(102, 126, 234, 0.15) 0%,
+    rgba(118, 75, 162, 0.15) 100%
+  );
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.5);
 }
 
+/* Modern Chat Messages */
 .full-results-chat-message {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 0;
+  margin-bottom: 14px;
   align-items: flex-start;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .full-results-chat-message.user {
   flex-direction: row-reverse;
 }
 
+/* Avatars - Hidden permanently for cleaner interface */
 .full-results-chat-avatar {
-  font-size: 18px;
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #f8f9fa;
+  display: none !important;
 }
 
-.full-results-chat-message.user .full-results-chat-avatar {
-  background: #0d6efd;
-  color: white;
+.full-results-chat-assistant-avatar {
+  display: none !important;
 }
 
 .full-results-chat-content {
@@ -2683,15 +2719,26 @@
   word-wrap: break-word;
 }
 
+/* Modern Chat Bubbles */
 .full-results-chat-text {
-  /* background: #f8f9fa; */
-  background: inherit;
-  padding: 12px 16px;
-  border-radius: 12px;
-  /* border: 1px solid #e9ecef; */
-  border: 1px solid rgba(167, 182, 194, 0.4);
+  background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(167, 182, 194, 0.2);
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease;
+}
+
+.full-results-chat-text:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.full-results-chat-message.user .full-results-chat-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
 }
 
 /* Enhanced typography for chat text */
@@ -2845,8 +2892,28 @@
 .full-results-chat-total-tokens {
   font-size: 11px;
   color: inherit;
-  opacity: 0.8;
+  opacity: 0.7;
   font-weight: 500;
+}
+
+.full-results-chat-expansion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.full-results-chat-expansion-badge:hover {
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .full-results-chat-copy-link {
@@ -2856,6 +2923,13 @@
   text-decoration: none;
   opacity: 0.7;
   transition: opacity 0.2s ease;
+  transform: translateY(-5px);
+}
+
+.full-results-chat-copy-link .bp3-button {
+  min-width: 16px;
+  min-height: 16px;
+  padding: 2px;
 }
 
 .full-results-chat-copy-link:hover {
@@ -2922,30 +2996,178 @@
   margin-left: 4px;
 }
 
+/* Modern Floating Chat Input */
 .full-results-chat-input-container {
   display: flex;
   gap: 8px;
   align-items: flex-end;
+  padding: 8px;
+  padding-top: 0;
+  background: transparent;
+  position: relative;
+}
+
+/* Elegant input wrapper with floating effect */
+.full-results-chat-input-container::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(167, 182, 194, 0.15),
+    transparent
+  );
 }
 
 textarea.bp3-input.full-results-chat-input {
   flex: 1;
-  padding: 6px;
+  resize: none;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(to bottom, #ffffff, #fafbfc);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  min-height: 40px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
+textarea.bp3-input.full-results-chat-input::placeholder {
+  color: #a0a8b0;
+  font-weight: 400;
+}
+
+textarea.bp3-input.full-results-chat-input:hover {
+  border-color: rgba(102, 126, 234, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+textarea.bp3-input.full-results-chat-input:focus {
+  border-color: #667eea;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15),
+    0 2px 6px rgba(102, 126, 234, 0.1), 0 0 0 4px rgba(102, 126, 234, 0.08);
+  outline: none;
+}
+
+/* Smooth scrollbar for long text */
+textarea.bp3-input.full-results-chat-input::-webkit-scrollbar {
+  width: 6px;
+}
+
+textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb {
+  background: rgba(167, 182, 194, 0.3);
+  border-radius: 3px;
+}
+
+textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
+  background: rgba(167, 182, 194, 0.5);
+}
+
+/* Modern floating send button */
 .full-results-chat-send {
+  align-self: center;
   flex-shrink: 0;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
 }
 
+.full-results-chat-send::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.full-results-chat-send:hover::before {
+  width: 100%;
+  height: 100%;
+}
+
+.full-results-chat-send:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.45);
+}
+
+.full-results-chat-send:active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.full-results-chat-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.full-results-chat-send .bp3-icon {
+  position: relative;
+  z-index: 1;
+}
+
+/* Elegant controls area */
 .full-results-chat-controls {
   display: flex;
   gap: 12px;
   align-items: center;
-  margin-bottom: 8px;
+  padding: 8px;
+  background: transparent;
 }
 
 .full-results-chat-access-mode {
   flex-shrink: 0;
+}
+
+.full-results-chat-access-mode .bp3-html-select {
+  font-size: 13px;
+}
+
+.full-results-chat-access-mode .bp3-html-select select {
+  border-radius: 16px;
+  border: 1px solid rgba(167, 182, 194, 0.25);
+  padding: 6px 28px 6px 12px;
+  background: linear-gradient(to bottom, #ffffff, #fafbfc);
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.full-results-chat-access-mode .bp3-html-select select:hover {
+  border-color: rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.full-results-chat-access-mode .bp3-html-select select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  outline: none;
 }
 
 .full-results-chat-model-selector {
@@ -2955,9 +3177,9 @@ textarea.bp3-input.full-results-chat-input {
 /* Enhanced modal layout for chat */
 .full-results-modal {
   border-radius: 8px;
-  padding: 8px 16px;
-  width: fit-content;
-  max-width: 950px;
+  padding: 8px;
+  width: 75%;
+  max-width: 1200px;
   max-height: 90vh;
   height: 100%;
   overflow: hidden;
@@ -2968,7 +3190,7 @@ textarea.bp3-input.full-results-chat-input {
 }
 
 .full-results-modal:has(.full-results-chat-container) {
-  max-width: 1250px;
+  max-width: 1200px;
 }
 
 .full-results-main-content {
@@ -2982,7 +3204,7 @@ textarea.bp3-input.full-results-chat-input {
 
 /* When chat is shown, add margin to main content */
 .full-results-modal.chat-open .full-results-main-content {
-  margin-right: 20px;
+  margin-right: 10px;
 }
 
 /* Removed - using consolidated definition below */
@@ -3037,14 +3259,18 @@ textarea.bp3-input.full-results-chat-input {
 
 /* Advanced UI Features: Fullscreen, Resizable, Chat-only */
 
-/* Fullscreen Mode */
+/* Fullscreen Mode - Takes priority over side panel positioning */
 .full-results-overlay.fullscreen {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.95) !important;
+  pointer-events: auto !important; /* Re-enable pointer events in fullscreen */
+  z-index: 10000 !important; /* Very high z-index to be above everything */
 }
 
 .full-results-modal.fullscreen {
@@ -3056,6 +3282,12 @@ textarea.bp3-input.full-results-chat-input {
   border-radius: 0 !important;
 }
 
+/* When fullscreen is active, restore Roam app margin (panel is no longer "alongside") */
+.full-results-overlay.fullscreen.side-panel-mode ~ #app,
+body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
+  margin: 0 !important;
+}
+
 /* Header Controls */
 .full-results-header-controls {
   display: flex;
@@ -3065,27 +3297,43 @@ textarea.bp3-input.full-results-chat-input {
 
 .full-results-control-button {
   background: none;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 6px 8px;
+  border: 1px solid rgba(167, 182, 194, 0.3);
+  border-radius: 6px;
+  padding: 5px 6px;
   cursor: pointer;
-  font-size: 14px;
-  color: #333;
+  font-size: 13px;
+  color: #5c7080;
   transition: all 0.2s ease;
-  min-width: 32px;
-  height: 32px;
+  min-width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
 }
 
 .full-results-control-button:hover {
-  background: #f5f5f5;
-  border-color: #999;
+  background: rgba(102, 126, 234, 0.08);
+  border-color: rgba(102, 126, 234, 0.3);
+  color: #667eea;
 }
 
 .full-results-control-button:active {
-  background: #e0e0e0;
+  background: rgba(102, 126, 234, 0.15);
+  transform: scale(0.95);
+}
+
+.full-results-control-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.full-results-control-button .bp3-icon {
+  transition: transform 0.2s ease;
+}
+
+.full-results-control-button:hover .bp3-icon {
+  transform: scale(1.08);
 }
 
 /* Content Container Layout */
@@ -3096,6 +3344,94 @@ textarea.bp3-input.full-results-chat-input {
   position: relative;
   min-height: 0; /* Allow flex shrinking */
   height: 100%; /* Take available height */
+}
+
+/* Edge Hover Buttons for Quick Layout Switching */
+.edge-hover-button {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    to right,
+    rgba(102, 126, 234, 0.05),
+    rgba(102, 126, 234, 0.12)
+  );
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  color: #667eea;
+}
+
+.edge-hover-button:hover {
+  opacity: 1;
+  background: linear-gradient(
+    to right,
+    rgba(102, 126, 234, 0.15),
+    rgba(102, 126, 234, 0.25)
+  );
+  border-color: rgba(102, 126, 234, 0.4);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.edge-hover-button .bp3-icon {
+  transition: transform 0.2s ease;
+}
+
+.edge-hover-button:hover .bp3-icon {
+  transform: scale(1.2);
+}
+
+/* Right edge button */
+.edge-hover-right {
+  right: 0;
+  border-left: 2px solid rgba(102, 126, 234, 0.3);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+
+/* Left edge button */
+.edge-hover-left {
+  left: 0;
+  border-right: 2px solid rgba(102, 126, 234, 0.3);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+
+/* Show edge buttons on container hover */
+.full-results-content-container:hover .edge-hover-button {
+  opacity: 0.4;
+}
+
+/* Edge buttons in split mode - positioned at panel boundaries */
+.edge-hover-button.edge-hover-split {
+  width: 24px;
+  background: linear-gradient(
+    to right,
+    rgba(118, 75, 162, 0.08),
+    rgba(118, 75, 162, 0.15)
+  );
+  border-color: rgba(118, 75, 162, 0.25);
+  color: #764ba2;
+  top: 50%;
+  bottom: auto;
+  height: 60px;
+  transform: translateY(-50%);
+}
+
+.edge-hover-button.edge-hover-split:hover {
+  background: linear-gradient(
+    to right,
+    rgba(118, 75, 162, 0.2),
+    rgba(118, 75, 162, 0.35)
+  );
+  border-color: rgba(118, 75, 162, 0.5);
+  box-shadow: 0 2px 8px rgba(118, 75, 162, 0.3);
 }
 
 .full-results-content-container select {
@@ -3120,11 +3456,6 @@ textarea.bp3-input.full-results-chat-input {
   /* Let flex handle the height naturally */
 }
 
-/* Action bar should be fixed at bottom */
-.full-results-action-bar {
-  flex-shrink: 0;
-}
-
 .full-results-chat-container {
   display: flex;
   flex-direction: column;
@@ -3147,13 +3478,34 @@ textarea.bp3-input.full-results-chat-input {
   border-radius: 8px;
 }
 
-/* Chat messages should scroll */
+/* Chat messages area with seamless scrolling */
 .full-results-chat-messages {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
   padding: 8px;
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for messages */
+.full-results-chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.full-results-chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.full-results-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(167, 182, 194, 0.25);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.full-results-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(167, 182, 194, 0.4);
 }
 
 /* Chat input area should be fixed at bottom */
@@ -3161,13 +3513,10 @@ textarea.bp3-input.full-results-chat-input {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
 }
 
 .full-results-chat-input-area {
   flex-shrink: 0;
-  border-top: 1px solid rgba(167, 182, 194, 0.4);
-  padding: 8px;
   /* background: #f8f9fa; */
   background: inherit;
 }
@@ -3300,6 +3649,401 @@ textarea.bp3-input.full-results-chat-input {
 /* Animation for smooth transitions */
 .full-results-overlay {
   transition: all 0.3s ease;
+}
+
+/* Side Panel Mode - displays alongside Roam app */
+.full-results-overlay.side-panel-mode {
+  position: fixed !important;
+  background: transparent !important;
+  /* z-index: 1001 !important; Higher than Roam's sidebar (z-index: 1000) */
+  pointer-events: none; /* Allow clicking through to Roam app */
+  transition: all 0.3s ease;
+}
+
+/* Right position (default) */
+.full-results-overlay.side-panel-right {
+  top: 0 !important;
+  left: auto !important;
+  right: 0 !important;
+  width: auto !important;
+  height: 100vh !important;
+  justify-content: flex-end !important;
+  align-items: stretch !important;
+}
+
+/* Left position */
+.full-results-overlay.side-panel-left {
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  width: auto !important;
+  height: 100vh !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+
+/* Bottom position */
+.full-results-overlay.side-panel-bottom {
+  top: auto !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100vw !important;
+  height: auto !important;
+  justify-content: center !important;
+  align-items: flex-end !important;
+}
+
+.full-results-modal.side-panel {
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  pointer-events: auto; /* Re-enable clicks on the panel itself */
+  transition: width 0.1s ease, height 0.1s ease;
+}
+
+/* Right panel styling */
+.full-results-overlay.side-panel-right .full-results-modal.side-panel {
+  width: 100%;
+  height: 100vh !important;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15) !important;
+  border-left: 1px solid #ccc;
+}
+
+/* Left panel styling */
+.full-results-overlay.side-panel-left .full-results-modal.side-panel {
+  width: 100%;
+  height: 100vh !important;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15) !important;
+  border-right: 1px solid #ccc;
+}
+
+/* Bottom panel styling */
+.full-results-overlay.side-panel-bottom .full-results-modal.side-panel {
+  width: 100vw !important;
+  height: 100%;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-top: 1px solid #ccc;
+  padding-top: 4px;
+  padding-bottom: 0;
+}
+
+/* Adjust Roam app to make space for side panel - Right */
+.full-results-overlay.side-panel-right ~ #app,
+body:has(.full-results-overlay.side-panel-right) #app {
+  transition: margin-right 0.3s ease;
+}
+
+/* Adjust Roam app to make space for side panel - Left */
+.full-results-overlay.side-panel-left ~ #app,
+body:has(.full-results-overlay.side-panel-left) #app {
+  transition: margin-left 0.3s ease;
+}
+
+/* Adjust Roam app to make space for side panel - Bottom */
+.full-results-overlay.side-panel-bottom ~ #app,
+body:has(.full-results-overlay.side-panel-bottom) #app {
+  transition: margin-bottom 0.3s ease;
+}
+
+/* When side panel is closed, restore Roam app */
+body:not(:has(.full-results-overlay.side-panel-mode)) #app {
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Side Panel Resize Handle */
+.side-panel-resize-handle {
+  position: absolute;
+  z-index: 10;
+  cursor: ew-resize;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.side-panel-resize-handle:hover {
+  background: rgba(0, 122, 204, 0.1);
+}
+
+.side-panel-resize-right {
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.side-panel-resize-left {
+  right: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.side-panel-resize-bottom {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.side-panel-resize-handle .resize-handle-bar {
+  background: #ccc;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+.side-panel-resize-right .resize-handle-bar,
+.side-panel-resize-left .resize-handle-bar {
+  width: 3px;
+  height: 40px;
+}
+
+.side-panel-resize-bottom .resize-handle-bar {
+  width: 40px;
+  height: 3px;
+}
+
+.side-panel-resize-handle:hover .resize-handle-bar {
+  background: #007acc;
+}
+
+/* Legacy auto-switch mode - no longer used (replaced by layoutMode system) */
+/* Kept for reference only
+.full-results-modal.auto-switch-mode .full-results-chat-container {
+  width: 100% !important;
+}
+
+.full-results-modal.auto-switch-mode .full-results-main-content {
+  display: none !important;
+}
+*/
+
+/* Compact header for side panel mode */
+.full-results-modal.side-panel .full-results-header {
+  min-height: 30px;
+}
+
+.full-results-modal.side-panel .full-results-title {
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.full-results-modal.side-panel .full-results-control-button {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px;
+}
+
+.full-results-modal.side-panel .full-results-control-button .bp3-icon {
+  font-size: 14px;
+}
+
+/* Extra compact for bottom position */
+.full-results-overlay.side-panel-bottom .full-results-header {
+  min-height: 30px;
+  padding-bottom: 2px;
+  margin-bottom: 2px;
+}
+
+.full-results-overlay.side-panel-bottom .full-results-title {
+  font-size: 13px;
+}
+
+.full-results-overlay.side-panel-bottom .full-results-control-button {
+  min-width: 26px;
+  min-height: 26px;
+}
+
+/* Enable Container Queries on Chat Container */
+.full-results-chat-container {
+  container-type: inline-size;
+  container-name: chat;
+}
+
+/* Compact Chat Mode - Applied when .full-results-chat-container width < 600px */
+@container chat (max-width: 600px) {
+  /* Compact header */
+  .full-results-chat-header {
+    padding: 8px 12px;
+  }
+
+  .full-results-chat-info-text {
+    font-size: 12px;
+  }
+
+  .full-results-chat-info-text .bp3-icon {
+    display: none;
+  }
+
+  .full-results-chat-total-tokens {
+    display: none;
+  }
+
+  .full-results-chat-header-controls .bp3-button {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 2px;
+  }
+
+  .full-results-chat-header-controls .bp3-icon {
+    font-size: 12px;
+  }
+
+  /* Compact messages */
+  .full-results-chat-messages {
+    padding: 6px;
+  }
+
+  .full-results-chat-message {
+    gap: 0;
+    margin-bottom: 12px;
+  }
+
+  /* Adjust message bubbles */
+  .full-results-chat-content {
+    max-width: 95%;
+  }
+
+  .full-results-chat-text {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* Compact welcome message */
+  .full-results-chat-welcome {
+    margin-bottom: 12px;
+    padding: 4px;
+  }
+
+  .full-results-chat-assistant-message {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+
+  /* Smaller suggestion pills */
+  .full-results-chat-suggestions button {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 16px;
+  }
+
+  /* Compact controls */
+  .full-results-chat-controls {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .full-results-chat-access-mode .bp3-html-select select {
+    padding: 4px 24px 4px 10px;
+    font-size: 12px;
+    border-radius: 12px;
+  }
+
+  /* Compact input */
+  .full-results-chat-input-container {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  textarea.bp3-input.full-results-chat-input {
+    padding: 8px;
+    font-size: 13px;
+    min-height: 32px;
+    border-radius: 12px;
+  }
+
+  .full-results-chat-send {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .full-results-chat-send .bp3-icon {
+    font-size: 14px;
+  }
+
+  /* Compact typography */
+  .full-results-chat-text h2 {
+    font-size: 16px;
+    margin: 12px 0 6px 0;
+  }
+
+  .full-results-chat-text h3 {
+    font-size: 14px;
+    margin: 10px 0 4px 0;
+  }
+
+  .full-results-chat-text h4 {
+    font-size: 13px;
+    margin: 8px 0 4px 0;
+  }
+
+  .full-results-chat-text p {
+    margin: 0 0 8px 0;
+  }
+
+  .full-results-chat-text ul,
+  .full-results-chat-text ol {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+
+  /* Compact message footer */
+  .full-results-chat-message-footer {
+    margin-top: 4px;
+    gap: 6px;
+  }
+
+  .full-results-chat-timestamp,
+  .full-results-chat-tokens {
+    font-size: 10px;
+  }
+}
+
+/* On very small screens, revert to overlay mode */
+@media (max-width: 768px) {
+  .full-results-overlay.side-panel-mode {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    justify-content: center !important;
+    align-items: center !important;
+    pointer-events: auto;
+  }
+
+  .full-results-modal.side-panel {
+    width: 95% !important;
+    height: 90vh !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+    border: none !important;
+  }
+
+  .full-results-overlay.side-panel-mode ~ #app,
+  body:has(.full-results-overlay.side-panel-mode) #app {
+    margin: 0 !important;
+  }
+
+  .side-panel-resize-handle {
+    display: none !important;
+  }
 }
 
 /* Dark mode support (if needed) */

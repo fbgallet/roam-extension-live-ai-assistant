@@ -714,6 +714,10 @@
   color: white !important;
 }
 
+.bp3-transition-container:has(.direct-content-popover-multiselect) {
+  top: 180px !important;
+}
+
 /* Page Selections Display in Query composer */
 .query-page-selections {
   /* margin-top: 8px; */

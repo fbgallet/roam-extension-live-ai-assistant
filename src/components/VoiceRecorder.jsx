@@ -375,7 +375,12 @@ function VoiceRecorder({
     // Check if no block is focused - if so, invoke current page references
     const currentBlock =
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-    if (!currentBlock && !blocksSelectionUids.current?.length) {
+    let currentBlockContent =
+      currentBlock && getBlockContentByUid(currentBlock);
+    if (
+      (!currentBlock || !currentBlockContent.trim()) &&
+      !blocksSelectionUids.current?.length
+    ) {
       // on daily logs, open last results
       if (document.querySelector(".roam-log-container")) {
         openLastAskYourGraphResults();

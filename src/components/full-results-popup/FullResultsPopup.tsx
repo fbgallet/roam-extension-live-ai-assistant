@@ -5,6 +5,9 @@ import {
   InputGroup,
   Checkbox,
   Icon,
+  Popover,
+  Menu,
+  MenuItem,
 } from "@blueprintjs/core";
 
 import { createChildBlock } from "../../utils/roamAPI.js";
@@ -59,6 +62,51 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   const [queryProgress, setQueryProgress] = useState<
     Record<string, { status: string; count?: number }>
   >({});
+
+  // Side panel mode state with localStorage persistence
+  const [isSidePanelMode, setIsSidePanelMode] = useState(() => {
+    const saved = localStorage.getItem("fullResultsPopup_sidePanelMode");
+    return saved === "true";
+  });
+
+  const [sidePanelWidth, setSidePanelWidth] = useState(() => {
+    const saved = localStorage.getItem("fullResultsPopup_sidePanelWidth");
+    return saved ? parseInt(saved, 10) : 600;
+  });
+
+  const [sidePanelHeight, setSidePanelHeight] = useState(() => {
+    const saved = localStorage.getItem("fullResultsPopup_sidePanelHeight");
+    return saved ? parseInt(saved, 10) : 400;
+  });
+
+  const [sidePanelPosition, setSidePanelPosition] = useState<
+    "right" | "left" | "bottom"
+  >(() => {
+    const saved = localStorage.getItem("fullResultsPopup_sidePanelPosition");
+    return (saved as "right" | "left" | "bottom") || "right";
+  });
+
+  const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
+
+  // Layout mode state: "split" (A), "results-only" (B), "chat-only" (C)
+  const [layoutMode, setLayoutMode] = useState<
+    "split" | "results-only" | "chat-only"
+  >(() => {
+    const saved = localStorage.getItem("fullResultsPopup_layoutMode");
+    if (saved) return saved as "split" | "results-only" | "chat-only";
+
+    // Initialize from legacy chatOnlyMode state for backward compatibility
+    const legacyChatOnly = localStorage.getItem(
+      "fullResultsPopup_chatOnlyMode"
+    );
+    if (legacyChatOnly === "true") return "chat-only";
+
+    return "split";
+  });
+
+  // Track dialog/panel width for responsive layout constraints
+  const [dialogWidth, setDialogWidth] = useState<number>(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Use internal state - initialize ONCE from props, NEVER sync after that
   const [currentResults, setCurrentResults] = useState<any[]>(results);
@@ -628,7 +676,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
             setExecutionProgress(message);
 
             // Update window storage with page selection results
-            updateWindowQueryStorage(pageSelectionResult.finalResults, query, targetUid);
+            updateWindowQueryStorage(
+              pageSelectionResult.finalResults,
+              query,
+              targetUid
+            );
           } else {
             // Update window storage with query results (no page selections)
             updateWindowQueryStorage(finalResults, query, targetUid);
@@ -865,6 +917,258 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     }
   };
 
+  // Helper to get current position display info
+  const getCurrentPositionInfo = () => {
+    if (!isSidePanelMode) {
+      return { icon: "applications", label: "Overlay" };
+    }
+    switch (sidePanelPosition) {
+      case "right":
+        return { icon: "panel-stats", label: "Right Panel" };
+      case "left":
+        return { icon: "panel-stats", label: "Left Panel" };
+      case "bottom":
+        return { icon: "menu", label: "Bottom Panel" };
+      default:
+        return { icon: "applications", label: "Overlay" };
+    }
+  };
+
+  const handlePositionChange = (
+    position: "overlay" | "right" | "left" | "bottom"
+  ) => {
+    if (position === "overlay") {
+      setIsSidePanelMode(false);
+      localStorage.setItem("fullResultsPopup_sidePanelMode", "false");
+    } else {
+      if (!isSidePanelMode) {
+        setIsSidePanelMode(true);
+        localStorage.setItem("fullResultsPopup_sidePanelMode", "true");
+      }
+      setSidePanelPosition(position);
+      localStorage.setItem("fullResultsPopup_sidePanelPosition", position);
+    }
+  };
+
+  // Side panel resize handlers
+  const handleSidePanelResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingSidePanel(true);
+  };
+
+  const handleSidePanelResizeMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isResizingSidePanel) return;
+
+      e.preventDefault();
+
+      if (sidePanelPosition === "bottom") {
+        // Resize height for bottom panel
+        const newHeight = window.innerHeight - e.clientY;
+        const constrainedHeight = Math.max(
+          300,
+          Math.min(window.innerHeight - 100, newHeight)
+        );
+        requestAnimationFrame(() => {
+          setSidePanelHeight(constrainedHeight);
+        });
+      } else {
+        // Resize width for left/right panels
+        let newWidth: number;
+        if (sidePanelPosition === "right") {
+          newWidth = window.innerWidth - e.clientX;
+        } else {
+          newWidth = e.clientX;
+        }
+        const constrainedWidth = Math.max(
+          300,
+          Math.min(window.innerWidth - 200, newWidth)
+        );
+        requestAnimationFrame(() => {
+          setSidePanelWidth(constrainedWidth);
+        });
+      }
+    },
+    [isResizingSidePanel, sidePanelPosition]
+  );
+
+  const handleSidePanelResizeEnd = () => {
+    setIsResizingSidePanel(false);
+    if (sidePanelPosition === "bottom") {
+      localStorage.setItem(
+        "fullResultsPopup_sidePanelHeight",
+        String(sidePanelHeight)
+      );
+    } else {
+      localStorage.setItem(
+        "fullResultsPopup_sidePanelWidth",
+        String(sidePanelWidth)
+      );
+    }
+  };
+
+  // Mouse event listeners for side panel resize
+  useEffect(() => {
+    if (isResizingSidePanel) {
+      document.addEventListener("mousemove", handleSidePanelResizeMove);
+      document.addEventListener("mouseup", handleSidePanelResizeEnd);
+      return () => {
+        document.removeEventListener("mousemove", handleSidePanelResizeMove);
+        document.removeEventListener("mouseup", handleSidePanelResizeEnd);
+      };
+    }
+  }, [isResizingSidePanel, handleSidePanelResizeMove]);
+
+  // Track dialog width for responsive layout constraints
+  useEffect(() => {
+    const updateWidth = () => {
+      if (dialogRef.current) {
+        const width = dialogRef.current.offsetWidth;
+        setDialogWidth(width);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+
+    // Use ResizeObserver for better tracking
+    const resizeObserver = new ResizeObserver(updateWidth);
+    if (dialogRef.current) {
+      resizeObserver.observe(dialogRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateWidth);
+      resizeObserver.disconnect();
+    };
+  }, [isSidePanelMode, sidePanelWidth, sidePanelHeight, sidePanelPosition]);
+
+  // Check if split view is allowed based on width
+  const canUseSplitView = dialogWidth >= 600;
+
+  // Layout mode helpers
+  const handleLayoutChange = useCallback(
+    (newMode: "split" | "results-only" | "chat-only") => {
+      // If trying to switch to split but width is too narrow, prevent it
+      if (newMode === "split" && !canUseSplitView) {
+        return;
+      }
+
+      setLayoutMode(newMode);
+      localStorage.setItem("fullResultsPopup_layoutMode", newMode);
+
+      // When switching to split mode, center the divider
+      if (newMode === "split") {
+        setMainContentWidth(50);
+      }
+
+      // Update legacy state for backward compatibility
+      if (newMode === "chat-only") {
+        setChatOnlyMode(true);
+        if (!showChat) {
+          toggleChat();
+        }
+      } else {
+        setChatOnlyMode(false);
+        if (newMode === "results-only" && showChat) {
+          toggleChat(); // Close chat
+        } else if (newMode === "split" && !showChat) {
+          toggleChat(); // Open chat (always open chat when entering split mode)
+        }
+      }
+    },
+    [
+      canUseSplitView,
+      showChat,
+      chatMessages.length,
+      setChatOnlyMode,
+      toggleChat,
+      setMainContentWidth,
+    ]
+  );
+
+  // Get available layout options based on current mode and width
+  const getAvailableLayoutOptions = useCallback(() => {
+    const options: Array<{
+      mode: "split" | "results-only" | "chat-only";
+      icon: string;
+      label: string;
+    }> = [];
+
+    if (layoutMode !== "split" && canUseSplitView) {
+      options.push({ mode: "split", icon: "panel-table", label: "Split View" });
+    }
+    if (layoutMode !== "results-only") {
+      options.push({
+        mode: "results-only",
+        icon: "th-list",
+        label: "Results Only",
+      });
+    }
+    if (layoutMode !== "chat-only") {
+      options.push({ mode: "chat-only", icon: "chat", label: "Chat Only" });
+    }
+
+    return options;
+  }, [layoutMode, canUseSplitView]);
+
+  // Get current layout info for button display
+  const getCurrentLayoutInfo = useCallback(() => {
+    switch (layoutMode) {
+      case "split":
+        return { icon: "panel-table", label: "Split View" };
+      case "results-only":
+        return { icon: "th-list", label: "Results Only" };
+      case "chat-only":
+        return { icon: "chat", label: "Chat Only" };
+    }
+  }, [layoutMode]);
+
+  // Automatically constrain layout when width becomes too narrow
+  useEffect(() => {
+    if (!canUseSplitView && layoutMode === "split") {
+      // Switch to chat-only if chat is active, otherwise results-only
+      handleLayoutChange(showChat ? "chat-only" : "results-only");
+    }
+  }, [canUseSplitView, layoutMode, showChat, handleLayoutChange]);
+
+  // Adjust Roam app margin dynamically based on side panel size and position
+  useEffect(() => {
+    const roamApp = document.getElementById("app");
+    if (!roamApp) return;
+
+    if (isSidePanelMode) {
+      if (sidePanelPosition === "right") {
+        roamApp.style.marginRight = `${sidePanelWidth}px`;
+        roamApp.style.marginLeft = "0";
+        roamApp.style.marginBottom = "0";
+      } else if (sidePanelPosition === "left") {
+        roamApp.style.marginLeft = `${sidePanelWidth}px`;
+        roamApp.style.marginRight = "0";
+        roamApp.style.marginBottom = "0";
+      } else if (sidePanelPosition === "bottom") {
+        roamApp.style.marginBottom = `${sidePanelHeight}px`;
+        roamApp.style.marginRight = "0";
+        roamApp.style.marginLeft = "0";
+      }
+    } else {
+      roamApp.style.marginRight = "0";
+      roamApp.style.marginLeft = "0";
+      roamApp.style.marginBottom = "0";
+    }
+
+    return () => {
+      roamApp.style.marginRight = "0";
+      roamApp.style.marginLeft = "0";
+      roamApp.style.marginBottom = "0";
+    };
+  }, [isSidePanelMode, sidePanelPosition, sidePanelWidth, sidePanelHeight]);
+
+  // Auto-hide logic for narrow panels (only for side panels, not bottom)
+  // Legacy auto-switch logic - now handled by layoutMode
+  // Kept for backward compatibility but should always be false
+  const shouldAutoSwitchChatResults = false;
+
   const handleResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -879,10 +1183,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           ?.getBoundingClientRect();
         if (containerRect) {
           const relativeX = e.clientX - containerRect.left;
-          const percentage = Math.max(
-            20,
-            Math.min(80, (relativeX / containerRect.width) * 100)
-          );
+          const rawPercentage = (relativeX / containerRect.width) * 100;
+          const percentage = Math.max(20, Math.min(80, rawPercentage));
 
           // Use requestAnimationFrame for smoother updates
           requestAnimationFrame(() => {
@@ -894,9 +1196,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     [isResizing]
   );
 
-  const handleResizeEnd = () => {
+  const handleResizeEnd = useCallback(() => {
+    if (!isResizing) return;
     setIsResizing(false);
-  };
+  }, [isResizing]);
 
   // Mouse event listeners for resize
   useEffect(() => {
@@ -930,35 +1233,119 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
   if (!isOpen) return null;
 
+  // Calculate dynamic styles for side panel
+  const sidePanelStyle = isSidePanelMode
+    ? sidePanelPosition === "bottom"
+      ? { height: `${sidePanelHeight}px`, width: "100vw" }
+      : { width: `${sidePanelWidth}px`, height: "100vh" }
+    : {};
+
+  const overlayPositionClass = isSidePanelMode
+    ? `side-panel-${sidePanelPosition}`
+    : "";
+
   return (
     <div
       id="full-results-popup-container"
-      className={`full-results-overlay ${isFullscreen ? "fullscreen" : ""}`}
+      className={`full-results-overlay ${isFullscreen ? "fullscreen" : ""} ${
+        isSidePanelMode ? "side-panel-mode" : ""
+      } ${overlayPositionClass}`}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && !isSidePanelMode) {
           handleClose();
         }
       }}
     >
+      {/* Side panel resize handle */}
+      {isSidePanelMode && (
+        <div
+          className={`side-panel-resize-handle side-panel-resize-${sidePanelPosition}`}
+          onMouseDown={handleSidePanelResizeStart}
+          title="Drag to resize"
+        >
+          <div className="resize-handle-bar"></div>
+        </div>
+      )}
       <div
+        ref={dialogRef}
         className={`bp3-dialog full-results-modal ${
           showChat ? "chat-open" : ""
         } ${chatOnlyMode ? "chat-only" : ""} ${
           isFullscreen ? "fullscreen" : ""
-        } ${isResizing ? "resizing" : ""}`}
+        } ${isResizing ? "resizing" : ""} ${
+          isSidePanelMode ? "side-panel" : ""
+        } ${
+          shouldAutoSwitchChatResults ? "auto-switch-mode" : ""
+        } layout-${layoutMode}`}
+        style={sidePanelStyle}
       >
         <div className="full-results-header bp3-dialog-header">
           <h3 className="full-results-title bp3-heading">{title}</h3>
           <div className="full-results-header-controls">
-            {showChat && (
+            {/* Layout mode menu - Show when chat is available or open */}
+            {(canUseChat(privateMode, permissions) || showChat) && (
+              <Popover
+                content={
+                  <Menu>
+                    {getAvailableLayoutOptions().map((option) => (
+                      <MenuItem
+                        key={option.mode}
+                        icon={option.icon as any}
+                        text={option.label}
+                        onClick={() => handleLayoutChange(option.mode)}
+                      />
+                    ))}
+                  </Menu>
+                }
+                position="bottom-right"
+              >
+                <button
+                  className="full-results-control-button bp3-button bp3-minimal"
+                  title={`Layout: ${getCurrentLayoutInfo().label}`}
+                >
+                  <Icon icon={getCurrentLayoutInfo().icon as any} size={12} />
+                </button>
+              </Popover>
+            )}
+            {/* Position menu */}
+            <Popover
+              content={
+                <Menu>
+                  <MenuItem
+                    icon="applications"
+                    text="Overlay (Center)"
+                    onClick={() => handlePositionChange("overlay")}
+                    active={!isSidePanelMode}
+                  />
+                  <MenuItem
+                    icon="arrow-right"
+                    text="Right Panel"
+                    onClick={() => handlePositionChange("right")}
+                    active={isSidePanelMode && sidePanelPosition === "right"}
+                  />
+                  <MenuItem
+                    icon="arrow-left"
+                    text="Left Panel"
+                    onClick={() => handlePositionChange("left")}
+                    active={isSidePanelMode && sidePanelPosition === "left"}
+                  />
+                  <MenuItem
+                    icon="arrow-down"
+                    text="Bottom Panel"
+                    onClick={() => handlePositionChange("bottom")}
+                    active={isSidePanelMode && sidePanelPosition === "bottom"}
+                  />
+                </Menu>
+              }
+              position="bottom-right"
+            >
               <button
                 className="full-results-control-button bp3-button bp3-minimal"
-                onClick={handleChatOnlyToggle}
-                title={chatOnlyMode ? "Show results" : "Chat only"}
+                title={`Display: ${getCurrentPositionInfo().label}`}
               >
-                <Icon icon={chatOnlyMode ? "chart" : "chat"} size={16} />
+                <Icon icon={getCurrentPositionInfo().icon as any} size={12} />
               </button>
-            )}
+            </Popover>
             <button
               className="full-results-control-button bp3-button bp3-minimal"
               onClick={handleFullscreenToggle}
@@ -966,628 +1353,780 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 isFullscreen ? "Exit fullscreen (ESC)" : "Fullscreen (F11)"
               }
             >
-              <Icon icon={isFullscreen ? "minimize" : "maximize"} size={16} />
+              <Icon icon={isFullscreen ? "minimize" : "maximize"} size={12} />
             </button>
             <button
               className="full-results-close-button bp3-button bp3-minimal bp3-dialog-close-button"
               onClick={handleClose}
             >
-              <Icon icon="cross" size={16} />
+              <Icon icon="cross" size={12} />
             </button>
           </div>
         </div>
 
         <div className="full-results-content-container">
-          <div
-            className="full-results-main-content"
-            style={{
-              width: showChat ? `${mainContentWidth}%` : "100%",
-              display: chatOnlyMode ? "none" : "flex",
-            }}
-          >
-            {/* Query Management */}
-            <div className="query-manager-container">
-              <div className="query-manager-wrapper">
-                <QueryManager
-                  currentQuery={currentQueryAsUnified}
-                  onQuerySelect={handleQuerySelect}
-                  onQueryLoadedIntoComposer={(
-                    query: StoredQuery,
-                    forceResetOriginal?: boolean
-                  ) => {
-                    lastLoadedQueryRef.current = query;
-                    setLoadedQuery(query);
-                    // Track original query for detecting edits (only if not already editing)
-                    if (
-                      forceResetOriginal ||
-                      !originalLoadedQuery ||
-                      originalLoadedQuery.id !== query.id
-                    ) {
-                      setOriginalLoadedQuery(query);
-                    }
-                  }}
-                  disabled={isExecutingQuery}
-                  executionProgress={executionProgress}
-                  queryProgress={queryProgress}
-                  onQueriesUpdate={() => {
-                    // Refresh mechanism enabled
-                  }}
-                  onClearAll={handleClearAll}
-                  // Two-section composition UI
-                  originalQueryForComposition={originalQueryAsUnified}
-                  loadedQuery={loadedQuery}
-                  originalLoadedQuery={originalLoadedQuery}
-                  tempComposedQuery={tempComposedQuery}
-                  // Query Composer props
-                  composerQuery={composerQuery}
-                  isComposingQuery={isComposingQuery}
-                  onQueryChange={setComposerQuery}
-                  onExecuteQuery={async (
-                    mode: "add" | "replace",
-                    model?: string
-                  ) => {
-                    // Prevent concurrent executions
-                    if (isExecutingQuery) {
-                      console.warn(
-                        "⚠️ [FullResultsPopup] Query already executing, skipping"
-                      );
-                      return;
-                    }
+          {/* Edge Hover Buttons for Quick Layout Switching */}
 
-                    setIsExecutingQuery(true);
+          {/* Left Edge Button */}
+          {layoutMode === "chat-only" && (
+            <div
+              className="edge-hover-button edge-hover-left"
+              onClick={() => {
+                if (canUseSplitView) {
+                  handleLayoutChange("split");
+                } else {
+                  handleLayoutChange("results-only");
+                }
+              }}
+              onDoubleClick={() => handleLayoutChange("results-only")}
+              title={
+                canUseSplitView
+                  ? "Click: Show split view | Double-click: Results only"
+                  : "Switch to results"
+              }
+            >
+              <Icon icon="chevron-right" size={16} />
+            </div>
+          )}
+          {layoutMode === "split" && (
+            <div
+              className="edge-hover-button edge-hover-left edge-hover-split"
+              onClick={() => handleLayoutChange("chat-only")}
+              title="Close results panel (chat only)"
+            >
+              <Icon icon="cross" size={14} />
+            </div>
+          )}
 
-                    try {
-                      // IMPORTANT: Check if we're executing a loaded composed query
-                      const queryToExecute = lastLoadedQueryRef.current;
+          {/* Right Edge Button */}
+          {layoutMode === "results-only" && (
+            <div
+              className="edge-hover-button edge-hover-right"
+              onClick={() => {
+                if (canUseSplitView) {
+                  handleLayoutChange("split");
+                } else {
+                  handleLayoutChange("chat-only");
+                }
+              }}
+              onDoubleClick={() => handleLayoutChange("chat-only")}
+              title={
+                canUseSplitView
+                  ? "Click: Show split view | Double-click: Chat only"
+                  : "Switch to chat"
+              }
+            >
+              <Icon icon="chevron-left" size={16} />
+            </div>
+          )}
+          {layoutMode === "split" && (
+            <div
+              className="edge-hover-button edge-hover-right edge-hover-split"
+              onClick={() => handleLayoutChange("results-only")}
+              title="Close chat panel (results only)"
+            >
+              <Icon icon="cross" size={14} />
+            </div>
+          )}
 
+          {/* Results Panel */}
+          {layoutMode !== "chat-only" && (
+            <div
+              className="full-results-main-content"
+              style={{
+                width: layoutMode === "split" ? `${mainContentWidth}%` : "100%",
+                display: "flex",
+              }}
+            >
+              {/* Query Management */}
+              <div className="query-manager-container">
+                <div className="query-manager-wrapper">
+                  <QueryManager
+                    currentQuery={currentQueryAsUnified}
+                    onQuerySelect={handleQuerySelect}
+                    onQueryLoadedIntoComposer={(
+                      query: StoredQuery,
+                      forceResetOriginal?: boolean
+                    ) => {
+                      lastLoadedQueryRef.current = query;
+                      setLoadedQuery(query);
+                      // Track original query for detecting edits (only if not already editing)
                       if (
-                        mode === "replace" &&
-                        queryToExecute &&
-                        (queryToExecute.userQuery === composerQuery ||
-                          (!composerQuery.trim() && loadedQuery) ||
-                          (!queryToExecute.userQuery &&
-                            queryToExecute.pageSelections &&
-                            queryToExecute.pageSelections.length > 0))
+                        forceResetOriginal ||
+                        !originalLoadedQuery ||
+                        originalLoadedQuery.id !== query.id
                       ) {
-                        // This is a loaded query being executed (either matches composer or loaded without composer text)
+                        setOriginalLoadedQuery(query);
+                      }
+                    }}
+                    disabled={isExecutingQuery}
+                    executionProgress={executionProgress}
+                    queryProgress={queryProgress}
+                    onQueriesUpdate={() => {
+                      // Refresh mechanism enabled
+                    }}
+                    onClearAll={handleClearAll}
+                    // Two-section composition UI
+                    originalQueryForComposition={originalQueryAsUnified}
+                    loadedQuery={loadedQuery}
+                    originalLoadedQuery={originalLoadedQuery}
+                    tempComposedQuery={tempComposedQuery}
+                    // Query Composer props
+                    composerQuery={composerQuery}
+                    isComposingQuery={isComposingQuery}
+                    onQueryChange={setComposerQuery}
+                    onExecuteQuery={async (
+                      mode: "add" | "replace",
+                      model?: string
+                    ) => {
+                      // Prevent concurrent executions
+                      if (isExecutingQuery) {
+                        console.warn(
+                          "⚠️ [FullResultsPopup] Query already executing, skipping"
+                        );
+                        return;
+                      }
 
-                        // IMPORTANT: Set as current active query so page selections persist in UI
-                        setCurrentActiveQuery(queryToExecute);
+                      setIsExecutingQuery(true);
 
-                        // Check if it's a composed query that needs multi-step execution
+                      try {
+                        // IMPORTANT: Check if we're executing a loaded composed query
+                        const queryToExecute = lastLoadedQueryRef.current;
+
                         if (
-                          queryToExecute.isComposed &&
-                          queryToExecute.querySteps.length > 0
+                          mode === "replace" &&
+                          queryToExecute &&
+                          (queryToExecute.userQuery === composerQuery ||
+                            (!composerQuery.trim() && loadedQuery) ||
+                            (!queryToExecute.userQuery &&
+                              queryToExecute.pageSelections &&
+                              queryToExecute.pageSelections.length > 0))
                         ) {
-                          // Clear results and set progress BEFORE execution starts
-                          setExecutionProgress(
-                            `🔄 Preparing composed query: ${
-                              queryToExecute.querySteps.length + 1
-                            } queries...`
-                          );
+                          // This is a loaded query being executed (either matches composer or loaded without composer text)
+
+                          // IMPORTANT: Set as current active query so page selections persist in UI
+                          setCurrentActiveQuery(queryToExecute);
+
+                          // Check if it's a composed query that needs multi-step execution
+                          if (
+                            queryToExecute.isComposed &&
+                            queryToExecute.querySteps.length > 0
+                          ) {
+                            // Clear results and set progress BEFORE execution starts
+                            setExecutionProgress(
+                              `🔄 Preparing composed query: ${
+                                queryToExecute.querySteps.length + 1
+                              } queries...`
+                            );
+
+                            setCurrentResults([]);
+                            forceUIRefresh(); // Force immediate UI update to show empty state
+
+                            // Clear state
+                            setOriginalQueryForComposition(null);
+                            setLoadedQuery(null);
+                            lastLoadedQueryRef.current = null;
+
+                            // Trigger execution in effect (allows React to re-render between updates)
+
+                            setPendingQueryExecution({
+                              query: queryToExecute,
+                              mode: "replace",
+                            });
+
+                            return; // Don't continue with normal execution
+                          }
+                        } else if (mode === "replace") {
+                          setCurrentActiveQuery(null);
+                          lastLoadedQueryRef.current = null;
+                        }
+
+                        // For replace mode, clear results immediately to show empty state
+                        if (mode === "replace") {
+                          setOriginalQueryForComposition(null);
+
+                          // DON'T clear loadedQuery if we're executing it - keep it visible during execution
+                          // Only clear if it's NOT the query being executed
+                          if (
+                            !queryToExecute ||
+                            queryToExecute.userQuery !== loadedQuery?.userQuery
+                          ) {
+                            setLoadedQuery(null);
+                          }
+
+                          delete (window as any).__originalQueryForComposition;
+                          delete (window as any).lastUserQuery;
+                          delete (window as any).lastFormalQuery;
+                          delete (window as any).lastIntentParserResult;
+                          delete (window as any).previousUserQuery;
+                          delete (window as any).previousFormalQuery;
+                          delete (window as any).previousIntentParserResult;
+                          delete (window as any).lastAgentResponseTargetUid;
 
                           setCurrentResults([]);
                           forceUIRefresh(); // Force immediate UI update to show empty state
-
-                          // Clear state
-                          setOriginalQueryForComposition(null);
-                          setLoadedQuery(null);
-                          lastLoadedQueryRef.current = null;
-
-                          // Trigger execution in effect (allows React to re-render between updates)
-
-                          setPendingQueryExecution({
-                            query: queryToExecute,
-                            mode: "replace",
-                          });
-
-                          return; // Don't continue with normal execution
                         }
-                      } else if (mode === "replace") {
-                        setCurrentActiveQuery(null);
-                        lastLoadedQueryRef.current = null;
-                      }
 
-                      // For replace mode, clear results immediately to show empty state
-                      if (mode === "replace") {
-                        setOriginalQueryForComposition(null);
+                        // Set execution progress for simple queries
+                        const queryText =
+                          composerQuery.trim() ||
+                          queryToExecute?.userQuery ||
+                          "";
 
-                        // DON'T clear loadedQuery if we're executing it - keep it visible during execution
-                        // Only clear if it's NOT the query being executed
-                        if (
-                          !queryToExecute ||
-                          queryToExecute.userQuery !== loadedQuery?.userQuery
+                        // Handle pageSelections-only queries (no userQuery)
+                        let newResults: any[] = [];
+                        let executionTime: string | undefined;
+                        let tokens: any | undefined;
+
+                        if (queryText) {
+                          setExecutionProgress(
+                            `🔄 Executing query: ${queryText.substring(0, 50)}${
+                              queryText.length > 50 ? "..." : ""
+                            }`
+                          );
+                          const executionResult = await handleComposerExecute(
+                            currentResults,
+                            mode,
+                            model,
+                            queryText // Pass the query text (either from composer or loaded query)
+                          );
+                          if (executionResult) {
+                            newResults = executionResult.results;
+                            executionTime = executionResult.executionTime;
+                            tokens = executionResult.tokens;
+                          }
+                        } else if (
+                          queryToExecute?.pageSelections &&
+                          queryToExecute.pageSelections.length > 0
                         ) {
-                          setLoadedQuery(null);
+                          // PageSelections-only query - skip the query execution step
+                          setExecutionProgress(
+                            `📄 Loading ${queryToExecute.pageSelections.length} page selection(s)...`
+                          );
                         }
 
-                        delete (window as any).__originalQueryForComposition;
-                        delete (window as any).lastUserQuery;
-                        delete (window as any).lastFormalQuery;
-                        delete (window as any).lastIntentParserResult;
-                        delete (window as any).previousUserQuery;
-                        delete (window as any).previousFormalQuery;
-                        delete (window as any).previousIntentParserResult;
-                        delete (window as any).lastAgentResponseTargetUid;
+                        // Handle results or pageSelections-only queries
+                        if (
+                          newResults.length > 0 ||
+                          (queryToExecute?.pageSelections &&
+                            queryToExecute.pageSelections.length > 0)
+                        ) {
+                          // Update current query context with the executed query
+                          if (mode === "replace") {
+                            const executedQuery =
+                              composerQuery.trim() ||
+                              queryToExecute?.userQuery ||
+                              "";
+                            setCurrentUserQuery(executedQuery);
+                            setCurrentFormalQuery(executedQuery);
 
-                        setCurrentResults([]);
-                        forceUIRefresh(); // Force immediate UI update to show empty state
-                      }
-
-                      // Set execution progress for simple queries
-                      const queryText =
-                        composerQuery.trim() || queryToExecute?.userQuery || "";
-
-                      // Handle pageSelections-only queries (no userQuery)
-                      let newResults: any[] = [];
-                      let executionTime: string | undefined;
-                      let tokens: any | undefined;
-
-                      if (queryText) {
-                        setExecutionProgress(
-                          `🔄 Executing query: ${queryText.substring(0, 50)}${
-                            queryText.length > 50 ? "..." : ""
-                          }`
-                        );
-                        const executionResult = await handleComposerExecute(
-                          currentResults,
-                          mode,
-                          model,
-                          queryText // Pass the query text (either from composer or loaded query)
-                        );
-                        if (executionResult) {
-                          newResults = executionResult.results;
-                          executionTime = executionResult.executionTime;
-                          tokens = executionResult.tokens;
-                        }
-                      } else if (
-                        queryToExecute?.pageSelections &&
-                        queryToExecute.pageSelections.length > 0
-                      ) {
-                        // PageSelections-only query - skip the query execution step
-                        setExecutionProgress(
-                          `📄 Loading ${queryToExecute.pageSelections.length} page selection(s)...`
-                        );
-                      }
-
-                      // Handle results or pageSelections-only queries
-                      if (
-                        newResults.length > 0 ||
-                        (queryToExecute?.pageSelections &&
-                          queryToExecute.pageSelections.length > 0)
-                      ) {
-                        // Update current query context with the executed query
-                        if (mode === "replace") {
-                          const executedQuery =
-                            composerQuery.trim() ||
-                            queryToExecute?.userQuery ||
-                            "";
-                          setCurrentUserQuery(executedQuery);
-                          setCurrentFormalQuery(executedQuery);
-
-                          if (newResults.length > 0) {
-                            setCurrentResults([...newResults]);
-                            // Force refresh AFTER setting new results
-                            forceUIRefresh();
-                          }
-
-                          // Execute page selections if they exist in the loaded query
-                          if (
-                            queryToExecute?.pageSelections &&
-                            queryToExecute.pageSelections.length > 0
-                          ) {
-                            const pageSelectionResult =
-                              await executeStoredPageSelections(
-                                queryToExecute.pageSelections,
-                                newResults,
-                                (progressMsg) =>
-                                  setExecutionProgress(progressMsg)
-                              );
-
-                            // Update results with page selection results
-                            setCurrentResults(pageSelectionResult.finalResults);
-
-                            // Update final progress message
                             if (newResults.length > 0) {
-                              setExecutionProgress(
-                                ProgressMessages.pageSelectionComplete(
-                                  pageSelectionResult.finalResults.length,
-                                  newResults.length,
-                                  pageSelectionResult.addedCount
-                                )
-                              );
-                            } else {
-                              // PageSelections-only: count pages and blocks
-                              const pageCount =
-                                pageSelectionResult.finalResults.filter(
-                                  (r: any) => r.isPage === true
-                                ).length;
-                              const blockCount =
-                                pageSelectionResult.finalResults.filter(
-                                  (r: any) => r.isPage !== true
-                                ).length;
-                              setExecutionProgress(
-                                ProgressMessages.pageSelectionWithCounts(
-                                  pageCount,
-                                  blockCount
-                                )
-                              );
+                              setCurrentResults([...newResults]);
+                              // Force refresh AFTER setting new results
+                              forceUIRefresh();
                             }
 
-                            // Update window storage with page selection results
-                            // Case: Query executed from INSIDE FullResultsPopup (QueryManager)
-                            if (queryToExecute) {
-                              updateWindowQueryStorage(pageSelectionResult.finalResults, queryToExecute, targetUid);
-                            }
-                          } else {
-                            // Update window storage with query results (no page selections)
-                            // Case: Query executed from INSIDE FullResultsPopup (QueryManager)
-                            if (queryToExecute) {
-                              updateWindowQueryStorage(newResults, queryToExecute, targetUid);
-                            }
-                          }
+                            // Execute page selections if they exist in the loaded query
+                            if (
+                              queryToExecute?.pageSelections &&
+                              queryToExecute.pageSelections.length > 0
+                            ) {
+                              const pageSelectionResult =
+                                await executeStoredPageSelections(
+                                  queryToExecute.pageSelections,
+                                  newResults,
+                                  (progressMsg) =>
+                                    setExecutionProgress(progressMsg)
+                                );
 
-                          // Clear loadedQuery AFTER execution completes (including page selections)
-                          // This ensures page selections remain visible during execution
-                          if (loadedQuery) {
-                            setLoadedQuery(null);
-                          }
-                        } else {
-                          // Add mode - combine with existing AND create composed query
-                          const existingUids = new Set(
-                            currentResults.map((r) => r.uid)
-                          );
-                          const uniqueNewResults = newResults.filter(
-                            (r) => !existingUids.has(r.uid)
-                          );
-                          setCurrentResults([
-                            ...currentResults,
-                            ...uniqueNewResults,
-                          ]);
-
-                          // Create composed query if there's a current query
-                          if (currentQueryAsUnified && !isComposingNow) {
-                            // Check if we're already adding this exact query (prevent duplicates)
-                            const alreadyHasThisStep =
-                              currentQueryAsUnified.querySteps?.some(
-                                (step) => step.userQuery === composerQuery
+                              // Update results with page selection results
+                              setCurrentResults(
+                                pageSelectionResult.finalResults
                               );
 
-                            if (alreadyHasThisStep) {
-                              console.warn(
-                                "⚠️ [FullResultsPopup] Query already in steps, skipping composition:",
-                                composerQuery
-                              );
-                            } else {
-                              setIsComposingNow(true); // Set flag to prevent re-entry
-
-                              const currentIntentParser = (window as any)
-                                .lastIntentParserResult;
-
-                              // Check if we're adding a loaded query (which may be composed) or a typed query
-                              let additionalQueryToCompose: any;
-
-                              if (
-                                loadedQuery &&
-                                (loadedQuery.userQuery === composerQuery ||
-                                  !composerQuery.trim())
-                              ) {
-                                // We're adding a loaded query - use its full structure (may include steps)
-
-                                additionalQueryToCompose = loadedQuery;
+                              // Update final progress message
+                              if (newResults.length > 0) {
+                                setExecutionProgress(
+                                  ProgressMessages.pageSelectionComplete(
+                                    pageSelectionResult.finalResults.length,
+                                    newResults.length,
+                                    pageSelectionResult.addedCount
+                                  )
+                                );
                               } else {
-                                // We're adding a typed query - create simple step
-
-                                additionalQueryToCompose = {
-                                  userQuery: composerQuery,
-                                  formalQuery:
-                                    currentIntentParser?.formalQuery ||
-                                    composerQuery,
-                                  intentParserResult: currentIntentParser,
-                                };
+                                // PageSelections-only: count pages and blocks
+                                const pageCount =
+                                  pageSelectionResult.finalResults.filter(
+                                    (r: any) => r.isPage === true
+                                  ).length;
+                                const blockCount =
+                                  pageSelectionResult.finalResults.filter(
+                                    (r: any) => r.isPage !== true
+                                  ).length;
+                                setExecutionProgress(
+                                  ProgressMessages.pageSelectionWithCounts(
+                                    pageCount,
+                                    blockCount
+                                  )
+                                );
                               }
 
-                              // Convert UnifiedQuery to StoredQuery format for composition
-                              const baseQueryForComposition =
-                                unifiedQueryToStored(currentQueryAsUnified);
-
-                              // Compose with current query
-                              const composedQuery = composeQueries(
-                                baseQueryForComposition,
-                                additionalQueryToCompose
-                              );
-
-                              // Store in React state as temporary composed query
-                              const tempQuery = {
-                                ...composedQuery,
-                                id: `temp_${Date.now()}`,
-                                timestamp: new Date(),
-                              };
-
-                              // Set the composed query as the current active query (SOURCE OF TRUTH)
-                              setCurrentActiveQuery(tempQuery);
-                              setTempComposedQuery(tempQuery);
-                              setCurrentUserQuery(composedQuery.userQuery);
-                              setCurrentFormalQuery(composedQuery.formalQuery);
-
-                              // Add to recent queries
-                              const queries = getStoredQueries();
-                              queries.recent = [
-                                tempQuery,
-                                ...queries.recent,
-                              ].slice(0, 10);
-                              saveQueries(queries);
-
-                              // Clear the loaded query and composition context to switch UI to composed view
-                              setLoadedQuery(null);
-                              setOriginalQueryForComposition(null);
-
-                              // Reset composing flag after a short delay to prevent immediate re-entry
-                              setTimeout(() => setIsComposingNow(false), 100);
+                              // Update window storage with page selection results
+                              // Case: Query executed from INSIDE FullResultsPopup (QueryManager)
+                              if (queryToExecute) {
+                                updateWindowQueryStorage(
+                                  pageSelectionResult.finalResults,
+                                  queryToExecute,
+                                  targetUid
+                                );
+                              }
+                            } else {
+                              // Update window storage with query results (no page selections)
+                              // Case: Query executed from INSIDE FullResultsPopup (QueryManager)
+                              if (queryToExecute) {
+                                updateWindowQueryStorage(
+                                  newResults,
+                                  queryToExecute,
+                                  targetUid
+                                );
+                              }
                             }
+
+                            // Clear loadedQuery AFTER execution completes (including page selections)
+                            // This ensures page selections remain visible during execution
+                            if (loadedQuery) {
+                              setLoadedQuery(null);
+                            }
+                          } else {
+                            // Add mode - combine with existing AND create composed query
+                            const existingUids = new Set(
+                              currentResults.map((r) => r.uid)
+                            );
+                            const uniqueNewResults = newResults.filter(
+                              (r) => !existingUids.has(r.uid)
+                            );
+                            setCurrentResults([
+                              ...currentResults,
+                              ...uniqueNewResults,
+                            ]);
+
+                            // Create composed query if there's a current query
+                            if (currentQueryAsUnified && !isComposingNow) {
+                              // Check if we're already adding this exact query (prevent duplicates)
+                              const alreadyHasThisStep =
+                                currentQueryAsUnified.querySteps?.some(
+                                  (step) => step.userQuery === composerQuery
+                                );
+
+                              if (alreadyHasThisStep) {
+                                console.warn(
+                                  "⚠️ [FullResultsPopup] Query already in steps, skipping composition:",
+                                  composerQuery
+                                );
+                              } else {
+                                setIsComposingNow(true); // Set flag to prevent re-entry
+
+                                const currentIntentParser = (window as any)
+                                  .lastIntentParserResult;
+
+                                // Check if we're adding a loaded query (which may be composed) or a typed query
+                                let additionalQueryToCompose: any;
+
+                                if (
+                                  loadedQuery &&
+                                  (loadedQuery.userQuery === composerQuery ||
+                                    !composerQuery.trim())
+                                ) {
+                                  // We're adding a loaded query - use its full structure (may include steps)
+
+                                  additionalQueryToCompose = loadedQuery;
+                                } else {
+                                  // We're adding a typed query - create simple step
+
+                                  additionalQueryToCompose = {
+                                    userQuery: composerQuery,
+                                    formalQuery:
+                                      currentIntentParser?.formalQuery ||
+                                      composerQuery,
+                                    intentParserResult: currentIntentParser,
+                                  };
+                                }
+
+                                // Convert UnifiedQuery to StoredQuery format for composition
+                                const baseQueryForComposition =
+                                  unifiedQueryToStored(currentQueryAsUnified);
+
+                                // Compose with current query
+                                const composedQuery = composeQueries(
+                                  baseQueryForComposition,
+                                  additionalQueryToCompose
+                                );
+
+                                // Store in React state as temporary composed query
+                                const tempQuery = {
+                                  ...composedQuery,
+                                  id: `temp_${Date.now()}`,
+                                  timestamp: new Date(),
+                                };
+
+                                // Set the composed query as the current active query (SOURCE OF TRUTH)
+                                setCurrentActiveQuery(tempQuery);
+                                setTempComposedQuery(tempQuery);
+                                setCurrentUserQuery(composedQuery.userQuery);
+                                setCurrentFormalQuery(
+                                  composedQuery.formalQuery
+                                );
+
+                                // Add to recent queries
+                                const queries = getStoredQueries();
+                                queries.recent = [
+                                  tempQuery,
+                                  ...queries.recent,
+                                ].slice(0, 10);
+                                saveQueries(queries);
+
+                                // Clear the loaded query and composition context to switch UI to composed view
+                                setLoadedQuery(null);
+                                setOriginalQueryForComposition(null);
+
+                                // Reset composing flag after a short delay to prevent immediate re-entry
+                                setTimeout(() => setIsComposingNow(false), 100);
+                              }
+                            }
+
+                            forceUIRefresh();
                           }
-
-                          forceUIRefresh();
                         }
+
+                        // Clear progress message after successful execution
+                        if (
+                          queryToExecute?.pageSelections &&
+                          queryToExecute.pageSelections.length > 0 &&
+                          (!newResults || newResults.length === 0)
+                        ) {
+                          // PageSelections-only query - don't show misleading "0 results" message
+                          // Message already set by pageSelections execution logic above
+                        } else {
+                          setExecutionProgress(
+                            ProgressMessages.simpleQueryComplete(
+                              newResults?.length || 0,
+                              executionTime,
+                              tokens
+                            )
+                          );
+                        }
+                        setTimeout(() => setExecutionProgress(""), 3000);
+                      } finally {
+                        setIsExecutingQuery(false);
                       }
-
-                      // Clear progress message after successful execution
-                      if (
-                        queryToExecute?.pageSelections &&
-                        queryToExecute.pageSelections.length > 0 &&
-                        (!newResults || newResults.length === 0)
-                      ) {
-                        // PageSelections-only query - don't show misleading "0 results" message
-                        // Message already set by pageSelections execution logic above
-                      } else {
-                        setExecutionProgress(
-                          ProgressMessages.simpleQueryComplete(
-                            newResults?.length || 0,
-                            executionTime,
-                            tokens
-                          )
-                        );
-                      }
-                      setTimeout(() => setExecutionProgress(""), 3000);
-                    } finally {
-                      setIsExecutingQuery(false);
-                    }
-                  }}
-                  // Direct Content Selector props
-                  selectedPages={selectedPages}
-                  includePageContent={includePageContent}
-                  includeLinkedRefs={includeLinkedRefs}
-                  dnpPeriod={dnpPeriod}
-                  isAddingDirectContent={isAddingDirectContent}
-                  availablePages={availablePages}
-                  isLoadingPages={isLoadingPages}
-                  currentPageContext={currentPageContext}
-                  // Direct Content Selector handlers
-                  setSelectedPages={setSelectedPages}
-                  setIncludePageContent={setIncludePageContent}
-                  setIncludeLinkedRefs={setIncludeLinkedRefs}
-                  setDNPPeriod={setDNPPeriod}
-                  handleDirectContentAdd={handleDirectContentAdd}
-                  queryAvailablePages={queryAvailablePages}
-                  // Results management
-                  currentResults={currentResults}
-                  setCurrentResults={setCurrentResults}
-                  // External state management callback
-                  onOriginalQueryForCompositionChange={(query) => {
-                    setOriginalQueryForComposition(query);
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Enhanced Controls */}
-            <div className="full-results-controls">
-              <div className="full-results-filters-and-sorts">
-                <div className="full-results-search-filters">
-                  <InputGroup
-                    leftIcon="search"
-                    placeholder={
-                      results.length > 300
-                        ? "Search within blocks or page titles..."
-                        : "Search within blocks/children or page titles..."
-                    }
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    className="full-results-search-input"
-                  />
-
-                  <ReferencesFilterPopover
-                    availableReferences={availableReferences}
-                    includedReferences={includedReferences}
-                    excludedReferences={excludedReferences}
-                    onIncludeToggle={handleIncludeReference}
-                    onExcludeToggle={handleExcludeReference}
-                    onClearAll={handleClearAllReferences}
+                    }}
+                    // Direct Content Selector props
+                    selectedPages={selectedPages}
+                    includePageContent={includePageContent}
+                    includeLinkedRefs={includeLinkedRefs}
+                    dnpPeriod={dnpPeriod}
+                    isAddingDirectContent={isAddingDirectContent}
+                    availablePages={availablePages}
+                    isLoadingPages={isLoadingPages}
+                    currentPageContext={currentPageContext}
+                    // Direct Content Selector handlers
+                    setSelectedPages={setSelectedPages}
+                    setIncludePageContent={setIncludePageContent}
+                    setIncludeLinkedRefs={setIncludeLinkedRefs}
+                    setDNPPeriod={setDNPPeriod}
+                    handleDirectContentAdd={handleDirectContentAdd}
+                    queryAvailablePages={queryAvailablePages}
+                    // Results management
+                    currentResults={currentResults}
+                    setCurrentResults={setCurrentResults}
+                    // External state management callback
+                    onOriginalQueryForCompositionChange={(query) => {
+                      setOriginalQueryForComposition(query);
+                    }}
                   />
                 </div>
+              </div>
 
-                <div className="full-results-sort-controls">
-                  <HTMLSelect
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="full-results-sort-select"
-                  >
-                    <option value="relevance">Sort: Relevance</option>
-                    <option value="date">Sort: Date</option>
-                    <option value="page">Sort: Page</option>
-                    {viewMode !== "pages" && (
-                      <>
-                        <option value="content-alpha">
-                          Sort: Content (A-Z)
-                        </option>
-                        <option value="content-length">
-                          Sort: Content Length
-                        </option>
-                      </>
-                    )}
-                  </HTMLSelect>
+              {/* Enhanced Controls */}
+              <div className="full-results-controls">
+                <div className="full-results-filters-and-sorts">
+                  <div className="full-results-search-filters">
+                    <InputGroup
+                      leftIcon="search"
+                      placeholder={
+                        results.length > 300
+                          ? "Search within blocks or page titles..."
+                          : "Search within blocks/children or page titles..."
+                      }
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      className="full-results-search-input"
+                    />
 
-                  <Button
-                    icon={sortOrder === "desc" ? "sort-desc" : "sort-asc"}
-                    onClick={() =>
-                      setSortOrder(sortOrder === "desc" ? "asc" : "desc")
-                    }
-                    title={`Sort ${
-                      sortOrder === "desc" ? "Descending" : "Ascending"
-                    }`}
-                  />
+                    <ReferencesFilterPopover
+                      availableReferences={availableReferences}
+                      includedReferences={includedReferences}
+                      excludedReferences={excludedReferences}
+                      onIncludeToggle={handleIncludeReference}
+                      onExcludeToggle={handleExcludeReference}
+                      onClearAll={handleClearAllReferences}
+                    />
+                  </div>
 
-                  <Checkbox
-                    checked={showMetadata}
-                    onChange={() => setShowMetadata(!showMetadata)}
-                    label="Metadata"
-                    className="full-results-metadata-toggle"
-                  />
-                  {hasBlocks && (
+                  <div className="full-results-sort-controls">
+                    <HTMLSelect
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="full-results-sort-select"
+                    >
+                      <option value="relevance">Sort: Relevance</option>
+                      <option value="date">Sort: Date</option>
+                      <option value="page">Sort: Page</option>
+                      {viewMode !== "pages" && (
+                        <>
+                          <option value="content-alpha">
+                            Sort: Content (A-Z)
+                          </option>
+                          <option value="content-length">
+                            Sort: Content Length
+                          </option>
+                        </>
+                      )}
+                    </HTMLSelect>
+
+                    <Button
+                      icon={sortOrder === "desc" ? "sort-desc" : "sort-asc"}
+                      onClick={() =>
+                        setSortOrder(sortOrder === "desc" ? "asc" : "desc")
+                      }
+                      title={`Sort ${
+                        sortOrder === "desc" ? "Descending" : "Ascending"
+                      }`}
+                    />
+
                     <Checkbox
-                      checked={showPaths}
-                      onChange={() => setShowPaths(!showPaths)}
-                      label="Path"
-                      className="full-results-paths-toggle"
+                      checked={showMetadata}
+                      onChange={() => setShowMetadata(!showMetadata)}
+                      label="Metadata"
+                      className="full-results-metadata-toggle"
                     />
+                    {hasBlocks && (
+                      <Checkbox
+                        checked={showPaths}
+                        onChange={() => setShowPaths(!showPaths)}
+                        label="Path"
+                        className="full-results-paths-toggle"
+                      />
+                    )}
+
+                    <Button
+                      icon={expanded ? "expand-all" : "collapse-all"}
+                      onClick={handleExpandedToggle}
+                      title={expanded ? "Collapse all" : "Expand all"}
+                      minimal
+                      small
+                    />
+
+                    {hasBlocks && hasPages && (
+                      <HTMLSelect
+                        value={viewMode}
+                        onChange={(e) => setViewMode(e.target.value as any)}
+                        className="full-results-view-mode-select"
+                      >
+                        <option value="mixed">All Types</option>
+                        <option value="blocks">Blocks Only</option>
+                        <option value="pages">Pages Only</option>
+                      </HTMLSelect>
+                    )}
+                  </div>
+                </div>
+
+                <div className="full-results-pagination-info">
+                  <span>
+                    {filteredAndSortedResults.length} of {currentResults.length}{" "}
+                    results
+                  </span>
+                  {selectedResults.size > 0 && (
+                    <span className="full-results-selection-info">
+                      ({selectedResults.size} selected)
+                    </span>
                   )}
 
-                  <Button
-                    icon={expanded ? "expand-all" : "collapse-all"}
-                    onClick={handleExpandedToggle}
-                    title={expanded ? "Collapse all" : "Expand all"}
-                    minimal
-                    small
-                  />
-
-                  {hasBlocks && hasPages && (
-                    <HTMLSelect
-                      value={viewMode}
-                      onChange={(e) => setViewMode(e.target.value as any)}
-                      className="full-results-view-mode-select"
-                    >
-                      <option value="mixed">All Types</option>
-                      <option value="blocks">Blocks Only</option>
-                      <option value="pages">Pages Only</option>
-                    </HTMLSelect>
+                  {/* Integrated Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="full-results-pagination-compact">
+                      <Button
+                        icon="chevron-left"
+                        minimal
+                        small
+                        disabled={currentPage === 1}
+                        onClick={() =>
+                          setCurrentPage(Math.max(1, currentPage - 1))
+                        }
+                        title="Previous page"
+                      />
+                      <span className="full-results-page-info-compact">
+                        {currentPage}/{totalPages}
+                      </span>
+                      <Button
+                        icon="chevron-right"
+                        minimal
+                        small
+                        disabled={currentPage === totalPages}
+                        onClick={() =>
+                          setCurrentPage(Math.min(totalPages, currentPage + 1))
+                        }
+                        title="Next page"
+                      />
+                      <HTMLSelect
+                        value={resultsPerPage}
+                        onChange={(e) =>
+                          setResultsPerPage(Number(e.target.value))
+                        }
+                        className="full-results-per-page-compact"
+                        minimal
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </HTMLSelect>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="full-results-pagination-info">
-                <span>
-                  {filteredAndSortedResults.length} of {currentResults.length}{" "}
-                  results
-                </span>
-                {selectedResults.size > 0 && (
-                  <span className="full-results-selection-info">
-                    ({selectedResults.size} selected)
-                  </span>
-                )}
-
-                {/* Integrated Pagination Controls */}
-                {totalPages > 1 && (
-                  <div className="full-results-pagination-compact">
-                    <Button
-                      icon="chevron-left"
-                      minimal
-                      small
-                      disabled={currentPage === 1}
-                      onClick={() =>
-                        setCurrentPage(Math.max(1, currentPage - 1))
-                      }
-                      title="Previous page"
-                    />
-                    <span className="full-results-page-info-compact">
-                      {currentPage}/{totalPages}
-                    </span>
-                    <Button
-                      icon="chevron-right"
-                      minimal
-                      small
-                      disabled={currentPage === totalPages}
-                      onClick={() =>
-                        setCurrentPage(Math.min(totalPages, currentPage + 1))
-                      }
-                      title="Next page"
-                    />
-                    <HTMLSelect
-                      value={resultsPerPage}
-                      onChange={(e) =>
-                        setResultsPerPage(Number(e.target.value))
-                      }
-                      className="full-results-per-page-compact"
-                      minimal
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </HTMLSelect>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Results and Actions Container */}
-            <div className="full-results-scrollable-content">
-              {/* Results */}
-              <div className="full-results-list">
-                {paginatedResults && paginatedResults.length > 0 ? (
-                  paginatedResults.map((result, index) => {
-                    const originalIndex = currentResults.indexOf(result);
-                    return (
-                      <div
-                        key={`${originalIndex}-${expanded}`}
-                        className="full-results-result-item bp3-card"
-                        data-uid={result.uid}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedResults.has(originalIndex)}
-                          onChange={() => handleCheckboxChange(index)}
-                          className="full-results-checkbox"
-                        />
-                        <div className="full-results-block-container">
-                          <ResultMetadata
-                            result={result}
-                            showMetadata={showMetadata}
-                            sortBy={sortBy}
-                            sortOrder={sortOrder}
-                            onSortByDate={(order) => {
-                              setSortBy("date");
-                              setSortOrder(order);
-                            }}
+              {/* Results and Actions Container */}
+              <div className="full-results-scrollable-content">
+                {/* Results */}
+                <div className="full-results-list">
+                  {paginatedResults && paginatedResults.length > 0 ? (
+                    paginatedResults.map((result, index) => {
+                      const originalIndex = currentResults.indexOf(result);
+                      return (
+                        <div
+                          key={`${originalIndex}-${expanded}`}
+                          className="full-results-result-item bp3-card"
+                          data-uid={result.uid}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedResults.has(originalIndex)}
+                            onChange={() => handleCheckboxChange(index)}
+                            className="full-results-checkbox"
                           />
-                          <ResultContent
-                            result={result}
-                            index={index}
-                            pageDisplayMode={pageDisplayMode}
-                            showPaths={showPaths}
-                            searchFilter={searchFilter}
-                            expanded={expanded}
-                          />
+                          <div className="full-results-block-container">
+                            <ResultMetadata
+                              result={result}
+                              showMetadata={showMetadata}
+                              sortBy={sortBy}
+                              sortOrder={sortOrder}
+                              onSortByDate={(order) => {
+                                setSortBy("date");
+                                setSortOrder(order);
+                              }}
+                            />
+                            <ResultContent
+                              result={result}
+                              index={index}
+                              pageDisplayMode={pageDisplayMode}
+                              showPaths={showPaths}
+                              searchFilter={searchFilter}
+                              expanded={expanded}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
-                ) : filteredAndSortedResults.length === 0 ? (
-                  <div className="full-results-no-results">
-                    {searchFilter || pageFilter !== "all"
-                      ? "No results match current filters"
-                      : "No detailed results available"}
-                  </div>
-                ) : (
-                  <div className="full-results-no-results">
-                    No results on current page
-                  </div>
-                )}
+                      );
+                    })
+                  ) : filteredAndSortedResults.length === 0 ? (
+                    <div className="full-results-no-results">
+                      {searchFilter || pageFilter !== "all"
+                        ? "No results match current filters"
+                        : "No detailed results available"}
+                    </div>
+                  ) : (
+                    <div className="full-results-no-results">
+                      No results on current page
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Bar - Fixed at bottom of results panel */}
+              <div className="full-results-action-bar">
+                <div className="full-results-selection-controls">
+                  <label className="full-results-select-all-checkbox bp3-control bp3-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={
+                        paginatedResults.length > 0 &&
+                        paginatedResults.every((result) =>
+                          selectedResults.has(currentResults.indexOf(result))
+                        )
+                      }
+                      onChange={handleSelectAll}
+                      className="full-results-checkbox"
+                    />
+                    <span className="bp3-control-indicator"></span>
+                    Page ({paginatedResults.length})
+                  </label>
+
+                  <Button
+                    text={`All (${filteredAndSortedResults.length})`}
+                    onClick={handleSelectAllResults}
+                    small
+                    minimal
+                    disabled={filteredAndSortedResults.length === 0}
+                  />
+
+                  {selectedResults.size > 0 && (
+                    <Button
+                      text="Unselect"
+                      onClick={() => setSelectedResults(new Set())}
+                      small
+                      minimal
+                      intent="warning"
+                    />
+                  )}
+                </div>
+
+                <div className="full-results-buttons-container">
+                  <DropdownButton
+                    mainText={
+                      targetUid
+                        ? "Append to last response"
+                        : "Append to today's DNP"
+                    }
+                    mainAction={handleInsertAtDNPEnd}
+                    disabled={selectedResults.size === 0}
+                    dropdownKey="insert"
+                    dropdownOptions={[
+                      {
+                        text: "Open in Sidebar",
+                        action: handleInsertInSidebar,
+                      },
+                    ]}
+                  />
+
+                  <DropdownButton
+                    mainText="Copy Embeds"
+                    mainAction={handleCopyEmbeds}
+                    disabled={selectedResults.size === 0}
+                    dropdownKey="copy"
+                    dropdownOptions={[
+                      {
+                        text: "Copy References",
+                        action: handleCopyReferences,
+                      },
+                    ]}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Resize Handle */}
-          {showChat && !chatOnlyMode && (
+          {layoutMode === "split" && (
             <div
               className="full-results-resize-handle"
               onMouseDown={handleResizeStart}
@@ -1598,11 +2137,15 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           )}
 
           {/* Chat Panel */}
-          {showChat && (
+          {layoutMode !== "results-only" && showChat && (
             <div
               className="full-results-chat-container"
               style={{
-                width: chatOnlyMode ? "100%" : `${100 - mainContentWidth}%`,
+                width:
+                  layoutMode === "split"
+                    ? `${100 - mainContentWidth}%`
+                    : "100%",
+                display: "flex",
               }}
             >
               <FullResultsChat
@@ -1633,90 +2176,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               />
             </div>
           )}
-        </div>
-
-        {/* Action Bar - Outside content container */}
-        <div className="full-results-action-bar bp3-dialog-footer">
-          <div className="full-results-selection-controls">
-            <label className="full-results-select-all-checkbox bp3-control bp3-checkbox">
-              <input
-                type="checkbox"
-                checked={
-                  paginatedResults.length > 0 &&
-                  paginatedResults.every((result) =>
-                    selectedResults.has(currentResults.indexOf(result))
-                  )
-                }
-                onChange={handleSelectAll}
-                className="full-results-checkbox"
-              />
-              <span className="bp3-control-indicator"></span>
-              Page ({paginatedResults.length})
-            </label>
-
-            <Button
-              text={`All Filtered (${filteredAndSortedResults.length})`}
-              onClick={handleSelectAllResults}
-              small
-              minimal
-              disabled={filteredAndSortedResults.length === 0}
-            />
-
-            {selectedResults.size > 0 && (
-              <Button
-                text="Clear Selection"
-                onClick={() => setSelectedResults(new Set())}
-                small
-                minimal
-                intent="warning"
-              />
-            )}
-          </div>
-
-          <div className="full-results-buttons-container">
-            <DropdownButton
-              mainText={
-                targetUid ? "Append to last response" : "Append to today's DNP"
-              }
-              mainAction={handleInsertAtDNPEnd}
-              disabled={selectedResults.size === 0}
-              dropdownKey="insert"
-              dropdownOptions={[
-                {
-                  text: "Open in Sidebar",
-                  action: handleInsertInSidebar,
-                },
-              ]}
-            />
-
-            <DropdownButton
-              mainText="Copy Embeds"
-              mainAction={handleCopyEmbeds}
-              disabled={selectedResults.size === 0}
-              dropdownKey="copy"
-              dropdownOptions={[
-                {
-                  text: "Copy References",
-                  action: handleCopyReferences,
-                },
-              ]}
-            />
-
-            <Button
-              text={showChat ? "Hide Chat" : "Chat"}
-              onClick={toggleChat}
-              intent={showChat ? "warning" : "success"}
-              icon={showChat ? "cross" : "chat"}
-              disabled={!canUseChat(privateMode, permissions) && !showChat}
-              title={
-                !canUseChat(privateMode, permissions)
-                  ? "Requires Balanced or Full access mode"
-                  : "Chat about selected results"
-              }
-            />
-
-            <Button text="Close" onClick={handleClose} />
-          </div>
         </div>
       </div>
     </div>
@@ -1752,7 +2211,14 @@ export const openLastAskYourGraphResults = async () => {
         const intentParserResult = hasActualResults
           ? (window as any).lastIntentParserResult || null
           : null;
-        openFullResultsPopup(lastResults, targetUid, userQuery, formalQuery, false, intentParserResult);
+        openFullResultsPopup(
+          lastResults,
+          targetUid,
+          userQuery,
+          formalQuery,
+          false,
+          intentParserResult
+        );
       }
     })
     .catch(() => {

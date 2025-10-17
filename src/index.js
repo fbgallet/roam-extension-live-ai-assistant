@@ -935,30 +935,31 @@ function getPanelConfig() {
           },
         },
       },
-      {
-        id: "webContext",
-        name: "Web Search context",
-        description: (
-          <>
-            Context size for Web Search OpenAI tool is medium by default. <br />
-            Low: fastest, cheaper. High: slower, higher cost.
-            <br />
-            <a
-              href="https://platform.openai.com/docs/pricing#web-search"
-              target="_blank"
-            >
-              See pricing here
-            </a>
-          </>
-        ),
-        action: {
-          type: "select",
-          items: ["high", "medium", "low"],
-          onChange: (evt) => {
-            websearchContext = evt;
-          },
-        },
-      },
+      // Deprecated in OpenAI API
+      // {
+      //   id: "webContext",
+      //   name: "Web Search context",
+      //   description: (
+      //     <>
+      //       Context size for Web Search OpenAI tool is medium by default. <br />
+      //       Low: fastest, cheaper. High: slower, higher cost.
+      //       <br />
+      //       <a
+      //         href="https://platform.openai.com/docs/pricing#web-search"
+      //         target="_blank"
+      //       >
+      //         See pricing here
+      //       </a>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "select",
+      //     items: ["high", "medium", "low"],
+      //     onChange: (evt) => {
+      //       websearchContext = evt;
+      //     },
+      //   },
+      // },
       {
         id: "customBaseUrl",
         name: "Custom OpenAI baseURL",
@@ -1402,9 +1403,9 @@ export default {
     resImages = extensionAPI.settings.get("resImages");
     if (extensionAPI.settings.get("webModel") === null)
       await extensionAPI.settings.set("webModel", "gpt-4o-mini-search-preview");
-    if (extensionAPI.settings.get("webContext") === null)
-      await extensionAPI.settings.set("webContext", "medium");
-    websearchContext = extensionAPI.settings.get("webContext");
+    // if (extensionAPI.settings.get("webContext") === null)
+    //   await extensionAPI.settings.set("webContext", "medium");
+    // websearchContext = extensionAPI.settings.get("webContext");
     if (extensionAPI.settings.get("askGraphMode") === null)
       await extensionAPI.settings.set("askGraphMode", "Balanced");
     askGraphMode = extensionAPI.settings.get("askGraphMode");
@@ -1502,7 +1503,9 @@ export default {
     import("./components/full-results-popup/utils/queryStorage.ts")
       .then((module) => {
         window.LiveAI.cleanupBrokenQueries = module.cleanupBrokenQueries;
-        console.log("🧹 Query cleanup available: window.LiveAI.cleanupBrokenQueries()");
+        console.log(
+          "🧹 Query cleanup available: window.LiveAI.cleanupBrokenQueries()"
+        );
       })
       .catch((err) => {
         console.debug("⚠️ Cleanup function not available:", err.message);

@@ -14,7 +14,7 @@ import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/c
 import { extensionStorage, defaultModel } from "../..";
 import ModelsMenu from "../ModelsMenu";
 import { getPageUidByPageName } from "../../utils/roamAPI";
-import {modelAccordingToProvider} from "../../ai/aiAPIsHub";
+import { modelAccordingToProvider } from "../../ai/aiAPIsHub";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -107,7 +107,7 @@ const renderMarkdown = (text: string): string => {
     '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">📄 {{[[embed-path]]: (($2))}}]</a>'
   );
 
-  // Simple block reference ((uid)) 
+  // Simple block reference ((uid))
   rendered = rendered.replace(
     /\(\(([^\(].*?)\)\)/g,
     `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
@@ -122,7 +122,7 @@ const renderMarkdown = (text: string): string => {
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
     /\[\[([^\]]+)\]\]/g,
-    '<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar">$1</a><span class="rm-page-ref__brackets">]]</span>'
+    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar">$1</a><span class="rm-page-ref__brackets">]]</span>`
   );
 
   // Tag references #tag - make clickable
@@ -254,8 +254,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const clipboardText = `((${blockUid}))`;
         navigator.clipboard
           .writeText(clipboardText)
-          .then(() => {
-          })
+          .then(() => {})
           .catch((err) => {
             console.warn("Failed to copy to clipboard:", err);
           });
@@ -280,20 +279,28 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Handle page references [[page]] and #tag clicks
       if (
+        target.classList.contains("rm-page-ref") ||
         target.classList.contains("roam-page-ref-chat") ||
         target.classList.contains("roam-tag-ref-chat")
       ) {
         const pageTitle = target.getAttribute("data-page-title");
         if (!pageTitle) return;
 
+        event.preventDefault(); // Prevent default link behavior
+
         if (event.shiftKey) {
           // Shift+click: Open page in sidebar
-          window.roamAlphaAPI.ui.rightSidebar.addWindow({
-            window: {
-              type: "outline",
-              "block-uid": getPageUidByPageName(pageTitle),
-            },
-          });
+          const pageUid = getPageUidByPageName(pageTitle);
+          if (pageUid) {
+            window.roamAlphaAPI.ui.rightSidebar.addWindow({
+              window: {
+                type: "outline",
+                "block-uid": pageUid,
+              },
+            });
+          } else {
+            console.warn(`Could not find page UID for: ${pageTitle}`);
+          }
         } else {
           // Regular click: Add to included references filter
           handleIncludeReference(pageTitle);
@@ -384,7 +391,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     ) as HTMLElement;
 
     if (targetElement) {
-
       // Remove any existing highlights first
       document.querySelectorAll(".highlighted-result").forEach((el) => {
         el.classList.remove("highlighted-result");
@@ -415,7 +421,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     []
   ); // Track result selection changes
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
-  const [modelTokensLimit, setModelTokensLimit] = useState<number>(modelAccordingToProvider(defaultModel).tokensLimit || 128000);
+  const [modelTokensLimit, setModelTokensLimit] = useState<number>(
+    modelAccordingToProvider(defaultModel).tokensLimit || 128000
+  );
 
   // Calculate total tokens used in the conversation
   const { totalIn, totalOut } = React.useMemo(
@@ -433,7 +441,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Update tokensLimit when model is changed
   useEffect(() => {
-    setModelTokensLimit(modelAccordingToProvider(selectedModel).tokensLimit || 128000);
+    setModelTokensLimit(
+      modelAccordingToProvider(selectedModel).tokensLimit || 128000
+    );
   }, [selectedModel]);
 
   const getSelectedResultsForChat = () => {
@@ -550,13 +560,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       if (selectionChanged || !chatExpandedResults) {
         setLastSelectedResultIds(currentResultIds);
 
-        
-        
         // Perform expansion once and cache the expanded objects
         // Use proper expansion budgets based on access mode and model context window
         // expansionBudget is expressed in approx. maximum characters
         const expansionBudget =
-          chatAccessMode === "Full Access" ? modelTokensLimit * 3 : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
+          chatAccessMode === "Full Access"
+            ? modelTokensLimit * 3
+            : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
         expandedResults = await performAdaptiveExpansion(
           contextResults.map((result) => ({ ...result })), // Pass deep copies to prevent any mutation
           // [...contextResults],
@@ -623,7 +633,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         })
         .join("\n\n---\n\n");
 
-      console.log("Exact context used for the chat: ", resultsContext)
+      console.log("Exact context used for the chat: ", resultsContext);
 
       // Build conversation history from chat messages
       const currentConversationHistory = buildConversationHistory(chatMessages);
@@ -762,7 +772,10 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
       const agentResult = await invokeSearchAgent(agentOptions);
 
       // Debug token usage
-      console.log("🔍 [Chat] Agent result tokensUsage:", agentResult.tokensUsage);
+      console.log(
+        "🔍 [Chat] Agent result tokensUsage:",
+        agentResult.tokensUsage
+      );
 
       // Update agent data for next conversation turn and extract any new results
       const newAgentData = {
@@ -880,50 +893,47 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
   return (
     <div className="full-results-chat-panel">
       <div className="full-results-chat-header">
-        <div className="full-results-chat-header-main">
-          <h4>
-            <Icon icon="chat" size={16} style={{ marginRight: "6px" }} />
-            Chat with results
-          </h4>
-          {chatMessages.length > 0 && (
-            <div className="full-results-chat-header-controls">
-              <Tooltip content="Reset chat conversation">
-                <Button icon="trash" onClick={resetChat} minimal small />
-              </Tooltip>
-              <Tooltip content="Copy full conversation to clipboard">
-                <Button
-                  icon="clipboard"
-                  onClick={copyFullConversation}
-                  minimal
-                  small
-                />
-              </Tooltip>
-            </div>
-          )}
-        </div>
         <div className="full-results-chat-info">
-          <span>
-            {selectedResults.length > 0 ? (
-              <>Chatting about {selectedResults.length} selected results</>
-            ) : (
-              <>Chatting about {allResults.length} visible results</>
-            )}
-            {(totalIn > 0 || totalOut > 0) && (
-              <span className="full-results-chat-total-tokens">
-                {" "}• Total tokens in: {totalIn.toLocaleString()}, out: {totalOut.toLocaleString()}
-              </span>
-            )}
-          </span>
-          {hasExpandedResults && (
-            <span className="full-results-chat-expansion-badge">
-              <Icon
-                icon="trending-up"
-                size={12}
-                style={{ marginRight: "4px" }}
-              />
-              Results expanded during conversation
+          <div className="full-results-chat-info-text">
+            <span>
+              {selectedResults.length > 0 ? (
+                <>Chatting about {selectedResults.length} selected results</>
+              ) : (
+                <>Chatting about {allResults.length} visible results</>
+              )}
+              {(totalIn > 0 || totalOut > 0) && (
+                <span className="full-results-chat-total-tokens">
+                  {" "}
+                  • Total tokens: {totalIn.toLocaleString()} in,{" "}
+                  {totalOut.toLocaleString()} out
+                </span>
+              )}
             </span>
-          )}
+          </div>
+          <div className="full-results-chat-header-controls">
+            {hasExpandedResults && (
+              <Tooltip content="Results expanded during conversation">
+                <span className="full-results-chat-expansion-badge">
+                  <Icon icon="trending-up" size={12} />
+                </span>
+              </Tooltip>
+            )}
+            {chatMessages.length > 0 && (
+              <>
+                <Tooltip content="Copy full conversation to clipboard">
+                  <Button
+                    icon="clipboard"
+                    onClick={copyFullConversation}
+                    minimal
+                    small
+                  />
+                </Tooltip>
+                <Tooltip content="Reset chat conversation">
+                  <Button icon="trash" onClick={resetChat} minimal small />
+                </Tooltip>
+              </>
+            )}
+          </div>
         </div>
         {privateMode && (
           <div className="full-results-chat-warning">
@@ -1006,8 +1016,16 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 </strong>{" "}
                 mode:{" "}
                 {chatAccessMode === "Balanced"
-                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(modelTokensLimit * 0.5 / 1000)}k tokens (50% of model context window, approx. ${Math.floor(modelTokensLimit * 2 / 1000 / 6)}k words)`
-                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(modelTokensLimit * 0.75 / 1000)}k tokens (75% of model context window, approx. ${Math.floor(modelTokensLimit * 3 / 1000 / 6)}k words)`}{" "}
+                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(
+                      (modelTokensLimit * 0.5) / 1000
+                    )}k tokens (50% of model context window, approx. ${Math.floor(
+                      (modelTokensLimit * 2) / 1000 / 6
+                    )}k words)`
+                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(
+                      (modelTokensLimit * 0.75) / 1000
+                    )}k tokens (75% of model context window, approx. ${Math.floor(
+                      (modelTokensLimit * 3) / 1000 / 6
+                    )}k words)`}{" "}
                 {/* TODO: Future evolution - Deep Analysis mode
                 {chatMode === "agent" ? (
                   <>
@@ -1043,19 +1061,28 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 <div className="full-results-chat-message-footer">
                   <span className="full-results-chat-timestamp">
                     {message.timestamp.toLocaleTimeString()}
-                    {message.tokensIn !== undefined && message.tokensOut !== undefined && (
-                      <span className="full-results-chat-tokens">
-                        {" "}• Tokens in: {message.tokensIn.toLocaleString()}, out: {message.tokensOut.toLocaleString()}
-                      </span>
-                    )}
+                    {message.tokensIn !== undefined &&
+                      message.tokensOut !== undefined && (
+                        <span className="full-results-chat-tokens">
+                          {" "}
+                          • Tokens in: {message.tokensIn.toLocaleString()}, out:{" "}
+                          {message.tokensOut.toLocaleString()}
+                        </span>
+                      )}
                   </span>
                   {message.role === "assistant" && (
                     <span
                       className="full-results-chat-copy-link"
-                      onClick={() => copyAssistantMessage(message.content)}
                       title="Copy message to clipboard"
                     >
-                      📋 copy
+                      <Tooltip content="Copy message to clipboard">
+                        <Button
+                          icon="clipboard"
+                          onClick={() => copyAssistantMessage(message.content)}
+                          minimal
+                          small
+                        />
+                      </Tooltip>
                     </span>
                   )}
                 </div>
