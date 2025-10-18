@@ -53,6 +53,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   formalQuery,
   intentParserResult,
   forceOpenChat = false,
+  initialChatMessages,
+  initialChatPrompt,
+  initialChatModel,
 }) => {
   // Query execution state
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
@@ -92,6 +95,32 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   const [layoutMode, setLayoutMode] = useState<
     "split" | "results-only" | "chat-only"
   >(() => {
+    // Determine initial layout based on what content is available
+    const hasResults = results && results.length > 0;
+    const shouldOpenChat = forceOpenChat;
+
+    // If we have results but chat is forced open, use split or chat-only based on saved preference
+    if (hasResults && shouldOpenChat) {
+      const saved = localStorage.getItem("fullResultsPopup_layoutMode");
+      // Prefer split if available, otherwise use saved
+      if (saved === "results-only") return "split"; // Override results-only when chat is forced
+      return (saved as "split" | "chat-only") || "split";
+    }
+
+    // If only chat is requested (no results), force chat-only
+    if (!hasResults && shouldOpenChat) {
+      return "chat-only";
+    }
+
+    // If only results (no chat), use results-only or split
+    if (hasResults && !shouldOpenChat) {
+      const saved = localStorage.getItem("fullResultsPopup_layoutMode");
+      // Don't use chat-only mode when we have results but chat is not requested
+      if (saved === "chat-only") return "results-only";
+      return (saved as "split" | "results-only") || "results-only";
+    }
+
+    // Fallback: check saved preference or use split
     const saved = localStorage.getItem("fullResultsPopup_layoutMode");
     if (saved) return saved as "split" | "results-only" | "chat-only";
 
@@ -1018,6 +1047,31 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       };
     }
   }, [isResizingSidePanel, handleSidePanelResizeMove]);
+
+  // Save panel dimensions and position to localStorage whenever they change
+  // BUT skip saving during active resize (to avoid writing on every mouse move)
+  useEffect(() => {
+    // Don't save during active resizing - handleSidePanelResizeEnd will save when done
+    if (isResizingSidePanel) return;
+
+    if (isSidePanelMode) {
+      // Save position
+      localStorage.setItem("fullResultsPopup_sidePanelPosition", sidePanelPosition);
+
+      // Save dimensions based on position
+      if (sidePanelPosition === "bottom") {
+        localStorage.setItem(
+          "fullResultsPopup_sidePanelHeight",
+          String(sidePanelHeight)
+        );
+      } else {
+        localStorage.setItem(
+          "fullResultsPopup_sidePanelWidth",
+          String(sidePanelWidth)
+        );
+      }
+    }
+  }, [sidePanelWidth, sidePanelHeight, sidePanelPosition, isSidePanelMode, isResizingSidePanel]);
 
   // Track dialog width for responsive layout constraints
   useEffect(() => {
@@ -2173,6 +2227,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 handleChatOnlyToggle={handleChatOnlyToggle}
                 // References filtering
                 handleIncludeReference={handleIncludeReference}
+                // Initial chat state for continuing conversations
+                initialChatMessages={initialChatMessages}
+                initialChatPrompt={initialChatPrompt}
+                initialChatModel={initialChatModel}
               />
             </div>
           )}
@@ -2193,53 +2251,45 @@ export const openLastAskYourGraphResults = async () => {
   const { getMainViewUid } = await import("../../utils/roamAPI.js");
   const currentPageUid = await getMainViewUid();
 
-  // Import and use the popup function - open even with empty results
-  import("../Toaster.js")
-    .then(({ openFullResultsPopup }) => {
-      if (openFullResultsPopup) {
-        // Use current page UID so DirectContentSelector shows the actual current page
-        const targetUid = currentPageUid || null;
-        // Only use window query state if there are actual results, otherwise use null
-        // This prevents stale query state from appearing when opening popup fresh
-        const hasActualResults = lastResults && lastResults.length > 0;
-        const userQuery = hasActualResults
-          ? (window as any).lastUserQuery || null
-          : null;
-        const formalQuery = hasActualResults
-          ? (window as any).lastFormalQuery || null
-          : null;
-        const intentParserResult = hasActualResults
-          ? (window as any).lastIntentParserResult || null
-          : null;
-        openFullResultsPopup(
-          lastResults,
-          targetUid,
-          userQuery,
-          formalQuery,
-          false,
-          intentParserResult
-        );
-      }
-    })
-    .catch(() => {
-      // Fallback for environments where dynamic import doesn't work
-      if (
-        (window as any).LiveAI &&
-        (window as any).LiveAI.openFullResultsPopup
-      ) {
-        (window as any).LiveAI.openFullResultsPopup(lastResults);
-      } else {
-        if (lastResults.length > 0) {
-          alert(
-            `Found ${lastResults.length} results, but popup functionality is not available. Results are stored in window.lastAskYourGraphResults`
-          );
-        } else {
-          alert(
-            "Opening full results popup - you can load previous queries from the query manager."
-          );
-        }
-      }
+  // Use the global window function to avoid circular imports
+  // (index.tsx registers this function globally)
+  const openFullResultsPopup = (window as any).LiveAI?.openFullResultsPopup;
+
+  if (openFullResultsPopup) {
+    // Use current page UID so DirectContentSelector shows the actual current page
+    const targetUid = currentPageUid || null;
+    // Only use window query state if there are actual results, otherwise use null
+    // This prevents stale query state from appearing when opening popup fresh
+    const hasActualResults = lastResults && lastResults.length > 0;
+    const userQuery = hasActualResults
+      ? (window as any).lastUserQuery || null
+      : null;
+    const formalQuery = hasActualResults
+      ? (window as any).lastFormalQuery || null
+      : null;
+    const intentParserResult = hasActualResults
+      ? (window as any).lastIntentParserResult || null
+      : null;
+    openFullResultsPopup({
+      results: lastResults,
+      targetUid,
+      userQuery,
+      formalQuery,
+      forceOpenChat: false,
+      intentParserResult,
     });
+  } else {
+    // Fallback if function not yet registered
+    if (lastResults.length > 0) {
+      alert(
+        `Found ${lastResults.length} results, but popup functionality is not available. Results are stored in window.lastAskYourGraphResults`
+      );
+    } else {
+      alert(
+        "Opening full results popup - you can load previous queries from the query manager."
+      );
+    }
+  }
 };
 
 // Function to check if results are available (for conditional command display)

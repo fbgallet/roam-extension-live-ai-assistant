@@ -1,7 +1,7 @@
 import { Button, Intent, Position, Toaster } from "@blueprintjs/core";
 import ReactDOM from "react-dom";
 import React from "react";
-import { FullResultsPopup } from "./full-results-popup";
+import { openFullResultsPopup } from "./full-results-popup";
 
 // Toaster configurations
 const toasterConfigs = {
@@ -160,7 +160,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
       .filter((line) => line.trim().startsWith("•"))
       .map((line) => {
         const text = line.replace("•", "").trim();
-        
+
         // Check for strategy key format: "text|KEY:strategyKey"
         let strategyKey = null;
         let workingText = text;
@@ -169,7 +169,7 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
           workingText = parts[0];
           strategyKey = parts[1];
         }
-        
+
         // Check for depth expansion format: "text|DEPTH:N"
         let depthTarget = null;
         let cleanText = workingText;
@@ -178,16 +178,16 @@ const ExpansionDropdown = ({ expansionOptions, buttonProps, toasterElt }) => {
           cleanText = parts[0];
           depthTarget = parseInt(parts[1]);
         }
-        
+
         const emoji = cleanText.match(/^(\p{Emoji})/u)?.[1] || "🔍";
         const label = cleanText.replace(/^(\p{Emoji})\s*/u, "");
-        
-        return { 
-          emoji, 
-          label, 
+
+        return {
+          emoji,
+          label,
           action: cleanText,
           strategyKey, // Add strategy key for reliable mapping
-          depthTarget // Add depth as structured data
+          depthTarget, // Add depth as structured data
         };
       });
   };
@@ -387,7 +387,16 @@ export const addButtonsToToaster = (
         {...props}
         intent="primary"
         icon="list-detail-view"
-        onClick={() => openFullResultsPopup(currentFullResults, targetUid, userQuery, formalQuery, false, intentParserResult)}
+        onClick={() =>
+          openFullResultsPopup({
+            results: currentFullResults,
+            targetUid,
+            userQuery,
+            formalQuery,
+            forceOpenChat: false,
+            intentParserResult,
+          })
+        }
       />
     );
   }
@@ -426,51 +435,5 @@ export const addButtonsToToaster = (
   ReactDOM.render(buttonSectionJSX, newDiv);
 };
 
-// React component for popup functionality
-export const openFullResultsPopup = (
-  results,
-  targetUid = null,
-  userQuery = null,
-  formalQuery = null,
-  forceOpenChat = false,
-  intentParserResult = null
-) => {
-  // Remove any existing popup first
-  const existingContainer = document.getElementById(
-    "full-results-popup-container"
-  );
-  if (existingContainer) {
-    try {
-      ReactDOM.unmountComponentAtNode(existingContainer);
-      document.body.removeChild(existingContainer);
-    } catch (error) {
-      console.warn("Error cleaning up existing popup:", error);
-    }
-  }
-
-  // Create a container for the React component
-  const container = document.createElement("div");
-  container.id = "full-results-popup-container";
-  document.body.appendChild(container);
-
-  const PopupWrapper = () => {
-    return React.createElement(FullResultsPopup, {
-      results: results || [],
-      isOpen: true,
-      title: "Ask your graph: full results view",
-      targetUid: targetUid,
-      userQuery: userQuery,
-      formalQuery: formalQuery,
-      intentParserResult: intentParserResult,
-      forceOpenChat: forceOpenChat,
-    });
-  };
-
-  ReactDOM.render(React.createElement(PopupWrapper), container);
-};
-
-// Make it globally accessible for command palette
-if (typeof window !== "undefined") {
-  if (!window.LiveAI) window.LiveAI = {};
-  window.LiveAI.openFullResultsPopup = openFullResultsPopup;
-}
+// Re-export openFullResultsPopup from its new location for backward compatibility
+export { openFullResultsPopup } from "./full-results-popup";

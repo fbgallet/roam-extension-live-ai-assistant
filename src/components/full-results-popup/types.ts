@@ -33,6 +33,10 @@ export interface FullResultsPopupProps {
   intentParserResult?: any; // IntentParserResult from queryStorage
   // Force chat to open initially
   forceOpenChat?: boolean;
+  // Initial chat state for continuing conversations
+  initialChatMessages?: ChatMessage[];
+  initialChatPrompt?: string;
+  initialChatModel?: string;
 }
 
 export type ViewMode = "blocks" | "pages" | "mixed";

@@ -20,6 +20,7 @@ import {
 import { mapLabelToStrategy } from "../shared/expansionConstants";
 import { deduplicateResultsByUid } from "./helpers/searchUtils";
 import { addRecentQuery } from "../../../components/full-results-popup/utils/queryStorage";
+import { openFullResultsPopup } from "../../../components/full-results-popup";
 import {
   clearAgentController,
   markAgentAsStopped,
@@ -898,35 +899,26 @@ const invokeSearchAgentInternal = async ({
             };
           }
 
-          // Import and open the popup automatically (unless called from query composer OR composed query execution)
+          // Open the popup automatically (unless called from query composer OR composed query execution)
           // Don't open popup for composed query sub-executions (they aggregate results elsewhere)
           if (
             rootUid !== "query-composer" &&
             !rootUid.startsWith("composed-")
           ) {
-            import("../../../components/Toaster.js")
-              .then(({ openFullResultsPopup }) => {
-                if (openFullResultsPopup) {
-                  const userQuery = response?.userQuery || finalPrompt;
-                  const forceOpenChat =
-                    userQuery?.startsWith("all linked references of [[") ||
-                    false;
-                  // Get intentParserResult from window (was set at line 849)
-                  const intentParserResult = (window as any)
-                    .lastIntentParserResult;
-                  openFullResultsPopup(
-                    fullResults,
-                    response?.targetUid,
-                    userQuery,
-                    response?.formalQuery,
-                    forceOpenChat,
-                    intentParserResult
-                  );
-                }
-              })
-              .catch((error) => {
-                console.error("Failed to open FullResultsPopup:", error);
-              });
+            const userQuery = response?.userQuery || finalPrompt;
+            const forceOpenChat =
+              userQuery?.startsWith("all linked references of [[") || false;
+            // Get intentParserResult from window (was set at line 849)
+            const intentParserResult = (window as any).lastIntentParserResult;
+
+            openFullResultsPopup({
+              results: fullResults,
+              targetUid: response?.targetUid,
+              userQuery,
+              formalQuery: response?.formalQuery,
+              forceOpenChat,
+              intentParserResult,
+            });
           } else {
             console.log(
               "🔧 [Skip popup] Called from query composer or composed query execution"
@@ -1335,23 +1327,20 @@ export const invokeCurrentPageReferences = async ({
 
         // Import and open the popup directly (unless called from query composer)
         if (rootUid !== "query-composer") {
-          const { openFullResultsPopup } = await import(
-            "../../../components/Toaster.js"
-          );
-          if (openFullResultsPopup && toolResult.results) {
+          if (toolResult.results) {
             // Get intentParserResult from window if available
             const intentParserResult = (window as any).lastIntentParserResult;
 
             // IMPORTANT: Pass currentPageUid as targetUid so the popup can properly populate currentPageContext
             // This allows the DirectContentSelector to show "Current Page" option
-            openFullResultsPopup(
-              toolResult.results,
-              currentPageUid, // Pass current page UID for proper context
+            openFullResultsPopup({
+              results: toolResult.results,
+              targetUid: currentPageUid, // Pass current page UID for proper context
               userQuery,
               formalQuery,
-              true, // Force open chat
-              intentParserResult
-            );
+              forceOpenChat: true, // Force open chat
+              intentParserResult,
+            });
           }
         } else {
           console.log(

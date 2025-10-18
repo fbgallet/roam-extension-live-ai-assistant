@@ -11,10 +11,12 @@ import DOMPurify from "dompurify";
 import { invokeSearchAgent } from "../../ai/agents/search-agent/ask-your-graph-invoke";
 import { Result, ChatMessage, ChatMode } from "./types";
 import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/contextExpansion";
-import { extensionStorage, defaultModel } from "../..";
+import { extensionStorage, defaultModel, chatRoles } from "../..";
 import ModelsMenu from "../ModelsMenu";
 import { getPageUidByPageName } from "../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../ai/aiAPIsHub";
+import { parseAndCreateBlocks } from "../../utils/format";
+import { insertCompletion } from "../../ai/responseInsertion";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -44,6 +46,10 @@ interface FullResultsChatProps {
   handleChatOnlyToggle: () => void;
   // References filtering
   handleIncludeReference: (reference: string) => void;
+  // Initial chat state for continuing conversations
+  initialChatMessages?: ChatMessage[];
+  initialChatPrompt?: string;
+  initialChatModel?: string;
 }
 
 // Convert chat messages to agent conversation history
@@ -162,14 +168,94 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   chatOnlyMode,
   handleChatOnlyToggle,
   handleIncludeReference,
+  initialChatMessages,
+  initialChatPrompt,
+  initialChatModel,
 }) => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
 
+  // Track the number of initial messages loaded from Roam
+  // This helps us exclude them when inserting the conversation back
+  const initialMessagesCountRef = useRef<number>(0);
+
+  // Initialize chat from provided initial state
+  useEffect(() => {
+    console.log("🔍 FullResultsChat initializing with:", {
+      initialChatMessages,
+      initialChatPrompt,
+    });
+
+    if (
+      initialChatMessages &&
+      Array.isArray(initialChatMessages) &&
+      initialChatMessages.length > 0
+    ) {
+      // Create a fresh copy to avoid mutation issues
+      const messagesCopy = [...initialChatMessages];
+      console.log("📝 Setting chat messages:", messagesCopy);
+      setChatMessages(messagesCopy);
+
+      // Store count of initial messages to exclude from Roam insertion later
+      initialMessagesCountRef.current = messagesCopy.length;
+    }
+    if (initialChatPrompt) {
+      console.log("📝 Setting chat input:", initialChatPrompt);
+      setChatInput(initialChatPrompt);
+    }
+  }, [initialChatMessages, initialChatPrompt]);
+
+  // Track if chat was previously closed to detect when it opens
+  const prevIsOpenRef = useRef(isOpen);
+
+  // Auto-focus chat input when in chat-only mode or when chat first opens
+  // This effect runs whenever chatOnlyMode or isOpen changes
+  useEffect(() => {
+    const chatJustOpened = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    // Focus if: switching to chat-only mode OR chat just opened
+    if ((chatOnlyMode || chatJustOpened) && chatInputRef.current) {
+      // Small delay to ensure DOM is ready
+      const timeoutId = setTimeout(() => {
+        console.log('🎯 Auto-focusing chat input:', { chatOnlyMode, chatJustOpened });
+        chatInputRef.current?.focus();
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [chatOnlyMode, isOpen]);
+
+  // Additional effect to handle initial mount - runs once when component first appears
+  // This is crucial for when the popup opens directly in chat-only mode via openChatPopup()
+  const hasMounted = useRef(false);
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+
+      // Check if we should auto-focus on initial mount
+      // Focus if: in chat-only mode OR if there are no results (which implies chat-only)
+      const shouldFocus = chatOnlyMode || (allResults.length === 0 && selectedResults.length === 0);
+
+      if (shouldFocus && chatInputRef.current) {
+        // Delay to ensure the component is fully rendered
+        const timeoutId = setTimeout(() => {
+          console.log('🎯 Auto-focusing chat input on mount');
+          chatInputRef.current?.focus();
+        }, 250);
+
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, []); // Empty deps - only run once on mount
+
   // Ref for auto-scrolling to the latest message
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Ref for the chat input field
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   // State to track pending highlight after page change
   const [pendingHighlight, setPendingHighlight] = useState<string | null>(null);
@@ -420,9 +506,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     []
   ); // Track result selection changes
-  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
+  const [selectedModel, setSelectedModel] = useState<string>(
+    initialChatModel || defaultModel
+  );
   const [modelTokensLimit, setModelTokensLimit] = useState<number>(
-    modelAccordingToProvider(defaultModel).tokensLimit || 128000
+    modelAccordingToProvider(initialChatModel || defaultModel).tokensLimit ||
+      128000
   );
 
   // Calculate total tokens used in the conversation
@@ -465,6 +554,97 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       await navigator.clipboard.writeText(text);
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
+    }
+  };
+
+  const insertConversationInRoam = async () => {
+    if (!targetUid) {
+      alert("No target block specified. Cannot insert conversation into Roam.");
+      return;
+    }
+
+    try {
+      // Get only NEW messages (exclude initial messages that came from Roam)
+      const newMessages = chatMessages.slice(initialMessagesCountRef.current);
+
+      if (newMessages.length === 0) {
+        alert("No new messages to insert. All messages were already in Roam.");
+        return;
+      }
+
+      console.log("newMessages :>> ", newMessages);
+      console.log("chatRoles :>> ", chatRoles);
+
+      // If this is the first insertion (entire conversation), generate a title
+      const isFirstInsertion = initialMessagesCountRef.current === 0;
+
+      if (isFirstInsertion) {
+        // Create a summary of the conversation for the LLM (first 50 chars of each message)
+        const conversationSummary = newMessages
+          .map((msg, idx) => {
+            const roleLabel = msg.role === "user" ? "User" : "Assistant";
+            const content = msg.content || "";
+            const snippet = content.substring(0, 50).replace(/\n/g, " ");
+            return `${idx + 1}. ${roleLabel}: ${snippet}...`;
+          })
+          .join("\n");
+
+        console.log("conversationSummary :>> ", conversationSummary);
+
+        const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant} about". Be concise and specific.\n\nConversation:\n${conversationSummary}`;
+
+        // Generate title using insertCompletion
+        // Type assertion needed because insertCompletion has many optional parameters
+        await (insertCompletion as any)({
+          instantModel: selectedModel,
+          prompt: titlePrompt,
+          targetUid,
+          target: "replace",
+          isButtonToInsert: false,
+        });
+      }
+
+      // Build formatted conversation text with role prefixes (only for new messages)
+      // If a message has multiple paragraphs, format them as children blocks
+      let conversationText = "";
+      newMessages.forEach((msg) => {
+        const rolePrefix =
+          msg.role === "user" ? chatRoles.user : chatRoles.assistant;
+
+        // Ensure content exists
+        const messageContent = msg.content || "";
+
+        // Split content by double newlines (paragraph separator)
+        const paragraphs = messageContent
+          .split(/\n\n+/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+
+        if (paragraphs.length > 1) {
+          // Multiple paragraphs: create hierarchical structure
+          conversationText += `${rolePrefix}\n`;
+          paragraphs.forEach((paragraph) => {
+            conversationText += `  - ${paragraph}\n`;
+          });
+          conversationText += "\n";
+        } else {
+          // Single paragraph: inline format
+          conversationText += `${rolePrefix}${messageContent}\n\n`;
+        }
+      });
+
+      // Remove trailing newlines
+      conversationText = conversationText.trim();
+
+      // Insert using parseAndCreateBlocks (as children if first insertion, otherwise siblings)
+      await parseAndCreateBlocks(targetUid, conversationText, false);
+
+      // Update the count to reflect that these messages are now in Roam
+      // This prevents re-inserting the same messages if the button is clicked again
+      initialMessagesCountRef.current = chatMessages.length;
+    } catch (error) {
+      console.error("Failed to insert conversation in Roam:", error);
+      alert("❌ Failed to insert conversation. Check console for details.");
     }
   };
 
@@ -920,6 +1100,17 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
             )}
             {chatMessages.length > 0 && (
               <>
+                {targetUid && (
+                  <Tooltip content="Insert conversation in Roam at parent block">
+                    <Button
+                      icon="insert"
+                      onClick={insertConversationInRoam}
+                      minimal
+                      small
+                      intent="success"
+                    />
+                  </Tooltip>
+                )}
                 <Tooltip content="Copy full conversation to clipboard">
                   <Button
                     icon="clipboard"
@@ -1180,6 +1371,7 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 
         <div className="full-results-chat-input-container">
           <TextArea
+            inputRef={chatInputRef}
             placeholder="Ask me about your results..."
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}

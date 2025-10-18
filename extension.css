@@ -2685,7 +2685,7 @@ h3.full-results-title.bp3-heading {
 .full-results-chat-message {
   display: flex;
   gap: 0;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
   align-items: flex-start;
   animation: slideIn 0.3s ease-out;
 }
@@ -3905,7 +3905,7 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
 
   .full-results-chat-message {
     gap: 0;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
   }
 
   /* Adjust message bubbles */

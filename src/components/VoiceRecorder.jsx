@@ -58,6 +58,7 @@ import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner
 import { askYourGraph } from "../ai/agents/search-agent/ask-your-graph.ts";
 import ModelsMenu from "./ModelsMenu.jsx";
 import { openLastAskYourGraphResults } from "./full-results-popup/FullResultsPopup";
+import { openChatPopup } from "./full-results-popup/index.tsx";
 
 function VoiceRecorder({
   blockUid,
@@ -370,6 +371,7 @@ function VoiceRecorder({
   const handleAskYourGraph = async (e, model) => {
     if (model) instantModel.current = model;
     lastCommand.current = "askYourGraph";
+    roamContext.current = await handleModifierKeys(e);
     blocksSelectionUids.current = getBlocksSelectionUids();
 
     // Check if no block is focused - if so, invoke current page references
@@ -377,10 +379,21 @@ function VoiceRecorder({
       window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
     let currentBlockContent =
       currentBlock && getBlockContentByUid(currentBlock);
-    if (
-      (!currentBlock || !currentBlockContent.trim()) &&
-      !blocksSelectionUids.current?.length
-    ) {
+    if (!blocksSelectionUids.current?.length) {
+      // blank block focused, open chat
+      if (currentBlock) {
+        console.log("currentBlockContent :>> ", currentBlockContent);
+        openChatPopup(
+          currentBlockContent?.trim()
+            ? [{ role: "user", content: currentBlockContent }]
+            : undefined,
+          instantModel.model || undefined,
+          currentBlock
+        );
+        initialize(true);
+        return;
+      }
+
       // on daily logs, open last results
       if (document.querySelector(".roam-log-container")) {
         openLastAskYourGraphResults();

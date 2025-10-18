@@ -46,6 +46,7 @@ import {
   suggestionsPrompt,
 } from "../ai/prompts.js";
 import {
+  getConversationArray,
   getFlattenedContentFromTree,
   getFocusAndSelection,
 } from "../ai/dataExtraction.js";
@@ -55,6 +56,7 @@ import {
 } from "../ai/agents/search-agent/ask-your-graph-invoke.ts";
 import { askYourGraph } from "../ai/agents/search-agent/ask-your-graph.ts";
 import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner-agent";
+import { openChatPopup } from "./full-results-popup";
 
 export let isCanceledStreamGlobal = false;
 
@@ -184,8 +186,6 @@ const InstantButtons = ({
     isConversationToContinue,
   }) => {
     const userPrompt = getBlockContentByUid(targetUid) || "";
-    console.log("🔍 userPrompt in handleConversation:", userPrompt);
-    console.log("🔍 targetUid:", targetUid);
 
     // Check if this is an agent callback (like MCP agent or Search agent)
     if (aiCallback && agentData) {
@@ -236,9 +236,15 @@ const InstantButtons = ({
         console.log("❌ No user prompt found in block", targetUid);
       }
     } else if (isConversationToContinue) {
-      // prompt.push({ role: "user", content: response });
       prompt.push({ role: "user", content: userPrompt });
-      console.log("conversation prompts :>> ", prompt);
+
+      // Check if Cmd/Ctrl key is pressed to open conversation in FullResultsPopup
+      const isOpenInPopup = e.metaKey || e.ctrlKey;
+      if (isOpenInPopup) {
+        await handleContinueConversationInPopup(prompt, userPrompt, model);
+        return;
+      }
+
       insertCompletion({
         targetUid: await createChildBlock(
           getParentBlock(targetUid),
@@ -252,6 +258,12 @@ const InstantButtons = ({
         target: "new",
       });
     } else {
+      // Check if Cmd/Ctrl key is pressed to open conversation in FullResultsPopup
+      const isOpenInPopup = e.metaKey || e.ctrlKey;
+      if (isOpenInPopup) {
+        await handleContinueConversationInPopup(prompt, userPrompt, model);
+        return;
+      }
       aiCompletionRunner({
         sourceUid: targetUid,
         instantModel: model,
@@ -265,6 +277,16 @@ const InstantButtons = ({
   const handleInsertConversationButtons = async (props) => {
     const parentUid = getParentBlock(targetUid);
     let userTurnContent = chatRoles.user || "";
+
+    // Check if Cmd/Ctrl key is pressed to open conversation in FullResultsPopup
+    const isOpenInPopup = props.e.metaKey || props.e.ctrlKey;
+    if (isOpenInPopup) {
+      console.log("roamContext :>> ", roamContext);
+      console.log("props.model :>> ", props.model);
+      handleContinueConversationInPopup(prompt, undefined, model);
+      return;
+    }
+
     prompt.push({ role: "assistant", content: suggestionsPrompt });
     const isSuggestionToInsert = props.e.altKey;
     const nextBlock = await createChildBlock(parentUid, userTurnContent);
@@ -318,6 +340,45 @@ const InstantButtons = ({
         }
       }
     }, 250);
+  };
+
+  const handleContinueConversationInPopup = async (
+    conversationHistory = [],
+    userPrompt,
+    model
+  ) => {
+    // Get parent block UID for inserting conversation back to Roam
+    const parentBlockUid = getParentBlock(currentUid || targetUid);
+
+    // Add current response if available
+    if (!conversationHistory.length) {
+      console.log("currentUid :>> ", currentUid);
+      conversationHistory =
+        (await getConversationArray(parentBlockUid)) || [];
+    }
+    if (response) {
+      conversationHistory.push({
+        role: "assistant",
+        content: response,
+      });
+    }
+    // Add the new user prompt
+    if (userPrompt) {
+      conversationHistory.push({
+        role: "user",
+        content: userPrompt.replace(chatRoles.user, "").trim(),
+      });
+    }
+
+    console.log(
+      "🔍 Opening chat popup with conversation history:",
+      conversationHistory
+    );
+
+    // Pass parentBlockUid as third parameter
+    openChatPopup(conversationHistory, model, parentBlockUid);
+
+    setIsToUnmount(true);
   };
 
   const handleQuestionAgentResults = ({ model = model }) => {
@@ -608,7 +669,16 @@ const InstantButtons = ({
             );
           }}
         >
-          <Tooltip content="Continue the conversation" hoverOpenDelay="500">
+          <Tooltip
+            content={
+              <p>
+                Continue the conversation
+                <br />
+                <code>Cmd/Ctrl</code> + Click to open in chat panel
+              </p>
+            }
+            hoverOpenDelay="500"
+          >
             <FontAwesomeIcon icon={faComments} size="sm" />
           </Tooltip>
         </Button>
@@ -698,7 +768,9 @@ const InstantButtons = ({
               <p>
                 Continue the conversation
                 <br />
-                Click + <code>Alt</code> to insert suggestions
+                <code>Alt</code> + Click to insert suggestions
+                <br />
+                <code>Cmd/Ctrl</code> + Click to open in chat panel
               </p>
             }
             hoverOpenDelay="500"

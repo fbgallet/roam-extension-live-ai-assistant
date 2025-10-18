@@ -227,7 +227,7 @@ export async function addToConversationHistory({
   if (conversationHistory.find((conv) => conv.uid === uid)) return;
   // conversation storage is limited to 30
   if (conversationHistory.length > 30) {
-    conversationHistory = conversationHistory.shift();
+    conversationHistory.shift(); // Remove the first (oldest) element
   }
   const params = { uid: uid };
   if (command) params.command = command;
