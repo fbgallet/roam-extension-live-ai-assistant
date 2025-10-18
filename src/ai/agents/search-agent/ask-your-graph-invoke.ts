@@ -1204,211 +1204,97 @@ export const invokeSearchAgentFull = async ({
  * Specialized function to invoke Ask Your Graph for linked references of the current page
  * This function handles page detection, creates the formal query, and bypasses IntentParser
  */
-export const invokeCurrentPageReferences = async ({
-  model = defaultModel,
-  rootUid, // This might be undefined when no block is focused - we'll use currentPageUid instead
-  targetUid,
-  target,
-}: {
-  model?: string;
-  rootUid?: string; // Make optional since we might not have a focused block
-  targetUid?: string;
-  target?: string;
-}) => {
-  // Import necessary functions
-  const { getMainPageUid, getPageNameByPageUid } = await import(
-    "../../../utils/roamAPI"
-  );
+/**
+ * DEPRECATED: Use openFullResultsPopup with roamContext instead.
+ * This function is kept for backward compatibility.
+ *
+ * @deprecated Use openFullResultsPopup({ roamContext: { linkedRefs: true }, ... }) instead
+ */
+// export const invokeCurrentPageReferences = async ({
+//   model = defaultModel,
+//   rootUid,
+//   targetUid,
+//   target,
+// }: {
+//   model?: string;
+//   rootUid?: string;
+//   targetUid?: string;
+//   target?: string;
+// }) => {
+//   // Import necessary functions
+//   const { getMainPageUid, getPageNameByPageUid } = await import(
+//     "../../../utils/roamAPI"
+//   );
+//   const { openFullResultsPopup } = await import(
+//     "../../../components/full-results-popup"
+//   );
 
-  try {
-    // Get current page information
-    const currentPageUid = await getMainPageUid();
-    if (!currentPageUid) {
-      throw new Error("No current page found");
-    }
+//   try {
+//     // Get current page information
+//     const currentPageUid = await getMainPageUid();
+//     if (!currentPageUid) {
+//       throw new Error("No current page found");
+//     }
 
-    // Get page name for the query
-    const pageName = getPageNameByPageUid(currentPageUid);
-    if (!pageName || pageName === "undefined") {
-      throw new Error("Could not get page name");
-    }
+//     // Get page name for the query
+//     const pageName = getPageNameByPageUid(currentPageUid);
+//     if (!pageName || pageName === "undefined") {
+//       throw new Error("Could not get page name");
+//     }
 
-    // Create the formal query for page references
-    const formalQuery = `ref:${pageName}`;
-    const userQuery = `all linked references of [[${pageName}]]`;
+//     // Use the new openFullResultsPopup with roamContext
+//     // This is much simpler and leverages the new RoamContext loader
+//     const roamContext = {
+//       linkedRefs: true,
+//       sidebar: false,
+//       mainPage: false,
+//       logPages: false,
+//     };
 
-    // Create agent data with pre-computed IntentParser-like state
-    const agentData = {
-      // Skip IntentParser since we already have the formal query
-      isPrivacyModeUpdated: true,
-      // Force popup-only results
-      forcePopupOnly: true,
-      // Pre-computed IntentParser-like results
-      formalQuery: formalQuery,
-      userIntent: userQuery,
-      searchStrategy: "direct" as const,
-      queryComplexity: "simple" as const,
-      strategicGuidance: {
-        approach: "single_search" as const,
-        recommendedSteps: [
-          `Search for all blocks that reference [[${pageName}]]`,
-        ],
-      },
-      language: "English",
-      confidence: 1.0,
-      // Force uids_only mode for higher limits and better performance in popup
-      searchDetails: {
-        maxResults: 3000, // Set high limit for page references
-      },
-      // Force uids_only mode at top level for the assistant to use
-      resultMode: "uids_only",
-      // Conversation state initialization
-      toolResultsCache: {},
-      cachedFullResults: {},
-      hasLimitedResults: false,
-      conversationHistory: [],
-      conversationSummary: undefined,
-      exchangesSinceLastSummary: 0,
-      isConversationMode: false,
-      resultSummaries: {},
-      resultStore: {},
-      nextResultId: 1,
-    };
+//     // Use currentPageUid as rootUid if not provided
+//     const effectiveRootUid = rootUid || currentPageUid;
+//     const effectiveTargetUid = targetUid || currentPageUid;
 
-    // Use currentPageUid as rootUid if rootUid is not provided (no focused block)
-    const effectiveRootUid = rootUid || currentPageUid;
+//     // Open popup directly - skip if called from query composer
+//     if (rootUid !== "query-composer") {
+//       console.log(
+//         `🚀 [invokeCurrentPageReferences] Opening popup with RoamContext for: ${pageName}`
+//       );
 
-    // OPTIMIZATION: For simple ref queries, bypass the entire agent and call the tool directly
-    if (formalQuery.match(/^ref:[^:]+$/)) {
-      console.log(
-        `🚀 [invokeCurrentPageReferences] Direct tool execution for: ${formalQuery}`
-      );
+//       await openFullResultsPopup({
+//         roamContext,
+//         rootUid: effectiveRootUid,
+//         targetUid: effectiveTargetUid,
+//         // userQuery,
+//         viewMode: "both", // Show both results and chat
+//         initialChatModel: model,
+//       });
+//     } else {
+//       console.log(
+//         "🔧 [QueryComposer] Skipping popup opening - called from query composer"
+//       );
+//     }
 
-      // Import the tool directly
-      const { findBlocksByContentImpl } = await import(
-        "./tools/findBlocksByContent/findBlocksByContentTool"
-      );
-
-      try {
-        // Extract page name from ref:PageName
-        const pageName = formalQuery.replace("ref:", "");
-
-        // Call the tool directly with optimal parameters
-        const toolResult = await findBlocksByContentImpl({
-          conditions: [{ type: "page_ref", text: pageName }],
-          combineConditions: "AND",
-          includeChildren: false,
-          includeParents: false,
-          includeDaily: true,
-          dailyNotesOnly: false,
-          sortBy: "relevance",
-          sortOrder: "desc",
-          limit: 3000,
-          resultMode: "uids_only",
-          secureMode: true, // Force secure mode for popup
-          userQuery: userQuery,
-          excludeBlockUid: effectiveRootUid, // Exclude the context block
-        });
-
-        // Add the current page itself to the results
-        // This allows users to easily add the current page via DirectContentSelector
-        if (toolResult.results && currentPageUid) {
-          const currentPageResult = {
-            uid: currentPageUid,
-            pageUid: currentPageUid,
-            pageTitle: pageName,
-            isPage: true,
-            // Note: content will be loaded on demand by the popup
-          };
-
-          // Add to beginning of results array
-          toolResult.results = [...toolResult.results, currentPageResult];
-        }
-
-        // Import and open the popup directly (unless called from query composer)
-        if (rootUid !== "query-composer") {
-          if (toolResult.results) {
-            // Get intentParserResult from window if available
-            const intentParserResult = (window as any).lastIntentParserResult;
-
-            // IMPORTANT: Pass currentPageUid as targetUid so the popup can properly populate currentPageContext
-            // This allows the DirectContentSelector to show "Current Page" option
-            openFullResultsPopup({
-              results: toolResult.results,
-              targetUid: currentPageUid, // Pass current page UID for proper context
-              userQuery,
-              formalQuery,
-              forceOpenChat: true, // Force open chat
-              intentParserResult,
-            });
-          }
-        } else {
-          console.log(
-            "🔧 [QueryComposer] Skipping popup opening - called from query composer (direct tool execution)"
-          );
-        }
-
-        // Return a minimal response object
-        return {
-          userQuery: userQuery,
-          formalQuery: formalQuery,
-          searchStrategy: "direct",
-          analysisType: "simple",
-          language: "English",
-          confidence: 1.0,
-          datomicQuery: formalQuery,
-          needsPostProcessing: false,
-          postProcessingType: undefined,
-          isExpansionGlobal: false,
-          semanticExpansion: undefined,
-          customSemanticExpansion: undefined,
-          searchDetails: { maxResults: 3000 },
-          forceOpenChat: true,
-          directToolExecution: true, // Flag to indicate this was a direct execution
-          toolResults: toolResult,
-        };
-      } catch (toolError) {
-        console.warn(
-          "Direct tool execution failed, falling back to agent:",
-          toolError
-        );
-        // Fall through to normal agent execution if direct tool call fails
-      }
-    }
-
-    // Fall back to normal agent execution for complex queries or if direct execution failed
-    const response = await invokeSearchAgentSecure({
-      model,
-      rootUid: effectiveRootUid,
-      targetUid: targetUid || effectiveRootUid,
-      target: target || "new",
-      prompt: userQuery,
-      permissions: { contentAccess: false }, // Use secure mode
-      privateMode: true, // Force private mode since we're only showing results in popup
-      previousAgentState: agentData,
-    });
-
-    // Ensure the response includes IntentParser fields for lastIntentParserResult update
-    return {
-      ...response,
-      formalQuery: formalQuery,
-      userQuery: userQuery,
-      searchStrategy: "direct",
-      analysisType: "simple",
-      language: "English",
-      confidence: 1.0,
-      datomicQuery: formalQuery,
-      needsPostProcessing: false,
-      postProcessingType: undefined,
-      isExpansionGlobal: false,
-      semanticExpansion: undefined,
-      customSemanticExpansion: undefined,
-      searchDetails: {
-        maxResults: 3000,
-      },
-    };
-  } catch (error) {
-    console.error("Error in invokeCurrentPageReferences:", error);
-    throw error;
-  }
-};
+//     // Return a minimal response object for compatibility
+//     return {
+//       // userQuery,
+//       formalQuery: `ref:${pageName}`,
+//       searchStrategy: "direct" as const,
+//       analysisType: "simple",
+//       language: "English",
+//       confidence: 1.0,
+//       datomicQuery: `ref:${pageName}`,
+//       needsPostProcessing: false,
+//       postProcessingType: undefined,
+//       isExpansionGlobal: false,
+//       semanticExpansion: undefined,
+//       customSemanticExpansion: undefined,
+//       searchDetails: { maxResults: 3000 },
+//       forceOpenChat: true,
+//       directToolExecution: true,
+//     };
+//   } catch (error) {
+//     console.error("Error in invokeCurrentPageReferences:", error);
+//     throw error;
+//   }
+// };

@@ -400,12 +400,12 @@ function VoiceRecorder({
         return;
       }
 
-      // Import and call invokeCurrentPageReferences
-      const { invokeCurrentPageReferences } = await import(
-        "../ai/agents/search-agent/ask-your-graph-invoke"
+      // Import and call chatWithLinkedRefs
+      const { chatWithLinkedRefs } = await import(
+        "./full-results-popup"
       );
       try {
-        await invokeCurrentPageReferences({
+        await chatWithLinkedRefs({
           model: instantModel.current || defaultModel,
         });
         initialize(true); // Reset the component state

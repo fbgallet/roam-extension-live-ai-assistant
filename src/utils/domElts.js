@@ -15,7 +15,7 @@ import AskGraphModeDialog from "../components/AskGraphModeDialog";
 import AskGraphFirstTimeDialog from "../components/AskGraphFirstTimeDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
-import { invokeCurrentPageReferences } from "../ai/agents/search-agent/ask-your-graph-invoke";
+import { chatWithLinkedRefs } from "../components/full-results-popup";
 
 export function mountComponent(
   position,
@@ -516,7 +516,7 @@ function insertAskLinkedReferencesButton() {
     e.stopPropagation();
 
     try {
-      await invokeCurrentPageReferences({});
+      await chatWithLinkedRefs({});
     } catch (error) {
       console.error("Error invoking current page references:", error);
       AppToaster.show({

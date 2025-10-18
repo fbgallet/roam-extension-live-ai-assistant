@@ -1,8 +1,7 @@
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
 import { askYourGraph } from "./agents/search-agent/ask-your-graph";
-import { openLastAskYourGraphResults } from "../components/full-results-popup";
-import { invokeCurrentPageReferences } from "./agents/search-agent/ask-your-graph-invoke";
+import { openLastAskYourGraphResults, chatWithLinkedRefs } from "../components/full-results-popup";
 import { languages } from "./languagesSupport";
 
 export const CATEGORY_ICON = {
@@ -236,7 +235,7 @@ export const BUILTIN_COMMANDS = [
     id: 95,
     name: "Ask Linked References of current page",
     callback: (args) =>
-      invokeCurrentPageReferences({
+      chatWithLinkedRefs({
         model: args.model,
         rootUid: args.rootUid, // This might be undefined, which our function handles
         targetUid: args.targetUid,

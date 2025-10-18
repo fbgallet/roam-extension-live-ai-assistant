@@ -45,3 +45,8 @@ export type SortBy = "relevance" | "date" | "page" | "content-alpha" | "content-
 export type SortOrder = "asc" | "desc";
 export type ChatMode = "simple" | "agent";
 export type DNPFilter = "all" | "dnp-only" | "no-dnp";
+
+/**
+ * View mode for FullResultsPopup - determines what panels are shown
+ */
+export type PopupViewMode = "both" | "results-only" | "chat-only";
