@@ -71,9 +71,7 @@ export const PageTitleRenderer: React.FC<{
         "Untitled Page";
 
       // Create the Roam string with page reference
-      const roamString = `{{embed: [[${pageTitle}]]}}${
-        result.isDaily ? " 📅" : ""
-      }`;
+      const roamString = `{{embed: [[${pageTitle}]]}}`;
 
       try {
         (window as any).roamAlphaAPI.ui.components.renderString({

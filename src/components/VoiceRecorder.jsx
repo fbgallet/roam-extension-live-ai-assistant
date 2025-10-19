@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ContextMenu, Tooltip } from "@blueprintjs/core";
+import { ContextMenu, Icon, Tooltip } from "@blueprintjs/core";
 
 import {
   faBolt,
@@ -20,9 +20,11 @@ import {
   addContentToBlock,
   createChildBlock,
   createSiblingBlock,
+  filterTopLevelBlocks,
   getBlockContentByUid,
   getBlocksSelectionUids,
   getLastTopLevelOfSeletion,
+  getParentBlock,
   insertBlockInCurrentView,
   isCurrentPageDNP,
   isLogView,
@@ -50,6 +52,7 @@ import {
 } from "../utils/domElts.js";
 import { transcribeAudio, translateAudio } from "../ai/aiAPIsHub.js";
 import {
+  getConversationArray,
   getResolvedContentFromBlocks,
   handleModifierKeys,
 } from "../ai/dataExtraction.js";
@@ -58,7 +61,11 @@ import { invokeOutlinerAgent } from "../ai/agents/outliner-agent/invoke-outliner
 import { askYourGraph } from "../ai/agents/search-agent/ask-your-graph.ts";
 import ModelsMenu from "./ModelsMenu.jsx";
 import { openLastAskYourGraphResults } from "./full-results-popup/FullResultsPopup";
-import { openChatPopup } from "./full-results-popup/index.tsx";
+import {
+  chatWithLinkedRefs,
+  openChatPopup,
+  openFullResultsPopup,
+} from "./full-results-popup/index.tsx";
 
 function VoiceRecorder({
   blockUid,
@@ -107,9 +114,10 @@ function VoiceRecorder({
   const roamContext = useRef({
     linkedRefs: false,
     sidebar: false,
-    mainPage: false,
+    page: false,
+    pageViewUid: null,
     logPages: false,
-    logPagesNb: null,
+    logPagesArgument: null,
   });
   const instantModel = useRef(null);
 
@@ -257,7 +265,7 @@ function VoiceRecorder({
       // "o", to make it compatible with modifiers
       handleOutlinerAgent(e);
     }
-    if (e.key.toLowerCase() === "g") {
+    if (e.key.toLowerCase() === "c") {
       handleAskYourGraph(e);
       return;
     }
@@ -375,45 +383,46 @@ function VoiceRecorder({
     blocksSelectionUids.current = getBlocksSelectionUids();
 
     // Check if no block is focused - if so, invoke current page references
-    const currentBlock =
-      window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-    let currentBlockContent =
-      currentBlock && getBlockContentByUid(currentBlock);
-    if (!blocksSelectionUids.current?.length) {
-      // blank block focused, open chat
-      if (currentBlock) {
-        console.log("currentBlockContent :>> ", currentBlockContent);
-        openChatPopup(
-          currentBlockContent?.trim()
-            ? [{ role: "user", content: currentBlockContent }]
-            : undefined,
-          instantModel.model || undefined,
-          currentBlock
-        );
-        initialize(true);
-        return;
-      }
+    let currentBlock = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
 
-      // on daily logs, open last results
-      if (document.querySelector(".roam-log-container")) {
-        openLastAskYourGraphResults();
-        return;
-      }
-
-      // Import and call chatWithLinkedRefs
-      const { chatWithLinkedRefs } = await import(
-        "./full-results-popup"
+    let conversationHistory;
+    if (currentBlock)
+      conversationHistory = await getConversationArray(
+        getParentBlock(currentBlock),
+        true,
+        true
       );
-      try {
-        await chatWithLinkedRefs({
-          model: instantModel.current || defaultModel,
-        });
-        initialize(true); // Reset the component state
-        return;
-      } catch (error) {
-        console.error("Error invoking current page references:", error);
-        // Fall through to normal processing if this fails
-      }
+
+    if (blocksSelectionUids.current?.length) {
+      const topLevelBlocks = filterTopLevelBlocks(blocksSelectionUids.current);
+      roamContext.current.block = true;
+      roamContext.current.blockArgument = [...topLevelBlocks];
+    }
+    openChatPopup({
+      conversationHistory: conversationHistory,
+      model: instantModel.model || undefined,
+      rootUid: currentBlock,
+      roamContext: roamContext.current,
+      viewMode: "chat-only",
+    });
+    initialize(true);
+    return;
+
+    // on daily logs, open last results
+    if (document.querySelector(".roam-log-container")) {
+      openLastAskYourGraphResults();
+      return;
+    }
+
+    try {
+      await chatWithLinkedRefs({
+        model: instantModel.current || defaultModel,
+      });
+      initialize(true); // Reset the component state
+      return;
+    } catch (error) {
+      console.error("Error invoking current page references:", error);
+      // Fall through to normal processing if this fails
     }
 
     initializeProcessing(e);
@@ -964,11 +973,15 @@ function VoiceRecorder({
               disabled={window.roamAlphaAPI.platform.isMobile}
               content={
                 <p>
-                  Ask You Graph Agent (focused/selected content as prompt) (G)
-                  <br /> <br />
-                  or if no focused block: Ask Linked References of current page
+                  Open Chat panel (C)
                   <br /> <br />
                   <b>Right-click</b> to switch model
+                  <br />
+                  <b>Click</b> + modifier key to define context:
+                  <br />+<code>Alt</code>: <b>page</b>
+                  <br />+<code>Cmd</code> or <code>Ctrl</code>:{" "}
+                  <b>linked refs or DNPs</b>
+                  <br />+<code>Shift</code>: <b>sidebar</b>
                 </p>
               }
               hoverOpenDelay="500"
@@ -978,7 +991,8 @@ function VoiceRecorder({
                 zIndex: "99",
               }}
             >
-              <FontAwesomeIcon icon={faHexagonNodesBolt} />
+              <Icon icon="chat" size={14} />
+              {/* <FontAwesomeIcon icon={faHexagonNodesBolt} /> */}
             </Tooltip>
           ))}
         {

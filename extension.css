@@ -34,6 +34,12 @@
   align-self: flex-start !important;
 }
 
+/***** Voice Recorder *****/
+
+.speech-command.ask-your-graph .bp3-icon-chat {
+  transform: translateY(-1px);
+}
+
 /******/
 
 .popover-target {
@@ -1741,6 +1747,7 @@ h3.full-results-title.bp3-heading {
   flex-direction: column;
   gap: 6px;
   flex-shrink: 0; /* Don't shrink the controls */
+  z-index: 11;
 }
 
 .full-results-search-filters {
@@ -2480,8 +2487,17 @@ h3.full-results-title.bp3-heading {
   color: #212529;
 }
 
+.full-results-page-title h3.rm-page__title {
+  font-size: 20px;
+  padding-bottom: 6px;
+}
+
 .full-results-page-title .rm-embed-container {
   margin-right: 0px;
+}
+
+.full-results-page-title .rm-embed__content {
+  font-weight: initial;
 }
 
 .full-results-page-count {
@@ -3351,7 +3367,7 @@ body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 32px;
+  width: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3364,11 +3380,16 @@ body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
   cursor: pointer;
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
+  z-index: 5;
   color: #667eea;
 }
 
-.edge-hover-button:hover {
+/* Show edge buttons on container hover */
+.full-results-content-container:hover .edge-hover-button {
+  opacity: 0.2;
+}
+
+.full-results-content-container:hover .edge-hover-button:hover {
   opacity: 1;
   background: linear-gradient(
     to right,
@@ -3401,11 +3422,6 @@ body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
   border-right: 2px solid rgba(102, 126, 234, 0.3);
   border-left: none;
   border-radius: 0 8px 8px 0;
-}
-
-/* Show edge buttons on container hover */
-.full-results-content-container:hover .edge-hover-button {
-  opacity: 0.4;
 }
 
 /* Edge buttons in split mode - positioned at panel boundaries */

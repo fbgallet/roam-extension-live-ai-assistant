@@ -375,8 +375,13 @@ const InstantButtons = ({
       conversationHistory
     );
 
-    // Pass parentBlockUid as third parameter
-    openChatPopup(conversationHistory, model, parentBlockUid);
+    // Open chat popup with options object including roamContext
+    openChatPopup({
+      conversationHistory,
+      model,
+      rootUid: parentBlockUid,
+      roamContext,
+    });
 
     setIsToUnmount(true);
   };

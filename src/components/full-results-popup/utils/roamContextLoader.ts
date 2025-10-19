@@ -13,8 +13,9 @@ import {
   treeToUidArray,
   getTreeByUid,
   getMainViewUid,
+  getRelativeCurrentDate,
+  getYesterdayDate,
 } from "../../../utils/roamAPI";
-import { findBlocksByContentImpl } from "../../../ai/agents/search-agent/tools/findBlocksByContent/findBlocksByContentTool";
 
 /**
  * Result interface matching the FullResultsPopup expected format
@@ -53,12 +54,16 @@ export const loadResultsFromRoamContext = async ({
 }> => {
   const blockUids: string[] = [];
   const pageUids: string[] = [];
-  const linkedRefPageUids: string[] = [];
+  const linkedRefUids: string[] = []; // UIDs (pages or blocks) to find linked references for
+
+  console.log("roamContext :>> ", roamContext);
 
   try {
     // 1. Extract elements from sidebar if needed
     if (roamContext.sidebar) {
       const sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
+
+      console.log("sidebarWindows :>> ", sidebarWindows);
 
       for (const windowConfig of sidebarWindows) {
         const type = windowConfig.type;
@@ -67,8 +72,13 @@ export const loadResultsFromRoamContext = async ({
           blockUids.push(windowConfig["block-uid"]);
         } else if (type === "outline" && windowConfig["page-uid"]) {
           pageUids.push(windowConfig["page-uid"]);
-        } else if (type === "mentions" && windowConfig["mentions-uid"]) {
-          linkedRefPageUids.push(windowConfig["mentions-uid"]);
+        } else if (
+          type === "mentions" &&
+          (windowConfig["page-uid"] || windowConfig["mentions-uid"])
+        ) {
+          linkedRefUids.push(
+            windowConfig["page-uid"] || windowConfig["mentions-uid"]
+          );
         }
         // Other types are ignored
       }
@@ -93,19 +103,26 @@ export const loadResultsFromRoamContext = async ({
     }
 
     // 4. Add linked references from RoamContext.linkedRefs
-    if (roamContext.linkedRefs && roamContext.linkedRefsArgument?.length) {
-      // Use the page titles from linkedRefsArgument
-      for (const pageTitle of roamContext.linkedRefsArgument) {
-        const pageUid = window.roamAlphaAPI.q(
-          `[:find ?uid . :where [?e :node/title "${pageTitle}"] [?e :block/uid ?uid]]`
-        );
-        if (pageUid) {
-          linkedRefPageUids.push(pageUid);
+    if (roamContext.linkedRefs) {
+      // 4a. Add linked refs from linkedRefsArgument if provided
+      if (roamContext.linkedRefsArgument?.length) {
+        for (const pageTitle of roamContext.linkedRefsArgument) {
+          const pageUid = window.roamAlphaAPI.q(
+            `[:find ?uid . :where [?e :node/title "${pageTitle}"] [?e :block/uid ?uid]]`
+          );
+          if (pageUid) {
+            linkedRefUids.push(pageUid);
+          }
         }
       }
-    } else if (roamContext.linkedRefs && roamContext.pageViewUid) {
-      // Fallback to pageViewUid if no specific pages are provided
-      linkedRefPageUids.push(roamContext.pageViewUid);
+
+      // 4b. Add linked refs from current view (complementary to linkedRefsArgument)
+      // Get current view UID (can be a page or a block)
+      const currentViewUid =
+        roamContext.pageViewUid || (await getMainViewUid());
+      if (currentViewUid && !linkedRefUids.includes(currentViewUid)) {
+        linkedRefUids.push(currentViewUid);
+      }
     }
 
     // 4b. Handle linkedPages (pages that are mentioned in the context)
@@ -143,38 +160,59 @@ export const loadResultsFromRoamContext = async ({
       }
     }
 
-    // 4c. Handle mainPage (if used)
+    // 4c. Handle mainPage and pageViewUid
     if (roamContext.mainPage || roamContext.pageViewUid) {
+      // Get the view UID (either from pageViewUid or current main view)
       let mainViewUid = roamContext.pageViewUid;
-      if (!mainViewUid) mainViewUid = await getMainViewUid();
-      if (!pageUids.includes(mainViewUid)) {
-        pageUids.push(roamContext.pageViewUid);
+      if (!mainViewUid && roamContext.mainPage) {
+        mainViewUid = await getMainViewUid();
+      }
+
+      if (mainViewUid) {
+        // Test if it's a page or a block
+        const viewData = window.roamAlphaAPI.pull("[*]", [
+          ":block/uid",
+          mainViewUid,
+        ]);
+        const isPage = !!viewData?.[":node/title"];
+
+        console.log("isPage :>> ", isPage);
+
+        if (isPage) {
+          // It's a page - add to pageUids
+          if (!pageUids.includes(mainViewUid)) {
+            pageUids.push(mainViewUid);
+          }
+        } else {
+          // It's a block - add to blockUids (or get its page if mainPage is true)
+          if (roamContext.mainPage) {
+            // For mainPage, we want the page, not the block
+            const pageUid = viewData?.[":block/page"]?.[":block/uid"];
+            if (pageUid && !pageUids.includes(pageUid)) {
+              pageUids.push(pageUid);
+            }
+          } else {
+            // For pageViewUid that's a block, add the block
+            if (!blockUids.includes(mainViewUid)) {
+              blockUids.push(mainViewUid);
+            }
+          }
+        }
       }
     }
 
     // 4d. Handle logPages (daily notes)
     if (roamContext.logPages && roamContext.logPagesArgument > 0) {
       const daysToInclude = roamContext.logPagesArgument;
+      let currentDay = await getRelativeCurrentDate(rootUid);
 
       // Get daily notes for the last N days
-      const today = new Date();
       for (let i = 0; i < daysToInclude; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-
-        // Format as MM-DD-YYYY for Roam
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        const year = date.getFullYear();
-        const dateTitle = `${month}-${day}-${year}`;
-
-        const dailyPageUid = window.roamAlphaAPI.q(
-          `[:find ?uid . :where [?e :node/title "${dateTitle}"] [?e :block/uid ?uid]]`
-        );
-
-        if (dailyPageUid && !pageUids.includes(dailyPageUid)) {
-          pageUids.push(dailyPageUid);
+        let dnpUid = window.roamAlphaAPI.util.dateToPageUid(currentDay);
+        if (dnpUid && !pageUids.includes(dnpUid)) {
+          pageUids.push(dnpUid);
         }
+        currentDay = getYesterdayDate(currentDay);
       }
     }
 
@@ -183,7 +221,8 @@ export const loadResultsFromRoamContext = async ({
 
     // 5. Add blocks to results (directly, no tool needed)
     for (const blockUid of blockUids) {
-      if (blockUid === rootUid) continue; // Skip the root block
+      if (blockUid === rootUid && blockUid !== roamContext.pageViewUid)
+        continue; // Skip the root block
 
       const blockData = window.roamAlphaAPI.pull("[*]", [
         ":block/uid",
@@ -209,7 +248,50 @@ export const loadResultsFromRoamContext = async ({
       }
     }
 
-    // 6. Add pages to results (directly, no tool needed)
+    // 6. Add linked references using Datomic query with :block/refs
+    if (linkedRefUids.length > 0) {
+      try {
+        // Build Datomic query to find all blocks that reference any of these UIDs
+        // The query finds blocks where [:block/refs] contains any of the target UIDs
+        const refBlocks = linkedRefUids.flatMap((targetUid) => {
+          const query = `[:find ?uid ?string ?page-uid ?modified ?created
+                          :where
+                          [?ref-block :block/refs ?target]
+                          [?target :block/uid "${targetUid}"]
+                          [?ref-block :block/uid ?uid]
+                          [?ref-block :block/string ?string]
+                          [?ref-block :block/page ?page]
+                          [?page :block/uid ?page-uid]
+                          [(get-else $ ?ref-block :edit/time 0) ?modified]
+                          [(get-else $ ?ref-block :create/time 0) ?created]]`;
+
+          const results = window.roamAlphaAPI.q(query);
+
+          if (!results || !Array.isArray(results)) return [];
+
+          return results
+            .filter(([uid]) => uid !== rootUid) // Exclude root block
+            .map(([uid, content, pageUid, modified, created]) => {
+              const pageTitle = getPageNameByPageUid(pageUid);
+              return {
+                uid,
+                content,
+                pageUid,
+                pageTitle,
+                isPage: false,
+                modified: modified ? new Date(modified) : undefined,
+                created: created ? new Date(created) : undefined,
+              };
+            });
+        });
+
+        allResults.push(...refBlocks);
+      } catch (error) {
+        console.warn(`Failed to load linked references:`, error);
+      }
+    }
+
+    // 7. Add pages to results (directly, no tool needed)
     for (const pageUid of pageUids) {
       const pageData = window.roamAlphaAPI.pull("[*]", [":block/uid", pageUid]);
       if (pageData) {
@@ -232,53 +314,6 @@ export const loadResultsFromRoamContext = async ({
       }
     }
 
-    // 7. Add linked references using findBlocksByContentImpl (batch all pages with OR)
-    if (linkedRefPageUids.length > 0) {
-      // Get all page names
-      const pageNames: string[] = [];
-      for (const pageUid of linkedRefPageUids) {
-        const pageName = getPageNameByPageUid(pageUid);
-        if (pageName && pageName !== "undefined") {
-          pageNames.push(pageName);
-        }
-      }
-
-      if (pageNames.length > 0) {
-        try {
-          // Create conditions for all pages and combine with OR
-          const conditions = pageNames.map((pageName) => ({
-            type: "page_ref" as const,
-            text: pageName,
-          }));
-
-          const toolResult = await findBlocksByContentImpl({
-            conditions,
-            combineConditions: "OR", // Use OR to get references to any of these pages
-            includeChildren: false,
-            includeParents: false,
-            includeDaily: true,
-            dailyNotesOnly: false,
-            sortBy: "relevance",
-            sortOrder: "desc",
-            limit: 3000,
-            resultMode: "uids_only",
-            secureMode: true,
-            userQuery:
-              pageNames.length === 1
-                ? `Linked references of [[${pageNames[0]}]]`
-                : `Linked references of ${pageNames.length} pages`,
-            excludeBlockUid: rootUid,
-          });
-
-          if (toolResult.results) {
-            allResults.push(...toolResult.results);
-          }
-        } catch (error) {
-          console.warn(`Failed to load linked references:`, error);
-        }
-      }
-    }
-
     // 8. Deduplicate results by UID
     const uniqueResults = deduplicateByUid(allResults);
 
@@ -298,10 +333,10 @@ export const loadResultsFromRoamContext = async ({
     }
 
     // Count linked references
-    const linkedRefCount = linkedRefPageUids.length;
+    const linkedRefCount = linkedRefUids.length;
     if (linkedRefCount > 0) {
       parts.push(
-        `linked references of ${linkedRefCount} page${
+        `linked references of ${linkedRefCount} item${
           linkedRefCount > 1 ? "s" : ""
         }`
       );

@@ -1,6 +1,8 @@
 import { getRoamContextFromPrompt } from "../ai/dataExtraction";
 import { copyTreeBranches } from "../ai/responseInsertion";
+import { AppToaster } from "../components/Toaster";
 import { sliceByWordLimit } from "./dataProcessing";
+import { highlightHtmlElt } from "./domElts";
 import {
   contextRegex,
   dateStringRegex,
@@ -55,7 +57,7 @@ export async function getFirstLevelBlocksInCurrentView() {
   return getOrderedDirectChildren(zoomUid);
 }
 
-function getOrderedDirectChildren(uid) {
+export function getOrderedDirectChildren(uid) {
   if (!uid) return null;
   let result = window.roamAlphaAPI.q(`[:find (pull ?page
                       [:block/uid :block/string :block/children :block/order
@@ -190,27 +192,42 @@ export function getUidAndTitleOfMentionedPagesInBlock(uid) {
     });
 }
 
-// export function getTopParentAmongBlocks(blockUids) {
-//   let result = window.roamAlphaAPI.q(
-//     `[:find ?uids
-//       :in $ [?all-uids ...]
-//   :where
-//   [?blocks :block/uid ?all-uids]
-//   [?parents :block/children ?blocks]
-//   [?children :block/parents ?parents]
-//   [?parents :block/uid ?uids]
-//   ]`,
-//     blockUids
-//   );
-//   let topParent;
-//   for (let i = 0; i < result.length; i++) {
-//     if (blockUids.includes(result[i][0])) {
-//       topParent = result[i][0];
-//       break;
-//     }
-//   }
-//   return topParent;
-// }
+/**
+ * Filters an array of block UIDs to keep only top-level blocks
+ * (blocks that don't have any parent in the same array).
+ **/
+export function filterTopLevelBlocks(blockUids) {
+  if (!blockUids || blockUids.length === 0) return [];
+  if (blockUids.length === 1) return blockUids;
+
+  // Datomic query to find blocks that have a parent in the input array
+  const query = `[:find ?uid
+                  :in $ [?all-uids ...]
+                  :where
+                  [?block :block/uid ?all-uids]
+                  [?block :block/parents ?parent]
+                  [?parent :block/uid ?parent-uid]
+                  [(contains? #{${blockUids
+                    .map((uid) => `"${uid}"`)
+                    .join(" ")}} ?parent-uid)]
+                  [?block :block/uid ?uid]]`;
+
+  try {
+    const result = window.roamAlphaAPI.q(query, blockUids);
+
+    // result contains UIDs that have parents in the array - we want to exclude these
+    const blocksWithParentsInArray = new Set(
+      result ? result.map(([uid]) => uid) : []
+    );
+
+    // Return only blocks that don't have parents in the array (top-level blocks)
+    return blockUids.filter((uid) => !blocksWithParentsInArray.has(uid));
+  } catch (error) {
+    console.error("Error in filterTopLevelBlocks:", error);
+    // Fallback: return all blocks if query fails
+    return blockUids;
+  }
+}
 
 export function getPreviousSiblingBlock(currentUid) {
   if (!currentUid) return null;
@@ -271,7 +288,7 @@ export async function getPageStatus(blockUid) {
 export function getPageNameByPageUid(uid) {
   let r = window.roamAlphaAPI.data.pull("[:node/title]", [":block/uid", uid]);
   if (r != null) return r[":node/title"];
-  else return "undefined";
+  else return undefined;
 }
 
 export function getBlockOrderByUid(uid) {
@@ -464,12 +481,15 @@ export const replaceChildrenByNewTree = async (
   await copyTreeBranches(newTree, parentUid, 99, null, isClone);
 };
 
-export async function insertBlockInCurrentView(content, order) {
+export async function insertBlockInCurrentView(content, order = "last") {
   let zoomUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
   // If not on a given page, but in Daily Log
   if (!zoomUid) {
     zoomUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
-    // TODO : send a message "Added on DNP page"
+    AppToaster.show({
+      message: "Appended to today daily note.",
+      timeout: 6000,
+    });
   }
   const newUid = window.roamAlphaAPI.util.generateUID();
   await window.roamAlphaAPI.createBlock({
@@ -624,6 +644,24 @@ export const getDateStringFromDnpUid = (dnpUid) => {
   const parts = dnpUid.split("-");
   const date = new Date(parts[2], parts[0] - 1, parts[1]);
   return date;
+};
+
+export const getRelativeCurrentDate = async (focusedUid) => {
+  // If focused or opened on a DNP, DNP context begin the PREVIOUS day
+  // If any other page, DNP context include today
+  let currentDate;
+  if (!focusedUid)
+    focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+  if (isLogView() && focusedUid) {
+    currentDate = getYesterdayDate(new Date(getPageUidByBlockUid(focusedUid)));
+    highlightHtmlElt({ selector: ".roam-log-container" });
+  } else if (await isCurrentPageDNP()) {
+    currentDate = getYesterdayDate(new Date(await getMainPageUid()));
+    highlightHtmlElt({ selector: ".rm-title-display" });
+  } else {
+    currentDate = new Date();
+  }
+  return currentDate;
 };
 
 export const extractNormalizedUidFromRef = (str, testIfExist = true) => {

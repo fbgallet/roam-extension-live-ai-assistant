@@ -13,10 +13,16 @@ import { Result, ChatMessage, ChatMode } from "./types";
 import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/contextExpansion";
 import { extensionStorage, defaultModel, chatRoles } from "../..";
 import ModelsMenu from "../ModelsMenu";
-import { getPageUidByPageName } from "../../utils/roamAPI";
+import {
+  getPageUidByPageName,
+  insertBlockInCurrentView,
+} from "../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../utils/format";
 import { insertCompletion } from "../../ai/responseInsertion";
+import { AppToaster } from "../Toaster";
+import { ChatHistorySelect } from "./ChatHistorySelect";
+import { extractConversationFromLiveAIChat } from "./index";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -220,13 +226,36 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     if ((chatOnlyMode || chatJustOpened) && chatInputRef.current) {
       // Small delay to ensure DOM is ready
       const timeoutId = setTimeout(() => {
-        console.log('🎯 Auto-focusing chat input:', { chatOnlyMode, chatJustOpened });
+        console.log("🎯 Auto-focusing chat input:", {
+          chatOnlyMode,
+          chatJustOpened,
+        });
         chatInputRef.current?.focus();
       }, 100);
 
       return () => clearTimeout(timeoutId);
     }
   }, [chatOnlyMode, isOpen]);
+
+  // Track previous isTyping state to detect when assistant finishes responding
+  const prevIsTypingRef = useRef(isTyping);
+
+  // Auto-focus chat input when assistant finishes responding
+  useEffect(() => {
+    const assistantJustFinished = prevIsTypingRef.current && !isTyping;
+    prevIsTypingRef.current = isTyping;
+
+    // Focus input when assistant just finished responding
+    if (assistantJustFinished && chatInputRef.current) {
+      // Small delay to ensure streaming is fully complete
+      const timeoutId = setTimeout(() => {
+        console.log("🎯 Auto-focusing chat input after assistant response");
+        chatInputRef.current?.focus();
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isTyping]);
 
   // Additional effect to handle initial mount - runs once when component first appears
   // This is crucial for when the popup opens directly in chat-only mode via openChatPopup()
@@ -237,12 +266,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Check if we should auto-focus on initial mount
       // Focus if: in chat-only mode OR if there are no results (which implies chat-only)
-      const shouldFocus = chatOnlyMode || (allResults.length === 0 && selectedResults.length === 0);
+      const shouldFocus =
+        chatOnlyMode ||
+        (allResults.length === 0 && selectedResults.length === 0);
 
       if (shouldFocus && chatInputRef.current) {
         // Delay to ensure the component is fully rendered
         const timeoutId = setTimeout(() => {
-          console.log('🎯 Auto-focusing chat input on mount');
+          console.log("🎯 Auto-focusing chat input on mount");
           chatInputRef.current?.focus();
         }, 250);
 
@@ -531,7 +562,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Update tokensLimit when model is changed
   useEffect(() => {
     setModelTokensLimit(
-      modelAccordingToProvider(selectedModel).tokensLimit || 128000
+      modelAccordingToProvider(selectedModel).tokensLimit || 32000
     );
   }, [selectedModel]);
 
@@ -559,8 +590,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   const insertConversationInRoam = async () => {
     if (!targetUid) {
-      alert("No target block specified. Cannot insert conversation into Roam.");
-      return;
+      console.log("targetUid :>> ", targetUid);
+      targetUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+      if (!targetUid) {
+        targetUid = await insertBlockInCurrentView("");
+      }
     }
 
     try {
@@ -568,12 +602,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const newMessages = chatMessages.slice(initialMessagesCountRef.current);
 
       if (newMessages.length === 0) {
-        alert("No new messages to insert. All messages were already in Roam.");
+        AppToaster.show({
+          message:
+            "No new messages to insert. All messages were already in Roam.",
+          timeout: 6000,
+        });
         return;
       }
-
-      console.log("newMessages :>> ", newMessages);
-      console.log("chatRoles :>> ", chatRoles);
 
       // If this is the first insertion (entire conversation), generate a title
       const isFirstInsertion = initialMessagesCountRef.current === 0;
@@ -682,6 +717,73 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+
+  // Handler for loading a chat history from [[liveai/chat]] blocks
+  const handleLoadChatHistory = (chatUid: string) => {
+    try {
+      const conversation = extractConversationFromLiveAIChat(chatUid);
+
+      if (!conversation || conversation.length === 0) {
+        AppToaster.show({
+          message: "No conversation found in this chat block",
+          intent: "warning",
+          timeout: 3000,
+        });
+        return;
+      }
+
+      // Check if last message is from user - if so, put it in the input field
+      const lastMessage = conversation[conversation.length - 1];
+      const isLastMessageFromUser = lastMessage?.role === "user";
+
+      if (isLastMessageFromUser && conversation.length > 1) {
+        // Put last user message in input field
+        setChatInput(lastMessage.content);
+
+        // Load all previous messages into chat history
+        const previousMessages = conversation
+          .slice(0, -1)
+          .map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: new Date(),
+          }));
+
+        setChatMessages(previousMessages);
+        initialMessagesCountRef.current = previousMessages.length;
+      } else {
+        // Load all messages into chat history
+        const allMessages = conversation.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(),
+        }));
+
+        setChatMessages(allMessages);
+        initialMessagesCountRef.current = allMessages.length;
+        setChatInput("");
+      }
+
+      // Reset agent data when loading a new conversation
+      setChatAgentData(null);
+      setChatExpandedResults(null);
+      setLastSelectedResultIds([]);
+      setHasExpandedResults(false);
+
+      AppToaster.show({
+        message: `Loaded conversation with ${conversation.length} messages`,
+        intent: "success",
+        timeout: 3000,
+      });
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+      AppToaster.show({
+        message: "Failed to load chat history",
+        intent: "danger",
+        timeout: 3000,
+      });
+    }
+  };
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || isTyping) return;
@@ -1098,10 +1200,16 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 </span>
               </Tooltip>
             )}
+            <Tooltip content="Load chat history from [[liveai/chat]] blocks">
+              <ChatHistorySelect
+                onChatSelect={handleLoadChatHistory}
+                disabled={isTyping}
+              />
+            </Tooltip>
             {chatMessages.length > 0 && (
               <>
-                {targetUid && (
-                  <Tooltip content="Insert conversation in Roam at parent block">
+                {
+                  <Tooltip content="Insert conversation in Roam at focused block or append to current page/daily note">
                     <Button
                       icon="insert"
                       onClick={insertConversationInRoam}
@@ -1110,7 +1218,7 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                       intent="success"
                     />
                   </Tooltip>
-                )}
+                }
                 <Tooltip content="Copy full conversation to clipboard">
                   <Button
                     icon="clipboard"

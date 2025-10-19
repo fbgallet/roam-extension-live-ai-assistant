@@ -400,18 +400,19 @@ export const highlightHtmlElt = ({
       ...document.querySelectorAll(`.rm-block-input[id$="${eltUid}"]`),
     ]);
     // console.log("eltToHighlight :>> ", eltToHighlight);
-    elts = eltToHighlight
-      .map((elt) =>
-        elt.tagName === "TEXTAREA"
-          ? elt.parentElement.parentElement
-          : elt.parentElement
-      )
-      .map((elt) => (onlyChildren ? elt.nextElementSibling : elt));
+    if (eltToHighlight && eltToHighlight.length)
+      elts = eltToHighlight
+        .map((elt) =>
+          elt.tagName === "TEXTAREA"
+            ? elt.parentElement.parentElement
+            : elt.parentElement
+        )
+        .map((elt) => (onlyChildren ? elt.nextElementSibling : elt));
   }
   const highightSelector = `${isFixed ? "fixed-" : ""}highlight-elt${
     color ? "-" + color : ""
   }${isInset ? "-inset" : ""}`;
-  if (!elts.length) return;
+  if (!elts?.length) return;
   elts.forEach((elt) => {
     if (!elt.classList.contains(highightSelector) && !isToRemove) {
       elt.classList.add(highightSelector);

@@ -54,6 +54,7 @@ import {
   buildCacheProcessingPrompt,
   buildCacheSystemPrompt,
 } from "./ask-your-graph-prompts";
+import { modelAccordingToProvider } from "../../aiAPIsHub";
 
 // Result summary interface for token optimization
 interface ResultSummary {
@@ -1867,22 +1868,12 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     : state.permissions?.contentAccess
     ? "full"
     : "balanced";
-  const CHAR_LIMITS = {
-    private: 0, // No expansion in private mode
-    balanced: 80000, // ~20k tokens
-    full: 200000, // ~50k tokens
-  };
-
-  const charLimit = CHAR_LIMITS[mode];
-  if (charLimit === 0) {
+  if (mode === "private") {
     return state;
   }
 
   // Calculate current content length
   const currentContentLength = calculateTotalContentLength(allResults);
-  console.log(
-    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${charLimit}`
-  );
 
   // Convert agent state to access mode for expansion
   const accessMode = state.privateMode
@@ -1891,10 +1882,18 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     ? "Full Access"
     : "Balanced";
 
+  const modelTokensLimit = modelAccordingToProvider(llm).tokensLimit || 32000;
+  const expansionBudget =
+    accessMode === "Full Access" ? modelTokensLimit * 3 : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
+
+  console.log(
+    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}`
+  );
+
   // Perform adaptive context expansion
   const expandedResults = await performAdaptiveExpansion(
     allResults,
-    charLimit,
+    expansionBudget,
     currentContentLength,
     accessMode
   );

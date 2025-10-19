@@ -38,6 +38,7 @@ import {
   getPageUidByPageName,
   getParentBlock,
   getPreviousSiblingBlock,
+  getRelativeCurrentDate,
   getTreeByUid,
   getUidAndTitleOfMentionedPagesInBlock,
   getYesterdayDate,
@@ -287,21 +288,22 @@ export const handleModifierKeys = async (e) => {
     linkedRefs: false,
     sidebar: false,
     page: false,
+    pageViewUid: null,
     logPages: false,
+    logPagesArgument: null,
   };
   if (!e) return null;
   if (e.shiftKey) roamContext.sidebar = true;
   if (e.metaKey || e.ctrlKey) {
     if (isLogView() || (await isCurrentPageDNP())) {
-      AppToaster.show({
-        message:
-          "Warning! Using past daily note pages as context can quickly reach maximum token limit if a large number of days if processed. ",
-      });
       roamContext.logPages = true;
-      roamContext.logPagesArgument = logPagesNbDefault;
+      roamContext.logPagesArgument = Number(logPagesNbDefault);
     } else roamContext.linkedRefs = true;
   }
-  if (e.altKey) roamContext.page = true;
+  if (e.altKey) {
+    roamContext.page = true;
+    roamContext.pageViewUid = await getMainViewUid();
+  }
   return roamContext;
 };
 
@@ -651,23 +653,9 @@ export const getAndNormalizeContext = async ({
       );
     }
     if (roamContext.logPages) {
-      let startDate;
-      // If focused or opened on a DNP, DNP context begin the PREVIOUS day
-      // If any other page, DNP context include today
-      if (isLogView() && focusedBlock) {
-        startDate = getYesterdayDate(
-          new Date(getPageUidByBlockUid(focusedBlock))
-        );
-        highlightHtmlElt({ selector: ".roam-log-container" });
-      } else if (await isCurrentPageDNP()) {
-        startDate = getYesterdayDate(new Date(await getMainPageUid()));
-        highlightHtmlElt({ selector: ".rm-title-display" });
-      } else {
-        startDate = new Date();
-      }
-      let today = new Date();
+      let startDate = await getRelativeCurrentDate(focusedBlock);
+
       console.log("startDate :>> ", startDate);
-      console.log("today", today);
 
       context += getFlattenedContentFromLog(
         roamContext.logPagesArgument || logPagesNbDefault,
@@ -934,16 +922,19 @@ export const getArrayFromList = (list, separator = ",", prefix = "") => {
 
 export const getConversationArray = async (
   parentUid,
-  isLastTurnToInclude = false
+  isLastTurnToInclude = false,
+  isStrictConversation = false
 ) => {
   let tree = getTreeByUid(parentUid);
   if (!tree) return null;
   const isWholePage = tree[0].string ? false : true;
+  if (isWholePage && isStrictConversation) return;
   highlightHtmlElt({
     selector: isWholePage ? ".roam-article > div:first-child" : undefined,
     eltUid: isWholePage ? parentUid : undefined,
   });
   let convParams = getConversationParamsFromHistory(parentUid);
+  if (!convParams && isStrictConversation) return;
 
   let initialPrompt = tree[0].string || null;
   if (convParams?.context) {

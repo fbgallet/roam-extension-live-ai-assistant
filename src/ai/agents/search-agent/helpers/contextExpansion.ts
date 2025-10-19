@@ -51,16 +51,13 @@ export async function performAdaptiveExpansion(
     .map((r) => r.uid);
 
   // Extract page UIDs for children queries
-  const pageUids = pages
-    .filter((r) => r.uid)
-    .map((r) => r.uid);
+  const pageUids = pages.filter((r) => r.uid).map((r) => r.uid);
 
   let expandedResults: any[] = [];
 
   // Process blocks with hierarchy data
   if (blockUids.length > 0) {
     const hierarchyData = await fetchHierarchyData(blockUids);
-    
 
     const expandedBlocks = await createExpandedBlocks(
       [...blocks],
@@ -259,6 +256,10 @@ async function createExpandedBlocks(
       // First apply standard result count limits
       if (resultCount > 500) {
         maxDepth = 0; // No expansion for very large result sets
+      } else if (resultCount <= 10) {
+        maxDepth = 99; // Full exploration for small result sets
+      } else if (resultCount <= 20) {
+        maxDepth = 5; // Deep exploration for small result sets
       } else if (resultCount <= 100) {
         maxDepth = 4; // Deep exploration for small result sets
       } else if (resultCount <= 200) {
@@ -273,9 +274,15 @@ async function createExpandedBlocks(
       // Then apply additional restrictions for Balanced mode
       if (accessMode === "Balanced") {
         if (resultCount > 200) {
-          maxDepth = Math.min(maxDepth, 1); // Cap at 1 level for >200 results in Balanced
+          maxDepth = Math.min(maxDepth, 0); // No expansion level for >200 results in Balanced
+        } else if (resultCount <= 10) {
+          maxDepth = Math.min(maxDepth, 4);
+        } else if (resultCount <= 25) {
+          maxDepth = Math.min(maxDepth, 3);
+        } else if (resultCount <= 50) {
+          maxDepth = Math.min(maxDepth, 2);
         } else {
-          maxDepth = Math.min(maxDepth, 2); // Cap at 2 levels for ≤200 results in Balanced
+          maxDepth = Math.min(maxDepth, 1);
         }
       }
 
@@ -413,10 +420,7 @@ async function createExpandedPages(
 /**
  * Stringifies expanded page with proper formatting (no parent context)
  */
-function stringifyExpandedPage(
-  expandedPage: any,
-  budgetLimit: number
-): string {
+function stringifyExpandedPage(expandedPage: any, budgetLimit: number): string {
   const parts: string[] = [];
 
   // Always include page title
