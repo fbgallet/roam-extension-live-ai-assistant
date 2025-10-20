@@ -82,7 +82,7 @@ export const ChatHistorySelect: React.FC<ChatHistorySelectProps> = ({
       noResults={<MenuItem disabled={true} text="No chat histories found" />}
     >
       <Button
-        icon="history"
+        icon="upload"
         minimal
         small
         disabled={disabled || chatHistories.length === 0}

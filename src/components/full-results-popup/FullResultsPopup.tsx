@@ -56,6 +56,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   initialChatMessages,
   initialChatPrompt,
   initialChatModel,
+  initialLoadedChatUid,
+  initialStyle,
+  initialCommandId,
+  initialCommandPrompt,
 }) => {
   // Query execution state
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
@@ -2231,6 +2235,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 initialChatMessages={initialChatMessages}
                 initialChatPrompt={initialChatPrompt}
                 initialChatModel={initialChatModel}
+                initialLoadedChatUid={initialLoadedChatUid}
+                // Command context for auto-execution
+                initialStyle={initialStyle}
+                initialCommandId={initialCommandId}
+                initialCommandPrompt={initialCommandPrompt}
               />
             </div>
           )}

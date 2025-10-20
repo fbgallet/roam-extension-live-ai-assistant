@@ -86,11 +86,17 @@ export const useContextMenuState = () => {
   const isFirstBlock = useRef(null);
   const roamContextRef = useRef(roamContext);
   const styleRef = useRef(style);
+  const targetBlockRef = useRef(targetBlock);
 
   // Update roamContextRef when roamContext changes
   useEffect(() => {
     roamContextRef.current = roamContext;
   }, [roamContext]);
+
+  // Update targetBlockRef when targetBlock changes
+  useEffect(() => {
+    targetBlockRef.current = targetBlock;
+  }, [targetBlock]);
 
   // Update styleRef when style changes
   useEffect(() => {
@@ -211,6 +217,7 @@ export const useContextMenuState = () => {
     isFirstBlock,
     roamContextRef,
     styleRef,
+    targetBlockRef,
 
     // Functions
     handleClose,

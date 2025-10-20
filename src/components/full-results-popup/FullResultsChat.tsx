@@ -14,6 +14,7 @@ import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/c
 import { extensionStorage, defaultModel, chatRoles } from "../..";
 import ModelsMenu from "../ModelsMenu";
 import {
+  getBlockContentByUid,
   getPageUidByPageName,
   insertBlockInCurrentView,
 } from "../../utils/roamAPI";
@@ -23,6 +24,7 @@ import { insertCompletion } from "../../ai/responseInsertion";
 import { AppToaster } from "../Toaster";
 import { ChatHistorySelect } from "./ChatHistorySelect";
 import { extractConversationFromLiveAIChat } from "./index";
+import { getChatTitleFromUid } from "./utils/chatStorage";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -56,6 +58,12 @@ interface FullResultsChatProps {
   initialChatMessages?: ChatMessage[];
   initialChatPrompt?: string;
   initialChatModel?: string;
+  // Loaded chat UID (when opened via [[liveai/chat]])
+  initialLoadedChatUid?: string;
+  // Command context for enriching chat prompts
+  initialStyle?: string;
+  initialCommandId?: number;
+  initialCommandPrompt?: string;
 }
 
 // Convert chat messages to agent conversation history
@@ -116,31 +124,31 @@ const renderMarkdown = (text: string): string => {
   // Convert Roam embed syntax to clickable links
   rendered = rendered.replace(
     /\{\{\[\[(.*?)\]\]:\s*\(\((.*?)\)\)\}\}/g,
-    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">📄 {{[[embed-path]]: (($2))}}]</a>'
+    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>'
   );
 
   // Simple block reference ((uid))
   rendered = rendered.replace(
     /\(\(([^\(].*?)\)\)/g,
-    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
+    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
   );
 
   // convert to [link](((uid)))
   rendered = rendered.replace(
     /\[([^\]].*?)\]\(\((.*)\)\)/g,
-    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar">$1<span class="bp3-icon bp3-icon-flow-end"></span></a>`
+    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window">$1<span class="bp3-icon bp3-icon-flow-end"></span></a>`
   );
 
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
     /\[\[([^\]]+)\]\]/g,
-    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar">$1</a><span class="rm-page-ref__brackets">]]</span>`
+    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar • Alt+click: Open in main window">$1</a><span class="rm-page-ref__brackets">]]</span>`
   );
 
   // Tag references #tag - make clickable
   rendered = rendered.replace(
     /#([a-zA-Z0-9_-]+)/g,
-    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag • Shift+click: Open in sidebar">#$1</a>'
+    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag • Shift+click: Open in sidebar • Alt+click: Open in main window">#$1</a>'
   );
 
   // Wrap in paragraphs (but not if it starts with a header or list)
@@ -177,21 +185,39 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   initialChatMessages,
   initialChatPrompt,
   initialChatModel,
+  initialLoadedChatUid,
+  initialStyle,
+  initialCommandId,
+  initialCommandPrompt,
 }) => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(null);
+  const [loadedChatUid, setLoadedChatUid] = useState<string | null>(null);
+
+  // Track command context for auto-execution
+  const [commandContext, setCommandContext] = useState<{
+    commandPrompt?: string;
+    commandName?: string;
+    style?: string;
+  } | null>(null);
 
   // Track the number of initial messages loaded from Roam
   // This helps us exclude them when inserting the conversation back
   const initialMessagesCountRef = useRef<number>(0);
+  const hasAutoExecutedRef = useRef(false); // Prevent double execution
 
   // Initialize chat from provided initial state
   useEffect(() => {
     console.log("🔍 FullResultsChat initializing with:", {
       initialChatMessages,
       initialChatPrompt,
+      initialLoadedChatUid,
+      initialCommandPrompt,
+      initialCommandId,
+      initialStyle,
     });
 
     if (
@@ -208,10 +234,104 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       initialMessagesCountRef.current = messagesCopy.length;
     }
     if (initialChatPrompt) {
-      console.log("📝 Setting chat input:", initialChatPrompt);
-      setChatInput(initialChatPrompt);
+      console.log("📝 Setting chat input:", initialChatPrompt, "type:", typeof initialChatPrompt);
+      // Ensure initialChatPrompt is a string
+      const promptString = typeof initialChatPrompt === 'string'
+        ? initialChatPrompt
+        : String(initialChatPrompt || '');
+      setChatInput(promptString);
     }
-  }, [initialChatMessages, initialChatPrompt]);
+    // If initialLoadedChatUid is provided, set the loaded chat info
+    if (initialLoadedChatUid) {
+      console.log("📝 Setting loaded chat UID:", initialLoadedChatUid);
+      setLoadedChatUid(initialLoadedChatUid);
+      const title = getChatTitleFromUid(initialLoadedChatUid);
+      setLoadedChatTitle(title);
+    }
+
+    // Initialize command context if provided
+    if (initialCommandPrompt || initialCommandId || initialStyle) {
+      // Get command name from BUILTIN_COMMANDS
+      let commandName = "Custom Command";
+      if (initialCommandId) {
+        // Import BUILTIN_COMMANDS to get the command name
+        import("../../ai/prebuildCommands").then(({ BUILTIN_COMMANDS }) => {
+          const command = BUILTIN_COMMANDS.find((cmd) => cmd.id === initialCommandId);
+          if (command) {
+            commandName = command.name;
+          }
+
+          console.log("📝 Setting command context:", {
+            commandPrompt: initialCommandPrompt,
+            commandName,
+            style: initialStyle,
+          });
+
+          setCommandContext({
+            commandPrompt: initialCommandPrompt,
+            commandName,
+            style: initialStyle,
+          });
+        });
+      } else {
+        setCommandContext({
+          commandPrompt: initialCommandPrompt,
+          commandName,
+          style: initialStyle,
+        });
+      }
+    }
+  }, [initialChatMessages, initialChatPrompt, initialLoadedChatUid, initialCommandPrompt, initialCommandId, initialStyle]);
+
+  // Auto-execute command when chat opens with command context
+  useEffect(() => {
+    const autoExecuteCommand = async () => {
+      // Only execute once
+      if (hasAutoExecutedRef.current) return;
+
+      // Need command context and at least one user message
+      if (!commandContext || !commandContext.commandPrompt) return;
+      if (chatMessages.length === 0) return;
+
+      // Check if last message is from user
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      if (lastMessage.role !== "user") return;
+
+      console.log("🚀 Auto-executing command:", commandContext);
+      hasAutoExecutedRef.current = true;
+
+      // Trigger the chat submission with the user's message
+      setIsTyping(true);
+      setIsStreaming(true);
+      setStreamingContent("");
+
+      try {
+        const contextResults = getSelectedResultsForChat();
+        await processChatMessageWithCommand(
+          lastMessage.content,
+          contextResults,
+          commandContext.commandPrompt,
+          commandContext.style
+        );
+      } catch (error) {
+        console.error("Auto-execution error:", error);
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content: "Sorry, I encountered an error processing your request with the command. Please try again.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+      }
+
+      setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingContent("");
+    };
+
+    if (isOpen && commandContext) {
+      autoExecuteCommand();
+    }
+  }, [isOpen, commandContext, chatMessages]);
 
   // Track if chat was previously closed to detect when it opens
   const prevIsOpenRef = useRef(isOpen);
@@ -381,6 +501,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           window.roamAlphaAPI.ui.rightSidebar.addWindow({
             window: { type: "block", "block-uid": blockUid },
           });
+        } else if (event.altKey || event.metaKey) {
+          // Alt/Option+click: Open in main window
+          window.roamAlphaAPI.ui.mainWindow.openBlock({
+            block: { uid: blockUid },
+          });
         } else {
           // Regular click: Show results and highlight
           if (chatOnlyMode) {
@@ -414,6 +539,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
                 type: "outline",
                 "block-uid": pageUid,
               },
+            });
+          } else {
+            console.warn(`Could not find page UID for: ${pageTitle}`);
+          }
+        } else if (event.altKey || event.metaKey) {
+          // Alt/Option+click: Open page in main window
+          const pageUid = getPageUidByPageName(pageTitle);
+          if (pageUid) {
+            window.roamAlphaAPI.ui.mainWindow.openPage({
+              page: { uid: pageUid },
             });
           } else {
             console.warn(`Could not find page UID for: ${pageTitle}`);
@@ -578,6 +713,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setChatExpandedResults(null);
     setLastSelectedResultIds([]);
     setHasExpandedResults(false);
+    setLoadedChatTitle(null);
+    setLoadedChatUid(null);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -590,7 +727,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   const insertConversationInRoam = async () => {
     if (!targetUid) {
-      console.log("targetUid :>> ", targetUid);
       targetUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
       if (!targetUid) {
         targetUid = await insertBlockInCurrentView("");
@@ -624,9 +760,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           })
           .join("\n");
 
-        console.log("conversationSummary :>> ", conversationSummary);
-
-        const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant} about". Be concise and specific.\n\nConversation:\n${conversationSummary}`;
+        const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant}" and ending with "#liveai/chat". Be concise and specific.\n\nConversation:\n${conversationSummary}`;
 
         // Generate title using insertCompletion
         // Type assertion needed because insertCompletion has many optional parameters
@@ -718,6 +852,40 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
 
+  // Handler for clicking on loaded chat title to open the block
+  const handleLoadedChatClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    if (!loadedChatUid) return;
+
+    // Copy ((uid)) to clipboard
+    const clipboardText = `((${loadedChatUid}))`;
+    navigator.clipboard
+      .writeText(clipboardText)
+      .then(() => {})
+      .catch((err) => {
+        console.warn("Failed to copy to clipboard:", err);
+      });
+
+    if (event.shiftKey) {
+      // Shift+click: Open in sidebar
+      window.roamAlphaAPI.ui.rightSidebar.addWindow({
+        window: { type: "block", "block-uid": loadedChatUid },
+      });
+    } else if (event.altKey || event.metaKey) {
+      // Alt/Option+click: Open in main window
+      window.roamAlphaAPI.ui.mainWindow.openBlock({
+        block: { uid: loadedChatUid },
+      });
+    } else {
+      // Regular click: Just copy to clipboard (already done above)
+      AppToaster.show({
+        message: `Copied ((${loadedChatUid})) to clipboard`,
+        intent: "success",
+        timeout: 2000,
+      });
+    }
+  };
+
   // Handler for loading a chat history from [[liveai/chat]] blocks
   const handleLoadChatHistory = (chatUid: string) => {
     try {
@@ -732,6 +900,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         return;
       }
 
+      // Get the chat title using the helper function
+      const chatTitle = getChatTitleFromUid(chatUid);
+
+      // Store the loaded chat info
+      setLoadedChatTitle(chatTitle);
+      setLoadedChatUid(chatUid);
+
       // Check if last message is from user - if so, put it in the input field
       const lastMessage = conversation[conversation.length - 1];
       const isLastMessageFromUser = lastMessage?.role === "user";
@@ -741,13 +916,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         setChatInput(lastMessage.content);
 
         // Load all previous messages into chat history
-        const previousMessages = conversation
-          .slice(0, -1)
-          .map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-            timestamp: new Date(),
-          }));
+        const previousMessages = conversation.slice(0, -1).map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(),
+        }));
 
         setChatMessages(previousMessages);
         initialMessagesCountRef.current = previousMessages.length;
@@ -824,7 +997,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     contextResults: Result[]
   ) => {
     try {
-      console.log("🔍 Processing chat message with search agent");
       console.log(`💬 Access mode: ${chatAccessMode}, using simple chat mode`);
 
       // Check if result selection has changed
@@ -991,9 +1163,11 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         conversationHistory: currentConversationHistory, // Use chat messages directly - this will override any stale conversationHistory from agentData
         conversationSummary:
           chatMessages.length > 0
-            ? `Chatting about ${contextResults.length} search results${
-                selectionChanged ? " (result selection changed)" : ""
-              }`
+            ? contextResults.length
+              ? `Chatting about ${contextResults.length} search results${
+                  selectionChanged ? " (result selection changed)" : ""
+                }`
+              : `Chatting without context`
             : undefined,
         // For popup execution, clear any conflicting internal caches to ensure our expanded results are used
         cachedFullResults: {}, // Clear to avoid duplicate context in system prompts
@@ -1170,6 +1344,43 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
     }
   };
 
+  // Process chat message with command context (for auto-execution)
+  const processChatMessageWithCommand = async (
+    message: string,
+    contextResults: Result[],
+    commandPromptKey?: string,
+    styleKey?: string
+  ) => {
+    try {
+      // Import the prompt modules
+      const { completionCommands } = await import("../../ai/prompts");
+
+      // Build the command instruction to prepend to user message
+      let commandInstruction = "";
+      if (commandPromptKey && completionCommands[commandPromptKey]) {
+        commandInstruction = completionCommands[commandPromptKey];
+      }
+
+      console.log("🎯 Executing with command instruction:", {
+        commandPromptKey,
+        styleKey,
+        instructionPreview: commandInstruction?.substring(0, 200) + "...",
+      });
+
+      // Prepend command instruction to the user message
+      const enrichedMessage = commandInstruction
+        ? `${commandInstruction}\n\n${message}`
+        : message;
+
+      // Call processChatMessage with the enriched user message
+      // The system prompt will handle style automatically
+      await processChatMessage(enrichedMessage, contextResults);
+    } catch (error) {
+      console.error("Error processing command:", error);
+      throw error;
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -1200,12 +1411,6 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 </span>
               </Tooltip>
             )}
-            <Tooltip content="Load chat history from [[liveai/chat]] blocks">
-              <ChatHistorySelect
-                onChatSelect={handleLoadChatHistory}
-                disabled={isTyping}
-              />
-            </Tooltip>
             {chatMessages.length > 0 && (
               <>
                 {
@@ -1232,8 +1437,37 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
                 </Tooltip>
               </>
             )}
+            <Tooltip content="Load chat history from #liveai/chat blocks">
+              <ChatHistorySelect
+                onChatSelect={handleLoadChatHistory}
+                disabled={isTyping}
+              />
+            </Tooltip>
           </div>
         </div>
+        {loadedChatTitle && loadedChatUid && (
+          <div className="full-results-chat-loaded-title">
+            <a
+              href="#"
+              onClick={handleLoadedChatClick}
+              className="roam-block-ref-chat"
+              title="Click: Copy ((uid)) to clipboard • Shift+click: Open in sidebar • Alt+click: Open in main window"
+              style={{
+                fontSize: "0.9em",
+                color: "#5c7080",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                paddingTop: "4px",
+              }}
+            >
+              <Icon icon="history" size={12} />
+              {loadedChatTitle}
+              <Icon icon="flow-end" size={10} />
+            </a>
+          </div>
+        )}
         {privateMode && (
           <div className="full-results-chat-warning">
             🔒 Limited functionality in Private mode
@@ -1342,52 +1576,61 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
             </div>
           </div>
         ) : (
-          chatMessages.map((message, index) => (
-            <div
-              key={index}
-              className={`full-results-chat-message ${message.role}`}
-            >
-              <div className="full-results-chat-avatar">
-                {message.role === "user" ? "👤" : "🤖"}
-              </div>
-              <div className="full-results-chat-content">
-                <div
-                  className="full-results-chat-text"
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(message.content),
-                  }}
-                />
-                <div className="full-results-chat-message-footer">
-                  <span className="full-results-chat-timestamp">
-                    {message.timestamp.toLocaleTimeString()}
-                    {message.tokensIn !== undefined &&
-                      message.tokensOut !== undefined && (
-                        <span className="full-results-chat-tokens">
-                          {" "}
-                          • Tokens in: {message.tokensIn.toLocaleString()}, out:{" "}
-                          {message.tokensOut.toLocaleString()}
-                        </span>
-                      )}
-                  </span>
-                  {message.role === "assistant" && (
-                    <span
-                      className="full-results-chat-copy-link"
-                      title="Copy message to clipboard"
-                    >
-                      <Tooltip content="Copy message to clipboard">
-                        <Button
-                          icon="clipboard"
-                          onClick={() => copyAssistantMessage(message.content)}
-                          minimal
-                          small
-                        />
-                      </Tooltip>
+          chatMessages.map((message, index) => {
+            // Check if this is the first user message and we have command context
+            const isFirstMessage = index === 0;
+            const shouldShowCommandName = isFirstMessage && message.role === "user" && commandContext?.commandName;
+            const displayContent = shouldShowCommandName
+              ? `**[${commandContext.commandName}]**\n\n${message.content}`
+              : message.content;
+
+            return (
+              <div
+                key={index}
+                className={`full-results-chat-message ${message.role}`}
+              >
+                <div className="full-results-chat-avatar">
+                  {message.role === "user" ? "👤" : "🤖"}
+                </div>
+                <div className="full-results-chat-content">
+                  <div
+                    className="full-results-chat-text"
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdown(displayContent),
+                    }}
+                  />
+                  <div className="full-results-chat-message-footer">
+                    <span className="full-results-chat-timestamp">
+                      {message.timestamp.toLocaleTimeString()}
+                      {message.tokensIn !== undefined &&
+                        message.tokensOut !== undefined && (
+                          <span className="full-results-chat-tokens">
+                            {" "}
+                            • Tokens in: {message.tokensIn.toLocaleString()}, out:{" "}
+                            {message.tokensOut.toLocaleString()}
+                          </span>
+                        )}
                     </span>
-                  )}
+                    {message.role === "assistant" && (
+                      <span
+                        className="full-results-chat-copy-link"
+                        title="Copy message to clipboard"
+                      >
+                        <Tooltip content="Copy message to clipboard">
+                          <Button
+                            icon="clipboard"
+                            onClick={() => copyAssistantMessage(message.content)}
+                            minimal
+                            small
+                          />
+                        </Tooltip>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         {(isTyping || isStreaming) && (

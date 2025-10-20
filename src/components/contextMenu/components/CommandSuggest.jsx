@@ -58,7 +58,14 @@ const CommandSuggest = ({
               style={{ zIndex: "9999" }}
             >
               <HTMLSelect
-                options={["auto", "new", "new w/o", "replace", "append"]}
+                options={[
+                  "auto",
+                  "new",
+                  "new w/o",
+                  "replace",
+                  "append",
+                  "chat",
+                ]}
                 minimal={true}
                 onClick={(e) => {
                   e.stopPropagation();

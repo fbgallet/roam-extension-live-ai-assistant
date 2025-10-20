@@ -23,6 +23,7 @@ import {
 import {
   createChildBlock,
   extractNormalizedUidFromRef,
+  filterTopLevelBlocks,
   getFirstChildUid,
   resolveReferences,
 } from "./roamAPI";
@@ -37,8 +38,10 @@ import {
   getFlattenedContentFromTree,
   getFocusAndSelection,
   getTemplateForPostProcessing,
+  handleModifierKeys,
 } from "../ai/dataExtraction";
 import { flexibleUidRegex, sbParamRegex } from "./regex";
+import { openChatPopup } from "../components/full-results-popup";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -222,6 +225,26 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         .catch(() => {
           alert("Could not load FullResultsPopup functionality");
         });
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI: Open Chat panel",
+    callback: async (e) => {
+      console.log("e :>> ", e);
+      const { currentUid, selectionUids } = getFocusAndSelection();
+
+      let roamContext = {};
+      if (selectionUids.length) {
+        const topLevelBlocks = filterTopLevelBlocks(selectionUids);
+        roamContext.block = true;
+        roamContext.blockArgument = [...topLevelBlocks];
+      }
+      openChatPopup({
+        rootUid: currentUid,
+        roamContext,
+        viewMode: "chat-only",
+      });
     },
   });
 

@@ -58,11 +58,11 @@ export const extractConversationFromLiveAIChat = (
     );
   };
 
-  // Check if rootUid has [[liveai/chat]] reference
+  // Check if rootUid has #liveai/chat reference
   let chatRootUid = rootUid;
   let hasChatReference = hasLiveAIChatReference(rootUid);
 
-  // If not, check if parent has [[liveai/chat]] reference
+  // If not, check if parent has #liveai/chat reference
   if (!hasChatReference) {
     const parentUid = getParentBlock(rootUid);
     if (parentUid && hasLiveAIChatReference(parentUid)) {
@@ -73,14 +73,15 @@ export const extractConversationFromLiveAIChat = (
 
   // If no chat reference found, return null
   if (!hasChatReference) {
-    console.log("📝 No [[liveai/chat]] reference found");
+    console.log("📝 No #liveai/chat reference found");
     return null;
   }
 
-  console.log("📝 Found [[liveai/chat]] reference in block:", chatRootUid);
+  console.log("📝 Found #liveai/chat reference in block:", chatRootUid);
 
   // Get the tree of children blocks
   const tree = getTreeByUid(chatRootUid);
+
   if (!tree || !tree[0]?.children || tree[0].children.length === 0) {
     console.log("📝 No children blocks found for conversation");
     return null;
@@ -138,9 +139,6 @@ export const extractConversationFromLiveAIChat = (
     conversation.push({ role, content });
   }
 
-  console.log(
-    `📝 Extracted ${conversation.length} messages from [[liveai/chat]]`
-  );
   return conversation.length > 0 ? conversation : null;
 };
 
@@ -169,9 +167,14 @@ export interface OpenFullResultsPopupOptions {
   initialChatMessages?: ChatMessage[] | null;
   initialChatPrompt?: string | null;
   initialChatModel?: string | null;
+  initialLoadedChatUid?: string | null; // UID of loaded chat from [[liveai/chat]]
 
   // UI customization
   style?: string; // Custom style identifier for future use
+
+  // Command context (for enriching chat prompts)
+  commandId?: number; // Command ID from BUILTIN_COMMANDS
+  commandPrompt?: string; // Key in completionCommands (e.g., "summarize", "keyInsights")
 }
 
 // React component for popup functionality
@@ -192,7 +195,10 @@ export const openFullResultsPopup = async (
     initialChatMessages = null,
     initialChatPrompt = null,
     initialChatModel = null,
+    initialLoadedChatUid = null,
     style = null,
+    commandId = null,
+    commandPrompt = null,
   } = options;
 
   // Handle loading results from RoamContext if provided
@@ -209,7 +215,7 @@ export const openFullResultsPopup = async (
 
       results = contextResults;
       // Use the generated description as userQuery if not provided
-      if (!userQuery) {
+      if (!userQuery && results.length) {
         userQuery = description;
       }
     } catch (error) {
@@ -255,12 +261,20 @@ export const openFullResultsPopup = async (
     hasInitialChatPrompt: !!initialChatPrompt,
   });
 
+  // if (!results.length) userQuery = undefined;
+
   const PopupWrapper = () => {
     return (
       <FullResultsPopupComponent
         results={results || []}
         isOpen={true}
-        title="Ask your graph: full results view"
+        title={
+          viewMode === "chat-only"
+            ? results?.length
+              ? "Live AI: Chat with context"
+              : "Live AI Chat"
+            : "Ask your graph: full results view"
+        }
         targetUid={targetUid || rootUid}
         userQuery={userQuery}
         formalQuery={formalQuery}
@@ -269,6 +283,10 @@ export const openFullResultsPopup = async (
         initialChatMessages={initialChatMessages}
         initialChatPrompt={initialChatPrompt}
         initialChatModel={initialChatModel}
+        initialLoadedChatUid={initialLoadedChatUid}
+        initialStyle={style}
+        initialCommandId={commandId}
+        initialCommandPrompt={commandPrompt}
       />
     );
   };
@@ -286,6 +304,8 @@ export interface OpenChatPopupOptions {
   roamContext?: RoamContext;
   viewMode?: PopupViewMode; // "chat-only" | "both" - defaults based on roamContext
   style?: string;
+  commandId?: number; // Command ID from BUILTIN_COMMANDS
+  commandPrompt?: string; // Key in completionCommands (e.g., "summarize", "keyInsights")
 }
 
 /**
@@ -301,6 +321,8 @@ export const openChatPopup = async ({
   roamContext,
   viewMode,
   style,
+  commandId,
+  commandPrompt,
 }: OpenChatPopupOptions = {}) => {
   try {
     // Get the CURRENT page UID for context
@@ -318,10 +340,16 @@ export const openChatPopup = async ({
 
     // If no conversationHistory provided, try to extract from [[liveai/chat]] blocks
     let effectiveConversationHistory = conversationHistory;
+    let loadedChatUid: string | undefined = undefined;
+
     if (!effectiveConversationHistory && rootUid) {
       const extractedConversation = extractConversationFromLiveAIChat(rootUid);
       if (extractedConversation) {
         effectiveConversationHistory = extractedConversation;
+        loadedChatUid = rootUid; // Store the rootUid for displaying the chat title
+        console.log(
+          "📝 Using conversation history from [[liveai/chat]] blocks"
+        );
       } else {
         const rootContent = getFlattenedContentFromTree({
           parentUid: rootUid,
@@ -348,8 +376,12 @@ export const openChatPopup = async ({
         effectiveConversationHistory[effectiveConversationHistory.length - 1];
       const isLastMessageFromUser = lastMessage?.role === "user";
 
-      if (isLastMessageFromUser) {
-        // Put last user message in input field
+      // If we have command context (commandId or commandPrompt), keep the user message
+      // in the chat history so FullResultsChat can process it with the command
+      const hasCommandContext = !!(commandId || commandPrompt);
+
+      if (isLastMessageFromUser && !hasCommandContext) {
+        // Put last user message in input field (normal chat continuation)
         initialChatPrompt = lastMessage.content;
 
         // Convert all previous messages (excluding the last one) to chat messages
@@ -365,6 +397,7 @@ export const openChatPopup = async ({
         }
       } else {
         // All messages go into chat history
+        // (either command context or last message is from assistant)
         initialChatMessages = effectiveConversationHistory
           .filter((msg) => msg && msg.role && msg.content) // Filter out invalid messages
           .map((msg) => ({
@@ -385,7 +418,10 @@ export const openChatPopup = async ({
       initialChatMessages,
       initialChatPrompt,
       initialChatModel: model,
+      initialLoadedChatUid: loadedChatUid,
       style,
+      commandId,
+      commandPrompt,
     });
   } catch (error) {
     console.error("Error opening chat popup:", error);

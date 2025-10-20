@@ -158,6 +158,7 @@ export const StandaloneContextMenu = () => {
     isFirstBlock,
     roamContextRef,
     styleRef,
+    targetBlockRef,
 
     // Functions
     handleClose,
@@ -590,7 +591,7 @@ export const StandaloneContextMenu = () => {
       positionInRoamWindow,
       lastBuiltinCommand,
       rootUid,
-      targetBlock,
+      targetBlock: targetBlockRef.current, // Use ref to get latest value
       additionalPrompt,
       style: styleRef.current,
       defaultLgg,

@@ -1,7 +1,11 @@
 import { invokeNLDatomicQueryInterpreter } from "./agents/nl-datomic-query";
 import { invokeNLQueryInterpreter } from "./agents/nl-query";
 import { askYourGraph } from "./agents/search-agent/ask-your-graph";
-import { openLastAskYourGraphResults, chatWithLinkedRefs } from "../components/full-results-popup";
+import {
+  openLastAskYourGraphResults,
+  chatWithLinkedRefs,
+  openChatPopup,
+} from "../components/full-results-popup";
 import { languages } from "./languagesSupport";
 
 export const CATEGORY_ICON = {
@@ -38,13 +42,33 @@ export const BUILTIN_COMMANDS = [
     },
   },
   {
+    id: 96,
+    name: "Open Chat panel",
+    // callback: async (args) => {
+    //   // The roamContext will be passed from commandProcessing.js via args.roamContext
+    //   return openChatPopup({
+    //     model: args.model,
+    //     rootUid: args.rootUid,
+    //     roamContext: args.roamContext || null,
+    //     viewMode: args.roamContext ? "both" : "chat-only",
+    //   });
+    // },
+    category: "",
+    icon: "chat",
+    isIncompatibleWith: {
+      outliner: true,
+    },
+    keyWords: "chat conversation popup dialog",
+  },
+  {
     id: 10,
-    name: "Continue the conversation",
+    name: "Continue conversation in blocks",
     icon: "chat",
     isIncompatibleWith: {
       outliner: true,
     },
     category: "",
+    keyWords: "inline",
   },
   {
     id: 100,
@@ -76,6 +100,7 @@ export const BUILTIN_COMMANDS = [
     isSub: true,
     isIncompatibleWith: {
       outliner: false,
+      chat: true,
     },
   },
   // OUTLINER AGENT COMMANDS
@@ -85,6 +110,7 @@ export const BUILTIN_COMMANDS = [
     category: "OUTLINER AGENT",
     isIncompatibleWith: {
       completion: true,
+      chat: true,
     },
   },
   {
@@ -94,6 +120,7 @@ export const BUILTIN_COMMANDS = [
     category: "OUTLINER AGENT",
     isIncompatibleWith: {
       completion: true,
+      chat: true,
     },
   },
   {
@@ -103,6 +130,7 @@ export const BUILTIN_COMMANDS = [
     category: "OUTLINER AGENT",
     isIncompatibleWith: {
       completion: true,
+      chat: true,
     },
   },
   // {
@@ -120,6 +148,7 @@ export const BUILTIN_COMMANDS = [
     category: "OUTLINER AGENT",
     isIncompatibleWith: {
       completion: true,
+      chat: true,
     },
   },
   {
@@ -128,6 +157,9 @@ export const BUILTIN_COMMANDS = [
     name: "Text to Speech",
     category: "",
     keyWords: "TTS, read, voice",
+    isIncompatibleWith: {
+      chat: true,
+    },
   },
   {
     id: 80,
@@ -138,6 +170,7 @@ export const BUILTIN_COMMANDS = [
     isIncompatibleWith: {
       outliner: true,
       style: true,
+      chat: true,
     },
   },
   {
@@ -149,6 +182,7 @@ export const BUILTIN_COMMANDS = [
     isIncompatibleWith: {
       outliner: true,
       style: true,
+      chat: true,
     },
   },
   {
@@ -158,6 +192,7 @@ export const BUILTIN_COMMANDS = [
     category: "QUERY AGENTS",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     target: "new",
     keyWords: "Natural language search privacy modes secure balanced full",
@@ -170,6 +205,7 @@ export const BUILTIN_COMMANDS = [
     category: "QUERY AGENTS",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     target: "new",
     keyWords: "secure private UIDs only",
@@ -183,6 +219,7 @@ export const BUILTIN_COMMANDS = [
     category: "QUERY AGENTS",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     target: "new",
     keyWords: "balanced secure tools summary",
@@ -197,6 +234,7 @@ export const BUILTIN_COMMANDS = [
     category: "QUERY AGENTS",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     target: "new",
     keyWords: "full access complete content analysis",
@@ -216,20 +254,22 @@ export const BUILTIN_COMMANDS = [
     icon: "list-detail-view",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     target: "new",
     keyWords: "popup only private results view",
   },
   {
     id: 94,
-    name: "Open Results view (Ask Your Graph queries)",
+    name: "Open Results view (last Ask Your Graph query)",
     callback: openLastAskYourGraphResults,
     category: "QUERY AGENTS",
     icon: "list-detail-view",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
-    keyWords: "full, chat, load",
+    keyWords: "full, load",
   },
   {
     id: 95,
@@ -245,6 +285,7 @@ export const BUILTIN_COMMANDS = [
     icon: "chat",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     target: "new",
     keyWords: "linked references backlinks current page",
@@ -286,6 +327,9 @@ export const BUILTIN_COMMANDS = [
     target: "new w/o",
     includeUids: true,
     isSub: true,
+    isIncompatibleWith: {
+      outliner: true,
+    },
   },
   {
     id: 132,
@@ -295,6 +339,10 @@ export const BUILTIN_COMMANDS = [
     target: "new",
     includeUids: true,
     submenu: [1322, 1320, 1321],
+    isIncompatibleWith: {
+      outliner: true,
+      style: true,
+    },
   },
   {
     id: 1322,
@@ -302,6 +350,11 @@ export const BUILTIN_COMMANDS = [
     prompt: "argumentMapMermaid",
     category: "CONTENT ANALYSIS",
     keyWords: "reasoning, diagram",
+    isIncompatibleWith: {
+      outliner: true,
+      style: true,
+      chat: true,
+    },
     target: "new",
     isSub: true,
   },
@@ -329,6 +382,9 @@ export const BUILTIN_COMMANDS = [
     prompt: "imageOCR",
     category: "CONTENT ANALYSIS",
     keyWords: "OCR",
+    isIncompatibleWith: {
+      chat: true,
+    },
     target: "new",
     submenu: [1330],
   },
@@ -339,6 +395,7 @@ export const BUILTIN_COMMANDS = [
     category: "CONTENT ANALYSIS",
     isIncompatibleWith: {
       outliner: true,
+      chat: true,
     },
     keyWords: "visual art, painting",
     isSub: true,
@@ -375,6 +432,9 @@ export const BUILTIN_COMMANDS = [
     keyWords: "post, X, Twitter, BlueSky, Threads, Mastodon",
     target: "new",
     submenu: [1420],
+    isIncompatibleWith: {
+      style: true,
+    },
   },
   {
     id: 1420,
@@ -417,6 +477,7 @@ export const BUILTIN_COMMANDS = [
     keyWords: "chart, worfkow",
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     target: "new",
   },
@@ -430,6 +491,7 @@ export const BUILTIN_COMMANDS = [
     includeUids: false,
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     target: "new w/o",
     submenu: [1461, 1462],
@@ -444,6 +506,7 @@ export const BUILTIN_COMMANDS = [
     includeUids: false,
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     target: "new w/o",
     isSub: true,
@@ -458,6 +521,7 @@ export const BUILTIN_COMMANDS = [
     includeUids: false,
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     target: "new w/o",
     isSub: true,
@@ -471,6 +535,7 @@ export const BUILTIN_COMMANDS = [
     category: "REPHRASING",
     target: "new w/o",
     isIncompatibleWith: {
+      outliner: true,
       style: true,
     },
     submenu: [1200, 1201, 1202],
@@ -481,6 +546,10 @@ export const BUILTIN_COMMANDS = [
     prompt: "correctWordingAndExplain",
     category: "REPHRASING",
     target: "new w/o",
+    isIncompatibleWith: {
+      outliner: true,
+      style: true,
+    },
     isSub: true,
   },
   {
@@ -493,6 +562,7 @@ export const BUILTIN_COMMANDS = [
     includeUids: true,
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     isSub: true,
   },
@@ -506,6 +576,7 @@ export const BUILTIN_COMMANDS = [
     includeUids: true,
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     isSub: true,
   },
@@ -514,6 +585,7 @@ export const BUILTIN_COMMANDS = [
     name: "Rephrase",
     prompt: "rephrase",
     category: "REPHRASING",
+
     target: "new w/o",
     submenu: [1210, 1211, 1212, 1213, 1214, 1215, 1216, 1217],
   },
@@ -522,6 +594,7 @@ export const BUILTIN_COMMANDS = [
     name: "Shorter",
     prompt: "shorten",
     category: "REPHRASING",
+
     target: "new w/o",
     isSub: true,
   },
@@ -530,6 +603,7 @@ export const BUILTIN_COMMANDS = [
     name: "More accessible",
     prompt: "accessible",
     category: "REPHRASING",
+
     target: "new w/o",
     isSub: true,
   },
@@ -538,6 +612,7 @@ export const BUILTIN_COMMANDS = [
     name: "Clearer and more explicit",
     prompt: "clearer",
     category: "REPHRASING",
+
     target: "new w/o",
     isSub: true,
   },
@@ -546,6 +621,7 @@ export const BUILTIN_COMMANDS = [
     name: "More formal",
     prompt: "formal",
     category: "REPHRASING",
+
     target: "new w/o",
     isSub: true,
   },
@@ -554,6 +630,7 @@ export const BUILTIN_COMMANDS = [
     name: "More casual",
     prompt: "casual",
     category: "REPHRASING",
+
     target: "new w/o",
     isSub: true,
   },
@@ -563,6 +640,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "enhance",
     category: "REPHRASING",
     keyWords: "enhance, synonym",
+
     target: "new w/o",
     isSub: true,
   },
@@ -573,6 +651,9 @@ export const BUILTIN_COMMANDS = [
     category: "REPHRASING",
     keyWords: "enhance, synonym",
     withSuggestions: true,
+    isIncompatibleWith: {
+      chat: true,
+    },
     target: "replace",
     includeUids: true,
     isSub: true,
@@ -588,6 +669,7 @@ export const BUILTIN_COMMANDS = [
     includeUids: true,
     isIncompatibleWith: {
       style: true,
+      chat: true,
     },
     isSub: true,
   },
@@ -598,6 +680,7 @@ export const BUILTIN_COMMANDS = [
     category: "REPHRASING",
     isIncompatibleWith: {
       specificStyles: ["Atomic"],
+      chat: true,
     },
     target: "new w/o",
     submenu: [1220],
@@ -609,6 +692,7 @@ export const BUILTIN_COMMANDS = [
     category: "REPHRASING",
     isIncompatibleWith: {
       specificStyles: ["No bullet points"],
+      chat: true,
     },
     target: "new w/o",
     isSub: true,
@@ -645,6 +729,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "actionPlan",
     category: "ACTION",
     keyWords: "task",
+
     target: "new",
     includeUids: true,
     submenu: [1450, 1451, 1452],
@@ -655,6 +740,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "howTo",
     category: "ACTION",
     keyWords: "help, self discovery, problem-solving, step",
+
     target: "new",
     includeUids: true,
     isSub: true,
@@ -665,6 +751,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "guidanceToGoal",
     category: "ACTION",
     keyWords: "coach",
+
     target: "new",
     includeUids: true,
     isSub: true,
@@ -675,6 +762,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "practicalTip",
     category: "ACTION",
     keyWords: "advice, value, principle",
+
     target: "new w/o",
     isSub: true,
   },
@@ -684,6 +772,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "choice",
     category: "ACTION",
     keyword: "choose, decision",
+
     includeUids: true,
     target: "new",
   },
@@ -694,6 +783,7 @@ export const BUILTIN_COMMANDS = [
     name: "Argument",
     prompt: "argument",
     category: "CRITICAL REASONING TOOLKIT",
+
     submenu: [1511, 1512, 1513, 1514],
   },
   {
@@ -702,6 +792,7 @@ export const BUILTIN_COMMANDS = [
     prompt: "consolidate",
     category: "CRITICAL REASONING TOOLKIT",
     keyWords: "argument",
+
     includeUids: true,
     isSub: true,
   },
@@ -710,6 +801,7 @@ export const BUILTIN_COMMANDS = [
     name: "Objection, counterargument",
     prompt: "objection",
     category: "CRITICAL REASONING TOOLKIT",
+
     includeUids: true,
     isSub: true,
   },
@@ -718,6 +810,7 @@ export const BUILTIN_COMMANDS = [
     name: "Counterexample",
     prompt: "counterExample",
     category: "CRITICAL REASONING TOOLKIT",
+
     isSub: true,
   },
   {

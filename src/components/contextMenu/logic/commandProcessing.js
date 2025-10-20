@@ -15,6 +15,7 @@ import {
 } from "../../..";
 import {
   createChildBlock,
+  filterTopLevelBlocks,
   getParentBlock,
   hasBlockChildren,
 } from "../../../utils/roamAPI";
@@ -39,6 +40,7 @@ import {
   displayAskGraphModeDialog,
   displayAskGraphFirstTimeDialog,
 } from "../../../utils/domElts";
+import { openChatPopup } from "../../full-results-popup";
 
 export const handleClickOnCommand = async ({
   e,
@@ -75,17 +77,60 @@ export const handleClickOnCommand = async ({
 }) => {
   let customContext;
   const capturedRoamContext = { ...roamContextRef.current };
-  const capturedHasContext = hasTrueBooleanKey(capturedRoamContext);
+  let capturedHasContext = hasTrueBooleanKey(capturedRoamContext);
 
   incrementCommandCounter(command.id);
+
+  // Calculate target early so we can check for "chat" target
+  const target =
+    targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
+
+  console.log(
+    "🎯 [commandProcessing] targetBlock (from ref):",
+    targetBlock,
+    "target:",
+    target,
+    "command:",
+    command.name
+  );
+
+  // Handle "chat" target: open chat popup with command and style context
+  if (target === "chat" || command.name === "Open Chat panel") {
+    if (command.name === "Open Chat panel") {
+      command.id = undefined;
+      command.prompt = undefined;
+    }
+
+    if (selectedBlocks.length) {
+      capturedRoamContext.block = true;
+      capturedRoamContext.blockArgument = filterTopLevelBlocks(selectedBlocks);
+      capturedHasContext = true;
+    }
+
+    // Open chat with the user content in the input field
+    // FullResultsChat will execute the command when user sends
+    await openChatPopup({
+      model: model,
+      rootUid: focusedBlockUid.current,
+      roamContext: capturedHasContext ? capturedRoamContext : null,
+      viewMode: capturedHasContext ? "both" : "chat-only",
+      style: style,
+      commandId: command.id,
+      commandPrompt: command.prompt,
+      conversationHistory: [
+        { role: "user", content: focusedBlockContent.current },
+      ],
+    });
+
+    return;
+  }
+
   if (command.prompt && command.id > 22 && command.id !== 100)
     lastBuiltinCommand.current = {
       command: command.prompt,
       style,
       context: capturedHasContext ? capturedRoamContext : null,
     };
-  const target =
-    targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
   if (command.name === "Text to Speech") {
     textToSpeech(getInstantPrompt(command, false), additionalPrompt);
     return;
@@ -108,6 +153,7 @@ export const handleClickOnCommand = async ({
           targetUid: effectiveRootUid,
           prompt: getInstantPrompt(command),
           retryInstruction: additionalPrompt,
+          roamContext: capturedHasContext ? capturedRoamContext : null,
         });
       } catch (error) {
         if (error.message === "MODE_ESCALATION_NEEDED") {
@@ -142,6 +188,7 @@ export const handleClickOnCommand = async ({
                   retryInstruction: additionalPrompt,
                   requestedMode: selectedMode,
                   bypassDialog: true,
+                  roamContext: capturedHasContext ? capturedRoamContext : null,
                 });
               } catch (retryError) {
                 console.error(
@@ -178,6 +225,7 @@ export const handleClickOnCommand = async ({
                   retryInstruction: additionalPrompt,
                   requestedMode: selectedMode,
                   bypassDialog: true,
+                  roamContext: capturedHasContext ? capturedRoamContext : null,
                 });
               } catch (retryError) {
                 console.error(

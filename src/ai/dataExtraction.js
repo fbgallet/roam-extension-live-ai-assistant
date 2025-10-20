@@ -695,7 +695,7 @@ export const getFlattenedContentFromTree = ({
         withDash
       );
       let content = linearArray.join("\n");
-      if (content.length > 1 && content.replace("\n", "").trim())
+      if (content.length > 0 && content.replace("\n", "").trim())
         flattenedBlocks = "\n" + content;
     }
   }
@@ -846,7 +846,7 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
   let { command, options } = inlineCommand;
   prompt = prompt.replace("ref", "linkedRefs").replace("DNPs", "logPages");
   options = options.replace("ref", "linkedRefs").replace("DNPs", "logPages");
-  console.log("command :>> ", command);
+  // console.log("command :>> ", command);
   console.log("options :>> ", options);
   elts.forEach((elt) => {
     if (options.includes(elt)) {

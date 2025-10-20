@@ -37,6 +37,11 @@ export interface FullResultsPopupProps {
   initialChatMessages?: ChatMessage[];
   initialChatPrompt?: string;
   initialChatModel?: string;
+  initialLoadedChatUid?: string; // UID of loaded chat from [[liveai/chat]]
+  // Command context for enriching chat prompts
+  initialStyle?: string; // Style to apply to chat messages
+  initialCommandId?: number; // Command ID from BUILTIN_COMMANDS
+  initialCommandPrompt?: string; // Key in completionCommands
 }
 
 export type ViewMode = "blocks" | "pages" | "mixed";

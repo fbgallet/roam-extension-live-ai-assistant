@@ -356,7 +356,9 @@ export const loadResultsFromRoamContext = async ({
     const description =
       parts.length > 0
         ? `Custom context with ${parts.join(", ")}`
-        : "Custom context";
+        : uniqueResults.length
+        ? "Custom context"
+        : "";
 
     return {
       results: uniqueResults,
