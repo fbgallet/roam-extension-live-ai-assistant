@@ -1,9 +1,9 @@
 import React from "react";
 import { Button, Dialog, Classes, InputGroup } from "@blueprintjs/core";
-import { StoredQuery } from "../utils/queryStorage";
-import { UnifiedQuery } from "../types/QueryTypes";
-import { QueryRenderer } from "../QueryRenderer";
-import { PageSelection } from "../utils/queryStorage";
+import { StoredQuery } from "../../utils/queryStorage";
+import { UnifiedQuery } from "../../types/QueryTypes";
+import { QueryRenderer } from "../query-manager/QueryRenderer";
+import { PageSelection } from "../../utils/queryStorage";
 
 interface SaveQueryDialogProps {
   isOpen: boolean;

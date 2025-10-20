@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { InputGroup, Button } from "@blueprintjs/core";
-import { PageReference } from "./utils/resultProcessing";
+import { PageReference } from "../../utils/resultProcessing";
 
 interface ReferencesFilterProps {
   availableReferences: PageReference[];
@@ -25,7 +25,7 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
   const filteredReferences = useMemo(() => {
     if (!searchTerm) return availableReferences;
     const searchLower = searchTerm.toLowerCase();
-    return availableReferences.filter(ref => 
+    return availableReferences.filter((ref) =>
       ref.title.toLowerCase().includes(searchLower)
     );
   }, [availableReferences, searchTerm]);
@@ -43,7 +43,7 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
   const renderReferenceItem = (ref: PageReference) => {
     const isIncluded = includedReferences.includes(ref.title);
     const isExcluded = excludedReferences.includes(ref.title);
-    
+
     let className = "reference-item";
     if (isIncluded) className += " included";
     if (isExcluded) className += " excluded";
@@ -55,9 +55,7 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
         onClick={(e) => handleReferenceClick(ref.title, e)}
         title="Click to Add • Shift-Click to Add"
       >
-        <span className="reference-icon">
-          {ref.isDaily ? "📅" : "📄"}
-        </span>
+        <span className="reference-icon">{ref.isDaily ? "📅" : "📄"}</span>
         <span className="reference-title">{ref.title}</span>
         <span className="reference-count">{ref.count}</span>
       </div>
@@ -65,10 +63,11 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
   };
 
   // Separate daily notes and regular pages
-  const dailyNotes = filteredReferences.filter(ref => ref.isDaily);
-  const regularPages = filteredReferences.filter(ref => !ref.isDaily);
+  const dailyNotes = filteredReferences.filter((ref) => ref.isDaily);
+  const regularPages = filteredReferences.filter((ref) => !ref.isDaily);
 
-  const hasActiveFilters = includedReferences.length > 0 || excludedReferences.length > 0;
+  const hasActiveFilters =
+    includedReferences.length > 0 || excludedReferences.length > 0;
 
   return (
     <div className="roam-references-filter">
@@ -89,8 +88,8 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
             <span className="section-subtitle">Click to Add</span>
           </div>
           <div className="references-list">
-            {includedReferences.map(refTitle => {
-              const ref = availableReferences.find(r => r.title === refTitle);
+            {includedReferences.map((refTitle) => {
+              const ref = availableReferences.find((r) => r.title === refTitle);
               return ref ? (
                 <div
                   key={ref.title}
@@ -117,8 +116,8 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
             <span className="section-subtitle">Shift-Click to Add</span>
           </div>
           <div className="references-list">
-            {excludedReferences.map(refTitle => {
-              const ref = availableReferences.find(r => r.title === refTitle);
+            {excludedReferences.map((refTitle) => {
+              const ref = availableReferences.find((r) => r.title === refTitle);
               return ref ? (
                 <div
                   key={ref.title}
@@ -143,7 +142,9 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
           <span className="section-title">
             {hasActiveFilters ? "Available References" : "All References"}
           </span>
-          <span className="section-subtitle">Click to Add • Shift-Click to Add</span>
+          <span className="section-subtitle">
+            Click to Add • Shift-Click to Add
+          </span>
           {hasActiveFilters && (
             <Button
               text="Clear All"
@@ -159,7 +160,9 @@ export const ReferencesFilter: React.FC<ReferencesFilterProps> = ({
         {/* Daily Notes */}
         {dailyNotes.length > 0 && (
           <div className="references-group">
-            <div className="group-title">📅 All Daily Notes ({dailyNotes.length})</div>
+            <div className="group-title">
+              📅 All Daily Notes ({dailyNotes.length})
+            </div>
             <div className="references-list">
               {dailyNotes.map(renderReferenceItem)}
             </div>

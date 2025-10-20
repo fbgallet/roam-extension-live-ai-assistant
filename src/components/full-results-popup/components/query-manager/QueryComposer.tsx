@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, HTMLSelect, Popover, Collapse, Icon } from "@blueprintjs/core";
-import ModelsMenu from "../ModelsMenu";
-import { defaultModel } from "../..";
+import ModelsMenu from "../../../ModelsMenu";
+import { defaultModel } from "../../../..";
 
 interface QueryComposerProps {
   composerQuery: string;

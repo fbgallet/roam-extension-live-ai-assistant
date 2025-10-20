@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button, Collapse, Icon } from "@blueprintjs/core";
-import { StoredQuery, IntentParserResult } from "./utils/queryStorage";
-import { UnifiedQuery } from "./types/QueryTypes";
-import EditableQueryText from "./EditableQueryText";
+import { StoredQuery, IntentParserResult } from "../../utils/queryStorage";
+import { UnifiedQuery } from "../../types/QueryTypes";
+import EditableQueryText from "../query-manager/EditableQueryText";
 
 // Simple component to render queries using renderString API for clickable links
 const RoamQueryRenderer: React.FC<{ query: string }> = ({ query }) => {

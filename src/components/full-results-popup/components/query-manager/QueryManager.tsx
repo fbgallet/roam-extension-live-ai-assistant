@@ -8,24 +8,27 @@ import {
   Icon,
 } from "@blueprintjs/core";
 import { Select, ItemRenderer } from "@blueprintjs/select";
-import { StoredQuery } from "./utils/queryStorage";
-import { UnifiedQuery } from "./types/QueryTypes";
-import QueryComposer from "./QueryComposer";
-import DirectContentSelector from "./DirectContentSelector";
-import { UnifiedQueryRenderer, StoredQueryRenderer } from "./QueryRenderer";
-import "./style/queryManager.css";
-import "./style/queryRenderer.css";
-import { useQueryManager } from "./hooks/useQueryManager";
+import { StoredQuery } from "../../utils/queryStorage";
+import { UnifiedQuery } from "../../types/QueryTypes";
+import QueryComposer from "../query-manager/QueryComposer";
+import DirectContentSelector from "../query-manager/DirectContentSelector";
+import {
+  UnifiedQueryRenderer,
+  StoredQueryRenderer,
+} from "../query-manager/QueryRenderer";
+import "../../style/queryManager.css";
+import "../../style/queryRenderer.css";
+import { useQueryManager } from "../../hooks/useQueryManager";
 import {
   QuerySelectItem,
   formatTimestamp,
   createSelectItems,
   groupedItems,
-} from "./utils/querySelectItems";
-import { updateQuery } from "./utils/queryStorage";
-import { SaveQueryDialog } from "./dialogs/SaveQueryDialog";
-import { RenameQueryDialog } from "./dialogs/RenameQueryDialog";
-import { ClearAllQueriesDialog } from "./dialogs/ClearAllQueriesDialog";
+} from "../../utils/querySelectItems";
+import { updateQuery } from "../../utils/queryStorage";
+import { SaveQueryDialog } from "../dialogs/SaveQueryDialog";
+import { RenameQueryDialog } from "../dialogs/RenameQueryDialog";
+import { ClearAllQueriesDialog } from "../dialogs/ClearAllQueriesDialog";
 
 const QuerySelect = Select.ofType<QuerySelectItem>();
 
@@ -72,7 +75,7 @@ interface QueryManagerProps {
   handleDirectContentAdd: (
     currentResults: any[],
     setCurrentResults: (results: any[]) => void
-  ) => Promise<import("./utils/queryStorage").PageSelection[]>;
+  ) => Promise<import("../../utils/queryStorage").PageSelection[]>;
   queryAvailablePages: (query?: string) => void;
 
   // Results management for DirectContentSelector
@@ -139,7 +142,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
 
   // Track page selections added in current session (not saved yet)
   const [sessionPageSelections, setSessionPageSelections] = useState<
-    import("./utils/queryStorage").PageSelection[]
+    import("../../utils/queryStorage").PageSelection[]
   >([]);
 
   // Clear session page selections when a DIFFERENT query is loaded

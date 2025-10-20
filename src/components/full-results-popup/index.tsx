@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom";
 import FullResultsPopupComponent from "./FullResultsPopup";
-import { ChatMessage, PopupViewMode } from "./types";
+import { ChatMessage, PopupViewMode } from "./types/types";
 import {
   getMainViewUid,
   getPageNameByPageUid,
@@ -24,8 +24,12 @@ export {
 } from "./FullResultsPopup";
 
 // Sub-components
-export { FullResultsChat } from "./FullResultsChat";
-export { BlockRenderer, ResultContent, ResultMetadata } from "./ResultRenderer";
+export { FullResultsChat } from "./components/chat/FullResultsChat";
+export {
+  BlockRenderer,
+  ResultContent,
+  ResultMetadata,
+} from "./components/results/ResultRenderer";
 
 // Hooks
 export { useFullResultsState } from "./hooks/useFullResultsState";
@@ -35,7 +39,7 @@ export * from "./utils/resultProcessing";
 export * from "./utils/chatHelpers";
 
 // Types
-export * from "./types";
+export * from "./types/types";
 
 /**
  * Helper function to detect if a block is part of a liveai/chat conversation

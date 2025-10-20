@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from "react";
 import { Button, MenuItem } from "@blueprintjs/core";
 import { Select, ItemRenderer } from "@blueprintjs/select";
-import { getAllLiveAIChats, ChatHistoryItem } from "./utils/chatStorage";
+import { getAllLiveAIChats, ChatHistoryItem } from "../../utils/chatStorage";
 
 const ChatSelect = Select.ofType<ChatHistoryItem>();
 

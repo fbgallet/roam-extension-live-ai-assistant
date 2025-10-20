@@ -1,30 +1,23 @@
-import React, { useState, useRef, useEffect } from "react";
-import {
-  Button,
-  Icon,
-  Tooltip,
-  HTMLSelect,
-  TextArea,
-  Popover,
-} from "@blueprintjs/core";
-import DOMPurify from "dompurify";
-import { invokeSearchAgent } from "../../ai/agents/search-agent/ask-your-graph-invoke";
-import { Result, ChatMessage, ChatMode } from "./types";
-import { performAdaptiveExpansion } from "../../ai/agents/search-agent/helpers/contextExpansion";
-import { extensionStorage, defaultModel, chatRoles } from "../..";
-import ModelsMenu from "../ModelsMenu";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { invokeChatAgent } from "../../../../ai/agents/chat-agent/chat-agent-invoke";
+import { Result, ChatMessage, ChatMode } from "../../types/types";
+import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/helpers/contextExpansion";
+import { extensionStorage, defaultModel, chatRoles } from "../../../..";
 import {
   getBlockContentByUid,
   getPageUidByPageName,
   insertBlockInCurrentView,
-} from "../../utils/roamAPI";
-import { modelAccordingToProvider } from "../../ai/aiAPIsHub";
-import { parseAndCreateBlocks } from "../../utils/format";
-import { insertCompletion } from "../../ai/responseInsertion";
-import { AppToaster } from "../Toaster";
-import { ChatHistorySelect } from "./ChatHistorySelect";
-import { extractConversationFromLiveAIChat } from "./index";
-import { getChatTitleFromUid } from "./utils/chatStorage";
+} from "../../../../utils/roamAPI";
+import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
+import { parseAndCreateBlocks } from "../../../../utils/format";
+import { insertCompletion } from "../../../../ai/responseInsertion";
+import { AppToaster } from "../../../Toaster";
+import { extractConversationFromLiveAIChat } from "../../index";
+import { getChatTitleFromUid } from "../../utils/chatStorage";
+import { calculateTotalTokens } from "../../utils/chatMessageUtils";
+import { ChatHeader } from "./ChatHeader";
+import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
+import { ChatInputArea } from "./ChatInputArea";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -66,99 +59,7 @@ interface FullResultsChatProps {
   initialCommandPrompt?: string;
 }
 
-// Convert chat messages to agent conversation history
-const buildConversationHistory = (chatMessages: ChatMessage[]) => {
-  return chatMessages.map((msg) => ({
-    role: msg.role === "user" ? "User" : "Assistant",
-    content: msg.content,
-  }));
-};
-
-// Calculate total tokens used in the conversation
-const calculateTotalTokens = (chatMessages: ChatMessage[]) => {
-  let totalIn = 0;
-  let totalOut = 0;
-
-  chatMessages.forEach((msg) => {
-    if (msg.tokensIn !== undefined) totalIn += msg.tokensIn;
-    if (msg.tokensOut !== undefined) totalOut += msg.tokensOut;
-  });
-
-  return { totalIn, totalOut };
-};
-
-// Simple markdown renderer for chat messages
-const renderMarkdown = (text: string): string => {
-  if (!text) return "";
-
-  let rendered = text;
-
-  // Bold text **text** (do this early to avoid conflicts)
-  rendered = rendered.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
-  // Headers - handle ### first, then ##, then # (process before line break conversion)
-  rendered = rendered.replace(/(^|\n)### (.+?)(?=\n|$)/gm, "$1<h4>$2</h4>");
-  rendered = rendered.replace(/(^|\n)## (.+?)(?=\n|$)/gm, "$1<h3>$2</h3>");
-  rendered = rendered.replace(/(^|\n)# (.+?)(?=\n|$)/gm, "$1<h2>$2</h2>");
-
-  // Bullet points - item (before line break processing)
-  rendered = rendered.replace(/(^|\n)- (.+?)(?=\n|$)/gm, "$1<li>$2</li>");
-
-  // Numbered lists 1. item (before line break processing)
-  rendered = rendered.replace(/(^|\n)\d+\.\s(.+?)(?=\n|$)/gm, "$1<li>$2</li>");
-
-  // Wrap consecutive li elements in ul
-  rendered = rendered.replace(/(<li>.*?<\/li>)(\s*<li>)/gs, "$1$2");
-  rendered = rendered.replace(/(<li>.*?<\/li>)/gs, "<ul>$1</ul>");
-  rendered = rendered.replace(/<\/ul>\s*<ul>/g, "");
-
-  // Convert double line breaks to paragraph breaks
-  rendered = rendered.replace(/\n\n/g, "</p><p>");
-
-  // Convert remaining single line breaks to br tags (but not around headers)
-  rendered = rendered.replace(/\n(?!<\/?(h[1-6]|li|ul))/g, "<br>");
-
-  // Clean up line breaks around headers and lists
-  rendered = rendered.replace(/(<br>)*(<\/?(h[1-6]|ul)>)(<br>)*/g, "$2");
-
-  // Convert Roam embed syntax to clickable links
-  rendered = rendered.replace(
-    /\{\{\[\[(.*?)\]\]:\s*\(\((.*?)\)\)\}\}/g,
-    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>'
-  );
-
-  // Simple block reference ((uid))
-  rendered = rendered.replace(
-    /\(\(([^\(].*?)\)\)/g,
-    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
-  );
-
-  // convert to [link](((uid)))
-  rendered = rendered.replace(
-    /\[([^\]].*?)\]\(\((.*)\)\)/g,
-    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window">$1<span class="bp3-icon bp3-icon-flow-end"></span></a>`
-  );
-
-  // Page references [[page title]] - make clickable
-  rendered = rendered.replace(
-    /\[\[([^\]]+)\]\]/g,
-    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar • Alt+click: Open in main window">$1</a><span class="rm-page-ref__brackets">]]</span>`
-  );
-
-  // Tag references #tag - make clickable
-  rendered = rendered.replace(
-    /#([a-zA-Z0-9_-]+)/g,
-    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag • Shift+click: Open in sidebar • Alt+click: Open in main window">#$1</a>'
-  );
-
-  // Wrap in paragraphs (but not if it starts with a header or list)
-  if (!rendered.match(/^<(h[1-6]|ul)/)) {
-    rendered = "<p>" + rendered + "</p>";
-  }
-  rendered = rendered.replace(/<p><\/p>/g, "");
-
-  return DOMPurify.sanitize(rendered);
-};
+// Utility functions moved to ./utils/chatMessageUtils.ts
 
 export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   isOpen,
@@ -234,11 +135,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       initialMessagesCountRef.current = messagesCopy.length;
     }
     if (initialChatPrompt) {
-      console.log("📝 Setting chat input:", initialChatPrompt, "type:", typeof initialChatPrompt);
+      console.log(
+        "📝 Setting chat input:",
+        initialChatPrompt,
+        "type:",
+        typeof initialChatPrompt
+      );
       // Ensure initialChatPrompt is a string
-      const promptString = typeof initialChatPrompt === 'string'
-        ? initialChatPrompt
-        : String(initialChatPrompt || '');
+      const promptString =
+        typeof initialChatPrompt === "string"
+          ? initialChatPrompt
+          : String(initialChatPrompt || "");
       setChatInput(promptString);
     }
     // If initialLoadedChatUid is provided, set the loaded chat info
@@ -255,24 +162,28 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       let commandName = "Custom Command";
       if (initialCommandId) {
         // Import BUILTIN_COMMANDS to get the command name
-        import("../../ai/prebuildCommands").then(({ BUILTIN_COMMANDS }) => {
-          const command = BUILTIN_COMMANDS.find((cmd) => cmd.id === initialCommandId);
-          if (command) {
-            commandName = command.name;
+        import("../../../../ai/prebuildCommands").then(
+          ({ BUILTIN_COMMANDS }) => {
+            const command = BUILTIN_COMMANDS.find(
+              (cmd) => cmd.id === initialCommandId
+            );
+            if (command) {
+              commandName = command.name;
+            }
+
+            console.log("📝 Setting command context:", {
+              commandPrompt: initialCommandPrompt,
+              commandName,
+              style: initialStyle,
+            });
+
+            setCommandContext({
+              commandPrompt: initialCommandPrompt,
+              commandName,
+              style: initialStyle,
+            });
           }
-
-          console.log("📝 Setting command context:", {
-            commandPrompt: initialCommandPrompt,
-            commandName,
-            style: initialStyle,
-          });
-
-          setCommandContext({
-            commandPrompt: initialCommandPrompt,
-            commandName,
-            style: initialStyle,
-          });
-        });
+        );
       } else {
         setCommandContext({
           commandPrompt: initialCommandPrompt,
@@ -281,7 +192,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         });
       }
     }
-  }, [initialChatMessages, initialChatPrompt, initialLoadedChatUid, initialCommandPrompt, initialCommandId, initialStyle]);
+  }, [
+    initialChatMessages,
+    initialChatPrompt,
+    initialLoadedChatUid,
+    initialCommandPrompt,
+    initialCommandId,
+    initialStyle,
+  ]);
 
   // Auto-execute command when chat opens with command context
   useEffect(() => {
@@ -317,7 +235,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         console.error("Auto-execution error:", error);
         const errorMessage: ChatMessage = {
           role: "assistant",
-          content: "Sorry, I encountered an error processing your request with the command. Please try again.",
+          content:
+            "Sorry, I encountered an error processing your request with the command. Please try again.",
           timestamp: new Date(),
         };
         setChatMessages((prev) => [...prev, errorMessage]);
@@ -845,12 +764,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     await copyToClipboard(header + conversationText);
   };
 
-  const handleModelSelection = async ({ model }) => {
-    setSelectedModel(model);
-    setIsModelMenuOpen(false); // Close the popover after selection
-  };
-
-  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  // Model selection is now handled by ChatInputArea component
 
   // Handler for clicking on loaded chat title to open the block
   const handleLoadedChatClick = (event: React.MouseEvent) => {
@@ -994,10 +908,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   const processChatMessage = async (
     message: string,
-    contextResults: Result[]
+    contextResults: Result[],
+    commandPromptFromCall?: string,
+    styleFromCall?: string
   ) => {
     try {
-      console.log(`💬 Access mode: ${chatAccessMode}, using simple chat mode`);
+      console.log(`💬 Access mode: ${chatAccessMode}, using new chat-agent`);
 
       // Check if result selection has changed
       const currentResultIds = contextResults
@@ -1006,8 +922,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const selectionChanged =
         JSON.stringify(currentResultIds.sort()) !==
         JSON.stringify(lastSelectedResultIds.sort());
-
-      let resultsContext: string;
 
       let expandedResults: Result[];
 
@@ -1023,58 +937,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
         expandedResults = await performAdaptiveExpansion(
           contextResults.map((result) => ({ ...result })), // Pass deep copies to prevent any mutation
-          // [...contextResults],
           expansionBudget,
           0,
           chatAccessMode // Pass access mode to influence depth strategy
         );
         setChatExpandedResults(expandedResults);
-      } else {
-        // Reuse cached expanded objects
-        expandedResults = chatExpandedResults;
-      }
 
-      // Build string context from expanded objects (only when needed for prompts)
-      resultsContext = expandedResults
-        .map((result, index) => {
-          const parts = [];
-          const isPage = !result.pageUid; // Pages don't have pageUid property
-
-          // UID (always present)
-          if (result.uid) parts.push(`UID: ${result.uid}`);
-
-          // Content first (most important)
-          if (result.expandedBlock?.original || result.content) {
-            const content = result.expandedBlock?.original || result.content;
-            parts.push(`Content: ${content}`);
-          } else {
-            parts.push(`Content: [Content not available]`);
-          }
-
-          // Location info differs between pages and blocks
-          if (isPage) {
-            // For pages: just indicate it's a page
-            if (result.pageTitle) parts.push(`Page: [[${result.pageTitle}]]`);
-          } else {
-            // For blocks: show which page they're in
-            if (result.pageTitle)
-              parts.push(`In page: [[${result.pageTitle}]]`);
-          }
-
-          // Parent info (only for blocks that have parent context)
-          if (result.expandedBlock?.parent) {
-            parts.push(`Parent: ${result.expandedBlock.parent}`);
-          }
-
-          // Children info (if available)
-          if (result.expandedBlock?.childrenOutline) {
-            parts.push(`Children:\n${result.expandedBlock.childrenOutline}`);
-          }
-
-          // Timestamps
-          if (result.created) parts.push(`Created: ${result.created}`);
-          if (result.modified) parts.push(`Modified: ${result.modified}`);
-
+        // Log expansion details
+        expandedResults.forEach((result, index) => {
           if (result.metadata?.contextExpansion) {
             console.log(
               `📝 [Chat] Result ${index + 1} expanded: ${
@@ -1082,106 +952,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               } → ${result.metadata.expandedLength} chars`
             );
           }
-
-          return `Result ${index + 1}:\n${parts.join("\n")}`;
-        })
-        .join("\n\n---\n\n");
-
-      console.log("Exact context used for the chat: ", resultsContext);
-
-      // Build conversation history from chat messages
-      const currentConversationHistory = buildConversationHistory(chatMessages);
-
-      // For popup execution with conversation history, don't duplicate results in the prompt
-      // The agent's system prompt already includes the results context
-      const hasConversationHistory = currentConversationHistory.length > 0;
-
-      // ALWAYS build the full system prompt with context - never just the user message
-      // The user message will be passed separately as the user message
-      const selectionChangeNotice = selectionChanged
-        ? `\n🔄 IMPORTANT: The user has changed their result selection since the last message. The results below represent the NEW selection.\n`
-        : ``;
-
-      const chatPrompt = `You are an intelligent assistant analyzing search results extracted from a Roam Research graph databae. The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.${selectionChangeNotice}
-
-SEARCH RESULTS DATA:
-${resultsContext}
-
-🎯 YOUR ROLE - PROVIDE VALUE BEYOND RAW DATA:
-- **Focus on the user request in its last message** to provide the most relevant response as possible
-- **DON'T repeat** content/metadata the user already sees
-- **Focus on** what the content MEANS, not what it SAYS
-- **Use the full context** - leverage parent blocks, page context, and children to understand meaning
-- **Identify** relationships, contradictions, common themes, or missing pieces
-- **Be analytical** - help the user understand significance and context
-
-${
-  chatMode === "agent"
-    ? `🔍 DEEP ANALYSIS MODE:
-- Analyze the provided content first, then search only if you need additional context
-- When searching: use specific UIDs, purpose: "completion" for expanding context
-- Use fromResultId: "external_context_001" to reference the provided results
-- Focus on synthesis and deeper understanding`
-    : ``
-}
-
-RESPONSE GUIDELINES:
-- **Be concise and focused** - 2-3 key insights, not lengthy explanations (unless user asks for detail)
-- **Conversational and insightful** - like a thoughtful colleague reviewing the data
-- **Leverage hierarchical context** - use Parent context, Children outline, and Page context to understand each block's true meaning and purpose
-- **Reference specific blocks** - ALWAYS use strict '((uid))' syntax when mentioning content from blocks (CRITICAL: always DOUBLE parentheses). For single block: '((uid))' or make a short part of your response a link to the source block using this syntax: '[part of your reponse](((uid)))', for multiple blocks: '[source blocks: ((uid1)), ((uid2)), ((uid3))]'.
-- **Reference pages** - Always use the syntax '[[page title]]' or #tag (where tag is a page title without space) when you have to mention page titles.
-
-Remember: The user wants concise understanding and analysis, not lengthy recaps. Use the rich context (parent/children/page) to truly understand what each block represents.`;
-
-      // Prepare agent data with conversation state
-      // Let the agent's built-in conversation management handle history and summarization
-      // We just pass the current agentData which contains the conversation state
-
-      // For chat mode, we don't need to create blocks in Roam
-      // The chat is self-contained in the popup interface
-      let chatRootUid = targetUid;
-      if (!chatRootUid) {
-        // Use a dummy UID since we won't be writing to Roam in chat mode
-        chatRootUid = "chat-session-" + Date.now();
+        });
+      } else {
+        // Reuse cached expanded objects
+        expandedResults = chatExpandedResults;
       }
 
-      // Debug what we're passing to the agent
-      console.log(`💬 [Chat] Passing agent data:`, {
-        hasAgentData: !!chatAgentData,
-        chatMessagesCount: chatMessages.length,
-        conversationHistoryFromChat: currentConversationHistory,
-        conversationHistoryLength: currentConversationHistory.length,
-        agentConversationSummary: chatAgentData?.conversationSummary,
-      });
-
-      // Build the agent state object with embedded external context using expanded results
-      const previousAgentState = {
-        ...chatAgentData, // Include any previous agent state from the search agent (results, etc.) FIRST
-        // Then override with popup-specific conversation state
-        isConversationMode: true,
-        conversationHistory: currentConversationHistory, // Use chat messages directly - this will override any stale conversationHistory from agentData
-        conversationSummary:
-          chatMessages.length > 0
-            ? contextResults.length
-              ? `Chatting about ${contextResults.length} search results${
-                  selectionChanged ? " (result selection changed)" : ""
-                }`
-              : `Chatting without context`
-            : undefined,
-        // For popup execution, clear any conflicting internal caches to ensure our expanded results are used
-        cachedFullResults: {}, // Clear to avoid duplicate context in system prompts
-        toolResultsCache: {}, // Clear to avoid stale tool results
-        // Embed external context directly in agent data - ALWAYS use expanded results for agent processing
-        externalContext: {
-          results: expandedResults, // Use the expanded objects with rich content
-          contextType: "search_results" as const,
-          description: `Search results being discussed (${expandedResults.length} items with expanded content)`,
-        },
-      };
-
       console.log(
-        `📝 [Chat] Agent will receive ${
+        `📝 [Chat] Using ${
           expandedResults.length
         } expanded results with avg ${Math.round(
           expandedResults.reduce(
@@ -1191,41 +969,67 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         )} chars per result`
       );
 
-      // Debug agent state for resultStore issues
-      if (
-        chatMessages.length > 0 &&
-        (!previousAgentState.resultStore ||
-          Object.keys(previousAgentState.resultStore).length === 0)
-      ) {
-        console.log(
-          `⚠️ [Chat] Turn ${chatMessages.length}: Missing resultStore in previousAgentState`
-        );
+      // Build results description for context
+      const resultsDescription = selectionChanged
+        ? `🔄 IMPORTANT: The user has changed their result selection since the last message. The results below represent the NEW selection (${expandedResults.length} items).`
+        : `You are analyzing search results extracted from a Roam Research graph database. The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.`;
+
+      // Build conversation history from chat messages
+      const currentConversationHistory = chatMessages.map((msg) => {
+        const role = msg.role === "user" ? "User" : "Assistant";
+        return `${role}: ${msg.content}`;
+      });
+
+      // Get command prompt if provided
+      let commandPrompt: string | undefined = undefined;
+      if (commandPromptFromCall) {
+        const { completionCommands } = await import("../../../../ai/prompts");
+        commandPrompt = completionCommands[commandPromptFromCall];
       }
 
-      const agentOptions = {
-        model: selectedModel,
-        rootUid: chatRootUid,
-        targetUid: undefined, // Chat mode doesn't write to Roam
-        target: "new",
-        prompt: message, // The actual user message
+      console.log(`💬 [Chat] Invoking chat agent:`, {
+        hasExpandedResults: expandedResults.length > 0,
+        chatMessagesCount: chatMessages.length,
+        conversationHistoryLength: currentConversationHistory.length,
+        agentConversationSummary: chatAgentData?.conversationSummary,
+        toolsEnabled: chatMode === "agent",
+        hasCommandPrompt: !!commandPrompt,
+        hasStyle: !!styleFromCall,
+      });
+
+      // Invoke the chat agent
+      const agentResult = await invokeChatAgent({
+        model: modelAccordingToProvider(selectedModel),
+        userMessage: message,
+
+        // Results context - pass the expanded results directly
+        resultsContext: expandedResults,
+        resultsDescription,
+
+        // Configuration
+        style: styleFromCall,
+        commandPrompt: commandPrompt,
+        toolsEnabled: chatMode === "agent", // Enable tools only in agent mode
+        accessMode: chatAccessMode,
+        isAgentMode: chatMode === "agent",
+
+        // Permissions
         permissions: { contentAccess: chatAccessMode === "Full Access" },
-        privateMode: chatAccessMode === "Balanced",
-        // Enable direct chat mode to bypass RequestAnalyzer
-        isDirectChat: true,
-        // Enable popup execution to skip block creation and insertion
-        isPopupExecution: true,
-        // Provide streaming callback for chat interface
+
+        // Conversation state from previous turns
+        conversationHistory: currentConversationHistory,
+        conversationSummary: chatAgentData?.conversationSummary,
+        exchangesSinceLastSummary:
+          chatAgentData?.exchangesSinceLastSummary || 0,
+
+        // Streaming
         streamingCallback: (content: string) => {
           setStreamingContent((prev) => prev + content);
         },
-        // Pass the existing agent data which contains conversation state and external context
-        // For popup execution, build conversation history directly from chat messages
-        previousAgentState,
-        // IMPORTANT: chatSystemPrompt must come AFTER previousAgentState to avoid being overwritten
-        chatSystemPrompt: chatPrompt, // The system prompt for popup execution - always fresh
-      };
 
-      const agentResult = await invokeSearchAgent(agentOptions);
+        // Token usage from previous turns
+        tokensUsage: chatAgentData?.tokensUsage,
+      });
 
       // Debug token usage
       console.log(
@@ -1233,76 +1037,23 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
         agentResult.tokensUsage
       );
 
-      // Update agent data for next conversation turn and extract any new results
+      // Update agent data for next conversation turn
       const newAgentData = {
-        toolResultsCache: agentResult.toolResultsCache,
-        cachedFullResults: agentResult.cachedFullResults,
-        hasLimitedResults: agentResult.hasLimitedResults,
-        resultSummaries: agentResult.resultSummaries,
-        resultStore: agentResult.resultStore,
-        nextResultId: agentResult.nextResultId,
-        // IMPORTANT: Include conversation state for next turn
         conversationHistory: agentResult.conversationHistory,
         conversationSummary: agentResult.conversationSummary,
         exchangesSinceLastSummary: agentResult.exchangesSinceLastSummary,
-        isConversationMode: agentResult.isConversationMode,
-        // CRITICAL: Do NOT persist chatSystemPrompt - it should be freshly generated each turn
-        // chatSystemPrompt should never be carried over from previous turns
+        toolResultsCache: agentResult.toolResultsCache,
+        tokensUsage: agentResult.tokensUsage,
       };
 
       setChatAgentData(newAgentData);
 
       // Debug conversation state
       console.log(`💬 [Chat] Agent returned conversation state:`, {
-        hasConversationHistory: !!agentResult.conversationHistory,
         conversationHistoryLength: agentResult.conversationHistory?.length || 0,
         hasSummary: !!agentResult.conversationSummary,
-        conversationSummary: agentResult.conversationSummary,
+        tokensUsage: agentResult.tokensUsage,
       });
-
-      // Log live result updates for debugging
-      const previousResultCount = Object.keys(
-        chatAgentData?.resultStore || {}
-      ).length;
-      const newResultCount = Object.keys(agentResult.resultStore || {}).length;
-
-      if (newResultCount > previousResultCount) {
-        console.log(
-          `🔄 Live results updated: ${
-            newResultCount - previousResultCount
-          } new result sets added during conversation`
-        );
-        setHasExpandedResults(true);
-
-        // Count total expanded results
-        const expandedResults = [];
-        if (agentResult.resultStore) {
-          Object.values(agentResult.resultStore).forEach((resultEntry: any) => {
-            if (
-              resultEntry &&
-              resultEntry.data &&
-              Array.isArray(resultEntry.data)
-            ) {
-              expandedResults.push(
-                ...resultEntry.data.filter(
-                  (r: any) => r && (r.uid || r.pageUid || r.pageTitle)
-                )
-              );
-            }
-          });
-        }
-
-        console.log(
-          `🔍 Chat conversation now has access to ${
-            expandedResults.length
-          } total results (${contextResults.length} original + ${
-            expandedResults.length - contextResults.length
-          } new)`
-        );
-
-        // TODO: Could emit an event to parent component about expanded results
-        // This would allow FullResultsPopup to update its result count or show new results
-      }
 
       const aiResponse =
         agentResult.finalAnswer ||
@@ -1352,29 +1103,19 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
     styleKey?: string
   ) => {
     try {
-      // Import the prompt modules
-      const { completionCommands } = await import("../../ai/prompts");
-
-      // Build the command instruction to prepend to user message
-      let commandInstruction = "";
-      if (commandPromptKey && completionCommands[commandPromptKey]) {
-        commandInstruction = completionCommands[commandPromptKey];
-      }
-
       console.log("🎯 Executing with command instruction:", {
         commandPromptKey,
         styleKey,
-        instructionPreview: commandInstruction?.substring(0, 200) + "...",
       });
 
-      // Prepend command instruction to the user message
-      const enrichedMessage = commandInstruction
-        ? `${commandInstruction}\n\n${message}`
-        : message;
-
-      // Call processChatMessage with the enriched user message
-      // The system prompt will handle style automatically
-      await processChatMessage(enrichedMessage, contextResults);
+      // Call processChatMessage with command and style parameters
+      // The chat agent will handle command prompt loading and application
+      await processChatMessage(
+        message,
+        contextResults,
+        commandPromptKey,
+        styleKey
+      );
     } catch (error) {
       console.error("Error processing command:", error);
       throw error;
@@ -1385,365 +1126,48 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 
   return (
     <div className="full-results-chat-panel">
-      <div className="full-results-chat-header">
-        <div className="full-results-chat-info">
-          <div className="full-results-chat-info-text">
-            <span>
-              {selectedResults.length > 0 ? (
-                <>Chatting about {selectedResults.length} selected results</>
-              ) : (
-                <>Chatting about {allResults.length} visible results</>
-              )}
-              {(totalIn > 0 || totalOut > 0) && (
-                <span className="full-results-chat-total-tokens">
-                  {" "}
-                  • Total tokens: {totalIn.toLocaleString()} in,{" "}
-                  {totalOut.toLocaleString()} out
-                </span>
-              )}
-            </span>
-          </div>
-          <div className="full-results-chat-header-controls">
-            {hasExpandedResults && (
-              <Tooltip content="Results expanded during conversation">
-                <span className="full-results-chat-expansion-badge">
-                  <Icon icon="trending-up" size={12} />
-                </span>
-              </Tooltip>
-            )}
-            {chatMessages.length > 0 && (
-              <>
-                {
-                  <Tooltip content="Insert conversation in Roam at focused block or append to current page/daily note">
-                    <Button
-                      icon="insert"
-                      onClick={insertConversationInRoam}
-                      minimal
-                      small
-                      intent="success"
-                    />
-                  </Tooltip>
-                }
-                <Tooltip content="Copy full conversation to clipboard">
-                  <Button
-                    icon="clipboard"
-                    onClick={copyFullConversation}
-                    minimal
-                    small
-                  />
-                </Tooltip>
-                <Tooltip content="Reset chat conversation">
-                  <Button icon="trash" onClick={resetChat} minimal small />
-                </Tooltip>
-              </>
-            )}
-            <Tooltip content="Load chat history from #liveai/chat blocks">
-              <ChatHistorySelect
-                onChatSelect={handleLoadChatHistory}
-                disabled={isTyping}
-              />
-            </Tooltip>
-          </div>
-        </div>
-        {loadedChatTitle && loadedChatUid && (
-          <div className="full-results-chat-loaded-title">
-            <a
-              href="#"
-              onClick={handleLoadedChatClick}
-              className="roam-block-ref-chat"
-              title="Click: Copy ((uid)) to clipboard • Shift+click: Open in sidebar • Alt+click: Open in main window"
-              style={{
-                fontSize: "0.9em",
-                color: "#5c7080",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                paddingTop: "4px",
-              }}
-            >
-              <Icon icon="history" size={12} />
-              {loadedChatTitle}
-              <Icon icon="flow-end" size={10} />
-            </a>
-          </div>
-        )}
-        {privateMode && (
-          <div className="full-results-chat-warning">
-            🔒 Limited functionality in Private mode
-          </div>
-        )}
-      </div>
+      <ChatHeader
+        selectedResults={selectedResults}
+        allResults={allResults}
+        totalIn={totalIn}
+        totalOut={totalOut}
+        hasExpandedResults={hasExpandedResults}
+        chatMessages={chatMessages}
+        loadedChatTitle={loadedChatTitle}
+        loadedChatUid={loadedChatUid}
+        privateMode={privateMode}
+        isTyping={isTyping}
+        onInsertConversation={insertConversationInRoam}
+        onCopyFullConversation={copyFullConversation}
+        onResetChat={resetChat}
+        onLoadChatHistory={handleLoadChatHistory}
+        onLoadedChatClick={handleLoadedChatClick}
+      />
 
-      <div className="full-results-chat-messages" ref={messagesContainerRef}>
-        {chatMessages.length === 0 ? (
-          <div className="full-results-chat-welcome">
-            <div className="full-results-chat-assistant-avatar">🤖</div>
-            <div className="full-results-chat-assistant-message">
-              Hi! I can help you analyze and understand your search results.
-              What would you like to know?
-              <div className="full-results-chat-suggestions">
-                <button
-                  onClick={() =>
-                    setChatInput(
-                      "Give me a short, clear summary of these results highlighting the most important points"
-                    )
-                  }
-                >
-                  Summarize
-                </button>
-                <button
-                  onClick={() =>
-                    setChatInput(
-                      "What are the key insights and takeaways from these results?"
-                    )
-                  }
-                >
-                  Key insights
-                </button>
-                <button
-                  onClick={() =>
-                    setChatInput(
-                      "What connections exist between these items? Look for page references, tags, block references, and thematic links"
-                    )
-                  }
-                >
-                  Find connections
-                </button>
-                <button
-                  onClick={() =>
-                    setChatInput(
-                      "Help me find specific information about [topic] that might be buried in these results"
-                    )
-                  }
-                >
-                  Retrieval
-                </button>
-                <button
-                  onClick={() =>
-                    setChatInput(
-                      "What patterns or recurring themes can you extract from these results?"
-                    )
-                  }
-                >
-                  Extract patterns
-                </button>
-                {/* TODO: Future evolution - Deep Analysis mode
-                {chatMode === "agent" && (
-                  <button
-                    onClick={() =>
-                      setChatInput(
-                        "Can you find related results that might expand on these topics?"
-                      )
-                    }
-                  >
-                    <Icon icon="search" size={12} style={{marginRight: '4px'}} />Expand results
-                  </button>
-                )}
-                */}
-              </div>
-              <div className="full-results-chat-feature-hint">
-                <strong>
-                  {(chatAccessMode === "Balanced" ? "🛡️ " : "🔓 ") +
-                    chatAccessMode}
-                </strong>{" "}
-                mode:{" "}
-                {chatAccessMode === "Balanced"
-                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(
-                      (modelTokensLimit * 0.5) / 1000
-                    )}k tokens (50% of model context window, approx. ${Math.floor(
-                      (modelTokensLimit * 2) / 1000 / 6
-                    )}k words)`
-                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(
-                      (modelTokensLimit * 0.75) / 1000
-                    )}k tokens (75% of model context window, approx. ${Math.floor(
-                      (modelTokensLimit * 3) / 1000 / 6
-                    )}k words)`}{" "}
-                {/* TODO: Future evolution - Deep Analysis mode
-                {chatMode === "agent" ? (
-                  <>
-                    💡 <strong>Deep Analysis mode</strong>: I'll analyze your
-                    results first, then search for related content if needed!
-                  </>
-                ) : (
-                  <>
-                    💡 <strong>Chat mode</strong>: I'll focus on analyzing the
-                    content you've selected without additional searches.
-                  </>
-                )}
-                */}
-              </div>
-            </div>
-          </div>
-        ) : (
-          chatMessages.map((message, index) => {
-            // Check if this is the first user message and we have command context
-            const isFirstMessage = index === 0;
-            const shouldShowCommandName = isFirstMessage && message.role === "user" && commandContext?.commandName;
-            const displayContent = shouldShowCommandName
-              ? `**[${commandContext.commandName}]**\n\n${message.content}`
-              : message.content;
+      <ChatMessagesDisplay
+        chatMessages={chatMessages}
+        commandContext={commandContext}
+        isTyping={isTyping}
+        isStreaming={isStreaming}
+        streamingContent={streamingContent}
+        modelTokensLimit={modelTokensLimit}
+        chatAccessMode={chatAccessMode}
+        onCopyMessage={copyAssistantMessage}
+        onSuggestionClick={setChatInput}
+        messagesContainerRef={messagesContainerRef}
+      />
 
-            return (
-              <div
-                key={index}
-                className={`full-results-chat-message ${message.role}`}
-              >
-                <div className="full-results-chat-avatar">
-                  {message.role === "user" ? "👤" : "🤖"}
-                </div>
-                <div className="full-results-chat-content">
-                  <div
-                    className="full-results-chat-text"
-                    dangerouslySetInnerHTML={{
-                      __html: renderMarkdown(displayContent),
-                    }}
-                  />
-                  <div className="full-results-chat-message-footer">
-                    <span className="full-results-chat-timestamp">
-                      {message.timestamp.toLocaleTimeString()}
-                      {message.tokensIn !== undefined &&
-                        message.tokensOut !== undefined && (
-                          <span className="full-results-chat-tokens">
-                            {" "}
-                            • Tokens in: {message.tokensIn.toLocaleString()}, out:{" "}
-                            {message.tokensOut.toLocaleString()}
-                          </span>
-                        )}
-                    </span>
-                    {message.role === "assistant" && (
-                      <span
-                        className="full-results-chat-copy-link"
-                        title="Copy message to clipboard"
-                      >
-                        <Tooltip content="Copy message to clipboard">
-                          <Button
-                            icon="clipboard"
-                            onClick={() => copyAssistantMessage(message.content)}
-                            minimal
-                            small
-                          />
-                        </Tooltip>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {(isTyping || isStreaming) && (
-          <div className="full-results-chat-message assistant">
-            <div className="full-results-chat-avatar">🤖</div>
-            <div className="full-results-chat-content">
-              {isStreaming && streamingContent ? (
-                <div
-                  className="full-results-chat-text streaming"
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(streamingContent),
-                  }}
-                />
-              ) : (
-                <div className="full-results-chat-typing">Thinking...</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="full-results-chat-input-area">
-        <div className="full-results-chat-controls">
-          <div className="full-results-chat-access-mode">
-            <HTMLSelect
-              minimal={true}
-              value={chatAccessMode}
-              onChange={(e) =>
-                setChatAccessMode(e.target.value as "Balanced" | "Full Access")
-              }
-              options={[
-                { label: "🛡️ Balanced", value: "Balanced" },
-                { label: "🔓 Full Access", value: "Full Access" },
-              ]}
-            />
-          </div>
-          <div className="full-results-chat-model-selector">
-            <Popover
-              isOpen={isModelMenuOpen}
-              onInteraction={(nextOpenState) =>
-                setIsModelMenuOpen(nextOpenState)
-              }
-              content={
-                <ModelsMenu
-                  callback={handleModelSelection}
-                  setModel={setSelectedModel}
-                  command={null}
-                  prompt=""
-                  isConversationToContinue={false}
-                />
-              }
-              placement="top"
-            >
-              <Button
-                minimal
-                small
-                icon="cog"
-                text={selectedModel}
-                title="Click to change AI model"
-              />
-            </Popover>
-          </div>
-        </div>
-
-        {/* Future evolution: Chat Mode vs Deep Analysis - currently hidden
-        <div className="full-results-chat-mode-toggle" style={{display: 'none'}}>
-          <label>
-            <input
-              type="radio"
-              name="chatMode"
-              value="simple"
-              checked={true}
-              readOnly
-            />
-            <Icon icon="chat" size={12} style={{marginRight: '4px'}} />Chat Mode (Focus on provided results)
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="chatMode"
-              value="agent"
-              checked={false}
-              disabled
-            />
-            <Icon icon="search" size={12} style={{marginRight: '4px'}} />Deep Analysis (Can explore with search tools)
-          </label>
-        </div>
-        */}
-
-        <div className="full-results-chat-input-container">
-          <TextArea
-            inputRef={chatInputRef}
-            placeholder="Ask me about your results..."
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && !e.shiftKey && handleChatSubmit()
-            }
-            disabled={isTyping}
-            className="full-results-chat-input"
-            autoResize={true}
-            // rows={1}
-            fill={true}
-          />
-          <Button
-            icon="send-message"
-            onClick={handleChatSubmit}
-            disabled={!chatInput.trim() || isTyping}
-            intent="primary"
-            className="full-results-chat-send"
-          />
-        </div>
-      </div>
+      <ChatInputArea
+        chatInput={chatInput}
+        onChatInputChange={setChatInput}
+        onSubmit={handleChatSubmit}
+        isTyping={isTyping}
+        chatAccessMode={chatAccessMode}
+        onAccessModeChange={setChatAccessMode}
+        selectedModel={selectedModel}
+        onModelSelect={setSelectedModel}
+        chatInputRef={chatInputRef}
+      />
     </div>
   );
 };

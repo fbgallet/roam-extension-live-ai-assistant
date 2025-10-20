@@ -11,13 +11,16 @@ import {
 } from "@blueprintjs/core";
 
 import { createChildBlock } from "../../utils/roamAPI.js";
-import { FullResultsPopupProps, Result } from "./types";
-import { FullResultsChat } from "./FullResultsChat";
-import { ResultContent, ResultMetadata } from "./ResultRenderer";
+import { FullResultsPopupProps, Result } from "./types/types.js";
+import { FullResultsChat } from "./components/chat/FullResultsChat";
+import {
+  ResultContent,
+  ResultMetadata,
+} from "./components/results/ResultRenderer";
 import { useFullResultsState } from "./hooks/useFullResultsState";
 import { canUseChat } from "./utils/chatHelpers";
-import { ReferencesFilterPopover } from "./ReferencesFilterPopover";
-import { QueryManager } from "./QueryManager";
+import { ReferencesFilterPopover } from "./components/results/ReferencesFilterPopover";
+import { QueryManager } from "./components/query-manager/QueryManager";
 import {
   StoredQuery,
   getStoredQueries,
@@ -1060,7 +1063,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
     if (isSidePanelMode) {
       // Save position
-      localStorage.setItem("fullResultsPopup_sidePanelPosition", sidePanelPosition);
+      localStorage.setItem(
+        "fullResultsPopup_sidePanelPosition",
+        sidePanelPosition
+      );
 
       // Save dimensions based on position
       if (sidePanelPosition === "bottom") {
@@ -1075,7 +1081,13 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         );
       }
     }
-  }, [sidePanelWidth, sidePanelHeight, sidePanelPosition, isSidePanelMode, isResizingSidePanel]);
+  }, [
+    sidePanelWidth,
+    sidePanelHeight,
+    sidePanelPosition,
+    isSidePanelMode,
+    isResizingSidePanel,
+  ]);
 
   // Track dialog width for responsive layout constraints
   useEffect(() => {

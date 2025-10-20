@@ -1,0 +1,225 @@
+/**
+ * Chat Agent Prompt Templates
+ *
+ * System prompts and templates for the chat agent
+ */
+
+// Base system prompt for chat agent
+export const buildChatSystemPrompt = ({
+  style,
+  commandPrompt,
+  toolsEnabled,
+  toolDescriptions,
+  conversationContext,
+  resultsContext,
+  accessMode,
+  isAgentMode,
+}: {
+  style?: string;
+  commandPrompt?: string;
+  toolsEnabled: boolean;
+  toolDescriptions?: string;
+  conversationContext?: string;
+  resultsContext?: string;
+  accessMode: "Balanced" | "Full Access";
+  isAgentMode?: boolean;
+}): string => {
+  let systemPrompt = `You are an intelligent assistant helping users analyze and interact with their Roam Research knowledge graph.`;
+
+  // Add command-specific instructions if provided
+  if (commandPrompt) {
+    systemPrompt += `\n\n## Task Instructions\n${commandPrompt}`;
+  }
+
+  // Add results context if available
+  if (resultsContext) {
+    systemPrompt += `\n\n## Available Context\n${resultsContext}`;
+  }
+
+  // Add conversation context if available
+  if (conversationContext) {
+    systemPrompt += `\n\n## Conversation Context\n${conversationContext}`;
+  }
+
+  // Add tool usage guidance
+  if (toolsEnabled && toolDescriptions) {
+    systemPrompt += `\n\n## Available Tools\n${toolDescriptions}\n\nYou can use these tools to search and analyze the user's knowledge graph. Use tools when you need to find specific information or perform analysis that requires data from the graph.`;
+
+    // Add agent mode specific guidance
+    if (isAgentMode) {
+      systemPrompt += `\n\n### Deep Analysis Mode
+- Analyze the provided content first, then search only if you need additional context
+- When searching: use specific UIDs, purpose: "completion" for expanding context
+- Use fromResultId: "external_context_001" to reference the provided results
+- Focus on synthesis and deeper understanding`;
+    }
+  } else if (!toolsEnabled) {
+    systemPrompt += `\n\n## Response Mode\nYou are operating in direct chat mode without access to search tools. Respond based on the provided context and your general knowledge.`;
+  }
+
+  // Add response guidelines - matching FullResultsChat's detailed guidance
+  systemPrompt += `\n\n## Response Guidelines
+
+### Your Role - Provide Value Beyond Raw Data
+The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.
+
+- **Focus on the user request in its last message** to provide the most relevant response as possible
+- **DON'T repeat** content/metadata the user already sees
+- **Focus on** what the content MEANS, not what it SAYS
+- **Use the full context** - leverage parent blocks, page context, and children to understand meaning
+- **Identify** relationships, contradictions, common themes, or missing pieces
+- **Be analytical** - help the user understand significance and context
+
+### Conversation Style
+- **Be concise and focused** - 2-3 key insights, not lengthy explanations (unless user asks for detail)
+- **Conversational and insightful** - like a thoughtful colleague reviewing the data
+- Build on previous conversation context when relevant
+- Don't repeat information unnecessarily
+
+### Roam Formatting
+When referencing content from the knowledge graph, use Roam's syntax correctly:
+- **Reference specific blocks** - ALWAYS use strict '((uid))' syntax when mentioning content from blocks (CRITICAL: always DOUBLE parentheses). For single block: '((uid))' or make a short part of your response a link to the source block using this syntax: '[part of your response](((uid)))', for multiple blocks: '[source blocks: ((uid1)), ((uid2)), ((uid3))]'.
+- **Reference pages** - Always use the syntax '[[page title]]' or #tag (where tag is a page title without space) when you have to mention page titles.
+
+### Analysis Approach
+- When provided with search results, analyze their meaning and relationships
+- **Leverage hierarchical context** - use Parent context, Children outline, and Page context to understand each block's true meaning and purpose
+- Point out connections and patterns across results
+- Use the rich context (parent/children/page) to truly understand what each block represents
+
+### Response Length
+- Be concise by default (2-3 key insights)
+- Provide more detail when explicitly requested
+- Use clear structure for complex responses
+
+Remember: The user wants concise understanding and analysis, not lengthy recaps.`;
+
+  // Add style-specific formatting if provided
+  if (style) {
+    systemPrompt += `\n\n## Response Style\nFormat your response using the following style: ${style}`;
+  }
+
+  // Add access mode context
+  systemPrompt += `\n\n## Access Mode\nCurrent access mode: ${accessMode}`;
+  if (accessMode === "Balanced") {
+    systemPrompt += `\nYou have access to metadata and structure. For detailed content analysis, tools may be needed.`;
+  } else {
+    systemPrompt += `\nYou have full access to content and can perform detailed analysis.`;
+  }
+
+  return systemPrompt;
+};
+
+// Build conversation context string
+export const buildConversationContext = (
+  conversationHistory: string[] | undefined,
+  conversationSummary: string | undefined
+): string | undefined => {
+  if (!conversationHistory && !conversationSummary) {
+    return undefined;
+  }
+
+  let context = "";
+
+  if (conversationSummary) {
+    context += `Previous conversation summary:\n${conversationSummary}\n\n`;
+  }
+
+  if (conversationHistory && conversationHistory.length > 0) {
+    context += `Recent conversation:\n${conversationHistory.join("\n")}`;
+  }
+
+  return context || undefined;
+};
+
+// Build results context string - matches FullResultsChat format exactly
+export const buildResultsContext = (
+  results: any[],
+  contextDescription?: string
+): string => {
+  if (!results || results.length === 0) {
+    return "No search results available.";
+  }
+
+  let context = contextDescription || `You are analyzing ${results.length} search result(s).`;
+
+  context += `\n\nSEARCH RESULTS DATA:\n`;
+
+  // Format results exactly as FullResultsChat does
+  const formattedResults = results
+    .map((result, index) => {
+      const parts = [];
+      const isPage = !result.pageUid; // Pages don't have pageUid property
+
+      // UID (always present)
+      if (result.uid) parts.push(`UID: ${result.uid}`);
+
+      // Content first (most important)
+      if (result.expandedBlock?.original || result.content) {
+        const content = result.expandedBlock?.original || result.content;
+        parts.push(`Content: ${content}`);
+      } else {
+        parts.push(`Content: [Content not available]`);
+      }
+
+      // Location info differs between pages and blocks
+      if (isPage) {
+        // For pages: just indicate it's a page
+        if (result.pageTitle) parts.push(`Page: [[${result.pageTitle}]]`);
+      } else {
+        // For blocks: show which page they're in
+        if (result.pageTitle)
+          parts.push(`In page: [[${result.pageTitle}]]`);
+      }
+
+      // Parent info (only for blocks that have parent context)
+      if (result.expandedBlock?.parent) {
+        parts.push(`Parent: ${result.expandedBlock.parent}`);
+      }
+
+      // Children info (if available)
+      if (result.expandedBlock?.childrenOutline) {
+        parts.push(`Children:\n${result.expandedBlock.childrenOutline}`);
+      }
+
+      // Timestamps
+      if (result.created) parts.push(`Created: ${result.created}`);
+      if (result.modified) parts.push(`Modified: ${result.modified}`);
+
+      return `Result ${index + 1}:\n${parts.join("\n")}`;
+    })
+    .join("\n\n---\n\n");
+
+  context += formattedResults;
+
+  return context;
+};
+
+// Build tool descriptions for system prompt
+export const buildToolDescriptions = (tools: any[]): string => {
+  if (!tools || tools.length === 0) {
+    return "No tools available.";
+  }
+
+  let descriptions = "Available tools for searching and analyzing the knowledge graph:\n\n";
+
+  tools.forEach((tool) => {
+    descriptions += `- **${tool.name}**: ${tool.description || "No description"}\n`;
+  });
+
+  return descriptions;
+};
+
+// Template for conversation summarization
+export const SUMMARIZATION_PROMPT = `Summarize the following conversation between a user and assistant. Focus on:
+- Key topics discussed
+- Important findings or insights
+- User's goals or questions
+- Relevant context for future turns
+
+Keep the summary concise (2-3 paragraphs maximum).
+
+Conversation:
+{conversation}
+
+Summary:`;

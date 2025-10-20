@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { InputGroup, Button, Popover, Icon, Portal } from "@blueprintjs/core";
-import { PageReference } from "./utils/resultProcessing";
+import { PageReference } from "../../utils/resultProcessing";
 
 interface ReferencesFilterPopoverProps {
   availableReferences: PageReference[];
@@ -11,7 +11,9 @@ interface ReferencesFilterPopoverProps {
   onClearAll: () => void;
 }
 
-export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = ({
+export const ReferencesFilterPopover: React.FC<
+  ReferencesFilterPopoverProps
+> = ({
   availableReferences,
   includedReferences,
   excludedReferences,
@@ -24,20 +26,20 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
 
   // Add/remove CSS class to modal when popover opens/closes
   useEffect(() => {
-    const modal = document.querySelector('.full-results-modal');
+    const modal = document.querySelector(".full-results-modal");
     if (modal) {
       if (isOpen) {
-        modal.classList.add('references-filter-active');
+        modal.classList.add("references-filter-active");
       } else {
-        modal.classList.remove('references-filter-active');
+        modal.classList.remove("references-filter-active");
       }
     }
-    
+
     // Cleanup on unmount
     return () => {
-      const modal = document.querySelector('.full-results-modal');
+      const modal = document.querySelector(".full-results-modal");
       if (modal) {
-        modal.classList.remove('references-filter-active');
+        modal.classList.remove("references-filter-active");
       }
     };
   }, [isOpen]);
@@ -46,7 +48,7 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
   const filteredReferences = useMemo(() => {
     if (!searchTerm) return availableReferences;
     const searchLower = searchTerm.toLowerCase();
-    return availableReferences.filter(ref => 
+    return availableReferences.filter((ref) =>
       ref.title.toLowerCase().includes(searchLower)
     );
   }, [availableReferences, searchTerm]);
@@ -64,7 +66,7 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
   const renderReferenceButton = (ref: PageReference) => {
     const isIncluded = includedReferences.includes(ref.title);
     const isExcluded = excludedReferences.includes(ref.title);
-    
+
     let className = "reference-button";
     if (isIncluded) className += " included";
     if (isExcluded) className += " excluded";
@@ -99,9 +101,9 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
   };
 
   // Create unified list with "All Daily Notes" entry
-  const dailyNotes = filteredReferences.filter(ref => ref.isDaily);
-  const regularPages = filteredReferences.filter(ref => !ref.isDaily);
-  
+  const dailyNotes = filteredReferences.filter((ref) => ref.isDaily);
+  const regularPages = filteredReferences.filter((ref) => !ref.isDaily);
+
   // Create "All Daily Notes" synthetic entry if there are daily notes
   const allReferencesWithDNP = useMemo(() => {
     const refs = [...filteredReferences];
@@ -111,13 +113,14 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
         count: dailyNotes.length,
         isDaily: true,
         isResultPage: false,
-        isReferencedPage: false
+        isReferencedPage: false,
       });
     }
     return refs;
   }, [filteredReferences, dailyNotes.length]);
 
-  const hasActiveFilters = includedReferences.length > 0 || excludedReferences.length > 0;
+  const hasActiveFilters =
+    includedReferences.length > 0 || excludedReferences.length > 0;
 
   const popoverContent = (
     <div className="roam-references-filter-popover">
@@ -125,21 +128,28 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
       <div className="active-filters-section">
         {/* Includes */}
         <div className="filter-group">
-          <div className="filter-label">Includes <span className="filter-hint">Click to Add</span></div>
+          <div className="filter-label">
+            Includes <span className="filter-hint">Click to Add</span>
+          </div>
           {includedReferences.length > 0 && (
             <div className="filter-buttons">
-              {includedReferences.map(refTitle => {
-                const ref = availableReferences.find(r => r.title === refTitle) || 
-                          { title: refTitle, count: 0, isDaily: false };
+              {includedReferences.map((refTitle) => {
+                const ref = availableReferences.find(
+                  (r) => r.title === refTitle
+                ) || { title: refTitle, count: 0, isDaily: false };
                 return (
                   <button
                     key={ref.title}
                     className="reference-button included active"
                     onClick={() => onIncludeToggle(ref.title)}
                   >
-                    {ref.title === "All Daily Notes" && <Icon icon="calendar" size={12} />}
+                    {ref.title === "All Daily Notes" && (
+                      <Icon icon="calendar" size={12} />
+                    )}
                     <span className="reference-title">{ref.title}</span>
-                    {ref.count > 0 && <span className="reference-count">{ref.count}</span>}
+                    {ref.count > 0 && (
+                      <span className="reference-count">{ref.count}</span>
+                    )}
                   </button>
                 );
               })}
@@ -149,21 +159,28 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
 
         {/* Removes */}
         <div className="filter-group">
-          <div className="filter-label">Removes <span className="filter-hint">Shift-click to Add</span></div>
+          <div className="filter-label">
+            Removes <span className="filter-hint">Shift-click to Add</span>
+          </div>
           {excludedReferences.length > 0 && (
             <div className="filter-buttons">
-              {excludedReferences.map(refTitle => {
-                const ref = availableReferences.find(r => r.title === refTitle) ||
-                          { title: refTitle, count: 0, isDaily: false };
+              {excludedReferences.map((refTitle) => {
+                const ref = availableReferences.find(
+                  (r) => r.title === refTitle
+                ) || { title: refTitle, count: 0, isDaily: false };
                 return (
                   <button
                     key={ref.title}
                     className="reference-button excluded active"
                     onClick={() => onExcludeToggle(ref.title)}
                   >
-                    {ref.title === "All Daily Notes" && <Icon icon="calendar" size={12} />}
+                    {ref.title === "All Daily Notes" && (
+                      <Icon icon="calendar" size={12} />
+                    )}
                     <span className="reference-title">{ref.title}</span>
-                    {ref.count > 0 && <span className="reference-count">{ref.count}</span>}
+                    {ref.count > 0 && (
+                      <span className="reference-count">{ref.count}</span>
+                    )}
                   </button>
                 );
               })}
@@ -187,7 +204,9 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
           allReferencesWithDNP.map(renderReferenceButton)
         ) : (
           <div className="no-references">
-            {searchTerm ? `No references found matching "${searchTerm}"` : "No references available"}
+            {searchTerm
+              ? `No references found matching "${searchTerm}"`
+              : "No references available"}
           </div>
         )}
       </div>
@@ -214,14 +233,16 @@ export const ReferencesFilterPopover: React.FC<ReferencesFilterPopoverProps> = (
       modifiers={{
         preventOverflow: { enabled: true },
         flip: { enabled: true },
-        offset: { enabled: true }
+        offset: { enabled: true },
       }}
     >
       <Button
         icon="filter"
         minimal
         title="Filter by References"
-        className={`references-filter-trigger ${hasActiveFilters ? 'active' : ''}`}
+        className={`references-filter-trigger ${
+          hasActiveFilters ? "active" : ""
+        }`}
         onClick={() => setIsOpen(!isOpen)}
       />
     </Popover>

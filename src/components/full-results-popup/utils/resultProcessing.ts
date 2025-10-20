@@ -1,4 +1,4 @@
-import { Result, ViewMode, SortBy, SortOrder, DNPFilter } from "../types";
+import { Result, ViewMode, SortBy, SortOrder, DNPFilter } from "../types/types";
 
 export interface FilterAndSortOptions {
   searchFilter: string;

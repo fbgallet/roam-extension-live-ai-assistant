@@ -7,7 +7,7 @@ import {
   SortOrder,
   ChatMessage,
   DNPFilter,
-} from "../types";
+} from "../types/types";
 import { StoredQuery, PageSelection } from "../utils/queryStorage";
 import {
   UnifiedQuery,
@@ -646,7 +646,11 @@ export const useFullResultsState = (
       mode: "add" | "replace",
       model?: string,
       queryToExecute?: string
-    ): Promise<{ results: any[]; executionTime?: string; tokens?: any } | null> => {
+    ): Promise<{
+      results: any[];
+      executionTime?: string;
+      tokens?: any;
+    } | null> => {
       const queryText = queryToExecute || composerQuery;
       if (!queryText.trim()) return null;
 
@@ -680,7 +684,8 @@ export const useFullResultsState = (
         const newResults = (window as any).lastAskYourGraphResults || [];
 
         // Capture execution metadata
-        const executionTime = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+        const executionTime =
+          ((Date.now() - startTime) / 1000).toFixed(1) + "s";
         const tokens = getCurrentTokenUsage();
 
         // Restore the previous results to avoid interfering with the main popup

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Menu, MenuItem } from "@blueprintjs/core";
-import { Result } from "../types";
+import { Result } from "../types/types";
 import {
   StoredQuery,
   QueryStorage,
@@ -10,11 +10,7 @@ import {
   getCurrentQueryInfo,
   storeQuery,
 } from "../utils/queryStorage";
-import {
-  UnifiedQuery,
- 
-  createSimpleQuery,
-} from "../types/QueryTypes";
+import { UnifiedQuery, createSimpleQuery } from "../types/QueryTypes";
 
 interface UseQueryManagerProps {
   currentResults: Result[];

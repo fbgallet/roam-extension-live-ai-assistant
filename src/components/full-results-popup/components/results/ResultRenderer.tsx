@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import DOMPurify from "dompurify";
-import { Result, PageDisplayMode } from "./types";
-import { getHighlightedContent } from "./utils/resultProcessing";
+import { Result, PageDisplayMode } from "../../types/types";
+import { getHighlightedContent } from "../../utils/resultProcessing";
 
 // Separate component to handle block/page rendering with hooks
 export const BlockRenderer: React.FC<{
