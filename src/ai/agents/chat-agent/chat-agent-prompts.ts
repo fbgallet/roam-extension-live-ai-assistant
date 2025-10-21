@@ -9,7 +9,6 @@ export const buildChatSystemPrompt = ({
   style,
   commandPrompt,
   toolsEnabled,
-  toolDescriptions,
   conversationContext,
   resultsContext,
   accessMode,
@@ -18,13 +17,15 @@ export const buildChatSystemPrompt = ({
   style?: string;
   commandPrompt?: string;
   toolsEnabled: boolean;
-  toolDescriptions?: string;
   conversationContext?: string;
   resultsContext?: string;
   accessMode: "Balanced" | "Full Access";
   isAgentMode?: boolean;
 }): string => {
-  let systemPrompt = `You are an intelligent assistant helping users analyze and interact with their Roam Research knowledge graph.`;
+  // Different base prompt depending on whether we have search results context
+  let systemPrompt = resultsContext
+    ? `You are an intelligent assistant helping users analyze and interact with their Roam Research knowledge graph.`
+    : `You are an intelligent and helpful assistant. You can help with various tasks, answer questions, provide information, and assist with problem-solving.`;
 
   // Add command-specific instructions if provided
   if (commandPrompt) {
@@ -41,24 +42,29 @@ export const buildChatSystemPrompt = ({
     systemPrompt += `\n\n## Conversation Context\n${conversationContext}`;
   }
 
-  // Add tool usage guidance
-  if (toolsEnabled && toolDescriptions) {
-    systemPrompt += `\n\n## Available Tools\n${toolDescriptions}\n\nYou can use these tools to search and analyze the user's knowledge graph. Use tools when you need to find specific information or perform analysis that requires data from the graph.`;
+  // Add tool usage guidance - DON'T include tool descriptions when using bindTools
+  // LangChain's bindTools handles tool schemas automatically via the API
+  if (toolsEnabled) {
+    // Just add general guidance, no specific tool descriptions
+    systemPrompt += `\n\n## Tool Usage
+You have access to tools that can help analyze and search the knowledge graph. Use them when needed.`;
 
     // Add agent mode specific guidance
-    if (isAgentMode) {
-      systemPrompt += `\n\n### Deep Analysis Mode
-- Analyze the provided content first, then search only if you need additional context
-- When searching: use specific UIDs, purpose: "completion" for expanding context
-- Use fromResultId: "external_context_001" to reference the provided results
-- Focus on synthesis and deeper understanding`;
-    }
-  } else if (!toolsEnabled) {
+    //     if (isAgentMode) {
+    //       systemPrompt += `\n\n### Deep Analysis Mode
+    // - Analyze the provided content first, then search only if you need additional context
+    // - When searching: use specific UIDs, purpose: "completion" for expanding context
+    // - Use fromResultId: "external_context_001" to reference the provided results
+    // - Focus on synthesis and deeper understanding`;
+    //     }
+  } else {
     systemPrompt += `\n\n## Response Mode\nYou are operating in direct chat mode without access to search tools. Respond based on the provided context and your general knowledge.`;
   }
 
-  // Add response guidelines - matching FullResultsChat's detailed guidance
-  systemPrompt += `\n\n## Response Guidelines
+  // Add response guidelines - different based on context
+  if (resultsContext) {
+    // Guidelines for analyzing search results
+    systemPrompt += `\n\n## Response Guidelines
 
 ### Your Role - Provide Value Beyond Raw Data
 The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.
@@ -69,12 +75,6 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Use the full context** - leverage parent blocks, page context, and children to understand meaning
 - **Identify** relationships, contradictions, common themes, or missing pieces
 - **Be analytical** - help the user understand significance and context
-
-### Conversation Style
-- **Be concise and focused** - 2-3 key insights, not lengthy explanations (unless user asks for detail)
-- **Conversational and insightful** - like a thoughtful colleague reviewing the data
-- Build on previous conversation context when relevant
-- Don't repeat information unnecessarily
 
 ### Roam Formatting
 When referencing content from the knowledge graph, use Roam's syntax correctly:
@@ -87,24 +87,39 @@ When referencing content from the knowledge graph, use Roam's syntax correctly:
 - Point out connections and patterns across results
 - Use the rich context (parent/children/page) to truly understand what each block represents
 
-### Response Length
-- Be concise by default (2-3 key insights)
-- Provide more detail when explicitly requested
-- Use clear structure for complex responses
-
 Remember: The user wants concise understanding and analysis, not lengthy recaps.`;
+  } else {
+    // General conversation guidelines
+    systemPrompt += `\n\n## Response Guidelines
+
+### Conversation Style
+- **Be helpful and clear** - provide accurate, useful information
+- **Be concise** - get to the point quickly unless more detail is requested
+- **Be conversational** - friendly and approachable tone
+- Build on previous conversation context when relevant
+
+### Response Approach
+- Focus on understanding the user's actual need
+- Provide practical, actionable information
+- Ask clarifying questions when needed
+- Be honest about limitations
+
+Remember: Be helpful, clear, and concise.`;
+  }
 
   // Add style-specific formatting if provided
   if (style) {
     systemPrompt += `\n\n## Response Style\nFormat your response using the following style: ${style}`;
   }
 
-  // Add access mode context
-  systemPrompt += `\n\n## Access Mode\nCurrent access mode: ${accessMode}`;
-  if (accessMode === "Balanced") {
-    systemPrompt += `\nYou have access to metadata and structure. For detailed content analysis, tools may be needed.`;
-  } else {
-    systemPrompt += `\nYou have full access to content and can perform detailed analysis.`;
+  // Add access mode context only when we have search results
+  if (resultsContext) {
+    systemPrompt += `\n\n## Access Mode\nCurrent access mode: ${accessMode}`;
+    if (accessMode === "Balanced") {
+      systemPrompt += `\nYou have access to metadata and structure. For detailed content analysis, tools may be needed.`;
+    } else {
+      systemPrompt += `\nYou have full access to content and can perform detailed analysis.`;
+    }
   }
 
   return systemPrompt;
@@ -141,7 +156,9 @@ export const buildResultsContext = (
     return "No search results available.";
   }
 
-  let context = contextDescription || `You are analyzing ${results.length} search result(s).`;
+  let context =
+    contextDescription ||
+    `You are analyzing ${results.length} search result(s).`;
 
   context += `\n\nSEARCH RESULTS DATA:\n`;
 
@@ -168,8 +185,7 @@ export const buildResultsContext = (
         if (result.pageTitle) parts.push(`Page: [[${result.pageTitle}]]`);
       } else {
         // For blocks: show which page they're in
-        if (result.pageTitle)
-          parts.push(`In page: [[${result.pageTitle}]]`);
+        if (result.pageTitle) parts.push(`In page: [[${result.pageTitle}]]`);
       }
 
       // Parent info (only for blocks that have parent context)
@@ -201,10 +217,13 @@ export const buildToolDescriptions = (tools: any[]): string => {
     return "No tools available.";
   }
 
-  let descriptions = "Available tools for searching and analyzing the knowledge graph:\n\n";
+  let descriptions =
+    "Available tools for searching and analyzing the knowledge graph:\n\n";
 
   tools.forEach((tool) => {
-    descriptions += `- **${tool.name}**: ${tool.description || "No description"}\n`;
+    descriptions += `- **${tool.name}**: ${
+      tool.description || "No description"
+    }\n`;
   });
 
   return descriptions;

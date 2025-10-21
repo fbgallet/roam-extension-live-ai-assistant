@@ -19,8 +19,10 @@ interface ChatMessagesDisplayProps {
   isTyping: boolean;
   isStreaming: boolean;
   streamingContent: string;
+  currentToolUsage: string | null;
   modelTokensLimit: number;
   chatAccessMode: "Balanced" | "Full Access";
+  hasSearchResults: boolean;
   onCopyMessage: (content: string) => void;
   onSuggestionClick: (suggestion: string) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement>;
@@ -32,8 +34,10 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   isTyping,
   isStreaming,
   streamingContent,
+  currentToolUsage,
   modelTokensLimit,
   chatAccessMode,
+  hasSearchResults,
   onCopyMessage,
   onSuggestionClick,
   messagesContainerRef,
@@ -44,9 +48,18 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
         <div className="full-results-chat-welcome">
           <div className="full-results-chat-assistant-avatar">🤖</div>
           <div className="full-results-chat-assistant-message">
-            Hi! I can help you analyze and understand your search results. What
-            would you like to know?
-            <div className="full-results-chat-suggestions">
+            {hasSearchResults ? (
+              <>
+                Hi! I can help you analyze and understand your search results. What
+                would you like to know?
+              </>
+            ) : (
+              <>
+                Hi! I'm here to help. What can I assist you with today?
+              </>
+            )}
+            {hasSearchResults && (
+              <div className="full-results-chat-suggestions">
               <button
                 onClick={() =>
                   onSuggestionClick(
@@ -106,37 +119,40 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               )}
               */}
             </div>
-            <div className="full-results-chat-feature-hint">
-              <strong>
-                {(chatAccessMode === "Balanced" ? "🛡️ " : "🔓 ") +
-                  chatAccessMode}
-              </strong>{" "}
-              mode:{" "}
-              {chatAccessMode === "Balanced"
-                ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(
-                    (modelTokensLimit * 0.5) / 1000
-                  )}k tokens (50% of model context window, approx. ${Math.floor(
-                    (modelTokensLimit * 2) / 1000 / 6
-                  )}k words)`
-                : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(
-                    (modelTokensLimit * 0.75) / 1000
-                  )}k tokens (75% of model context window, approx. ${Math.floor(
-                    (modelTokensLimit * 3) / 1000 / 6
-                  )}k words)`}{" "}
-              {/* TODO: Future evolution - Deep Analysis mode
-              {chatMode === "agent" ? (
-                <>
-                  💡 <strong>Deep Analysis mode</strong>: I'll analyze your
-                  results first, then search for related content if needed!
-                </>
-              ) : (
-                <>
-                  💡 <strong>Chat mode</strong>: I'll focus on analyzing the
-                  content you've selected without additional searches.
-                </>
-              )}
-              */}
-            </div>
+            )}
+            {hasSearchResults && (
+              <div className="full-results-chat-feature-hint">
+                <strong>
+                  {(chatAccessMode === "Balanced" ? "🛡️ " : "🔓 ") +
+                    chatAccessMode}
+                </strong>{" "}
+                mode:{" "}
+                {chatAccessMode === "Balanced"
+                  ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(
+                      (modelTokensLimit * 0.5) / 1000
+                    )}k tokens (50% of model context window, approx. ${Math.floor(
+                      (modelTokensLimit * 2) / 1000 / 6
+                    )}k words)`
+                  : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(
+                      (modelTokensLimit * 0.75) / 1000
+                    )}k tokens (75% of model context window, approx. ${Math.floor(
+                      (modelTokensLimit * 3) / 1000 / 6
+                    )}k words)`}{" "}
+                {/* TODO: Future evolution - Deep Analysis mode
+                {chatMode === "agent" ? (
+                  <>
+                    💡 <strong>Deep Analysis mode</strong>: I'll analyze your
+                    results first, then search for related content if needed!
+                  </>
+                ) : (
+                  <>
+                    💡 <strong>Chat mode</strong>: I'll focus on analyzing the
+                    content you've selected without additional searches.
+                  </>
+                )}
+                */}
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -211,6 +227,10 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   __html: renderMarkdown(streamingContent),
                 }}
               />
+            ) : currentToolUsage ? (
+              <div className="full-results-chat-typing">
+                Using tool: {currentToolUsage}...
+              </div>
             ) : (
               <div className="full-results-chat-typing">Thinking...</div>
             )}

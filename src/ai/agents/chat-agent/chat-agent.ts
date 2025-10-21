@@ -16,8 +16,12 @@ import {
   START,
   Annotation,
 } from "@langchain/langgraph/web";
-import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import {
+  SystemMessage,
+  HumanMessage,
+} from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { concat } from "@langchain/core/utils/stream";
 import {
   LlmInfos,
   modelViaLanggraph,
@@ -30,7 +34,7 @@ import {
   buildResultsContext,
   SUMMARIZATION_PROMPT,
 } from "./chat-agent-prompts";
-import { getChatTools, getChatToolDescriptions } from "./chat-tools";
+import { getChatTools } from "./chat-tools";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -58,6 +62,8 @@ const ChatAgentState = Annotation.Root({
   isAgentMode: Annotation<boolean>,
   // Streaming
   streamingCallback: Annotation<((content: string) => void) | undefined>,
+  // Tool usage callback
+  toolUsageCallback: Annotation<((toolName: string) => void) | undefined>,
   // Timing
   startTime: Annotation<number>,
   // Tool results cache
@@ -92,12 +98,6 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   // Get tools based on permissions and tool enablement
   const chatTools = getChatTools(state.toolsEnabled, state.permissions);
 
-  // Build tool descriptions for system prompt
-  const toolDescriptions = getChatToolDescriptions(
-    state.toolsEnabled,
-    state.permissions
-  );
-
   // Build conversation context
   const conversationContext = buildConversationContext(
     state.conversationHistory,
@@ -109,12 +109,12 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     ? buildResultsContext(state.resultsContext, state.resultsDescription)
     : undefined;
 
-  // Build system prompt
+  // Build system prompt - NOTE: Don't include tool descriptions
+  // LangChain's bindTools() handles tool schemas automatically via the API
   const systemPrompt = buildChatSystemPrompt({
     style: state.style,
     commandPrompt: state.commandPrompt,
     toolsEnabled: state.toolsEnabled,
-    toolDescriptions,
     conversationContext,
     resultsContext,
     accessMode: state.accessMode,
@@ -149,7 +149,10 @@ const summarizeConversation = async (state: typeof ChatAgentState.State) => {
   }
 
   const conversationText = state.conversationHistory?.join("\n\n") || "";
-  const prompt = SUMMARIZATION_PROMPT.replace("{conversation}", conversationText);
+  const prompt = SUMMARIZATION_PROMPT.replace(
+    "{conversation}",
+    conversationText
+  );
 
   const response = await llm.invoke([new HumanMessage({ content: prompt })]);
   const summary = response.content.toString();
@@ -178,10 +181,15 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   const streamCallback = state.streamingCallback;
 
   if (streamCallback) {
-    // Stream the response
+    // Stream the response - use concat to properly accumulate tool call chunks
     const stream = await llm_with_tools.stream(messages);
+    let gathered: any = undefined;
 
     for await (const chunk of stream) {
+      // Use concat to properly merge chunks including tool_call_chunks
+      gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
+
+      // Stream content to callback as it arrives
       if (chunk.content) {
         const content = chunk.content.toString();
         streamingContent += content;
@@ -189,17 +197,40 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       }
     }
 
-    // Create final response message as proper AIMessage
-    const response = new AIMessage({
-      content: streamingContent,
-    });
+    // Check for tool calls and notify via callback
+    if (
+      state.toolUsageCallback &&
+      gathered &&
+      gathered.tool_calls &&
+      gathered.tool_calls.length > 0
+    ) {
+      const firstToolCall = gathered.tool_calls[0];
+      if (firstToolCall && firstToolCall.name) {
+        state.toolUsageCallback(firstToolCall.name);
+      }
+    }
 
+    // Return the gathered message (which has proper tool_calls)
     return {
-      messages: [...state.messages, response],
+      messages: [...state.messages, gathered],
     };
   } else {
     // Non-streaming response
     const response = await llm_with_tools.invoke(messages);
+
+    // Check for tool calls and notify via callback
+    if (
+      state.toolUsageCallback &&
+      "tool_calls" in response &&
+      Array.isArray(response.tool_calls) &&
+      response.tool_calls?.length > 0
+    ) {
+      // Notify about the first tool being used
+      const firstToolCall = response.tool_calls[0];
+      if (firstToolCall && firstToolCall.name) {
+        state.toolUsageCallback(firstToolCall.name);
+      }
+    }
 
     return {
       messages: [...state.messages, response],
@@ -274,11 +305,12 @@ const shouldContinue = (state: typeof ChatAgentState.State) => {
   const { messages } = state;
   const lastMessage = messages[messages.length - 1];
 
-  if (
+  const hasToolCalls =
     "tool_calls" in lastMessage &&
     Array.isArray(lastMessage.tool_calls) &&
-    lastMessage.tool_calls?.length > 0
-  ) {
+    lastMessage.tool_calls?.length > 0;
+
+  if (hasToolCalls) {
     return "tools";
   }
 

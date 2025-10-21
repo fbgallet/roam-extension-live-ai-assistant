@@ -35,6 +35,9 @@ export interface ChatAgentOptions {
   // Streaming
   streamingCallback?: (content: string) => void;
 
+  // Tool usage callback
+  toolUsageCallback?: (toolName: string) => void;
+
   // Token usage tracking
   tokensUsage?: TokensUsage;
 
@@ -101,6 +104,9 @@ export async function invokeChatAgent(
 
     // Streaming
     streamingCallback: options.streamingCallback,
+
+    // Tool usage callback
+    toolUsageCallback: options.toolUsageCallback,
 
     // Timing
     startTime,

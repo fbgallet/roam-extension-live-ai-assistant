@@ -97,6 +97,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(null);
   const [loadedChatUid, setLoadedChatUid] = useState<string | null>(null);
+  const [currentToolUsage, setCurrentToolUsage] = useState<string | null>(null);
 
   // Track command context for auto-execution
   const [commandContext, setCommandContext] = useState<{
@@ -222,6 +223,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsTyping(true);
       setIsStreaming(true);
       setStreamingContent("");
+      setCurrentToolUsage(null);
 
       try {
         const contextResults = getSelectedResultsForChat();
@@ -245,6 +247,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsTyping(false);
       setIsStreaming(false);
       setStreamingContent("");
+      setCurrentToolUsage(null);
     };
 
     if (isOpen && commandContext) {
@@ -586,7 +589,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       );
     }
   };
-  const [chatMode] = useState<ChatMode>("simple"); // TODO: Future evolution - Chat Mode vs Deep Analysis
+  const [chatMode, setChatMode] = useState<ChatMode>("simple");
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     []
@@ -886,6 +889,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(true);
     setIsStreaming(true);
     setStreamingContent("");
+    setCurrentToolUsage(null);
 
     try {
       const contextResults = getSelectedResultsForChat();
@@ -904,6 +908,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
+    setCurrentToolUsage(null);
   };
 
   const processChatMessage = async (
@@ -987,16 +992,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         commandPrompt = completionCommands[commandPromptFromCall];
       }
 
-      console.log(`💬 [Chat] Invoking chat agent:`, {
-        hasExpandedResults: expandedResults.length > 0,
-        chatMessagesCount: chatMessages.length,
-        conversationHistoryLength: currentConversationHistory.length,
-        agentConversationSummary: chatAgentData?.conversationSummary,
-        toolsEnabled: chatMode === "agent",
-        hasCommandPrompt: !!commandPrompt,
-        hasStyle: !!styleFromCall,
-      });
-
       // Invoke the chat agent
       const agentResult = await invokeChatAgent({
         model: modelAccordingToProvider(selectedModel),
@@ -1027,15 +1022,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           setStreamingContent((prev) => prev + content);
         },
 
+        // Tool usage callback
+        toolUsageCallback: (toolName: string) => {
+          setCurrentToolUsage(toolName);
+        },
+
         // Token usage from previous turns
         tokensUsage: chatAgentData?.tokensUsage,
       });
-
-      // Debug token usage
-      console.log(
-        "🔍 [Chat] Agent result tokensUsage:",
-        agentResult.tokensUsage
-      );
 
       // Update agent data for next conversation turn
       const newAgentData = {
@@ -1150,8 +1144,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isTyping={isTyping}
         isStreaming={isStreaming}
         streamingContent={streamingContent}
+        currentToolUsage={currentToolUsage}
         modelTokensLimit={modelTokensLimit}
         chatAccessMode={chatAccessMode}
+        hasSearchResults={allResults.length > 0}
         onCopyMessage={copyAssistantMessage}
         onSuggestionClick={setChatInput}
         messagesContainerRef={messagesContainerRef}
@@ -1164,6 +1160,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isTyping={isTyping}
         chatAccessMode={chatAccessMode}
         onAccessModeChange={setChatAccessMode}
+        chatMode={chatMode}
+        onChatModeChange={setChatMode}
         selectedModel={selectedModel}
         onModelSelect={setSelectedModel}
         chatInputRef={chatInputRef}

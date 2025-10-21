@@ -9,6 +9,11 @@ import {
   getAvailableTools,
   listAvailableToolNames,
 } from "../search-agent/tools/toolsRegistry";
+import {
+  CHAT_TOOLS,
+  getChatToolsFromRegistry,
+  listChatToolNames,
+} from "./tools/chatToolsRegistry";
 
 /**
  * Get tools for chat agent based on permissions and tool enablement
@@ -21,7 +26,13 @@ export const getChatTools = (
     return [];
   }
 
-  return getAvailableTools(permissions);
+  // For now, only return chat-specific tools (multiply) for testing
+  // TODO: Re-enable search tools once multiply tool is working
+  // const searchTools = getAvailableTools(permissions);
+  const chatTools = getChatToolsFromRegistry(permissions);
+
+  return chatTools; // Only chat-specific tools for now
+  // return [...searchTools, ...chatTools]; // Full set when ready
 };
 
 /**
@@ -35,12 +46,27 @@ export const getChatToolDescriptions = (
     return "";
   }
 
-  const toolNames = listAvailableToolNames(permissions);
+  // For now, only show chat-specific tools (multiply) for testing
+  // TODO: Re-enable search tools once multiply tool is working
+  // const searchToolNames = listAvailableToolNames(permissions);
+  const chatToolNames = listChatToolNames(permissions);
 
-  const descriptions = toolNames.map((name) => {
-    const toolInfo = SEARCH_TOOLS[name];
+  const descriptions = chatToolNames.map((name) => {
+    const toolInfo = CHAT_TOOLS[name];
     return `- **${name}**: ${toolInfo.description}`;
   });
+
+  // Full set when ready:
+  // const descriptions = [
+  //   ...searchToolNames.map((name) => {
+  //     const toolInfo = SEARCH_TOOLS[name];
+  //     return `- **${name}**: ${toolInfo.description}`;
+  //   }),
+  //   ...chatToolNames.map((name) => {
+  //     const toolInfo = CHAT_TOOLS[name];
+  //     return `- **${name}**: ${toolInfo.description}`;
+  //   }),
+  // ];
 
   return descriptions.join("\n");
 };

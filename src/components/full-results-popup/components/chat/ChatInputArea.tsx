@@ -5,8 +5,9 @@
  */
 
 import React, { useState } from "react";
-import { Button, HTMLSelect, Popover, TextArea } from "@blueprintjs/core";
+import { Button, HTMLSelect, Popover, TextArea, Switch } from "@blueprintjs/core";
 import ModelsMenu from "../../../ModelsMenu";
+import { ChatMode } from "../../types/types";
 
 interface ChatInputAreaProps {
   chatInput: string;
@@ -15,6 +16,8 @@ interface ChatInputAreaProps {
   isTyping: boolean;
   chatAccessMode: "Balanced" | "Full Access";
   onAccessModeChange: (mode: "Balanced" | "Full Access") => void;
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
   selectedModel: string;
   onModelSelect: (model: string) => void;
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
@@ -27,6 +30,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   isTyping,
   chatAccessMode,
   onAccessModeChange,
+  chatMode,
+  onChatModeChange,
   selectedModel,
   onModelSelect,
   chatInputRef,
@@ -54,6 +59,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               { label: "🛡️ Balanced", value: "Balanced" },
               { label: "🔓 Full Access", value: "Full Access" },
             ]}
+          />
+        </div>
+        <div className="full-results-chat-agentic-mode">
+          <Switch
+            checked={chatMode === "agent"}
+            onChange={(e) => onChatModeChange(e.currentTarget.checked ? "agent" : "simple")}
+            label="Agentic"
+            style={{ marginBottom: 0 }}
           />
         </div>
         <div className="full-results-chat-model-selector">
