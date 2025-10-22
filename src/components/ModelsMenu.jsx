@@ -51,6 +51,7 @@ const ModelsMenu = ({
     e.preventDefault();
     let model = getModelFromMenu(e, prefix, modelId);
     if (!isWebSearch) {
+      console.log("default model :>> ", model);
       setDefaultModel(model);
       setModel(model);
     } else {
@@ -629,13 +630,13 @@ const ModelsMenu = ({
               )}
             </>
           )}
-      {/* {openRouterOnly ? null : googleLibrary ? (
+      {openRouterOnly ? null : googleLibrary ? (
         <>
           {(openaiLibrary || anthropicLibrary || deepseekLibrary) && (
             <MenuDivider />
           )}
           <MenuItem
-            icon={defaultModel === "gemini-1.5-flash" && "pin"}
+            icon={defaultModel === "gemini-2.5-flash-lite" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -644,11 +645,11 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="gemini-1.5-flash"
+            text="gemini-2.5-flash-lite"
             labelElement="1000k"
           />
           <MenuItem
-            icon={defaultModel === "gemini-1.5-pro" && "pin"}
+            icon={defaultModel === "gemini-2.5-flash" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -657,11 +658,11 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="gemini-1.5-pro"
-            labelElement="2000k"
+            text="gemini-2.5-flash"
+            labelElement="1000k"
           />
           <MenuItem
-            icon={defaultModel === "gemini-2.0-flash-exp" && "pin"}
+            icon={defaultModel === "gemini-2.5-pro" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -670,13 +671,13 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="gemini-2.0-flash-exp"
+            text="gemini-2.5-pro"
             labelElement="2000k"
           />
         </>
       ) : (
         <MenuDivider className="menu-hint" title="No Google API key" />
-      )} */}
+      )}
       {openRouterModels.length && !isWebSearch ? (
         <>
           {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}

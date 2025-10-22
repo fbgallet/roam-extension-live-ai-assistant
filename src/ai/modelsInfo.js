@@ -50,6 +50,8 @@ export const getAvailableModels = (provider) => {
         "Grok-3-fast",
         "Grok-2 Vision",
       ];
+    case "Google":
+      return ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"];
   }
 };
 
@@ -90,9 +92,9 @@ export const tokensLimit = {
   "grok-3": 131072,
   "grok-3-fast": 131072,
   "grok-4": 131072,
-  "gemini-2.0-flash-exp": 1047576,
-  "gemini-1.5-flash": 1048576,
-  "gemini-1.5-pro": 2097152,
+  "gemini-2.5-flash-lite": 1048576,
+  "gemini-2.5-flash": 1048576,
+  "gemini-2.5-pro": 1048576,
   custom: undefined,
 };
 
@@ -246,6 +248,18 @@ export const modelsPricing = {
   "grok-4": {
     input: 3,
     output: 15,
+  },
+  "gemini-2.5-flash-lite": {
+    input: 0.1,
+    output: 0.4,
+  },
+  "gemini-2.5-flash": {
+    input: 0.3,
+    output: 2.5,
+  },
+  "gemini-2.5-pro": {
+    input: 1.25,
+    output: 10,
   },
 };
 

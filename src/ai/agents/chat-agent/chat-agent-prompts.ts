@@ -4,6 +4,8 @@
  * System prompts and templates for the chat agent
  */
 
+import { defaultAssistantCharacter } from "../../prompts";
+
 // Base system prompt for chat agent
 export const buildChatSystemPrompt = ({
   style,
@@ -23,9 +25,10 @@ export const buildChatSystemPrompt = ({
   isAgentMode?: boolean;
 }): string => {
   // Different base prompt depending on whether we have search results context
-  let systemPrompt = resultsContext
-    ? `You are an intelligent assistant helping users analyze and interact with their Roam Research knowledge graph.`
-    : `You are an intelligent and helpful assistant. You can help with various tasks, answer questions, provide information, and assist with problem-solving.`;
+  let systemPrompt =
+    defaultAssistantCharacter + resultsContext
+      ? `Your main purpose is to help users analyze and interact with their Roam Research knowledge graph through the selection of pages or blocks available in the context, thanks to Live AI interface and Ask 'Your Graph' agent queries.`
+      : `You can help with various tasks, answer questions, provide information, assist with problem-solving and follow a large set of built-in or custom prompts.`;
 
   // Add command-specific instructions if provided
   if (commandPrompt) {

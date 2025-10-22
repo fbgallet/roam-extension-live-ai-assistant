@@ -51,6 +51,7 @@ import {
 } from "../utils/format";
 import {
   claudeCompletion,
+  googleCompletion,
   imageGeneration,
   isAPIKeyNeeded,
   modelAccordingToProvider,
@@ -127,13 +128,14 @@ export async function aiCompletion({
     thinking: llm.thinking,
   };
 
-  if (
+  if (llm.provider === "Google") {
+    aiResponse = await googleCompletion(completionOptions);
+  } else if (
     llm.provider === "OpenAI" ||
     llm.provider === "openRouter" ||
     llm.provider === "groq" ||
     llm.provider === "DeepSeek" ||
     llm.provider === "Grok" ||
-    llm.provider === "Google" ||
     llm.provider === "custom"
   ) {
     aiResponse = await openaiCompletion(completionOptions);

@@ -1,5 +1,6 @@
 import {
   initializeAnthropicAPI,
+  initializeGoogleAPI,
   initializeOpenAIAPI,
   modelAccordingToProvider,
 } from "./ai/aiAPIsHub";
@@ -23,6 +24,7 @@ import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
   getAvailableModels,
   getModelsInfo,
+  normalizeModelId,
   updateTokenCounter,
 } from "./ai/modelsInfo";
 import {
@@ -125,6 +127,7 @@ export function updateAvailableModels() {
   if (ANTHROPIC_API_KEY)
     availableModels.push(...getAvailableModels("Anthropic"));
   if (DEEPSEEK_API_KEY) availableModels.push(...getAvailableModels("DeepSeek"));
+  if (GOOGLE_API_KEY) availableModels.push(...getAvailableModels("Google"));
   if (GROK_API_KEY) availableModels.push(...getAvailableModels("Grok"));
   if (OPENROUTER_API_KEY)
     availableModels.push(
@@ -567,36 +570,36 @@ function getPanelConfig() {
           },
         },
       },
-      // {
-      //   id: "googleapi",
-      //   name: "Google API Key",
-      //   description: (
-      //     <>
-      //       <span>Copy here your Google Gemini API key</span>
-      //       <br></br>
-      //       <a href="https://aistudio.google.com/app/apikey" target="_blank">
-      //         (Follow this link to generate a new one)
-      //       </a>
-      //       <br></br>
-      //     </>
-      //   ),
-      //   action: {
-      //     type: "input",
-      //     onChange: async (evt) => {
-      //       unmountComponent(position);
-      //       setTimeout(() => {
-      //         GOOGLE_API_KEY = evt.target.value;
-      //         googleLibrary = initializeOpenAIAPI(
-      //           GOOGLE_API_KEY,
-      //           "https://generativelanguage.googleapis.com/v1beta/openai/"
-      //         );
-      //       }, 200);
-      //       setTimeout(() => {
-      //         mountComponent(position);
-      //       }, 200);
-      //     },
-      //   },
-      // },
+      {
+        id: "googleapi",
+        name: "Google API Key",
+        description: (
+          <>
+            <span>Copy here your Google Gemini API key</span>
+            <br></br>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+            <br></br>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(() => {
+              GOOGLE_API_KEY = evt.target.value;
+              googleLibrary = initializeOpenAIAPI(
+                GOOGLE_API_KEY,
+                "https://generativelanguage.googleapis.com/v1beta/openai/"
+              );
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
       {
         id: "whisper",
         name: "Use OpenAI Speech API",
@@ -1253,9 +1256,9 @@ export default {
     if (extensionAPI.settings.get("grokapi") === null)
       await extensionAPI.settings.set("grokapi", "");
     GROK_API_KEY = extensionAPI.settings.get("grokapi");
-    // if (extensionAPI.settings.get("googleapi") === null)
-    //   await extensionAPI.settings.set("googleapi", "");
-    // GOOGLE_API_KEY = extensionAPI.settings.get("googleapi");
+    if (extensionAPI.settings.get("googleapi") === null)
+      await extensionAPI.settings.set("googleapi", "");
+    GOOGLE_API_KEY = extensionAPI.settings.get("googleapi");
     if (extensionAPI.settings.get("openrouterOnly") === null)
       await extensionAPI.settings.set("openrouterOnly", false);
     openRouterOnly = extensionAPI.settings.get("openrouterOnly");
@@ -1465,11 +1468,10 @@ export default {
       );
     if (GROK_API_KEY)
       grokLibrary = initializeOpenAIAPI(GROK_API_KEY, "https://api.x.ai/v1");
-    // if (GOOGLE_API_KEY)
-    //   googleLibrary = initializeOpenAIAPI(
-    //     GOOGLE_API_KEY,
-    //     "https://generativelanguage.googleapis.com/v1beta/openai/"
-    //   );
+    if (GOOGLE_API_KEY) {
+      googleLibrary = initializeGoogleAPI(GOOGLE_API_KEY);
+    }
+
     if (OPENROUTER_API_KEY) {
       openrouterLibrary = initializeOpenAIAPI(
         OPENROUTER_API_KEY,

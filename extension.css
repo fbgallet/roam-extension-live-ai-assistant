@@ -3052,7 +3052,7 @@ textarea.bp3-input.full-results-chat-input {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
   min-height: 40px;
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
 }
 
@@ -4086,4 +4086,69 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   .resize-handle-bar {
     background: #777;
   }
+}
+
+/* Chat Command Suggest Popover Alignment */
+.chat-command-suggest-popover {
+  width: fit-content;
+}
+
+.chat-command-suggest-popover .bp3-popover-content {
+  padding: 0 !important;
+}
+
+/* Ensure input and menu have same width */
+.chat-command-suggest-input {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* Menu alignment */
+.chat-command-suggest-popover .bp3-menu,
+.chat-command-suggest-menu.slash-mode.bp3-menu {
+  width: 100%;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Input container at bottom of menu */
+.chat-command-suggest-popover .bp3-input-group {
+  border-top: 1px solid #e1e8ed;
+  margin: 0;
+}
+
+/* Reorder Suggest component to have input at bottom */
+.chat-command-suggest-popover .bp3-popover-content {
+  display: flex;
+  flex-direction: column-reverse; /* Reverse order: input at bottom */
+}
+
+.chat-command-suggest-wrapper .bp3-input-group {
+  order: 2; /* Input at bottom */
+}
+
+.chat-command-suggest-popover .bp3-menu {
+  order: 1; /* Menu at top */
+}
+
+/* Hide input completely in slash mode */
+.chat-command-suggest-popover.slash-mode .bp3-input-group {
+  display: none !important;
+}
+
+/* Remove border when input is hidden */
+.chat-command-suggest-popover.slash-mode .bp3-menu {
+  border-top: none;
+}
+
+/* Ensure menu doesn't steal focus or block textarea */
+.chat-command-suggest-menu.slash-mode {
+  pointer-events: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Make sure popover doesn't interfere with textarea focus */
+.bp3-popover-content:has(.chat-command-suggest-menu.slash-mode) {
+  pointer-events: auto;
 }

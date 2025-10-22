@@ -55,6 +55,7 @@ import {
   getFormatedPdfRole,
   getResolvedContentFromBlocks,
 } from "./dataExtraction";
+import { GoogleGenAI } from "@google/genai";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -68,7 +69,7 @@ export function initializeOpenAIAPI(API_KEY, baseURL) {
         clientSetting.defaultHeaders = {
           "HTTP-Referer":
             "https://github.com/fbgallet/roam-extension-speech-to-roam", // Optional, for including your app on openrouter.ai rankings.
-          "X-Title": "Live AI Assistant for Roam Research", // Optional. Shows in rankings on openrouter.ai.
+          "X-Title": "Live AI for Roam Research", // Optional. Shows in rankings on openrouter.ai.
         };
     }
     const openai = new OpenAI(clientSetting);
@@ -76,7 +77,7 @@ export function initializeOpenAIAPI(API_KEY, baseURL) {
   } catch (error) {
     console.log(error.message);
     AppToaster.show({
-      message: `Live AI Assistant - Error during the initialization of OpenAI API: ${error.message}`,
+      message: `Live AI - Error during the initialization of OpenAI API: ${error.message}`,
     });
   }
 }
@@ -92,7 +93,20 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
     console.log("Error at initialization stage");
     console.log(error.message);
     AppToaster.show({
-      message: `Live AI Assistant - Error during the initialization of Anthropic API: ${error.message}`,
+      message: `Live AI - Error during the initialization of Anthropic API: ${error.message}`,
+    });
+  }
+}
+
+export function initializeGoogleAPI(apiKey) {
+  try {
+    const gemini = new GoogleGenAI({ apiKey });
+    return gemini;
+  } catch (error) {
+    console.log("Error at initialization stage");
+    console.log(error.message);
+    AppToaster.show({
+      message: `Live AI - Error during the initialization of Gemini API: ${error.message}`,
     });
   }
 }
@@ -411,6 +425,7 @@ export function modelAccordingToProvider(model) {
   } else if (model.includes("gemini")) {
     llm.provider = "Google";
     llm.id = model;
+    llm.name = model;
     llm.library = googleLibrary;
   } else {
     llm.provider = "OpenAI";
@@ -1030,6 +1045,156 @@ export async function openaiCompletion({
     console.error(error);
     AppToaster.show({
       message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
+    return respStr;
+  }
+}
+
+export async function googleCompletion({
+  aiClient,
+  model,
+  systemPrompt,
+  prompt,
+  command,
+  content,
+  responseFormat = "text",
+  targetUid,
+  isButtonToInsert,
+}) {
+  let respStr = "";
+  let usage = {};
+
+  try {
+    // Prepare system instruction and history in Google's format
+    const history = [];
+    const systemInstruction = systemPrompt + (content ? "\n\n" + content : "");
+    let currentMessage = "";
+
+    // Convert prompt array to Google's chat history format
+    for (let i = 0; i < prompt.length; i++) {
+      const msg = prompt[i];
+      if (msg.role === "assistant" || msg.role === "model") {
+        history.push({
+          role: "model",
+          parts: [{ text: msg.content }],
+        });
+      } else if (msg.role === "user") {
+        if (i === prompt.length - 1) {
+          // Last user message is the current message to send
+          currentMessage = msg.content;
+        } else {
+          history.push({
+            role: "user",
+            parts: [{ text: msg.content }],
+          });
+        }
+      }
+    }
+
+    console.log("Messages sent as prompt to Gemini:", {
+      systemInstruction,
+      history,
+      currentMessage,
+    });
+
+    const isToStream = streamResponse && responseFormat === "text";
+
+    const generationConfig = {};
+    if (responseFormat === "json_object") {
+      generationConfig.responseMimeType = "application/json";
+    }
+    if (modelTemperature !== null) {
+      generationConfig.temperature = modelTemperature;
+    }
+
+    // Create chat configuration
+    const chatConfig = {
+      model: model,
+      generationConfig,
+    };
+
+    // Add system instruction if provided
+    if (systemInstruction) {
+      chatConfig.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    // Add history if exists
+    if (history.length > 0) {
+      chatConfig.history = history;
+    }
+
+    // Create chat instance
+    const chat = aiClient.chats.create(chatConfig);
+
+    if (isToStream) {
+      if (isButtonToInsert)
+        insertInstantButtons({
+          model,
+          prompt,
+          content,
+          responseFormat,
+          targetUid,
+          isStreamStopped: false,
+        });
+      const streamElt = insertParagraphForStream(targetUid);
+
+      try {
+        const streamResponse = await chat.sendMessageStream({
+          message: currentMessage,
+        });
+
+        for await (const chunk of streamResponse) {
+          if (isCanceledStreamGlobal) {
+            streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+            break;
+          }
+          const chunkText = chunk.text || "";
+          respStr += chunkText;
+          streamElt.innerHTML += DOMPurify.sanitize(chunkText);
+
+          // Capture usage metadata if available in chunks
+          if (chunk.usageMetadata) {
+            usage = {
+              input_tokens: chunk.usageMetadata.promptTokenCount || 0,
+              output_tokens: chunk.usageMetadata.candidatesTokenCount || 0,
+            };
+          }
+        }
+      } catch (e) {
+        console.log("Error during Google stream response: ", e);
+        console.log(respStr);
+        return "";
+      } finally {
+        if (isCanceledStreamGlobal)
+          console.log("Google response stream interrupted.");
+        else streamElt.remove();
+      }
+    } else {
+      const response = await chat.sendMessage({ message: currentMessage });
+      console.log("Google response :>>", response);
+      respStr = response.text || "";
+
+      if (response.usageMetadata) {
+        usage = {
+          input_tokens: response.usageMetadata.promptTokenCount || 0,
+          output_tokens: response.usageMetadata.candidatesTokenCount || 0,
+        };
+      }
+    }
+
+    console.log(`Tokens usage (${model}):>> `, usage);
+
+    if (usage.input_tokens || usage.output_tokens) {
+      updateTokenCounter(model, usage);
+    }
+
+    console.log(respStr);
+    return respStr;
+  } catch (error) {
+    console.error(error);
+    AppToaster.show({
+      message: `Google AI error msg: ${error.message}`,
       timeout: 15000,
     });
     return respStr;

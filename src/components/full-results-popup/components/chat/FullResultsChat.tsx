@@ -15,6 +15,7 @@ import { AppToaster } from "../../../Toaster";
 import { extractConversationFromLiveAIChat } from "../../index";
 import { getChatTitleFromUid } from "../../utils/chatStorage";
 import { calculateTotalTokens } from "../../utils/chatMessageUtils";
+import { completionCommands } from "../../../../ai/prompts";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
 import { ChatInputArea } from "./ChatInputArea";
@@ -104,6 +105,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     commandPrompt?: string;
     commandName?: string;
     style?: string;
+    commandLabel?: string; // For translate commands with language
   } | null>(null);
 
   // Track the number of initial messages loaded from Roam
@@ -875,6 +877,92 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
 
+  /**
+   * Handle command selection from ChatCommandSuggest
+   * Instantly execute the command by creating a user message and setting command context
+   */
+  const handleCommandSelect = async (command: any, isFromSlashCommand: boolean = false) => {
+    console.log("🎯 Command selected:", command, "fromSlash:", isFromSlashCommand);
+
+    if (isTyping) {
+      console.warn("⚠️ Cannot execute command while agent is responding");
+      return;
+    }
+
+    // Mark as auto-executed to prevent the auto-execution effect from running
+    hasAutoExecutedRef.current = true;
+
+    // Determine the content to process:
+    // When from slash command, extract the content BEFORE the slash command
+    // Example: "analyze this text /summarize" -> content = "analyze this text"
+    let contentToProcess = chatInput.trim();
+
+    if (isFromSlashCommand) {
+      // Find the last "/" and extract everything before it
+      const lastSlashIndex = contentToProcess.lastIndexOf("/");
+      if (lastSlashIndex !== -1) {
+        contentToProcess = contentToProcess.substring(0, lastSlashIndex).trim();
+      } else {
+        // No slash found (shouldn't happen, but handle gracefully)
+        contentToProcess = "";
+      }
+    }
+
+    // Create user message with just the content (command name will be shown via commandContext)
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: contentToProcess || "", // Empty content means analyzing search results
+      timestamp: new Date(),
+    };
+
+    // Set command context - this will be used by ChatMessagesDisplay to show [Command Name]
+    setCommandContext({
+      commandPrompt: command.prompt, // This is the key in completionCommands (e.g., "summarize") or custom prompt UID
+      commandName: command.name, // Display name (e.g., "Summarize")
+      style: undefined, // No style for now
+      commandLabel: command.label, // For translate commands, this contains the language
+    });
+
+    // Add user message to chat
+    setChatMessages((prev) => [...prev, userMessage]);
+
+    // Clear input
+    setChatInput("");
+
+    // Set typing state
+    setIsTyping(true);
+    setIsStreaming(true);
+    setStreamingContent("");
+    setCurrentToolUsage(null);
+
+    // Execute the command immediately
+    try {
+      const contextResults = getSelectedResultsForChat();
+
+      await processChatMessageWithCommand(
+        contentToProcess, // The actual user input content (or empty if analyzing results)
+        contextResults,
+        command.prompt, // The command prompt key (e.g., "summarize")
+        undefined // No style
+      );
+    } catch (error) {
+      console.error("Error executing command:", error);
+      const errorMessage: ChatMessage = {
+        role: "assistant",
+        content:
+          "I encountered an error processing your request. Please try again.",
+        timestamp: new Date(),
+      };
+      setChatMessages((prev) => [...prev, errorMessage]);
+    }
+
+    // Clear typing state after completion
+    setIsTyping(false);
+    setIsStreaming(false);
+    setStreamingContent("");
+    setCurrentToolUsage(null);
+  };
+
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || isTyping) return;
 
@@ -989,7 +1077,24 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       let commandPrompt: string | undefined = undefined;
       if (commandPromptFromCall) {
         const { completionCommands } = await import("../../../../ai/prompts");
-        commandPrompt = completionCommands[commandPromptFromCall];
+        const { getCustomPromptByUid } = await import("../../../../ai/dataExtraction");
+
+        // Check if it's a custom prompt (UID format)
+        if (commandPromptFromCall.length === 9) {
+          // It's a custom prompt UID
+          const customCommand = getCustomPromptByUid(commandPromptFromCall);
+          commandPrompt = customCommand?.prompt;
+        } else {
+          // It's a builtin command
+          commandPrompt = completionCommands[commandPromptFromCall];
+
+          // Handle <language> placeholder for translate commands
+          if (commandPrompt && commandPrompt.includes("<language>")) {
+            // Get the language from the commandLabel (label contains the language name)
+            const language = commandContext?.commandLabel || "English";
+            commandPrompt = commandPrompt.replace(/<language>/g, language);
+          }
+        }
       }
 
       // Invoke the chat agent
@@ -1165,6 +1270,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         selectedModel={selectedModel}
         onModelSelect={setSelectedModel}
         chatInputRef={chatInputRef}
+        onCommandSelect={handleCommandSelect}
       />
     </div>
   );
