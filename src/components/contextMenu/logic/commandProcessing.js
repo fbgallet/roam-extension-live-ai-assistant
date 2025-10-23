@@ -107,6 +107,16 @@ export const handleClickOnCommand = async ({
       capturedHasContext = true;
     }
 
+    // Block content as prompt become "prompt"
+    if (
+      command.id === 0 ||
+      command.id === 1 ||
+      command.id === 100 ||
+      command.id === 102
+    ) {
+      command.prompt = "prompt";
+    }
+
     // Open chat with the user content in the input field
     // FullResultsChat will execute the command when user sends
     await openChatPopup({

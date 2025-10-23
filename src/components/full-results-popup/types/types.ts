@@ -17,6 +17,8 @@ export interface ChatMessage {
   timestamp: Date;
   tokensIn?: number;
   tokensOut?: number;
+  commandName?: string;
+  commandPrompt?: string;
 }
 
 export interface FullResultsPopupProps {

@@ -5,7 +5,13 @@
  */
 
 import React, { useState, useRef, useEffect } from "react";
-import { Button, HTMLSelect, Popover, Switch } from "@blueprintjs/core";
+import {
+  Button,
+  HTMLSelect,
+  Popover,
+  Switch,
+  Tooltip,
+} from "@blueprintjs/core";
 import ModelsMenu from "../../../ModelsMenu";
 import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
@@ -154,80 +160,94 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             ]}
           />
         </div>
-        <div className="full-results-chat-agentic-mode">
-          <Switch
-            checked={chatMode === "agent"}
-            onChange={(e) =>
-              onChatModeChange(e.currentTarget.checked ? "agent" : "simple")
-            }
-            label="Agentic"
-            style={{ marginBottom: 0 }}
-          />
-        </div>
-        <div className="full-results-chat-command-suggest">
-          <Popover
-            minimal={true}
-            isOpen={isCommandSuggestOpen}
-            onInteraction={(nextOpenState) => {
-              // Don't close in slash mode via interaction
-              if (!slashCommandMode) {
-                setIsCommandSuggestOpen(nextOpenState);
+        <Tooltip content="Toogle capacity to handle tools">
+          <div className="full-results-chat-agentic-mode">
+            <Switch
+              checked={chatMode === "agent"}
+              onChange={(e) =>
+                onChatModeChange(e.currentTarget.checked ? "agent" : "simple")
               }
-            }}
-            content={
-              <ChatCommandSuggest
-                onCommandSelect={handleCommandSelect}
-                inputRef={commandSuggestInputRef}
-                onClose={() => {
-                  setIsCommandSuggestOpen(false);
-                  setSlashCommandMode(false);
-                }}
-                initialQuery={getSlashQuery()}
-                isSlashMode={slashCommandMode}
-              />
-            }
-            placement="top"
-            enforceFocus={false}
-            autoFocus={false}
-            canEscapeKeyClose={slashCommandMode}
-          >
-            <Button
-              minimal
-              small
-              icon="lightbulb"
-              title="Browse available commands"
-              onClick={() => {
+              label="Agentic"
+              style={{ marginBottom: 0 }}
+            />
+          </div>
+        </Tooltip>
+        <Tooltip
+          content={
+            <p>
+              Apply built-in or custom prompt
+              <br />
+              - on user input below or, if none,
+              <br />
+              - on selected context or, if none,
+              <br />- on conversation history
+            </p>
+          }
+        >
+          <div className="full-results-chat-command-suggest">
+            <Popover
+              minimal={true}
+              isOpen={isCommandSuggestOpen}
+              onInteraction={(nextOpenState) => {
+                // Don't close in slash mode via interaction
                 if (!slashCommandMode) {
-                  setIsCommandSuggestOpen(true);
+                  setIsCommandSuggestOpen(nextOpenState);
                 }
               }}
-            />
-          </Popover>
-        </div>
-        <div className="full-results-chat-model-selector">
-          <Popover
-            isOpen={isModelMenuOpen}
-            onInteraction={(nextOpenState) => setIsModelMenuOpen(nextOpenState)}
-            content={
-              <ModelsMenu
-                callback={handleModelSelection}
-                setModel={onModelSelect}
-                command={null}
-                prompt=""
-                isConversationToContinue={false}
-              />
-            }
-            placement="top"
-          >
-            <Button
-              minimal
-              small
-              icon="cog"
-              text={selectedModel}
-              title="Click to change AI model"
-            />
-          </Popover>
-        </div>
+              content={
+                <ChatCommandSuggest
+                  onCommandSelect={handleCommandSelect}
+                  inputRef={commandSuggestInputRef}
+                  onClose={() => {
+                    setIsCommandSuggestOpen(false);
+                    setSlashCommandMode(false);
+                  }}
+                  initialQuery={getSlashQuery()}
+                  isSlashMode={slashCommandMode}
+                />
+              }
+              placement="top"
+              enforceFocus={false}
+              autoFocus={false}
+              canEscapeKeyClose={slashCommandMode}
+            >
+              <Button
+                minimal
+                small
+                icon="rocket"
+                onClick={() => {
+                  if (!slashCommandMode) {
+                    setIsCommandSuggestOpen(true);
+                  }
+                }}
+              >
+                Prompts
+              </Button>
+            </Popover>
+          </div>
+        </Tooltip>
+        <Tooltip content="Switch AI model">
+          <div className="full-results-chat-model-selector">
+            <Popover
+              isOpen={isModelMenuOpen}
+              onInteraction={(nextOpenState) =>
+                setIsModelMenuOpen(nextOpenState)
+              }
+              content={
+                <ModelsMenu
+                  callback={handleModelSelection}
+                  setModel={onModelSelect}
+                  command={null}
+                  prompt=""
+                  isConversationToContinue={false}
+                />
+              }
+              placement="top"
+            >
+              <Button minimal small icon="cog" text={selectedModel} />
+            </Popover>
+          </div>
+        </Tooltip>
       </div>
 
       {/* Future evolution: Chat Mode vs Deep Analysis - currently hidden

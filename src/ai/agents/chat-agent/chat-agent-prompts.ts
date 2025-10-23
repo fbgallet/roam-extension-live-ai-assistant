@@ -4,10 +4,11 @@
  * System prompts and templates for the chat agent
  */
 
-import { defaultAssistantCharacter } from "../../prompts";
+import { completionCommands, defaultAssistantCharacter } from "../../prompts";
 
 // Base system prompt for chat agent
 export const buildChatSystemPrompt = ({
+  lastMessage,
   style,
   commandPrompt,
   toolsEnabled,
@@ -16,6 +17,7 @@ export const buildChatSystemPrompt = ({
   accessMode,
   isAgentMode,
 }: {
+  lastMessage: string;
   style?: string;
   commandPrompt?: string;
   toolsEnabled: boolean;
@@ -26,14 +28,19 @@ export const buildChatSystemPrompt = ({
 }): string => {
   // Different base prompt depending on whether we have search results context
   let systemPrompt =
-    defaultAssistantCharacter + resultsContext
+    defaultAssistantCharacter +
+    (resultsContext.length
       ? `Your main purpose is to help users analyze and interact with their Roam Research knowledge graph through the selection of pages or blocks available in the context, thanks to Live AI interface and Ask 'Your Graph' agent queries.`
-      : `You can help with various tasks, answer questions, provide information, assist with problem-solving and follow a large set of built-in or custom prompts.`;
+      : `You can help with various tasks, answer questions, provide information, assist with problem-solving and follow a large set of built-in or custom prompts.`);
 
   // Add command-specific instructions if provided
-  if (commandPrompt) {
-    systemPrompt += `\n\n## Task Instructions\n${commandPrompt}`;
-  }
+  let completeCommandPrompt = buildCompleteCommandPrompt(
+    commandPrompt,
+    lastMessage || resultsContext
+  );
+  if (completeCommandPrompt)
+    systemPrompt += `\n\n## Task Instructions\n${completeCommandPrompt}`;
+  console.log("systemPrompt :>> ", systemPrompt);
 
   // Add results context if available
   if (resultsContext) {
@@ -128,6 +135,30 @@ Remember: Be helpful, clear, and concise.`;
   return systemPrompt;
 };
 
+// Build command instructions
+export const buildCompleteCommandPrompt = (
+  commandPrompt: string | undefined,
+  content: string | undefined
+): string => {
+  let commandInstructions = "";
+  if (commandPrompt) {
+    const splittedCommand = commandPrompt.split(":");
+    commandInstructions = completionCommands[splittedCommand[0]];
+
+    commandInstructions = commandInstructions.replace(
+      "<target content>",
+      content
+    );
+
+    if (splittedCommand.length > 1)
+      commandInstructions = commandInstructions.replace(
+        "<language>",
+        splittedCommand[1]
+      );
+  }
+  return commandInstructions;
+};
+
 // Build conversation context string
 export const buildConversationContext = (
   conversationHistory: string[] | undefined,
@@ -156,7 +187,7 @@ export const buildResultsContext = (
   contextDescription?: string
 ): string => {
   if (!results || results.length === 0) {
-    return "No search results available.";
+    return "";
   }
 
   let context =

@@ -68,6 +68,7 @@ import { uidRegex } from "../utils/regex";
 import { BUILTIN_STYLES, customStyles } from "../components/contextMenu";
 import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
+import { openChatPopup } from "../components/full-results-popup";
 
 export const lastCompletion = {
   prompt: null,

@@ -2,7 +2,12 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { invokeChatAgent } from "../../../../ai/agents/chat-agent/chat-agent-invoke";
 import { Result, ChatMessage, ChatMode } from "../../types/types";
 import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/helpers/contextExpansion";
-import { extensionStorage, defaultModel, chatRoles } from "../../../..";
+import {
+  extensionStorage,
+  defaultModel,
+  chatRoles,
+  getInstantAssistantRole,
+} from "../../../..";
 import {
   getBlockContentByUid,
   getPageUidByPageName,
@@ -19,6 +24,7 @@ import { completionCommands } from "../../../../ai/prompts";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
 import { ChatInputArea } from "./ChatInputArea";
+import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -105,7 +111,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     commandPrompt?: string;
     commandName?: string;
     style?: string;
-    commandLabel?: string; // For translate commands with language
   } | null>(null);
 
   // Track the number of initial messages loaded from Roam
@@ -160,41 +165,37 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
 
     // Initialize command context if provided
+    let commandName: string;
     if (initialCommandPrompt || initialCommandId || initialStyle) {
       // Get command name from BUILTIN_COMMANDS
-      let commandName = "Custom Command";
       if (initialCommandId) {
-        // Import BUILTIN_COMMANDS to get the command name
-        import("../../../../ai/prebuildCommands").then(
-          ({ BUILTIN_COMMANDS }) => {
-            const command = BUILTIN_COMMANDS.find(
-              (cmd) => cmd.id === initialCommandId
-            );
-            if (command) {
-              commandName = command.name;
-            }
-
-            console.log("📝 Setting command context:", {
-              commandPrompt: initialCommandPrompt,
-              commandName,
-              style: initialStyle,
-            });
-
-            setCommandContext({
-              commandPrompt: initialCommandPrompt,
-              commandName,
-              style: initialStyle,
-            });
-          }
+        const command = BUILTIN_COMMANDS.find(
+          (cmd) => cmd.id === initialCommandId
         );
-      } else {
+        if (command) {
+          commandName = command.name;
+        }
+
+        console.log("📝 Setting command context:", {
+          commandPrompt: initialCommandPrompt,
+          commandName,
+          style: initialStyle,
+        });
+
         setCommandContext({
           commandPrompt: initialCommandPrompt,
           commandName,
           style: initialStyle,
         });
       }
+    } else {
+      setCommandContext({
+        commandPrompt: initialCommandPrompt,
+        commandName,
+        style: initialStyle,
+      });
     }
+    // }
   }, [
     initialChatMessages,
     initialChatPrompt,
@@ -221,6 +222,19 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       console.log("🚀 Auto-executing command:", commandContext);
       hasAutoExecutedRef.current = true;
 
+      // Update the last message to include command info if it doesn't have it yet
+      if (!lastMessage.commandName && commandContext?.commandName) {
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...lastMessage,
+            commandName: commandContext?.commandName,
+            commandPrompt: commandContext?.commandPrompt,
+          };
+          return updated;
+        });
+      }
+
       // Trigger the chat submission with the user's message
       setIsTyping(true);
       setIsStreaming(true);
@@ -229,12 +243,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       try {
         const contextResults = getSelectedResultsForChat();
-        await processChatMessageWithCommand(
-          lastMessage.content,
-          contextResults,
-          commandContext.commandPrompt,
-          commandContext.style
-        );
+        if (commandContext?.commandPrompt === "prompt") {
+          await processChatMessage(lastMessage.content, contextResults);
+        } else
+          await processChatMessageWithCommand(
+            lastMessage.content,
+            contextResults,
+            commandContext?.commandPrompt,
+            commandContext?.commandName,
+            commandContext?.style
+          );
       } catch (error) {
         console.error("Auto-execution error:", error);
         const errorMessage: ChatMessage = {
@@ -250,6 +268,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsStreaming(false);
       setStreamingContent("");
       setCurrentToolUsage(null);
+
+      // Reset command context after processing
+      setCommandContext(null);
     };
 
     if (isOpen && commandContext) {
@@ -704,11 +725,23 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const rolePrefix =
           msg.role === "user" ? chatRoles.user : chatRoles.assistant;
 
-        // Ensure content exists
-        const messageContent = msg.content || "";
+        // Build the full content including command name if present
+        const shouldShowCommandName =
+          msg.role === "user" &&
+          msg.commandName &&
+          msg.commandPrompt !== "prompt";
+
+        let fullContent = "";
+        if (shouldShowCommandName) {
+          fullContent = msg.content
+            ? `**[${msg.commandName}]**\n\n${msg.content}`
+            : `**[${msg.commandName}]**`;
+        } else {
+          fullContent = msg.content || "";
+        }
 
         // Split content by double newlines (paragraph separator)
-        const paragraphs = messageContent
+        const paragraphs = fullContent
           .split(/\n\n+/)
           .map((p) => p.trim())
           .filter((p) => p.length > 0);
@@ -722,7 +755,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           conversationText += "\n";
         } else {
           // Single paragraph: inline format
-          conversationText += `${rolePrefix}${messageContent}\n\n`;
+          conversationText += `${rolePrefix}${fullContent}\n\n`;
         }
       });
 
@@ -742,31 +775,39 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const copyAssistantMessage = async (messageContent: string) => {
-    // Remove HTML tags for clean text copy
-    const cleanText = messageContent
-      .replace(/<[^>]*>/g, "")
-      .replace(/&[^;]+;/g, " ")
-      .trim();
+    // Keep markdown formatting but remove HTML tags
+    const cleanText = messageContent.replace(/<[^>]*>/g, "").trim();
     await copyToClipboard(cleanText);
   };
 
   const copyFullConversation = async () => {
+    const assistantRole = getInstantAssistantRole(selectedModel);
     const conversationText = chatMessages
       .map((msg, index) => {
-        const cleanContent = msg.content
-          .replace(/<[^>]*>/g, "")
-          .replace(/&[^;]+;/g, " ")
-          .trim();
-        const role = msg.role === "user" ? "You" : "Assistant";
-        const timestamp = msg.timestamp.toLocaleString();
-        return `${index + 1}. ${role} (${timestamp}):\n${cleanContent}`;
-      })
-      .join("\n\n---\n\n");
+        // Build the full content including command name if present
+        const shouldShowCommandName =
+          msg.role === "user" &&
+          msg.commandName &&
+          msg.commandPrompt !== "prompt";
 
-    const header = `Chat conversation about ${
-      getSelectedResultsForChat().length
-    } search results\nExported: ${new Date().toLocaleString()}\n\n`;
-    await copyToClipboard(header + conversationText);
+        let fullContent = "";
+        if (shouldShowCommandName) {
+          fullContent = msg.content
+            ? `**[${msg.commandName}]**\n\n${msg.content}`
+            : `**[${msg.commandName}]**`;
+        } else {
+          fullContent = msg.content;
+        }
+
+        // Keep markdown formatting but remove HTML tags
+        const cleanContent = fullContent.replace(/<[^>]*>/g, "").trim();
+
+        const role = msg.role === "user" ? chatRoles.user : assistantRole;
+        return `${role}\n  ${cleanContent}`;
+      })
+      .join("\n");
+
+    await copyToClipboard(conversationText);
   };
 
   // Model selection is now handled by ChatInputArea component
@@ -881,8 +922,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
    * Handle command selection from ChatCommandSuggest
    * Instantly execute the command by creating a user message and setting command context
    */
-  const handleCommandSelect = async (command: any, isFromSlashCommand: boolean = false) => {
-    console.log("🎯 Command selected:", command, "fromSlash:", isFromSlashCommand);
+  const handleCommandSelect = async (
+    command: any,
+    isFromSlashCommand: boolean = false
+  ) => {
+    console.log(
+      "🎯 Command selected:",
+      command,
+      "fromSlash:",
+      isFromSlashCommand
+    );
 
     if (isTyping) {
       console.warn("⚠️ Cannot execute command while agent is responding");
@@ -908,19 +957,20 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }
     }
 
-    // Create user message with just the content (command name will be shown via commandContext)
+    // Create user message with command info attached
     const userMessage: ChatMessage = {
       role: "user",
       content: contentToProcess || "", // Empty content means analyzing search results
       timestamp: new Date(),
+      commandName: command.name, // Display name (e.g., "Summarize")
+      commandPrompt: command.prompt, // This is the key in completionCommands (e.g., "summarize") or custom prompt UID
     };
 
-    // Set command context - this will be used by ChatMessagesDisplay to show [Command Name]
+    // Set command context for processing (will be reset after)
     setCommandContext({
-      commandPrompt: command.prompt, // This is the key in completionCommands (e.g., "summarize") or custom prompt UID
-      commandName: command.name, // Display name (e.g., "Summarize")
-      style: undefined, // No style for now
-      commandLabel: command.label, // For translate commands, this contains the language
+      commandPrompt: command.prompt,
+      commandName: command.name,
+      style: undefined,
     });
 
     // Add user message to chat
@@ -943,6 +993,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         contentToProcess, // The actual user input content (or empty if analyzing results)
         contextResults,
         command.prompt, // The command prompt key (e.g., "summarize")
+        command.name,
         undefined // No style
       );
     } catch (error) {
@@ -961,6 +1012,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsStreaming(false);
     setStreamingContent("");
     setCurrentToolUsage(null);
+
+    // Reset command context after processing
+    setCommandContext(null);
   };
 
   const handleChatSubmit = async () => {
@@ -1003,6 +1057,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     message: string,
     contextResults: Result[],
     commandPromptFromCall?: string,
+    commandNameFromCall?: string,
     styleFromCall?: string
   ) => {
     try {
@@ -1075,25 +1130,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Get command prompt if provided
       let commandPrompt: string | undefined = undefined;
+      let commandName: string | undefined =
+        commandNameFromCall || commandContext?.commandName;
+      console.log("commandPromptFromCall :>> ", commandPromptFromCall);
+      console.log("commandContext :>> ", commandContext);
       if (commandPromptFromCall) {
-        const { completionCommands } = await import("../../../../ai/prompts");
-        const { getCustomPromptByUid } = await import("../../../../ai/dataExtraction");
+        // // Check if it's a custom prompt (UID format)
+        // if (commandPromptFromCall.length === 9) {
+        //   // It's a custom prompt UID
+        //   const customCommand = getCustomPromptByUid(commandPromptFromCall);
+        //   commandPrompt = customCommand?.prompt;
+        // } else {
+        // It's a builtin command
+        // commandPrompt = completionCommands[commandPromptFromCall];
 
-        // Check if it's a custom prompt (UID format)
-        if (commandPromptFromCall.length === 9) {
-          // It's a custom prompt UID
-          const customCommand = getCustomPromptByUid(commandPromptFromCall);
-          commandPrompt = customCommand?.prompt;
-        } else {
-          // It's a builtin command
-          commandPrompt = completionCommands[commandPromptFromCall];
-
-          // Handle <language> placeholder for translate commands
-          if (commandPrompt && commandPrompt.includes("<language>")) {
-            // Get the language from the commandLabel (label contains the language name)
-            const language = commandContext?.commandLabel || "English";
-            commandPrompt = commandPrompt.replace(/<language>/g, language);
-          }
+        // Handle <language> placeholder for translate commands
+        if (commandPromptFromCall === "translate") {
+          // Get the language from the commandLabel (label contains the language name)
+          // }
+          commandPromptFromCall += `:${
+            commandName?.includes("Translate to")
+              ? commandName?.split("(")[1]?.slice(0, -1)
+              : commandName
+          }`;
+          // console.log("commandPrompt after :>> ", commandPrompt);
         }
       }
 
@@ -1108,7 +1168,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Configuration
         style: styleFromCall,
-        commandPrompt: commandPrompt,
+        commandPrompt: commandPromptFromCall,
         toolsEnabled: chatMode === "agent", // Enable tools only in agent mode
         accessMode: chatAccessMode,
         isAgentMode: chatMode === "agent",
@@ -1199,6 +1259,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     message: string,
     contextResults: Result[],
     commandPromptKey?: string,
+    commandName?: string,
     styleKey?: string
   ) => {
     try {
@@ -1213,6 +1274,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         message,
         contextResults,
         commandPromptKey,
+        commandName,
         styleKey
       );
     } catch (error) {
@@ -1245,7 +1307,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       <ChatMessagesDisplay
         chatMessages={chatMessages}
-        commandContext={commandContext}
         isTyping={isTyping}
         isStreaming={isStreaming}
         streamingContent={streamingContent}

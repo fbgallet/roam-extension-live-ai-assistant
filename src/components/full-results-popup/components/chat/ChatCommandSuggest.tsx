@@ -347,7 +347,6 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
           autoFocus: true,
         }}
         popoverProps={{
-          minimal: true,
           placement: "top-start",
           popoverClassName: "chat-command-suggest-popover",
           isOpen: true,

@@ -16,10 +16,7 @@ import {
   START,
   Annotation,
 } from "@langchain/langgraph/web";
-import {
-  SystemMessage,
-  HumanMessage,
-} from "@langchain/core/messages";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { concat } from "@langchain/core/utils/stream";
 import {
@@ -30,6 +27,7 @@ import {
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   buildChatSystemPrompt,
+  buildCompleteCommandPrompt,
   buildConversationContext,
   buildResultsContext,
   SUMMARIZATION_PROMPT,
@@ -108,14 +106,27 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   const resultsContext = state.resultsContext
     ? buildResultsContext(state.resultsContext, state.resultsDescription)
     : undefined;
+  let lastMessage = state.messages?.at(-1)?.content?.toString() || "";
+
+  let isConversationContextToInclude = lastMessage || resultsContext;
+  if (state.commandPrompt && state.conversationHistory.length) {
+    let completedLastMessage = buildCompleteCommandPrompt(
+      state.commandPrompt,
+      lastMessage || resultsContext || conversationContext
+    );
+    state.messages.pop();
+    state.messages.push(new HumanMessage(completedLastMessage));
+  }
 
   // Build system prompt - NOTE: Don't include tool descriptions
   // LangChain's bindTools() handles tool schemas automatically via the API
   const systemPrompt = buildChatSystemPrompt({
+    lastMessage: lastMessage,
     style: state.style,
-    commandPrompt: state.commandPrompt,
+    // Add command prompt to system prompt only for the first message
+    commandPrompt: state.conversationHistory?.length < 2 && state.commandPrompt,
     toolsEnabled: state.toolsEnabled,
-    conversationContext,
+    conversationContext: isConversationContextToInclude && conversationContext,
     resultsContext,
     accessMode: state.accessMode,
     isAgentMode: state.isAgentMode,
@@ -124,6 +135,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   sys_msg = new SystemMessage({ content: systemPrompt });
 
   return {
+    messages: state.messages,
     chatTools,
     startTime,
   };
@@ -186,14 +198,30 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     let gathered: any = undefined;
 
     for await (const chunk of stream) {
+      // console.log("chunk :>> ", chunk);
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
 
       // Stream content to callback as it arrives
       if (chunk.content) {
-        const content = chunk.content.toString();
-        streamingContent += content;
-        streamCallback(content);
+        // Handle different content types from different providers
+        let textContent = "";
+
+        if (typeof chunk.content === "string") {
+          // OpenAI and most providers send plain strings
+          textContent = chunk.content;
+        } else if (Array.isArray(chunk.content)) {
+          // Anthropic/Gemini may send arrays with text and/or function calls
+          // Extract only text content, ignore function calls for streaming
+          textContent = chunk.content
+            .filter((item: any) => typeof item === "string")
+            .join("");
+        }
+
+        if (textContent) {
+          streamingContent += textContent;
+          streamCallback(textContent);
+        }
       }
     }
 
@@ -209,6 +237,8 @@ const assistant = async (state: typeof ChatAgentState.State) => {
         state.toolUsageCallback(firstToolCall.name);
       }
     }
+
+    console.log("gathered :>> ", gathered);
 
     // Return the gathered message (which has proper tool_calls)
     return {

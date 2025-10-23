@@ -4,7 +4,6 @@ import { askYourGraph } from "./agents/search-agent/ask-your-graph";
 import {
   openLastAskYourGraphResults,
   chatWithLinkedRefs,
-  openChatPopup,
 } from "../components/full-results-popup";
 import { languages } from "./languagesSupport";
 

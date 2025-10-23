@@ -5,7 +5,10 @@
   background: inherit;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   position: relative;
-  z-index: 100;
+}
+
+.full-results-main-content .bp3-popover-wrapper {
+  z-index: 6;
 }
 
 /* Header - always visible */
@@ -70,7 +73,6 @@
   border-top: 1px solid rgba(167, 182, 194, 0.4);
   background: inherit;
   position: relative;
-  z-index: 101;
 }
 
 /* Ensure query manager isn't clipped by parent containers */

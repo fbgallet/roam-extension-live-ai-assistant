@@ -11,11 +11,6 @@ import { renderMarkdown } from "../../utils/chatMessageUtils";
 
 interface ChatMessagesDisplayProps {
   chatMessages: ChatMessage[];
-  commandContext?: {
-    commandPrompt?: string;
-    commandName?: string;
-    style?: string;
-  } | null;
   isTyping: boolean;
   isStreaming: boolean;
   streamingContent: string;
@@ -30,7 +25,6 @@ interface ChatMessagesDisplayProps {
 
 export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   chatMessages,
-  commandContext,
   isTyping,
   isStreaming,
   streamingContent,
@@ -50,62 +44,60 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
           <div className="full-results-chat-assistant-message">
             {hasSearchResults ? (
               <>
-                Hi! I can help you analyze and understand your search results. What
-                would you like to know?
+                Hi! I can help you analyze and understand your search results.
+                What would you like to know?
               </>
             ) : (
-              <>
-                Hi! I'm here to help. What can I assist you with today?
-              </>
+              <>Hi! I'm here to help. What can I assist you with today?</>
             )}
             {hasSearchResults && (
               <div className="full-results-chat-suggestions">
-              <button
-                onClick={() =>
-                  onSuggestionClick(
-                    "Give me a short, clear summary of these results highlighting the most important points"
-                  )
-                }
-              >
-                Summarize
-              </button>
-              <button
-                onClick={() =>
-                  onSuggestionClick(
-                    "What are the key insights and takeaways from these results?"
-                  )
-                }
-              >
-                Key insights
-              </button>
-              <button
-                onClick={() =>
-                  onSuggestionClick(
-                    "What connections exist between these items? Look for page references, tags, block references, and thematic links"
-                  )
-                }
-              >
-                Find connections
-              </button>
-              <button
-                onClick={() =>
-                  onSuggestionClick(
-                    "Help me find specific information about [topic] that might be buried in these results"
-                  )
-                }
-              >
-                Retrieval
-              </button>
-              <button
-                onClick={() =>
-                  onSuggestionClick(
-                    "What patterns or recurring themes can you extract from these results?"
-                  )
-                }
-              >
-                Extract patterns
-              </button>
-              {/* TODO: Future evolution - Deep Analysis mode
+                <button
+                  onClick={() =>
+                    onSuggestionClick(
+                      "Give me a short, clear summary of these results highlighting the most important points"
+                    )
+                  }
+                >
+                  Summarize
+                </button>
+                <button
+                  onClick={() =>
+                    onSuggestionClick(
+                      "What are the key insights and takeaways from these results?"
+                    )
+                  }
+                >
+                  Key insights
+                </button>
+                <button
+                  onClick={() =>
+                    onSuggestionClick(
+                      "What connections exist between these items? Look for page references, tags, block references, and thematic links"
+                    )
+                  }
+                >
+                  Find connections
+                </button>
+                <button
+                  onClick={() =>
+                    onSuggestionClick(
+                      "Help me find specific information about [topic] that might be buried in these results"
+                    )
+                  }
+                >
+                  Retrieval
+                </button>
+                <button
+                  onClick={() =>
+                    onSuggestionClick(
+                      "What patterns or recurring themes can you extract from these results?"
+                    )
+                  }
+                >
+                  Extract patterns
+                </button>
+                {/* TODO: Future evolution - Deep Analysis mode
               {chatMode === "agent" && (
                 <button
                   onClick={() =>
@@ -118,7 +110,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                 </button>
               )}
               */}
-            </div>
+              </div>
             )}
             {hasSearchResults && (
               <div className="full-results-chat-feature-hint">
@@ -157,14 +149,16 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
         </div>
       ) : (
         chatMessages.map((message, index) => {
-          // Check if this is the first user message and we have command context
-          const isFirstMessage = index === 0;
           const shouldShowCommandName =
-            isFirstMessage &&
             message.role === "user" &&
-            commandContext?.commandName;
+            message.commandName &&
+            message.commandPrompt !== "prompt";
+
+          // If message has no content but has a command, display just the command name
           const displayContent = shouldShowCommandName
-            ? `**[${commandContext.commandName}]**\n\n${message.content}`
+            ? message.content
+              ? `**[${message.commandName}]**\n\n${message.content}`
+              : `**[${message.commandName}]**`
             : message.content;
 
           return (
@@ -183,31 +177,34 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   }}
                 />
                 <div className="full-results-chat-message-footer">
-                  <span className="full-results-chat-timestamp">
-                    {message.timestamp.toLocaleTimeString()}
-                    {message.tokensIn !== undefined &&
-                      message.tokensOut !== undefined && (
-                        <span className="full-results-chat-tokens">
-                          {" "}
-                          • Tokens in: {message.tokensIn.toLocaleString()}, out:{" "}
-                          {message.tokensOut.toLocaleString()}
-                        </span>
-                      )}
-                  </span>
                   {message.role === "assistant" && (
-                    <span
-                      className="full-results-chat-copy-link"
-                      title="Copy message to clipboard"
-                    >
-                      <Tooltip content="Copy message to clipboard">
-                        <Button
-                          icon="clipboard"
-                          onClick={() => onCopyMessage(message.content)}
-                          minimal
-                          small
-                        />
-                      </Tooltip>
-                    </span>
+                    <>
+                      <span className="full-results-chat-timestamp">
+                        {message.timestamp.toLocaleTimeString()}
+                        {message.tokensIn !== undefined &&
+                          message.tokensOut !== undefined && (
+                            <span className="full-results-chat-tokens">
+                              {" "}
+                              • Tokens in: {message.tokensIn.toLocaleString()},
+                              out: {message.tokensOut.toLocaleString()}
+                            </span>
+                          )}
+                      </span>
+
+                      <span
+                        className="full-results-chat-copy-link"
+                        title="Copy message to clipboard"
+                      >
+                        <Tooltip content="Copy message to clipboard">
+                          <Button
+                            icon="clipboard"
+                            onClick={() => onCopyMessage(message.content)}
+                            minimal
+                            small
+                          />
+                        </Tooltip>
+                      </span>
+                    </>
                   )}
                 </div>
               </div>
