@@ -32,6 +32,8 @@ export const calculateTotalTokens = (chatMessages: ChatMessage[]) => {
 export const renderMarkdown = (text: string): string => {
   if (!text) return "";
 
+  // console.log("text before renderMarkdown:>> ", text);
+
   let rendered = text;
 
   // Bold text **text** (do this early to avoid conflicts)
@@ -62,34 +64,35 @@ export const renderMarkdown = (text: string): string => {
   // Clean up line breaks around headers and lists
   rendered = rendered.replace(/(<br>)*(<\/?(h[1-6]|ul)>)(<br>)*/g, "$2");
 
-  // Convert Roam embed syntax to clickable links
-  rendered = rendered.replace(
-    /\{\{\[\[(.*?)\]\]:\s*\(\((.*?)\)\)\}\}/g,
-    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>'
-  );
-
-  // Simple block reference ((uid))
-  rendered = rendered.replace(
-    /\(\(([^\(].*?)\)\)/g,
-    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
-  );
-
-  // convert to [link](((uid)))
-  rendered = rendered.replace(
-    /\[([^\]].*?)\]\(\((.*)\)\)/g,
-    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy ((uid)) & show result • Shift+click: Open in sidebar • Alt+click: Open in main window">$1<span class="bp3-icon bp3-icon-flow-end"></span></a>`
-  );
-
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
-    /\[\[([^\]]+)\]\]/g,
-    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page • Shift+click: Open in sidebar • Alt+click: Open in main window">$1</a><span class="rm-page-ref__brackets">]]</span>`
+    /\[\[(?!\<)([^\]]+)(?!<\>)\]\]/g,
+    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page. Shift+click: Open in sidebar. Alt+click: Open in main window">$1</a><span class="rm-page-ref__brackets">]]</span>`
+  );
+
+  // Convert Roam embed syntax to clickable links
+  rendered = rendered.replace(
+    /\{\{\[\[(.*?)\]\]:\s*\(\(([^\(]{9})\)\)\}\}/g,
+    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>'
+  );
+
+  // IMPORTANT: Process [description](((uid))) BEFORE ((uid)) to prevent conflicts
+  // Convert [description](((uid))) to clickable link with description
+  rendered = rendered.replace(
+    /\[([^\[\]]+?)\]\(\(\(([^\(]{9})\)\)\)/g,
+    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">$1</a>`
+  );
+
+  // Simple block reference ((uid)) - process AFTER [description](((uid)))
+  rendered = rendered.replace(
+    /(?<!\]\()\(\(([^\(]{9})\)\)(?!\}\})/g,
+    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
   );
 
   // Tag references #tag - make clickable
   rendered = rendered.replace(
     /#([a-zA-Z0-9_-]+)/g,
-    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag • Shift+click: Open in sidebar • Alt+click: Open in main window">#$1</a>'
+    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag. Shift+click: Open in sidebar. Alt+click: Open in main window">#$1</a>'
   );
 
   // Wrap in paragraphs (but not if it starts with a header or list)

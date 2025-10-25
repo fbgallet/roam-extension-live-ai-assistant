@@ -1,4 +1,4 @@
-import { Result, ViewMode, SortBy, SortOrder, DNPFilter } from "../types/types";
+import { Result, ViewMode, SortBy, SortOrder, DNPFilter, SelectionFilter } from "../types/types";
 
 export interface FilterAndSortOptions {
   searchFilter: string;
@@ -7,6 +7,9 @@ export interface FilterAndSortOptions {
   sortOrder: SortOrder;
   viewMode: ViewMode;
   dnpFilter: DNPFilter;
+  selectionFilter?: SelectionFilter;
+  selectedIndices?: Set<number>;
+  allResults?: Result[]; // Original results array needed to map indices
 }
 
 export const filterAndSortResults = async (
@@ -15,7 +18,7 @@ export const filterAndSortResults = async (
   blockContentMap?: Map<string, string>,
   childrenContentMap?: Map<string, string[]>
 ): Promise<Result[]> => {
-  const { searchFilter, pageFilter, sortBy, sortOrder, viewMode, dnpFilter } =
+  const { searchFilter, pageFilter, sortBy, sortOrder, viewMode, dnpFilter, selectionFilter, selectedIndices, allResults } =
     options;
 
   let filtered = results.filter((result) => {
@@ -77,11 +80,34 @@ export const filterAndSortResults = async (
     return true;
   });
 
+  // Apply selection filter
+  if (selectionFilter === "selected-only" && selectedIndices && allResults) {
+    filtered = filtered.filter((result) => {
+      const originalIndex = allResults.indexOf(result);
+      return selectedIndices.has(originalIndex);
+    });
+  }
+
   // Sort results
   filtered.sort((a, b) => {
     let comparison = 0;
 
     switch (sortBy) {
+      case "selection":
+        // Sort by selection status (selected items first)
+        if (selectedIndices && allResults) {
+          const indexA = allResults.indexOf(a);
+          const indexB = allResults.indexOf(b);
+          const isSelectedA = selectedIndices.has(indexA);
+          const isSelectedB = selectedIndices.has(indexB);
+
+          if (isSelectedA && !isSelectedB) return -1;
+          if (!isSelectedA && isSelectedB) return 1;
+          // If both selected or both unselected, maintain original order
+          return indexA - indexB;
+        }
+        comparison = 0;
+        break;
       case "date":
         const dateA = new Date(a.modified || a.created || 0);
         const dateB = new Date(b.modified || b.created || 0);

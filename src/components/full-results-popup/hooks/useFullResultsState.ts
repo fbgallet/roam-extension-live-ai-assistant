@@ -7,6 +7,7 @@ import {
   SortOrder,
   ChatMessage,
   DNPFilter,
+  SelectionFilter,
 } from "../types/types";
 import { StoredQuery, PageSelection } from "../utils/queryStorage";
 import {
@@ -77,6 +78,7 @@ export const useFullResultsState = (
   const [searchFilter, setSearchFilter] = useState("");
   const [pageFilter, setPageFilter] = useState("all");
   const [dnpFilter, setDNPFilter] = useState<DNPFilter>("all");
+  const [selectionFilter, setSelectionFilter] = useState<SelectionFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("relevance");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [resultsPerPage, setResultsPerPage] = useState(20);
@@ -341,6 +343,7 @@ export const useFullResultsState = (
             sortOrder: "desc",
             viewMode,
             dnpFilter,
+            selectionFilter: "all", // Don't filter by selection for reference extraction
           },
           blockContentMap,
           childrenContentMap
@@ -399,6 +402,9 @@ export const useFullResultsState = (
             sortOrder,
             viewMode,
             dnpFilter,
+            selectionFilter,
+            selectedIndices: selectedResults,
+            allResults: results,
           },
           blockContentMap,
           childrenContentMap
@@ -417,6 +423,9 @@ export const useFullResultsState = (
             sortOrder,
             viewMode,
             dnpFilter,
+            selectionFilter,
+            selectedIndices: selectedResults,
+            allResults: results,
           },
           blockContentMap,
           childrenContentMap
@@ -436,6 +445,8 @@ export const useFullResultsState = (
     sortOrder,
     viewMode,
     dnpFilter,
+    selectionFilter,
+    selectedResults,
     blockContentMap,
     childrenContentMap,
     refreshTrigger, // CRITICAL: Include refreshTrigger to force re-filtering when new results are set
@@ -897,6 +908,7 @@ export const useFullResultsState = (
     searchFilter,
     pageFilter,
     dnpFilter,
+    selectionFilter,
     sortBy,
     sortOrder,
     resultsPerPage,
@@ -933,6 +945,7 @@ export const useFullResultsState = (
     setSearchFilter,
     setPageFilter,
     setDNPFilter,
+    setSelectionFilter,
     setSortBy,
     setSortOrder,
     setResultsPerPage,

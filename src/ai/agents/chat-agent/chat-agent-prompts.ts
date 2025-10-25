@@ -87,8 +87,9 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Be analytical** - help the user understand significance and context
 
 ### Roam Formatting
-When referencing content from the knowledge graph, use Roam's syntax correctly:
-- **Reference specific blocks** - ALWAYS use strict '((uid))' syntax when mentioning content from blocks (CRITICAL: always DOUBLE parentheses). For single block: '((uid))' or make a short part of your response a link to the source block using this syntax: '[part of your response](((uid)))', for multiple blocks: '[source blocks: ((uid1)), ((uid2)), ((uid3))]'.
+IMPORTTANT: When referencing content from the knowledge graph, use Roam's syntax correctly and respect it STRICTLY:
+- **Reference specific blocks** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
+- **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
 - **Reference pages** - Always use the syntax '[[page title]]' or #tag (where tag is a page title without space) when you have to mention page titles.
 
 ### Analysis Approach

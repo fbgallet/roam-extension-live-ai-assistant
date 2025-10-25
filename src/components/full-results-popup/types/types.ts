@@ -48,10 +48,11 @@ export interface FullResultsPopupProps {
 
 export type ViewMode = "blocks" | "pages" | "mixed";
 export type PageDisplayMode = "metadata" | "embed";
-export type SortBy = "relevance" | "date" | "page" | "content-alpha" | "content-length";
+export type SortBy = "relevance" | "date" | "page" | "content-alpha" | "content-length" | "selection";
 export type SortOrder = "asc" | "desc";
 export type ChatMode = "simple" | "agent";
 export type DNPFilter = "all" | "dnp-only" | "no-dnp";
+export type SelectionFilter = "all" | "selected-only";
 
 /**
  * View mode for FullResultsPopup - determines what panels are shown

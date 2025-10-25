@@ -5,6 +5,9 @@
  */
 
 import { multiplyTool } from "./multiplyTool";
+import { addPagesByTitleTool } from "./addPagesByTitleTool";
+import { addLinkedReferencesByTitleTool } from "./addLinkedReferencesByTitleTool";
+import { selectResultsByCriteriaTool } from "./selectResultsByCriteriaTool";
 
 export interface ChatToolInfo {
   tool: any;
@@ -19,6 +22,24 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     securityLevel: "secure",
     description:
       "Multiply two numbers together - simple test tool for demonstrating tool usage",
+  },
+  add_pages_by_title: {
+    tool: addPagesByTitleTool,
+    securityLevel: "secure",
+    description:
+      "Add one or more pages to the chat context by their titles. Optionally includes first-level child blocks. Use when user asks about pages not currently in the conversation.",
+  },
+  add_linked_references_by_title: {
+    tool: addLinkedReferencesByTitleTool,
+    securityLevel: "secure",
+    description:
+      "Add all blocks that reference a given page to the chat context. Use when user wants to see what mentions or references a particular page/topic.",
+  },
+  select_results_by_criteria: {
+    tool: selectResultsByCriteriaTool,
+    securityLevel: "secure",
+    description:
+      "Select (check) results based on various criteria like date ranges, content patterns, or intelligent semantic analysis. Use when user wants to filter or focus on specific results or ask to select only some items to reduce the context.",
   },
 };
 

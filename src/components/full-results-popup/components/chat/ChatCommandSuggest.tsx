@@ -52,6 +52,9 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   initialQuery = "",
   isSlashMode = false,
 }) => {
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
   // Get all commands including custom prompts
   const allCommands = React.useMemo(() => {
     const customPrompts = getOrderedCustomPromptBlocks("liveai/prompt");
@@ -95,7 +98,10 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
       const keywordsMatch = item.keyWords
         ?.toLowerCase()
         .includes(normalizedQuery);
-      return nameMatch || keywordsMatch || false;
+      const categoryMatch = item.category
+        ?.toLowerCase()
+        .includes(normalizedQuery);
+      return nameMatch || keywordsMatch || categoryMatch || false;
     }
 
     return true;
@@ -104,8 +110,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   // Render individual command item with submenu support
   const renderCommand = (
     item: Command,
-    { handleClick, modifiers }: any,
-    query: string
+    { handleClick, modifiers, query }: any
   ) => {
     if (!modifiers.matchesPredicate) {
       return null;
@@ -148,15 +153,66 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     );
   };
 
+  // Prepare filtered items for slash mode (computed early for hooks)
+  const slashModeFilteredItems = React.useMemo(() => {
+    if (!isSlashMode) return [];
+    return chatCompatibleCommands.filter((item) =>
+      filterCommands(initialQuery, item)
+    );
+  }, [isSlashMode, chatCompatibleCommands, initialQuery]);
+
+  const slashModeFlatItems = React.useMemo(() => {
+    return slashModeFilteredItems.filter((item) => !item.submenu || initialQuery);
+  }, [slashModeFilteredItems, initialQuery]);
+
+  // Reset active index when filtered items change
+  React.useEffect(() => {
+    if (!isSlashMode) return;
+    if (activeIndex >= slashModeFlatItems.length) {
+      setActiveIndex(Math.max(0, slashModeFlatItems.length - 1));
+    }
+  }, [slashModeFlatItems.length, activeIndex, isSlashMode]);
+
+  // Handle keyboard navigation for slash mode
+  React.useEffect(() => {
+    if (!isSlashMode) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveIndex((prev) => Math.min(prev + 1, slashModeFlatItems.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === "Enter" && slashModeFlatItems[activeIndex]) {
+        e.preventDefault();
+        e.stopPropagation();
+        const selectedCommand = slashModeFlatItems[activeIndex];
+        // Close menu first, then select command in next tick
+        onClose();
+        setTimeout(() => {
+          onCommandSelect(selectedCommand, true);
+        }, 0);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [activeIndex, slashModeFlatItems, onCommandSelect, isSlashMode, onClose]);
+
   // Group commands by category
-  const groupedItemRenderer = ({ items, query, renderItem }: any) => {
+  const groupedItemRenderer = ({ items, query, renderItem, itemsParentRef }: any) => {
     const filteredItems = items.filter((item: Command) =>
       filterCommands(query, item)
     );
 
     if (!filteredItems.length) {
       return (
-        <Menu>
+        <Menu ulRef={itemsParentRef}>
           <MenuItem disabled={true} text="No matching commands found" />
         </Menu>
       );
@@ -178,21 +234,9 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     });
 
     return (
-      <Menu>
+      <Menu ulRef={itemsParentRef}>
         {/* Render commands without category first */}
-        {noCategory.map((cmd) =>
-          renderCommand(
-            cmd,
-            {
-              handleClick: () => {
-                onCommandSelect(cmd, isSlashMode);
-                onClose();
-              },
-              modifiers: { active: false, matchesPredicate: true },
-            },
-            query
-          )
-        )}
+        {noCategory.map((cmd) => renderItem(cmd, noCategory.indexOf(cmd)))}
 
         {/* Render categorized commands */}
         {Object.entries(grouped).map(([category, commands]) => {
@@ -208,19 +252,10 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
                   </>
                 }
               />
-              {commands.map((cmd) =>
-                renderCommand(
-                  cmd,
-                  {
-                    handleClick: () => {
-                      onCommandSelect(cmd, isSlashMode);
-                      onClose();
-                    },
-                    modifiers: { active: false, matchesPredicate: true },
-                  },
-                  query
-                )
-              )}
+              {commands.map((cmd) => {
+                const globalIndex = filteredItems.indexOf(cmd);
+                return renderItem(cmd, globalIndex);
+              })}
             </React.Fragment>
           );
         })}
@@ -231,9 +266,9 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   // In slash mode: render simple menu (no input to steal focus)
   // In button mode: render Suggest with search input
   if (isSlashMode) {
-    const filteredItems = chatCompatibleCommands.filter((item) =>
-      filterCommands(initialQuery, item)
-    );
+    // Use pre-computed values from top-level hooks
+    const filteredItems = slashModeFilteredItems;
+    const flatItems = slashModeFlatItems;
 
     // Group by category
     const grouped: Record<string, Command[]> = {};
@@ -253,16 +288,22 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     const renderSimpleCommand = (item: Command) => {
       const hasSubmenu =
         item.submenu && item.submenu.length > 0 && !initialQuery;
+      const itemIndex = flatItems.indexOf(item);
+      const isActive = itemIndex === activeIndex && !hasSubmenu;
 
       return (
         <MenuItem
           key={item.id}
           text={item.name}
+          active={isActive}
           onClick={
             !hasSubmenu
               ? () => {
-                  onCommandSelect(item, true);
+                  const cmd = item;
                   onClose();
+                  setTimeout(() => {
+                    onCommandSelect(cmd, true);
+                  }, 0);
                 }
               : undefined
           }
@@ -282,8 +323,11 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
                     text={subCommand.name}
                     icon={subCommand.icon as any}
                     onClick={() => {
-                      onCommandSelect(subCommand, true);
+                      const cmd = subCommand;
                       onClose();
+                      setTimeout(() => {
+                        onCommandSelect(cmd, true);
+                      }, 0);
                     }}
                   />
                 );
@@ -295,33 +339,35 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     };
 
     return (
-      <Menu className="chat-command-suggest-menu slash-mode">
-        {!filteredItems.length && (
-          <MenuItem disabled={true} text="No matching commands found" />
-        )}
+      <div ref={menuRef}>
+        <Menu className="chat-command-suggest-menu slash-mode">
+          {!filteredItems.length && (
+            <MenuItem disabled={true} text="No matching commands found" />
+          )}
 
-        {/* Render commands without category first */}
-        {noCategory.map((cmd) => renderSimpleCommand(cmd))}
+          {/* Render commands without category first */}
+          {noCategory.map((cmd) => renderSimpleCommand(cmd))}
 
-        {/* Render categorized commands */}
-        {Object.entries(grouped).map(([category, commands]) => {
-          const categoryIcon =
-            CATEGORY_ICON[category as keyof typeof CATEGORY_ICON] || "dot";
+          {/* Render categorized commands */}
+          {Object.entries(grouped).map(([category, commands]) => {
+            const categoryIcon =
+              CATEGORY_ICON[category as keyof typeof CATEGORY_ICON] || "dot";
 
-          return (
-            <React.Fragment key={category}>
-              <MenuDivider
-                title={
-                  <>
-                    <Icon icon={categoryIcon as any} /> {category}
-                  </>
-                }
-              />
-              {commands.map((cmd) => renderSimpleCommand(cmd))}
-            </React.Fragment>
-          );
-        })}
-      </Menu>
+            return (
+              <React.Fragment key={category}>
+                <MenuDivider
+                  title={
+                    <>
+                      <Icon icon={categoryIcon as any} /> {category}
+                    </>
+                  }
+                />
+                {commands.map((cmd) => renderSimpleCommand(cmd))}
+              </React.Fragment>
+            );
+          })}
+        </Menu>
+      </div>
     );
   }
 
@@ -332,7 +378,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         fill={true}
         items={chatCompatibleCommands}
         itemListRenderer={groupedItemRenderer}
-        itemRenderer={(item, props) => renderCommand(item, props, "")}
+        itemRenderer={(item, props) => renderCommand(item, { ...props, query: "" })}
         itemPredicate={filterCommands}
         scrollToActiveItem={true}
         onItemSelect={(item) => {
@@ -345,6 +391,12 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
           inputRef: inputRef as any,
           leftElement: <Icon icon="search" />,
           autoFocus: true,
+          onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+            // Prevent event from bubbling up to parent components
+            if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
+              e.stopPropagation();
+            }
+          },
         }}
         popoverProps={{
           placement: "top-start",
@@ -352,6 +404,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
           isOpen: true,
           onClose: onClose,
           portalClassName: "chat-command-suggest-portal",
+          enforceFocus: false,
         }}
         inputValueRenderer={(item) => item.name}
       />

@@ -64,6 +64,13 @@ interface FullResultsChatProps {
   initialStyle?: string;
   initialCommandId?: number;
   initialCommandPrompt?: string;
+  // Page autocomplete props
+  availablePages: string[];
+  isLoadingPages: boolean;
+  queryAvailablePages: (query: string) => void;
+  // Agent callbacks
+  onAddResults: (results: Result[]) => void;
+  onSelectResultsByUids: (uids: string[]) => void;
 }
 
 // Utility functions moved to ./utils/chatMessageUtils.ts
@@ -97,6 +104,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   initialStyle,
   initialCommandId,
   initialCommandPrompt,
+  availablePages,
+  isLoadingPages,
+  queryAvailablePages,
+  onAddResults,
+  onSelectResultsByUids,
 }) => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -407,19 +419,55 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   }, [chatOnlyMode, pendingHighlight]);
 
-  // Handle block reference hover for navigation and highlighting
+  // Handle block reference and page reference hover for navigation and highlighting
   useEffect(() => {
     const handleBlockRefHover = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
+      // Handle block references
       if (target.classList.contains("roam-block-ref-chat")) {
         const blockUid = target.getAttribute("data-block-uid");
         if (!blockUid) return;
+
+        console.log("[Chat Link Hover] Block reference hovered:", {
+          blockUid,
+          chatOnlyMode,
+        });
 
         // Only highlight on hover if NOT in chat-only mode
         if (!chatOnlyMode) {
           // Hover: Highlight and scroll to result in popup
           highlightAndScrollToResult(blockUid);
+        }
+      }
+
+      // Handle page references and tags
+      if (
+        target.classList.contains("rm-page-ref") ||
+        target.classList.contains("roam-page-ref-chat") ||
+        target.classList.contains("roam-tag-ref-chat")
+      ) {
+        const pageTitle = target.getAttribute("data-page-title");
+        if (!pageTitle) return;
+
+        console.log("[Chat Link Hover] Page reference hovered:", {
+          pageTitle,
+          chatOnlyMode,
+        });
+
+        // Only highlight on hover if NOT in chat-only mode
+        if (!chatOnlyMode) {
+          // Check if page exists in results
+          const allAvailableResults =
+            selectedResults.length > 0 ? selectedResults : allResults;
+          const pageExistsInResults = allAvailableResults.some(
+            (result) => result.pageTitle === pageTitle
+          );
+
+          if (pageExistsInResults) {
+            // Hover: Highlight and scroll to page result in popup (blue theme)
+            highlightAndScrollToPageResult(pageTitle);
+          }
         }
       }
     };
@@ -432,34 +480,71 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const blockUid = target.getAttribute("data-block-uid");
         if (!blockUid) return;
 
+        console.log("[Chat Link Click] Block reference clicked:", {
+          blockUid,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          metaKey: event.metaKey,
+          chatOnlyMode,
+        });
+
         // Always copy ((uid)) to clipboard
         const clipboardText = `((${blockUid}))`;
         navigator.clipboard
           .writeText(clipboardText)
-          .then(() => {})
+          .then(() => {
+            console.log("[Chat Link Click] Copied to clipboard:", clipboardText);
+          })
           .catch((err) => {
-            console.warn("Failed to copy to clipboard:", err);
+            console.warn("[Chat Link Click] Failed to copy to clipboard:", err);
           });
 
         if (event.shiftKey) {
           // Shift+click: Open in sidebar
+          console.log("[Chat Link Click] Opening block in sidebar:", blockUid);
           window.roamAlphaAPI.ui.rightSidebar.addWindow({
             window: { type: "block", "block-uid": blockUid },
           });
         } else if (event.altKey || event.metaKey) {
           // Alt/Option+click: Open in main window
+          console.log("[Chat Link Click] Opening block in main window:", blockUid);
           window.roamAlphaAPI.ui.mainWindow.openBlock({
             block: { uid: blockUid },
           });
         } else {
-          // Regular click: Show results and highlight
-          if (chatOnlyMode) {
-            // Set pending highlight and switch mode - useEffect will handle the rest
-            setPendingHighlight(blockUid);
-            handleChatOnlyToggle(); // Use the proper handler instead of direct setter
+          // Regular click: Check if block exists in results
+          const allAvailableResults =
+            selectedResults.length > 0 ? selectedResults : allResults;
+          const blockExistsInResults = allAvailableResults.some(
+            (result) => result.uid === blockUid
+          );
+
+          console.log("[Chat Link Click] Block existence check:", {
+            blockUid,
+            existsInResults: blockExistsInResults,
+            totalResults: allAvailableResults.length,
+          });
+
+          if (blockExistsInResults) {
+            // Block exists in results - show it
+            if (chatOnlyMode) {
+              console.log(
+                "[Chat Link Click] Switching from chat-only to show results with highlight"
+              );
+              // Set pending highlight and switch mode - useEffect will handle the rest
+              setPendingHighlight(blockUid);
+              handleChatOnlyToggle(); // Use the proper handler instead of direct setter
+            } else {
+              // Highlight immediately if already in results view
+              console.log("[Chat Link Click] Highlighting in existing results view");
+              highlightAndScrollToResult(blockUid);
+            }
           } else {
-            // Highlight immediately if already in results view
-            highlightAndScrollToResult(blockUid);
+            // Block doesn't exist in results - just inform user
+            console.log(
+              "[Chat Link Click] Block not found in current results:",
+              blockUid
+            );
           }
         }
       }
@@ -473,12 +558,24 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const pageTitle = target.getAttribute("data-page-title");
         if (!pageTitle) return;
 
+        console.log("[Chat Link Click] Page reference clicked:", {
+          pageTitle,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          metaKey: event.metaKey,
+          chatOnlyMode,
+        });
+
         event.preventDefault(); // Prevent default link behavior
 
         if (event.shiftKey) {
           // Shift+click: Open page in sidebar
           const pageUid = getPageUidByPageName(pageTitle);
           if (pageUid) {
+            console.log("[Chat Link Click] Opening page in sidebar:", {
+              pageTitle,
+              pageUid,
+            });
             window.roamAlphaAPI.ui.rightSidebar.addWindow({
               window: {
                 type: "outline",
@@ -486,24 +583,32 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               },
             });
           } else {
-            console.warn(`Could not find page UID for: ${pageTitle}`);
+            console.warn("[Chat Link Click] Could not find page UID for:", pageTitle);
           }
         } else if (event.altKey || event.metaKey) {
           // Alt/Option+click: Open page in main window
           const pageUid = getPageUidByPageName(pageTitle);
           if (pageUid) {
+            console.log("[Chat Link Click] Opening page in main window:", {
+              pageTitle,
+              pageUid,
+            });
             window.roamAlphaAPI.ui.mainWindow.openPage({
               page: { uid: pageUid },
             });
           } else {
-            console.warn(`Could not find page UID for: ${pageTitle}`);
+            console.warn("[Chat Link Click] Could not find page UID for:", pageTitle);
           }
         } else {
           // Regular click: Add to included references filter
+          console.log("[Chat Link Click] Adding page to filter:", pageTitle);
           handleIncludeReference(pageTitle);
 
           // Switch to results view if in chat-only mode
           if (chatOnlyMode) {
+            console.log(
+              "[Chat Link Click] Switching from chat-only to show filtered results"
+            );
             handleChatOnlyToggle();
           }
         }
@@ -589,8 +694,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     if (targetElement) {
       // Remove any existing highlights first
-      document.querySelectorAll(".highlighted-result").forEach((el) => {
-        el.classList.remove("highlighted-result");
+      document.querySelectorAll(".highlighted-result, .highlighted-page-result").forEach((el) => {
+        el.classList.remove("highlighted-result", "highlighted-page-result");
       });
 
       // Add temporary highlight
@@ -609,6 +714,87 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     } else {
       console.warn(
         `❌ DOM element for block ${blockUid} not found on current page`
+      );
+    }
+  };
+
+  // Function to highlight and scroll to a page result by title
+  const highlightAndScrollToPageResult = (pageTitle: string) => {
+    // Find the result in either selectedResults or allResults
+    const allAvailableResults =
+      selectedResults.length > 0 ? selectedResults : allResults;
+    const targetResultIndex = allAvailableResults.findIndex(
+      (result) => result.pageTitle === pageTitle
+    );
+
+    if (targetResultIndex === -1) {
+      console.warn(`Page "${pageTitle}" not found in current results`);
+      return;
+    }
+
+    // Get the result to access its UID
+    const targetResult = allAvailableResults[targetResultIndex];
+    const pageUid = targetResult.pageUid || targetResult.uid;
+
+    if (!pageUid) {
+      console.warn(`Page "${pageTitle}" found but has no UID`);
+      return;
+    }
+
+    // Calculate which page the target result is on
+    const targetPage = Math.floor(targetResultIndex / resultsPerPage) + 1;
+
+    // Check if the page is already visible in DOM
+    const pageAlreadyVisible = document.querySelector(
+      `.full-results-result-item[data-uid="${pageUid}"]`
+    );
+
+    if (pageAlreadyVisible) {
+      highlightPageElementOnCurrentPage(pageUid);
+    } else {
+      // Navigate to the correct page
+      const tempPage = targetPage === 1 ? 2 : 1;
+      setCurrentPage(tempPage);
+
+      // Small delay then set to actual target page and highlight
+      setTimeout(() => {
+        setCurrentPage(targetPage);
+        // Wait for DOM update before highlighting
+        setTimeout(() => {
+          highlightPageElementOnCurrentPage(pageUid);
+        }, 50);
+      }, 10);
+    }
+  };
+
+  // Helper function to highlight page element on the current page (blue theme)
+  const highlightPageElementOnCurrentPage = (pageUid: string) => {
+    const targetElement = document.querySelector(
+      `.full-results-result-item[data-uid="${pageUid}"]`
+    ) as HTMLElement;
+
+    if (targetElement) {
+      // Remove any existing highlights first
+      document.querySelectorAll(".highlighted-result, .highlighted-page-result").forEach((el) => {
+        el.classList.remove("highlighted-result", "highlighted-page-result");
+      });
+
+      // Add temporary highlight with blue theme
+      targetElement.classList.add("highlighted-page-result");
+
+      // Scroll to the element
+      targetElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        targetElement?.classList.remove("highlighted-page-result");
+      }, 3000);
+    } else {
+      console.warn(
+        `❌ DOM element for page ${pageUid} not found on current page`
       );
     }
   };
@@ -1192,6 +1378,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           setCurrentToolUsage(toolName);
         },
 
+        // Agent callbacks
+        addResultsCallback: (results: Result[]) => {
+          onAddResults(results);
+        },
+        selectResultsCallback: (uids: string[]) => {
+          onSelectResultsByUids(uids);
+        },
+
         // Token usage from previous turns
         tokensUsage: chatAgentData?.tokensUsage,
       });
@@ -1332,6 +1526,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onModelSelect={setSelectedModel}
         chatInputRef={chatInputRef}
         onCommandSelect={handleCommandSelect}
+        availablePages={availablePages}
+        isLoadingPages={isLoadingPages}
+        onQueryPages={queryAvailablePages}
       />
     </div>
   );

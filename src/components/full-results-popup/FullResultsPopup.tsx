@@ -18,7 +18,7 @@ import {
   ResultMetadata,
 } from "./components/results/ResultRenderer";
 import { useFullResultsState } from "./hooks/useFullResultsState";
-import { canUseChat } from "./utils/chatHelpers";
+import { canUseChat, getSelectedResultsList } from "./utils/chatHelpers";
 import { ReferencesFilterPopover } from "./components/results/ReferencesFilterPopover";
 import { QueryManager } from "./components/query-manager/QueryManager";
 import {
@@ -44,6 +44,13 @@ import {
 } from "../../ai/agents/search-agent/helpers/livePopupExecution";
 import { executeStoredPageSelections } from "./utils/directContentHandler";
 import { ProgressMessages } from "./utils/progressMessages";
+import {
+  replaceByFirstChildren,
+  addLinkedReferences,
+  addMentionedPages,
+  addMentionedPagesAndLinkedRefs,
+  deduplicateResults,
+} from "./utils/expandResults";
 
 const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   results,
@@ -97,6 +104,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   });
 
   const [isResizingSidePanel, setIsResizingSidePanel] = useState(false);
+
+  // Temporary message state for expand actions
+  const [tempMessage, setTempMessage] = useState<string | null>(null);
 
   // Layout mode state: "split" (A), "results-only" (B), "chat-only" (C)
   const [layoutMode, setLayoutMode] = useState<
@@ -426,14 +436,66 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   const [originalLoadedQuery, setOriginalLoadedQuery] =
     useState<StoredQuery | null>(null); // Track original before edits
 
+  // Handler to add results from agent tools with deduplication
+  const handleAddResults = (newResults: Result[]) => {
+    setCurrentResults((prev) => {
+      // Deduplicate by block UID or general UID
+      const existingUids = new Set(
+        prev.map((r) => r.blockUid || r.uid).filter(Boolean)
+      );
+
+      const uniqueNewResults = newResults.filter((r) => {
+        const uid = r.blockUid || r.uid;
+        if (!uid || existingUids.has(uid)) {
+          return false;
+        }
+        existingUids.add(uid);
+        return true;
+      });
+
+      if (uniqueNewResults.length > 0) {
+        console.log(
+          `🤖 Agent added ${uniqueNewResults.length} new results to context (${
+            newResults.length - uniqueNewResults.length
+          } duplicates filtered)`
+        );
+        return [...prev, ...uniqueNewResults];
+      } else {
+        console.log(`ℹ️  All ${newResults.length} results were already in context`);
+        return prev;
+      }
+    });
+  };
+
+  // Handler to select results by UIDs from agent tools
+  const handleSelectResultsByUids = (uids: string[]) => {
+    const newSelected = new Set<number>();
+
+    // Find indices of results matching the UIDs
+    currentResults.forEach((result, index) => {
+      const resultUid = result.blockUid || result.uid || result.pageUid;
+      if (resultUid && uids.includes(resultUid)) {
+        newSelected.add(index);
+      }
+    });
+
+    setSelectedResults(newSelected);
+
+    // Auto-enable "selected-only" filter when agent selects results
+    if (newSelected.size > 0) {
+      setSelectionFilter("selected-only");
+    }
+
+    console.log(`🎯 Selected ${newSelected.size} results by UID from agent`);
+  };
+
   const {
     // State
     selectedResults,
-    dropdownStates,
-    isClosing,
     searchFilter,
     pageFilter,
     dnpFilter,
+    selectionFilter,
     sortBy,
     sortOrder,
     resultsPerPage,
@@ -455,10 +517,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
     // Setters
     setSelectedResults,
-    setDropdownStates,
     setSearchFilter,
     setPageFilter,
     setDNPFilter,
+    setSelectionFilter,
     setSortBy,
     setSortOrder,
     setResultsPerPage,
@@ -877,68 +939,97 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     );
   };
 
-  const DropdownButton: React.FC<{
-    mainText: string;
-    mainAction: () => void;
-    dropdownOptions: Array<{ text: string; action: () => void }>;
-    disabled?: boolean;
-    dropdownKey: string;
-  }> = ({
-    mainText,
-    mainAction,
-    dropdownOptions,
-    disabled = false,
-    dropdownKey,
-  }) => {
-    const isOpen = dropdownStates[dropdownKey] || false;
+  // Helper to show temporary message
+  const showTempMessage = (message: string, duration = 3000) => {
+    setTempMessage(message);
+    setTimeout(() => setTempMessage(null), duration);
+  };
 
-    const toggleDropdown = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isClosing) return; // Prevent state updates if closing
-      setDropdownStates((prev) => ({
-        ...prev,
-        [dropdownKey]: !prev[dropdownKey],
-      }));
-    };
-
-    return (
-      <div className="full-results-simple-dropdown">
-        <Button
-          intent="primary"
-          text={mainText}
-          onClick={mainAction}
-          disabled={disabled}
-        />
-        <Button
-          icon="caret-down"
-          intent="primary"
-          disabled={disabled}
-          onClick={toggleDropdown}
-          aria-label="More options"
-        />
-        {isOpen && (
-          <div className="full-results-simple-dropdown-menu bp3-menu">
-            {dropdownOptions.map((option, idx) => (
-              <button
-                key={idx}
-                className="full-results-simple-dropdown-item bp3-menu-item"
-                onClick={() => {
-                  option.action();
-                  if (!isClosing) {
-                    setDropdownStates((prev) => ({
-                      ...prev,
-                      [dropdownKey]: false,
-                    }));
-                  }
-                }}
-              >
-                {option.text}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+  // More actions handlers
+  const handleReplaceByFirstChildren = () => {
+    const selectedResultsList = getSelectedResultsList(
+      selectedResults,
+      currentResults
     );
+
+    const { newResults, uidsToRemove } = replaceByFirstChildren(selectedResultsList);
+
+    // Remove the original items
+    let updatedResults = currentResults;
+    if (uidsToRemove && uidsToRemove.length > 0) {
+      updatedResults = currentResults.filter((result) => {
+        const uid = result.blockUid || result.uid;
+        return !uid || !uidsToRemove.includes(uid);
+      });
+    }
+
+    // Add new children
+    const uniqueResults = deduplicateResults(updatedResults, newResults);
+
+    if (uniqueResults.length > 0) {
+      setCurrentResults([...updatedResults, ...uniqueResults]);
+      setSelectedResults(new Set()); // Clear selection
+      showTempMessage(`✅ Replaced ${uidsToRemove?.length || 0} items with ${uniqueResults.length} children`);
+    } else {
+      showTempMessage("ℹ️ No children found to replace with", 2000);
+    }
+  };
+
+  const handleAddLinkedReferences = () => {
+    const selectedResultsList = getSelectedResultsList(
+      selectedResults,
+      currentResults
+    );
+
+    const { newResults, stats } = addLinkedReferences(selectedResultsList);
+    const uniqueResults = deduplicateResults(currentResults, newResults);
+
+    if (uniqueResults.length > 0) {
+      setCurrentResults([...currentResults, ...uniqueResults]);
+      showTempMessage(
+        `✅ Added ${uniqueResults.length} linked references from ${stats.pages} page(s)`
+      );
+    } else {
+      showTempMessage("ℹ️ No new linked references found", 2000);
+    }
+  };
+
+  const handleAddMentionedPages = async () => {
+    const selectedResultsList = getSelectedResultsList(
+      selectedResults,
+      currentResults
+    );
+
+    const { newResults, stats } = await addMentionedPages(selectedResultsList);
+    const uniqueResults = deduplicateResults(currentResults, newResults);
+
+    if (uniqueResults.length > 0) {
+      setCurrentResults([...currentResults, ...uniqueResults]);
+      showTempMessage(`✅ Added ${uniqueResults.length} mentioned pages`);
+    } else {
+      showTempMessage("ℹ️ No new mentioned pages found", 2000);
+    }
+  };
+
+  const handleAddMentionedPagesAndLinkedRefs = async () => {
+    const selectedResultsList = getSelectedResultsList(
+      selectedResults,
+      currentResults
+    );
+
+    const { newResults, stats } = await addMentionedPagesAndLinkedRefs(
+      selectedResultsList
+    );
+    const uniqueResults = deduplicateResults(currentResults, newResults);
+
+    if (uniqueResults.length > 0) {
+      setCurrentResults([...currentResults, ...uniqueResults]);
+      showTempMessage(
+        `✅ Added ${stats.pages} pages and ${stats.blocks} linked references`
+      );
+    } else {
+      showTempMessage("ℹ️ No new content found", 2000);
+    }
   };
 
   // Advanced UI handlers
@@ -1950,6 +2041,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       className="full-results-sort-select"
                     >
                       <option value="relevance">Sort: Relevance</option>
+                      <option value="selection">Sort: Selection</option>
                       <option value="date">Sort: Date</option>
                       <option value="page">Sort: Page</option>
                       {viewMode !== "pages" && (
@@ -2017,7 +2109,29 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                     results
                   </span>
                   {selectedResults.size > 0 && (
-                    <span className="full-results-selection-info">
+                    <span
+                      className="full-results-selection-info"
+                      onClick={() =>
+                        setSelectionFilter(
+                          selectionFilter === "selected-only" ? "all" : "selected-only"
+                        )
+                      }
+                      title={
+                        selectionFilter === "selected-only"
+                          ? "Click to show all results"
+                          : "Click to show only selected results"
+                      }
+                      style={{ cursor: "pointer" }}
+                    >
+                      <Icon
+                        icon={
+                          selectionFilter === "selected-only"
+                            ? "filter-remove"
+                            : "filter-keep"
+                        }
+                        size={12}
+                        style={{ marginRight: "4px" }}
+                      />
                       ({selectedResults.size} selected)
                     </span>
                   )}
@@ -2068,6 +2182,24 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
               {/* Results and Actions Container */}
               <div className="full-results-scrollable-content">
+                {/* Temporary Message */}
+                {tempMessage && (
+                  <div
+                    className="full-results-temp-message"
+                    style={{
+                      padding: "12px",
+                      margin: "8px 0",
+                      backgroundColor: "#F5F8FA",
+                      border: "1px solid #CED9E0",
+                      borderRadius: "4px",
+                      fontSize: "14px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {tempMessage}
+                  </div>
+                )}
+
                 {/* Results */}
                 <div className="full-results-list">
                   {paginatedResults && paginatedResults.length > 0 ? (
@@ -2150,46 +2282,138 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                   />
 
                   {selectedResults.size > 0 && (
-                    <Button
-                      text="Unselect"
-                      onClick={() => setSelectedResults(new Set())}
-                      small
-                      minimal
-                      intent="warning"
-                    />
+                    <>
+                      <Button
+                        icon="cross"
+                        onClick={() => {
+                          setSelectedResults(new Set());
+                          setSelectionFilter("all");
+                        }}
+                        small
+                        minimal
+                        intent="warning"
+                        title="Unselect all"
+                      />
+                      <Button
+                        icon="trash"
+                        onClick={() => {
+                          // Remove selected results from currentResults
+                          const newResults = currentResults.filter(
+                            (_, index) => !selectedResults.has(index)
+                          );
+                          setCurrentResults(newResults);
+                          setSelectedResults(new Set());
+                          setSelectionFilter("all");
+                        }}
+                        small
+                        minimal
+                        intent="danger"
+                        title="Remove selected from results"
+                      />
+                      <Popover
+                        content={
+                          <Menu>
+                            <MenuItem
+                              icon="inheritance"
+                              text="Replace by first children"
+                              onClick={handleReplaceByFirstChildren}
+                            />
+                            <MenuItem
+                              icon="flows"
+                              text="Add linked references"
+                              onClick={handleAddLinkedReferences}
+                            />
+                            <MenuItem
+                              icon="tag"
+                              text="Add mentioned pages"
+                              onClick={handleAddMentionedPages}
+                            />
+                            <MenuItem
+                              icon="graph"
+                              text="Add mentioned pages & linked refs"
+                              onClick={handleAddMentionedPagesAndLinkedRefs}
+                            />
+                          </Menu>
+                        }
+                        position="bottom-right"
+                      >
+                        <Button
+                          icon="more"
+                          small
+                          minimal
+                          title="More actions"
+                        />
+                      </Popover>
+                    </>
                   )}
                 </div>
 
                 <div className="full-results-buttons-container">
-                  <DropdownButton
-                    mainText={
-                      targetUid
-                        ? "Append to last response"
-                        : "Append to today's DNP"
+                  <Popover
+                    content={
+                      <Menu>
+                        <MenuItem
+                          icon="insert"
+                          text="Insert in focused block"
+                          onClick={handleInsertAtDNPEnd}
+                          disabled={selectedResults.size === 0}
+                        />
+                        <MenuItem
+                          icon="calendar"
+                          text={
+                            targetUid
+                              ? "Append to last response"
+                              : "Append to today's DNP"
+                          }
+                          onClick={handleInsertAtDNPEnd}
+                          disabled={selectedResults.size === 0}
+                        />
+                        <MenuItem
+                          icon="menu-open"
+                          text="Open in Sidebar"
+                          onClick={handleInsertInSidebar}
+                          disabled={selectedResults.size === 0}
+                        />
+                      </Menu>
                     }
-                    mainAction={handleInsertAtDNPEnd}
-                    disabled={selectedResults.size === 0}
-                    dropdownKey="insert"
-                    dropdownOptions={[
-                      {
-                        text: "Open in Sidebar",
-                        action: handleInsertInSidebar,
-                      },
-                    ]}
-                  />
+                    position="bottom-right"
+                  >
+                    <Button
+                      icon="insert"
+                      minimal
+                      small
+                      disabled={selectedResults.size === 0}
+                      title="Insert results"
+                    />
+                  </Popover>
 
-                  <DropdownButton
-                    mainText="Copy Embeds"
-                    mainAction={handleCopyEmbeds}
-                    disabled={selectedResults.size === 0}
-                    dropdownKey="copy"
-                    dropdownOptions={[
-                      {
-                        text: "Copy References",
-                        action: handleCopyReferences,
-                      },
-                    ]}
-                  />
+                  <Popover
+                    content={
+                      <Menu>
+                        <MenuItem
+                          icon="duplicate"
+                          text="Copy Embeds"
+                          onClick={handleCopyEmbeds}
+                          disabled={selectedResults.size === 0}
+                        />
+                        <MenuItem
+                          icon="link"
+                          text="Copy References"
+                          onClick={handleCopyReferences}
+                          disabled={selectedResults.size === 0}
+                        />
+                      </Menu>
+                    }
+                    position="bottom-right"
+                  >
+                    <Button
+                      icon="clipboard"
+                      minimal
+                      small
+                      disabled={selectedResults.size === 0}
+                      title="Copy to clipboard"
+                    />
+                  </Popover>
                 </div>
               </div>
             </div>
@@ -2252,6 +2476,13 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 initialStyle={initialStyle}
                 initialCommandId={initialCommandId}
                 initialCommandPrompt={initialCommandPrompt}
+                // Page autocomplete
+                availablePages={availablePages}
+                isLoadingPages={isLoadingPages}
+                queryAvailablePages={queryAvailablePages}
+                // Agent callbacks
+                onAddResults={handleAddResults}
+                onSelectResultsByUids={handleSelectResultsByUids}
               />
             </div>
           )}

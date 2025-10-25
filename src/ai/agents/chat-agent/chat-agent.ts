@@ -62,6 +62,9 @@ const ChatAgentState = Annotation.Root({
   streamingCallback: Annotation<((content: string) => void) | undefined>,
   // Tool usage callback
   toolUsageCallback: Annotation<((toolName: string) => void) | undefined>,
+  // Agent callbacks
+  addResultsCallback: Annotation<((results: any[]) => void) | undefined>,
+  selectResultsCallback: Annotation<((uids: string[]) => void) | undefined>,
   // Timing
   startTime: Annotation<number>,
   // Tool results cache
@@ -273,7 +276,19 @@ const assistant = async (state: typeof ChatAgentState.State) => {
  */
 const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
   const toolNode = new ToolNode(state.chatTools);
-  const result = await toolNode.invoke(state);
+
+  // Pass configuration to tools via the config parameter
+  const config = {
+    configurable: {
+      currentResultsContext: state.resultsContext || [],
+      addResultsCallback: state.addResultsCallback,
+      selectResultsCallback: state.selectResultsCallback,
+      model: state.model, // Pass model info so tools can reuse the same LLM
+      llm: llm, // Pass the initialized LLM instance directly
+    },
+  };
+
+  const result = await toolNode.invoke(state, config);
 
   // Cache tool results
   const toolMessages = result.messages.filter(

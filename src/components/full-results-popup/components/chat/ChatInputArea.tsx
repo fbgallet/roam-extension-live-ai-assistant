@@ -15,6 +15,7 @@ import {
 import ModelsMenu from "../../../ModelsMenu";
 import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
+import ChatPageAutocomplete from "./ChatPageAutocomplete";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 
 interface ChatInputAreaProps {
@@ -30,6 +31,9 @@ interface ChatInputAreaProps {
   onModelSelect: (model: string) => void;
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
   onCommandSelect: (command: any, isFromSlashCommand?: boolean) => void;
+  availablePages: string[];
+  isLoadingPages: boolean;
+  onQueryPages: (query: string) => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -45,11 +49,24 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onModelSelect,
   chatInputRef,
   onCommandSelect,
+  availablePages,
+  isLoadingPages,
+  onQueryPages,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
   const [slashCommandMode, setSlashCommandMode] = useState(false);
+  const [isPageAutocompleteOpen, setIsPageAutocompleteOpen] = useState(false);
+  const [pageAutocompleteQuery, setPageAutocompleteQuery] = useState("");
   const commandSuggestInputRef = useRef<HTMLInputElement>(null);
+
+  // Track if component is mounted to prevent setState on unmounted component
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleModelSelection = async ({ model }: { model: string }) => {
     // Model was changed via ModelsMenu callback
@@ -64,8 +81,33 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     setSlashCommandMode(false);
   };
 
+  const handlePageSelect = (pageTitle: string) => {
+    // Find the [[ position and replace the incomplete link with completed one
+    const lastDoubleBracketIndex = chatInput.lastIndexOf("[[");
+    if (lastDoubleBracketIndex !== -1) {
+      const beforeBrackets = chatInput.substring(0, lastDoubleBracketIndex);
+      const newValue = `${beforeBrackets}[[${pageTitle}]]`;
+      onChatInputChange(newValue);
+
+      // Close autocomplete
+      setIsPageAutocompleteOpen(false);
+      setPageAutocompleteQuery("");
+
+      // Maintain focus on textarea
+      setTimeout(() => {
+        if (chatInputRef.current) {
+          chatInputRef.current.focus();
+          // Move cursor to end
+          chatInputRef.current.selectionStart = newValue.length;
+          chatInputRef.current.selectionEnd = newValue.length;
+        }
+      }, 0);
+    }
+  };
+
   // Detect slash command trigger
   const handleInputChange = (value: string) => {
+    // Update parent state first
     onChatInputChange(value);
 
     // Find the last "/" in the input
@@ -82,14 +124,49 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         setSlashCommandMode(true);
         setIsCommandSuggestOpen(true);
       } else if (slashCommandMode && hasSpaceAfterSlash) {
-        // Close if user added space after slash
+        // Close if user added space after slash, but maintain focus
         setSlashCommandMode(false);
         setIsCommandSuggestOpen(false);
+        // Maintain focus on the textarea
+        setTimeout(() => {
+          if (chatInputRef.current) {
+            chatInputRef.current.focus();
+          }
+        }, 0);
       }
     } else if (slashCommandMode && !hasSlash) {
       // Close if slash was removed
       setSlashCommandMode(false);
       setIsCommandSuggestOpen(false);
+    }
+
+    // Detect [[ for page autocomplete
+    const lastDoubleBracketIndex = value.lastIndexOf("[[");
+    const hasDoubleBracket = lastDoubleBracketIndex !== -1;
+
+    if (hasDoubleBracket) {
+      // Extract the part after the last "[["
+      const afterBrackets = value.substring(lastDoubleBracketIndex + 2);
+      const hasClosingBracket = afterBrackets.includes("]]");
+      const hasSpace = afterBrackets.startsWith(" ");
+
+      // Only open if there's at least one character and no space immediately after [[
+      if (!hasClosingBracket && !hasSpace && afterBrackets.length > 0) {
+        if (!isPageAutocompleteOpen) {
+          setIsPageAutocompleteOpen(true);
+        }
+        // Update query and fetch pages
+        setPageAutocompleteQuery(afterBrackets);
+        onQueryPages(afterBrackets);
+      } else if (isPageAutocompleteOpen && (hasClosingBracket || hasSpace || afterBrackets.length === 0)) {
+        // Close if user completed the link or added space or removed all text
+        setIsPageAutocompleteOpen(false);
+        setPageAutocompleteQuery("");
+      }
+    } else if (isPageAutocompleteOpen && !hasDoubleBracket) {
+      // Close if [[ was removed
+      setIsPageAutocompleteOpen(false);
+      setPageAutocompleteQuery("");
     }
   };
 
@@ -173,6 +250,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           </div>
         </Tooltip>
         <Tooltip
+          // autoFocus={false}
+          openOnTargetFocus={false}
           content={
             <p>
               Apply built-in or custom prompt
@@ -226,7 +305,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             </Popover>
           </div>
         </Tooltip>
-        <Tooltip content="Switch AI model">
+        <Tooltip openOnTargetFocus={false} content="Switch AI model">
           <div className="full-results-chat-model-selector">
             <Popover
               isOpen={isModelMenuOpen}
@@ -276,10 +355,35 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       */}
 
       <div className="full-results-chat-input-container">
-        <textarea
-          ref={chatInputRef}
-          placeholder="Ask me about your results... (type / for commands)"
-          value={chatInput}
+        <Popover
+          minimal={true}
+          isOpen={isPageAutocompleteOpen}
+          onInteraction={(nextOpenState) => {
+            // Don't close via interaction - only close when conditions are met
+            if (!nextOpenState) {
+              setIsPageAutocompleteOpen(false);
+              setPageAutocompleteQuery("");
+            }
+          }}
+          content={
+            <ChatPageAutocomplete
+              pages={availablePages}
+              onPageSelect={handlePageSelect}
+              isLoading={isLoadingPages}
+              query={pageAutocompleteQuery}
+            />
+          }
+          placement="top-start"
+          enforceFocus={false}
+          autoFocus={false}
+          canEscapeKeyClose={true}
+          targetTagName="div"
+          fill={true}
+        >
+          <textarea
+            ref={chatInputRef}
+            placeholder="Ask me about your results... (type / for commands, [[ for pages)"
+            value={chatInput}
           onChange={(e) => {
             handleInputChange(e.target.value);
             // Auto-resize textarea
@@ -319,6 +423,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           className="full-results-chat-input bp3-input"
           rows={1}
         />
+        </Popover>
         <Button
           icon="send-message"
           onClick={onSubmit}

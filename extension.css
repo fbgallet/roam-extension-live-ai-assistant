@@ -1515,6 +1515,13 @@ h3.full-results-title.bp3-heading {
   animation: haloOrange 3s ease-in-out infinite;
 }
 
+/* Highlighting for referenced pages from chat - smooth halo animation - Blue theme */
+.full-results-result-item.highlighted-page-result {
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb) !important;
+  border: 2px solid #1976d2 !important;
+  animation: haloBlue 3s ease-in-out infinite;
+}
+
 /* Smooth halo animation for highlighted results - Orange theme */
 @keyframes haloOrange {
   0% {
@@ -1551,6 +1558,7 @@ h3.full-results-title.bp3-heading {
   margin-right: 10px;
   margin-top: 6px;
   cursor: pointer;
+  z-index: 6;
 }
 
 .full-results-block-container {
@@ -1665,11 +1673,16 @@ h3.full-results-title.bp3-heading {
 
 /* Blueprint dropdown popover styling */
 .full-results-dropdown-popover {
-  z-index: 10000 !important;
+  z-index: 1002 !important; /* Above fullscreen modal (1001) */
 }
 
 .full-results-dropdown-popover .bp3-menu {
   min-width: 150px;
+}
+
+/* Ensure popovers from full-results buttons appear above fullscreen mode */
+.full-results-modal .bp3-popover-target + .bp3-overlay .bp3-popover {
+  z-index: 1002 !important;
 }
 
 /* Ensure Blueprint popovers appear above modal overlay */
@@ -1817,11 +1830,12 @@ h3.full-results-title.bp3-heading {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  transition: background-color 0.15s ease;
+  transition: border 0.15s ease;
 }
 
 .full-results-result-item:hover {
-  background: rgba(167, 182, 194, 0.15);
+  /* border: 3px solid rgba(167, 182, 194, 0.2);*/
+  box-shadow: inset 0px 0px 5px 2px rgba(167, 182, 194, 0.35);
 }
 
 .full-results-result-item:last-child {
@@ -2842,8 +2856,7 @@ h3.full-results-title.bp3-heading {
 .full-results-chat-text .roam-block-ref-chat {
   color: #fd7e14;
   text-decoration: none;
-  font-weight: 500;
-  padding: 2px 6px;
+  padding: 2px 4px;
   border-radius: 4px;
   background: rgba(253, 126, 20, 0.1);
   transition: all 0.2s ease;
@@ -3005,6 +3018,13 @@ h3.full-results-title.bp3-heading {
   margin: 0;
 }
 
+.full-results-chat-agent-mode .bp3-control.bp3-switch {
+  font-size: 12px;
+}
+.full-results-chat-agent-mode .bp3-control.bp3-control-indicator {
+  margin-right: 8px;
+}
+
 .disabled-hint {
   color: #6c757d;
   font-size: 11px;
@@ -3052,6 +3072,7 @@ textarea.bp3-input.full-results-chat-input {
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
   min-height: 40px;
   max-height: 250px;
+  width: 100%;
   overflow-y: auto;
 }
 
@@ -3090,6 +3111,11 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb {
 
 textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   background: rgba(167, 182, 194, 0.5);
+}
+
+.bp3-menu.chat-page-autocomplete-menu {
+  max-height: 250px;
+  overflow: auto;
 }
 
 /* Modern floating send button */
@@ -3286,7 +3312,7 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   height: 100vh !important;
   background: rgba(0, 0, 0, 0.95) !important;
   pointer-events: auto !important; /* Re-enable pointer events in fullscreen */
-  z-index: 10000 !important; /* Very high z-index to be above everything */
+  z-index: 1000 !important; /* Above Roam content but not excessively high */
 }
 
 .full-results-modal.fullscreen {
@@ -3296,6 +3322,8 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   max-height: none !important;
   margin: 0 !important;
   border-radius: 0 !important;
+  position: relative;
+  z-index: 1001; /* Above the overlay */
 }
 
 /* When fullscreen is active, restore Roam app margin (panel is no longer "alongside") */
@@ -4116,6 +4144,13 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
     .bp3-html-select
     .bp3-icon {
     top: 5px;
+  }
+
+  .full-results-chat-agent-mode .bp3-control.bp3-switch {
+    font-size: 11px;
+  }
+  .full-results-chat-agent-mode .bp3-control.bp3-control-indicator {
+    margin-right: 6px;
   }
 
   /* Compact input */

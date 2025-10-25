@@ -38,6 +38,10 @@ export interface ChatAgentOptions {
   // Tool usage callback
   toolUsageCallback?: (toolName: string) => void;
 
+  // Agent callbacks
+  addResultsCallback?: (results: any[]) => void;
+  selectResultsCallback?: (uids: string[]) => void;
+
   // Token usage tracking
   tokensUsage?: TokensUsage;
 
@@ -107,6 +111,10 @@ export async function invokeChatAgent(
 
     // Tool usage callback
     toolUsageCallback: options.toolUsageCallback,
+
+    // Agent callbacks
+    addResultsCallback: options.addResultsCallback,
+    selectResultsCallback: options.selectResultsCallback,
 
     // Timing
     startTime,
