@@ -8,6 +8,7 @@ import { multiplyTool } from "./multiplyTool";
 import { addPagesByTitleTool } from "./addPagesByTitleTool";
 import { addLinkedReferencesByTitleTool } from "./addLinkedReferencesByTitleTool";
 import { selectResultsByCriteriaTool } from "./selectResultsByCriteriaTool";
+import { helpTool } from "./helpTool";
 
 export interface ChatToolInfo {
   tool: any;
@@ -40,6 +41,12 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     securityLevel: "secure",
     description:
       "Select (check) results based on various criteria like date ranges, content patterns, or intelligent semantic analysis. Use when user wants to filter or focus on specific results or ask to select only some items to reduce the context.",
+  },
+  get_help: {
+    tool: helpTool,
+    securityLevel: "secure",
+    description:
+      "Fetch Live AI extension documentation when users ask for help about features, pricing, agents, or how to use the extension. Automatically retrieves relevant .md files from GitHub.",
   },
 };
 

@@ -64,6 +64,29 @@ export const renderMarkdown = (text: string): string => {
   // Clean up line breaks around headers and lists
   rendered = rendered.replace(/(<br>)*(<\/?(h[1-6]|ul)>)(<br>)*/g, "$2");
 
+  // IMPORTANT: Process URLs early to prevent conflicts with other patterns
+
+  // Markdown links [description](url) - process BEFORE other bracket patterns
+  // This regex handles both http(s):// and www. URLs
+  rendered = rendered.replace(
+    /\[([^\[\]]+?)\]\(((?:https?:\/\/|www\.)[^\s\)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener" class="external-link">$1</a>'
+  );
+
+  // Bare URLs - https://... or http://...
+  // Avoid matching URLs already in href attributes or inside tags
+  rendered = rendered.replace(
+    /(?<!["'=])(https?:\/\/[^\s<>"]+)/g,
+    '<a href="$1" target="_blank" rel="noopener" class="external-link">$1</a>'
+  );
+
+  // Bare www. URLs (add https:// protocol)
+  // Avoid matching www already in href or after a protocol
+  rendered = rendered.replace(
+    /(?<!["'=:\/])(www\.[^\s<>"]+)/g,
+    '<a href="https://$1" target="_blank" rel="noopener" class="external-link">$1</a>'
+  );
+
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
     /\[\[(?!\<)([^\]]+)(?!<\>)\]\]/g,
@@ -90,8 +113,9 @@ export const renderMarkdown = (text: string): string => {
   );
 
   // Tag references #tag - make clickable
+  // Use negative lookbehind to avoid matching # in URLs (e.g., https://example.com#anchor)
   rendered = rendered.replace(
-    /#([a-zA-Z0-9_-]+)/g,
+    /(?<!\w|\/)#([a-zA-Z0-9_-]+)/g,
     '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag. Shift+click: Open in sidebar. Alt+click: Open in main window">#$1</a>'
   );
 
@@ -101,5 +125,8 @@ export const renderMarkdown = (text: string): string => {
   }
   rendered = rendered.replace(/<p><\/p>/g, "");
 
-  return DOMPurify.sanitize(rendered);
+  // Configure DOMPurify to allow target="_blank" on links
+  return DOMPurify.sanitize(rendered, {
+    ADD_ATTR: ["target", "rel"],
+  });
 };
