@@ -26,6 +26,7 @@ export interface ChatAgentOptions {
   style?: string;
   commandPrompt?: string;
   toolsEnabled?: boolean;
+  enabledTools?: Set<string>; // List of enabled tool names
   accessMode?: "Balanced" | "Full Access";
   isAgentMode?: boolean;
 
@@ -45,6 +46,12 @@ export interface ChatAgentOptions {
   // Token usage tracking
   tokensUsage?: TokensUsage;
 
+  // Active skill instructions (persists across turns)
+  activeSkillInstructions?: string;
+
+  // Tool results cache (for deduplication across turns)
+  toolResultsCache?: Record<string, any>;
+
   // Previous state for continuation
   previousState?: Partial<ChatAgentStateType>;
 }
@@ -60,6 +67,9 @@ export interface ChatAgentResult {
 
   // Tool results cache
   toolResultsCache: Record<string, any>;
+
+  // Active skill instructions (to persist for next turn)
+  activeSkillInstructions?: string;
 
   // Token usage (cumulative across the conversation)
   tokensUsage: TokensUsage;
@@ -91,6 +101,7 @@ export async function invokeChatAgent(
     style: options.style,
     commandPrompt: options.commandPrompt,
     toolsEnabled: options.toolsEnabled ?? true,
+    enabledTools: options.enabledTools,
     accessMode: options.accessMode || "Balanced",
     isAgentMode: options.isAgentMode ?? false,
 
@@ -122,8 +133,11 @@ export async function invokeChatAgent(
     // Token usage (pass existing usage to be accumulated)
     tokensUsage: options.tokensUsage || { input_tokens: 0, output_tokens: 0 },
 
-    // Tool results cache
-    toolResultsCache: {},
+    // Active skill instructions
+    activeSkillInstructions: options.activeSkillInstructions,
+
+    // Tool results cache (use provided cache or start fresh)
+    toolResultsCache: options.toolResultsCache || {},
 
     // Merge previous state if provided
     ...(options.previousState || {}),
@@ -141,6 +155,7 @@ export async function invokeChatAgent(
     conversationSummary: result.conversationSummary,
     exchangesSinceLastSummary: result.exchangesSinceLastSummary || 0,
     toolResultsCache: result.toolResultsCache || {},
+    activeSkillInstructions: result.activeSkillInstructions,
     tokensUsage: result.tokensUsage || { input_tokens: 0, output_tokens: 0 },
     duration,
   };

@@ -4,11 +4,11 @@
  * Registry of tools specific to the chat agent (separate from search agent tools)
  */
 
-import { multiplyTool } from "./multiplyTool";
 import { addPagesByTitleTool } from "./addPagesByTitleTool";
 import { addLinkedReferencesByTitleTool } from "./addLinkedReferencesByTitleTool";
 import { selectResultsByCriteriaTool } from "./selectResultsByCriteriaTool";
 import { helpTool } from "./helpTool";
+import { liveaiSkillsTool } from "./liveaiSkillsTool";
 
 export interface ChatToolInfo {
   tool: any;
@@ -18,12 +18,6 @@ export interface ChatToolInfo {
 
 // Define all chat-specific tools with their security levels
 export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
-  multiply: {
-    tool: multiplyTool,
-    securityLevel: "secure",
-    description:
-      "Multiply two numbers together - simple test tool for demonstrating tool usage",
-  },
   add_pages_by_title: {
     tool: addPagesByTitleTool,
     securityLevel: "secure",
@@ -47,6 +41,12 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     securityLevel: "secure",
     description:
       "Fetch Live AI extension documentation when users ask for help about features, pricing, agents, or how to use the extension. Automatically retrieves relevant .md files from GitHub.",
+  },
+  live_ai_skills: {
+    tool: liveaiSkillsTool,
+    securityLevel: "secure",
+    description:
+      "Access specialized skills stored in Roam with #liveai/skill tag. Skills provide instructions and resources for specific tasks/workflows. Load progressively: start with core instructions, then request deeper resources only when needed.",
   },
 };
 

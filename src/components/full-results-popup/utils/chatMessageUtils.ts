@@ -115,7 +115,7 @@ export const renderMarkdown = (text: string): string => {
   // Tag references #tag - make clickable
   // Use negative lookbehind to avoid matching # in URLs (e.g., https://example.com#anchor)
   rendered = rendered.replace(
-    /(?<!\w|\/)#([a-zA-Z0-9_-]+)/g,
+    /(?<!\w|\/)#([a-zA-Z0-9\/_-]+)/g,
     '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag. Shift+click: Open in sidebar. Alt+click: Open in main window">#$1</a>'
   );
 

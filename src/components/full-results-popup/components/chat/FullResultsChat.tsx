@@ -811,6 +811,82 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       128000
   );
 
+  // Track enabled/disabled state for each tool
+  const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
+    // Try to load from storage first
+    const storedTools = extensionStorage.get("chatEnabledTools");
+    if (storedTools && Array.isArray(storedTools)) {
+      return new Set(storedTools);
+    }
+
+    // Initialize with all tools enabled by default
+    const allTools = new Set<string>();
+    Object.keys(require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry").CHAT_TOOLS).forEach(toolName => {
+      allTools.add(toolName);
+    });
+
+    // Also enable all skills by default
+    const skills = require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
+    skills.forEach((skill: any) => {
+      allTools.add(`skill:${skill.name}`);
+    });
+
+    return allTools;
+  });
+
+  // Save enabled tools to storage whenever they change
+  useEffect(() => {
+    extensionStorage.set("chatEnabledTools", Array.from(enabledTools));
+  }, [enabledTools]);
+
+  // Handler to toggle individual tool
+  const handleToggleTool = (toolName: string) => {
+    setEnabledTools(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(toolName)) {
+        newSet.delete(toolName);
+      } else {
+        newSet.add(toolName);
+      }
+      return newSet;
+    });
+  };
+
+  // Handler to toggle all tools on/off
+  const handleToggleAllTools = (enable: boolean) => {
+    if (enable) {
+      // Enable all tools
+      const allTools = new Set<string>();
+      Object.keys(require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry").CHAT_TOOLS).forEach(toolName => {
+        allTools.add(toolName);
+      });
+      // Also enable all skills
+      const skills = require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
+      skills.forEach((skill: any) => {
+        allTools.add(`skill:${skill.name}`);
+      });
+      setEnabledTools(allTools);
+    } else {
+      // Disable all tools
+      setEnabledTools(new Set());
+    }
+  };
+
+  // Automatically set chat mode based on enabled tools
+  useEffect(() => {
+    if (enabledTools.size > 0) {
+      // If any tools are enabled, switch to agent mode
+      if (chatMode !== "agent") {
+        setChatMode("agent");
+      }
+    } else {
+      // If no tools are enabled, switch to simple mode
+      if (chatMode !== "simple") {
+        setChatMode("simple");
+      }
+    }
+  }, [enabledTools.size, chatMode]);
+
   // Calculate total tokens used in the conversation
   const { totalIn, totalOut } = React.useMemo(
     () => calculateTotalTokens(chatMessages),
@@ -1239,6 +1315,71 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setCurrentToolUsage(null);
   };
 
+  // Handler for help buttons
+  const handleHelpButtonClick = async (
+    type: "chat" | "liveai" | "tip",
+    promptOrContent: string
+  ) => {
+    if (isTyping) return;
+
+    if (chatMode === "agent") {
+      // Agentic mode: Send user message to trigger Help tool
+      const userMessage: ChatMessage = {
+        role: "user",
+        content: promptOrContent,
+        timestamp: new Date(),
+      };
+
+      setChatMessages((prev) => [...prev, userMessage]);
+      setIsTyping(true);
+      setIsStreaming(true);
+      setStreamingContent("");
+      setCurrentToolUsage(null);
+
+      try {
+        const contextResults = getSelectedResultsForChat();
+        await processChatMessage(userMessage.content, contextResults);
+      } catch (error) {
+        console.error("Chat error:", error);
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "Sorry, I encountered an error processing your request. Please try again.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+      }
+
+      setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingContent("");
+      setCurrentToolUsage(null);
+    } else {
+      // Simple mode: Insert pre-written assistant message directly (no LLM call)
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: promptOrContent,
+        timestamp: new Date(),
+      };
+
+      setChatMessages((prev) => {
+        // If this is a tip and the last message is also a tip, replace it
+        if (type === "tip" && prev.length > 0) {
+          const lastMessage = prev[prev.length - 1];
+          if (
+            lastMessage.role === "assistant" &&
+            lastMessage.content.startsWith("💡")
+          ) {
+            // Replace the last tip with the new one
+            return [...prev.slice(0, -1), assistantMessage];
+          }
+        }
+        // Otherwise, append the new message
+        return [...prev, assistantMessage];
+      });
+    }
+  };
+
   const processChatMessage = async (
     message: string,
     contextResults: Result[],
@@ -1356,6 +1497,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         style: styleFromCall,
         commandPrompt: commandPromptFromCall,
         toolsEnabled: chatMode === "agent", // Enable tools only in agent mode
+        enabledTools: enabledTools, // Pass the set of enabled tools
         accessMode: chatAccessMode,
         isAgentMode: chatMode === "agent",
 
@@ -1367,6 +1509,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         conversationSummary: chatAgentData?.conversationSummary,
         exchangesSinceLastSummary:
           chatAgentData?.exchangesSinceLastSummary || 0,
+
+        // Active skill instructions from previous turns
+        activeSkillInstructions: chatAgentData?.activeSkillInstructions,
+
+        // Tool results cache from previous turns (for deduplication)
+        toolResultsCache: chatAgentData?.toolResultsCache,
 
         // Streaming
         streamingCallback: (content: string) => {
@@ -1396,6 +1544,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         conversationSummary: agentResult.conversationSummary,
         exchangesSinceLastSummary: agentResult.exchangesSinceLastSummary,
         toolResultsCache: agentResult.toolResultsCache,
+        activeSkillInstructions: agentResult.activeSkillInstructions,
         tokensUsage: agentResult.tokensUsage,
       };
 
@@ -1405,6 +1554,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       console.log(`💬 [Chat] Agent returned conversation state:`, {
         conversationHistoryLength: agentResult.conversationHistory?.length || 0,
         hasSummary: !!agentResult.conversationSummary,
+        hasActiveSkillInstructions: !!agentResult.activeSkillInstructions,
         tokensUsage: agentResult.tokensUsage,
       });
 
@@ -1507,9 +1657,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         currentToolUsage={currentToolUsage}
         modelTokensLimit={modelTokensLimit}
         chatAccessMode={chatAccessMode}
+        chatMode={chatMode}
         hasSearchResults={allResults.length > 0}
         onCopyMessage={copyAssistantMessage}
         onSuggestionClick={setChatInput}
+        onHelpButtonClick={handleHelpButtonClick}
         messagesContainerRef={messagesContainerRef}
       />
 
@@ -1529,6 +1681,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         availablePages={availablePages}
         isLoadingPages={isLoadingPages}
         onQueryPages={queryAvailablePages}
+        enabledTools={enabledTools}
+        onToggleTool={handleToggleTool}
+        onToggleAllTools={handleToggleAllTools}
       />
     </div>
   );

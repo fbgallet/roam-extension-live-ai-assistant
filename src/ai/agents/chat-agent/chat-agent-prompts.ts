@@ -5,6 +5,7 @@
  */
 
 import { completionCommands, defaultAssistantCharacter } from "../../prompts";
+import { getFormattedSkillsList } from "../chat-agent/tools/skillsUtils";
 
 // Base system prompt for chat agent
 export const buildChatSystemPrompt = ({
@@ -16,6 +17,8 @@ export const buildChatSystemPrompt = ({
   resultsContext,
   accessMode,
   isAgentMode,
+  activeSkillInstructions,
+  enabledTools,
 }: {
   lastMessage: string;
   style?: string;
@@ -25,13 +28,15 @@ export const buildChatSystemPrompt = ({
   resultsContext?: string;
   accessMode: "Balanced" | "Full Access";
   isAgentMode?: boolean;
+  activeSkillInstructions?: string;
+  enabledTools?: Set<string>;
 }): string => {
   // Different base prompt depending on whether we have search results context
   let systemPrompt =
     defaultAssistantCharacter +
     (resultsContext.length
       ? `Your main purpose is to help users analyze and interact with their Roam Research knowledge graph through the selection of pages or blocks available in the context, thanks to Live AI interface and Ask 'Your Graph' agent queries.`
-      : `You can help with various tasks, answer questions, provide information, assist with problem-solving and follow a large set of built-in or custom prompts.`);
+      : `You can help with various tasks, answer questions, provide information, assist with problem-solving using tools.`);
 
   // Add command-specific instructions if provided
   let completeCommandPrompt = buildCompleteCommandPrompt(
@@ -41,6 +46,20 @@ export const buildChatSystemPrompt = ({
   if (completeCommandPrompt)
     systemPrompt += `\n\n## Task Instructions\n${completeCommandPrompt}`;
   console.log("systemPrompt :>> ", systemPrompt);
+
+  // Add active skill instructions if available (these persist across turns)
+  if (activeSkillInstructions) {
+    systemPrompt += `\n\n## Active Skill Instructions
+
+${activeSkillInstructions}
+
+**⚠️ CRITICAL - Use These Instructions:**
+- These skill instructions are ALREADY LOADED and ready to use
+- DO NOT call live_ai_skills again for this same skill/resource - it's wasteful
+- These instructions contain specialized knowledge that supersedes your general knowledge
+- Follow them exactly to complete the user's task
+- Only call live_ai_skills again if you need a DIFFERENT skill or a DEEPER resource not already present here`;
+  }
 
   // Add results context if available
   if (resultsContext) {
@@ -55,18 +74,46 @@ export const buildChatSystemPrompt = ({
   // Add tool usage guidance - DON'T include tool descriptions when using bindTools
   // LangChain's bindTools handles tool schemas automatically via the API
   if (toolsEnabled) {
-    // Just add general guidance, no specific tool descriptions
-    systemPrompt += `\n\n## Tool Usage
-You have access to tools that can help analyze and search the knowledge graph. Use them when needed.`;
+    // Check if live_ai_skills tool is enabled
+    const isSkillsToolEnabled =
+      !enabledTools || enabledTools.has("live_ai_skills");
 
-    // Add agent mode specific guidance
-    //     if (isAgentMode) {
-    //       systemPrompt += `\n\n### Deep Analysis Mode
-    // - Analyze the provided content first, then search only if you need additional context
-    // - When searching: use specific UIDs, purpose: "completion" for expanding context
-    // - Use fromResultId: "external_context_001" to reference the provided results
-    // - Focus on synthesis and deeper understanding`;
-    //     }
+    // Get available skills if the tool is enabled
+    const skillsList = isSkillsToolEnabled ? getFormattedSkillsList() : null;
+
+    // Just add general guidance, no specific tool descriptions
+    systemPrompt += `\n\n## ReAct Agent Mode (Reason + Act)
+
+You are operating in AGENTIC mode with access to tools. Follow the ReAct methodology:
+
+**ReAct Pattern (internal thought process):**
+1. **Reason**: What does the user need? What information do I need to provide a complete answer?
+2. **Act**: Use tools to gather that information (can be multiple sequential calls)
+3. **Observe**: Review tool responses - do I need more? If yes, use more tools
+4. **Respond**: Only respond to user when you have comprehensive information
+**In short: Be Autonomous and Thorough:**
+
+**Tool Usage Philosophy:**
+- Use tools PROACTIVELY - don't wait for explicit permission
+- Chain multiple tool calls in sequence when needed to fully answer the question
+- Only ask the user when you've exhausted all autonomous options
+- Some tools cache results to avoid redundancy - check before re-calling
+
+**Multi-step example:**
+User asks complex question → Use tool 1 → Tool suggests more info available → Use tool 2 → Respond with complete answer
+(NOT: Use tool 1 → Ask user "should I get more info?" ← TOO PASSIVE)`;
+
+    // Add skills section only if skills tool is enabled AND skills are available
+    if (
+      isSkillsToolEnabled &&
+      skillsList &&
+      !skillsList.includes("No skills available")
+    ) {
+      systemPrompt += `\n\n⚠️ IMPORTANT: When the user's request matches ANY skill above (even partially), use the live_ai_skills tool to load expert instructions. Skills contain specialized workflows that will help you complete the task correctly.
+      
+**Skills Available in User's Knowledge Base:**
+${skillsList}`;
+    }
   } else {
     systemPrompt += `\n\n## Response Mode\nYou are operating in direct chat mode without access to search tools. Respond based on the provided context and your general knowledge.`;
   }
@@ -108,15 +155,12 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 - **Be concise** - get to the point quickly unless more detail is requested
 - **Be conversational** - friendly and approachable tone
 - Build on previous conversation context when relevant
-- If user ask for help, go directly to the point, be very concise unless more detail is requested and provide always an example
 
 ### Response Approach
 - Focus on understanding the user's actual need
 - Provide practical, actionable information
 - Ask clarifying questions when needed
-- Be honest about limitations
-
-Remember: Be helpful, clear, and concise.`;
+- Be honest about limitations`;
   }
 
   // Add style-specific formatting if provided

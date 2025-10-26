@@ -20,19 +20,28 @@ import {
  */
 export const getChatTools = (
   toolsEnabled: boolean,
-  permissions: { contentAccess: boolean }
+  permissions: { contentAccess: boolean },
+  enabledTools?: Set<string>
 ): any[] => {
   if (!toolsEnabled) {
     return [];
   }
 
-  // For now, only return chat-specific tools (multiply) for testing
-  // TODO: Re-enable search tools once multiply tool is working
-  // const searchTools = getAvailableTools(permissions);
+  // Get all available tools based on permissions
   const chatTools = getChatToolsFromRegistry(permissions);
 
-  return chatTools; // Only chat-specific tools for now
-  // return [...searchTools, ...chatTools]; // Full set when ready
+  // If enabledTools is provided, filter to only those tools
+  if (enabledTools && enabledTools.size > 0) {
+    return chatTools.filter((tool) => {
+      // Check if this tool's name is in the enabledTools set
+      const toolName = Object.keys(CHAT_TOOLS).find(
+        (name) => CHAT_TOOLS[name].tool === tool
+      );
+      return toolName && enabledTools.has(toolName);
+    });
+  }
+
+  return chatTools; // All tools if no filter specified
 };
 
 /**

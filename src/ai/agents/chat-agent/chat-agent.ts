@@ -45,6 +45,7 @@ const ChatAgentState = Annotation.Root({
   commandPrompt: Annotation<string | undefined>,
   // Tool control
   toolsEnabled: Annotation<boolean>,
+  enabledTools: Annotation<Set<string> | undefined>,
   permissions: Annotation<{ contentAccess: boolean }>,
   chatTools: Annotation<any[]>,
   // Conversation state
@@ -69,6 +70,8 @@ const ChatAgentState = Annotation.Root({
   startTime: Annotation<number>,
   // Tool results cache
   toolResultsCache: Annotation<Record<string, any>>,
+  // Active skill instructions (replaces previous when new skill is loaded)
+  activeSkillInstructions: Annotation<string | undefined>,
   // Response tracking
   finalAnswer: Annotation<string | undefined>,
   // Token usage tracking
@@ -97,7 +100,11 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   llm = modelViaLanggraph(state.model, turnTokensUsage);
 
   // Get tools based on permissions and tool enablement
-  const chatTools = getChatTools(state.toolsEnabled, state.permissions);
+  const chatTools = getChatTools(
+    state.toolsEnabled,
+    state.permissions,
+    state.enabledTools
+  );
 
   // Build conversation context
   const conversationContext = buildConversationContext(
@@ -133,7 +140,11 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     resultsContext,
     accessMode: state.accessMode,
     isAgentMode: state.isAgentMode,
+    activeSkillInstructions: state.activeSkillInstructions,
+    enabledTools: state.enabledTools,
   });
+
+  console.log("systemPrompt :>> ", systemPrompt);
 
   sys_msg = new SystemMessage({ content: systemPrompt });
 
@@ -196,6 +207,11 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   const streamCallback = state.streamingCallback;
 
   if (streamCallback) {
+    console.log(
+      "messages :>> ",
+      messages.map((msg) => msg.content)
+    );
+    console.log("state.conversationHistory :>> ", state.conversationHistory);
     // Stream the response - use concat to properly accumulate tool call chunks
     const stream = await llm_with_tools.stream(messages);
     let gathered: any = undefined;
@@ -285,6 +301,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       selectResultsCallback: state.selectResultsCallback,
       model: state.model, // Pass model info so tools can reuse the same LLM
       llm: llm, // Pass the initialized LLM instance directly
+      toolResultsCache: state.toolResultsCache || {}, // Pass cache for tool result deduplication
     },
   };
 
@@ -296,6 +313,9 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
   );
   const updatedCache = { ...state.toolResultsCache };
 
+  // Extract skill instructions if the skill tool was called
+  let newActiveSkillInstructions = state.activeSkillInstructions;
+
   toolMessages.forEach((msg: any) => {
     if (msg.tool_call_id && msg.content) {
       updatedCache[msg.tool_call_id] = {
@@ -303,12 +323,19 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
         timestamp: Date.now(),
         tool_name: msg.name,
       };
+
+      // If this is the skill tool, extract and store its instructions
+      if (msg.name === "live_ai_skills" && msg.content) {
+        console.log("📚 Skill tool called, storing active instructions");
+        newActiveSkillInstructions = msg.content;
+      }
     }
   });
 
   return {
     ...result,
     toolResultsCache: updatedCache,
+    activeSkillInstructions: newActiveSkillInstructions,
   };
 };
 
@@ -338,6 +365,9 @@ const finalize = async (state: typeof ChatAgentState.State) => {
     conversationHistory: newHistory,
     exchangesSinceLastSummary: (state.exchangesSinceLastSummary || 0) + 1,
     tokensUsage: turnTokensUsage,
+    // Preserve state that should persist across turns
+    activeSkillInstructions: state.activeSkillInstructions,
+    toolResultsCache: state.toolResultsCache,
   };
 };
 

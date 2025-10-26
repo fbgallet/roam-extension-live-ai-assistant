@@ -2710,6 +2710,10 @@ h3.full-results-title.bp3-heading {
   border-color: rgba(102, 126, 234, 0.5);
 }
 
+.full-results-chat-feature-hint {
+  margin-top: 6px;
+}
+
 /* Modern Chat Messages */
 .full-results-chat-message {
   display: flex;
@@ -4338,4 +4342,114 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
 /* Make sure popover doesn't interfere with textarea focus */
 .bp3-popover-content:has(.chat-command-suggest-menu.slash-mode) {
   pointer-events: auto;
+}
+
+/* Chat Tools Menu Styles */
+.chat-tools-menu {
+  max-width: 400px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.chat-tools-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--co-bg-sidebar, #f5f8fa);
+  border-bottom: 1px solid var(--co-border, #e1e8ed);
+}
+
+.chat-tools-menu-header strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--co-text, #182026);
+}
+
+.chat-tools-menu-section-header {
+  padding: 8px 12px;
+  background-color: var(--co-bg-sidebar, #f5f8fa);
+  border-top: 1px solid var(--co-border, #e1e8ed);
+}
+
+.chat-tools-menu-section-header strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--co-text-secondary, #5c7080);
+}
+
+.chat-tool-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-tool-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--co-text, #182026);
+}
+
+.chat-tool-description {
+  font-size: 11px;
+  color: var(--co-text-secondary, #5c7080);
+  line-height: 1.3;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+.chat-tools-menu .bp3-menu-item {
+  padding: 8px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chat-tools-menu .bp3-menu-item:hover {
+  background-color: var(--co-bg-hover, rgba(92, 112, 128, 0.1));
+}
+
+.chat-tools-menu .bp3-menu-item .bp3-switch {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.full-results-chat-tools-menu {
+  display: flex;
+  align-items: center;
+}
+
+.full-results-chat-tools-menu .bp3-button {
+  min-width: 32px;
+}
+
+/* Collapsible tool descriptions */
+.chat-tool-description {
+  transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+  overflow: hidden;
+}
+
+.chat-tool-description.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+}
+
+.chat-tool-description.expanded {
+  max-height: 200px;
+  opacity: 1;
+  margin-top: 4px;
+}
+
+/* Tool name with caret icon */
+.chat-tool-name {
+  display: flex;
+  align-items: center;
+}
+
+.chat-tool-name .bp3-icon {
+  flex-shrink: 0;
+  color: var(--co-text-secondary, #5c7080);
 }

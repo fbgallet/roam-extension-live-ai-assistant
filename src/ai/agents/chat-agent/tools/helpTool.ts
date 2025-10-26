@@ -40,14 +40,14 @@ export const helpTool = tool(
       .replace("raw.githubusercontent.com", "github.com")
       .replace("/main/", "/blob/main/");
 
-    // Check if this documentation was already fetched in conversation history
-    const conversationHistory = config?.configurable?.conversationHistory || [];
-    const docAlreadyFetched = conversationHistory.some(
-      (msg: any) =>
-        msg.type === "tool" &&
-        msg.content &&
-        typeof msg.content === "string" &&
-        msg.content.includes(`# Documentation: ${topic}`)
+    // Check if this documentation was already fetched using the tool results cache
+    const toolResultsCache = config?.configurable?.toolResultsCache || {};
+    const docAlreadyFetched = Object.values(toolResultsCache).some(
+      (cached: any) =>
+        cached.tool_name === "get_help" &&
+        cached.content &&
+        typeof cached.content === "string" &&
+        cached.content.includes(`# Documentation: ${topic}`)
     );
 
     if (docAlreadyFetched) {

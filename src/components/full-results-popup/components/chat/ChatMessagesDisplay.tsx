@@ -6,8 +6,15 @@
 
 import React from "react";
 import { Button, Tooltip } from "@blueprintjs/core";
-import { ChatMessage } from "../../types/types";
+import { ChatMessage, ChatMode } from "../../types/types";
 import { renderMarkdown } from "../../utils/chatMessageUtils";
+import {
+  CHAT_HELP_RESPONSE,
+  LIVE_AI_HELP_RESPONSE,
+  AGENTIC_CHAT_HELP_PROMPT,
+  AGENTIC_LIVE_AI_HELP_PROMPT,
+  getRandomTip,
+} from "./chatHelpConstants";
 
 interface ChatMessagesDisplayProps {
   chatMessages: ChatMessage[];
@@ -17,9 +24,14 @@ interface ChatMessagesDisplayProps {
   currentToolUsage: string | null;
   modelTokensLimit: number;
   chatAccessMode: "Balanced" | "Full Access";
+  chatMode: ChatMode;
   hasSearchResults: boolean;
   onCopyMessage: (content: string) => void;
   onSuggestionClick: (suggestion: string) => void;
+  onHelpButtonClick: (
+    type: "chat" | "liveai" | "tip",
+    promptOrContent: string
+  ) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -31,11 +43,49 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   currentToolUsage,
   modelTokensLimit,
   chatAccessMode,
+  chatMode,
   hasSearchResults,
   onCopyMessage,
   onSuggestionClick,
+  onHelpButtonClick,
   messagesContainerRef,
 }) => {
+  // Define help buttons once to reuse in multiple places
+  const helpButtons = (
+    <div className="full-results-chat-suggestions">
+      <button
+        onClick={() =>
+          onHelpButtonClick(
+            "chat",
+            chatMode === "agent" ? AGENTIC_CHAT_HELP_PROMPT : CHAT_HELP_RESPONSE
+          )
+        }
+        disabled={isTyping}
+      >
+        💬 How to use this chat
+      </button>
+      <button
+        onClick={() =>
+          onHelpButtonClick(
+            "liveai",
+            chatMode === "agent"
+              ? AGENTIC_LIVE_AI_HELP_PROMPT
+              : LIVE_AI_HELP_RESPONSE
+          )
+        }
+        disabled={isTyping}
+      >
+        ⚡️ About Live AI
+      </button>
+      <button
+        onClick={() => onHelpButtonClick("tip", getRandomTip())}
+        disabled={isTyping}
+      >
+        💡 Random tip
+      </button>
+    </div>
+  );
+
   return (
     <div className="full-results-chat-messages" ref={messagesContainerRef}>
       {chatMessages.length === 0 ? (
@@ -112,6 +162,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               */}
               </div>
             )}
+            {helpButtons}
             {hasSearchResults && (
               <div className="full-results-chat-feature-hint">
                 <strong>
@@ -176,6 +227,20 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     __html: renderMarkdown(displayContent),
                   }}
                 />
+                {/* Show "Another tip" button for tip messages */}
+                {message.role === "assistant" &&
+                  message.content.startsWith("💡") && (
+                    <div className="full-results-chat-suggestions" style={{ marginTop: "12px" }}>
+                      <button
+                        onClick={() =>
+                          onHelpButtonClick("tip", getRandomTip())
+                        }
+                        disabled={isTyping}
+                      >
+                        💡 Another tip
+                      </button>
+                    </div>
+                  )}
                 <div className="full-results-chat-message-footer">
                   {message.role === "assistant" && (
                     <>

@@ -9,13 +9,13 @@ import {
   Button,
   HTMLSelect,
   Popover,
-  Switch,
   Tooltip,
 } from "@blueprintjs/core";
 import ModelsMenu from "../../../ModelsMenu";
 import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
 import ChatPageAutocomplete from "./ChatPageAutocomplete";
+import { ChatToolsMenu } from "./ChatToolsMenu";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 
 interface ChatInputAreaProps {
@@ -34,6 +34,9 @@ interface ChatInputAreaProps {
   availablePages: string[];
   isLoadingPages: boolean;
   onQueryPages: (query: string) => void;
+  enabledTools: Set<string>;
+  onToggleTool: (toolName: string) => void;
+  onToggleAllTools: (enable: boolean) => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -52,6 +55,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   availablePages,
   isLoadingPages,
   onQueryPages,
+  enabledTools,
+  onToggleTool,
+  onToggleAllTools,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
@@ -237,18 +243,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             ]}
           />
         </div>
-        <Tooltip content="Toogle capacity to handle tools">
-          <div className="full-results-chat-agentic-mode">
-            <Switch
-              checked={chatMode === "agent"}
-              onChange={(e) =>
-                onChatModeChange(e.currentTarget.checked ? "agent" : "simple")
-              }
-              label="Agentic"
-              style={{ marginBottom: 0 }}
-            />
-          </div>
-        </Tooltip>
+        <div className="full-results-chat-tools-menu">
+          <ChatToolsMenu
+            enabledTools={enabledTools}
+            onToggleTool={onToggleTool}
+            onToggleAll={onToggleAllTools}
+            permissions={{ contentAccess: chatAccessMode === "Full Access" }}
+          />
+        </div>
         <Tooltip
           // autoFocus={false}
           openOnTargetFocus={false}
