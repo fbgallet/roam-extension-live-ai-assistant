@@ -62,7 +62,10 @@ const ChatAgentState = Annotation.Root({
   // Streaming
   streamingCallback: Annotation<((content: string) => void) | undefined>,
   // Tool usage callback
-  toolUsageCallback: Annotation<((toolName: string) => void) | undefined>,
+  toolUsageCallback: Annotation<
+    | ((toolInfo: { toolName: string; args?: Record<string, any> }) => void)
+    | undefined
+  >,
   // Agent callbacks
   addResultsCallback: Annotation<((results: any[]) => void) | undefined>,
   selectResultsCallback: Annotation<((uids: string[]) => void) | undefined>,
@@ -220,7 +223,8 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // console.log("chunk :>> ", chunk);
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
-
+      console.log("chunk :>> ", chunk);
+      console.log("gathered :>> ", gathered);
       // Stream content to callback as it arrives
       if (chunk.content) {
         // Handle different content types from different providers
@@ -253,7 +257,10 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     ) {
       const firstToolCall = gathered.tool_calls[0];
       if (firstToolCall && firstToolCall.name) {
-        state.toolUsageCallback(firstToolCall.name);
+        state.toolUsageCallback({
+          toolName: firstToolCall.name,
+          args: firstToolCall.args,
+        });
       }
     }
 
@@ -277,7 +284,10 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // Notify about the first tool being used
       const firstToolCall = response.tool_calls[0];
       if (firstToolCall && firstToolCall.name) {
-        state.toolUsageCallback(firstToolCall.name);
+        state.toolUsageCallback({
+          toolName: firstToolCall.name,
+          args: firstToolCall.args,
+        });
       }
     }
 

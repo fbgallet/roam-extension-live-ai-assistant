@@ -19,6 +19,8 @@ export interface ChatMessage {
   tokensOut?: number;
   commandName?: string;
   commandPrompt?: string;
+  isHelpMessage?: boolean;
+  helpType?: "chat" | "liveai" | "tip";
 }
 
 export interface FullResultsPopupProps {

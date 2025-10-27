@@ -116,7 +116,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(null);
   const [loadedChatUid, setLoadedChatUid] = useState<string | null>(null);
-  const [currentToolUsage, setCurrentToolUsage] = useState<string | null>(null);
+  const [toolUsageHistory, setToolUsageHistory] = useState<
+    Array<{
+      toolName: string;
+      details: string;
+      timestamp: number;
+    }>
+  >([]);
+  const toolUsageCleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track command context for auto-execution
   const [commandContext, setCommandContext] = useState<{
@@ -251,7 +258,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsTyping(true);
       setIsStreaming(true);
       setStreamingContent("");
-      setCurrentToolUsage(null);
+      setToolUsageHistory([]);
 
       try {
         const contextResults = getSelectedResultsForChat();
@@ -279,7 +286,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsTyping(false);
       setIsStreaming(false);
       setStreamingContent("");
-      setCurrentToolUsage(null);
+      setToolUsageHistory([]);
 
       // Reset command context after processing
       setCommandContext(null);
@@ -1245,7 +1252,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(true);
     setIsStreaming(true);
     setStreamingContent("");
-    setCurrentToolUsage(null);
+    setToolUsageHistory([]);
 
     // Execute the command immediately
     try {
@@ -1273,7 +1280,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
-    setCurrentToolUsage(null);
+    setToolUsageHistory([]);
 
     // Reset command context after processing
     setCommandContext(null);
@@ -1293,7 +1300,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(true);
     setIsStreaming(true);
     setStreamingContent("");
-    setCurrentToolUsage(null);
+    setToolUsageHistory([]);
 
     try {
       const contextResults = getSelectedResultsForChat();
@@ -1312,72 +1319,43 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
-    setCurrentToolUsage(null);
+    setToolUsageHistory([]);
   };
 
   // Handler for help buttons
   const handleHelpButtonClick = async (
-    type: "chat" | "liveai" | "tip",
+    type: "chat" | "liveai" | "tip" | "helpabout",
     promptOrContent: string
   ) => {
     if (isTyping) return;
 
-    if (chatMode === "agent") {
-      // Agentic mode: Send user message to trigger Help tool
-      const userMessage: ChatMessage = {
-        role: "user",
-        content: promptOrContent,
-        timestamp: new Date(),
-      };
-
-      setChatMessages((prev) => [...prev, userMessage]);
-      setIsTyping(true);
-      setIsStreaming(true);
-      setStreamingContent("");
-      setCurrentToolUsage(null);
-
-      try {
-        const contextResults = getSelectedResultsForChat();
-        await processChatMessage(userMessage.content, contextResults);
-      } catch (error) {
-        console.error("Chat error:", error);
-        const errorMessage: ChatMessage = {
-          role: "assistant",
-          content:
-            "Sorry, I encountered an error processing your request. Please try again.",
-          timestamp: new Date(),
-        };
-        setChatMessages((prev) => [...prev, errorMessage]);
-      }
-
-      setIsTyping(false);
-      setIsStreaming(false);
-      setStreamingContent("");
-      setCurrentToolUsage(null);
-    } else {
-      // Simple mode: Insert pre-written assistant message directly (no LLM call)
-      const assistantMessage: ChatMessage = {
-        role: "assistant",
-        content: promptOrContent,
-        timestamp: new Date(),
-      };
-
-      setChatMessages((prev) => {
-        // If this is a tip and the last message is also a tip, replace it
-        if (type === "tip" && prev.length > 0) {
-          const lastMessage = prev[prev.length - 1];
-          if (
-            lastMessage.role === "assistant" &&
-            lastMessage.content.startsWith("💡")
-          ) {
-            // Replace the last tip with the new one
-            return [...prev.slice(0, -1), assistantMessage];
-          }
-        }
-        // Otherwise, append the new message
-        return [...prev, assistantMessage];
-      });
+    // Special case: "helpabout" just inserts text in the input
+    if (type === "helpabout") {
+      setChatInput(promptOrContent);
+      return;
     }
+
+    // All help messages are inserted as assistant messages (no LLM call)
+    const assistantMessage: ChatMessage = {
+      role: "assistant",
+      content: promptOrContent,
+      timestamp: new Date(),
+      isHelpMessage: true, // Mark as help message for special rendering
+      helpType: type, // Store the type to know which buttons to show
+    };
+
+    setChatMessages((prev) => {
+      // Help messages always replace the previous help message if it exists
+      if (prev.length > 0) {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage.role === "assistant" && lastMessage.isHelpMessage) {
+          // Replace the last help message with the new one
+          return [...prev.slice(0, -1), assistantMessage];
+        }
+      }
+      // Otherwise, append the new message
+      return [...prev, assistantMessage];
+    });
   };
 
   const processChatMessage = async (
@@ -1522,8 +1500,54 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         },
 
         // Tool usage callback
-        toolUsageCallback: (toolName: string) => {
-          setCurrentToolUsage(toolName);
+        toolUsageCallback: (toolInfo: { toolName: string; args?: Record<string, any> }) => {
+          // Build detailed description based on tool name and args
+          let details = "";
+
+          if (toolInfo.toolName === "live_ai_skills") {
+            const skillName = toolInfo.args?.skill_name || "unknown skill";
+            const resourceTitle = toolInfo.args?.resource_title;
+
+            if (resourceTitle) {
+              details = `Loading deeper resource: "${resourceTitle}" from skill "${skillName}"`;
+            } else {
+              details = `Loading skill: "${skillName}"`;
+            }
+          } else {
+            // For other tools, show a generic message
+            details = `Using tool: ${toolInfo.toolName}`;
+            if (toolInfo.args) {
+              const argsSummary = Object.entries(toolInfo.args)
+                .map(([key, value]) => {
+                  if (typeof value === 'string' && value.length > 50) {
+                    return `${key}: ${value.substring(0, 50)}...`;
+                  }
+                  return `${key}: ${JSON.stringify(value)}`;
+                })
+                .join(", ");
+              if (argsSummary) {
+                details += ` (${argsSummary})`;
+              }
+            }
+          }
+
+          // Add new tool usage to history (stacking them)
+          setToolUsageHistory((prev) => [
+            ...prev,
+            {
+              toolName: toolInfo.toolName,
+              details,
+              timestamp: Date.now(),
+            },
+          ]);
+
+          // Clear any existing cleanup timeout
+          if (toolUsageCleanupTimeoutRef.current) {
+            clearTimeout(toolUsageCleanupTimeoutRef.current);
+          }
+
+          // Set a cleanup timeout to clear all tool messages after streaming completes
+          // We'll clear this and reset it when streaming starts/stops
         },
 
         // Agent callbacks
@@ -1627,6 +1651,31 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (toolUsageCleanupTimeoutRef.current) {
+        clearTimeout(toolUsageCleanupTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-cleanup tool usage messages after streaming completes
+  useEffect(() => {
+    // Clear existing timeout when streaming state changes
+    if (toolUsageCleanupTimeoutRef.current) {
+      clearTimeout(toolUsageCleanupTimeoutRef.current);
+      toolUsageCleanupTimeoutRef.current = null;
+    }
+
+    // When streaming completes and we have tool messages, schedule cleanup after 5 seconds
+    if (!isStreaming && !isTyping && toolUsageHistory.length > 0) {
+      toolUsageCleanupTimeoutRef.current = setTimeout(() => {
+        setToolUsageHistory([]);
+      }, 5000);
+    }
+  }, [isStreaming, isTyping, toolUsageHistory.length]);
+
   if (!isOpen) return null;
 
   return (
@@ -1654,7 +1703,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isTyping={isTyping}
         isStreaming={isStreaming}
         streamingContent={streamingContent}
-        currentToolUsage={currentToolUsage}
+        toolUsageHistory={toolUsageHistory}
         modelTokensLimit={modelTokensLimit}
         chatAccessMode={chatAccessMode}
         chatMode={chatMode}

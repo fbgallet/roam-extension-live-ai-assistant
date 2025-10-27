@@ -37,7 +37,10 @@ export interface ChatAgentOptions {
   streamingCallback?: (content: string) => void;
 
   // Tool usage callback
-  toolUsageCallback?: (toolName: string) => void;
+  toolUsageCallback?: (toolInfo: {
+    toolName: string;
+    args?: Record<string, any>;
+  }) => void;
 
   // Agent callbacks
   addResultsCallback?: (results: any[]) => void;
