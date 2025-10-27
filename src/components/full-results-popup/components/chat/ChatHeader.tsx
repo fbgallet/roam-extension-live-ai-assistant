@@ -107,25 +107,34 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
       {loadedChatTitle && loadedChatUid && (
         <div className="full-results-chat-loaded-title">
-          <a
-            href="#"
-            onClick={onLoadedChatClick}
-            className="roam-block-ref-chat"
-            title="Click: Copy ((uid)) to clipboard • Shift+click: Open in sidebar • Alt+click: Open in main window"
-            style={{
-              fontSize: "0.9em",
-              color: "#5c7080",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              paddingTop: "4px",
-            }}
+          <Tooltip
+            content={
+              <p>
+                • Click: Copy ((reference)) to clipboard
+                <br />• Alt+click: Open in main window
+                <br />• Shift+click: Open in sidebar
+              </p>
+            }
           >
-            <Icon icon="history" size={12} />
-            {loadedChatTitle}
-            <Icon icon="flow-end" size={10} />
-          </a>
+            <a
+              href="#"
+              onClick={onLoadedChatClick}
+              className="roam-block-ref-chat"
+              style={{
+                fontSize: "0.9em",
+                color: "#5c7080",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                paddingTop: "4px",
+              }}
+            >
+              <Icon icon="history" size={12} />
+              {loadedChatTitle} (Source block <Icon icon="flow-end" size={10} />
+              )
+            </a>
+          </Tooltip>
         </div>
       )}
       {privateMode && (

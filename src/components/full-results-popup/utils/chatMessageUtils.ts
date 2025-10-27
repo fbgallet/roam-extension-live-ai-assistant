@@ -223,6 +223,7 @@ export const renderMarkdown = (text: string): string => {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const trimmedLine = line.trim();
 
     // Match list items with indentation
     // Capture: (spaces)(bullet/number)(space)(content)
@@ -261,8 +262,12 @@ export const renderMarkdown = (text: string): string => {
       // else: same level and same type - just add the item to existing list
 
       processedLines.push(`<li>${content}</li>`);
+    } else if (!trimmedLine && listStack.length > 0) {
+      // Empty line within a list - keep it to allow spacing between list items
+      // Don't close the list, just preserve the blank line
+      processedLines.push(line);
     } else {
-      // Not a list item - close all open lists
+      // Not a list item and not an empty line in a list - close all open lists
       while (listStack.length > 0) {
         const closingList = listStack.pop()!;
         processedLines.push(`</${closingList.type}>`);
@@ -370,4 +375,173 @@ export const renderMarkdown = (text: string): string => {
     ADD_ATTR: ["target", "rel", "class", "data-block-uid", "data-page-title", "data-page-uid", "style", "src", "alt"],
     ADD_TAGS: ["code", "pre", "blockquote", "hr", "del", "mark", "table", "thead", "tbody", "tr", "th", "td", "h5", "h6", "img"],
   });
+};
+
+/**
+ * Convert markdown formatting to Roam-native formatting
+ * Used when inserting chat messages into Roam blocks
+ *
+ * Conversions:
+ * - *italic* or _italic_ → __italic__
+ * - ==highlight== → ^^highlight^^
+ * - [x] or [X] → {{[[DONE]]}}
+ * - [ ] → {{[[TODO]]}}
+ * - Markdown tables → Roam {{[[table]]}} format
+ */
+export const convertMarkdownToRoamFormat = (markdown: string): string => {
+  let converted = markdown;
+
+  // 1. Convert highlights: ==text== → ^^text^^
+  converted = converted.replace(/==(.+?)==/g, '^^$1^^');
+
+  // 2. Convert italic: *text* or _text_ → __text__
+  // Need to be careful not to convert bold (**text**) or list markers (- item)
+  // Single asterisk/underscore for italic (but not at start of line for list markers)
+  converted = converted.replace(/(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)/g, '__$1__'); // *text* → __text__
+  converted = converted.replace(/(?<!_)_(?!_)([^_]+?)(?<!_)_(?!_)/g, '__$1__'); // _text_ → __text__
+
+  // 3. Convert task checkboxes: [x] or [X] → {{[[DONE]]}}, [ ] → {{[[TODO]]}}
+  // These typically appear at the start of list items: "- [ ] Task" or "- [x] Task"
+  converted = converted.replace(/\[x\]/gi, '{{[[DONE]]}}'); // [x] or [X] → {{[[DONE]]}}
+  converted = converted.replace(/\[ \]/g, '{{[[TODO]]}}'); // [ ] → {{[[TODO]]}}
+
+  // 4. Convert markdown tables to Roam tables
+  // Detect markdown tables (header row + separator row + data rows)
+  const tableRegex = /(?:^|\n)((?:\|[^\n]+\|\n)+)/gm;
+  converted = converted.replace(tableRegex, (match) => {
+    // Check if it's actually a table (has separator row with dashes)
+    if (!match.match(/\|[\s:-]+\|/)) {
+      return match; // Not a valid table, keep as-is
+    }
+
+    const lines = match.trim().split('\n');
+    if (lines.length < 3) return match; // Need at least header + separator + 1 row
+
+    // Parse all rows (including header)
+    const allRows = lines
+      .filter((_, index) => index !== 1) // Skip separator row (index 1)
+      .map(line =>
+        line.split('|')
+          .map(cell => cell.trim())
+          .filter(cell => cell.length > 0)
+      );
+
+    if (allRows.length === 0) return match;
+
+    // Build Roam table format: each row is a top-level item, columns are nested
+    let roamTable = '- {{[[table]]}}\n';
+
+    allRows.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        // Indentation: row items at level 1, then each column adds a level
+        const indent = '  '.repeat(colIndex + 1);
+
+        // First row (header) gets bold formatting
+        const cellContent = rowIndex === 0 ? `**${cell}**` : (cell || ' ');
+
+        roamTable += `${indent}- ${cellContent}\n`;
+      });
+    });
+
+    return '\n' + roamTable;
+  });
+
+  return converted;
+};
+
+/**
+ * Convert Roam-native formatting to markdown formatting
+ * Used when loading chat messages from Roam blocks
+ *
+ * Conversions:
+ * - __italic__ → *italic*
+ * - ^^highlight^^ → ==highlight==
+ * - {{[[DONE]]}} → [x]
+ * - {{[[TODO]]}} → [ ]
+ * - Roam {{[[table]]}} format → Markdown tables
+ */
+export const convertRoamToMarkdownFormat = (roamText: string): string => {
+  let converted = roamText;
+
+  // 1. Convert highlights: ^^text^^ → ==text==
+  converted = converted.replace(/\^\^(.+?)\^\^/g, '==$1==');
+
+  // 2. Convert italic: __text__ → *text*
+  converted = converted.replace(/__(.+?)__/g, '*$1*');
+
+  // 3. Convert task checkboxes: {{[[DONE]]}} → [x], {{[[TODO]]}} → [ ]
+  converted = converted.replace(/\{\{\[\[DONE\]\]\}\}/g, '[x]');
+  converted = converted.replace(/\{\{\[\[TODO\]\]\}\}/g, '[ ]');
+
+  // 4. Convert Roam tables to markdown tables
+  // This is more complex - need to parse the nested bullet structure
+  // Pattern: - {{[[table]]}} followed by nested bullets
+  const roamTableRegex = /-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\s*-\s+.+\n)+)/gm;
+  converted = converted.replace(roamTableRegex, (match, tableContent) => {
+    // Parse the nested bullet structure
+    const lines = tableContent.trim().split('\n');
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let lastIndentLevel = -1;
+
+    for (const line of lines) {
+      // Count indentation (2 spaces per level)
+      const indentMatch = line.match(/^(\s*)-\s+(.+)$/);
+      if (!indentMatch) continue;
+
+      const indent = indentMatch[1].length;
+      const indentLevel = Math.floor(indent / 2);
+      const content = indentMatch[2].trim();
+
+      // Remove bold markers for content extraction (we'll add them back in header)
+      const cleanContent = content.replace(/\*\*/g, '');
+
+      if (indentLevel === 1) {
+        // Start of a new row
+        if (currentRow.length > 0) {
+          rows.push(currentRow);
+        }
+        currentRow = [cleanContent];
+        lastIndentLevel = 1;
+      } else if (indentLevel > lastIndentLevel) {
+        // Next column in the same row
+        currentRow.push(cleanContent);
+        lastIndentLevel = indentLevel;
+      }
+    }
+
+    // Push the last row
+    if (currentRow.length > 0) {
+      rows.push(currentRow);
+    }
+
+    if (rows.length === 0) return match;
+
+    // Build markdown table
+    const maxCols = Math.max(...rows.map(row => row.length));
+
+    // Pad rows to have same number of columns
+    const paddedRows = rows.map(row => {
+      const padded = [...row];
+      while (padded.length < maxCols) {
+        padded.push('');
+      }
+      return padded;
+    });
+
+    // Build header row
+    let markdownTable = '| ' + paddedRows[0].join(' | ') + ' |\n';
+
+    // Build separator row
+    markdownTable += '| ' + Array(maxCols).fill('---').join(' | ') + ' |\n';
+
+    // Build data rows
+    for (let i = 1; i < paddedRows.length; i++) {
+      markdownTable += '| ' + paddedRows[i].join(' | ') + ' |\n';
+    }
+
+    return '\n' + markdownTable;
+  });
+
+  return converted;
 };

@@ -4,7 +4,11 @@
  * System prompts and templates for the chat agent
  */
 
-import { completionCommands, defaultAssistantCharacter } from "../../prompts";
+import {
+  completionCommands,
+  defaultAssistantCharacter,
+  hierarchicalResponseFormat,
+} from "../../prompts";
 import { getFormattedSkillsList } from "../chat-agent/tools/skillsUtils";
 
 // Base system prompt for chat agent
@@ -179,6 +183,8 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
   }
 
   systemPrompt += `\n\n## Syntax contrainst:
+- ${hierarchicalResponseFormat.trim()}
+- Generally respects markdown syntax, except where otherwise indicated.
 - If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: $$formula$$. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
   return systemPrompt;

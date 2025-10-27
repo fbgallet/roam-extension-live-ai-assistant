@@ -14,6 +14,7 @@ import { RoamContext } from "../../ai/agents/types";
 import { loadResultsFromRoamContext } from "./utils/roamContextLoader";
 import { chatRoles } from "../..";
 import { getFlattenedContentFromTree } from "../../ai/dataExtraction.js";
+import { convertRoamToMarkdownFormat } from "./utils/chatMessageUtils";
 
 // Main component and utilities
 export {
@@ -140,7 +141,17 @@ export const extractConversationFromLiveAIChat = (
           : "assistant";
     }
 
-    conversation.push({ role, content });
+    // Remove the leading "- " from the first line (added by getFlattenedContentFromTree with withDash: true)
+    // The first line of content shouldn't have a bullet point in chat display
+    if (content.startsWith("- ")) {
+      content = content.substring(2);
+    }
+
+    // Convert Roam-native formatting to markdown before storing in conversation
+    // This ensures the chat displays properly with markdown formatting
+    const markdownContent = convertRoamToMarkdownFormat(content);
+
+    conversation.push({ role, content: markdownContent });
   }
 
   return conversation.length > 0 ? conversation : null;

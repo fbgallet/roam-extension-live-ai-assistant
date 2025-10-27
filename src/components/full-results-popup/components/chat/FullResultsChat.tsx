@@ -12,6 +12,8 @@ import {
   getBlockContentByUid,
   getPageUidByPageName,
   insertBlockInCurrentView,
+  createChildBlock,
+  createSiblingBlock,
 } from "../../../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../../../utils/format";
@@ -19,7 +21,10 @@ import { insertCompletion } from "../../../../ai/responseInsertion";
 import { AppToaster } from "../../../Toaster";
 import { extractConversationFromLiveAIChat } from "../../index";
 import { getChatTitleFromUid } from "../../utils/chatStorage";
-import { calculateTotalTokens } from "../../utils/chatMessageUtils";
+import {
+  calculateTotalTokens,
+  convertMarkdownToRoamFormat
+} from "../../utils/chatMessageUtils";
 import { completionCommands } from "../../../../ai/prompts";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
@@ -501,7 +506,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         navigator.clipboard
           .writeText(clipboardText)
           .then(() => {
-            console.log("[Chat Link Click] Copied to clipboard:", clipboardText);
+            console.log(
+              "[Chat Link Click] Copied to clipboard:",
+              clipboardText
+            );
           })
           .catch((err) => {
             console.warn("[Chat Link Click] Failed to copy to clipboard:", err);
@@ -515,7 +523,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           });
         } else if (event.altKey || event.metaKey) {
           // Alt/Option+click: Open in main window
-          console.log("[Chat Link Click] Opening block in main window:", blockUid);
+          console.log(
+            "[Chat Link Click] Opening block in main window:",
+            blockUid
+          );
           window.roamAlphaAPI.ui.mainWindow.openBlock({
             block: { uid: blockUid },
           });
@@ -544,7 +555,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               handleChatOnlyToggle(); // Use the proper handler instead of direct setter
             } else {
               // Highlight immediately if already in results view
-              console.log("[Chat Link Click] Highlighting in existing results view");
+              console.log(
+                "[Chat Link Click] Highlighting in existing results view"
+              );
               highlightAndScrollToResult(blockUid);
             }
           } else {
@@ -591,7 +604,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               },
             });
           } else {
-            console.warn("[Chat Link Click] Could not find page UID for:", pageTitle);
+            console.warn(
+              "[Chat Link Click] Could not find page UID for:",
+              pageTitle
+            );
           }
         } else if (event.altKey || event.metaKey) {
           // Alt/Option+click: Open page in main window
@@ -605,7 +621,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               page: { uid: pageUid },
             });
           } else {
-            console.warn("[Chat Link Click] Could not find page UID for:", pageTitle);
+            console.warn(
+              "[Chat Link Click] Could not find page UID for:",
+              pageTitle
+            );
           }
         } else {
           // Regular click: Add to included references filter
@@ -702,9 +721,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     if (targetElement) {
       // Remove any existing highlights first
-      document.querySelectorAll(".highlighted-result, .highlighted-page-result").forEach((el) => {
-        el.classList.remove("highlighted-result", "highlighted-page-result");
-      });
+      document
+        .querySelectorAll(".highlighted-result, .highlighted-page-result")
+        .forEach((el) => {
+          el.classList.remove("highlighted-result", "highlighted-page-result");
+        });
 
       // Add temporary highlight
       targetElement.classList.add("highlighted-result");
@@ -783,9 +804,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     if (targetElement) {
       // Remove any existing highlights first
-      document.querySelectorAll(".highlighted-result, .highlighted-page-result").forEach((el) => {
-        el.classList.remove("highlighted-result", "highlighted-page-result");
-      });
+      document
+        .querySelectorAll(".highlighted-result, .highlighted-page-result")
+        .forEach((el) => {
+          el.classList.remove("highlighted-result", "highlighted-page-result");
+        });
 
       // Add temporary highlight with blue theme
       targetElement.classList.add("highlighted-page-result");
@@ -829,12 +852,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Initialize with all tools enabled by default
     const allTools = new Set<string>();
-    Object.keys(require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry").CHAT_TOOLS).forEach(toolName => {
+    Object.keys(
+      require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry")
+        .CHAT_TOOLS
+    ).forEach((toolName) => {
       allTools.add(toolName);
     });
 
     // Also enable all skills by default
-    const skills = require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
+    const skills =
+      require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
     skills.forEach((skill: any) => {
       allTools.add(`skill:${skill.name}`);
     });
@@ -849,7 +876,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Handler to toggle individual tool
   const handleToggleTool = (toolName: string) => {
-    setEnabledTools(prev => {
+    setEnabledTools((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(toolName)) {
         newSet.delete(toolName);
@@ -865,11 +892,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     if (enable) {
       // Enable all tools
       const allTools = new Set<string>();
-      Object.keys(require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry").CHAT_TOOLS).forEach(toolName => {
+      Object.keys(
+        require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry")
+          .CHAT_TOOLS
+      ).forEach((toolName) => {
         allTools.add(toolName);
       });
       // Also enable all skills
-      const skills = require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
+      const skills =
+        require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
       skills.forEach((skill: any) => {
         allTools.add(`skill:${skill.name}`);
       });
@@ -988,10 +1019,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         });
       }
 
-      // Build formatted conversation text with role prefixes (only for new messages)
-      // Preserve markdown formatting for parseAndCreateBlocks to interpret
-      let conversationText = "";
-      newMessages.forEach((msg) => {
+      // Insert each message separately to properly handle markdown structure
+      // For each message: create role block, then parse content as children
+      let currentTargetUid = targetUid;
+      let isFirstMessage = true;
+
+      for (const msg of newMessages) {
         const rolePrefix =
           msg.role === "user" ? chatRoles.user : chatRoles.assistant;
 
@@ -1010,24 +1043,34 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           fullContent = msg.content || "";
         }
 
-        // Add role as a top-level block
-        conversationText += `${rolePrefix}\n`;
+        // Convert markdown formatting to Roam-native formatting
+        // This converts: *italic* → __italic__, ==highlight== → ^^highlight^^, and markdown tables → Roam tables
+        fullContent = convertMarkdownToRoamFormat(fullContent);
 
-        // Add the content as indented child blocks (parseAndCreateBlocks will handle the structure)
-        // Indent each line by 2 spaces to make it a child of the role prefix
-        const indentedContent = fullContent
-          .split('\n')
-          .map(line => line ? `  ${line}` : '')
-          .join('\n');
+        // Create the role block
+        let roleBlockUid: string;
+        if (isFirstMessage && initialMessagesCountRef.current === 0) {
+          // First message of a new conversation - create as child of title block
+          roleBlockUid = await createChildBlock(currentTargetUid, rolePrefix);
+          isFirstMessage = false;
+        } else {
+          // Subsequent messages - create as siblings
+          roleBlockUid = await createSiblingBlock(
+            currentTargetUid,
+            undefined,
+            rolePrefix
+          );
+        }
 
-        conversationText += indentedContent + "\n\n";
-      });
+        // Parse and insert the message content as children of the role block
+        // parseAndCreateBlocks will handle markdown structure (lists, headers, etc.)
+        if (fullContent.trim()) {
+          await parseAndCreateBlocks(roleBlockUid, fullContent, false);
+        }
 
-      // Remove trailing newlines
-      conversationText = conversationText.trim();
-
-      // Insert using parseAndCreateBlocks (as children if first insertion, otherwise siblings)
-      await parseAndCreateBlocks(targetUid, conversationText, false);
+        // Update target for next message
+        currentTargetUid = roleBlockUid;
+      }
 
       // Update the count to reflect that these messages are now in Roam
       // This prevents re-inserting the same messages if the button is clicked again
@@ -1066,10 +1109,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // Keep markdown formatting but remove HTML tags
         const cleanContent = fullContent.replace(/<[^>]*>/g, "").trim();
 
+        // Indent ALL lines with 2 spaces to maintain structure under the role
+        const indentedContent = cleanContent
+          .split("\n")
+          .map((line) => `  ${line}`)
+          .join("\n");
+
         const role = msg.role === "user" ? chatRoles.user : assistantRole;
-        return `${role}\n  ${cleanContent}`;
+        return `${role}\n${indentedContent}`;
       })
-      .join("\n");
+      .join("\n\n");
 
     await copyToClipboard(conversationText);
   };
@@ -1495,7 +1544,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         },
 
         // Tool usage callback
-        toolUsageCallback: (toolInfo: { toolName: string; args?: Record<string, any> }) => {
+        toolUsageCallback: (toolInfo: {
+          toolName: string;
+          args?: Record<string, any>;
+        }) => {
           // Capture any intermediate message that was streamed before the tool call
           const intermediateMessage = streamingContent.trim();
 
@@ -1517,7 +1569,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             if (toolInfo.args) {
               const argsSummary = Object.entries(toolInfo.args)
                 .map(([key, value]) => {
-                  if (typeof value === 'string' && value.length > 50) {
+                  if (typeof value === "string" && value.length > 50) {
                     return `${key}: ${value.substring(0, 50)}...`;
                   }
                   return `${key}: ${JSON.stringify(value)}`;
