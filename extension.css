@@ -2837,11 +2837,71 @@ h3.full-results-title.bp3-heading {
 
 .full-results-chat-text li {
   margin-bottom: 4px;
+  padding-bottom: 0;
   line-height: 1.5;
+}
+
+.full-results-chat-text ol li {
+  padding-bottom: 0;
+}
+
+.full-results-chat-text h5 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 8px 0 4px 0;
+  color: #5a6c7d;
+}
+
+.full-results-chat-text h6 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 6px 0 4px 0;
+  color: #6c757d;
 }
 
 .full-results-chat-text br {
   margin-bottom: 4px;
+}
+
+/* Markdown table styling */
+.full-results-chat-text table.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.full-results-chat-text table.markdown-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.full-results-chat-text table.markdown-table th {
+  padding: 10px 12px;
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.full-results-chat-text table.markdown-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.full-results-chat-text table.markdown-table tbody tr:nth-child(odd) {
+  background-color: #f8f9fa;
+}
+
+.full-results-chat-text table.markdown-table tbody tr:nth-child(even) {
+  background-color: #ffffff;
+}
+
+.full-results-chat-text table.markdown-table tbody tr:hover {
+  background-color: #e7f1ff;
+  transition: background-color 0.2s ease;
 }
 
 /* Roam embed links styling */
@@ -4010,7 +4070,7 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   }
 
   .full-results-chat-text {
-    padding: 8px 12px;
+    padding: 8px 10px 8px 16px;
     border-radius: 12px;
     font-size: 13px;
     line-height: 1.5;

@@ -4,7 +4,7 @@
  * Renders the chat message list including welcome state, message history, and streaming indicator
  */
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Button, Tooltip, Icon } from "@blueprintjs/core";
 import { ChatMessage, ChatMode } from "../../types/types";
 import { renderMarkdown } from "../../utils/chatMessageUtils";
@@ -13,6 +13,84 @@ import {
   LIVE_AI_HELP_RESPONSE,
   getRandomTip,
 } from "./chatHelpConstants";
+
+// Helper function to detect if content contains KaTeX formulas
+const containsKaTeX = (content: string): boolean => {
+  return /\$\$.+?\$\$/s.test(content);
+};
+
+// Helper component to render message content with KaTeX formulas
+// Renders markdown structure normally, but uses Roam API for KaTeX formulas
+const MessageContent: React.FC<{ content: string; className?: string }> = ({
+  content,
+  className,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // If content has KaTeX, we need to render it with Roam API for the formulas
+    if (containsKaTeX(content)) {
+      // First, render the markdown structure normally
+      containerRef.current.innerHTML = renderMarkdown(content);
+
+      // Then, find all text nodes and render any KaTeX formulas with Roam API
+      const textNodes: Node[] = [];
+      const walker = document.createTreeWalker(
+        containerRef.current,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (node.textContent && /\$\$.+?\$\$/s.test(node.textContent)) {
+          textNodes.push(node);
+        }
+      }
+
+      // Replace text nodes containing KaTeX with Roam-rendered spans
+      textNodes.forEach((textNode) => {
+        const text = textNode.textContent || "";
+        const parent = textNode.parentNode;
+
+        if (!parent) return;
+
+        // Split by KaTeX formulas
+        const parts = text.split(/(\$\$.+?\$\$)/s);
+        const fragment = document.createDocumentFragment();
+
+        parts.forEach((part) => {
+          if (/^\$\$.+?\$\$$/s.test(part)) {
+            // This is a KaTeX formula - render with Roam API
+            const span = document.createElement("span");
+            try {
+              window.roamAlphaAPI?.ui.components.renderString({
+                el: span,
+                string: part,
+              });
+            } catch (error) {
+              console.error("Failed to render KaTeX:", error);
+              span.textContent = part; // Fallback to showing raw formula
+            }
+            fragment.appendChild(span);
+          } else if (part) {
+            // Regular text
+            fragment.appendChild(document.createTextNode(part));
+          }
+        });
+
+        parent.replaceChild(fragment, textNode);
+      });
+    } else {
+      // No KaTeX - just use regular markdown rendering
+      containerRef.current.innerHTML = renderMarkdown(content);
+    }
+  }, [content]);
+
+  return <div ref={containerRef} className={className} />;
+};
 
 interface ChatMessagesDisplayProps {
   chatMessages: ChatMessage[];
@@ -340,11 +418,9 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   </div>
                 ) : (
                   // Regular message
-                  <div
+                  <MessageContent
+                    content={displayContent}
                     className="full-results-chat-text"
-                    dangerouslySetInnerHTML={{
-                      __html: renderMarkdown(displayContent),
-                    }}
                   />
                 )}
                 <div className="full-results-chat-message-footer">
@@ -418,11 +494,9 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
 
             {/* Display streaming content or typing indicator */}
             {isStreaming && streamingContent ? (
-              <div
+              <MessageContent
+                content={streamingContent}
                 className="full-results-chat-text streaming"
-                dangerouslySetInnerHTML={{
-                  __html: renderMarkdown(streamingContent),
-                }}
               />
             ) : (isTyping || isStreaming) && toolUsageHistory.length === 0 ? (
               <div className="full-results-chat-typing">Thinking...</div>

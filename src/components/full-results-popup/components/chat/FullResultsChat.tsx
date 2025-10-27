@@ -989,7 +989,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }
 
       // Build formatted conversation text with role prefixes (only for new messages)
-      // If a message has multiple paragraphs, format them as children blocks
+      // Preserve markdown formatting for parseAndCreateBlocks to interpret
       let conversationText = "";
       newMessages.forEach((msg) => {
         const rolePrefix =
@@ -1010,23 +1010,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           fullContent = msg.content || "";
         }
 
-        // Split content by double newlines (paragraph separator)
-        const paragraphs = fullContent
-          .split(/\n\n+/)
-          .map((p) => p.trim())
-          .filter((p) => p.length > 0);
+        // Add role as a top-level block
+        conversationText += `${rolePrefix}\n`;
 
-        if (paragraphs.length > 1) {
-          // Multiple paragraphs: create hierarchical structure
-          conversationText += `${rolePrefix}\n`;
-          paragraphs.forEach((paragraph) => {
-            conversationText += `  - ${paragraph}\n`;
-          });
-          conversationText += "\n";
-        } else {
-          // Single paragraph: inline format
-          conversationText += `${rolePrefix}${fullContent}\n\n`;
-        }
+        // Add the content as indented child blocks (parseAndCreateBlocks will handle the structure)
+        // Indent each line by 2 spaces to make it a child of the role prefix
+        const indentedContent = fullContent
+          .split('\n')
+          .map(line => line ? `  ${line}` : '')
+          .join('\n');
+
+        conversationText += indentedContent + "\n\n";
       });
 
       // Remove trailing newlines

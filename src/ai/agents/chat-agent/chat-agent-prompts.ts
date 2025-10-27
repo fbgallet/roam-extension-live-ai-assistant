@@ -110,7 +110,7 @@ User asks complex question → Use tool 1 → Tool suggests more info available 
       !skillsList.includes("No skills available")
     ) {
       systemPrompt += `\n\n⚠️ IMPORTANT: When the user's request matches ANY skill above (even partially), use the live_ai_skills tool to load expert instructions. Skills contain specialized workflows that will help you complete the task correctly.
-      
+
 **Skills Available in User's Knowledge Base:**
 ${skillsList}`;
     }
@@ -177,6 +177,9 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
       systemPrompt += `\nYou have full access to content and can perform detailed analysis.`;
     }
   }
+
+  systemPrompt += `\n\n## Syntax contrainst:
+- If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: $$formula$$. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
   return systemPrompt;
 };
