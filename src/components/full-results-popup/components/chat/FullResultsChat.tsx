@@ -121,6 +121,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       toolName: string;
       details: string;
       timestamp: number;
+      intermediateMessage?: string;
     }>
   >([]);
   const toolUsageCleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1501,6 +1502,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Tool usage callback
         toolUsageCallback: (toolInfo: { toolName: string; args?: Record<string, any> }) => {
+          // Capture any intermediate message that was streamed before the tool call
+          const intermediateMessage = streamingContent.trim();
+
           // Build detailed description based on tool name and args
           let details = "";
 
@@ -1538,6 +1542,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               toolName: toolInfo.toolName,
               details,
               timestamp: Date.now(),
+              intermediateMessage: intermediateMessage || undefined,
             },
           ]);
 

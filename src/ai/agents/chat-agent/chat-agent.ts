@@ -16,7 +16,13 @@ import {
   START,
   Annotation,
 } from "@langchain/langgraph/web";
-import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import {
+  SystemMessage,
+  HumanMessage,
+  ToolMessage,
+  AIMessage,
+  RemoveMessage,
+} from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { concat } from "@langchain/core/utils/stream";
 import {
@@ -79,6 +85,8 @@ const ChatAgentState = Annotation.Root({
   finalAnswer: Annotation<string | undefined>,
   // Token usage tracking
   tokensUsage: Annotation<TokensUsage>,
+  // Invalid tool call retry counter
+  invalidToolCallRetries: Annotation<number>,
 });
 
 // Module-level variables
@@ -209,7 +217,18 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   let streamingContent = "";
   const streamCallback = state.streamingCallback;
 
-  if (streamCallback) {
+  // Workaround: Disable streaming for Gemini models due to tool call parsing issues
+  const isGeminiModel = state.model.id.toLowerCase().includes("gemini");
+  const shouldStream =
+    streamCallback && (!isGeminiModel || !state.toolsEnabled);
+
+  if (isGeminiModel && streamCallback) {
+    console.log(
+      "⚠️ Streaming disabled for Gemini model to avoid tool call issues"
+    );
+  }
+
+  if (shouldStream) {
     console.log(
       "messages :>> ",
       messages.map((msg) => msg.content)
@@ -223,8 +242,20 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // console.log("chunk :>> ", chunk);
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
-      console.log("chunk :>> ", chunk);
-      console.log("gathered :>> ", gathered);
+      // console.log("chunk :>> ", chunk);
+      // console.log("gathered :>> ", gathered);
+
+      // Capture token usage from streaming chunks (Anthropic sends this in first chunk)
+      if (chunk.usage_metadata) {
+        console.log("usage_metadata in chunk :>> ", chunk.usage_metadata);
+        if (chunk.usage_metadata.input_tokens) {
+          turnTokensUsage.input_tokens = chunk.usage_metadata.input_tokens;
+        }
+        if (chunk.usage_metadata.output_tokens) {
+          turnTokensUsage.output_tokens = chunk.usage_metadata.output_tokens;
+        }
+      }
+
       // Stream content to callback as it arrives
       if (chunk.content) {
         // Handle different content types from different providers
@@ -237,7 +268,15 @@ const assistant = async (state: typeof ChatAgentState.State) => {
           // Anthropic/Gemini may send arrays with text and/or function calls
           // Extract only text content, ignore function calls for streaming
           textContent = chunk.content
-            .filter((item: any) => typeof item === "string")
+            .map((item: any) => {
+              if (typeof item === "string") {
+                return item;
+              } else if (item?.type === "text" && item?.text) {
+                // Handle Anthropic's {type: "text", text: "..."} format
+                return item.text;
+              }
+              return "";
+            })
             .join("");
         }
 
@@ -274,6 +313,17 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     // Non-streaming response
     const response = await llm_with_tools.invoke(messages);
 
+    // Capture token usage from response (Anthropic sends usage_metadata)
+    if (response.usage_metadata) {
+      console.log("usage_metadata in response :>> ", response.usage_metadata);
+      if (response.usage_metadata.input_tokens) {
+        turnTokensUsage.input_tokens = response.usage_metadata.input_tokens;
+      }
+      if (response.usage_metadata.output_tokens) {
+        turnTokensUsage.output_tokens = response.usage_metadata.output_tokens;
+      }
+    }
+
     // Check for tool calls and notify via callback
     if (
       state.toolUsageCallback &&
@@ -295,6 +345,117 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       messages: [...state.messages, response],
     };
   }
+};
+
+/**
+ * Handle invalid tool calls by creating error messages for the assistant
+ */
+const handleInvalidToolCalls = async (state: typeof ChatAgentState.State) => {
+  const lastMessage: any = state.messages.at(-1);
+  const invalidToolCalls = lastMessage?.invalid_tool_calls || [];
+  const retries = state.invalidToolCallRetries || 0;
+
+  console.log("🚨 Invalid tool calls detected:", invalidToolCalls);
+  console.log(`Retry attempt: ${retries + 1}/3`);
+  console.log("Last message:", lastMessage);
+
+  // We need to remove the problematic message with invalid_tool_calls
+  // LangGraph's MessagesAnnotation uses a reducer, so we can:
+  // 1. Use RemoveMessage to delete the bad message by ID
+  // 2. Add new clean messages
+
+  // Get the message ID for removal
+  const badMessageId = lastMessage?.id;
+
+  // First, extract any valid text content from the bad message to preserve it
+  let preservedContent: AIMessage | null = null;
+  if (lastMessage?.content) {
+    const textContent = extractTextContent(lastMessage.content);
+    if (textContent.trim()) {
+      preservedContent = new AIMessage({ content: textContent });
+    }
+  }
+
+  // Build the list of messages to add
+  const messagesToAdd: any[] = [];
+
+  // Remove the bad message if it has an ID
+  if (badMessageId) {
+    messagesToAdd.push(new RemoveMessage({ id: badMessageId }));
+  }
+
+  // Add preserved content if any
+  if (preservedContent) {
+    messagesToAdd.push(preservedContent);
+  }
+
+  // Maximum 3 retries
+  const MAX_RETRIES = 3;
+
+  // If we've exceeded max retries, provide a helpful error message and finalize
+  if (retries >= MAX_RETRIES) {
+    console.log("❌ Max retries exceeded for invalid tool calls");
+    const errorSummary = invalidToolCalls
+      .map((call: any) => `- ${call.name}: ${call.error}`)
+      .join("\n");
+
+    // Create an AI message explaining the failure
+    const finalErrorMessage = new AIMessage({
+      content: `I apologize, but I'm having trouble calling the tools correctly. After ${MAX_RETRIES} attempts, I encountered these errors:
+
+${errorSummary}
+
+This might be due to the model's limitations with tool calling. Please try:
+1. Rephrasing your question more simply
+2. Using a more capable model
+3. Or ask me without requiring tool usage`,
+    });
+
+    messagesToAdd.push(finalErrorMessage);
+
+    return {
+      messages: messagesToAdd,
+      invalidToolCallRetries: 0, // Reset for next turn
+    };
+  }
+
+  // Create error messages for each invalid tool call with guidance
+  const errorMessages = invalidToolCalls.map(
+    (invalidCall: any, index: number) => {
+      // Generate a unique tool_call_id if not provided
+      const toolCallId = invalidCall.id || `invalid_${Date.now()}_${index}`;
+
+      const errorText = `Tool call error for "${invalidCall.name}":
+- Error: ${invalidCall.error}
+- Args received: ${
+        typeof invalidCall.args === "string"
+          ? invalidCall.args
+          : JSON.stringify(invalidCall.args)
+      }
+- Tool call ID: ${toolCallId}
+
+Please review the tool's parameter schema and try again with valid arguments. This is retry ${
+        retries + 1
+      }/${MAX_RETRIES}.`;
+
+      // Create a proper ToolMessage for LangGraph
+      return new ToolMessage({
+        content: errorText,
+        tool_call_id: toolCallId,
+        name: invalidCall.name || "unknown_tool",
+      });
+    }
+  );
+
+  // Add the error messages to the list
+  messagesToAdd.push(...errorMessages);
+
+  // Return all messages: RemoveMessage + preserved content + error messages
+  // This prevents serialization errors with providers like Gemini
+  return {
+    messages: messagesToAdd,
+    invalidToolCallRetries: retries + 1,
+  };
 };
 
 /**
@@ -346,7 +507,40 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     ...result,
     toolResultsCache: updatedCache,
     activeSkillInstructions: newActiveSkillInstructions,
+    // Reset invalid tool call counter after successful tool execution
+    invalidToolCallRetries: 0,
   };
+};
+
+/**
+ * Helper function to extract text content from message content
+ * Handles different formats from different providers
+ */
+const extractTextContent = (content: any): string => {
+  if (!content) return "";
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    // Anthropic/Gemini format: array of objects/strings
+    return content
+      .map((item: any) => {
+        if (typeof item === "string") {
+          return item;
+        } else if (item?.type === "text" && item?.text) {
+          // Handle {type: "text", text: "..."} format
+          return item.text;
+        }
+        // Ignore tool_use and other non-text items
+        return "";
+      })
+      .join("");
+  }
+
+  // Fallback to toString for unexpected formats
+  return String(content);
 };
 
 /**
@@ -354,7 +548,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
  */
 const finalize = async (state: typeof ChatAgentState.State) => {
   const lastMessage = state.messages.at(-1);
-  const finalAnswer = lastMessage?.content?.toString() || "";
+  const finalAnswer = extractTextContent(lastMessage?.content);
 
   // Update conversation history
   const newHistory = [...(state.conversationHistory || [])];
@@ -378,6 +572,8 @@ const finalize = async (state: typeof ChatAgentState.State) => {
     // Preserve state that should persist across turns
     activeSkillInstructions: state.activeSkillInstructions,
     toolResultsCache: state.toolResultsCache,
+    // Reset retry counter for next turn
+    invalidToolCallRetries: 0,
   };
 };
 
@@ -395,8 +591,18 @@ const shouldContinue = (state: typeof ChatAgentState.State) => {
     Array.isArray(lastMessage.tool_calls) &&
     lastMessage.tool_calls?.length > 0;
 
+  // Check for invalid tool calls
+  const hasInvalidToolCalls =
+    "invalid_tool_calls" in lastMessage &&
+    Array.isArray(lastMessage.invalid_tool_calls) &&
+    lastMessage.invalid_tool_calls?.length > 0;
+
   if (hasToolCalls) {
     return "tools";
+  }
+
+  if (hasInvalidToolCalls) {
+    return "handleInvalidToolCalls";
   }
 
   return "finalize";
@@ -409,6 +615,21 @@ const checkSummarization = (state: typeof ChatAgentState.State) => {
   if (shouldSummarize(state)) {
     return "summarizeConversation";
   }
+  return "assistant";
+};
+
+/**
+ * Decide whether to retry or finalize after handling invalid tool calls
+ */
+const shouldRetryOrFinalize = (state: typeof ChatAgentState.State) => {
+  const lastMessage: any = state.messages.at(-1);
+  // Check if the last message is an error message (assistant role means max retries exceeded)
+  const messageType = lastMessage?.getType?.() || lastMessage?._getType?.();
+  if (messageType === "ai") {
+    // AI/assistant message means we've hit max retries and created an error message
+    return "finalize";
+  }
+  // Otherwise, retry with the assistant
   return "assistant";
 };
 
@@ -425,6 +646,7 @@ export const createChatGraph = () => {
     .addNode("summarizeConversation", summarizeConversation)
     .addNode("assistant", assistant)
     .addNode("tools", toolsWithCaching)
+    .addNode("handleInvalidToolCalls", handleInvalidToolCalls)
     .addNode("finalize", finalize)
 
     .addEdge(START, "loadModel")
@@ -432,6 +654,7 @@ export const createChatGraph = () => {
     .addEdge("summarizeConversation", "assistant")
     .addConditionalEdges("assistant", shouldContinue)
     .addEdge("tools", "assistant")
+    .addConditionalEdges("handleInvalidToolCalls", shouldRetryOrFinalize)
     .addEdge("finalize", "__end__");
 
   return builder.compile();

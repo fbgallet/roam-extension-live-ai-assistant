@@ -33,15 +33,17 @@ export function modelViaLanggraph(
       console.log("llmOutput :>> ", output.llmOutput);
       console.log(
         "Used tokens",
-        output.llmOutput?.tokenUsage || output.llmOutput?.usage
+        output.llmOutput?.tokenUsage || output.llmOutput?.usage || output.llmOutput?.usage_metadata
       );
       const usage: TokensUsage = {
         input_tokens:
           output.llmOutput?.tokenUsage?.promptTokens ||
-          output.llmOutput?.usage?.input_tokens,
+          output.llmOutput?.usage?.input_tokens ||
+          output.llmOutput?.usage_metadata?.input_tokens,
         output_tokens:
           output.llmOutput?.tokenUsage?.completionTokens ||
-          output.llmOutput?.usage?.output_tokens,
+          output.llmOutput?.usage?.output_tokens ||
+          output.llmOutput?.usage_metadata?.output_tokens,
       };
       if (usage.input_tokens || usage.output_tokens) {
         if (turnTokensUsage) {

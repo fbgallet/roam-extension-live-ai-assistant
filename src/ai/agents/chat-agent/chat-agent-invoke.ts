@@ -142,6 +142,9 @@ export async function invokeChatAgent(
     // Tool results cache (use provided cache or start fresh)
     toolResultsCache: options.toolResultsCache || {},
 
+    // Invalid tool call retry counter (start at 0)
+    invalidToolCallRetries: 0,
+
     // Merge previous state if provided
     ...(options.previousState || {}),
   };

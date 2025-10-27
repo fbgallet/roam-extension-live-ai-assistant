@@ -23,6 +23,7 @@ interface ChatMessagesDisplayProps {
     toolName: string;
     details: string;
     timestamp: number;
+    intermediateMessage?: string;
   }>;
   modelTokensLimit: number;
   chatAccessMode: "Balanced" | "Full Access";
@@ -395,6 +396,15 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     key={`${toolUsage.timestamp}-${index}`}
                     className="full-results-chat-tool-usage-item"
                   >
+                    {/* Display intermediate message if present */}
+                    {toolUsage.intermediateMessage && (
+                      <div
+                        className="full-results-chat-intermediate-message"
+                        dangerouslySetInnerHTML={{
+                          __html: renderMarkdown(toolUsage.intermediateMessage),
+                        }}
+                      />
+                    )}
                     <div className="full-results-chat-tool-name">
                       🛠️ {toolUsage.toolName}
                     </div>
