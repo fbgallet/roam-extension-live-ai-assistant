@@ -3456,7 +3456,7 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   height: 100vh !important;
   background: rgba(0, 0, 0, 0.95) !important;
   pointer-events: auto !important; /* Re-enable pointer events in fullscreen */
-  z-index: 1000 !important; /* Above Roam content but not excessively high */
+  /* z-index: 1000 !important; Above Roam content but not excessively high */
 }
 
 .full-results-modal.fullscreen {
@@ -3467,7 +3467,7 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   margin: 0 !important;
   border-radius: 0 !important;
   position: relative;
-  z-index: 1001; /* Above the overlay */
+  /* z-index: 1001; Above the overlay */
 }
 
 /* When fullscreen is active, restore Roam app margin (panel is no longer "alongside") */

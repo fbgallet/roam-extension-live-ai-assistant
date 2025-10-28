@@ -179,7 +179,7 @@ export const buildCompleteCommandPrompt = (
   content: string | undefined
 ): string => {
   let commandInstructions = "";
-  if (commandPrompt) {
+  if (commandPrompt && !commandPrompt.includes("Image generation")) {
     const splittedCommand = commandPrompt.split(":");
     commandInstructions = completionCommands[splittedCommand[0]];
 

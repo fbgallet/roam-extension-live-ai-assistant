@@ -4,9 +4,13 @@
  * Provides a simple interface for invoking the chat agent
  */
 
-import { HumanMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { createChatGraph, ChatAgentStateType } from "./chat-agent";
 import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
+import {
+  addImagesUrlToMessages,
+  isModelSupportingImage,
+} from "../../aiAPIsHub";
 
 export interface ChatAgentOptions {
   // Required
@@ -92,13 +96,27 @@ export async function invokeChatAgent(
   // Create the graph
   const graph = createChatGraph();
 
+  let userMessage = [{ role: "user", content: options.userMessage }];
+  if (isModelSupportingImage(options.model.id)) {
+    const stringifiedHistory = JSON.stringify(options.conversationHistory);
+    console.log("stringifiedHistory :>> ", stringifiedHistory);
+    const messagesWithImage = await addImagesUrlToMessages(
+      [undefined, userMessage[0]],
+      stringifiedHistory
+    );
+    userMessage = messagesWithImage.slice(1);
+  }
+
+  console.log("userMessage :>> ", userMessage);
+  const hMessage = userMessage.map((msg) => new HumanMessage(msg));
+  console.log("hMessage :>> ", hMessage);
   // Build initial state
   const initialState: Partial<ChatAgentStateType> = {
     // Model
     model: options.model,
 
     // Messages
-    messages: [new HumanMessage({ content: options.userMessage })],
+    messages: hMessage,
 
     // Configuration
     style: options.style,

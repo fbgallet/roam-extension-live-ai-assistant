@@ -168,6 +168,11 @@ export const modelsPricing = {
     input: 20,
     output: 80,
   },
+  "gpt-image-1-mini": {
+    input: 2,
+    input_image: 2.5,
+    output: 8,
+  },
   "gpt-image-1": {
     input: 5,
     input_image: 10,
@@ -432,15 +437,14 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
   }
 
   // specific count for gpt-image-1
-  if (model === "gpt-image-1") {
+  if (model.includes("gpt-image-1")) {
     //console.log("input_tokens :>> ", input_tokens);
     const detailled_input_tokens = input_tokens;
     input_tokens = 0;
     input_tokens =
       detailled_input_tokens["text_tokens"] +
       detailled_input_tokens["image_tokens"] *
-        (modelsPricing["gpt-image-1"]["input_image"] /
-          modelsPricing["gpt-image-1"]["input"]);
+        (modelsPricing[model]["input_image"] / modelsPricing[model]["input"]);
   }
   // console.log("input_tokens :>> ", input_tokens);
 

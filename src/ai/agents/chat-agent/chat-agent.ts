@@ -39,6 +39,7 @@ import {
   SUMMARIZATION_PROMPT,
 } from "./chat-agent-prompts";
 import { getChatTools } from "./chat-tools";
+import { imageGeneration } from "../../aiAPIsHub";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -207,6 +208,20 @@ const summarizeConversation = async (state: typeof ChatAgentState.State) => {
  */
 const assistant = async (state: typeof ChatAgentState.State) => {
   const messages = [sys_msg, ...state.messages];
+  let gathered: any = undefined;
+
+  if (state.commandPrompt?.slice(0, 16) === "Image generation") {
+    const imageLink = await imageGeneration(
+      state.messages.at(-1).content,
+      state.commandPrompt?.split("(")[1].split(")")[0],
+      state.model.id,
+      (t: any) => {
+        turnTokensUsage = { ...t };
+      }
+    );
+
+    return { messages: [...state.messages, new AIMessage(imageLink)] };
+  }
 
   // Bind tools if enabled
   const llm_with_tools = state.toolsEnabled
@@ -233,10 +248,9 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       "messages :>> ",
       messages.map((msg) => msg.content)
     );
-    console.log("state.conversationHistory :>> ", state.conversationHistory);
+
     // Stream the response - use concat to properly accumulate tool call chunks
     const stream = await llm_with_tools.stream(messages);
-    let gathered: any = undefined;
 
     for await (const chunk of stream) {
       // console.log("chunk :>> ", chunk);

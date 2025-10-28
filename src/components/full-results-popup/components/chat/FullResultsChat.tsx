@@ -145,7 +145,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Get custom style titles
   const customStyleTitles = useMemo(() => {
     try {
-      if (typeof getOrderedCustomPromptBlocks === 'function') {
+      if (typeof getOrderedCustomPromptBlocks === "function") {
         return getOrderedCustomPromptBlocks("liveai/style").map(
           (custom: any) => custom.content
         );
@@ -290,13 +290,21 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       try {
         const contextResults = getSelectedResultsForChat();
         if (commandContext?.commandPrompt === "prompt") {
-          await processChatMessage(lastMessage.content, contextResults, undefined, undefined, selectedStyle);
+          await processChatMessage(
+            lastMessage.content,
+            contextResults,
+            undefined,
+            undefined,
+            undefined,
+            selectedStyle
+          );
         } else
           await processChatMessageWithCommand(
             lastMessage.content,
             contextResults,
             commandContext?.commandPrompt,
             commandContext?.commandName,
+            undefined,
             selectedStyle
           );
       } catch (error) {
@@ -1281,7 +1289,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
    */
   const handleCommandSelect = async (
     command: any,
-    isFromSlashCommand: boolean = false
+    isFromSlashCommand: boolean = false,
+    instantModel: string = ""
   ) => {
     console.log(
       "🎯 Command selected:",
@@ -1341,6 +1350,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setStreamingContent("");
     setToolUsageHistory([]);
 
+    if (command.name?.slice(0, 16) === "Image generation") {
+      command.prompt = command.name;
+    }
+
     // Execute the command immediately
     try {
       const contextResults = getSelectedResultsForChat();
@@ -1350,6 +1363,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         contextResults,
         command.prompt, // The command prompt key (e.g., "summarize")
         command.name,
+        instantModel,
         selectedStyle // Pass the selected style
       );
     } catch (error) {
@@ -1391,7 +1405,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     try {
       const contextResults = getSelectedResultsForChat();
-      await processChatMessage(userMessage.content, contextResults, undefined, undefined, selectedStyle);
+      await processChatMessage(
+        userMessage.content,
+        contextResults,
+        undefined,
+        undefined,
+        undefined,
+        selectedStyle
+      );
     } catch (error) {
       console.error("Chat error:", error);
       const errorMessage: ChatMessage = {
@@ -1450,6 +1471,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     contextResults: Result[],
     commandPromptFromCall?: string,
     commandNameFromCall?: string,
+    commandModelFromCall?: string,
     styleFromCall?: string
   ) => {
     try {
@@ -1524,18 +1546,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       let commandPrompt: string | undefined = undefined;
       let commandName: string | undefined =
         commandNameFromCall || commandContext?.commandName;
-      console.log("commandPromptFromCall :>> ", commandPromptFromCall);
-      console.log("commandContext :>> ", commandContext);
-      if (commandPromptFromCall) {
-        // // Check if it's a custom prompt (UID format)
-        // if (commandPromptFromCall.length === 9) {
-        //   // It's a custom prompt UID
-        //   const customCommand = getCustomPromptByUid(commandPromptFromCall);
-        //   commandPrompt = customCommand?.prompt;
-        // } else {
-        // It's a builtin command
-        // commandPrompt = completionCommands[commandPromptFromCall];
 
+      if (commandPromptFromCall) {
         // Handle <language> placeholder for translate commands
         if (commandPromptFromCall === "translate") {
           // Get the language from the commandLabel (label contains the language name)
@@ -1548,10 +1560,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           // console.log("commandPrompt after :>> ", commandPrompt);
         }
       }
-
+      console.log("commandModelFromCall :>> ", commandModelFromCall);
       // Invoke the chat agent
       const agentResult = await invokeChatAgent({
-        model: modelAccordingToProvider(selectedModel),
+        model: modelAccordingToProvider(commandModelFromCall || selectedModel),
         userMessage: message,
 
         // Results context - pass the expanded results directly
@@ -1722,6 +1734,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     contextResults: Result[],
     commandPromptKey?: string,
     commandName?: string,
+    commandModel?: string,
     styleKey?: string
   ) => {
     try {
@@ -1737,6 +1750,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         contextResults,
         commandPromptKey,
         commandName,
+        commandModel,
         styleKey
       );
     } catch (error) {

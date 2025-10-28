@@ -247,7 +247,12 @@ export async function textToSpeech(inputText, instructions) {
   }
 }
 
-export async function imageGeneration(prompt, quality = "auto") {
+export async function imageGeneration(
+  prompt,
+  quality = "auto",
+  model,
+  tokensCallback
+) {
   if (!openaiLibrary) {
     AppToaster.show({
       message: `OpenAI API Key is needed for image generation`,
@@ -256,9 +261,10 @@ export async function imageGeneration(prompt, quality = "auto") {
     return;
   }
   try {
+    model === "gpt-image-1" ? "gpt-image-1" : "gpt-image-1-mini";
     let mode = "generate";
     let options = {
-      model: "gpt-image-1",
+      model,
       prompt,
       quality,
       size: "auto",
@@ -307,9 +313,14 @@ export async function imageGeneration(prompt, quality = "auto") {
         input_tokens: {},
         output_tokens: 0,
       };
+
       usage["input_tokens"] = result.usage["input_tokens_details"];
       usage["output_tokens"] = result.usage["output_tokens"];
-      updateTokenCounter("gpt-image-1", usage);
+      tokensCallback({
+        input_tokens: result.usage["input_tokens"],
+        output_tokens: usage["output_tokens"],
+      });
+      updateTokenCounter(model, usage);
     }
     const image_base64 = result.data[0].b64_json;
     const byteCharacters = atob(image_base64);
@@ -1263,7 +1274,11 @@ export async function ollamaCompletion({
   }
 }
 
-const addImagesUrlToMessages = async (messages, content, isAnthropicModel) => {
+export const addImagesUrlToMessages = async (
+  messages,
+  content,
+  isAnthropicModel
+) => {
   let nbCountdown = maxImagesNb;
 
   for (let i = 1; i < messages.length; i++) {
@@ -1281,7 +1296,7 @@ const addImagesUrlToMessages = async (messages, content, isAnthropicModel) => {
     }
     for (let j = 0; j < matchingImagesInPrompt.length; j++) {
       messages[i].content[0].text = messages[i].content[0].text
-        .replace(matchingImagesInPrompt[j][0], "")
+        .replace(matchingImagesInPrompt[j][0], `[Image ${i + 1}]`)
         .trim();
       if (nbCountdown > 0) {
         if (!isAnthropicModel)
@@ -1343,8 +1358,9 @@ const addImagesUrlToMessages = async (messages, content, isAnthropicModel) => {
   return messages;
 };
 
-const isModelSupportingImage = (model) => {
+export const isModelSupportingImage = (model) => {
   model = model.toLowerCase();
+  console.log("model :>> ", model);
   if (
     model.includes("gpt-4o") ||
     model.includes("gpt-4.1") ||

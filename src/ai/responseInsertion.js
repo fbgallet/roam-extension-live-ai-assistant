@@ -447,7 +447,8 @@ export const insertCompletion = async ({
     command?.slice(0, 16) === "Image generation"
       ? await imageGeneration(
           prompt.at(-1).content + (context ? "\n" + context : ""),
-          command?.split("(")[1].split(")")[0]
+          command?.split("(")[1].split(")")[0],
+          model
         )
       : await aiCompletion({
           instantModel: model,

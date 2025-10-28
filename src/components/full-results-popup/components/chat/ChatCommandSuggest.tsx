@@ -17,6 +17,7 @@ import {
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 import { CATEGORY_ICON } from "../../../../ai/prebuildCommands";
 import { getOrderedCustomPromptBlocks } from "../../../../ai/dataExtraction";
+import ModelsMenu from "../../../ModelsMenu";
 
 interface Command {
   id: number;
@@ -38,7 +39,11 @@ interface Command {
 }
 
 interface ChatCommandSuggestProps {
-  onCommandSelect: (command: Command, isFromSlashCommand?: boolean) => void;
+  onCommandSelect: (
+    command: Command,
+    isFromSlashCommand?: boolean,
+    instantModel?: string
+  ) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   onClose: () => void;
   initialQuery?: string; // For slash command mode
@@ -124,7 +129,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         key={item.id}
         text={item.name}
         active={modifiers.active}
-        onClick={!hasSubmenu ? handleClick : undefined}
+        onClick={handleClick}
         icon={item.icon as any}
       >
         {hasSubmenu ? (
@@ -133,7 +138,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
               const subCommand = chatCompatibleCommands.find(
                 (cmd) => cmd.id === subId
               );
-              if (!subCommand) return null;
+              if (!subCommand || query) return null;
 
               return (
                 <MenuItem
@@ -147,6 +152,18 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
                 />
               );
             })}
+          </>
+        ) : item.name.includes("Image generation") ? (
+          <>
+            <ModelsMenu
+              callback={({ command, model }) => {
+                onCommandSelect(command, false, model);
+              }}
+              command={item}
+              prompt={undefined}
+              setModel={undefined}
+              isConversationToContinue={undefined}
+            />
           </>
         ) : null}
       </MenuItem>
@@ -162,7 +179,9 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   }, [isSlashMode, chatCompatibleCommands, initialQuery]);
 
   const slashModeFlatItems = React.useMemo(() => {
-    return slashModeFilteredItems.filter((item) => !item.submenu || initialQuery);
+    return slashModeFilteredItems.filter(
+      (item) => !item.submenu || initialQuery
+    );
   }, [slashModeFilteredItems, initialQuery]);
 
   // Reset active index when filtered items change
@@ -181,7 +200,9 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
       if (e.key === "ArrowDown") {
         e.preventDefault();
         e.stopPropagation();
-        setActiveIndex((prev) => Math.min(prev + 1, slashModeFlatItems.length - 1));
+        setActiveIndex((prev) =>
+          Math.min(prev + 1, slashModeFlatItems.length - 1)
+        );
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         e.stopPropagation();
@@ -205,7 +226,12 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   }, [activeIndex, slashModeFlatItems, onCommandSelect, isSlashMode, onClose]);
 
   // Group commands by category
-  const groupedItemRenderer = ({ items, query, renderItem, itemsParentRef }: any) => {
+  const groupedItemRenderer = ({
+    items,
+    query,
+    renderItem,
+    itemsParentRef,
+  }: any) => {
     const filteredItems = items.filter((item: Command) =>
       filterCommands(query, item)
     );
@@ -378,10 +404,15 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         fill={true}
         items={chatCompatibleCommands}
         itemListRenderer={groupedItemRenderer}
-        itemRenderer={(item, props) => renderCommand(item, { ...props, query: "" })}
+        itemRenderer={(item, props) => {
+          return renderCommand(item, {
+            ...props,
+          });
+        }}
         itemPredicate={filterCommands}
         scrollToActiveItem={true}
-        onItemSelect={(item) => {
+        onItemSelect={(item, props) => {
+          console.log("props :>> ", props);
           onCommandSelect(item, false);
           onClose();
         }}
@@ -393,7 +424,11 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
           autoFocus: true,
           onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
             // Prevent event from bubbling up to parent components
-            if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
+            if (
+              e.key === "ArrowDown" ||
+              e.key === "ArrowUp" ||
+              e.key === "Enter"
+            ) {
               e.stopPropagation();
             }
           },

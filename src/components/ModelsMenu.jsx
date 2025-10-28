@@ -24,6 +24,7 @@ import {
 } from "..";
 import { normalizeClaudeModel, tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "./Toaster";
+import { imageGeneration } from "../ai/aiAPIsHub";
 
 const ModelsMenu = ({
   callback,
@@ -33,8 +34,9 @@ const ModelsMenu = ({
   roleStructure = "menuitem",
   isConversationToContinue,
 }) => {
-  let isWebSearch;
+  let isWebSearch, isImageGeneration;
   if (command?.name === "Web search") isWebSearch = true;
+  if (command?.name.includes("Image generation")) isImageGeneration = true;
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
     await callback({ e, command, prompt, model, isConversationToContinue });
@@ -136,6 +138,35 @@ const ModelsMenu = ({
     );
   };
 
+  const openAiImageModels = () => {
+    return (
+      <>
+        <MenuItem
+          onClick={(e) => {
+            handleClickOnModel(e);
+          }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e);
+          }}
+          onContextMenu={(e) => handleContextMenu(e)}
+          tabindex="0"
+          text="gpt-image-1-mini"
+        />
+        <MenuItem
+          onClick={(e) => {
+            handleClickOnModel(e);
+          }}
+          onKeyDown={(e) => {
+            handleKeyDownOnModel(e);
+          }}
+          onContextMenu={(e) => handleContextMenu(e)}
+          tabindex="0"
+          text="gpt-image-1"
+        />
+      </>
+    );
+  };
+
   const customOpenAIModelsMenu = (withMenu = true) => {
     const customModelsMap = () => {
       return openAiCustomModels.map((model) => (
@@ -176,6 +207,8 @@ const ModelsMenu = ({
       )
     ) : null;
   };
+
+  if (isImageGeneration) return openAiImageModels();
 
   return (
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>

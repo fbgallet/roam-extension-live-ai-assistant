@@ -38,7 +38,11 @@ interface ChatInputAreaProps {
   selectedModel: string;
   onModelSelect: (model: string) => void;
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
-  onCommandSelect: (command: any, isFromSlashCommand?: boolean) => void;
+  onCommandSelect: (
+    command: any,
+    isFromSlashCommand?: boolean,
+    instantModel?: string
+  ) => void;
   availablePages: string[];
   isLoadingPages: boolean;
   onQueryPages: (query: string) => void;
@@ -106,8 +110,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     setIsModelMenuOpen(false);
   };
 
-  const handleCommandSelect = (command: any, fromSlash: boolean = false) => {
-    onCommandSelect(command, fromSlash);
+  const handleCommandSelect = (
+    command: any,
+    fromSlash: boolean = false,
+    instantModel: string = ""
+  ) => {
+    onCommandSelect(command, fromSlash, instantModel);
     setIsCommandSuggestOpen(false);
     setSlashCommandMode(false);
   };
@@ -324,6 +332,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         <Tooltip
           content={`Access Mode: ${chatAccessMode}`}
           openOnTargetFocus={false}
+          isOpen={isAccessModeMenuOpen ? false : undefined}
         >
           <div className="full-results-chat-access-mode">
             <Popover
@@ -369,14 +378,18 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             permissions={{ contentAccess: chatAccessMode === "Full Access" }}
           />
         </div>
-        <Tooltip content={`Style: ${selectedStyle}`} openOnTargetFocus={false}>
+        <Tooltip
+          content={`Style: ${selectedStyle}`}
+          openOnTargetFocus={false}
+          isOpen={isStyleMenuOpen ? false : undefined}
+        >
           <div className="full-results-chat-style-selector">
             <Popover
               isOpen={isStyleMenuOpen}
               onInteraction={(nextOpenState, event) => {
                 // Don't close when clicking on the pin switch or its label
                 const target = event?.target as HTMLElement;
-                const isClickOnSwitch = target?.closest('.bp3-switch') !== null;
+                const isClickOnSwitch = target?.closest(".bp3-switch") !== null;
 
                 if (!isClickOnSwitch) {
                   setIsStyleMenuOpen(nextOpenState);
@@ -427,6 +440,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         <Tooltip
           // autoFocus={false}
           openOnTargetFocus={false}
+          isOpen={isCommandSuggestOpen ? false : undefined}
           content={
             <p>
               Apply built-in or custom prompt
@@ -480,7 +494,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             </Popover>
           </div>
         </Tooltip>
-        <Tooltip openOnTargetFocus={false} content="Switch AI model">
+        <Tooltip
+          openOnTargetFocus={false}
+          content="Switch AI model"
+          isOpen={isModelMenuOpen ? false : undefined}
+        >
           <div className="full-results-chat-model-selector">
             <Popover
               isOpen={isModelMenuOpen}
@@ -532,6 +550,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <div className="full-results-chat-input-container">
         {isVoiceRecorderAvailable && (
           <Tooltip
+            usePortal={false}
             content={
               isRecording
                 ? "Click to transcribe voice to text"
