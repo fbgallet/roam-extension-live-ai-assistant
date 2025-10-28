@@ -8,6 +8,7 @@ import {
   Popover,
   Menu,
   MenuItem,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { createChildBlock } from "../../utils/roamAPI.js";
@@ -461,7 +462,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         );
         return [...prev, ...uniqueNewResults];
       } else {
-        console.log(`ℹ️  All ${newResults.length} results were already in context`);
+        console.log(
+          `ℹ️  All ${newResults.length} results were already in context`
+        );
         return prev;
       }
     });
@@ -952,7 +955,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       currentResults
     );
 
-    const { newResults, uidsToRemove } = replaceByFirstChildren(selectedResultsList);
+    const { newResults, uidsToRemove } =
+      replaceByFirstChildren(selectedResultsList);
 
     // Remove the original items
     let updatedResults = currentResults;
@@ -969,7 +973,11 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     if (uniqueResults.length > 0) {
       setCurrentResults([...updatedResults, ...uniqueResults]);
       setSelectedResults(new Set()); // Clear selection
-      showTempMessage(`✅ Replaced ${uidsToRemove?.length || 0} items with ${uniqueResults.length} children`);
+      showTempMessage(
+        `✅ Replaced ${uidsToRemove?.length || 0} items with ${
+          uniqueResults.length
+        } children`
+      );
     } else {
       showTempMessage("ℹ️ No children found to replace with", 2000);
     }
@@ -1530,64 +1538,99 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
           {/* Left Edge Button */}
           {layoutMode === "chat-only" && (
-            <div
-              className="edge-hover-button edge-hover-left"
-              onClick={() => {
-                if (canUseSplitView) {
-                  handleLayoutChange("split");
-                } else {
-                  handleLayoutChange("results-only");
-                }
-              }}
-              onDoubleClick={() => handleLayoutChange("results-only")}
-              title={
+            <Tooltip
+              minimal
+              hoverOpenDelay={500}
+              usePortal={false}
+              placement="right"
+              content={
                 canUseSplitView
-                  ? "Click: Show split view | Double-click: Results only"
+                  ? "Click: Show split view | Shift+click: Results only"
                   : "Switch to results"
               }
             >
-              <Icon icon="chevron-right" size={16} />
-            </div>
+              <div
+                className="edge-hover-button edge-hover-left"
+                onClick={(e) => {
+                  if (e.shiftKey) {
+                    handleLayoutChange("results-only");
+                    return;
+                  }
+                  if (canUseSplitView) {
+                    handleLayoutChange("split");
+                  } else {
+                    handleLayoutChange("results-only");
+                  }
+                }}
+                onDoubleClick={() => handleLayoutChange("results-only")}
+              >
+                <Icon icon="chevron-right" size={16} />
+              </div>
+            </Tooltip>
           )}
           {layoutMode === "split" && (
-            <div
-              className="edge-hover-button edge-hover-left edge-hover-split"
-              onClick={() => handleLayoutChange("chat-only")}
-              title="Close results panel (chat only)"
+            <Tooltip
+              hoverOpenDelay={500}
+              minimal
+              usePortal={false}
+              placement="right"
+              content="Close results panel (chat only)"
             >
-              <Icon icon="cross" size={14} />
-            </div>
+              <div
+                className="edge-hover-button edge-hover-left edge-hover-split"
+                onClick={() => handleLayoutChange("chat-only")}
+              >
+                <Icon icon="cross" size={14} />
+              </div>
+            </Tooltip>
           )}
 
           {/* Right Edge Button */}
           {layoutMode === "results-only" && (
-            <div
-              className="edge-hover-button edge-hover-right"
-              onClick={() => {
-                if (canUseSplitView) {
-                  handleLayoutChange("split");
-                } else {
-                  handleLayoutChange("chat-only");
-                }
-              }}
-              onDoubleClick={() => handleLayoutChange("chat-only")}
-              title={
+            <Tooltip
+              minimal
+              hoverOpenDelay={500}
+              usePortal={false}
+              placement="right"
+              content={
                 canUseSplitView
-                  ? "Click: Show split view | Double-click: Chat only"
+                  ? "Click: Show split view. Shift+Click: Chat only"
                   : "Switch to chat"
               }
             >
-              <Icon icon="chevron-left" size={16} />
-            </div>
+              <div
+                className="edge-hover-button edge-hover-right"
+                onClick={(e) => {
+                  if (e.shiftKey) {
+                    handleLayoutChange("chat-only");
+                    return;
+                  }
+                  if (canUseSplitView) {
+                    handleLayoutChange("split");
+                  } else {
+                    handleLayoutChange("chat-only");
+                  }
+                }}
+              >
+                <Icon icon="chevron-left" size={16} />
+              </div>
+            </Tooltip>
           )}
           {layoutMode === "split" && (
-            <div
-              className="edge-hover-button edge-hover-right edge-hover-split"
-              onClick={() => handleLayoutChange("results-only")}
-              title="Close chat panel (results only)"
+            <Tooltip
+              minimal
+              hoverOpenDelay={500}
+              usePortal={false}
+              placement="right"
+              content="Close chat panel (results only)"
             >
-              <Icon icon="cross" size={14} />
-            </div>
+              <div
+                className="edge-hover-button edge-hover-right edge-hover-split"
+                onClick={() => handleLayoutChange("results-only")}
+              >
+                <Icon icon="cross" size={14} />
+              </div>
+            </Tooltip>
           )}
 
           {/* Results Panel */}
@@ -2113,7 +2156,9 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       className="full-results-selection-info"
                       onClick={() =>
                         setSelectionFilter(
-                          selectionFilter === "selected-only" ? "all" : "selected-only"
+                          selectionFilter === "selected-only"
+                            ? "all"
+                            : "selected-only"
                         )
                       }
                       title={

@@ -53,19 +53,10 @@ import {
   handleClickOnCommand as handleClickOnCommandLogic,
   getInstantPrompt,
 } from "./logic/commandProcessing";
+import { BUILTIN_STYLES } from "../../ai/styleConstants";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
-
-export const BUILTIN_STYLES = [
-  "Normal",
-  "Concise",
-  "Conversational",
-  "No bullet points",
-  "Atomic",
-  "Quiz",
-  "Socratic",
-];
 
 export let customStyleTitles = getOrderedCustomPromptBlocks("liveai/style").map(
   (custom) => custom.content

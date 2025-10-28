@@ -474,18 +474,20 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
   converted = converted.replace(/\{\{\[\[TODO\]\]\}\}/g, '[ ]');
 
   // 4. Convert Roam tables to markdown tables
-  // This is more complex - need to parse the nested bullet structure
-  // Pattern: - {{[[table]]}} followed by nested bullets
-  const roamTableRegex = /-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\s*-\s+.+\n)+)/gm;
+  // Roam tables use chained nested bullets: each column is nested inside the previous one
+  // Structure: - col1_row1
+  //              - col2_row1
+  //                - col3_row1
+  //            - col1_row2
+  //              - col2_row2...
+  const roamTableRegex = /-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\s*-\s+.+\n?)+)/gm;
   converted = converted.replace(roamTableRegex, (match, tableContent) => {
-    // Parse the nested bullet structure
-    const lines = tableContent.trim().split('\n');
-    const rows: string[][] = [];
-    let currentRow: string[] = [];
-    let lastIndentLevel = -1;
+    // Parse all lines first
+    const parsedLines: Array<{ level: number; content: string }> = [];
+    // DON'T trim here - it removes leading spaces from first line!
+    const lines = tableContent.split('\n');
 
     for (const line of lines) {
-      // Count indentation (2 spaces per level)
       const indentMatch = line.match(/^(\s*)-\s+(.+)$/);
       if (!indentMatch) continue;
 
@@ -493,26 +495,53 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
       const indentLevel = Math.floor(indent / 2);
       const content = indentMatch[2].trim();
 
-      // Remove bold markers for content extraction (we'll add them back in header)
-      const cleanContent = content.replace(/\*\*/g, '');
+      // Remove formatting for content extraction
+      const cleanContent = content
+        .replace(/\*\*(.+?)\*\*/g, '$1')  // Remove bold
+        .replace(/\^\^(.+?)\^\^/g, '$1')  // Remove highlight
+        .replace(/__(.+?)__/g, '$1')      // Remove italic
+        .trim();
 
-      if (indentLevel === 1) {
-        // Start of a new row
-        if (currentRow.length > 0) {
-          rows.push(currentRow);
-        }
-        currentRow = [cleanContent];
-        lastIndentLevel = 1;
-      } else if (indentLevel > lastIndentLevel) {
-        // Next column in the same row
-        currentRow.push(cleanContent);
-        lastIndentLevel = indentLevel;
-      }
+      parsedLines.push({ level: indentLevel, content: cleanContent });
     }
 
-    // Push the last row
-    if (currentRow.length > 0) {
-      rows.push(currentRow);
+    if (parsedLines.length === 0) return match;
+
+    // Determine base level from first line
+    const baseLevel = parsedLines[0].level;
+    const rows: string[][] = [];
+
+    // Process lines to build rows
+    let i = 0;
+    while (i < parsedLines.length) {
+      const currentLine = parsedLines[i];
+
+      // Each line at base level starts a new row
+      if (currentLine.level === baseLevel) {
+        const row: string[] = [currentLine.content];
+
+        // Collect nested columns (each one level deeper than the last)
+        let j = i + 1;
+        let expectedLevel = currentLine.level + 1;
+
+        // Keep going as long as we find increasingly nested items
+        while (j < parsedLines.length && parsedLines[j].level > baseLevel) {
+          if (parsedLines[j].level >= expectedLevel) {
+            row.push(parsedLines[j].content);
+            expectedLevel = parsedLines[j].level + 1;
+            j++;
+          } else {
+            // Found an item that's not deeper than expected, stop
+            break;
+          }
+        }
+
+        rows.push(row);
+        i = j; // Skip all the nested items we just processed
+      } else {
+        // This shouldn't happen if structure is correct, but skip it
+        i++;
+      }
     }
 
     if (rows.length === 0) return match;

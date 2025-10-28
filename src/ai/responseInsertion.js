@@ -65,7 +65,8 @@ import {
   getInputDataFromRoamContext,
 } from "./dataExtraction";
 import { uidRegex } from "../utils/regex";
-import { BUILTIN_STYLES, customStyles } from "../components/contextMenu";
+import { customStyles } from "../components/contextMenu";
+import { BUILTIN_STYLES } from "./styleConstants";
 import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import { openChatPopup } from "../components/full-results-popup";

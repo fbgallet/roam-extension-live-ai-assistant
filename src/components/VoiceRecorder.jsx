@@ -475,11 +475,19 @@ function VoiceRecorder({
       nextSiblingOfSelection =
         lastTopUid && (await createSiblingBlock(lastTopUid));
     }
-    let targetUid =
-      nextSiblingOfSelection ||
-      targetBlock.current ||
-      startBlock.current ||
-      (await insertBlockInCurrentView(""));
+
+    // Check if we're in chat mode - if yes, insert into chat input instead of block
+    const isChatTranscribeActive =
+      document.body.getAttribute("data-chat-transcribe-active") === "true";
+    const chatInputChangeHandler = window.__chatInputChangeHandler;
+    const chatInputRef = window.__chatInputRef;
+
+    let targetUid = isChatTranscribeActive
+      ? undefined
+      : nextSiblingOfSelection ||
+        targetBlock.current ||
+        startBlock.current ||
+        (await insertBlockInCurrentView(""));
     console.log("targetUid in audioFileProcessing :>> ", targetUid);
     if (
       lastCommand.current === "gptCompletion" ||
@@ -529,9 +537,59 @@ function VoiceRecorder({
         ? chatRoles.user + transcribe
         : transcribe;
     removeSpinner(intervalId);
-    // isResponseToSplit ? await parseAndCreateBlocks(targetUid, toInsert) :
-    await addContentToBlock(targetUid, toInsert);
-    if (toChain && transcribe)
+
+    if (
+      isChatTranscribeActive &&
+      chatInputChangeHandler &&
+      chatInputRef?.current
+    ) {
+      // Insert transcription into chat input using React's state updater
+      const textarea = chatInputRef.current;
+      const currentValue = textarea.value || "";
+      const selectionStart = textarea.selectionStart;
+      const selectionEnd = textarea.selectionEnd;
+
+      let newValue;
+      if (selectionStart !== selectionEnd) {
+        // If there's a selection, replace it with the transcription
+        newValue =
+          currentValue.substring(0, selectionStart) +
+          transcribe +
+          currentValue.substring(selectionEnd);
+      } else {
+        // Otherwise, append to the end (with space if there's existing content)
+        newValue = currentValue
+          ? `${currentValue} ${transcribe}`
+          : transcribe;
+      }
+
+      // Update via React's onChange handler to properly update state
+      chatInputChangeHandler(newValue);
+
+      // Auto-resize the textarea
+      textarea.style.height = "auto";
+      textarea.style.height = textarea.scrollHeight + "px";
+
+      // Focus the textarea and set cursor position after the inserted text
+      textarea.focus();
+      if (selectionStart !== selectionEnd) {
+        // If we replaced a selection, set cursor after the inserted text
+        const newCursorPos = selectionStart + transcribe.length;
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      } else {
+        // Otherwise, cursor goes to the end
+        textarea.setSelectionRange(newValue.length, newValue.length);
+      }
+
+      // Reset the flag
+      document.body.removeAttribute("data-chat-transcribe-active");
+    } else {
+      // Normal block insertion
+      // isResponseToSplit ? await parseAndCreateBlocks(targetUid, toInsert) :
+      await addContentToBlock(targetUid, toInsert);
+    }
+
+    if (toChain && transcribe && !isChatTranscribeActive)
       await completionProcessing(null, transcribe, targetUid);
     initialize(true);
   };

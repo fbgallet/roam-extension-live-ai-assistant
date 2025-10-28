@@ -7,16 +7,24 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Button,
-  HTMLSelect,
   Popover,
   Tooltip,
+  Menu,
+  MenuItem,
+  Switch,
 } from "@blueprintjs/core";
+import {
+  faMicrophone,
+  faWandMagicSparkles,
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ModelsMenu from "../../../ModelsMenu";
 import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
 import ChatPageAutocomplete from "./ChatPageAutocomplete";
 import { ChatToolsMenu } from "./ChatToolsMenu";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
+import { BUILTIN_STYLES } from "../../../../ai/styleConstants";
 
 interface ChatInputAreaProps {
   chatInput: string;
@@ -37,6 +45,11 @@ interface ChatInputAreaProps {
   enabledTools: Set<string>;
   onToggleTool: (toolName: string) => void;
   onToggleAllTools: (enable: boolean) => void;
+  selectedStyle?: string;
+  onStyleChange?: (style: string) => void;
+  customStyleTitles?: string[];
+  isPinnedStyle?: boolean;
+  onPinnedStyleChange?: (isPinned: boolean) => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -58,13 +71,25 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   enabledTools,
   onToggleTool,
   onToggleAllTools,
+  selectedStyle = "Normal",
+  onStyleChange,
+  customStyleTitles = [],
+  isPinnedStyle = false,
+  onPinnedStyleChange,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
   const [slashCommandMode, setSlashCommandMode] = useState(false);
   const [isPageAutocompleteOpen, setIsPageAutocompleteOpen] = useState(false);
   const [pageAutocompleteQuery, setPageAutocompleteQuery] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceRecorderAvailable, setIsVoiceRecorderAvailable] =
+    useState(false);
+  const [isAccessModeMenuOpen, setIsAccessModeMenuOpen] = useState(false);
+  const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
   const commandSuggestInputRef = useRef<HTMLInputElement>(null);
+
+  const allStyles = [...BUILTIN_STYLES, ...customStyleTitles];
 
   // Track if component is mounted to prevent setState on unmounted component
   const isMountedRef = useRef(true);
@@ -164,7 +189,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         // Update query and fetch pages
         setPageAutocompleteQuery(afterBrackets);
         onQueryPages(afterBrackets);
-      } else if (isPageAutocompleteOpen && (hasClosingBracket || hasSpace || afterBrackets.length === 0)) {
+      } else if (
+        isPageAutocompleteOpen &&
+        (hasClosingBracket || hasSpace || afterBrackets.length === 0)
+      ) {
         // Close if user completed the link or added space or removed all text
         setIsPageAutocompleteOpen(false);
         setPageAutocompleteQuery("");
@@ -227,22 +255,112 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     }
   }, [chatInput, chatInputRef]);
 
+  // Monitor recording state and VoiceRecorder availability
+  useEffect(() => {
+    const checkRecordingState = () => {
+      const recordButton = document.querySelector(".speech-record-button");
+
+      // Check if VoiceRecorder is mounted and not disabled
+      const isMicrophoneSlashPresent =
+        document.querySelector('svg[data-icon="microphone-slash"]') !== null;
+      const isAvailable = recordButton !== null && !isMicrophoneSlashPresent;
+
+      setIsVoiceRecorderAvailable(isAvailable);
+
+      if (recordButton && isAvailable) {
+        const isListening =
+          recordButton.querySelector('svg[data-icon="record-vinyl"]') !== null;
+        setIsRecording(isListening);
+      } else {
+        setIsRecording(false);
+      }
+    };
+
+    // Check immediately
+    checkRecordingState();
+
+    // Poll for changes (VoiceRecorder updates its DOM)
+    const interval = setInterval(checkRecordingState, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Expose the onChatInputChange callback to VoiceRecorder via a global reference
+  useEffect(() => {
+    (window as any).__chatInputChangeHandler = onChatInputChange;
+    (window as any).__chatInputRef = chatInputRef;
+
+    return () => {
+      delete (window as any).__chatInputChangeHandler;
+      delete (window as any).__chatInputRef;
+    };
+  }, [onChatInputChange, chatInputRef]);
+
+  // Handle microphone button click - trigger VoiceRecorder
+  const handleMicClick = () => {
+    const recordButton = document.querySelector(
+      ".speech-record-button"
+    ) as HTMLElement;
+    if (recordButton) {
+      recordButton.click();
+    }
+  };
+
+  // Handle transcribe click during recording
+  const handleTranscribeClick = () => {
+    const transcribeButton = document.querySelector(
+      ".speech-transcribe"
+    ) as HTMLElement;
+    if (transcribeButton) {
+      // Mark that we're in chat mode for VoiceRecorder to detect
+      document.body.setAttribute("data-chat-transcribe-active", "true");
+      transcribeButton.click();
+    }
+  };
+
   return (
     <div className="full-results-chat-input-area">
       <div className="full-results-chat-controls">
-        <div className="full-results-chat-access-mode">
-          <HTMLSelect
-            minimal={true}
-            value={chatAccessMode}
-            onChange={(e) =>
-              onAccessModeChange(e.target.value as "Balanced" | "Full Access")
-            }
-            options={[
-              { label: "🛡️ Balanced", value: "Balanced" },
-              { label: "🔓 Full Access", value: "Full Access" },
-            ]}
-          />
-        </div>
+        <Tooltip
+          content={`Access Mode: ${chatAccessMode}`}
+          openOnTargetFocus={false}
+        >
+          <div className="full-results-chat-access-mode">
+            <Popover
+              isOpen={isAccessModeMenuOpen}
+              onInteraction={(nextOpenState) =>
+                setIsAccessModeMenuOpen(nextOpenState)
+              }
+              content={
+                <Menu>
+                  <MenuItem
+                    text="🛡️ Balanced"
+                    active={chatAccessMode === "Balanced"}
+                    onClick={() => {
+                      onAccessModeChange("Balanced");
+                      setIsAccessModeMenuOpen(false);
+                    }}
+                  />
+                  <MenuItem
+                    text="🔓 Full Access"
+                    active={chatAccessMode === "Full Access"}
+                    onClick={() => {
+                      onAccessModeChange("Full Access");
+                      setIsAccessModeMenuOpen(false);
+                    }}
+                  />
+                </Menu>
+              }
+              placement="top"
+            >
+              <Button
+                minimal
+                small
+                text={chatAccessMode === "Balanced" ? "🛡️" : "🔓"}
+              />
+            </Popover>
+          </div>
+        </Tooltip>
         <div className="full-results-chat-tools-menu">
           <ChatToolsMenu
             enabledTools={enabledTools}
@@ -251,6 +369,61 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             permissions={{ contentAccess: chatAccessMode === "Full Access" }}
           />
         </div>
+        <Tooltip content={`Style: ${selectedStyle}`} openOnTargetFocus={false}>
+          <div className="full-results-chat-style-selector">
+            <Popover
+              isOpen={isStyleMenuOpen}
+              onInteraction={(nextOpenState, event) => {
+                // Don't close when clicking on the pin switch or its label
+                const target = event?.target as HTMLElement;
+                const isClickOnSwitch = target?.closest('.bp3-switch') !== null;
+
+                if (!isClickOnSwitch) {
+                  setIsStyleMenuOpen(nextOpenState);
+                }
+              }}
+              content={
+                <Menu>
+                  <div style={{ padding: "8px 8px 4px 8px" }}>
+                    <Switch
+                      label="Pin style for session"
+                      checked={isPinnedStyle}
+                      onChange={(e) => {
+                        if (onPinnedStyleChange) {
+                          onPinnedStyleChange(e.currentTarget.checked);
+                        }
+                      }}
+                      style={{ marginBottom: 0 }}
+                    />
+                  </div>
+                  {allStyles.map((style) => (
+                    <MenuItem
+                      key={style}
+                      text={style}
+                      active={selectedStyle === style}
+                      onClick={() => {
+                        if (onStyleChange) {
+                          onStyleChange(style);
+                        }
+                        if (!isPinnedStyle) {
+                          setIsStyleMenuOpen(false);
+                        }
+                      }}
+                    />
+                  ))}
+                </Menu>
+              }
+              placement="top"
+            >
+              <Button
+                minimal
+                small
+                icon="style"
+                intent={isPinnedStyle ? "primary" : "none"}
+              />
+            </Popover>
+          </div>
+        </Tooltip>
         <Tooltip
           // autoFocus={false}
           openOnTargetFocus={false}
@@ -357,6 +530,30 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       */}
 
       <div className="full-results-chat-input-container">
+        {isVoiceRecorderAvailable && (
+          <Tooltip
+            content={
+              isRecording
+                ? "Click to transcribe voice to text"
+                : "Click to start voice recording"
+            }
+            hoverOpenDelay={500}
+          >
+            <Button
+              minimal
+              small
+              className="full-results-chat-mic-button"
+              onClick={isRecording ? handleTranscribeClick : handleMicClick}
+              disabled={isTyping}
+            >
+              {isRecording ? (
+                <FontAwesomeIcon icon={faWandMagicSparkles} />
+              ) : (
+                <FontAwesomeIcon icon={faMicrophone} />
+              )}
+            </Button>
+          </Tooltip>
+        )}
         <Popover
           minimal={true}
           isOpen={isPageAutocompleteOpen}
@@ -386,45 +583,45 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             ref={chatInputRef}
             placeholder="Ask me about your results... (type / for commands, [[ for pages)"
             value={chatInput}
-          onChange={(e) => {
-            handleInputChange(e.target.value);
-            // Auto-resize textarea
-            e.target.style.height = "auto";
-            e.target.style.height = e.target.scrollHeight + "px";
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
+            onChange={(e) => {
+              handleInputChange(e.target.value);
+              // Auto-resize textarea
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
 
-              // In slash mode, execute the first matching command
-              if (slashCommandMode) {
-                const query = getSlashQuery();
-                const matchingCommand = findMatchingCommand(query);
+                // In slash mode, execute the first matching command
+                if (slashCommandMode) {
+                  const query = getSlashQuery();
+                  const matchingCommand = findMatchingCommand(query);
 
-                if (matchingCommand) {
-                  // Clear the slash command from input
-                  onChatInputChange("");
-                  handleCommandSelect(matchingCommand, true); // true = from slash command
+                  if (matchingCommand) {
+                    // Clear the slash command from input
+                    onChatInputChange("");
+                    handleCommandSelect(matchingCommand, true); // true = from slash command
+                  } else {
+                    // No matching command, close slash mode and treat as normal input
+                    setSlashCommandMode(false);
+                    setIsCommandSuggestOpen(false);
+                  }
                 } else {
-                  // No matching command, close slash mode and treat as normal input
-                  setSlashCommandMode(false);
-                  setIsCommandSuggestOpen(false);
+                  // Normal submit
+                  onSubmit();
                 }
-              } else {
-                // Normal submit
-                onSubmit();
+              } else if (e.key === "Escape" && slashCommandMode) {
+                // Close slash mode on Escape
+                e.preventDefault();
+                setSlashCommandMode(false);
+                setIsCommandSuggestOpen(false);
               }
-            } else if (e.key === "Escape" && slashCommandMode) {
-              // Close slash mode on Escape
-              e.preventDefault();
-              setSlashCommandMode(false);
-              setIsCommandSuggestOpen(false);
-            }
-          }}
-          disabled={isTyping}
-          className="full-results-chat-input bp3-input"
-          rows={1}
-        />
+            }}
+            disabled={isTyping}
+            className="full-results-chat-input bp3-input"
+            rows={1}
+          />
         </Popover>
         <Button
           icon="send-message"

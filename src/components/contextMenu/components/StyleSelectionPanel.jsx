@@ -1,15 +1,6 @@
 import React from "react";
 import { HTMLSelect, Tooltip, Icon } from "@blueprintjs/core";
-
-const BUILTIN_STYLES = [
-  "Normal",
-  "Concise",
-  "Conversational",
-  "No bullet points",
-  "Atomic",
-  "Quiz",
-  "Socratic",
-];
+import { BUILTIN_STYLES } from "../../../ai/styleConstants";
 
 const StyleSelectionPanel = ({
   style,

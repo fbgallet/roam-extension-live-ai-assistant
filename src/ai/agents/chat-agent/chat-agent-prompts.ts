@@ -9,6 +9,7 @@ import {
   defaultAssistantCharacter,
   hierarchicalResponseFormat,
 } from "../../prompts";
+import { getStylePrompt } from "../../responseInsertion";
 import { getFormattedSkillsList } from "../chat-agent/tools/skillsUtils";
 
 // Base system prompt for chat agent
@@ -39,8 +40,16 @@ export const buildChatSystemPrompt = ({
   let systemPrompt =
     defaultAssistantCharacter +
     (resultsContext.length
-      ? `Your main purpose is to help users analyze and interact with their Roam Research knowledge graph through the selection of pages or blocks available in the context, thanks to Live AI interface and Ask 'Your Graph' agent queries.`
-      : `You can help with various tasks, answer questions, provide information, assist with problem-solving using tools.`);
+      ? `Your main purpose is to help users analyze and interact with their Roam Research knowledge graph through the eventual selection of pages or blocks available in the context.`
+      : "");
+
+  systemPrompt += `\n\n## Response Guidelines
+
+- Focus on understanding the **user's actual need**, **think carefully** about the best way to provide a satisfactory answer
+- **Be concise** - get to the point quickly unless more detail is requested
+- Ask clarifying questions when needed
+- Build on **previous conversation** context when relevant
+- Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.`;
 
   // Add command-specific instructions if provided
   let completeCommandPrompt = buildCompleteCommandPrompt(
@@ -49,7 +58,6 @@ export const buildChatSystemPrompt = ({
   );
   if (completeCommandPrompt)
     systemPrompt += `\n\n## Task Instructions\n${completeCommandPrompt}`;
-  console.log("systemPrompt :>> ", systemPrompt);
 
   // Add active skill instructions if available (these persist across turns)
   if (activeSkillInstructions) {
@@ -92,13 +100,13 @@ You are operating in AGENTIC mode with access to tools. Follow the ReAct methodo
 
 **ReAct Pattern (internal thought process):**
 1. **Reason**: What does the user need? What information do I need to provide a complete answer?
-2. **Act**: Use tools to gather that information (can be multiple sequential calls)
+2. **Act**: Decide or not to use tools to gather that information (can be multiple sequential calls)
 3. **Observe**: Review tool responses - do I need more? If yes, use more tools
 4. **Respond**: Only respond to user when you have comprehensive information
 **In short: Be Autonomous and Thorough:**
 
 **Tool Usage Philosophy:**
-- Use tools PROACTIVELY - don't wait for explicit permission
+- Use tools PROACTIVELY - don't wait for explicit permission but only use them only if it's clear for you that it matches the user need
 - Chain multiple tool calls in sequence when needed to fully answer the question
 - Only ask the user when you've exhausted all autonomous options
 - Some tools cache results to avoid redundancy - check before re-calling
@@ -118,14 +126,12 @@ User asks complex question → Use tool 1 → Tool suggests more info available 
 **Skills Available in User's Knowledge Base:**
 ${skillsList}`;
     }
-  } else {
-    systemPrompt += `\n\n## Response Mode\nYou are operating in direct chat mode without access to search tools. Respond based on the provided context and your general knowledge.`;
   }
 
   // Add response guidelines - different based on context
   if (resultsContext) {
     // Guidelines for analyzing search results
-    systemPrompt += `\n\n## Response Guidelines
+    systemPrompt += `\n\n## Context use Guidelines
 
 ### Your Role - Provide Value Beyond Raw Data
 The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.
@@ -138,54 +144,31 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Be analytical** - help the user understand significance and context
 
 ### Roam Formatting
-IMPORTTANT: When referencing content from the knowledge graph, use Roam's syntax correctly and respect it STRICTLY:
+IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
 - **Reference specific blocks** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
 - **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
 - **Reference pages** - Always use the syntax '[[page title]]' or #tag (where tag is a page title without space) when you have to mention page titles.
 
 ### Analysis Approach
 - When provided with search results, analyze their meaning and relationships
-- **Leverage hierarchical context** - use Parent context, Children outline, and Page context to understand each block's true meaning and purpose
-- Point out connections and patterns across results
-- Use the rich context (parent/children/page) to truly understand what each block represents
+- **Leverage hierarchical context** to understand each block's true meaning and purpose
 
 Remember: The user wants concise understanding and analysis, not lengthy recaps.`;
-  } else {
-    // General conversation guidelines
-    systemPrompt += `\n\n## Response Guidelines
-
-### Conversation Style
-- **Be helpful and clear** - provide accurate, useful information
-- **Be concise** - get to the point quickly unless more detail is requested
-- **Be conversational** - friendly and approachable tone
-- Build on previous conversation context when relevant
-
-### Response Approach
-- Focus on understanding the user's actual need
-- Provide practical, actionable information
-- Ask clarifying questions when needed
-- Be honest about limitations`;
-  }
-
-  // Add style-specific formatting if provided
-  if (style) {
-    systemPrompt += `\n\n## Response Style\nFormat your response using the following style: ${style}`;
-  }
-
-  // Add access mode context only when we have search results
-  if (resultsContext) {
-    systemPrompt += `\n\n## Access Mode\nCurrent access mode: ${accessMode}`;
-    if (accessMode === "Balanced") {
-      systemPrompt += `\nYou have access to metadata and structure. For detailed content analysis, tools may be needed.`;
-    } else {
-      systemPrompt += `\nYou have full access to content and can perform detailed analysis.`;
-    }
   }
 
   systemPrompt += `\n\n## Syntax contrainst:
 - ${hierarchicalResponseFormat.trim()}
 - Generally respects markdown syntax, except where otherwise indicated.
 - If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: $$formula$$. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
+
+  // Add style-specific formatting if provided
+  if (style !== "Normal") {
+    systemPrompt += `\n\n## Response Style\nFormat your response using the following style (if there is conflict with certain previous instructions, the following ones take precedence):\n\n${getStylePrompt(
+      style
+    )}`;
+  }
+
+  console.log("Complete systemPrompt :>> ", systemPrompt);
 
   return systemPrompt;
 };

@@ -27,8 +27,8 @@ import {
   normalizeModelId,
   updateTokenCounter,
 } from "./ai/modelsInfo";
+import { BUILTIN_STYLES } from "./ai/styleConstants";
 import {
-  BUILTIN_STYLES,
   cleanupContextMenu,
   customStyleTitles,
   initializeContextMenu,

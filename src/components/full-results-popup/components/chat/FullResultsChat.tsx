@@ -5,6 +5,7 @@ import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/hel
 import {
   extensionStorage,
   defaultModel,
+  defaultStyle,
   chatRoles,
   getInstantAssistantRole,
 } from "../../../..";
@@ -23,13 +24,14 @@ import { extractConversationFromLiveAIChat } from "../../index";
 import { getChatTitleFromUid } from "../../utils/chatStorage";
 import {
   calculateTotalTokens,
-  convertMarkdownToRoamFormat
+  convertMarkdownToRoamFormat,
 } from "../../utils/chatMessageUtils";
 import { completionCommands } from "../../../../ai/prompts";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
 import { ChatInputArea } from "./ChatInputArea";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
+import { getOrderedCustomPromptBlocks } from "../../../../ai/dataExtraction";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -121,6 +123,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(null);
   const [loadedChatUid, setLoadedChatUid] = useState<string | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<string>(() => {
+    // Load style from window object (whether pinned or not), or use initialStyle/defaultStyle
+    const sessionStyle = (window as any).__currentChatStyle;
+    return sessionStyle || initialStyle || defaultStyle || "Normal";
+  });
+  const [isPinnedStyle, setIsPinnedStyle] = useState<boolean>(() => {
+    // Check if style is pinned in window object
+    return !!(window as any).__pinnedChatStyle;
+  });
   const [toolUsageHistory, setToolUsageHistory] = useState<
     Array<{
       toolName: string;
@@ -131,11 +142,24 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   >([]);
   const toolUsageCleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Get custom style titles
+  const customStyleTitles = useMemo(() => {
+    try {
+      if (typeof getOrderedCustomPromptBlocks === 'function') {
+        return getOrderedCustomPromptBlocks("liveai/style").map(
+          (custom: any) => custom.content
+        );
+      }
+    } catch (error) {
+      console.warn("Failed to load custom styles:", error);
+    }
+    return [];
+  }, []);
+
   // Track command context for auto-execution
   const [commandContext, setCommandContext] = useState<{
     commandPrompt?: string;
     commandName?: string;
-    style?: string;
   } | null>(null);
 
   // Track the number of initial messages loaded from Roam
@@ -204,20 +228,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         console.log("📝 Setting command context:", {
           commandPrompt: initialCommandPrompt,
           commandName,
-          style: initialStyle,
         });
 
         setCommandContext({
           commandPrompt: initialCommandPrompt,
           commandName,
-          style: initialStyle,
         });
       }
     } else {
       setCommandContext({
         commandPrompt: initialCommandPrompt,
         commandName,
-        style: initialStyle,
       });
     }
     // }
@@ -269,14 +290,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       try {
         const contextResults = getSelectedResultsForChat();
         if (commandContext?.commandPrompt === "prompt") {
-          await processChatMessage(lastMessage.content, contextResults);
+          await processChatMessage(lastMessage.content, contextResults, undefined, undefined, selectedStyle);
         } else
           await processChatMessageWithCommand(
             lastMessage.content,
             contextResults,
             commandContext?.commandPrompt,
             commandContext?.commandName,
-            commandContext?.style
+            selectedStyle
           );
       } catch (error) {
         console.error("Auto-execution error:", error);
@@ -911,6 +932,29 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
 
+  // Handler for pinned style change
+  const handlePinnedStyleChange = (isPinned: boolean) => {
+    setIsPinnedStyle(isPinned);
+    if (isPinned) {
+      // Save current style as pinned
+      (window as any).__pinnedChatStyle = selectedStyle;
+    } else {
+      // Clear pinned style from window object
+      delete (window as any).__pinnedChatStyle;
+      // Keep the current style (don't reset to default when unpinning)
+    }
+  };
+
+  // Always save current style to window object (for session persistence across view switches)
+  useEffect(() => {
+    (window as any).__currentChatStyle = selectedStyle;
+
+    // Also update pinned style if pinned
+    if (isPinnedStyle) {
+      (window as any).__pinnedChatStyle = selectedStyle;
+    }
+  }, [selectedStyle, isPinnedStyle]);
+
   // Automatically set chat mode based on enabled tools
   useEffect(() => {
     if (enabledTools.size > 0) {
@@ -1283,7 +1327,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setCommandContext({
       commandPrompt: command.prompt,
       commandName: command.name,
-      style: undefined,
     });
 
     // Add user message to chat
@@ -1307,7 +1350,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         contextResults,
         command.prompt, // The command prompt key (e.g., "summarize")
         command.name,
-        undefined // No style
+        selectedStyle // Pass the selected style
       );
     } catch (error) {
       console.error("Error executing command:", error);
@@ -1348,7 +1391,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     try {
       const contextResults = getSelectedResultsForChat();
-      await processChatMessage(userMessage.content, contextResults);
+      await processChatMessage(userMessage.content, contextResults, undefined, undefined, selectedStyle);
     } catch (error) {
       console.error("Chat error:", error);
       const errorMessage: ChatMessage = {
@@ -1784,6 +1827,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         enabledTools={enabledTools}
         onToggleTool={handleToggleTool}
         onToggleAllTools={handleToggleAllTools}
+        selectedStyle={selectedStyle}
+        onStyleChange={setSelectedStyle}
+        customStyleTitles={customStyleTitles}
+        isPinnedStyle={isPinnedStyle}
+        onPinnedStyleChange={handlePinnedStyleChange}
       />
     </div>
   );

@@ -300,8 +300,13 @@
 .speech-to-roam-container-left svg:not(.fa-record-vinyl) path {
   fill: var(--icon-color-left);
 }
-.speech-to-roam-container-top svg:not(.fa-record-vinyl) path {
+.speech-to-roam-container-top svg:not(.fa-record-vinyl) path,
+.full-results-chat-mic-button svg path {
   fill: var(--icon-color-top);
+}
+
+.full-results-chat-mic-button {
+  margin-left: -5px;
 }
 
 .openai-logo {
@@ -3150,11 +3155,34 @@ h3.full-results-title.bp3-heading {
 .full-results-chat-input-container {
   display: flex;
   gap: 8px;
-  align-items: flex-end;
+  align-items: center;
   padding: 8px;
   padding-top: 0;
   background: transparent;
   position: relative;
+}
+
+/* Microphone button in chat */
+.full-results-chat-mic-button {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.full-results-chat-mic-button:hover {
+  background-color: rgba(167, 182, 194, 0.15);
+}
+
+.full-results-chat-mic-button:active {
+  transform: scale(0.95);
+}
+
+.full-results-chat-mic-button svg {
+  font-size: 16px;
 }
 
 /* Elegant input wrapper with floating effect */
@@ -3296,6 +3324,7 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   gap: 8px;
   align-items: center;
   padding: 8px;
+  padding-left: 0px;
   background: transparent;
 }
 
@@ -3672,6 +3701,9 @@ body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
   flex-shrink: 0;
   /* background: #f8f9fa; */
   background: inherit;
+}
+.full-results-chat-input-area .bp3-popover-wrapper {
+  z-index: 6;
 }
 
 /* Disable transitions during resizing for smoothness */
@@ -4097,6 +4129,7 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   /* Compact controls */
   .full-results-chat-controls {
     padding: 6px;
+    padding-left: 0;
     gap: 6px;
     font-size: 11px;
   }
@@ -4237,6 +4270,7 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   /* Compact controls */
   .full-results-chat-controls {
     padding: 4px;
+    padding-left: 0;
     gap: 4px;
   }
   .full-results-chat-controls .bp3-button {

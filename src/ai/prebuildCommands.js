@@ -352,7 +352,6 @@ export const BUILTIN_COMMANDS = [
     isIncompatibleWith: {
       outliner: true,
       style: true,
-      chat: true,
     },
     target: "new",
     isSub: true,
@@ -381,9 +380,6 @@ export const BUILTIN_COMMANDS = [
     prompt: "imageOCR",
     category: "CONTENT ANALYSIS",
     keyWords: "OCR",
-    isIncompatibleWith: {
-      chat: true,
-    },
     target: "new",
     submenu: [1330],
   },
@@ -394,7 +390,6 @@ export const BUILTIN_COMMANDS = [
     category: "CONTENT ANALYSIS",
     isIncompatibleWith: {
       outliner: true,
-      chat: true,
     },
     keyWords: "visual art, painting",
     isSub: true,
@@ -476,7 +471,6 @@ export const BUILTIN_COMMANDS = [
     keyWords: "chart, worfkow",
     isIncompatibleWith: {
       style: true,
-      chat: true,
     },
     target: "new",
   },
@@ -490,7 +484,6 @@ export const BUILTIN_COMMANDS = [
     includeUids: false,
     isIncompatibleWith: {
       style: true,
-      chat: true,
     },
     target: "new w/o",
     submenu: [1461, 1462],
@@ -505,7 +498,6 @@ export const BUILTIN_COMMANDS = [
     includeUids: false,
     isIncompatibleWith: {
       style: true,
-      chat: true,
     },
     target: "new w/o",
     isSub: true,
@@ -520,7 +512,6 @@ export const BUILTIN_COMMANDS = [
     includeUids: false,
     isIncompatibleWith: {
       style: true,
-      chat: true,
     },
     target: "new w/o",
     isSub: true,
@@ -679,7 +670,6 @@ export const BUILTIN_COMMANDS = [
     category: "REPHRASING",
     isIncompatibleWith: {
       specificStyles: ["Atomic"],
-      chat: true,
     },
     target: "new w/o",
     submenu: [1220],
@@ -691,7 +681,6 @@ export const BUILTIN_COMMANDS = [
     category: "REPHRASING",
     isIncompatibleWith: {
       specificStyles: ["No bullet points"],
-      chat: true,
     },
     target: "new w/o",
     isSub: true,

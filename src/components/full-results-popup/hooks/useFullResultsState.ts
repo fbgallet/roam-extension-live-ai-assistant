@@ -525,6 +525,12 @@ export const useFullResultsState = (
     if (isClosing) return;
     setIsClosing(true);
 
+    // Clear unpinned chat style from window object
+    // Only clear if not pinned - pinned styles should persist across popup closes
+    if (!(window as any).__pinnedChatStyle) {
+      delete (window as any).__currentChatStyle;
+    }
+
     // Remove the popup container directly
     setTimeout(() => {
       const container = document.getElementById("full-results-popup-container");
