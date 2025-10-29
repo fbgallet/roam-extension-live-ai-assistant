@@ -21,6 +21,13 @@ export interface ChatMessage {
   commandPrompt?: string;
   isHelpMessage?: boolean;
   helpType?: "chat" | "liveai" | "tip";
+  toolUsage?: Array<{
+    toolName: string;
+    details: string;
+    response?: string; // Tool's response/feedback
+    timestamp: number;
+    intermediateMessage?: string;
+  }>;
 }
 
 export interface FullResultsPopupProps {

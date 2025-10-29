@@ -46,6 +46,12 @@ export interface ChatAgentOptions {
     args?: Record<string, any>;
   }) => void;
 
+  // Tool response callback
+  toolResponseCallback?: (toolInfo: {
+    toolName: string;
+    response: string;
+  }) => void;
+
   // Agent callbacks
   addResultsCallback?: (results: any[]) => void;
   selectResultsCallback?: (uids: string[]) => void;
@@ -144,6 +150,9 @@ export async function invokeChatAgent(
 
     // Tool usage callback
     toolUsageCallback: options.toolUsageCallback,
+
+    // Tool response callback
+    toolResponseCallback: options.toolResponseCallback,
 
     // Agent callbacks
     addResultsCallback: options.addResultsCallback,

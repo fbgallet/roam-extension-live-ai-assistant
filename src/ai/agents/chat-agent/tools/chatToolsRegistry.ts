@@ -9,6 +9,7 @@ import { addLinkedReferencesByTitleTool } from "./addLinkedReferencesByTitleTool
 import { selectResultsByCriteriaTool } from "./selectResultsByCriteriaTool";
 import { helpTool } from "./helpTool";
 import { liveaiSkillsTool } from "./liveaiSkillsTool";
+import { askYourGraphTool } from "./askYourGraphTool";
 
 export interface ChatToolInfo {
   tool: any;
@@ -35,6 +36,12 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     securityLevel: "secure",
     description:
       "Select (check) results based on various criteria like date ranges, content patterns, or intelligent semantic analysis. Use when user wants to filter or focus on specific results or ask to select only some items to reduce the context.",
+  },
+  ask_your_graph: {
+    tool: askYourGraphTool,
+    securityLevel: "secure",
+    description:
+      "Execute complex natural language queries using the full search agent. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely complex queries - prefer add_pages_by_title or add_linked_references_by_title for simple lookups.",
   },
   get_help: {
     tool: helpTool,

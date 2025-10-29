@@ -49,7 +49,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
 
       // Auto-enable new skills that aren't in the enabled set yet
       // (only if liveai_skills tool is enabled)
-      if (enabledTools.has('liveai_skills')) {
+      if (enabledTools.has("liveai_skills")) {
         loadedSkills.forEach((skill) => {
           const skillKey = `skill:${skill.name}`;
           if (!enabledTools.has(skillKey)) {
@@ -93,6 +93,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   // Determine icon intent based on enabled count
   // No intent (grey) if 0 enabled, primary (blue) if some enabled, success (green) if all enabled
   let iconIntent: "none" | "primary" | "success" = "none";
+  const iconName = "wrench";
   if (enabledCount === 0) {
     iconIntent = "none";
   } else if (enabledCount < totalCount) {
@@ -100,8 +101,6 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   } else {
     iconIntent = "success";
   }
-
-  const iconName = "wrench";
 
   const menu = (
     <Menu className="chat-tools-menu">

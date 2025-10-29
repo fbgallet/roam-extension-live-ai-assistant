@@ -382,6 +382,45 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                 )}
               </div>
               <div className="full-results-chat-content">
+                {/* Display tool usage if attached to this message */}
+                {message.toolUsage && message.toolUsage.length > 0 && (
+                  <div className="full-results-chat-tool-history">
+                    {message.toolUsage.map((toolUsage, index) => (
+                      <div
+                        key={`${toolUsage.timestamp}-${index}`}
+                        className="full-results-chat-tool-usage-item"
+                      >
+                        {/* Display intermediate message if present */}
+                        {toolUsage.intermediateMessage && (
+                          <div
+                            className="full-results-chat-intermediate-message"
+                            dangerouslySetInnerHTML={{
+                              __html: renderMarkdown(
+                                toolUsage.intermediateMessage
+                              ),
+                            }}
+                          />
+                        )}
+                        <div className="full-results-chat-tool-name">
+                          <Icon icon="wrench" size={12} /> {toolUsage.toolName}
+                        </div>
+                        <div className="full-results-chat-tool-details">
+                          {toolUsage.details}
+                        </div>
+                        {/* Display tool response/feedback if available */}
+                        {toolUsage.response && (
+                          <div
+                            className="full-results-chat-tool-response"
+                            dangerouslySetInnerHTML={{
+                              __html: renderMarkdown(toolUsage.response),
+                            }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {isHelpMsg ? (
                   // Help message with special styling and buttons inside
                   <div className="full-results-chat-assistant-message chat-help">
@@ -482,7 +521,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                       />
                     )}
                     <div className="full-results-chat-tool-name">
-                      🛠️ {toolUsage.toolName}
+                      <Icon icon="wrench" size={12} /> {toolUsage.toolName}
                     </div>
                     <div className="full-results-chat-tool-details">
                       {toolUsage.details}

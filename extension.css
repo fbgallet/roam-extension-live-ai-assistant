@@ -2794,7 +2794,7 @@ h3.full-results-title.bp3-heading {
 }
 
 .full-results-chat-message.user .full-results-chat-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #03a9f4;
   color: white;
   border: none;
 }
@@ -3097,6 +3097,10 @@ h3.full-results-title.bp3-heading {
   color: #6c757d;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.full-results-chat-tool-response {
+  font-size: 12px;
 }
 
 /* Removed - using consolidated definition below */
@@ -3607,9 +3611,9 @@ body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
   );
   border-color: rgba(118, 75, 162, 0.25);
   color: #764ba2;
-  top: 50%;
+  top: 40%;
   bottom: auto;
-  height: 60px;
+  height: 150px;
   transform: translateY(-50%);
 }
 
@@ -4235,6 +4239,12 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
 
   .full-results-chat-message {
     margin-bottom: 4px;
+  }
+
+  .full-results-chat-tool-name,
+  .full-results-chat-tool-details,
+  .full-results-chat-tool-response {
+    font-size: 11px;
   }
 
   /* Adjust message bubbles */

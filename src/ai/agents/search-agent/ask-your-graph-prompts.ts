@@ -7,6 +7,7 @@ import { listAvailableToolNames } from "./tools/toolsRegistry";
 import {
   getPageUidByBlockUid,
   getDateStringFromDnpUid,
+  getCurrentDateContext,
 } from "../../../utils/roamAPI";
 import { dnpUidRegex } from "../../../utils/regex";
 import { getEnhancedLimits } from "./helpers/searchUtils";
@@ -1481,14 +1482,9 @@ export const buildIntentParserPrompt = (state: {
     }
   }
 
-  const dateStr = referenceDate.toISOString().split("T")[0]; // YYYY-MM-DD format
-  const dayName = referenceDate.toLocaleDateString("en-US", {
-    weekday: "long",
-  });
-  const monthName = referenceDate.toLocaleDateString("en-US", {
-    month: "long",
-  });
-  const dateContext = `Today is ${dayName}, ${monthName} ${referenceDate.getDate()}, ${referenceDate.getFullYear()} (${dateStr})${contextNote}`;
+  const { dayName, monthName, dayNb, fullYear, dateStr } =
+    getCurrentDateContext(referenceDate);
+  const dateContext = `Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr})${contextNote}`;
 
   return `You are an Intent Parser for a Roam Research search system. Your job is to analyze user requests and convert them into symbolic queries that can be efficiently executed by search tools (note that the user could himself try to write symbolic queries or using /regex/[i]).
 

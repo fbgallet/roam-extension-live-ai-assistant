@@ -4,6 +4,7 @@
  * System prompts and templates for the chat agent
  */
 
+import { getCurrentDateContext } from "../../../utils/roamAPI";
 import {
   completionCommands,
   defaultAssistantCharacter,
@@ -39,9 +40,18 @@ export const buildChatSystemPrompt = ({
   // Different base prompt depending on whether we have search results context
   let systemPrompt =
     defaultAssistantCharacter +
-    (resultsContext.length
-      ? `Your main purpose is to help users analyze and interact with their Roam Research knowledge graph through the eventual selection of pages or blocks available in the context.`
-      : "");
+    `\nYour main purpose is to talk with the user in a way that's insightful, offering useful thoughts and accurate information, helping user to leverage their Roam Research knowledge graph and notes${
+      resultsContext.length
+        ? " through selection of pages or blocks available in the context or"
+        : ""
+    } by loading or handling requested data from its database using available tools.${
+      !toolsEnabled
+        ? " If a user's request appears to be asking you to do something in their Roam database that you're not able to do, it might be because they haven't turned on the right tools. In that case, suggest that they look at which tools are available and enabled by clicking 🔧 button at the bottom, and have them read through their brief descriptions or ask for help about existing way to load Roam data in the context of this chat."
+        : ""
+    }`;
+
+  const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
+    getCurrentDateContext(new Date());
 
   systemPrompt += `\n\n## Response Guidelines
 
@@ -49,7 +59,8 @@ export const buildChatSystemPrompt = ({
 - **Be concise** - get to the point quickly unless more detail is requested
 - Ask clarifying questions when needed
 - Build on **previous conversation** context when relevant
-- Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.`;
+- Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.
+- Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})`;
 
   // Add command-specific instructions if provided
   let completeCommandPrompt = buildCompleteCommandPrompt(

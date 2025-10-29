@@ -899,10 +899,14 @@ const invokeSearchAgentInternal = async ({
             };
           }
 
-          // Open the popup automatically (unless called from query composer OR composed query execution)
-          // Don't open popup for composed query sub-executions (they aggregate results elsewhere)
+          // Open the popup automatically (unless called from query composer, chat agent tool, OR composed query execution)
+          // Don't open popup for:
+          // - query-composer: results are added to existing popup
+          // - chat-agent-tool: results are added via callback, popup already open
+          // - composed-*: sub-executions that aggregate results elsewhere
           if (
             rootUid !== "query-composer" &&
+            rootUid !== "chat-agent-tool" &&
             !rootUid.startsWith("composed-")
           ) {
             const userQuery = response?.userQuery || finalPrompt;

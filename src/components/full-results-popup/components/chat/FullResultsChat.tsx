@@ -136,15 +136,26 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     Array<{
       toolName: string;
       details: string;
+      response?: string; // Tool's response/feedback
       timestamp: number;
       intermediateMessage?: string;
     }>
   >([]);
-  const toolUsageCleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Ref to track current context results for expansion callback
   // This allows the callback to access the latest results even during agent execution
   const currentContextResultsRef = useRef<Result[]>([]);
+
+  // Ref to track current tool usage - avoids stale closure issues
+  const toolUsageHistoryRef = useRef<
+    Array<{
+      toolName: string;
+      details: string;
+      response?: string;
+      timestamp: number;
+      intermediateMessage?: string;
+    }>
+  >([]);
 
   // Get custom style titles
   const customStyleTitles = useMemo(() => {
@@ -290,6 +301,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsStreaming(true);
       setStreamingContent("");
       setToolUsageHistory([]);
+      toolUsageHistoryRef.current = []; // Sync ref
 
       try {
         const contextResults = getSelectedResultsForChat();
@@ -325,7 +337,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setIsTyping(false);
       setIsStreaming(false);
       setStreamingContent("");
-      setToolUsageHistory([]);
+      // Don't clear tool usage history - it should persist to show user what tools were used
 
       // Reset command context after processing
       setCommandContext(null);
@@ -1017,6 +1029,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setHasExpandedResults(false);
     setLoadedChatTitle(null);
     setLoadedChatUid(null);
+    // Clear tool usage history
+    setToolUsageHistory([]);
+    toolUsageHistoryRef.current = [];
   };
 
   const copyToClipboard = async (text: string) => {
@@ -1353,6 +1368,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsStreaming(true);
     setStreamingContent("");
     setToolUsageHistory([]);
+    toolUsageHistoryRef.current = []; // Sync ref
 
     if (command.name?.slice(0, 16) === "Image generation") {
       command.prompt = command.name;
@@ -1385,7 +1401,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
-    setToolUsageHistory([]);
+    // Don't clear tool usage history - it should persist to show user what tools were used
 
     // Reset command context after processing
     setCommandContext(null);
@@ -1406,6 +1422,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsStreaming(true);
     setStreamingContent("");
     setToolUsageHistory([]);
+    toolUsageHistoryRef.current = []; // Sync ref
 
     try {
       const contextResults = getSelectedResultsForChat();
@@ -1431,7 +1448,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
-    setToolUsageHistory([]);
+    // Don't clear tool usage history - it should persist to show user what tools were used
   };
 
   // Handler for help buttons
@@ -1626,41 +1643,58 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               details = `Loading skill: "${skillName}"`;
             }
           } else {
-            // For other tools, show a generic message
-            details = `Using tool: ${toolInfo.toolName}`;
+            // For other tools, show arguments only (tool name is already in the title)
             if (toolInfo.args) {
               const argsSummary = Object.entries(toolInfo.args)
                 .map(([key, value]) => {
-                  if (typeof value === "string" && value.length > 50) {
-                    return `${key}: ${value.substring(0, 50)}...`;
-                  }
+                  // Show full value without truncation - important for user transparency
                   return `${key}: ${JSON.stringify(value)}`;
                 })
                 .join(", ");
-              if (argsSummary) {
-                details += ` (${argsSummary})`;
-              }
+              details = argsSummary || "No arguments";
+            } else {
+              details = "No arguments";
             }
           }
 
           // Add new tool usage to history (stacking them)
-          setToolUsageHistory((prev) => [
-            ...prev,
-            {
-              toolName: toolInfo.toolName,
-              details,
-              timestamp: Date.now(),
-              intermediateMessage: intermediateMessage || undefined,
-            },
-          ]);
+          const newToolUsage = {
+            toolName: toolInfo.toolName,
+            details,
+            timestamp: Date.now(),
+            intermediateMessage: intermediateMessage || undefined,
+          };
 
-          // Clear any existing cleanup timeout
-          if (toolUsageCleanupTimeoutRef.current) {
-            clearTimeout(toolUsageCleanupTimeoutRef.current);
-          }
+          // Update both state and ref
+          setToolUsageHistory((prev) => {
+            const updated = [...prev, newToolUsage];
+            toolUsageHistoryRef.current = updated;
+            return updated;
+          });
+        },
 
-          // Set a cleanup timeout to clear all tool messages after streaming completes
-          // We'll clear this and reset it when streaming starts/stops
+        // Tool response callback - updates the tool usage with the response
+        toolResponseCallback: (toolInfo: {
+          toolName: string;
+          response: string;
+        }) => {
+          // Find the most recent tool usage for this tool and update it with the response
+          setToolUsageHistory((prev) => {
+            const updatedHistory = [...prev];
+            // Find the last occurrence of this tool (most recent)
+            for (let i = updatedHistory.length - 1; i >= 0; i--) {
+              if (updatedHistory[i].toolName === toolInfo.toolName && !updatedHistory[i].response) {
+                updatedHistory[i] = {
+                  ...updatedHistory[i],
+                  response: toolInfo.response,
+                };
+                break;
+              }
+            }
+            // Update ref immediately to avoid closure issues
+            toolUsageHistoryRef.current = updatedHistory;
+            return updatedHistory;
+          });
         },
 
         // Agent callbacks
@@ -1756,6 +1790,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         timestamp: new Date(),
         tokensIn: agentResult.tokensUsage?.input_tokens,
         tokensOut: agentResult.tokensUsage?.output_tokens,
+        // Use ref to get the current tool usage (avoids stale closure)
+        toolUsage: toolUsageHistoryRef.current.length > 0 ? [...toolUsageHistoryRef.current] : undefined,
       };
 
       // Update chat messages first - use functional update to avoid stale closure
@@ -1764,6 +1800,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         updatedChatMessages = [...prevMessages, assistantMessage];
         return updatedChatMessages;
       });
+
+      // Clear tool usage history now that it's attached to the message
+      setToolUsageHistory([]);
+      toolUsageHistoryRef.current = [];
 
       // The agent's built-in conversation management will handle history and summarization automatically
       // We just need to preserve the agent state for the next turn
@@ -1812,30 +1852,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (toolUsageCleanupTimeoutRef.current) {
-        clearTimeout(toolUsageCleanupTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Auto-cleanup tool usage messages after streaming completes
-  useEffect(() => {
-    // Clear existing timeout when streaming state changes
-    if (toolUsageCleanupTimeoutRef.current) {
-      clearTimeout(toolUsageCleanupTimeoutRef.current);
-      toolUsageCleanupTimeoutRef.current = null;
-    }
-
-    // When streaming completes and we have tool messages, schedule cleanup after 5 seconds
-    if (!isStreaming && !isTyping && toolUsageHistory.length > 0) {
-      toolUsageCleanupTimeoutRef.current = setTimeout(() => {
-        setToolUsageHistory([]);
-      }, 5000);
-    }
-  }, [isStreaming, isTyping, toolUsageHistory.length]);
+  // Tool usage messages are now permanent - they provide valuable feedback to users
+  // about what actions the agent is taking. No auto-cleanup needed.
 
   if (!isOpen) return null;
 

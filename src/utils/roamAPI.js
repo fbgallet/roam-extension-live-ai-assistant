@@ -724,3 +724,18 @@ export const searchPagesByRegex = (regex, excludeDNP = true) => {
   if (!result) return "no page found !";
   return result.map((p) => p[0]).join(", ");
 };
+
+export const getCurrentDateContext = (date) => {
+  let referenceDate = date;
+  const dateStr = referenceDate.toISOString().split("T")[0]; // YYYY-MM-DD format
+  const dayName = referenceDate.toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+  const monthName = referenceDate.toLocaleDateString("en-US", {
+    month: "long",
+  });
+  const fullYear = referenceDate.getFullYear();
+  const dayNb = referenceDate.getDate();
+  const timeHHMM = referenceDate.getHours() + ":" + referenceDate.getMinutes();
+  return { dateStr, dayName, monthName, dayNb, fullYear, timeHHMM };
+};

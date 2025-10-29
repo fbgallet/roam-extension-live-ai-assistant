@@ -79,6 +79,10 @@ const ChatAgentState = Annotation.Root({
   expandedResultsCallback: Annotation<
     ((currentResults: any[]) => Promise<any[]>) | undefined
   >,
+  toolResponseCallback: Annotation<
+    | ((toolInfo: { toolName: string; response: string }) => void)
+    | undefined
+  >,
   needsExpansion: Annotation<boolean>,
   // Timing
   startTime: Annotation<number>,
@@ -512,6 +516,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
   const resultsAddingTools = [
     "add_linked_references_by_title",
     "add_pages_by_title",
+    "ask_your_graph",
   ];
 
   toolMessages.forEach((msg: any) => {
@@ -531,6 +536,14 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       if (msg.name === "live_ai_skills" && msg.content) {
         console.log("📚 Skill tool called, storing active instructions");
         newActiveSkillInstructions = msg.content;
+      }
+
+      // Call toolResponseCallback to capture tool's response for UI display
+      if (state.toolResponseCallback) {
+        state.toolResponseCallback({
+          toolName: msg.name,
+          response: msg.content,
+        });
       }
     }
   });

@@ -100,7 +100,9 @@ export const useQueryManager = ({
   const [selectedValue, setSelectedValue] = useState<string>(
     currentUserQuery ? "current" : ""
   );
-  const [isExpanded, setIsExpanded] = useState(!currentUserQuery);
+  const [isExpanded, setIsExpanded] = useState(
+    !currentUserQuery && !currentResults?.length
+  );
 
   // Dialogs
   const [showSaveDialog, setShowSaveDialog] = useState(false);
