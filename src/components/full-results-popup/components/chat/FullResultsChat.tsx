@@ -15,6 +15,8 @@ import {
   insertBlockInCurrentView,
   createChildBlock,
   createSiblingBlock,
+  hasBlockChildren,
+  updateBlock,
 } from "../../../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../../../utils/format";
@@ -1043,11 +1045,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const insertConversationInRoam = async () => {
-    if (!targetUid) {
-      targetUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-      if (!targetUid) {
-        targetUid = await insertBlockInCurrentView("");
+    if (!loadedChatUid && !initialLoadedChatUid) {
+      let focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
+      if (!focusedUid && targetUid && hasBlockChildren(targetUid)) {
+        targetUid = await createSiblingBlock(targetUid);
       }
+      targetUid =
+        focusedUid || targetUid || (await insertBlockInCurrentView(""));
+    } else {
+      targetUid = initialLoadedChatUid || loadedChatUid;
     }
 
     try {
@@ -1067,27 +1073,40 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const isFirstInsertion = initialMessagesCountRef.current === 0;
 
       if (isFirstInsertion) {
-        // Create a summary of the conversation for the LLM (first 50 chars of each message)
-        const conversationSummary = newMessages
-          .map((msg, idx) => {
-            const roleLabel = msg.role === "user" ? "User" : "Assistant";
-            const content = msg.content || "";
-            const snippet = content.substring(0, 50).replace(/\n/g, " ");
-            return `${idx + 1}. ${roleLabel}: ${snippet}...`;
-          })
-          .join("\n");
+        const targetContent = getBlockContentByUid(targetUid);
 
-        const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant}" and ending with "#liveai/chat". Be concise and specific.\n\nConversation:\n${conversationSummary}`;
+        if (targetContent.trim()) {
+          let firstMsg = newMessages.shift();
+          if (firstMsg?.content && !firstMsg?.content?.includes("liveai/chat"))
+            firstMsg.content += " #liveai/chat";
+          updateBlock({ blockUid: targetUid, newContent: firstMsg?.content });
+        } else {
+          // Create a summary of the conversation for the LLM (first 50 chars of each message)
+          const conversationSummary = newMessages
+            .map((msg, idx) => {
+              const roleLabel = msg.role === "user" ? "User" : "Assistant";
+              const content = msg.content || "";
+              const snippet = content.substring(0, 50).replace(/\n/g, " ");
+              return `${idx + 1}. ${roleLabel}: ${snippet}...`;
+            })
+            .join("\n");
 
-        // Generate title using insertCompletion
-        // Type assertion needed because insertCompletion has many optional parameters
-        await (insertCompletion as any)({
-          instantModel: selectedModel,
-          prompt: titlePrompt,
-          targetUid,
-          target: "replace",
-          isButtonToInsert: false,
-        });
+          const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant}" and ending with "#liveai/chat". Be concise and specific.\n\nConversation:\n${conversationSummary}`;
+
+          // Generate title using insertCompletion
+          // Type assertion needed because insertCompletion has many optional parameters
+          await (insertCompletion as any)({
+            instantModel: selectedModel,
+            prompt: titlePrompt,
+            targetUid,
+            target: "replace",
+            isButtonToInsert: false,
+          });
+        }
+        setLoadedChatUid(
+          targetContent.trim() || getBlockContentByUid(targetUid)
+        );
+        setLoadedChatUid(targetUid);
       }
 
       // Insert each message separately to properly handle markdown structure
@@ -1120,8 +1139,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Create the role block
         let roleBlockUid: string;
-        if (isFirstMessage && initialMessagesCountRef.current === 0) {
-          // First message of a new conversation - create as child of title block
+        if (
+          isFirstMessage &&
+          (initialMessagesCountRef.current === 0 || !isFirstInsertion)
+        ) {
+          // First message - create as child of title block
           roleBlockUid = await createChildBlock(currentTargetUid, rolePrefix);
           isFirstMessage = false;
         } else {
@@ -1141,6 +1163,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Update target for next message
         currentTargetUid = roleBlockUid;
+        targetUid = currentTargetUid;
       }
 
       // Update the count to reflect that these messages are now in Roam
@@ -1607,7 +1630,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Conversation state from previous turns
         conversationHistory: currentConversationHistory,
-        conversationSummary: chatAgentData?.conversationSummary,
+        conversationSummary:
+          chatAgentData?.conversationSummary ||
+          loadedChatTitle?.replace("#liveai/chat", ""),
         exchangesSinceLastSummary:
           chatAgentData?.exchangesSinceLastSummary || 0,
 
@@ -1683,7 +1708,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             const updatedHistory = [...prev];
             // Find the last occurrence of this tool (most recent)
             for (let i = updatedHistory.length - 1; i >= 0; i--) {
-              if (updatedHistory[i].toolName === toolInfo.toolName && !updatedHistory[i].response) {
+              if (
+                updatedHistory[i].toolName === toolInfo.toolName &&
+                !updatedHistory[i].response
+              ) {
                 updatedHistory[i] = {
                   ...updatedHistory[i],
                   response: toolInfo.response,
@@ -1723,7 +1751,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           const allResults = currentContextResultsRef.current;
 
           console.log(
-            `📊 [Chat] Expanding ${allResults.length} results (${originalResults.length} original + ${
+            `📊 [Chat] Expanding ${allResults.length} results (${
+              originalResults.length
+            } original + ${
               allResults.length - originalResults.length
             } tool-added)`
           );
@@ -1791,7 +1821,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         tokensIn: agentResult.tokensUsage?.input_tokens,
         tokensOut: agentResult.tokensUsage?.output_tokens,
         // Use ref to get the current tool usage (avoids stale closure)
-        toolUsage: toolUsageHistoryRef.current.length > 0 ? [...toolUsageHistoryRef.current] : undefined,
+        toolUsage:
+          toolUsageHistoryRef.current.length > 0
+            ? [...toolUsageHistoryRef.current]
+            : undefined,
       };
 
       // Update chat messages first - use functional update to avoid stale closure

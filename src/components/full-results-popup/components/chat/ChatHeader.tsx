@@ -51,8 +51,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <span>
             {selectedResults.length > 0 ? (
               <>Chatting about {selectedResults.length} selected results</>
-            ) : (
+            ) : allResults.length > 0 ? (
               <>Chatting about {allResults.length} visible results</>
+            ) : (
+              <>No context loaded</>
             )}
             {(totalIn > 0 || totalOut > 0) && (
               <span className="full-results-chat-total-tokens">

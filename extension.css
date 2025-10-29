@@ -4510,7 +4510,7 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px;
   background-color: var(--co-bg-sidebar, #f5f8fa);
   border-bottom: 1px solid var(--co-border, #e1e8ed);
 }
@@ -4556,19 +4556,21 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
 }
 
 .chat-tools-menu .bp3-menu-item {
-  padding: 6px 8px;
+  padding: 6px;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 2px;
 }
 
 .chat-tools-menu .bp3-menu-item:hover {
   background-color: var(--co-bg-hover, rgba(92, 112, 128, 0.1));
 }
 
-.chat-tools-menu .bp3-menu-item .bp3-switch {
+.chat-tools-menu .bp3-menu-item .bp3-switch,
+.chat-tools-menu .bp3-control-indicator {
   flex-shrink: 0;
-  margin: 0;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .full-results-chat-tools-menu {

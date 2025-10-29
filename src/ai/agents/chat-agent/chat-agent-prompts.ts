@@ -220,7 +220,7 @@ export const buildConversationContext = (
   let context = "";
 
   if (conversationSummary) {
-    context += `Previous conversation summary:\n${conversationSummary}\n\n`;
+    context += `Conversation summary:\n${conversationSummary}\n\n`;
   }
 
   if (conversationHistory && conversationHistory.length > 0) {
