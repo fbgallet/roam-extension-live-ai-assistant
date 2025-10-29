@@ -68,6 +68,7 @@ export const addPagesByTitleTool = tool(
             blockUid: page.uid, // Page UID is also the block UID
             parentText: "",
             ancestorTexts: [],
+            isPage: true, // Mark as page so expansion treats it correctly
             addedByAgent: true,
             addedAt: new Date().toISOString(),
           };

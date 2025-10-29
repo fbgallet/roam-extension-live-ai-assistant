@@ -49,6 +49,7 @@ export interface ChatAgentOptions {
   // Agent callbacks
   addResultsCallback?: (results: any[]) => void;
   selectResultsCallback?: (uids: string[]) => void;
+  expandedResultsCallback?: (currentResults: any[]) => Promise<any[]>;
 
   // Token usage tracking
   tokensUsage?: TokensUsage;
@@ -147,6 +148,8 @@ export async function invokeChatAgent(
     // Agent callbacks
     addResultsCallback: options.addResultsCallback,
     selectResultsCallback: options.selectResultsCallback,
+    expandedResultsCallback: options.expandedResultsCallback,
+    needsExpansion: false,
 
     // Timing
     startTime,

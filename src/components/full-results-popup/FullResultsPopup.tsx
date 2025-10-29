@@ -627,7 +627,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setExecutionProgress("");
 
     forceUIRefresh();
-    resetChatConversation();
+    // resetChatConversation();
   };
 
   const handleQuerySelect = async (query: StoredQuery | "current") => {

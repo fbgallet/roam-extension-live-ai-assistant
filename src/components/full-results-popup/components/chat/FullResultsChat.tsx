@@ -142,6 +142,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   >([]);
   const toolUsageCleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Ref to track current context results for expansion callback
+  // This allows the callback to access the latest results even during agent execution
+  const currentContextResultsRef = useRef<Result[]>([]);
+
   // Get custom style titles
   const customStyleTitles = useMemo(() => {
     try {
@@ -1477,6 +1481,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     try {
       console.log(`💬 Access mode: ${chatAccessMode}, using new chat-agent`);
 
+      // Update the ref with current context results for expansion callback
+      currentContextResultsRef.current = contextResults;
+
       // Check if result selection has changed
       const currentResultIds = contextResults
         .map((r) => r.uid || r.pageUid || r.pageTitle)
@@ -1657,11 +1664,57 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         },
 
         // Agent callbacks
+        // Track tool-added results during this agent invocation
         addResultsCallback: (results: Result[]) => {
+          // Update parent state
           onAddResults(results);
+          // Also track locally for expansion callback
+          currentContextResultsRef.current = [
+            ...currentContextResultsRef.current,
+            ...results,
+          ];
         },
         selectResultsCallback: (uids: string[]) => {
           onSelectResultsByUids(uids);
+        },
+        expandedResultsCallback: async (originalResults: Result[]) => {
+          // Re-expand all results (including newly added ones) and return them
+          // This happens synchronously during the agent's tool execution phase
+          console.log(
+            "🔄 [Chat] Re-expanding context with newly added results"
+          );
+
+          // The ref has been accumulating tool-added results via addResultsCallback
+          // So currentContextResultsRef.current = original + tool-added results
+          const allResults = currentContextResultsRef.current;
+
+          console.log(
+            `📊 [Chat] Expanding ${allResults.length} results (${originalResults.length} original + ${
+              allResults.length - originalResults.length
+            } tool-added)`
+          );
+
+          // Perform expansion with the same budget as initial expansion
+          const expansionBudget =
+            chatAccessMode === "Full Access"
+              ? modelTokensLimit * 3
+              : modelTokensLimit * 2;
+
+          const newExpandedResults = await performAdaptiveExpansion(
+            allResults.map((result) => ({ ...result })),
+            expansionBudget,
+            0,
+            chatAccessMode
+          );
+
+          // Update the cached expanded results
+          setChatExpandedResults(newExpandedResults);
+
+          console.log(
+            `📝 [Chat] Re-expanded ${newExpandedResults.length} results after tool additions`
+          );
+
+          return newExpandedResults;
         },
 
         // Token usage from previous turns

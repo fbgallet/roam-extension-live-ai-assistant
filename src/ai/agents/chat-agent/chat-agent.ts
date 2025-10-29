@@ -76,6 +76,10 @@ const ChatAgentState = Annotation.Root({
   // Agent callbacks
   addResultsCallback: Annotation<((results: any[]) => void) | undefined>,
   selectResultsCallback: Annotation<((uids: string[]) => void) | undefined>,
+  expandedResultsCallback: Annotation<
+    ((currentResults: any[]) => Promise<any[]>) | undefined
+  >,
+  needsExpansion: Annotation<boolean>,
   // Timing
   startTime: Annotation<number>,
   // Tool results cache
@@ -484,6 +488,8 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       currentResultsContext: state.resultsContext || [],
       addResultsCallback: state.addResultsCallback,
       selectResultsCallback: state.selectResultsCallback,
+      expandedResultsCallback: state.expandedResultsCallback,
+      needsExpansion: state.needsExpansion || false,
       model: state.model, // Pass model info so tools can reuse the same LLM
       llm: llm, // Pass the initialized LLM instance directly
       toolResultsCache: state.toolResultsCache || {}, // Pass cache for tool result deduplication
@@ -501,6 +507,13 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
   // Extract skill instructions if the skill tool was called
   let newActiveSkillInstructions = state.activeSkillInstructions;
 
+  // Track if any tools that add results were called
+  let needsExpansion = false;
+  const resultsAddingTools = [
+    "add_linked_references_by_title",
+    "add_pages_by_title",
+  ];
+
   toolMessages.forEach((msg: any) => {
     if (msg.tool_call_id && msg.content) {
       updatedCache[msg.tool_call_id] = {
@@ -508,6 +521,11 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
         timestamp: Date.now(),
         tool_name: msg.name,
       };
+
+      // Check if this tool adds results to context
+      if (resultsAddingTools.includes(msg.name)) {
+        needsExpansion = true;
+      }
 
       // If this is the skill tool, extract and store its instructions
       if (msg.name === "live_ai_skills" && msg.content) {
@@ -517,10 +535,69 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     }
   });
 
+  // If tools added results, trigger expansion in parent component
+  // and update the resultsContext with the newly expanded results
+  let updatedResultsContext = state.resultsContext;
+  let shouldRebuildSystemPrompt = false;
+
+  if (needsExpansion && state.expandedResultsCallback) {
+    console.log(
+      "🔄 [Chat Agent] Tools added results, triggering context expansion"
+    );
+    try {
+      // Pass the original results context - the callback tracks additions via ref
+      updatedResultsContext = await state.expandedResultsCallback(
+        state.resultsContext || []
+      );
+      console.log(
+        `✅ [Chat Agent] Context expanded, now has ${updatedResultsContext.length} results`
+      );
+      shouldRebuildSystemPrompt = true;
+    } catch (error) {
+      console.error("❌ [Chat Agent] Failed to expand context:", error);
+    }
+  }
+
+  // Rebuild system prompt if context was expanded
+  if (shouldRebuildSystemPrompt && updatedResultsContext) {
+    console.log("🔄 [Chat Agent] Rebuilding system prompt with expanded context");
+
+    // Build conversation context
+    const conversationContext = buildConversationContext(
+      state.conversationHistory,
+      state.conversationSummary
+    );
+
+    // Build results context with expanded results
+    const resultsContextString = buildResultsContext(
+      updatedResultsContext,
+      state.resultsDescription
+    );
+
+    // Rebuild system prompt
+    const systemPrompt = buildChatSystemPrompt({
+      lastMessage: state.messages?.at(-1)?.content?.toString() || "",
+      style: state.style,
+      commandPrompt: state.conversationHistory?.length < 2 && state.commandPrompt,
+      toolsEnabled: state.toolsEnabled,
+      conversationContext: conversationContext,
+      resultsContext: resultsContextString,
+      accessMode: state.accessMode,
+      isAgentMode: state.isAgentMode,
+      activeSkillInstructions: newActiveSkillInstructions,
+      enabledTools: state.enabledTools,
+    });
+
+    sys_msg = new SystemMessage({ content: systemPrompt });
+    console.log("✅ [Chat Agent] System prompt rebuilt with expanded context");
+  }
+
   return {
     ...result,
+    resultsContext: updatedResultsContext,
     toolResultsCache: updatedCache,
     activeSkillInstructions: newActiveSkillInstructions,
+    needsExpansion: needsExpansion,
     // Reset invalid tool call counter after successful tool execution
     invalidToolCallRetries: 0,
   };
