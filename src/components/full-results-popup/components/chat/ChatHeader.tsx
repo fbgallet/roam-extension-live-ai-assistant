@@ -76,7 +76,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {chatMessages.length > 0 && (
             <>
               {
-                <Tooltip content="Insert conversation in Roam at focused block or append to current page/daily note">
+                <Tooltip
+                  openOnTargetFocus={false}
+                  content="Insert conversation in Roam at focused block or append to current page/daily note"
+                >
                   <Button
                     icon="insert"
                     onClick={onInsertConversation}
@@ -86,7 +89,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   />
                 </Tooltip>
               }
-              <Tooltip content="Copy full conversation to clipboard">
+              <Tooltip
+                openOnTargetFocus={false}
+                content="Copy full conversation to clipboard"
+              >
                 <Button
                   icon="clipboard"
                   onClick={onCopyFullConversation}
@@ -99,7 +105,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </Tooltip>
             </>
           )}
-          <Tooltip content="Load chat history from #liveai/chat blocks">
+          <Tooltip
+            openOnTargetFocus={false}
+            content="Load chat history from #liveai/chat blocks"
+          >
             <ChatHistorySelect
               onChatSelect={onLoadChatHistory}
               disabled={isTyping}

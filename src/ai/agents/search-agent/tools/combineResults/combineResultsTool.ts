@@ -32,6 +32,8 @@ const combineResultsImpl = async (
     `🔄 CombineResults: ${operation} operation on ${resultSets.length} result sets`
   );
 
+  console.log("resultSets :>> ", resultSets);
+
   // Validate that all result sets are the same type
   const types = [...new Set(resultSets.map((set) => set.type))];
   if (types.length > 1) {
@@ -114,6 +116,8 @@ const combineResultsImpl = async (
     preserveOrder
   );
 
+  console.log("combinedUids :>> ", combinedUids);
+
   // Step 8: Apply limit
   if (combinedUids.length > limit) {
     combinedUids = combinedUids.slice(0, limit);
@@ -121,6 +125,8 @@ const combineResultsImpl = async (
 
   // Step 9: Calculate statistics
   const stats = calculateStats(processedSets, combinedUids, operation);
+
+  console.log("stats :>> ", stats);
 
   // Step 10: Build result
   const result: CombinedResult = {

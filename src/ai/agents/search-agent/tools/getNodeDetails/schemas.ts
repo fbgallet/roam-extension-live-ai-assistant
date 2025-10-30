@@ -5,15 +5,18 @@ export const schema = z
     // Input - what to fetch details for
     blockUids: z
       .array(z.string())
-      .optional().nullable()
+      .optional()
+      .nullable()
       .describe("Array of block UIDs to get details for"),
     pageUids: z
       .array(z.string())
-      .optional().nullable()
+      .optional()
+      .nullable()
       .describe("Array of page UIDs to get details for"),
     fromResultId: z
       .string()
-      .optional().nullable()
+      .optional()
+      .nullable()
       .describe(
         "Get details for blocks/pages from previous result (e.g., 'findBlocksByContent_001')"
       ),
@@ -39,6 +42,14 @@ export const schema = z
       .max(100)
       .default(50)
       .describe("Maximum number of nodes to fetch details for"),
+    // Result lifecycle management
+    purpose: z
+      .enum(["final", "intermediate", "replacement", "completion"])
+      .optional()
+      .nullable()
+      .describe(
+        "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
+      ),
   })
   .refine(
     (data) =>

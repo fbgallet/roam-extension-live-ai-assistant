@@ -147,19 +147,31 @@ export const openaiHierarchyConditionSchema = z.object({
     .array(hierarchySearchConditionSchema)
     .min(1)
     .max(10)
-    .optional().nullable(),
+    .optional()
+    .nullable(),
   leftCombination: z.enum(["AND", "OR"]).default("AND"),
   rightConditions: z
     .array(hierarchySearchConditionSchema)
     .min(1)
     .max(10)
-    .optional().nullable(),
+    .optional()
+    .nullable(),
   rightCombination: z.enum(["AND", "OR"]).default("AND"),
 
   // Grouped conditions (new - for complex logic)
-  leftConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional().nullable(),
+  leftConditionGroups: z
+    .array(conditionGroupSchema)
+    .min(1)
+    .max(5)
+    .optional()
+    .nullable(),
   leftGroupCombination: z.enum(["AND", "OR"]).default("AND"),
-  rightConditionGroups: z.array(conditionGroupSchema).min(1).max(5).optional().nullable(),
+  rightConditionGroups: z
+    .array(conditionGroupSchema)
+    .min(1)
+    .max(5)
+    .optional()
+    .nullable(),
   rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
 
   maxDepth: z.union([z.number().min(1).max(10), z.null()]).default(null),
@@ -255,6 +267,15 @@ export const schema = z.object({
       "Block UID to exclude from results (typically the user's query block)"
     ),
 
+  // Result lifecycle management
+  purpose: z
+    .enum(["final", "intermediate", "replacement", "completion"])
+    .optional()
+    .nullable()
+    .describe(
+      "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
+    ),
+
   // Legacy internal parameters (kept for backward compatibility)
   // structuredHierarchyCondition: z.any().optional().nullable(),
   // structuredSearchConditions: z.any().optional().nullable(),
@@ -289,7 +310,8 @@ export const llmFacingSchema = z.object({
             negate: z.boolean().default(false),
           })
         )
-        .optional().nullable()
+        .optional()
+        .nullable()
         .describe("Left side conditions for hierarchy relationship"),
       leftCombination: z.enum(["AND", "OR"]).default("AND"),
       rightConditions: z
@@ -302,7 +324,8 @@ export const llmFacingSchema = z.object({
             negate: z.boolean().default(false),
           })
         )
-        .optional().nullable()
+        .optional()
+        .nullable()
         .describe("Right side conditions for hierarchy relationship"),
       rightCombination: z.enum(["AND", "OR"]).default("AND"),
 
@@ -325,7 +348,8 @@ export const llmFacingSchema = z.object({
             combination: z.enum(["AND", "OR"]).default("AND"),
           })
         )
-        .optional().nullable()
+        .optional()
+        .nullable()
         .describe(
           "Left side condition groups for complex logic like ((A|B) AND NOT C)"
         ),
@@ -348,13 +372,24 @@ export const llmFacingSchema = z.object({
             combination: z.enum(["AND", "OR"]).default("AND"),
           })
         )
-        .optional().nullable()
+        .optional()
+        .nullable()
         .describe("Right side condition groups for complex logic"),
       rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
     })
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Structured hierarchy condition with operator and left/right conditions"
+    ),
+
+  // Result lifecycle management
+  purpose: z
+    .enum(["final", "intermediate", "replacement", "completion"])
+    .optional()
+    .nullable()
+    .describe(
+      "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
 
   // Essential options only
@@ -371,13 +406,17 @@ export const llmFacingSchema = z.object({
     .number()
     .min(1)
     .max(10)
-    .optional().nullable()
-    .describe("ONLY specify if user explicitly requests depth (e.g. 'depth=3'). Otherwise OMIT this field to use automatic depth based on operators."),
+    .optional()
+    .nullable()
+    .describe(
+      "ONLY specify if user explicitly requests depth (e.g. 'depth=3'). Otherwise OMIT this field to use automatic depth based on operators."
+    ),
 
   // Optional filtering (advanced users)
   excludeBlockUid: z
     .string()
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe("Block UID to exclude from results"),
 });
 
@@ -401,32 +440,43 @@ export const transformLlmInputToInternalSchema = (
     sortBy: llmInput.sortBy || "relevance",
     maxHierarchyDepth: (() => {
       // First check for state-level depth override (for direct expansion)
-      if (state?.maxDepthOverride !== null && state?.maxDepthOverride !== undefined) {
-        console.log(`🏗️ [Schema] Using maxDepthOverride from state: ${state.maxDepthOverride}`);
+      if (
+        state?.maxDepthOverride !== null &&
+        state?.maxDepthOverride !== undefined
+      ) {
+        console.log(
+          `🏗️ [Schema] Using maxDepthOverride from state: ${state.maxDepthOverride}`
+        );
         return state.maxDepthOverride;
       }
-      
+
       // If maxDepth was explicitly set by LLM, use it
       if (llmInput.maxDepth !== undefined) {
         return llmInput.maxDepth;
       }
-      
+
       // Intelligent defaults based on operator type
       const hierarchyCondition = llmInput.hierarchyCondition;
       if (hierarchyCondition?.operator) {
         const op = hierarchyCondition.operator;
-        
+
         // Deep operators should default to depth=2
         if (op.includes(">>") || op.includes("<<") || op === "=>>") {
           return 2;
         }
-        
+
         // Shallow operators should default to depth=1
-        if (op === ">" || op === "<" || op === "=>" || op === "<=" || op === "<=>") {
+        if (
+          op === ">" ||
+          op === "<" ||
+          op === "=>" ||
+          op === "<=" ||
+          op === "<=>"
+        ) {
           return 1;
         }
       }
-      
+
       // Fallback: if no hierarchy condition or unrecognized operator, use depth=1
       return 1;
     })(),

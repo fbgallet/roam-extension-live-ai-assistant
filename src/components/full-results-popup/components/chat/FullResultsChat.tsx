@@ -28,7 +28,6 @@ import {
   calculateTotalTokens,
   convertMarkdownToRoamFormat,
 } from "../../utils/chatMessageUtils";
-import { completionCommands } from "../../../../ai/prompts";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
 import { ChatInputArea } from "./ChatInputArea";
@@ -143,6 +142,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       intermediateMessage?: string;
     }>
   >([]);
+
+  const targetRef = useRef<string | undefined>(targetUid);
 
   // Ref to track current context results for expansion callback
   // This allows the callback to access the latest results even during agent execution
@@ -1031,6 +1032,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setHasExpandedResults(false);
     setLoadedChatTitle(null);
     setLoadedChatUid(null);
+    initialMessagesCountRef.current = 0;
+    targetRef.current = undefined;
     // Clear tool usage history
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = [];
@@ -1045,15 +1048,19 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const insertConversationInRoam = async () => {
-    if (!loadedChatUid && !initialLoadedChatUid) {
+    if (!loadedChatUid) {
       let focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
-      if (!focusedUid && targetUid && hasBlockChildren(targetUid)) {
-        targetUid = await createSiblingBlock(targetUid);
+      if (
+        !focusedUid &&
+        targetRef.current &&
+        hasBlockChildren(targetRef.current)
+      ) {
+        targetRef.current = await createSiblingBlock(targetRef.current);
       }
-      targetUid =
-        focusedUid || targetUid || (await insertBlockInCurrentView(""));
+      targetRef.current =
+        focusedUid || targetRef.current || (await insertBlockInCurrentView(""));
     } else {
-      targetUid = initialLoadedChatUid || loadedChatUid;
+      targetRef.current = loadedChatUid;
     }
 
     try {
@@ -1073,13 +1080,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const isFirstInsertion = initialMessagesCountRef.current === 0;
 
       if (isFirstInsertion) {
-        const targetContent = getBlockContentByUid(targetUid);
+        const targetContent = getBlockContentByUid(targetRef.current);
 
         if (targetContent.trim()) {
           let firstMsg = newMessages.shift();
           if (firstMsg?.content && !firstMsg?.content?.includes("liveai/chat"))
             firstMsg.content += " #liveai/chat";
-          updateBlock({ blockUid: targetUid, newContent: firstMsg?.content });
+          updateBlock({
+            blockUid: targetRef.current,
+            newContent: firstMsg?.content,
+          });
         } else {
           // Create a summary of the conversation for the LLM (first 50 chars of each message)
           const conversationSummary = newMessages
@@ -1098,20 +1108,20 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           await (insertCompletion as any)({
             instantModel: selectedModel,
             prompt: titlePrompt,
-            targetUid,
+            targetUid: targetRef.current,
             target: "replace",
             isButtonToInsert: false,
           });
         }
         setLoadedChatUid(
-          targetContent.trim() || getBlockContentByUid(targetUid)
+          targetContent.trim() || getBlockContentByUid(targetRef.current)
         );
-        setLoadedChatUid(targetUid);
+        setLoadedChatUid(targetRef.current);
       }
 
       // Insert each message separately to properly handle markdown structure
       // For each message: create role block, then parse content as children
-      let currentTargetUid = targetUid;
+      let currentTargetUid = targetRef.current;
       let isFirstMessage = true;
 
       for (const msg of newMessages) {
@@ -1163,7 +1173,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Update target for next message
         currentTargetUid = roleBlockUid;
-        targetUid = currentTargetUid;
       }
 
       // Update the count to reflect that these messages are now in Roam

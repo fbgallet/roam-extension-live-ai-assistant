@@ -186,13 +186,7 @@ const ReactSearchAgentState = Annotation.Root({
       }
     | undefined
   >,
-  strategicGuidance: Annotation<{
-    approach?:
-      | "single_search"
-      | "multiple_searches_with_union"
-      | "multi_step_workflow";
-    recommendedSteps?: string[];
-  }>,
+
   // Expansion tracking
   expansionGuidance: Annotation<string | undefined>,
   expansionState: Annotation<
@@ -437,10 +431,6 @@ const conversationRouter = async (
     userIntent: state.userQuery,
     formalQuery: state.userQuery, // Simple fallback - use user query as-is
     searchStrategy: "direct" as const,
-    strategicGuidance: {
-      approach: "single_search" as const,
-      recommendedSteps: ["Execute direct search based on user query"],
-    },
   };
 };
 
@@ -565,10 +555,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         postProcessingType: analysis.postProcessingType,
         userIntent: analysis.userIntent,
         queryComplexity: "simple" as const,
-        strategicGuidance: {
-          approach: "single_search" as const,
-          recommendedSteps: ["Execute user-provided Datomic query"],
-        },
+
         totalTokensUsed: updatedTotalTokens,
         timingMetrics: updatedTimingMetrics,
       };
@@ -612,13 +599,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       formalQuery: analysis.formalQuery, // Keep original, let LLM apply expansions
       userIntent: analysis.userIntent,
       queryComplexity: determineComplexity(analysis.formalQuery),
-      strategicGuidance: {
-        approach: determineApproach(analysis.formalQuery),
-        recommendedSteps: generateExecutionSteps(
-          analysis.formalQuery,
-          analysis.analysisType
-        ),
-      },
+
       searchStrategy: analysis.searchStrategy,
       forceHierarchical: analysis.forceHierarchical,
       analysisType: analysis.analysisType,
@@ -653,10 +634,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       formalQuery: state.userQuery,
       userIntent: state.userQuery,
       queryComplexity: "simple" as const,
-      strategicGuidance: {
-        approach: "single_search" as const,
-        recommendedSteps: ["Execute basic search"],
-      },
+
       searchStrategy: "direct" as const,
       confidence: 0.3,
       totalTokensUsed: fallbackTokens,
@@ -1086,7 +1064,6 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     analysisType: state.analysisType,
     language: state.language,
     datomicQuery: state.datomicQuery,
-    strategicGuidance: state.strategicGuidance,
     searchDetails: state.searchDetails,
     // Expansion support
     searchStrategy: state.searchStrategy,
@@ -2548,7 +2525,7 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
         : "balanced";
 
       return "contextExpansion";
-    } else if (requiresAnalysis) {
+    } else {
       return "assistant";
     }
   }

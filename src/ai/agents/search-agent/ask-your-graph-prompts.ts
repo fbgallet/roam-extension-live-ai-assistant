@@ -15,135 +15,6 @@ import { applyLinearContentTruncation } from "./helpers/contentTruncation";
 
 const ROAM_SEARCH_QUICK_DESCRIPTION = `typically this consist of finding blocks and/or pages that meet certain conditions, or requesting specific processing (analysis, summary, reflection, retrieval...) that requires first extracting a set of blocks and/or pages. In Roam, pages have a UID, a title and contain a hierarchical set of blocks. Each block is defined by its UID, its context (children and parents blocks) and a string content where it can reference/mention pages via '[[page references]]', '#tags' or 'attributes::', or reference other blocks via '((block references))'`;
 
-/**
- * Detects if a user query contains a Datomic query that should be executed directly
- */
-export const isDatomicQuery = (userQuery: string): boolean => {
-  const query = userQuery.toLowerCase().trim();
-
-  // Check for key Datomic patterns
-  const hasFindClause = query.includes("[:find") || query.includes("[: find");
-  const hasWhereClause = query.includes(":where");
-
-  // Also check for common Datomic variable patterns
-  const hasDatomicVariables = /\?\w+/.test(userQuery); // ?variable syntax
-
-  return hasFindClause && hasWhereClause && hasDatomicVariables;
-};
-
-/**
- * Extracts the actual Datomic query from user input (removes quotes, code blocks, etc.)
- */
-export const extractDatomicQuery = (userQuery: string): string => {
-  let query = userQuery.trim();
-
-  // Remove common prefixes like "Execute this query:", "Run:", "Results of:", etc.
-  query = query.replace(
-    /^(execute|run|results?\s+of|summarize\s+the\s+results?\s+of)\s*(:|\s)\s*/i,
-    ""
-  );
-
-  // Remove quotes if the query is wrapped in them
-  if (
-    (query.startsWith('"') && query.endsWith('"')) ||
-    (query.startsWith("'") && query.endsWith("'"))
-  ) {
-    query = query.slice(1, -1);
-  }
-
-  // Remove code block markers
-  query = query.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
-  query = query.replace(/^`/, "").replace(/`$/, "");
-
-  // Remove Roam inline query prefix ':q ' if present
-  query = query.replace(/^:q\s+/, "");
-
-  // Find the actual Datomic query boundaries
-  // Look for [:find or [: find pattern and extract from there to the last ]
-  const findMatch = query.match(/(\[:\s*find.*)/i);
-  if (findMatch) {
-    const fromFind = findMatch[1];
-
-    // Find the last closing bracket that balances the opening bracket
-    let bracketCount = 0;
-    let lastValidIndex = -1;
-
-    for (let i = 0; i < fromFind.length; i++) {
-      if (fromFind[i] === "[") {
-        bracketCount++;
-      } else if (fromFind[i] === "]") {
-        bracketCount--;
-        if (bracketCount === 0) {
-          lastValidIndex = i;
-        }
-      }
-    }
-
-    if (lastValidIndex !== -1) {
-      query = fromFind.substring(0, lastValidIndex + 1);
-    } else {
-      // If no balanced brackets found, take the whole string from [:find
-      query = fromFind;
-    }
-  }
-
-  return query.trim();
-};
-
-/**
- * Builds a specialized system prompt for Datomic query requests
- */
-export const buildDatomicQueryPrompt = (state: {
-  userQuery: string;
-  conversationHistory?: any[];
-  conversationSummary?: string;
-  permissions: { contentAccess: boolean };
-  privateMode: boolean;
-}): string => {
-  const datomicQuery = extractDatomicQuery(state.userQuery);
-
-  return `You are processing a user request that contains a Datomic query for a Roam Research database.
-
-USER REQUEST: "${state.userQuery}"
-DETECTED DATOMIC QUERY: ${datomicQuery}
-
-## ANALYSIS REQUEST DETECTION:
-
-**Your task is to determine if the user wants:**
-1. **Direct execution only**: Just run the query and return results
-2. **Analysis/Summary**: Execute query AND provide analysis, summary, explanation, or processing of results
-
-**Look for analysis indicators in ANY language:**
-- Words meaning: summarize, analyze, explain, describe, count, compare, what, how many, why, etc.
-- Questions about the results: "What do these show?", "How many?", "Explain these results"
-- Request for insights: "What can you tell me about...", "Give me insights from..."
-- Processing requests: "Group by...", "Show patterns...", "Find trends..."
-
-## CRITICAL INSTRUCTIONS:
-
-**RESPOND WITH EXACTLY THIS JSON FORMAT (no explanations or additional text):**
-
-{
-  "routingDecision": "direct_datomic",
-  "datomicQuery": "${datomicQuery.replace(/"/g, '\\"')}",
-  "userIntent": "your analysis of what the user wants (in their language if not English)",
-  "needsPostProcessing": true/false (based on your analysis),
-  "postProcessingType": "summary"/"analysis"/"count"/"compare"/null (choose appropriate type or null for direct execution),
-  "confidence": 1.0
-}
-
-**DO NOT:**
-- Parse this as a symbolic query
-- Convert to search conditions  
-- Modify the Datomic query syntax, unless it's requested by the user
-- Add any explanatory text
-
-**ALWAYS:**
-- Use "routingDecision": "direct_datomic" 
-- Include the exact Datomic query
-- Set needsPostProcessing: true if user wants analysis/summary of results`;
-};
-
 const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply ref: prefix when EXPLICITLY formatted as references)
 - '[[page title]]': 'ref:page title' (references TO) or 'in:page title' (content WITHIN)
 - '#tag' or '#[[long tag]]': 'ref:tag' (references TO)
@@ -151,7 +22,7 @@ const ROAM_REFERENCES_PARSING = `### Roam Element Parsing (CRITICAL: Only apply 
 - '((uid))': 'bref:uid' (direct block reference)
 
 **ATTRIBUTE BLOCKS**: For attribute-value searches (e.g., "author set to Victor Hugo", "books with status completed"):
-- Convert to regex patterns: 'regex:/^attribute::.*value.*/i'
+- Always convert to regex patterns: 'regex:/^attribute::.*value.*/i'
 - Examples: "author:: Victor Hugo" → 'regex:/^author::.*victor hugo.*/i'
 - This matches blocks starting with the attribute key followed by any content containing the value
 
@@ -181,8 +52,10 @@ We have defined a formal language to express search queries in a precise and una
 - '-' NOT (exclusion, applies only to individual conditions)
 
 ### Grouping Syntax (both forms valid):
-- **Explicit**: 'text:term1 + text:term2 + ref:page1' (for mixed types)
+- '(...)' use parentheses to group similar conditions and reduce ambiguity
+- **Separated**: 'text:term1 + text:term2 + ref:page1' (for mixed types)
 - **Grouped**: 'text:(term1 + term2) + ref:page1' (for same-type conditions)
+- Don't use parentheses for simple condition ! Not 'text:(term)' ❌ but 'text:term' ✅
 
 ### Operator Precedence:
 1. **Parentheses**: () - highest precedence
@@ -283,19 +156,515 @@ For attribute in page searches, see below, operators are defined precisely.
 - 'text:A <=> text:B > text:C' ❌ (multiple operators)
 - '<=> text:project' ❌ (dangling operator)
 
-### Advanced Operators:
-- '(...)' use parentheses to group similar conditions and reduce ambiguity (e.g., ref:(Project A | Mission B), text:(deep + learning))
-- '→' sequential/temporal relationships (when complex queries have to be sequenced in multiple simpler queries)
+### Multi-Query Combination Operators:
+For complex queries that can be decomposed into simpler steps:
+
+- **'UNION(query1, query2, ...)'** - Combine results (logical OR at query level)
+- **'INTERSECTION(query1, query2, ...)'** - Results in all queries (logical AND at query level)
+- **'DIFFERENCE(query1, query2)'** - Results in query1 but NOT in query2
+- **'PIPE(query1, query2, ...)'** - Sequential scope narrowing: results of query N become scope for query N+1
+
+**Syntax Examples:**
+- 'UNION(ref:finance, page:(attr:status:ref:pending))' - blocks with #finance OR in pending pages
+- 'INTERSECTION(ref:AI, page:(content:(ref:research)))' - #AI blocks AND in research pages
+- 'PIPE(page:(attr:status:ref:pending), ref:finance)' - first find pending pages, then #finance within them
+
+### Postprocession indication
 - 'analyze:type' analysis requests (connections, patterns, summary, count)`;
+
+// Intent Parser prompt with symbolic language
+export const buildIntentParserPrompt = (state: {
+  userQuery: string;
+  conversationHistory?: any[];
+  conversationSummary?: string;
+  dateContext?: string;
+  permissions: { contentAccess: boolean };
+  privateMode: boolean;
+  rootUid?: string;
+  skipPrivacyAnalysis?: boolean; // Skip privacy mode analysis when privacy mode is forced
+}): string => {
+  // Pre-check for Datomic queries - if detected, use specialized prompt
+  if (isDatomicQuery(state.userQuery)) {
+    return buildDatomicQueryPrompt(state);
+  }
+  // Build date context - use daily note date if rootUid is in a DNP, otherwise use system date
+  let referenceDate = new Date();
+  let contextNote = "";
+
+  if (state.rootUid) {
+    try {
+      const pageUid = getPageUidByBlockUid(state.rootUid);
+      if (pageUid && dnpUidRegex.test(pageUid)) {
+        // We're in a daily note page, use that date as "today"
+        const dnpDate = getDateStringFromDnpUid(pageUid);
+        if (dnpDate && dnpDate instanceof Date) {
+          referenceDate = dnpDate;
+          contextNote = " (based on current daily note page)";
+        }
+      }
+    } catch (error) {
+      // If there's any error accessing the page, fall back to system date
+      console.log(
+        "🗓️ [IntentParser] Could not determine daily note context, using system date:",
+        error
+      );
+    }
+  }
+
+  const { dayName, monthName, dayNb, fullYear, dateStr } =
+    getCurrentDateContext(referenceDate);
+  const dateContext = `Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr})${contextNote}`;
+
+  return `You are an Intent Parser for a Roam Research search system. Your job is to analyze user requests and convert them into symbolic queries that can be efficiently executed by search tools (note that the user could himself try to write symbolic queries or using /regex/[i]).
+
+## CONTEXT
+- Database: Roam Research graph with pages, blocks, hierarchical relationships
+- Date: ${dateContext}
+- Access Level: ${state.privateMode ? "Private" : "Balanced/Full"}
+${
+  state.conversationSummary
+    ? `\n- Previous Context: ${state.conversationSummary}`
+    : ""
+}
+${
+  state.conversationHistory?.length
+    ? `\n- Recent Conversation:\n${state.conversationHistory
+        .slice(-4)
+        .join("\n")}`
+    : ""
+}
+
+${SYMBOLIC_QUERY_LANGUAGE}
+
+${ROAM_REFERENCES_PARSING}
+
+Rule specific to Roam:
+- if user ask for tasks (only if unquoted), you should replace task keyword by 'ref:TODO' (default) or 'ref:DONE' depending on the user demand
+
+### **DATE FILTERING MODE DETECTION** → **Detect creation vs modification keywords** (default is "modified", last edited time)
+- **Examples**:
+  - "blocks created since one month" → timeRange: {..., "filterMode": "created"}
+  - "blocks since one week" → timeRange: {..., "filterMode": "modified"} (default)
+
+### **CAREFUL DATE RANGE INTERPRETATION** → **Parse temporal expressions precisely**:
+- **Be very careful with natural language date expressions - they have nuanced meanings**. When in doubt, favor the more inclusive interpretation
+Examples:
+- **"since one month"** = last 30 days from today (rolling window, not calendar month)
+- **"during last month"** = previous calendar month only (e.g., if today is Feb 15, means January 1-31)
+- **"since last month"** = from start of previous month until today (e.g., if today is Feb 15, means January 1 - February 15)  
+- **Consider user's language and cultural context** for date expressions
+
+### Intent Parser Examples (organized by parsing challenge):
+
+**CRITICAL: Never use quotes in symbolic queries - multi-word terms are written without quotes**
+
+**1. ESSAY/ANALYSIS REQUEST EXAMPLES:**
+- "write an essay explaining why I love music" → 'text:music~' (NOT 'text:love + text:music')
+- "analyze my relationship with productivity" → 'text:productivity~' (NOT 'text:relationship + text:productivity')  
+- "explain what I think about AI" → 'text:artificial intelligence~' (NOT 'text:think + text:AI')
+- "comprehensive view of my project management" → 'text:project management~' (semantic expansion for completeness)
+- "everything I've written about books" → 'text:book~' (comprehensive coverage)
+
+**CRITICAL DISTINCTION:**
+- **Essay/Analysis**: Extract topic only, use semantic expansion → 'text:[TOPIC]~'
+- **Specific Search**: Extract explicit conditions → 'text:[CONDITION1] + text:[CONDITION2]'
+
+**2. OVER-INTERPRETATION PREVENTION:**
+- "Find my productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
+- "Show me AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
+- "Blocks about car prices, not motorcycles" → 'text:car + text:price - text:motorcycle'
+
+**3. QUOTED PHRASE HANDLING:**
+- "Pages containing 'Live AI' content" → 'page:(content:(text:Live AI))' (quoted phrase = single term)
+- "Find blocks with 'machine learning algorithms'" → 'text:machine learning algorithms' (quoted multi-word phrase)
+
+**4. REFERENCE FORMAT PARSING:**
+- "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (also works: 'ref:(book + to read)')
+- "important tasks under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
+
+**4.5. NOT CONDITION HANDLING FOR HIERARCHICAL SEARCHES:**
+CRITICAL: For multi-condition AND queries with NOT conditions that will be converted to hierarchical search:
+
+**When forceHierarchical will be TRUE (3+ AND conditions):**
+- "Find [[A]] and [[B]] and [[C]] but not [[D]]" → 'ref:A + ref:B + ref:C - ref:D' (keep NOT conditions separate)
+- "Blocks with recipe and sugar and spice, but not chocolate" → 'ref:recipe + text:sugar + text:spice - text:chocolate'
+- Reason: The combination testing phase will automatically distribute NOT conditions to all tested combinations
+
+**When forceHierarchical will be FALSE (2 AND conditions or explicit hierarchical relationships):**
+- "Find [[Machine Learning]] and [[AI Fundamentals]] but not deep learning" → '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' 
+- Reason: Traditional hierarchical searches need explicit NOT distribution since no combination testing occurs
+
+**5. HIERARCHICAL RELATIONSHIPS:**
+- "Find my #recipe with sugar in descendants" → 'ref:recipe >> text:sugar'
+- "[[book]] notes with justice in main block or descendants" → 'ref:book =>> text:justice'
+
+**5.5. MULTI-QUERY PATTERNS (USE THESE FOR COMPLEX REQUESTS):**
+- "Blocks mentioning #finance in pages with status #pending" → 'PIPE(page:(attr:status:ref:pending), ref:finance)'
+- "All blocks about #AI or #ML or machine learning" → 'UNION(ref:AI, ref:ML, text:machine learning)'
+- "Recipe blocks that are in cooking pages" → 'INTERSECTION(ref:recipe, page:(content:(ref:cooking)))'
+- "Project blocks except those in completed pages" → 'DIFFERENCE(ref:project, page:(attr:status:ref:completed))'
+
+**6. SCOPE AND EXPANSION:**
+- "Blocks about AI in my [[work]] page" → 'in:work + text:AI~' (scope + semantic expansion)
+- "Blocks containing words starting with 'work'" → 'text:work*' (fuzzy expansion)
+
+**7. PAGE SEARCH SCOPE DISTINCTIONS:**
+- "Pages matching /lib.*/i in their title" → 'page:(title:(regex:/lib.*/i))'
+- "Pages discussing AI and machine learning" → 'page:(content:(text:AI + text:machine learning))' (content-wide AND)
+- "Pages with AI and ML mentioned together" → 'page:(block:(text:AI + text:ML))' (same-block AND)
+- "Pages about AI or ML topics" → 'page:(content:(text:AI | text:machine learning))' (OR logic)
+
+**8. ATTRIBUTE PATTERN CONVERSION:**
+- "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
+- "Pages with status completed or done" → 'regex:/^status::.*(completed|done).*/i'
+- "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
+
+## EXPANSION INTENT DETECTION:
+
+**Critical**: Detect user's expansion preference to apply appropriate search strategies, by interpreting its natural language request.
+
+By default, strict search without expansion will be applied.
+
+**CRITICAL DISTINCTION - Quoted terms vs Explicit exact keywords:**
+
+### **QUOTED PHRASES** → **Keep as single text search terms**:
+- **CRITICAL**: When user quotes a multi-word phrase, treat it as a SINGLE search term, do NOT decompose into separate terms
+- 'blocks containing "Live AI"' → 'text:Live AI' (single phrase search, NOT text:Live + text:AI)
+- 'pages with "machine learning concepts"' → 'text:machine learning concepts' (single phrase)
+- 'find "artificial intelligence" discussions' → 'text:artificial intelligence' (single phrase)
+
+### **QUOTED SINGLE WORDS** (casual usage) → **Simple text search**:
+- 'blocks mentioning "strategy"' → 'text:strategy' (normal text search)
+
+### **EXPLICIT EXACT KEYWORDS** → **Regex with word boundaries**:
+- 'exact word strategy' or 'blocks with "strategy" (exact)' → 'regex:/\\bstrategy\\b/i' (case-insensitive word boundaries)
+- **Only when user explicitly uses keywords: "exact", "strict", "precise", "literally"**
+
+### **EXACT BLOCK CONTENT** (very rare):
+- 'blocks with exactly "Hello world"' → matchType: "exact" (entire block content equals "Hello world")
+
+### User Expansion Intent:
+- **fuzzy**: User wants variations/typos/morphological forms (keywords: "fuzzy", "typos", "variations", "spelling", "forms", or '*' operator appended to terms like "word*")
+  → Examples: "fuzzy search", "find typos", "word* variations", "blocks starting with pend*"
+  → Set semanticExpansion: "fuzzy"
+- **synonyms**: user wants related concepts, using keyword like "similar", "related", "semantic", "alternatives", etc., or appending '~' operator to some term (→ in this case, apply it to it in the symbolic query)
+  → For PAGE TITLE searches: Use 'page:(title:keyword~)'
+  → For BLOCK CONTENT: 
+- Detect if possible other specific type to apply: "synonyms" (same meaning, by default), "related_concepts" (associated concepts), "broader_terms" (categories), "all" (comprehensive), or, if the semantic expansion is very specific, set semanticExpansion to "custom" and reproduce the specific user demand in the 'customSemanticExpansion" field
+
+### 🎯 ADVANCED: Implicit Custom Expansion Detection
+**CRITICAL**: Look for implicit enumeration/listing patterns that should trigger custom expansion:
+
+**Pattern 1: "most/common/popular/typical/main [category] [type]"**
+- "blocks matching the most common color names" → extract "color", custom: "generate common color names"
+- "find typical programming languages" → extract "programming", custom: "generate popular programming languages"
+- "main European countries" → extract "Europe~", custom: "generate major European countries"
+
+**Pattern 2: Quantified categories (numbers + categories)**
+- "top 10 project management tools" → extract "project management~", custom: "generate top project management tools"
+- "5 main meditation techniques" → extract "meditation~", custom: "generate meditation techniques"
+
+**Pattern 3: "examples of [category]" or "list of [category]"**  
+- "examples of machine learning algorithms" → extract "algorithm", custom: "generate machine learning algorithm examples"
+- "list of healthy foods" → extract "food~", custom: "generate healthy food examples"
+
+**How to apply:**
+1. **Extract the core concept** (color, language, country, etc.)
+2. **Set semanticExpansion: "custom"**
+3. **Set customSemanticExpansion: "generate [specific enumeration request]"**
+4. **ALWAYS use ~ symbol** on the core concept term (e.g., "color~", "programming~")
+5. **ALWAYS set isExpansionGlobal: false** (let the ~ symbol handle per-term expansion)
+
+### 🚨 CRITICAL: Global Semantic Expansion Rules:
+
+**RULE 1: ALWAYS check for * or ~ symbols in the query**
+- **IF query contains * or ~ symbols → ALWAYS set isExpansionGlobal: false**
+- **These symbols indicate per-term expansion, NOT global expansion**
+
+**RULE 2: Natural language semantic requests → set isExpansionGlobal: true**
+- **IF user requests semantic expansion in natural language WITHOUT symbols → set isExpansionGlobal: true**
+- Examples: "fuzzy search for pend", "find similar concepts", "semantic search for project"
+
+**RULE 3: Per-term expansion in parentheses → add symbol, keep isExpansionGlobal: false**
+- **IF expansion is specified for specific terms in parentheses → add * or ~ symbol, set isExpansionGlobal: false**
+- Examples: "pend (fuzzy) and archived" → "pend* + archived", isExpansionGlobal: false
+
+**Examples requiring isExpansionGlobal: false**:
+  - "pend*" → isExpansionGlobal: false (symbol controls expansion)
+  - "car~ and project" → isExpansionGlobal: false  
+  - "pend (fuzzy) and test" → "pend* + test", isExpansionGlobal: false
+
+**Examples requiring isExpansionGlobal: true**:
+  - "fuzzy search for pend" → isExpansionGlobal: true, semanticExpansion: "fuzzy"
+  - "find similar concepts to productivity" → isExpansionGlobal: true, semanticExpansion: "synonyms"
+  - "semantic search with related terms" → isExpansionGlobal: true, semanticExpansion: "related_concepts"
+
+## ESSAY/ANALYTICAL REQUEST DETECTION:
+
+**CRITICAL**: Recognize when users want comprehensive content about a topic for analysis/synthesis rather than specific matching conditions.
+
+### 🎯 **ESSAY/SYNTHESIS PATTERNS** → **Extract core topic + set analysis type**:
+
+**Pattern Recognition:**
+- "write an essay about/explaining [TOPIC]" 
+- "explain why I [VERB] [TOPIC]"
+- "analyze my relationship with [TOPIC]"
+- "comprehensive view of [TOPIC]"
+- "everything about [TOPIC]"
+- "my thoughts on [TOPIC]"
+
+**Parsing Strategy:**
+1. **Extract CORE TOPIC only** (ignore relationship/analysis terms)
+2. **Apply semantic expansion to core topic** (for comprehensive coverage)
+3. **Set analysisType: "summary"** (for synthesis/essay generation)
+4. **Use "related_concepts" expansion** for comprehensive coverage (users can request "all" or specific types if needed)
+
+**Examples:**
+- "write an essay explaining why I love music" 
+  → Search: 'text:music~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "comprehensive music analysis for essay"
+- "analyze my relationship with productivity" 
+  → Search: 'text:productivity~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "analyze productivity relationship"
+- "explain what I think about artificial intelligence"
+  → Search: 'text:artificial intelligence~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "synthesize AI thoughts"
+
+**Critical Rule:** For essay/analysis requests, prioritize COMPREHENSIVE COVERAGE over precise matching.
+
+## INTENT vs QUERY DISTINCTION (ENHANCED):
+
+**CRITICAL**: User requests often mix three different types of content that must be carefully separated:
+
+### 🎯 **CONTENT TYPE IDENTIFICATION:**
+1. **Search Target** (what topic to find): "music", "productivity", "AI"
+2. **Relationship/Context** (how user relates to topic): "why I love", "my thoughts on", "my experience with"  
+3. **Output Format** (how to present results): "write an essay", "summarize", "explain"
+
+### ⚠️ **ENHANCED PARSING RULES:**
+
+**RULE 1: Essay/Analysis Requests**
+- **When user asks for essays/explanations about a topic** → Extract ONLY the core topic
+- **Apply semantic expansion** to get comprehensive coverage
+- **Set analysisType appropriately** for synthesis
+
+**RULE 2: Relationship Analysis**  
+- **"why I [VERB] [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:[VERB] + text:[TOPIC]'
+- **"my thoughts on [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:thoughts + text:[TOPIC]'
+- **"what I think about [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:think + text:[TOPIC]'
+
+**RULE 3: Comprehensive vs Specific**
+- **Comprehensive requests** ("everything about X", "all my X notes") → Use semantic expansion
+- **Specific condition requests** ("X that mentions Y") → Use precise conditions
+
+**LEGACY RULE: Explicit Search Conditions**
+- **ONLY extract explicit search conditions** when user specifies precise matching criteria
+- **Don't infer conditions from context** unless they're explicitly stated as requirements
+- **Separate analysis requests** from search conditions (e.g., "best" → analysisType: "compare", not search condition)
+
+### 🔍 **ENHANCED QUESTION-TO-SEARCH CONVERSION:**
+
+**Analytical Questions (require comprehensive coverage):**
+- "Why do I love music?" → Search: 'text:music~', Analysis: "summary", semanticExpansion: "related_concepts"
+- "What are my thoughts on productivity?" → Search: 'text:productivity~', Analysis: "summary", semanticExpansion: "broader_terms"
+- "How do I feel about work?" → Search: 'text:work~', Analysis: "summary", semanticExpansion: "all"
+
+**Specific Search Questions (require precise conditions):**
+- "Which music blocks mention jazz?" → Search: 'text:music + text:jazz'
+- "What productivity tips include time blocking?" → Search: 'text:productivity + text:time blocking'
+
+**Traditional Questions (minimal conditions):**
+- "What's the best recipe?" → Search: 'text:recipe', Analysis: compare/evaluate
+- "How many tasks do I have?" → Search: 'ref:TODO', Analysis: count  
+- "What did I write about AI yesterday?" → Search: 'text:AI', Constraint: timeRange yesterday
+- "Which pages mention productivity most?" → Search: 'text:productivity', Analysis: count/rank
+
+### 📏 **CONDITION RESTRAINT PRINCIPLE:**
+**When in doubt, prefer FEWER and MORE RELAXED conditions:**
+- ✅ **Good**: 'text:recipe' (broad, will find results)
+- ❌ **Over-interpretation**: 'text:recipe + text:sugar + text:easy + ref:cooking' (too restrictive)
+- **Exception**: Only be strict when user is very explicit and clear about multiple conditions
+
+**Examples of restraint:**
+- "I need some productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
+- "Find my AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
+- "Show me recipes I can make quickly" → 'text:recipe' (NOT 'text:recipe + text:quick + text:easy')
+
+### 🎯 **EXPLICIT vs IMPLICIT CONDITIONS:**
+- **Explicit**: "Find blocks with AI AND machine learning" → 'text:(AI + machine learning)'
+- **Implicit**: "Find blocks about AI research" → 'text:AI' (research is descriptive context, not a required condition)
+
+### Question/Demand Pattern Recognition:
+- **Evaluative words** ("best", "worst", "most important", "wrong") → remove from query, add to analysis
+- **Quantitative words** ("how many", "count", "total") → 'analyze:count'
+- **Comparative words** ("compare", "versus", "difference") → 'analyze:compare'
+- **Connection words** ("related to", "connected", "links") → 'analyze:connections'
+- **Summary words** ("summarize", "overview", "what about") → 'analyze:summary'
+
+### 🎯 Query Decomposition Decision: Single vs Multi-Query
+
+**CRITICAL: Choose the right strategy based on query complexity**
+
+**USE MULTI-QUERY OPERATORS (UNION/INTERSECTION/DIFFERENCE/PIPE) when:**
+1. **Page-level + Block-level constraints combined**: "blocks with X in pages with Y"
+   → Use PIPE(page:(...), block condition) or INTERSECTION
+2. **User expresses sequence/stages**: "first find X, then find Y within X"
+   → Use PIPE for sequential filtering
+3. **Multiple independent conditions that should be combined**: "all blocks about A or B or C"
+   → Use UNION for comprehensive coverage
+4. **Exclusion patterns**: "X but not Y"
+   → Use DIFFERENCE if Y is a complex condition requiring its own query
+5. **Query complexity suggests decomposition will be clearer**
+   → Break down into simple steps
+
+**USE SINGLE QUERY with +/|/- operators when:**
+1. All conditions operate at the same level (all block-level OR all page-level)
+2. Simple 1-3 conditions with straightforward AND/OR/NOT logic
+3. Conditions naturally combine without needing intermediate results
+
+### Search Strategy Selection (for Single Queries):
+- "direct": Simple single keyword/reference searches
+- "hierarchical": **DEFAULT for multi-condition AND queries** (leverages Roam's hierarchical inheritance)
+
+**Note**: Semantic expansion strategies are handled via globalSemanticHint field.
+
+**CRITICAL: Set searchStrategy to "hierarchical" by DEFAULT when:**
+- **Multi-condition AND queries** (e.g., "productivity + tools", "ref:recipe + sugar")
+- **Explicit hierarchical operators**: >, =>, <=>, <<=>>
+- **Parent-child relationship expressions**
+- **Phrases like "X has Y in children", "X contains Y", "Y under X"**
+
+**CRITICAL: Set forceHierarchical to true ONLY when:**
+- Converting simple AND queries to hierarchical (not explicitly hierarchical requests)
+- Examples: "blocks with A and B and C" → searchStrategy: "hierarchical", forceHierarchical: true
+- Counter-examples: "children of A" → searchStrategy: "hierarchical", forceHierarchical: false
+
+**ONLY use "direct" when:**
+- Single condition queries (e.g., "text:productivity" alone)
+- OR logic queries (e.g., "text:productivity | text:tools")
+- User explicitly requests same-block search (e.g., "depth=0", "same block")
+
+**Examples:**
+- "text:productivity + text:tools" → searchStrategy: "hierarchical" (multi-condition AND)
+- "text:productivity | text:tools" → searchStrategy: "direct" (OR logic)
+- "text:productivity" → searchStrategy: "direct" (single condition)
+- "text:Machine Learning > text:Deep Learning" → searchStrategy: "hierarchical" (explicit hierarchy)
+
+${
+  !state.skipPrivacyAnalysis
+    ? `
+## PRIVACY MODE ANALYSIS
+
+**CRITICAL**: Analyze if the current privacy mode is sufficient for the user's request:
+
+### Current Mode: ${state.privateMode ? "Private" : "Balanced/Full"}
+${
+  state.privateMode
+    ? `**Private Mode Limitations**: Only UIDs returned, no content analysis, no summaries, no insights`
+    : `**Current Mode Capabilities**: Can process content for analysis and insights`
+}
+
+### Analysis Required:
+1. **Does this request need content analysis?** (summarize, analyze, compare, find best, evaluate, etc.)
+2. **Does this request need AI insights beyond simple search?** (recommendations, explanations, patterns)
+3. **Is simple UID/reference finding sufficient?** (basic search, list results)
+
+### Privacy Escalation Rules:
+- **Request needs content analysis + current mode is Private** → suggest "Balanced" or "Full Access"
+- **Request needs deep analysis/comparison + current mode is Private/Balanced** → suggest "Full Access"  
+- **Simple search requests** → current mode is fine`
+    : ""
+}
+
+## YOUR TASK
+
+Parse this user request: "${state.userQuery}"
+
+Respond with only valid JSON, no explanations or any additional comment.
+
+## OUTPUT FORMAT (JSON):
+{
+  "userIntent": "Clear description of what user wants to accomplish",
+  "formalQuery": "symbolic query using the operators above (NEVER use quotes around terms)",
+  "constraints": {
+    "timeRange": null | {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "filterMode": "modified" | "created"},
+    "maxResults": null | number,
+    "requireRandom": false | true,
+    "depthLimit": null
+  },
+  "searchStrategy": "direct" | "hierarchical",
+  "forceHierarchical": false | true,
+  "analysisType": null | "count" | "compare" | "connections" | "summary",
+  "isExpansionGlobal": false | true,
+  "semanticExpansion": null | "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
+  "customSemanticExpansion": null | string,
+  "suggestedMode": ${
+    !state.skipPrivacyAnalysis ? 'null | "Balanced" | "Full Access"' : "null"
+  },
+  "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
+  "confidence": 0.1-1.0
+}
+
+Focus on creating precise symbolic queries that will find the most relevant data to fulfill the user's actual intent.`;
+};
 
 const QUERY_TOOL_PATTERN_EXAMPLES = `## EXECUTION EXAMPLES:
 
 **CRITICAL DECISION RULES:**
 1. **SAME-BLOCK REQUESTS**: If user says "depth=0", "same block", "in same block" → ALWAYS use findBlocksByContent with depthLimit=0
-2. **HIERARCHICAL SEARCH**: For A + B patterns → convert to A <=> B and use findBlocksWithHierarchy (unless rule 1 applies)
-3. **HIERARCHY OPERATORS**: Use <=> (bidirectional), > (strict parent-child), => (flexible) based on context
-4. **STRUCTURED FORMAT**: ALWAYS use hierarchyCondition parameter (NOT hierarchicalExpression) - see examples below
-5. **COMPLEX LOGIC**: When you have mixed OR/AND with NOT (like (A|B) AND NOT C), or nested groupings like (A+B)|(C-D), ALWAYS use leftConditionGroups/rightConditionGroups instead of simple leftConditions/rightConditions. DETECT: parentheses with different operators inside and outside, OR combined with NOT.
+2. **MULTI-QUERY DECOMPOSITION**: When query contains UNION/INTERSECTION/DIFFERENCE/PIPE → Execute as SEQUENCE of simple queries
+3. **HIERARCHICAL SEARCH**: For A + B patterns → convert to A <=> B and use findBlocksWithHierarchy (unless rule 1 applies)
+4. **HIERARCHY OPERATORS**: Use <=> (bidirectional), > (strict parent-child), => (flexible) based on context
+5. **STRUCTURED FORMAT**: ALWAYS use hierarchyCondition parameter (NOT hierarchicalExpression) - see examples below
+6. **COMPLEX LOGIC**: When you have mixed OR/AND with NOT (like (A|B) AND NOT C), or nested groupings like (A+B)|(C-D), ALWAYS use leftConditionGroups/rightConditionGroups instead of simple leftConditions/rightConditions. DETECT: parentheses with different operators inside and outside, OR combined with NOT.
+
+### 🎯 MULTI-QUERY STRATEGY (PRIMARY for Complex Requests):
+
+**When to Decompose into Multi-Query:**
+- User expresses sequential logic: "first X, then Y within X"
+- User request is complex with multiple independent conditions
+- Mixing page-level and block-level constraints (PIPE: scope to limites pages, then search blocks limited to these pages)
+- Single-query attempts returned zero results
+
+**Execution Pattern for Multi-Query Operators:**
+
+**UNION(query1, query2, ...)**
+→ Execute each query independently with separate tool calls
+→ Call combineResults tool with operation: "UNION"
+
+**INTERSECTION(query1, query2, ...)**
+→ Execute each query independently with separate tool calls
+→ Call combineResults tool with operation: "INTERSECTION"
+
+**DIFFERENCE(query1, query2)**
+→ Execute query1, then query2 independently
+→ Call combineResults tool with operation: "DIFFERENCE"
+
+**PIPE(query1, query2, ...)**
+→ Execute query1 first
+→ Extract page UIDs or block UIDs from results
+→ Execute query2 with limitToPages=[UIDs from query1] (scope narrowing)
+→ Continue piping for additional queries
+
+**Critical Multi-Query Examples:**
+
+Example 1: PIPE for scope narrowing
+- Query: 'PIPE(page:(attr:status:ref:pending), ref:finance)'
+- Step 1: Call findPagesByAttribute({key: "status", valueType: "page_ref", valueConditions: [{text: "pending"}]})
+- Step 2: Extract page UIDs from results → ['page-uid-1', 'page-uid-2', ...]
+- Step 3: Call findBlocksByContent({conditions: [{text: "finance", type: "page_ref"}], limitToPages: ['page-uid-1', 'page-uid-2', ...]})
+
+Example 2: UNION for multiple conditions
+- Query: 'UNION(ref:AI, ref:ML, ref:machine learning)'
+- Step 1: Call findBlocksByContent for ref:AI → resultId1
+- Step 2: Call findBlocksByContent for ref:ML → resultId2
+- Step 3: Call findBlocksByContent for ref:machine learning → resultId3
+- Step 4: Call combineResults({resultIds: [resultId1, resultId2, resultId3], operation: "UNION"})
+
+Example 3: INTERSECTION for complex AND
+- Query: 'INTERSECTION(ref:finance, page:(content:(ref:work)))'
+- Step 1: Call findBlocksByContent for ref:finance → resultId1
+- Step 2: Call findPagesByContent for ref:work, extract page UIDs
+- Step 3: Filter resultId1 blocks to only those in work pages
+  OR: Call findBlocksByContent for ref:finance with limitToPages from step 2 → resultId2
+- Step 4: Call combineResults if needed
 
 **TOOL EXECUTION PATTERNS:**
 
@@ -438,10 +807,7 @@ export const buildSystemPrompt = (state: {
     | "broader_terms"
     | "all"
     | "custom";
-  strategicGuidance?: {
-    approach?: string;
-    recommendedSteps?: string[];
-  };
+
   searchDetails?: {
     timeRange?: { start: string; end: string };
     maxResults?: number;
@@ -456,7 +822,6 @@ export const buildSystemPrompt = (state: {
     state.queryComplexity === "simple" &&
     !state.analysisType &&
     !state.datomicQuery &&
-    !state.formalQuery?.includes("→") &&
     state.searchStrategy !== "hierarchical"; // Always use complex prompt for hierarchical
 
   if (isSimpleQuery) {
@@ -555,6 +920,7 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
       ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${state.semanticExpansion}" strategy will be applied to ALL conditions automatically`
       : `\n  * **NO SEMANTIC EXPANSION**: Do not add semanticExpansion parameter to tool calls unless explicitly instructed above`
   }
+- For "regex" condition type, be sure to remove "regex:" keyword from the condition text, so it begins always with "/" (**Example**: formalQuery "regex:/^status::.*pending.*/i" → create condition {text: "/^status::.*pending.*/i", type: "regex"})
 - Use 'in:scope' for limitToPages parameter only
 - Default to 'summary' result mode for efficiency
 - **ZERO RESULTS HANDLING**: If a tool call returns zero results, you MUST either:
@@ -600,7 +966,16 @@ ${
       }`
     : ""
 }
-COMPLEXITY: ${state.queryComplexity || "multi-step"}
+COMPLEXITY: ${state.queryComplexity}
+${
+  state.queryComplexity === "multi-step"
+    ? `**MULTI-STEP**:
+- Each sub-query to combine or to pipe has to be processed sequentially
+- Each sub-qery require a tool call with results.purpose set to "intermediate", unless for the last "final" step of course
+- For UNION/INTERSECTION/DIFFERENCE combination, once the sub-queries have been processed, call the "final" combineResults tool
+- Verify that you have processed all sub-queries (and eventual final combination) before your final response\n`
+    : ""
+}
 ${state.analysisType ? `ANALYSIS: ${state.analysisType}` : ""}
 ${
   state.isExpansionGlobal
@@ -619,12 +994,6 @@ IMPORTANT: fuzzy and semantic expansion have to be done in ${
 
 ${QUERY_TOOL_PATTERN_EXAMPLES}
 
-## EXECUTION STRATEGY
-${
-  state.strategicGuidance?.recommendedSteps
-    ?.map((step) => `- ${step}`)
-    .join("\n") || "- Execute the symbolic query systematically"
-}
 
 ## TOKEN OPTIMIZATION:
 - Use 'summary' mode for initial searches
@@ -633,6 +1002,7 @@ ${
 
 ## CRITICAL RULES:
 - Execute SYMBOLIC QUERY as primary strategy, follow strictly its logic to transform conditions into tool parameters, calling the right tool
+- Chain multi-step queries with intermediate results, setting result purpose to "intermediate" until the "final" step
 - **SEMANTIC EXPANSION TRACKING**: 
   * **Semantic expansion is handled automatically by the tool** - you just need to create conditions with the exact text from formalQuery (including symbols)
   * **Example**: formalQuery "pend*" → create condition {text: "pend*", type: "text"}
@@ -642,7 +1012,6 @@ ${
       ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${state.semanticExpansion}" strategy will be applied to ALL conditions automatically`
       : `\n  * **NO SEMANTIC EXPANSION**: Do not add semanticExpansion parameter to tool calls unless explicitly instructed above`
   }
-- Chain multi-step queries with intermediate results
 - Apply analysis tools when specified
 ${
   state.searchDetails?.depthLimit === 0
@@ -674,7 +1043,7 @@ export const buildAlternativeStrategiesGuidance = (
   return `
 ## 🔄 ALTERNATIVE SEARCH STRATEGIES
 
-**CRITICAL: Automatic semantic expansion failed to find results.**
+**CRITICAL: previous attempt failed to find results.**
 
 ### 🎯 FIRST: RE-EVALUATE THE ORIGINAL USER QUERY
 
@@ -692,30 +1061,38 @@ export const buildAlternativeStrategiesGuidance = (
 
 ### 🔧 CONSTRAINT RELAXATION STRATEGIES
 
-**PRIORITY 1: Remove Over-Interpreted Conditions**
+**Remove Over-Interpreted Conditions**
 - Remove conditions that were inferred but not explicitly stated
 - Focus only on the core, explicit search terms from the original request
+- Relax too strict conjunction into disjunction
 
-**PRIORITY 2: Convert Strict AND to OR Logic**
-- If you used: \`text:(A + B)\` → Try: \`text:(A | B)\`
-- If you used: \`ref:pageA + ref:pageB\` → Try: \`ref:(pageA | pageB)\`
-- AND is often too restrictive - OR finds more results
+### 🛠️ TRY MULTI-QUERY DECOMPOSITION (RECOMMENDED FIRST)
 
-**PRIORITY 3: Simplify Complex Conditions**
-- Remove secondary/supporting conditions
-- Focus on the main concept or primary search term
-- Try single-condition searches instead of multi-condition ones
+**CRITICAL: Complex queries often fail because they're too restrictive. Break them down into simpler parts.**
 
-### 🛠️ DIFFERENT TOOL COMBINATIONS
+**Strategy 1: PIPE for Sequential Scope Narrowing**
+- **When to use**: User request has page-level AND block-level constraints
+- **Pattern**: "blocks with X in pages with Y" → PIPE(page:(Y), X)
+- **Example**: "blocks mentioning #finance in pages with status #pending"
+  → Instead of: 'ref:finance + page:(attr:status:ref:pending)' ❌
+  → Use: 'PIPE(page:(attr:status:ref:pending), ref:finance)' ✅
 
-**Try completely different approaches:**
-- **Switch tools**, or try **Multi-step approach**
-- **Try page searches**: If searching blocks failed, search page titles/content
-- **Use extractHierarchyContent**: For broader context discovery
-- **Try extractPageReferences**: Find content by what it references
-- **Consider multi-step workflow**: Find related content, then narrow down
+**Strategy 2: UNION for Comprehensive Coverage**
+- **When to use**: Single query returned zero results, try related terms
+- **Pattern**: "blocks about X" → UNION(term1, term2, term3)
+- **Example**: "blocks about machine learning"
+  → Instead of: 'text:machine learning' (too specific)
+  → Use: 'UNION(text:machine learning, ref:ML, ref:AI)' ✅
 
-**Remember**: Better to find something relevant than nothing at all.
+**Strategy 3: INTERSECTION for Complex AND Logic**
+- **When to use**: Multiple independent conditions that should ALL match
+- **Pattern**: "X AND Y where conditions span different levels"
+- **Example**: "recipe blocks in cooking pages"
+  → Use: 'INTERSECTION(ref:recipe, page:(title:(text:cooking)))'
+
+**Strategy 4: Switch Tools**
+- Try different tool combinations for the same query
+- Switch from hierarchical to content-based search or vice versa
 
 ### 🛑 WHAT TO DO NEXT
 
@@ -1443,408 +1820,131 @@ export const extractResultDataForPrompt = (
   return formattedResults.join("\n\n");
 };
 
-// Intent Parser prompt with symbolic language
-export const buildIntentParserPrompt = (state: {
-  userQuery: string;
-  conversationHistory?: any[];
-  conversationSummary?: string;
-  dateContext?: string;
-  permissions: { contentAccess: boolean };
-  privateMode: boolean;
-  rootUid?: string;
-  skipPrivacyAnalysis?: boolean; // Skip privacy mode analysis when privacy mode is forced
-}): string => {
-  // Pre-check for Datomic queries - if detected, use specialized prompt
-  if (isDatomicQuery(state.userQuery)) {
-    return buildDatomicQueryPrompt(state);
-  }
-  // Build date context - use daily note date if rootUid is in a DNP, otherwise use system date
-  let referenceDate = new Date();
-  let contextNote = "";
+/**
+ * Detects if a user query contains a Datomic query that should be executed directly
+ */
+export const isDatomicQuery = (userQuery: string): boolean => {
+  const query = userQuery.toLowerCase().trim();
 
-  if (state.rootUid) {
-    try {
-      const pageUid = getPageUidByBlockUid(state.rootUid);
-      if (pageUid && dnpUidRegex.test(pageUid)) {
-        // We're in a daily note page, use that date as "today"
-        const dnpDate = getDateStringFromDnpUid(pageUid);
-        if (dnpDate && dnpDate instanceof Date) {
-          referenceDate = dnpDate;
-          contextNote = " (based on current daily note page)";
+  // Check for key Datomic patterns
+  const hasFindClause = query.includes("[:find") || query.includes("[: find");
+  const hasWhereClause = query.includes(":where");
+
+  // Also check for common Datomic variable patterns
+  const hasDatomicVariables = /\?\w+/.test(userQuery); // ?variable syntax
+
+  return hasFindClause && hasWhereClause && hasDatomicVariables;
+};
+
+/**
+ * Extracts the actual Datomic query from user input (removes quotes, code blocks, etc.)
+ */
+export const extractDatomicQuery = (userQuery: string): string => {
+  let query = userQuery.trim();
+
+  // Remove common prefixes like "Execute this query:", "Run:", "Results of:", etc.
+  query = query.replace(
+    /^(execute|run|results?\s+of|summarize\s+the\s+results?\s+of)\s*(:|\s)\s*/i,
+    ""
+  );
+
+  // Remove quotes if the query is wrapped in them
+  if (
+    (query.startsWith('"') && query.endsWith('"')) ||
+    (query.startsWith("'") && query.endsWith("'"))
+  ) {
+    query = query.slice(1, -1);
+  }
+
+  // Remove code block markers
+  query = query.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+  query = query.replace(/^`/, "").replace(/`$/, "");
+
+  // Remove Roam inline query prefix ':q ' if present
+  query = query.replace(/^:q\s+/, "");
+
+  // Find the actual Datomic query boundaries
+  // Look for [:find or [: find pattern and extract from there to the last ]
+  const findMatch = query.match(/(\[:\s*find.*)/i);
+  if (findMatch) {
+    const fromFind = findMatch[1];
+
+    // Find the last closing bracket that balances the opening bracket
+    let bracketCount = 0;
+    let lastValidIndex = -1;
+
+    for (let i = 0; i < fromFind.length; i++) {
+      if (fromFind[i] === "[") {
+        bracketCount++;
+      } else if (fromFind[i] === "]") {
+        bracketCount--;
+        if (bracketCount === 0) {
+          lastValidIndex = i;
         }
       }
-    } catch (error) {
-      // If there's any error accessing the page, fall back to system date
-      console.log(
-        "🗓️ [IntentParser] Could not determine daily note context, using system date:",
-        error
-      );
+    }
+
+    if (lastValidIndex !== -1) {
+      query = fromFind.substring(0, lastValidIndex + 1);
+    } else {
+      // If no balanced brackets found, take the whole string from [:find
+      query = fromFind;
     }
   }
 
-  const { dayName, monthName, dayNb, fullYear, dateStr } =
-    getCurrentDateContext(referenceDate);
-  const dateContext = `Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr})${contextNote}`;
+  return query.trim();
+};
 
-  return `You are an Intent Parser for a Roam Research search system. Your job is to analyze user requests and convert them into symbolic queries that can be efficiently executed by search tools (note that the user could himself try to write symbolic queries or using /regex/[i]).
+/**
+ * Builds a specialized system prompt for Datomic query requests
+ */
+export const buildDatomicQueryPrompt = (state: {
+  userQuery: string;
+  conversationHistory?: any[];
+  conversationSummary?: string;
+  permissions: { contentAccess: boolean };
+  privateMode: boolean;
+}): string => {
+  const datomicQuery = extractDatomicQuery(state.userQuery);
 
-## CONTEXT
-- Database: Roam Research graph with pages, blocks, hierarchical relationships
-- Date: ${dateContext}
-- Access Level: ${state.privateMode ? "Private" : "Balanced/Full"}
-${
-  state.conversationSummary
-    ? `\n- Previous Context: ${state.conversationSummary}`
-    : ""
-}
-${
-  state.conversationHistory?.length
-    ? `\n- Recent Conversation:\n${state.conversationHistory
-        .slice(-4)
-        .join("\n")}`
-    : ""
-}
+  return `You are processing a user request that contains a Datomic query for a Roam Research database.
 
-${SYMBOLIC_QUERY_LANGUAGE}
+USER REQUEST: "${state.userQuery}"
+DETECTED DATOMIC QUERY: ${datomicQuery}
 
-${ROAM_REFERENCES_PARSING}
+## ANALYSIS REQUEST DETECTION:
 
-Rule specific to Roam:
-- if user ask for tasks (only if unquoted), you should replace task keyword by 'ref:TODO' (default) or 'ref:DONE' depending on the user demand
+**Your task is to determine if the user wants:**
+1. **Direct execution only**: Just run the query and return results
+2. **Analysis/Summary**: Execute query AND provide analysis, summary, explanation, or processing of results
 
-### **DATE FILTERING MODE DETECTION** → **Detect creation vs modification keywords** (default is "modified", last edited time)
-- **Examples**:
-  - "blocks created since one month" → timeRange: {..., "filterMode": "created"}
-  - "blocks since one week" → timeRange: {..., "filterMode": "modified"} (default)
+**Look for analysis indicators in ANY language:**
+- Words meaning: summarize, analyze, explain, describe, count, compare, what, how many, why, etc.
+- Questions about the results: "What do these show?", "How many?", "Explain these results"
+- Request for insights: "What can you tell me about...", "Give me insights from..."
+- Processing requests: "Group by...", "Show patterns...", "Find trends..."
 
-### **CAREFUL DATE RANGE INTERPRETATION** → **Parse temporal expressions precisely**:
-- **Be very careful with natural language date expressions - they have nuanced meanings**. When in doubt, favor the more inclusive interpretation
-Examples:
-- **"since one month"** = last 30 days from today (rolling window, not calendar month)
-- **"during last month"** = previous calendar month only (e.g., if today is Feb 15, means January 1-31)
-- **"since last month"** = from start of previous month until today (e.g., if today is Feb 15, means January 1 - February 15)  
-- **Consider user's language and cultural context** for date expressions
+## CRITICAL INSTRUCTIONS:
 
-### Intent Parser Examples (organized by parsing challenge):
+**RESPOND WITH EXACTLY THIS JSON FORMAT (no explanations or additional text):**
 
-**CRITICAL: Never use quotes in symbolic queries - multi-word terms are written without quotes**
-
-**1. ESSAY/ANALYSIS REQUEST EXAMPLES:**
-- "write an essay explaining why I love music" → 'text:music~' (NOT 'text:love + text:music')
-- "analyze my relationship with productivity" → 'text:productivity~' (NOT 'text:relationship + text:productivity')  
-- "explain what I think about AI" → 'text:artificial intelligence~' (NOT 'text:think + text:AI')
-- "comprehensive view of my project management" → 'text:project management~' (semantic expansion for completeness)
-- "everything I've written about books" → 'text:book~' (comprehensive coverage)
-
-**CRITICAL DISTINCTION:**
-- **Essay/Analysis**: Extract topic only, use semantic expansion → 'text:[TOPIC]~'
-- **Specific Search**: Extract explicit conditions → 'text:[CONDITION1] + text:[CONDITION2]'
-
-**2. OVER-INTERPRETATION PREVENTION:**
-- "Find my productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
-- "Show me AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
-- "Blocks about car prices, not motorcycles" → 'text:car + text:price - text:motorcycle'
-
-**3. QUOTED PHRASE HANDLING:**
-- "Pages containing 'Live AI' content" → 'page:(content:(text:Live AI))' (quoted phrase = single term)
-- "Find blocks with 'machine learning algorithms'" → 'text:machine learning algorithms' (quoted multi-word phrase)
-
-**4. REFERENCE FORMAT PARSING:**
-- "[[book]] I want #[[to read]]" → 'ref:book + ref:to read' (also works: 'ref:(book + to read)')
-- "important tasks under [[budget planning]]" → '(ref:TODO + text:important) << ref:budget planning'
-
-**4.5. NOT CONDITION HANDLING FOR HIERARCHICAL SEARCHES:**
-CRITICAL: For multi-condition AND queries with NOT conditions that will be converted to hierarchical search:
-
-**When forceHierarchical will be TRUE (3+ AND conditions):**
-- "Find [[A]] and [[B]] and [[C]] but not [[D]]" → 'ref:A + ref:B + ref:C - ref:D' (keep NOT conditions separate)
-- "Blocks with recipe and sugar and spice, but not chocolate" → 'ref:recipe + text:sugar + text:spice - text:chocolate'
-- Reason: The combination testing phase will automatically distribute NOT conditions to all tested combinations
-
-**When forceHierarchical will be FALSE (2 AND conditions or explicit hierarchical relationships):**
-- "Find [[Machine Learning]] and [[AI Fundamentals]] but not deep learning" → '(ref:Machine Learning - text:deep) + (ref:AI Fundamentals - text:deep)' 
-- Reason: Traditional hierarchical searches need explicit NOT distribution since no combination testing occurs
-
-**5. HIERARCHICAL RELATIONSHIPS:**
-- "Find my #recipe with sugar in descendants" → 'ref:recipe >> text:sugar'
-- "[[book]] notes with justice in main block or descendants" → 'ref:book =>> text:justice'
-
-**6. SCOPE AND EXPANSION:**
-- "Blocks about AI in my [[work]] page" → 'in:work + text:AI~' (scope + semantic expansion)
-- "Blocks containing words starting with 'work'" → 'text:work*' (fuzzy expansion)
-
-**7. PAGE SEARCH SCOPE DISTINCTIONS:**
-- "Pages matching /lib.*/i in their title" → 'page:(title:(regex:/lib.*/i))'
-- "Pages discussing AI and machine learning" → 'page:(content:(text:AI + text:machine learning))' (content-wide AND)
-- "Pages with AI and ML mentioned together" → 'page:(block:(text:AI + text:ML))' (same-block AND)
-- "Pages about AI or ML topics" → 'page:(content:(text:AI | text:machine learning))' (OR logic)
-
-**8. ATTRIBUTE PATTERN CONVERSION:**
-- "Blocks with 'author' set to [[Victor Hugo]]" → 'regex:/^author::.*victor hugo.*/i'
-- "Pages with status completed or done" → 'regex:/^status::.*(completed|done).*/i'
-- "Pages with author Victor Hugo and type book" → 'page:(attr:author:page_ref:Victor Hugo + attr:type:page_ref:book)'
-
-## EXPANSION INTENT DETECTION:
-
-**Critical**: Detect user's expansion preference to apply appropriate search strategies, by interpreting its natural language request.
-
-By default, strict search without expansion will be applied.
-
-**CRITICAL DISTINCTION - Quoted terms vs Explicit exact keywords:**
-
-### **QUOTED PHRASES** → **Keep as single text search terms**:
-- **CRITICAL**: When user quotes a multi-word phrase, treat it as a SINGLE search term, do NOT decompose into separate terms
-- 'blocks containing "Live AI"' → 'text:Live AI' (single phrase search, NOT text:Live + text:AI)
-- 'pages with "machine learning concepts"' → 'text:machine learning concepts' (single phrase)
-- 'find "artificial intelligence" discussions' → 'text:artificial intelligence' (single phrase)
-
-### **QUOTED SINGLE WORDS** (casual usage) → **Simple text search**:
-- 'blocks mentioning "strategy"' → 'text:strategy' (normal text search)
-
-### **EXPLICIT EXACT KEYWORDS** → **Regex with word boundaries**:
-- 'exact word strategy' or 'blocks with "strategy" (exact)' → 'regex:/\\bstrategy\\b/i' (case-insensitive word boundaries)
-- **Only when user explicitly uses keywords: "exact", "strict", "precise", "literally"**
-
-### **EXACT BLOCK CONTENT** (very rare):
-- 'blocks with exactly "Hello world"' → matchType: "exact" (entire block content equals "Hello world")
-
-### User Expansion Intent:
-- **fuzzy**: User wants variations/typos/morphological forms (keywords: "fuzzy", "typos", "variations", "spelling", "forms", or '*' operator appended to terms like "word*")
-  → Examples: "fuzzy search", "find typos", "word* variations", "blocks starting with pend*"
-  → Set semanticExpansion: "fuzzy"
-- **synonyms**: user wants related concepts, using keyword like "similar", "related", "semantic", "alternatives", etc., or appending '~' operator to some term (→ in this case, apply it to it in the symbolic query)
-  → For PAGE TITLE searches: Use 'page:(title:keyword~)'
-  → For BLOCK CONTENT: 
-- Detect if possible other specific type to apply: "synonyms" (same meaning, by default), "related_concepts" (associated concepts), "broader_terms" (categories), "all" (comprehensive), or, if the semantic expansion is very specific, set semanticExpansion to "custom" and reproduce the specific user demand in the 'customSemanticExpansion" field
-
-### 🎯 ADVANCED: Implicit Custom Expansion Detection
-**CRITICAL**: Look for implicit enumeration/listing patterns that should trigger custom expansion:
-
-**Pattern 1: "most/common/popular/typical/main [category] [type]"**
-- "blocks matching the most common color names" → extract "color", custom: "generate common color names"
-- "find typical programming languages" → extract "programming", custom: "generate popular programming languages"
-- "main European countries" → extract "Europe~", custom: "generate major European countries"
-
-**Pattern 2: Quantified categories (numbers + categories)**
-- "top 10 project management tools" → extract "project management~", custom: "generate top project management tools"
-- "5 main meditation techniques" → extract "meditation~", custom: "generate meditation techniques"
-
-**Pattern 3: "examples of [category]" or "list of [category]"**  
-- "examples of machine learning algorithms" → extract "algorithm", custom: "generate machine learning algorithm examples"
-- "list of healthy foods" → extract "food~", custom: "generate healthy food examples"
-
-**How to apply:**
-1. **Extract the core concept** (color, language, country, etc.)
-2. **Set semanticExpansion: "custom"**
-3. **Set customSemanticExpansion: "generate [specific enumeration request]"**
-4. **ALWAYS use ~ symbol** on the core concept term (e.g., "color~", "programming~")
-5. **ALWAYS set isExpansionGlobal: false** (let the ~ symbol handle per-term expansion)
-
-### 🚨 CRITICAL: Global Semantic Expansion Rules:
-
-**RULE 1: ALWAYS check for * or ~ symbols in the query**
-- **IF query contains * or ~ symbols → ALWAYS set isExpansionGlobal: false**
-- **These symbols indicate per-term expansion, NOT global expansion**
-
-**RULE 2: Natural language semantic requests → set isExpansionGlobal: true**
-- **IF user requests semantic expansion in natural language WITHOUT symbols → set isExpansionGlobal: true**
-- Examples: "fuzzy search for pend", "find similar concepts", "semantic search for project"
-
-**RULE 3: Per-term expansion in parentheses → add symbol, keep isExpansionGlobal: false**
-- **IF expansion is specified for specific terms in parentheses → add * or ~ symbol, set isExpansionGlobal: false**
-- Examples: "pend (fuzzy) and archived" → "pend* + archived", isExpansionGlobal: false
-
-**Examples requiring isExpansionGlobal: false**:
-  - "pend*" → isExpansionGlobal: false (symbol controls expansion)
-  - "car~ and project" → isExpansionGlobal: false  
-  - "pend (fuzzy) and test" → "pend* + test", isExpansionGlobal: false
-
-**Examples requiring isExpansionGlobal: true**:
-  - "fuzzy search for pend" → isExpansionGlobal: true, semanticExpansion: "fuzzy"
-  - "find similar concepts to productivity" → isExpansionGlobal: true, semanticExpansion: "synonyms"
-  - "semantic search with related terms" → isExpansionGlobal: true, semanticExpansion: "related_concepts"
-
-## ESSAY/ANALYTICAL REQUEST DETECTION:
-
-**CRITICAL**: Recognize when users want comprehensive content about a topic for analysis/synthesis rather than specific matching conditions.
-
-### 🎯 **ESSAY/SYNTHESIS PATTERNS** → **Extract core topic + set analysis type**:
-
-**Pattern Recognition:**
-- "write an essay about/explaining [TOPIC]" 
-- "explain why I [VERB] [TOPIC]"
-- "analyze my relationship with [TOPIC]"
-- "comprehensive view of [TOPIC]"
-- "everything about [TOPIC]"
-- "my thoughts on [TOPIC]"
-
-**Parsing Strategy:**
-1. **Extract CORE TOPIC only** (ignore relationship/analysis terms)
-2. **Apply semantic expansion to core topic** (for comprehensive coverage)
-3. **Set analysisType: "summary"** (for synthesis/essay generation)
-4. **Use "related_concepts" expansion** for comprehensive coverage (users can request "all" or specific types if needed)
-
-**Examples:**
-- "write an essay explaining why I love music" 
-  → Search: 'text:music~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "comprehensive music analysis for essay"
-- "analyze my relationship with productivity" 
-  → Search: 'text:productivity~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "analyze productivity relationship"
-- "explain what I think about artificial intelligence"
-  → Search: 'text:artificial intelligence~', Analysis: "summary", semanticExpansion: "related_concepts", Intent: "synthesize AI thoughts"
-
-**Critical Rule:** For essay/analysis requests, prioritize COMPREHENSIVE COVERAGE over precise matching.
-
-## INTENT vs QUERY DISTINCTION (ENHANCED):
-
-**CRITICAL**: User requests often mix three different types of content that must be carefully separated:
-
-### 🎯 **CONTENT TYPE IDENTIFICATION:**
-1. **Search Target** (what topic to find): "music", "productivity", "AI"
-2. **Relationship/Context** (how user relates to topic): "why I love", "my thoughts on", "my experience with"  
-3. **Output Format** (how to present results): "write an essay", "summarize", "explain"
-
-### ⚠️ **ENHANCED PARSING RULES:**
-
-**RULE 1: Essay/Analysis Requests**
-- **When user asks for essays/explanations about a topic** → Extract ONLY the core topic
-- **Apply semantic expansion** to get comprehensive coverage
-- **Set analysisType appropriately** for synthesis
-
-**RULE 2: Relationship Analysis**  
-- **"why I [VERB] [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:[VERB] + text:[TOPIC]'
-- **"my thoughts on [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:thoughts + text:[TOPIC]'
-- **"what I think about [TOPIC]"** → Search: 'text:[TOPIC]~', not 'text:think + text:[TOPIC]'
-
-**RULE 3: Comprehensive vs Specific**
-- **Comprehensive requests** ("everything about X", "all my X notes") → Use semantic expansion
-- **Specific condition requests** ("X that mentions Y") → Use precise conditions
-
-**LEGACY RULE: Explicit Search Conditions**
-- **ONLY extract explicit search conditions** when user specifies precise matching criteria
-- **Don't infer conditions from context** unless they're explicitly stated as requirements
-- **Separate analysis requests** from search conditions (e.g., "best" → analysisType: "compare", not search condition)
-
-### 🔍 **ENHANCED QUESTION-TO-SEARCH CONVERSION:**
-
-**Analytical Questions (require comprehensive coverage):**
-- "Why do I love music?" → Search: 'text:music~', Analysis: "summary", semanticExpansion: "related_concepts"
-- "What are my thoughts on productivity?" → Search: 'text:productivity~', Analysis: "summary", semanticExpansion: "broader_terms"
-- "How do I feel about work?" → Search: 'text:work~', Analysis: "summary", semanticExpansion: "all"
-
-**Specific Search Questions (require precise conditions):**
-- "Which music blocks mention jazz?" → Search: 'text:music + text:jazz'
-- "What productivity tips include time blocking?" → Search: 'text:productivity + text:time blocking'
-
-**Traditional Questions (minimal conditions):**
-- "What's the best recipe?" → Search: 'text:recipe', Analysis: compare/evaluate
-- "How many tasks do I have?" → Search: 'ref:TODO', Analysis: count  
-- "What did I write about AI yesterday?" → Search: 'text:AI', Constraint: timeRange yesterday
-- "Which pages mention productivity most?" → Search: 'text:productivity', Analysis: count/rank
-
-### 📏 **CONDITION RESTRAINT PRINCIPLE:**
-**When in doubt, prefer FEWER and MORE RELAXED conditions:**
-- ✅ **Good**: 'text:recipe' (broad, will find results)
-- ❌ **Over-interpretation**: 'text:recipe + text:sugar + text:easy + ref:cooking' (too restrictive)
-- **Exception**: Only be strict when user is very explicit and clear about multiple conditions
-
-**Examples of restraint:**
-- "I need some productivity tips" → 'text:productivity' (NOT 'text:productivity + text:tips')
-- "Find my AI research notes" → 'text:AI' (NOT 'text:AI + text:research + text:notes')
-- "Show me recipes I can make quickly" → 'text:recipe' (NOT 'text:recipe + text:quick + text:easy')
-
-### 🎯 **EXPLICIT vs IMPLICIT CONDITIONS:**
-- **Explicit**: "Find blocks with AI AND machine learning" → 'text:(AI + machine learning)'
-- **Implicit**: "Find blocks about AI research" → 'text:AI' (research is descriptive context, not a required condition)
-
-### Question/Demand Pattern Recognition:
-- **Evaluative words** ("best", "worst", "most important", "wrong") → remove from query, add to analysis
-- **Quantitative words** ("how many", "count", "total") → 'analyze:count'
-- **Comparative words** ("compare", "versus", "difference") → 'analyze:compare'
-- **Connection words** ("related to", "connected", "links") → 'analyze:connections'
-- **Summary words** ("summarize", "overview", "what about") → 'analyze:summary'
-
-### Search Strategy Selection:
-- "direct": Simple single keyword/reference searches
-- "hierarchical": **DEFAULT for multi-condition AND queries** (leverages Roam's hierarchical inheritance)
-
-**Note**: Semantic expansion strategies are handled via globalSemanticHint field.
-
-**CRITICAL: Set searchStrategy to "hierarchical" by DEFAULT when:**
-- **Multi-condition AND queries** (e.g., "productivity + tools", "ref:recipe + sugar") 
-- **Explicit hierarchical operators**: >, =>, <=>, <<=>>
-- **Parent-child relationship expressions**
-- **Phrases like "X has Y in children", "X contains Y", "Y under X"**
-
-**CRITICAL: Set forceHierarchical to true ONLY when:**
-- Converting simple AND queries to hierarchical (not explicitly hierarchical requests)
-- Examples: "blocks with A and B and C" → searchStrategy: "hierarchical", forceHierarchical: true
-- Counter-examples: "children of A" → searchStrategy: "hierarchical", forceHierarchical: false
-
-**ONLY use "direct" when:**
-- Single condition queries (e.g., "text:productivity" alone)
-- OR logic queries (e.g., "text:productivity | text:tools")  
-- User explicitly requests same-block search (e.g., "depth=0", "same block")
-
-**Examples:**
-- "text:productivity + text:tools" → searchStrategy: "hierarchical" (multi-condition AND)
-- "text:productivity | text:tools" → searchStrategy: "direct" (OR logic)  
-- "text:productivity" → searchStrategy: "direct" (single condition)
-- "text:Machine Learning > text:Deep Learning" → searchStrategy: "hierarchical" (explicit hierarchy)
-
-${
-  !state.skipPrivacyAnalysis
-    ? `
-## PRIVACY MODE ANALYSIS
-
-**CRITICAL**: Analyze if the current privacy mode is sufficient for the user's request:
-
-### Current Mode: ${state.privateMode ? "Private" : "Balanced/Full"}
-${
-  state.privateMode
-    ? `**Private Mode Limitations**: Only UIDs returned, no content analysis, no summaries, no insights`
-    : `**Current Mode Capabilities**: Can process content for analysis and insights`
-}
-
-### Analysis Required:
-1. **Does this request need content analysis?** (summarize, analyze, compare, find best, evaluate, etc.)
-2. **Does this request need AI insights beyond simple search?** (recommendations, explanations, patterns)
-3. **Is simple UID/reference finding sufficient?** (basic search, list results)
-
-### Privacy Escalation Rules:
-- **Request needs content analysis + current mode is Private** → suggest "Balanced" or "Full Access"
-- **Request needs deep analysis/comparison + current mode is Private/Balanced** → suggest "Full Access"  
-- **Simple search requests** → current mode is fine`
-    : ""
-}
-
-## YOUR TASK
-
-Parse this user request: "${state.userQuery}"
-
-Respond with only valid JSON, no explanations or any additional comment.
-
-## OUTPUT FORMAT (JSON):
 {
-  "userIntent": "Clear description of what user wants to accomplish",
-  "formalQuery": "symbolic query using the operators above (NEVER use quotes around terms)",
-  "constraints": {
-    "timeRange": null | {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "filterMode": "modified" | "created"},
-    "maxResults": null | number,
-    "requireRandom": false | true,
-    "depthLimit": null
-  },
-  "searchStrategy": "direct" | "hierarchical",
-  "forceHierarchical": false | true,
-  "analysisType": null | "count" | "compare" | "connections" | "summary",
-  "isExpansionGlobal": false | true,
-  "semanticExpansion": null | "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom",
-  "customSemanticExpansion": null | string,
-  "suggestedMode": ${
-    !state.skipPrivacyAnalysis ? 'null | "Balanced" | "Full Access"' : "null"
-  },
-  "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
-  "confidence": 0.1-1.0
+  "routingDecision": "direct_datomic",
+  "datomicQuery": "${datomicQuery.replace(/"/g, '\\"')}",
+  "userIntent": "your analysis of what the user wants (in their language if not English)",
+  "needsPostProcessing": true/false (based on your analysis),
+  "postProcessingType": "summary"/"analysis"/"count"/"compare"/null (choose appropriate type or null for direct execution),
+  "confidence": 1.0
 }
 
-Focus on creating precise symbolic queries that will find the most relevant data to fulfill the user's actual intent.`;
+**DO NOT:**
+- Parse this as a symbolic query
+- Convert to search conditions  
+- Modify the Datomic query syntax, unless it's requested by the user
+- Add any explanatory text
+
+**ALWAYS:**
+- Use "routingDecision": "direct_datomic" 
+- Include the exact Datomic query
+- Set needsPostProcessing: true if user wants analysis/summary of results`;
 };

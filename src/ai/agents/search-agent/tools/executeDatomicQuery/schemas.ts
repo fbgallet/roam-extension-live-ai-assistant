@@ -5,19 +5,22 @@ export const schema = z.object({
   // Mode 1: Auto-generate from criteria (original functionality)
   queryDescription: z
     .string()
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Natural language description of what you want to find (for auto-generated queries)"
     ),
   targetEntity: z
     .enum(["block", "page"])
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Whether to search for blocks or pages (for auto-generated queries)"
     ),
   searchTerms: z
     .array(z.string())
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe("Key terms to search for (for auto-generated queries)"),
   conditionLogic: z
     .enum(["AND", "OR"])
@@ -35,7 +38,8 @@ export const schema = z.object({
     .describe("Maximum number of results to return"),
   limitToPages: z
     .array(z.string())
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Limit search to blocks within specific pages (by page title). Use this for 'in page [[X]]' queries."
     ),
@@ -47,7 +51,8 @@ export const schema = z.object({
   // Mode 2: User-provided query
   query: z
     .string()
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Raw Datalog query to execute directly (alternative to auto-generation)"
     ),
@@ -55,7 +60,8 @@ export const schema = z.object({
   // Mode 3: Parameterized queries
   variables: z
     .record(z.string(), z.any())
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Variables to substitute in parameterized queries (e.g. {'$page-title': 'ProjectAlpha'})"
     ),
@@ -63,19 +69,22 @@ export const schema = z.object({
   // UID array support
   limitToBlockUids: z
     .array(z.string())
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Inject block UID filtering into query (adds UID constraints automatically)"
     ),
   limitToPageUids: z
     .array(z.string())
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe(
       "Inject page UID filtering into query (adds page UID constraints automatically)"
     ),
   fromResultId: z
     .string()
-    .optional().nullable()
+    .optional()
+    .nullable()
     .describe("Extract UIDs from previous result and inject into query"),
 
   // Execution control
@@ -88,6 +97,14 @@ export const schema = z.object({
     .default(true)
     .describe(
       "Execute the query and return results (default: true since this tool is meant to execute)"
+    ),
+  // Result lifecycle management
+  purpose: z
+    .enum(["final", "intermediate", "replacement", "completion"])
+    .optional()
+    .nullable()
+    .describe(
+      "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
 });
 

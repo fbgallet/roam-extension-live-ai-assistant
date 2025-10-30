@@ -69,11 +69,13 @@ export const schema = z
   .object({
     blockUids: z
       .array(z.string().min(9).max(9))
-      .optional().nullable()
+      .optional()
+      .nullable()
       .describe("Array of block UIDs to extract content from"),
     fromResultId: z
       .string()
-      .optional().nullable()
+      .optional()
+      .nullable()
       .describe(
         "Extract content from block UIDs in previous result (e.g., 'findBlocksByContent_001')"
       ),
@@ -99,6 +101,14 @@ export const schema = z
       .max(3)
       .default(1)
       .describe("Max depth for reference resolution"),
+    // Result lifecycle management
+    purpose: z
+      .enum(["final", "intermediate", "replacement", "completion"])
+      .optional()
+      .nullable()
+      .describe(
+        "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
+      ),
   })
   .refine((data) => data.blockUids?.length > 0 || data.fromResultId, {
     message: "Either blockUids array or fromResultId must be provided",

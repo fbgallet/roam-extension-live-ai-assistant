@@ -6,7 +6,13 @@
 export const determineComplexity = (
   formalQuery: string
 ): "simple" | "logical" | "multi-step" => {
-  if (formalQuery.includes("→")) return "multi-step";
+  if (
+    formalQuery.includes("PIPE(") ||
+    formalQuery.includes("UNION(") ||
+    formalQuery.includes("INTERSECTION(") ||
+    formalQuery.includes("DIFFERENCE(")
+  )
+    return "multi-step";
   if (
     formalQuery.includes("+") ||
     formalQuery.includes("|") ||

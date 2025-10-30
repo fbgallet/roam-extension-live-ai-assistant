@@ -353,8 +353,7 @@ const InstantButtons = ({
     // Add current response if available
     if (!conversationHistory.length) {
       console.log("currentUid :>> ", currentUid);
-      conversationHistory =
-        (await getConversationArray(parentBlockUid)) || [];
+      conversationHistory = (await getConversationArray(parentBlockUid)) || [];
     }
     if (response) {
       conversationHistory.push({
@@ -612,37 +611,6 @@ const InstantButtons = ({
             hoverOpenDelay="500"
           >
             <Icon icon="graph" />
-          </Tooltip>
-        </Button>
-      );
-    }
-
-    // "Search Context" for hierarchical expansion (logical complexity, no errors)
-    if (
-      expansion.queryComplexity === "logical" &&
-      expansion.searchStrategy !== "hierarchical" &&
-      !expansion.hasErrors
-    ) {
-      buttons.push(
-        <Button
-          key="search-context"
-          onClick={() => handleExpansionRetry("hierarchical")}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            ContextMenu.show(
-              ModelsMenu({
-                callback: () => handleExpansionRetry("hierarchical"),
-              }),
-              { left: e.clientX, top: e.clientY },
-              null
-            );
-          }}
-        >
-          <Tooltip
-            content="Search with hierarchical context and relationships"
-            hoverOpenDelay="500"
-          >
-            <Icon icon="diagram-tree" />
           </Tooltip>
         </Button>
       );
