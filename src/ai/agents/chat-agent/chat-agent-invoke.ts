@@ -4,7 +4,7 @@
  * Provides a simple interface for invoking the chat agent
  */
 
-import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { createChatGraph, ChatAgentStateType } from "./chat-agent";
 import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
 import {

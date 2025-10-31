@@ -1,0 +1,24 @@
+{
+  "topics": [
+    {
+      "id": "official-roam-faq",
+      "topic": "Roam Research FAQ",
+      "author": "Roam Team",
+      "url": "https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/roam-help/official-roam-faq.md",
+      "shortDescription": "Official Roam Research FAQ covering core features, queries, attributes, and basic usage",
+      "category": "roam-core"
+    },
+    {
+      "id": "smartblocks-commands",
+      "topic": "SmartBlocks Command Reference",
+      "author": "RoamJS",
+      "url": "https://github.com/RoamJS/smartblocks/blob/main/docs/050-command-reference.md",
+      "shortDescription": "Complete reference of SmartBlocks commands for Roam Research automation and workflow templates",
+      "category": "roam-depot"
+    }
+  ],
+  "categories": {
+    "roam-core": "Roam Research vanilla documentation",
+    "roam-depot": "Community Roam extensions"
+  }
+}

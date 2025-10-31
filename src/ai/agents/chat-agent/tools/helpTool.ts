@@ -3,10 +3,15 @@
  *
  * Fetches relevant documentation from GitHub to help users with Live AI extension questions.
  * Automatically selects the appropriate documentation based on the user's question topic.
+ * Supports both built-in Live AI docs and user-enabled third-party topics from helpDepot.
  */
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import {
+  getEnabledTopics,
+  convertGithubUrlToRaw,
+} from "./helpDepotUtils";
 
 // Base URL for raw GitHub content
 const GITHUB_RAW_BASE =
@@ -29,17 +34,33 @@ export const helpTool = tool(
   async (input: { topic: string }, config) => {
     const { topic } = input;
 
-    // Validate topic
-    if (!DOC_URLS[topic]) {
-      return `[DISPLAY]Error: Unknown documentation topic "${topic}". Available topics: ${Object.keys(
-        DOC_URLS
-      ).join(", ")}[/DISPLAY]`;
-    }
+    // Check if topic is from depot (third-party docs)
+    const enabledTopics = getEnabledTopics();
+    const depotTopic = enabledTopics.find((t) => t.id === topic);
 
-    // Build the public GitHub URL for linking
-    const publicUrl = DOC_URLS[topic]
-      .replace("raw.githubusercontent.com", "github.com")
-      .replace("/main/", "/blob/main/");
+    let rawUrl: string;
+    let publicUrl: string;
+
+    if (depotTopic) {
+      // Handle depot topic
+      rawUrl = convertGithubUrlToRaw(depotTopic.url);
+      publicUrl = depotTopic.url;
+    } else if (DOC_URLS[topic]) {
+      // Handle built-in Live AI docs
+      rawUrl = DOC_URLS[topic];
+      publicUrl = DOC_URLS[topic]
+        .replace("raw.githubusercontent.com", "github.com")
+        .replace("/main/", "/blob/main/");
+    } else {
+      // Unknown topic
+      const availableTopics = [
+        ...Object.keys(DOC_URLS),
+        ...enabledTopics.map((t) => t.id),
+      ];
+      return `[DISPLAY]Error: Unknown documentation topic "${topic}". Available topics: ${availableTopics.join(
+        ", "
+      )}[/DISPLAY]`;
+    }
 
     // Check if this documentation was already fetched using the tool results cache
     const toolResultsCache = config?.configurable?.toolResultsCache || {};
@@ -59,7 +80,7 @@ Source: ${publicUrl}[/DISPLAY]`;
 
     try {
       // Fetch the documentation from GitHub
-      const response = await fetch(DOC_URLS[topic]);
+      const response = await fetch(rawUrl);
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -70,11 +91,16 @@ Source: ${publicUrl}[/DISPLAY]`;
 
       const content = await response.text();
 
+      // Build topic display name
+      const topicDisplayName = depotTopic
+        ? `${depotTopic.topic} (by ${depotTopic.author})`
+        : topic;
+
       // Return the documentation content with source URL
       // Format: [DISPLAY]...[/DISPLAY] for UI callback, then full content for agent context
       return `[DISPLAY]Source: ${publicUrl}[/DISPLAY]
 
-# Documentation: ${topic}
+# Documentation: ${topicDisplayName}
 
 ---
 
