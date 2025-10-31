@@ -101,6 +101,7 @@ const ChatAgentState = Annotation.Root({
 let llm: StructuredOutputType;
 let turnTokensUsage: TokensUsage;
 let sys_msg: SystemMessage;
+let originalUserMessageForHistory: string;
 
 // Conversation summarization threshold
 const SUMMARIZATION_THRESHOLD = 20;
@@ -137,6 +138,9 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     : undefined;
   let lastMessage = state.messages?.at(-1)?.content?.toString() || "";
 
+  // Store original message for history tracking before modification
+  originalUserMessageForHistory = lastMessage;
+
   let isConversationContextToInclude = lastMessage || resultsContext;
   if (state.commandPrompt && state.conversationHistory.length) {
     let completedLastMessage = buildCompleteCommandPrompt(
@@ -152,8 +156,9 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   const systemPrompt = buildChatSystemPrompt({
     lastMessage: lastMessage,
     style: state.style,
-    // Add command prompt to system prompt only for the first message
-    commandPrompt: state.conversationHistory?.length < 2 && state.commandPrompt,
+    // Command prompt is included in system prompt and also added to conversationHistory
+    // in finalize() so it persists across turns until summarization
+    commandPrompt: state.commandPrompt,
     toolsEnabled: state.toolsEnabled,
     conversationContext: isConversationContextToInclude && conversationContext,
     resultsContext,
@@ -573,8 +578,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     const systemPrompt = buildChatSystemPrompt({
       lastMessage: state.messages?.at(-1)?.content?.toString() || "",
       style: state.style,
-      commandPrompt:
-        state.conversationHistory?.length < 2 && state.commandPrompt,
+      commandPrompt: state.commandPrompt,
       toolsEnabled: state.toolsEnabled,
       conversationContext: conversationContext,
       resultsContext: resultsContextString,
@@ -639,6 +643,21 @@ const finalize = async (state: typeof ChatAgentState.State) => {
   // Update conversation history
   const newHistory = [...(state.conversationHistory || [])];
 
+  // If a commandPrompt was used in this turn, add the detailed instructions to history
+  // This ensures they persist across turns until summarization
+  if (state.commandPrompt) {
+    // Use the original user message (before it was potentially modified in loadModel)
+    const expandedCommandPrompt = buildCompleteCommandPrompt(
+      state.commandPrompt,
+      originalUserMessageForHistory
+    );
+    if (expandedCommandPrompt) {
+      newHistory.push(
+        `[User's Task Instructions for this request]: ${expandedCommandPrompt}`
+      );
+    }
+  }
+
   // Add user message
   const userMessage = state.messages.find(
     (msg) => msg.getType?.() === "human" || msg._getType?.() === "human"
@@ -649,6 +668,8 @@ const finalize = async (state: typeof ChatAgentState.State) => {
 
   // Add assistant response
   newHistory.push(`Assistant: ${finalAnswer}`);
+
+  console.log("newHistory :>> ", newHistory);
 
   return {
     finalAnswer,

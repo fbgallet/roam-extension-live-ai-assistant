@@ -4,10 +4,11 @@
  * Renders the chat header with info badge, action buttons, loaded chat title, and warnings
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { Button, Icon, Tooltip } from "@blueprintjs/core";
 import { Result, ChatMessage } from "../../types/types";
 import { ChatHistorySelect } from "./ChatHistorySelect";
+import { ClearChatDialog } from "../dialogs/ClearChatDialog";
 
 interface ChatHeaderProps {
   selectedResults: Result[];
@@ -20,6 +21,7 @@ interface ChatHeaderProps {
   loadedChatUid: string | null;
   privateMode: boolean;
   isTyping: boolean;
+  insertedMessagesCount: number;
   onInsertConversation: () => void;
   onCopyFullConversation: () => void;
   onResetChat: () => void;
@@ -38,12 +40,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   loadedChatUid,
   privateMode,
   isTyping,
+  insertedMessagesCount,
   onInsertConversation,
   onCopyFullConversation,
   onResetChat,
   onLoadChatHistory,
   onLoadedChatClick,
 }) => {
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
   return (
     <div className="full-results-chat-header">
       <div className="full-results-chat-info">
@@ -101,7 +105,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 />
               </Tooltip>
               <Tooltip content="Reset chat conversation">
-                <Button icon="trash" onClick={onResetChat} minimal small />
+                <Button
+                  icon="trash"
+                  onClick={() => setIsClearDialogOpen(true)}
+                  minimal
+                  small
+                />
               </Tooltip>
             </>
           )}
@@ -153,6 +162,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           🔒 Limited functionality in Private mode
         </div>
       )}
+      <ClearChatDialog
+        isOpen={isClearDialogOpen}
+        onClose={() => setIsClearDialogOpen(false)}
+        onClearChat={onResetChat}
+        totalMessages={chatMessages.length}
+        insertedMessages={insertedMessagesCount}
+      />
     </div>
   );
 };

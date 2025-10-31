@@ -63,12 +63,16 @@ export const buildChatSystemPrompt = ({
 - Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})`;
 
   // Add command-specific instructions if provided
-  let completeCommandPrompt = buildCompleteCommandPrompt(
-    commandPrompt,
-    lastMessage || resultsContext
-  );
-  if (completeCommandPrompt)
-    systemPrompt += `\n\n## Task Instructions\n${completeCommandPrompt}`;
+  // Note: These instructions are also added to conversationHistory in finalize()
+  // so they persist across turns until summarization
+  if (commandPrompt) {
+    let completeCommandPrompt = buildCompleteCommandPrompt(
+      commandPrompt,
+      lastMessage || resultsContext
+    );
+    if (completeCommandPrompt)
+      systemPrompt += `\n\n## Task Instructions\n${completeCommandPrompt}`;
+  }
 
   // Add active skill instructions if available (these persist across turns)
   if (activeSkillInstructions) {
@@ -91,7 +95,11 @@ ${activeSkillInstructions}
 
   // Add conversation context if available
   if (conversationContext) {
-    systemPrompt += `\n\n## Conversation Context\n${conversationContext}`;
+    systemPrompt += `\n\n## Conversation Context
+
+This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[User's Task Instructions for this request]") are historical context - they applied to previous requests. Only follow task instructions that appear in the "## Task Instructions" section above (if present) for the CURRENT request.
+
+${conversationContext}`;
   }
 
   // Add tool usage guidance - DON'T include tool descriptions when using bindTools

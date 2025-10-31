@@ -182,7 +182,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Track the number of initial messages loaded from Roam
   // This helps us exclude them when inserting the conversation back
-  const initialMessagesCountRef = useRef<number>(0);
+  // Using state instead of ref so ChatHeader can display the updated count
+  const [insertedMessagesCount, setInsertedMessagesCount] = useState<number>(0);
   const hasAutoExecutedRef = useRef(false); // Prevent double execution
 
   // Initialize chat from provided initial state
@@ -207,7 +208,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setChatMessages(messagesCopy);
 
       // Store count of initial messages to exclude from Roam insertion later
-      initialMessagesCountRef.current = messagesCopy.length;
+      setInsertedMessagesCount(messagesCopy.length);
     }
     if (initialChatPrompt) {
       // Ensure initialChatPrompt is a string
@@ -976,7 +977,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setHasExpandedResults(false);
     setLoadedChatTitle(null);
     setLoadedChatUid(null);
-    initialMessagesCountRef.current = 0;
+    setInsertedMessagesCount(0);
     targetRef.current = undefined;
     // Clear tool usage history
     setToolUsageHistory([]);
@@ -992,6 +993,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const insertConversationInRoam = async () => {
+    // Capture the current inserted count at the start to avoid race conditions
+    const currentInsertedCount = insertedMessagesCount;
+
     if (!loadedChatUid) {
       let focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
       if (
@@ -1009,7 +1013,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     try {
       // Get only NEW messages (exclude initial messages that came from Roam)
-      const newMessages = chatMessages.slice(initialMessagesCountRef.current);
+      const newMessages = chatMessages.slice(currentInsertedCount);
 
       if (newMessages.length === 0) {
         AppToaster.show({
@@ -1021,7 +1025,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }
 
       // If this is the first insertion (entire conversation), generate a title
-      const isFirstInsertion = initialMessagesCountRef.current === 0;
+      const isFirstInsertion = currentInsertedCount === 0;
 
       if (isFirstInsertion) {
         const targetContent = getBlockContentByUid(targetRef.current);
@@ -1095,7 +1099,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         let roleBlockUid: string;
         if (
           isFirstMessage &&
-          (initialMessagesCountRef.current === 0 || !isFirstInsertion)
+          (currentInsertedCount === 0 || !isFirstInsertion)
         ) {
           // First message - create as child of title block
           roleBlockUid = await createChildBlock(currentTargetUid, rolePrefix);
@@ -1121,7 +1125,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Update the count to reflect that these messages are now in Roam
       // This prevents re-inserting the same messages if the button is clicked again
-      initialMessagesCountRef.current = chatMessages.length;
+      setInsertedMessagesCount(chatMessages.length);
     } catch (error) {
       console.error("Failed to insert conversation in Roam:", error);
       alert("❌ Failed to insert conversation. Check console for details.");
@@ -1243,7 +1247,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         }));
 
         setChatMessages(previousMessages);
-        initialMessagesCountRef.current = previousMessages.length;
+        setInsertedMessagesCount(previousMessages.length);
       } else {
         // Load all messages into chat history
         const allMessages = conversation.map((msg) => ({
@@ -1253,7 +1257,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         }));
 
         setChatMessages(allMessages);
-        initialMessagesCountRef.current = allMessages.length;
+        setInsertedMessagesCount(allMessages.length);
         setChatInput("");
       }
 
@@ -1523,11 +1527,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         ? `🔄 IMPORTANT: The user has changed their result selection since the last message. The results below represent the NEW selection (${expandedResults.length} items).`
         : `You are analyzing search results extracted from a Roam Research graph database. The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.`;
 
-      // Build conversation history from chat messages
-      const currentConversationHistory = chatMessages.map((msg) => {
-        const role = msg.role === "user" ? "User" : "Assistant";
-        return `${role}: ${msg.content}`;
-      });
+      // Use conversation history from previous agent turn (if available)
+      // This preserves commandPrompt instructions and other context added by the agent
+      // Only rebuild from chatMessages if no agent data exists (first turn)
+      const currentConversationHistory = chatAgentData?.conversationHistory ||
+        chatMessages.map((msg) => {
+          const role = msg.role === "user" ? "User" : "Assistant";
+          return `${role}: ${msg.content}`;
+        });
 
       // Get command prompt if provided
       let commandPrompt: string | undefined = undefined;
@@ -1838,6 +1845,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         loadedChatUid={loadedChatUid}
         privateMode={privateMode}
         isTyping={isTyping}
+        insertedMessagesCount={insertedMessagesCount}
         onInsertConversation={insertConversationInRoam}
         onCopyFullConversation={copyFullConversation}
         onResetChat={resetChat}
