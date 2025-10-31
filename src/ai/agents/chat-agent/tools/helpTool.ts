@@ -22,6 +22,7 @@ const DOC_URLS: Record<string, string> = {
   "live-outliner": `${GITHUB_RAW_BASE}/docs/live-outliner.md`,
   // chat-agent documentation (to be added later)
   "chat-agent": `${GITHUB_RAW_BASE}/docs/chat-agent.md`,
+  "official-roam-faq": `${GITHUB_RAW_BASE}/docs/roam-help/official-roam-faq.md`,
 };
 
 export const helpTool = tool(
@@ -90,7 +91,7 @@ ${content}
   },
   {
     name: "get_help",
-    description: `Fetch documentation about Live AI extension features when the user asks for help.
+    description: `Fetch documentation about Live AI extension features or Roam Research app when the user asks for help.
 
 Topics:
 - "overview": General introduction and getting started with Live AI extension
@@ -100,6 +101,7 @@ Topics:
 - "query-agents": Query agents including Ask Your Graph
 - "live-outliner": Live Outliner features
 - "chat-agent": Chat agent documentation (coming soon)
+- "official-roam-faq": FAQ about Roam Research
 
 Use this tool when users ask questions about:
 - How to use Live AI extension or any of its features
@@ -119,6 +121,7 @@ Use this tool when users ask questions about:
           "query-agents",
           "live-outliner",
           "chat-agent",
+          "official-roam-faq",
         ])
         .describe(
           "The documentation topic to fetch. Choose based on what the user is asking about."

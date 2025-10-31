@@ -62,7 +62,6 @@ export const BUILTIN_COMMANDS = [
   {
     id: 10,
     name: "Continue conversation in blocks",
-    icon: "chat",
     isIncompatibleWith: {
       outliner: true,
     },

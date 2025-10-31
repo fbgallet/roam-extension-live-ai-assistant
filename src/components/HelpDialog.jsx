@@ -10,7 +10,7 @@ const HelpDialog = ({ isOpen, onClose }) => {
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         <p>
-          <strong>Live AI</strong> v.22 2025/10/21 by{" "}
+          <strong>Live AI</strong> v.22 November 2025 by{" "}
           <a href="https://github.com/sponsors/fbgallet" target="_blank">
             Fabrice Gallet
           </a>
@@ -47,6 +47,13 @@ const HelpDialog = ({ isOpen, onClose }) => {
           </li>
           <li>
             stored chats: <code>#liveai/chat</code>
+          </li>
+          <li>
+            stored skills: <code>#liveai/skills</code>
+          </li>
+          <li>
+            skills resources (loaded when useful):{" "}
+            <code>#liveai/skills-resources</code>
           </li>
           <li>
             favorite Live Outlines: <code>#liveai/outline</code>

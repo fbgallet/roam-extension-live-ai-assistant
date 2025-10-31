@@ -653,7 +653,7 @@ const finalize = async (state: typeof ChatAgentState.State) => {
     );
     if (expandedCommandPrompt) {
       newHistory.push(
-        `[User's Task Instructions for this request]: ${expandedCommandPrompt}`
+        `[Built-in or custom instructions for this stored conversation turn]: ${expandedCommandPrompt}`
       );
     }
   }

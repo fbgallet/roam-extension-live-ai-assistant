@@ -62,16 +62,43 @@ export const buildChatSystemPrompt = ({
 - Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.
 - Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})`;
 
-  // Add command-specific instructions if provided
-  // Note: These instructions are also added to conversationHistory in finalize()
-  // so they persist across turns until summarization
-  if (commandPrompt) {
-    let completeCommandPrompt = buildCompleteCommandPrompt(
-      commandPrompt,
-      lastMessage || resultsContext
-    );
-    if (completeCommandPrompt)
-      systemPrompt += `\n\n## Task Instructions\n${completeCommandPrompt}`;
+  // Add results context if available
+  if (resultsContext) {
+    systemPrompt += `\n\n## Available Context\n${resultsContext}`;
+
+    // Guidelines for analyzing search results
+    systemPrompt += `\n\n## Context use Guidelines
+
+### Your Role - Provide Value Beyond Raw Data
+The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.
+
+- **Focus on the user request** to provide the most relevant response as possible
+- **DON'T repeat** content/metadata the user already sees
+- **Focus on** what the content MEANS, not what it SAYS
+- **Use the full context** - leverage parent blocks, page context, and children to understand meaning
+- **Identify** relationships, contradictions, common themes, or missing pieces
+- **Be analytical** - help the user understand significance and context
+
+### Roam Formatting
+IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
+- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
+- **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
+- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.
+
+### Analysis Approach
+- When provided with search results, analyze their meaning and relationships
+- **Leverage hierarchical context** to understand each block's true meaning and purpose
+
+Remember: The user wants concise understanding and analysis, not lengthy recaps.`;
+  }
+
+  // Add conversation context if available
+  if (conversationContext) {
+    systemPrompt += `\n\n## Conversation Context
+
+This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[Built-in or custom instructions for this stored conversation turn]") are historical context - they applied to previous requests. Follow built-on or custom instructions that appear eventually below for the CURRENT request.
+
+${conversationContext}`;
   }
 
   // Add active skill instructions if available (these persist across turns)
@@ -86,20 +113,6 @@ ${activeSkillInstructions}
 - These instructions contain specialized knowledge that supersedes your general knowledge
 - Follow them exactly to complete the user's task
 - Only call live_ai_skills again if you need a DIFFERENT skill or a DEEPER resource not already present here`;
-  }
-
-  // Add results context if available
-  if (resultsContext) {
-    systemPrompt += `\n\n## Available Context\n${resultsContext}`;
-  }
-
-  // Add conversation context if available
-  if (conversationContext) {
-    systemPrompt += `\n\n## Conversation Context
-
-This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[User's Task Instructions for this request]") are historical context - they applied to previous requests. Only follow task instructions that appear in the "## Task Instructions" section above (if present) for the CURRENT request.
-
-${conversationContext}`;
   }
 
   // Add tool usage guidance - DON'T include tool descriptions when using bindTools
@@ -125,7 +138,7 @@ You are operating in AGENTIC mode with access to tools. Follow the ReAct methodo
 **In short: Be Autonomous and Thorough:**
 
 **Tool Usage Philosophy:**
-- Use tools PROACTIVELY - don't wait for explicit permission but only use them only if it's clear for you that it matches the user need
+- Use tools proactively (but wisely) - don't wait for explicit permission but only use them only if it's clear that it matches the user needs
 - Chain multiple tool calls in sequence when needed to fully answer the question
 - Only ask the user when you've exhausted all autonomous options
 - Some tools cache results to avoid redundancy - check before re-calling
@@ -147,32 +160,16 @@ ${skillsList}`;
     }
   }
 
-  // Add response guidelines - different based on context
-  if (resultsContext) {
-    // Guidelines for analyzing search results
-    systemPrompt += `\n\n## Context use Guidelines
-
-### Your Role - Provide Value Beyond Raw Data
-The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.
-
-- **Focus on the user request in its last message** to provide the most relevant response as possible
-- **DON'T repeat** content/metadata the user already sees
-- **Focus on** what the content MEANS, not what it SAYS
-- **Use the full context** - leverage parent blocks, page context, and children to understand meaning
-- **Identify** relationships, contradictions, common themes, or missing pieces
-- **Be analytical** - help the user understand significance and context
-
-### Roam Formatting
-IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
-- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
-- **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
-- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.
-
-### Analysis Approach
-- When provided with search results, analyze their meaning and relationships
-- **Leverage hierarchical context** to understand each block's true meaning and purpose
-
-Remember: The user wants concise understanding and analysis, not lengthy recaps.`;
+  // Add command-specific instructions if provided
+  // Note: These instructions are also added to conversationHistory in finalize()
+  // so they persist across turns until summarization
+  if (commandPrompt) {
+    let completeCommandPrompt = buildCompleteCommandPrompt(
+      commandPrompt,
+      lastMessage || resultsContext
+    );
+    if (completeCommandPrompt)
+      systemPrompt += `\n\n## Built-in or custom instructions for the CURRENT conversation turn \n${completeCommandPrompt}`;
   }
 
   systemPrompt += `\n\n## Syntax contrainst:
