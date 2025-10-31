@@ -13,7 +13,11 @@ import {
 import { RoamContext } from "../../ai/agents/types";
 import { loadResultsFromRoamContext } from "./utils/roamContextLoader";
 import { chatRoles } from "../..";
-import { getFlattenedContentFromTree } from "../../ai/dataExtraction.js";
+import {
+  getFlattenedContentFromTree,
+  getRoamContextFromPrompt,
+  getUnionContext,
+} from "../../ai/dataExtraction.js";
 import { convertRoamToMarkdownFormat } from "./utils/chatMessageUtils";
 
 // Main component and utilities
@@ -346,8 +350,25 @@ export const openChatPopup = async ({
     // Use rootUid if provided, otherwise use current page UID
     let targetUid = rootUid;
 
+    // Test if the focused current block contains some inline context
+    let effectiveRoamContext = roamContext || {};
+    let cleanedBlockContent: string | null = null;
+    if (rootUid) {
+      const blockContent = getBlockContentByUid(rootUid);
+      if (blockContent) {
+        const inlineContext = getRoamContextFromPrompt(blockContent, false);
+        if (inlineContext) {
+          console.log("Inline context extracted from focused block :>> ", inlineContext);
+          // Merge inline context with existing roamContext
+          effectiveRoamContext = getUnionContext(effectiveRoamContext, inlineContext.roamContext);
+          // Store the cleaned prompt without context metadata
+          cleanedBlockContent = inlineContext.updatedPrompt;
+        }
+      }
+    }
+
     // Determine viewMode: if roamContext provided, default to "both", otherwise "chat-only"
-    const effectiveViewMode = viewMode || (roamContext ? "both" : "chat-only");
+    const effectiveViewMode = viewMode || (effectiveRoamContext && Object.keys(effectiveRoamContext).length > 0 ? "both" : "chat-only");
 
     // Prepare chat messages from conversation history if provided
     let initialChatMessages: ChatMessage[] | undefined = undefined;
@@ -366,13 +387,18 @@ export const openChatPopup = async ({
           "📝 Using conversation history from [[liveai/chat]] blocks"
         );
       } else {
-        const rootContent = getFlattenedContentFromTree({
-          parentUid: rootUid,
-          maxCapturing: 99,
-          maxUid: 0,
-          withDash: true,
-          isParentToIgnore: false,
-        });
+        // Use cleaned block content if available (context metadata removed),
+        // otherwise get the full flattened content
+        let rootContent = cleanedBlockContent;
+        if (!rootContent) {
+          rootContent = getFlattenedContentFromTree({
+            parentUid: rootUid,
+            maxCapturing: 99,
+            maxUid: 0,
+            withDash: true,
+            isParentToIgnore: false,
+          });
+        }
         if (rootContent?.trim())
           effectiveConversationHistory = [
             { role: "user", content: rootContent },
@@ -425,8 +451,8 @@ export const openChatPopup = async ({
 
     // Open popup using the updated openFullResultsPopup
     await openFullResultsPopup({
-      roamContext, // Can be undefined for chat-only without context
-      results: roamContext ? undefined : [], // Empty results if no roamContext
+      roamContext: effectiveRoamContext, // Can include inline context merged with passed roamContext
+      results: Object.keys(effectiveRoamContext).length > 0 ? undefined : [], // Empty results if no roamContext
       targetUid,
       rootUid,
       viewMode: effectiveViewMode,

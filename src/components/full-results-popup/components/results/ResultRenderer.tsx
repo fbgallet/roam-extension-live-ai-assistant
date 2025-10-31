@@ -1,49 +1,88 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, memo } from "react";
 import DOMPurify from "dompurify";
 import { Result, PageDisplayMode } from "../../types/types";
 import { getHighlightedContent } from "../../utils/resultProcessing";
 
 // Separate component to handle block/page rendering with hooks
-export const BlockRenderer: React.FC<{
+// Memoized to prevent unnecessary re-renders when props haven't changed
+export const BlockRenderer = memo<{
   result: Result;
   index?: number;
   showPaths?: boolean;
   searchFilter?: string;
   expanded?: boolean;
-}> = ({ result, showPaths = false, searchFilter = "", expanded = true }) => {
+}>(({ result, showPaths = false, searchFilter = "", expanded = true }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const renderTimeoutRef = useRef<number | null>(null);
+  // Initialize with null to ensure first render is always detected as changed
+  const previousPropsRef = useRef<{ uid: string; showPaths: boolean; expanded: boolean } | null>(null);
 
   useEffect(() => {
-    if (containerRef.current && result.uid) {
-      try {
-        (window as any).roamAlphaAPI.ui.components.renderBlock({
-          uid: result.uid,
-          "zoom-path?": showPaths,
-          "open?": expanded,
-          el: containerRef.current,
-        });
-      } catch (error) {
-        console.warn("Failed to render block:", error);
-        if (containerRef.current) {
-          const { content } = getHighlightedContent(result, searchFilter);
-          if (content && content.includes("<mark")) {
-            containerRef.current.innerHTML = DOMPurify.sanitize(content);
-          } else {
-            containerRef.current.textContent =
-              result.content || result.text || "Unable to render block";
+    // Clear any pending render timeout on unmount or before new render
+    return () => {
+      if (renderTimeoutRef.current) {
+        clearTimeout(renderTimeoutRef.current);
+        renderTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    // Check if this is the first render (previousPropsRef is null) or if props changed
+    const hasChanged =
+      !previousPropsRef.current ||
+      previousPropsRef.current.uid !== result.uid ||
+      previousPropsRef.current.showPaths !== showPaths ||
+      previousPropsRef.current.expanded !== expanded;
+
+    if (!hasChanged) {
+      // Skip re-render if props haven't changed
+      return;
+    }
+
+    // Update previous props reference
+    previousPropsRef.current = { uid: result.uid, showPaths, expanded };
+
+    // Clear any pending render
+    if (renderTimeoutRef.current) {
+      clearTimeout(renderTimeoutRef.current);
+      renderTimeoutRef.current = null;
+    }
+
+    // Debounce renderBlock calls to prevent race conditions on rapid toggling
+    renderTimeoutRef.current = window.setTimeout(() => {
+      if (containerRef.current && result.uid) {
+        try {
+          (window as any).roamAlphaAPI.ui.components.renderBlock({
+            uid: result.uid,
+            "zoom-path?": showPaths,
+            "open?": expanded,
+            el: containerRef.current,
+          });
+        } catch (error) {
+          console.warn("Failed to render block:", error);
+          if (containerRef.current) {
+            const { content } = getHighlightedContent(result, searchFilter);
+            if (content && content.includes("<mark")) {
+              containerRef.current.innerHTML = DOMPurify.sanitize(content);
+            } else {
+              containerRef.current.textContent =
+                result.content || result.text || "Unable to render block";
+            }
           }
         }
+      } else if (containerRef.current) {
+        const { content } = getHighlightedContent(result, searchFilter);
+        if (content && content.includes("<mark")) {
+          containerRef.current.innerHTML = content;
+        } else {
+          containerRef.current.textContent =
+            result.content || result.text || JSON.stringify(result);
+        }
       }
-    } else if (containerRef.current) {
-      const { content } = getHighlightedContent(result, searchFilter);
-      if (content && content.includes("<mark")) {
-        containerRef.current.innerHTML = content;
-      } else {
-        containerRef.current.textContent =
-          result.content || result.text || JSON.stringify(result);
-      }
-    }
-  }, [result, showPaths, searchFilter, expanded]);
+      renderTimeoutRef.current = null;
+    }, 50); // 50ms debounce - fast enough to feel instant, slow enough to batch rapid changes
+  }, [result.uid, showPaths, expanded, searchFilter]);
 
   return (
     <div
@@ -52,12 +91,22 @@ export const BlockRenderer: React.FC<{
       style={{ flex: 1 }}
     />
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function for React.memo
+  // Return true if props are equal (skip re-render), false if different (re-render)
+  return (
+    prevProps.result.uid === nextProps.result.uid &&
+    prevProps.showPaths === nextProps.showPaths &&
+    prevProps.searchFilter === nextProps.searchFilter &&
+    prevProps.expanded === nextProps.expanded
+  );
+});
 
 // Component to render page titles using renderString API
-export const PageTitleRenderer: React.FC<{
+// Memoized to prevent unnecessary re-renders
+export const PageTitleRenderer = memo<{
   result: Result;
-}> = ({ result }) => {
+}>(({ result }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -86,7 +135,7 @@ export const PageTitleRenderer: React.FC<{
         }`;
       }
     }
-  }, [result]);
+  }, [result.uid, result.title, result.pageTitle]);
 
   return (
     <div className="full-results-page-metadata-view">
@@ -97,20 +146,24 @@ export const PageTitleRenderer: React.FC<{
       />
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if the page title or uid changed
+  const prevTitle = prevProps.result.title || prevProps.result.pageTitle;
+  const nextTitle = nextProps.result.title || nextProps.result.pageTitle;
+  return prevProps.result.uid === nextProps.result.uid && prevTitle === nextTitle;
+});
 
 interface ResultContentProps {
   result: Result;
-  index: number;
   pageDisplayMode: PageDisplayMode;
   showPaths?: boolean;
   searchFilter?: string;
   expanded?: boolean;
 }
 
-export const ResultContent: React.FC<ResultContentProps> = ({
+// Memoized to prevent re-renders when props haven't changed
+export const ResultContent = memo<ResultContentProps>(({
   result,
-  index,
   pageDisplayMode,
   showPaths = false,
   searchFilter = "",
@@ -126,16 +179,28 @@ export const ResultContent: React.FC<ResultContentProps> = ({
   }
 
   // For blocks or page embeds, use the BlockRenderer component
+  // NOTE: We NEED expanded in the key because Roam's renderBlock API
+  // does NOT respect "open?" parameter changes on re-renders.
+  // The only way to change expand/collapse is to force a complete remount.
   return (
     <BlockRenderer
+      key={`${result.uid}-${expanded}`}
       result={result}
       showPaths={showPaths}
       searchFilter={searchFilter}
       expanded={expanded}
-      key={`${result.uid}-${index}-${expanded}`}
     />
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if relevant props changed
+  return (
+    prevProps.result.uid === nextProps.result.uid &&
+    prevProps.showPaths === nextProps.showPaths &&
+    prevProps.searchFilter === nextProps.searchFilter &&
+    prevProps.expanded === nextProps.expanded &&
+    prevProps.pageDisplayMode === nextProps.pageDisplayMode
+  );
+});
 
 interface ResultMetadataProps {
   result: Result;
@@ -145,7 +210,8 @@ interface ResultMetadataProps {
   onSortByDate?: (order: "asc" | "desc") => void;
 }
 
-export const ResultMetadata: React.FC<ResultMetadataProps> = ({
+// Memoized to prevent re-renders when props haven't changed
+export const ResultMetadata = memo<ResultMetadataProps>(({
   result,
   showMetadata,
   sortBy,
@@ -220,4 +286,14 @@ export const ResultMetadata: React.FC<ResultMetadataProps> = ({
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if relevant props changed
+  return (
+    prevProps.result.uid === nextProps.result.uid &&
+    prevProps.showMetadata === nextProps.showMetadata &&
+    prevProps.sortBy === nextProps.sortBy &&
+    prevProps.sortOrder === nextProps.sortOrder &&
+    prevProps.result.modified === nextProps.result.modified &&
+    prevProps.result.pageTitle === nextProps.result.pageTitle
+  );
+});

@@ -2246,7 +2246,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       const originalIndex = currentResults.indexOf(result);
                       return (
                         <div
-                          key={`${originalIndex}-${expanded}`}
+                          key={result.uid || originalIndex}
                           className="full-results-result-item bp3-card"
                           data-uid={result.uid}
                         >
@@ -2269,7 +2269,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                             />
                             <ResultContent
                               result={result}
-                              index={index}
                               pageDisplayMode={pageDisplayMode}
                               showPaths={showPaths}
                               searchFilter={searchFilter}

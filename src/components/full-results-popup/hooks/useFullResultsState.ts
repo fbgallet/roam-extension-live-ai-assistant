@@ -90,7 +90,7 @@ export const useFullResultsState = (
     return {
       showMetadata: stored.showMetadata ?? true, // Default to true
       showPaths: stored.showPaths ?? false, // Default to false
-      expanded: stored.expanded ?? true, // Default to true
+      expanded: stored.expanded ?? false, // Default to false (collapsed)
     };
   };
 
@@ -106,8 +106,11 @@ export const useFullResultsState = (
 
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>("mixed");
-  const [pageDisplayMode, setPageDisplayMode] =
-    useState<PageDisplayMode>("metadata");
+  // Initialize pageDisplayMode based on expanded state
+  // When expanded=true, show "embed" (full page); when expanded=false, show "metadata" (title only)
+  const [pageDisplayMode, setPageDisplayMode] = useState<PageDisplayMode>(
+    () => getStoredPreferences().expanded ? "embed" : "metadata"
+  );
 
   // Save preferences to storage when they change
   useEffect(() => {
@@ -628,7 +631,8 @@ export const useFullResultsState = (
 
     // For pages, toggle pageDisplayMode based on expanded state
     if (hasPages && viewMode !== "blocks") {
-      setPageDisplayMode(newExpanded ? "metadata" : "embed");
+      // When expanded=true, show full embed; when expanded=false, show just metadata (title)
+      setPageDisplayMode(newExpanded ? "embed" : "metadata");
     }
   };
 
