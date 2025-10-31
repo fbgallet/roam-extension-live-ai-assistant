@@ -78,17 +78,23 @@ export const schema = z.object({
 export const llmFacingSchema = z.object({
   resultSets: z
     .array(
-      z.object({
-        name: z.string().describe("Name identifier for this result set"),
-        uids: z
-          .array(z.string())
-          .describe("Array of UIDs from previous search results"),
-        type: z
-          .enum(["pages", "blocks"])
-          .describe("Type of entities (pages or blocks)"),
-      })
+      z.union([
+        // Option 1: Just a result ID string (e.g., "findPagesByTitle_001")
+        z.string().describe("Result ID from a previous search (e.g., 'findPagesByTitle_001')"),
+        // Option 2: Full result set object
+        z.object({
+          name: z.string().describe("Name identifier for this result set"),
+          uids: z
+            .array(z.string())
+            .describe("Array of UIDs from previous search results"),
+          type: z
+            .enum(["pages", "blocks"])
+            .describe("Type of entities (pages or blocks)"),
+        })
+      ])
     )
-    .min(2, "At least two result sets required"),
+    .min(2, "At least two result sets required")
+    .describe("Array of result IDs (e.g., ['findPagesByTitle_001', 'findPagesByTitle_002']) or full result set objects"),
   operation: z
     .enum(["union", "intersection", "difference", "symmetric_difference"])
     .default("union")

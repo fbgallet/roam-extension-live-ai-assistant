@@ -550,4 +550,5 @@ if (typeof window !== "undefined") {
   (window as any).LiveAI.prepareFullResultsOrChatOpening =
     prepareFullResultsOrChatOpening;
   (window as any).LiveAI.chatWithLinkedRefs = chatWithLinkedRefs;
+  console.log("✅ Full Results Popup functions registered on window.LiveAI");
 }

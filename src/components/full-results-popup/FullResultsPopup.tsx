@@ -229,10 +229,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
             // Execute page selections if they exist in the query
             if (query.pageSelections && query.pageSelections.length > 0) {
-              console.log(
-                `📋 [Composed Query] Executing ${query.pageSelections.length} page selections`
-              );
-
               const pageSelectionResult = await executeStoredPageSelections(
                 query.pageSelections,
                 results,
@@ -488,8 +484,6 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     if (newSelected.size > 0) {
       setSelectionFilter("selected-only");
     }
-
-    console.log(`🎯 Selected ${newSelected.size} results by UID from agent`);
   };
 
   const {

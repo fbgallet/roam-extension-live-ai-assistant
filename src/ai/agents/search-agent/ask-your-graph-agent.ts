@@ -2429,10 +2429,8 @@ const toolsWithResultLifecycle = async (
   ).length;
 
   // Process tool results with lifecycle management
-  const updatedResultStore = processToolResultsWithLifecycle(
-    state,
-    result.messages
-  );
+  const { resultStore: updatedResultStore, resultIdCounter: nextResultId } =
+    processToolResultsWithLifecycle(state, result.messages);
 
   // Handle popup execution result updates
   if ((state as any).isPopupExecution) {
@@ -2471,7 +2469,7 @@ const toolsWithResultLifecycle = async (
   return {
     ...result,
     resultStore: updatedResultStore,
-    nextResultId: (state.nextResultId || 1) + toolCallCount,
+    nextResultId: nextResultId,
     timingMetrics: updatedTimingMetrics,
   };
 };
@@ -2591,8 +2589,9 @@ const detectAnalyticalQuery = (userQuery: string): boolean => {
 const processToolResultsWithLifecycle = (
   state: typeof ReactSearchAgentState.State,
   toolMessages: any[]
-): Record<string, any> => {
+): { resultStore: Record<string, any>; resultIdCounter: number } => {
   const updatedResultStore = { ...state.resultStore };
+  let currentResultId = state.nextResultId || 1;
 
   // Process each tool message
   for (const message of toolMessages) {
@@ -2614,10 +2613,12 @@ const processToolResultsWithLifecycle = (
         );
         const lifecycleParams = extractLifecycleParams(toolCall);
 
-        // Generate result ID
-        const resultId = `${message.name}_${String(
-          state.nextResultId || 1
-        ).padStart(3, "0")}`;
+        // Generate result ID with incrementing counter
+        const resultId = `${message.name}_${String(currentResultId).padStart(
+          3,
+          "0"
+        )}`;
+        currentResultId++; // Increment for next result
 
         if (toolResult.success && toolResult.data) {
           // Handle successful results
@@ -2662,7 +2663,7 @@ const processToolResultsWithLifecycle = (
     }
   }
 
-  return updatedResultStore;
+  return { resultStore: updatedResultStore, resultIdCounter: currentResultId };
 };
 
 // Find the tool call that corresponds to this result

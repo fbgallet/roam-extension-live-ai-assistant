@@ -80,8 +80,7 @@ const ChatAgentState = Annotation.Root({
     ((currentResults: any[]) => Promise<any[]>) | undefined
   >,
   toolResponseCallback: Annotation<
-    | ((toolInfo: { toolName: string; response: string }) => void)
-    | undefined
+    ((toolInfo: { toolName: string; response: string }) => void) | undefined
   >,
   needsExpansion: Annotation<boolean>,
   // Timing
@@ -104,7 +103,7 @@ let turnTokensUsage: TokensUsage;
 let sys_msg: SystemMessage;
 
 // Conversation summarization threshold
-const SUMMARIZATION_THRESHOLD = 10;
+const SUMMARIZATION_THRESHOLD = 20;
 
 // Nodes
 
@@ -252,11 +251,6 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   }
 
   if (shouldStream) {
-    console.log(
-      "messages :>> ",
-      messages.map((msg) => msg.content)
-    );
-
     // Stream the response - use concat to properly accumulate tool call chunks
     const stream = await llm_with_tools.stream(messages);
 
@@ -264,12 +258,9 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // console.log("chunk :>> ", chunk);
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
-      // console.log("chunk :>> ", chunk);
-      // console.log("gathered :>> ", gathered);
 
       // Capture token usage from streaming chunks (Anthropic sends this in first chunk)
       if (chunk.usage_metadata) {
-        console.log("usage_metadata in chunk :>> ", chunk.usage_metadata);
         if (chunk.usage_metadata.input_tokens) {
           turnTokensUsage.input_tokens = chunk.usage_metadata.input_tokens;
         }
@@ -325,8 +316,6 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       }
     }
 
-    console.log("gathered :>> ", gathered);
-
     // Return the gathered message (which has proper tool_calls)
     return {
       messages: [...state.messages, gathered],
@@ -337,7 +326,6 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
     // Capture token usage from response (Anthropic sends usage_metadata)
     if (response.usage_metadata) {
-      console.log("usage_metadata in response :>> ", response.usage_metadata);
       if (response.usage_metadata.input_tokens) {
         turnTokensUsage.input_tokens = response.usage_metadata.input_tokens;
       }
@@ -379,7 +367,7 @@ const handleInvalidToolCalls = async (state: typeof ChatAgentState.State) => {
 
   console.log("🚨 Invalid tool calls detected:", invalidToolCalls);
   console.log(`Retry attempt: ${retries + 1}/3`);
-  console.log("Last message:", lastMessage);
+  // console.log("Last message:", lastMessage);
 
   // We need to remove the problematic message with invalid_tool_calls
   // LangGraph's MessagesAnnotation uses a reducer, so we can:
@@ -534,7 +522,6 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
 
       // If this is the skill tool, extract and store its instructions
       if (msg.name === "live_ai_skills" && msg.content) {
-        console.log("📚 Skill tool called, storing active instructions");
         newActiveSkillInstructions = msg.content;
       }
 
@@ -554,9 +541,6 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
   let shouldRebuildSystemPrompt = false;
 
   if (needsExpansion && state.expandedResultsCallback) {
-    console.log(
-      "🔄 [Chat Agent] Tools added results, triggering context expansion"
-    );
     try {
       // Pass the original results context - the callback tracks additions via ref
       updatedResultsContext = await state.expandedResultsCallback(
@@ -573,8 +557,6 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
 
   // Rebuild system prompt if context was expanded
   if (shouldRebuildSystemPrompt && updatedResultsContext) {
-    console.log("🔄 [Chat Agent] Rebuilding system prompt with expanded context");
-
     // Build conversation context
     const conversationContext = buildConversationContext(
       state.conversationHistory,
@@ -591,7 +573,8 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     const systemPrompt = buildChatSystemPrompt({
       lastMessage: state.messages?.at(-1)?.content?.toString() || "",
       style: state.style,
-      commandPrompt: state.conversationHistory?.length < 2 && state.commandPrompt,
+      commandPrompt:
+        state.conversationHistory?.length < 2 && state.commandPrompt,
       toolsEnabled: state.toolsEnabled,
       conversationContext: conversationContext,
       resultsContext: resultsContextString,
@@ -602,7 +585,6 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     });
 
     sys_msg = new SystemMessage({ content: systemPrompt });
-    console.log("✅ [Chat Agent] System prompt rebuilt with expanded context");
   }
 
   return {

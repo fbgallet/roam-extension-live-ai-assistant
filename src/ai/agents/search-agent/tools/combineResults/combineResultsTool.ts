@@ -302,10 +302,105 @@ export const createResultSet = (
   metadata,
 });
 
+/**
+ * Helper function to resolve result IDs to actual result sets
+ * Returns both the result sets (with UIDs) and a map of UIDs to full result objects
+ */
+const resolveResultSets = (
+  resultSetsInput: any[],
+  state?: any
+): {
+  resultSets: Array<{ name: string; uids: string[]; type: "pages" | "blocks"; metadata?: any }>;
+  uidToResultMap: Record<string, any>;
+} => {
+  const resultSets: Array<{ name: string; uids: string[]; type: "pages" | "blocks"; metadata?: any }> = [];
+  const uidToResultMap: Record<string, any> = {};
+
+  for (const [index, item] of resultSetsInput.entries()) {
+    // If it's already a full result set object, return it
+    if (typeof item === "object" && item.uids && item.type) {
+      resultSets.push({
+        ...item,
+        metadata: item.metadata || {},
+      });
+      continue;
+    }
+
+    // If it's a string (result ID), look it up in the resultStore
+    if (typeof item === "string") {
+      const resultId = item;
+
+      if (!state?.resultStore) {
+        throw new Error(
+          `Cannot resolve result ID '${resultId}': No resultStore available in state`
+        );
+      }
+
+      const resultEntry = state.resultStore[resultId];
+      if (!resultEntry) {
+        const availableResults = Object.keys(state.resultStore || {}).join(", ");
+        throw new Error(
+          `Result ID '${resultId}' not found in resultStore. Available results: ${availableResults || "none"}`
+        );
+      }
+
+      // Extract the data from the stored result
+      const storedData = resultEntry.data || resultEntry;
+      if (!Array.isArray(storedData)) {
+        throw new Error(
+          `Result ID '${resultId}' does not contain an array of results`
+        );
+      }
+
+      // Determine the type and build UID mapping
+      let resultType: "pages" | "blocks" = "blocks";
+      const uids: string[] = [];
+
+      for (const result of storedData) {
+        if (result.uid) {
+          uids.push(result.uid);
+          // Store the full result object in the map
+          uidToResultMap[result.uid] = result;
+
+          // Check if it's a page or block
+          if (result.title !== undefined || result.isPage) {
+            resultType = "pages";
+          }
+        }
+      }
+
+      resultSets.push({
+        name: resultId,
+        uids,
+        type: resultType,
+        metadata: resultEntry.metadata || {},
+      });
+      continue;
+    }
+
+    throw new Error(
+      `Invalid result set at index ${index}: Expected a result ID string or a result set object`
+    );
+  }
+
+  return { resultSets, uidToResultMap };
+};
+
 export const combineResultsTool = tool(
-  async (llmInput) => {
+  async (llmInput, config) => {
     const startTime = performance.now();
     try {
+      // Extract state from config
+      const state = config?.configurable?.state;
+
+      console.log(
+        `🔧 [combineResults] Tool called with ${llmInput.resultSets.length} result sets`
+      );
+
+      // Resolve result IDs to actual result sets and get UID-to-result mapping
+      const { resultSets: resolvedResultSets, uidToResultMap } =
+        resolveResultSets(llmInput.resultSets, state);
+
       // Auto-enrich with internal parameters
       const enrichedInput = {
         ...llmInput,
@@ -318,20 +413,32 @@ export const combineResultsTool = tool(
         includeStats: true,
         includeSourceInfo: false,
         limit: 1000,
-        // Auto-enrich resultSets with metadata if missing
-        resultSets: llmInput.resultSets.map((rs: any) => ({
-          ...rs,
-          metadata: rs.metadata || {},
-        })),
+        // Use resolved result sets
+        resultSets: resolvedResultSets,
       };
 
-      const results = await combineResultsImpl(enrichedInput);
+      const combinedResults = await combineResultsImpl(enrichedInput);
+
+      // Enrich the combined UIDs with full result objects
+      const enrichedData = combinedResults.uids
+        .map(uid => uidToResultMap[uid])
+        .filter(result => result !== undefined); // Filter out any UIDs not found in the map
+
+      console.log(
+        `🔧 [combineResults] Enriched ${enrichedData.length} results with full data`
+      );
+
       return createToolResult(
         true,
-        results,
-        undefined,
+        enrichedData, // Return full result objects instead of just combinedResults
+        undefined, // no error
         "combineResults",
-        startTime
+        startTime,
+        {
+          ...combinedResults.stats,
+          operation: combinedResults.operation,
+          resultType: combinedResults.type,
+        }
       );
     } catch (error) {
       console.error("CombineResults tool error:", error);
@@ -347,7 +454,7 @@ export const combineResultsTool = tool(
   {
     name: "combineResults",
     description:
-      "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference).",
+      "Combine and deduplicate results from multiple search operations using set operations (union, intersection, difference). Pass result IDs from previous searches (e.g., ['findPagesByTitle_001', 'findBlocksByContent_002']).",
     schema: llmFacingSchema, // Use minimal schema
   }
 );

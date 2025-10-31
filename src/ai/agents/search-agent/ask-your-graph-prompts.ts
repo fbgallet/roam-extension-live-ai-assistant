@@ -100,6 +100,10 @@ For attribute in page searches, see below, operators are defined precisely.
    Use when: "pages of type X", "pages with X property", "pages where attribute Y is Z"
    - 'page:(attr:key:type:(A + B - C))' complex attribute queries with logical operators
 
+**Daily Notes Pages (DNP) special case:**
+- **'page:(dnp)'** - Find Daily Notes Pages within a time period
+   Use when: "Daily notes since n days"
+
 **🎯 NEW: Page Search Scope Semantics (CRITICAL for page:(content:(...)) searches)**
 
 **Content-Wide vs Same-Block Search:**
@@ -129,6 +133,11 @@ For attribute in page searches, see below, operators are defined precisely.
 - 'page:(title:A) + page:(content:B)' ❌ (multiple page operators)
 - 'page:status' ❌ (missing title/content/attr specification)
 - 'page:(content:A + B)' ❌ (missing inner parentheses for multiple conditions)
+
+**Examples:**
+- "Show me daily notes from last week" → 'page:(dnp)' + constraints: {timeRange: {start: "2024-01-15", end: "2024-01-21"}}
+- "Meetings mentioned in this week's DNPs" → 'PIPE(page:(dnp), text:meeting)' + timeRange
+- "Tasks in recent daily notes" → 'PIPE(page:(dnp), text:task | text:TODO)' + timeRange
 
 ### Scope Operators:
 - 'in:scope' search WITHIN specific page scope (e.g., in:work, in:dnp, in:attr:title:value)
@@ -168,6 +177,7 @@ For complex queries that can be decomposed into simpler steps:
 - 'UNION(ref:finance, page:(attr:status:ref:pending))' - blocks with #finance OR in pending pages
 - 'INTERSECTION(ref:AI, page:(content:(ref:research)))' - #AI blocks AND in research pages
 - 'PIPE(page:(attr:status:ref:pending), ref:finance)' - first find pending pages, then #finance within them
+- 'PIPE(page:(dnp), ref:project + text:task)' - in Daily notes in a defined period, search task tagged with #project
 
 ### Postprocession indication
 - 'analyze:type' analysis requests (connections, patterns, summary, count)`;
@@ -303,6 +313,15 @@ CRITICAL: For multi-condition AND queries with NOT conditions that will be conve
 - "All blocks about #AI or #ML or machine learning" → 'UNION(ref:AI, ref:ML, text:machine learning)'
 - "Recipe blocks that are in cooking pages" → 'INTERSECTION(ref:recipe, page:(content:(ref:cooking)))'
 - "Project blocks except those in completed pages" → 'DIFFERENCE(ref:project, page:(attr:status:ref:completed))'
+
+**5.6. DAILY NOTES PAGES (DNP) PATTERNS:**
+- "Show me daily notes from last week" → 'page:(dnp)' + constraints: {timeRange: {start: "YYYY-MM-DD", end: "YYYY-MM-DD"}}
+- "Meetings in this week's daily notes" → 'PIPE(page:(dnp), text:meeting)' + timeRange
+
+**CRITICAL for DNP queries:**
+- Use 'page:(dnp)' when user wants the DNP pages themselves
+- Use 'PIPE(page:(dnp), query)' when user wants blocks/content WITHIN DNPs from a period
+- ALWAYS set timeRange in constraints based on the temporal expression ("last week", "January", "recent", etc.)
 
 **6. SCOPE AND EXPANSION:**
 - "Blocks about AI in my [[work]] page" → 'in:work + text:AI~' (scope + semantic expansion)
@@ -699,6 +718,7 @@ Example 3: INTERSECTION for complex AND
 - 'page:(content:(text:A + text:B))' → findPagesByContent with searchScope: "content", combineConditions: "AND"
 - 'page:(block:(text:A + text:B))' → findPagesByContent with searchScope: "block", combineConditions: "AND"  
 - 'page:(title:(text:keyword))' → findPagesByTitle (no searchScope needed)
+- 'page:(dnp) → findDailyNotes (in period defined by timerange contrainst)
 
 **SCOPE SEMANTICS:**
 - **searchScope: "content"**: Conditions can match across different blocks in the same page (A in block 1, B in block 2)

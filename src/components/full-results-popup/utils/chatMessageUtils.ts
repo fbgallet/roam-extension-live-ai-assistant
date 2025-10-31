@@ -16,15 +16,18 @@ const escapeHtml = (text: string): string => {
 
 // Helper function to parse markdown tables
 const parseMarkdownTable = (tableText: string): string => {
-  const lines = tableText.trim().split('\n').map(line => line.trim());
+  const lines = tableText
+    .trim()
+    .split("\n")
+    .map((line) => line.trim());
 
   if (lines.length < 2) return tableText; // Need at least header and separator
 
   // Parse header row
   const headerCells = lines[0]
-    .split('|')
-    .map(cell => cell.trim())
-    .filter(cell => cell.length > 0);
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter((cell) => cell.length > 0);
 
   // Check separator row (should contain dashes and optional colons for alignment)
   const separatorRow = lines[1];
@@ -34,45 +37,47 @@ const parseMarkdownTable = (tableText: string): string => {
 
   // Parse alignment from separator row
   const alignments = separatorRow
-    .split('|')
-    .map(cell => cell.trim())
-    .filter(cell => cell.length > 0)
-    .map(cell => {
-      if (cell.match(/^:-+:$/)) return 'center';
-      if (cell.match(/^-+:$/)) return 'right';
-      if (cell.match(/^:-+$/)) return 'left';
-      return '';
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter((cell) => cell.length > 0)
+    .map((cell) => {
+      if (cell.match(/^:-+:$/)) return "center";
+      if (cell.match(/^-+:$/)) return "right";
+      if (cell.match(/^:-+$/)) return "left";
+      return "";
     });
 
   // Build HTML table
   let html = '<table class="markdown-table">';
 
   // Header
-  html += '<thead><tr>';
+  html += "<thead><tr>";
   headerCells.forEach((cell, i) => {
-    const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : '';
+    const align = alignments[i] ? ` style="text-align: ${alignments[i]}"` : "";
     html += `<th${align}>${cell}</th>`;
   });
-  html += '</tr></thead>';
+  html += "</tr></thead>";
 
   // Body rows
-  html += '<tbody>';
+  html += "<tbody>";
   for (let i = 2; i < lines.length; i++) {
     const cells = lines[i]
-      .split('|')
-      .map(cell => cell.trim())
-      .filter(cell => cell.length > 0);
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter((cell) => cell.length > 0);
 
     if (cells.length > 0) {
-      html += '<tr>';
+      html += "<tr>";
       cells.forEach((cell, j) => {
-        const align = alignments[j] ? ` style="text-align: ${alignments[j]}"` : '';
+        const align = alignments[j]
+          ? ` style="text-align: ${alignments[j]}"`
+          : "";
         html += `<td${align}>${cell}</td>`;
       });
-      html += '</tr>';
+      html += "</tr>";
     }
   }
-  html += '</tbody></table>';
+  html += "</tbody></table>";
 
   return html;
 };
@@ -113,12 +118,17 @@ export const renderMarkdown = (text: string): string => {
   const codeBlockPlaceholder = "CODEBLOCK-";
 
   // Multi-line code blocks ```language\ncode\n```
-  rendered = rendered.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, language, code) => {
-    const index = codeBlocks.length;
-    const langClass = language ? ` class="language-${language}"` : "";
-    codeBlocks.push(`<pre><code${langClass}>${escapeHtml(code.trim())}</code></pre>`);
-    return `${codeBlockPlaceholder}${index}`;
-  });
+  rendered = rendered.replace(
+    /```(\w*)\n([\s\S]*?)```/g,
+    (_match, language, code) => {
+      const index = codeBlocks.length;
+      const langClass = language ? ` class="language-${language}"` : "";
+      codeBlocks.push(
+        `<pre><code${langClass}>${escapeHtml(code.trim())}</code></pre>`
+      );
+      return `${codeBlockPlaceholder}${index}`;
+    }
+  );
 
   // STEP 2: Extract URLs, images, and inline code BEFORE text formatting
   // This protects them from being mangled by bold/italic processing
@@ -128,19 +138,29 @@ export const renderMarkdown = (text: string): string => {
   const linkPlaceholder = "LINK-";
 
   // Images: ![alt](url) - process BEFORE regular links
-  rendered = rendered.replace(/!\[([^\]]*)\]\(((?:https?:\/\/|www\.)[^\s\)]+)\)/g, (_match, alt, url) => {
-    const index = links.length;
-    links.push(`<img src="${url}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`);
-    return `${linkPlaceholder}${index}`;
-  });
+  rendered = rendered.replace(
+    /!\[([^\]]*)\]\(((?:https?:\/\/|www\.)[^\s\)]+)\)/g,
+    (_match, alt, url) => {
+      const index = links.length;
+      links.push(
+        `<img src="${url}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`
+      );
+      return `${linkPlaceholder}${index}`;
+    }
+  );
 
   // Regular links: [text](url)
-  rendered = rendered.replace(/\[([^\[\]]+?)\]\(((?:https?:\/\/|www\.)[^\s\)]+)\)/g, (_match, text, url) => {
-    const index = links.length;
-    const href = url.startsWith('www.') ? `https://${url}` : url;
-    links.push(`<a href="${href}" target="_blank" rel="noopener" class="external-link">${text}</a>`);
-    return `${linkPlaceholder}${index}`;
-  });
+  rendered = rendered.replace(
+    /\[([^\[\]]+?)\]\(((?:https?:\/\/|www\.)[^\s\)]+)\)/g,
+    (_match, text, url) => {
+      const index = links.length;
+      const href = url.startsWith("www.") ? `https://${url}` : url;
+      links.push(
+        `<a href="${href}" target="_blank" rel="noopener" class="external-link">${text}</a>`
+      );
+      return `${linkPlaceholder}${index}`;
+    }
+  );
 
   // 2.2: Process inline code (including double backticks)
   const inlineCodes: string[] = [];
@@ -162,18 +182,24 @@ export const renderMarkdown = (text: string): string => {
 
   // STEP 3: Process text formatting (bold, italic, strikethrough, highlight)
   // Bold text **text** (do this before italic to handle ***text*** correctly)
-  rendered = rendered.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>"); // Bold + Italic ***text***
+  rendered = rendered.replace(
+    /\*\*\*(.+?)\*\*\*/g,
+    "<strong><em>$1</em></strong>"
+  ); // Bold + Italic ***text***
   rendered = rendered.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"); // Bold **text**
 
   // Strikethrough ~~text~~
   rendered = rendered.replace(/~~(.+?)~~/g, "<del>$1</del>"); // ~~strikethrough~~
 
   // Highlight - support both Roam style ^^text^^ and markdown style ==text==
-  rendered = rendered.replace(/\^\^(.+?)\^\^/g, '<mark>$1</mark>'); // ^^highlight^^ (Roam style)
-  rendered = rendered.replace(/==(.+?)==/g, '<mark>$1</mark>'); // ==highlight== (markdown style)
+  rendered = rendered.replace(/\^\^(.+?)\^\^/g, "<mark>$1</mark>"); // ^^highlight^^ (Roam style)
+  rendered = rendered.replace(/==(.+?)==/g, "<mark>$1</mark>"); // ==highlight== (markdown style)
 
   // Italic text *text* or _text_
-  rendered = rendered.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>"); // *text* (not preceded/followed by *)
+  rendered = rendered.replace(
+    /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,
+    "<em>$1</em>"
+  ); // *text* (not preceded/followed by *)
   rendered = rendered.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<em>$1</em>"); // _text_ (not preceded/followed by _)
 
   // STEP 4: Process markdown tables AFTER inline code and text formatting
@@ -193,11 +219,11 @@ export const renderMarkdown = (text: string): string => {
   // STEP 3: Headers - handle ###### first (most specific), then decreasing
   // Note: We map # -> h2, ## -> h3, etc. (h1 reserved for page titles in Roam)
   rendered = rendered.replace(/(^|\n)###### (.+?)(?=\n|$)/gm, "$1<h6>$2</h6>"); // ###### -> h6
-  rendered = rendered.replace(/(^|\n)##### (.+?)(?=\n|$)/gm, "$1<h5>$2</h5>");   // ##### -> h5
-  rendered = rendered.replace(/(^|\n)#### (.+?)(?=\n|$)/gm, "$1<h4>$2</h4>");    // #### -> h4
-  rendered = rendered.replace(/(^|\n)### (.+?)(?=\n|$)/gm, "$1<h3>$2</h3>");     // ### -> h3
-  rendered = rendered.replace(/(^|\n)## (.+?)(?=\n|$)/gm, "$1<h2>$2</h2>");      // ## -> h2
-  rendered = rendered.replace(/(^|\n)# (.+?)(?=\n|$)/gm, "$1<h2>$2</h2>");       // # -> h2 (h1 reserved)
+  rendered = rendered.replace(/(^|\n)##### (.+?)(?=\n|$)/gm, "$1<h5>$2</h5>"); // ##### -> h5
+  rendered = rendered.replace(/(^|\n)#### (.+?)(?=\n|$)/gm, "$1<h4>$2</h4>"); // #### -> h4
+  rendered = rendered.replace(/(^|\n)### (.+?)(?=\n|$)/gm, "$1<h3>$2</h3>"); // ### -> h3
+  rendered = rendered.replace(/(^|\n)## (.+?)(?=\n|$)/gm, "$1<h2>$2</h2>"); // ## -> h2
+  rendered = rendered.replace(/(^|\n)# (.+?)(?=\n|$)/gm, "$1<h2>$2</h2>"); // # -> h2 (h1 reserved)
 
   // STEP 3.5: Horizontal rules - --- or *** or ___ (3 or more characters, on their own line)
   // Process BEFORE list items to avoid conflicts with - for bullets
@@ -205,21 +231,24 @@ export const renderMarkdown = (text: string): string => {
 
   // STEP 3.6: Blockquotes - > quote text (process before line break conversion)
   // Handle multi-line blockquotes
-  rendered = rendered.replace(/(^|\n)((?:>\s?.+(?:\n|$))+)/gm, (_match, prefix, quoteBlock) => {
-    // Remove the > prefix from each line and trim
-    const quoteContent = quoteBlock
-      .split('\n')
-      .map((line: string) => line.replace(/^>\s?/, '').trim())
-      .filter((line: string) => line.length > 0)
-      .join('<br>');
-    return `${prefix}<blockquote>${quoteContent}</blockquote>`;
-  });
+  rendered = rendered.replace(
+    /(^|\n)((?:>\s?.+(?:\n|$))+)/gm,
+    (_match, prefix, quoteBlock) => {
+      // Remove the > prefix from each line and trim
+      const quoteContent = quoteBlock
+        .split("\n")
+        .map((line: string) => line.replace(/^>\s?/, "").trim())
+        .filter((line: string) => line.length > 0)
+        .join("<br>");
+      return `${prefix}<blockquote>${quoteContent}</blockquote>`;
+    }
+  );
 
   // STEP 4: Lists - Bullet points and numbered lists with proper nesting/indentation
   // Process lists line by line to handle indentation properly
-  const lines = rendered.split('\n');
+  const lines = rendered.split("\n");
   const processedLines: string[] = [];
-  let listStack: Array<{ indent: number; type: 'ul' | 'ol' }> = [];
+  let listStack: Array<{ indent: number; type: "ul" | "ol" }> = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -234,19 +263,23 @@ export const renderMarkdown = (text: string): string => {
       const match = bulletMatch || numberedMatch;
       const indent = match![1].length;
       const content = match![3];
-      const listType = bulletMatch ? 'ul' : 'ol';
+      const listType = bulletMatch ? "ul" : "ol";
 
       // Calculate indent level (every 2 spaces = 1 level)
       const level = Math.floor(indent / 2);
 
       // Close lists if we've decreased indentation (only if STRICTLY greater, not equal)
-      while (listStack.length > 0 && listStack[listStack.length - 1].indent > level) {
+      while (
+        listStack.length > 0 &&
+        listStack[listStack.length - 1].indent > level
+      ) {
         const closingList = listStack.pop()!;
         processedLines.push(`</${closingList.type}>`);
       }
 
       // Check if we need to open a new list or switch list type at same level
-      const topList = listStack.length > 0 ? listStack[listStack.length - 1] : null;
+      const topList =
+        listStack.length > 0 ? listStack[listStack.length - 1] : null;
 
       if (!topList || topList.indent < level) {
         // Need to open a new nested list
@@ -282,7 +315,7 @@ export const renderMarkdown = (text: string): string => {
     processedLines.push(`</${closingList.type}>`);
   }
 
-  rendered = processedLines.join('\n');
+  rendered = processedLines.join("\n");
 
   // Convert double line breaks to paragraph breaks
   rendered = rendered.replace(/\n\n/g, "</p><p>");
@@ -291,10 +324,16 @@ export const renderMarkdown = (text: string): string => {
   // Exclude line breaks that come:
   // - Before opening/closing tags: <h1-6>, <li>, <ul>, <ol>, <hr>, <blockquote>
   // - After closing tags: </h1-6>, </li>, </ul>, </ol>, <hr>, </blockquote>
-  rendered = rendered.replace(/(?<!<\/(h[1-6]|li|ul|ol|blockquote)>|<hr>)\n(?!<\/?(h[1-6]|li|ul|ol|blockquote|hr)>)/g, "<br>");
+  rendered = rendered.replace(
+    /(?<!<\/(h[1-6]|li|ul|ol|blockquote)>|<hr>)\n(?!<\/?(h[1-6]|li|ul|ol|blockquote|hr)>)/g,
+    "<br>"
+  );
 
   // Clean up any remaining line breaks around headers, lists, hr, and blockquotes
-  rendered = rendered.replace(/(<br>)*(<\/?(h[1-6]|ul|ol|li|blockquote)|<hr\/?>)(<br>)*/g, "$2");
+  rendered = rendered.replace(
+    /(<br>)*(<\/?(h[1-6]|ul|ol|li|blockquote)|<hr\/?>)(<br>)*/g,
+    "$2"
+  );
 
   // Process bare URLs (markdown links already processed as LINK-x placeholders)
   // Bare URLs - https://... or http://...
@@ -319,20 +358,20 @@ export const renderMarkdown = (text: string): string => {
 
   // Convert Roam embed syntax to clickable links
   rendered = rendered.replace(
-    /\{\{\[\[(.*?)\]\]:\s*\(\(([^\(]{9})\)\)\}\}/g,
+    /\{\{\[\[(.*?)\]\]:\s*\(\(([^\(]{9,10})\)\)\}\}/g,
     '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>'
   );
 
   // IMPORTANT: Process [description](((uid))) BEFORE ((uid)) to prevent conflicts
   // Convert [description](((uid))) to clickable link with description
   rendered = rendered.replace(
-    /\[([^\[\]]+?)\]\(\(\(([^\(]{9})\)\)\)/g,
+    /\[([^\[\]]+?)\]\(\(\(([^\(]{9,10})\)\)\)/g,
     `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">$1</a>`
   );
 
   // Simple block reference ((uid)) - process AFTER [description](((uid)))
   rendered = rendered.replace(
-    /(?<!\]\()\(\(([^\(]{9})\)\)(?!\}\})/g,
+    /(?<!\]\()\(\(([^\(]{9,10})\)\)(?!\}\})/g,
     `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
   );
 
@@ -372,8 +411,34 @@ export const renderMarkdown = (text: string): string => {
 
   // Configure DOMPurify to allow target="_blank" on links and all formatting tags including tables and images
   return DOMPurify.sanitize(rendered, {
-    ADD_ATTR: ["target", "rel", "class", "data-block-uid", "data-page-title", "data-page-uid", "style", "src", "alt"],
-    ADD_TAGS: ["code", "pre", "blockquote", "hr", "del", "mark", "table", "thead", "tbody", "tr", "th", "td", "h5", "h6", "img"],
+    ADD_ATTR: [
+      "target",
+      "rel",
+      "class",
+      "data-block-uid",
+      "data-page-title",
+      "data-page-uid",
+      "style",
+      "src",
+      "alt",
+    ],
+    ADD_TAGS: [
+      "code",
+      "pre",
+      "blockquote",
+      "hr",
+      "del",
+      "mark",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "h5",
+      "h6",
+      "img",
+    ],
   });
 };
 
@@ -392,18 +457,21 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
   let converted = markdown;
 
   // 1. Convert highlights: ==text== → ^^text^^
-  converted = converted.replace(/==(.+?)==/g, '^^$1^^');
+  converted = converted.replace(/==(.+?)==/g, "^^$1^^");
 
   // 2. Convert italic: *text* or _text_ → __text__
   // Need to be careful not to convert bold (**text**) or list markers (- item)
   // Single asterisk/underscore for italic (but not at start of line for list markers)
-  converted = converted.replace(/(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)/g, '__$1__'); // *text* → __text__
-  converted = converted.replace(/(?<!_)_(?!_)([^_]+?)(?<!_)_(?!_)/g, '__$1__'); // _text_ → __text__
+  converted = converted.replace(
+    /(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)/g,
+    "__$1__"
+  ); // *text* → __text__
+  converted = converted.replace(/(?<!_)_(?!_)([^_]+?)(?<!_)_(?!_)/g, "__$1__"); // _text_ → __text__
 
   // 3. Convert task checkboxes: [x] or [X] → {{[[DONE]]}}, [ ] → {{[[TODO]]}}
   // These typically appear at the start of list items: "- [ ] Task" or "- [x] Task"
-  converted = converted.replace(/\[x\]/gi, '{{[[DONE]]}}'); // [x] or [X] → {{[[DONE]]}}
-  converted = converted.replace(/\[ \]/g, '{{[[TODO]]}}'); // [ ] → {{[[TODO]]}}
+  converted = converted.replace(/\[x\]/gi, "{{[[DONE]]}}"); // [x] or [X] → {{[[DONE]]}}
+  converted = converted.replace(/\[ \]/g, "{{[[TODO]]}}"); // [ ] → {{[[TODO]]}}
 
   // 4. Convert markdown tables to Roam tables
   // Detect markdown tables (header row + separator row + data rows)
@@ -414,36 +482,37 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
       return match; // Not a valid table, keep as-is
     }
 
-    const lines = match.trim().split('\n');
+    const lines = match.trim().split("\n");
     if (lines.length < 3) return match; // Need at least header + separator + 1 row
 
     // Parse all rows (including header)
     const allRows = lines
       .filter((_, index) => index !== 1) // Skip separator row (index 1)
-      .map(line =>
-        line.split('|')
-          .map(cell => cell.trim())
-          .filter(cell => cell.length > 0)
+      .map((line) =>
+        line
+          .split("|")
+          .map((cell) => cell.trim())
+          .filter((cell) => cell.length > 0)
       );
 
     if (allRows.length === 0) return match;
 
     // Build Roam table format: each row is a top-level item, columns are nested
-    let roamTable = '- {{[[table]]}}\n';
+    let roamTable = "- {{[[table]]}}\n";
 
     allRows.forEach((row, rowIndex) => {
       row.forEach((cell, colIndex) => {
         // Indentation: row items at level 1, then each column adds a level
-        const indent = '  '.repeat(colIndex + 1);
+        const indent = "  ".repeat(colIndex + 1);
 
         // First row (header) gets bold formatting
-        const cellContent = rowIndex === 0 ? `**${cell}**` : (cell || ' ');
+        const cellContent = rowIndex === 0 ? `**${cell}**` : cell || " ";
 
         roamTable += `${indent}- ${cellContent}\n`;
       });
     });
 
-    return '\n' + roamTable;
+    return "\n" + roamTable;
   });
 
   return converted;
@@ -464,14 +533,14 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
   let converted = roamText;
 
   // 1. Convert highlights: ^^text^^ → ==text==
-  converted = converted.replace(/\^\^(.+?)\^\^/g, '==$1==');
+  converted = converted.replace(/\^\^(.+?)\^\^/g, "==$1==");
 
   // 2. Convert italic: __text__ → *text*
-  converted = converted.replace(/__(.+?)__/g, '*$1*');
+  converted = converted.replace(/__(.+?)__/g, "*$1*");
 
   // 3. Convert task checkboxes: {{[[DONE]]}} → [x], {{[[TODO]]}} → [ ]
-  converted = converted.replace(/\{\{\[\[DONE\]\]\}\}/g, '[x]');
-  converted = converted.replace(/\{\{\[\[TODO\]\]\}\}/g, '[ ]');
+  converted = converted.replace(/\{\{\[\[DONE\]\]\}\}/g, "[x]");
+  converted = converted.replace(/\{\{\[\[TODO\]\]\}\}/g, "[ ]");
 
   // 4. Convert Roam tables to markdown tables
   // Roam tables use chained nested bullets: each column is nested inside the previous one
@@ -485,7 +554,7 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
     // Parse all lines first
     const parsedLines: Array<{ level: number; content: string }> = [];
     // DON'T trim here - it removes leading spaces from first line!
-    const lines = tableContent.split('\n');
+    const lines = tableContent.split("\n");
 
     for (const line of lines) {
       const indentMatch = line.match(/^(\s*)-\s+(.+)$/);
@@ -497,9 +566,9 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
 
       // Remove formatting for content extraction
       const cleanContent = content
-        .replace(/\*\*(.+?)\*\*/g, '$1')  // Remove bold
-        .replace(/\^\^(.+?)\^\^/g, '$1')  // Remove highlight
-        .replace(/__(.+?)__/g, '$1')      // Remove italic
+        .replace(/\*\*(.+?)\*\*/g, "$1") // Remove bold
+        .replace(/\^\^(.+?)\^\^/g, "$1") // Remove highlight
+        .replace(/__(.+?)__/g, "$1") // Remove italic
         .trim();
 
       parsedLines.push({ level: indentLevel, content: cleanContent });
@@ -547,29 +616,29 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
     if (rows.length === 0) return match;
 
     // Build markdown table
-    const maxCols = Math.max(...rows.map(row => row.length));
+    const maxCols = Math.max(...rows.map((row) => row.length));
 
     // Pad rows to have same number of columns
-    const paddedRows = rows.map(row => {
+    const paddedRows = rows.map((row) => {
       const padded = [...row];
       while (padded.length < maxCols) {
-        padded.push('');
+        padded.push("");
       }
       return padded;
     });
 
     // Build header row
-    let markdownTable = '| ' + paddedRows[0].join(' | ') + ' |\n';
+    let markdownTable = "| " + paddedRows[0].join(" | ") + " |\n";
 
     // Build separator row
-    markdownTable += '| ' + Array(maxCols).fill('---').join(' | ') + ' |\n';
+    markdownTable += "| " + Array(maxCols).fill("---").join(" | ") + " |\n";
 
     // Build data rows
     for (let i = 1; i < paddedRows.length; i++) {
-      markdownTable += '| ' + paddedRows[i].join(' | ') + ' |\n';
+      markdownTable += "| " + paddedRows[i].join(" | ") + " |\n";
     }
 
-    return '\n' + markdownTable;
+    return "\n" + markdownTable;
   });
 
   return converted;

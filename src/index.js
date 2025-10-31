@@ -43,6 +43,7 @@ import { uidRegex } from "./utils/regex";
 import MCPConfigComponent from "./components/MCPConfigComponent";
 import { mcpManager } from "./ai/agents/mcp-agent/mcpManager";
 import React from "react";
+import "./components/full-results-popup/index.tsx"; // Register window.LiveAI.openFullResultsPopup
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -1499,7 +1500,8 @@ export default {
     mountComponent(position);
     if (!isComponentAlwaysVisible) toggleComponentVisibility();
 
-    window.LiveAI = {};
+    // Initialize window.LiveAI if it doesn't exist (don't overwrite existing functions)
+    if (!window.LiveAI) window.LiveAI = {};
 
     // Add cleanup function for broken queries (temporary)
     import("./components/full-results-popup/utils/queryStorage.ts")

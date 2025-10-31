@@ -8,6 +8,7 @@ import { combineResultsTool } from "./combineResults/combineResultsTool";
 import { executeDatomicQueryTool } from "./executeDatomicQuery/executeDatomicQueryTool";
 import { extractPageReferencesTool } from "./extractPagesReferences/extractPageReferencesTool";
 import { getNodeDetailsTool } from "./getNodeDetails/getNodeDetailsTool";
+import { findDailyNotesByPeriodTool } from "./findDailyNotesByPeriod/findDailyNotesByPeriodTool";
 
 /**
  * Registry of all ReAct Search Agent tools with security levels
@@ -27,6 +28,13 @@ export const SEARCH_TOOLS: Record<string, ToolInfo> = {
     securityLevel: "secure",
     description:
       "Find pages by title conditions with exact, contains, or regex matching. Supports smart expansion - finds similar existing pages + semantic variations with existence validation",
+  },
+
+  findDailyNotesByPeriod: {
+    tool: findDailyNotesByPeriodTool,
+    securityLevel: "secure",
+    description:
+      "Find Daily Notes Pages (DNP) within a specific time period using efficient batch queries. Supports filtering by creation or modification date, and optionally includes page content and linked references",
   },
 
   // findPagesSemantically: {
