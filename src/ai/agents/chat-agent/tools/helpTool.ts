@@ -31,9 +31,9 @@ export const helpTool = tool(
 
     // Validate topic
     if (!DOC_URLS[topic]) {
-      return `Error: Unknown documentation topic "${topic}". Available topics: ${Object.keys(
+      return `[DISPLAY]Error: Unknown documentation topic "${topic}". Available topics: ${Object.keys(
         DOC_URLS
-      ).join(", ")}`;
+      ).join(", ")}[/DISPLAY]`;
     }
 
     // Build the public GitHub URL for linking
@@ -52,9 +52,9 @@ export const helpTool = tool(
     );
 
     if (docAlreadyFetched) {
-      return `Documentation for "${topic}" was already provided earlier in this conversation. Please refer to the previously fetched content.
+      return `[DISPLAY]Documentation for "${topic}" was already provided earlier in this conversation.
 
-Source: ${publicUrl}`;
+Source: ${publicUrl}[/DISPLAY]`;
     }
 
     try {
@@ -63,30 +63,30 @@ Source: ${publicUrl}`;
 
       if (!response.ok) {
         if (response.status === 404) {
-          return `Documentation not yet available for "${topic}". This documentation may be coming soon.`;
+          return `[DISPLAY]Documentation not yet available for "${topic}". This documentation may be coming soon.[/DISPLAY]`;
         }
-        return `Error fetching documentation: ${response.status} ${response.statusText}`;
+        return `[DISPLAY]Error fetching documentation: ${response.status} ${response.statusText}[/DISPLAY]`;
       }
 
       const content = await response.text();
 
       // Return the documentation content with source URL
-      return `# Documentation: ${topic}
+      // Format: [DISPLAY]...[/DISPLAY] for UI callback, then full content for agent context
+      return `[DISPLAY]Source: ${publicUrl}[/DISPLAY]
 
-Source: ${publicUrl}
+# Documentation: ${topic}
 
 ---
 
 ${content}
 
 ---
-
-**When referencing this documentation to the user, provide the source link above so they can access the full documentation online.**`;
+`;
     } catch (error) {
       console.error("Error fetching documentation:", error);
-      return `Error fetching documentation: ${
+      return `[DISPLAY]Error fetching documentation: ${
         error instanceof Error ? error.message : String(error)
-      }`;
+      }[/DISPLAY]`;
     }
   },
   {
@@ -110,7 +110,8 @@ Use this tool when users ask questions about:
 - Chat agent
 - MCP integration
 - Custom prompts or advanced features
-- Any other extension functionality`,
+- Any other extension functionality
+- Roam Research app`,
     schema: z.object({
       topic: z
         .enum([

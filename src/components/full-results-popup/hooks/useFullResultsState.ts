@@ -132,18 +132,31 @@ export const useFullResultsState = (
     }
   };
 
-  // Chat state
+  // Chat state - Initialize from window object if available (persisted from previous session)
   const [showChat, setShowChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    const persistedMessages = (window as any).lastChatMessages;
+    return persistedMessages && Array.isArray(persistedMessages)
+      ? persistedMessages
+      : [];
+  });
   const [chatAccessMode, setChatAccessMode] = useState<
     "Balanced" | "Full Access"
   >(() => {
+    // First try to restore from persisted state
+    const persistedMode = (window as any).lastChatAccessMode;
+    if (persistedMode === "Balanced" || persistedMode === "Full Access") {
+      return persistedMode;
+    }
+    // Fall back to default mode from storage
     const defaultMode = extensionStorage.get("askGraphMode") || "Balanced";
     return defaultMode === "Private"
       ? "Balanced"
       : (defaultMode as "Balanced" | "Full Access");
   });
-  const [chatAgentData, setChatAgentData] = useState<any>(null);
+  const [chatAgentData, setChatAgentData] = useState<any>(() => {
+    return (window as any).lastChatAgentData || null;
+  });
   const [chatExpandedResults, setChatExpandedResults] = useState<
     Result[] | null
   >(null);
@@ -189,8 +202,12 @@ export const useFullResultsState = (
       setCurrentPage(1);
       setViewMode("mixed"); // Always show mixed view by default
 
-      // Set chat state based on forceOpenChat flag
-      setShowChat(forceOpenChat);
+      // Set chat state based on forceOpenChat flag or persisted messages
+      // If there are persisted chat messages, automatically show the chat
+      const hasPersistedMessages =
+        (window as any).lastChatMessages &&
+        (window as any).lastChatMessages.length > 0;
+      setShowChat(forceOpenChat || hasPersistedMessages);
 
       // Reset references filters
       setIncludedReferences([]);
@@ -531,6 +548,22 @@ export const useFullResultsState = (
       delete (window as any).__currentChatStyle;
     }
 
+    // Persist chat messages and related state in window object
+    // Similar to how results are persisted in window.lastAskYourGraphResults
+    // Note: chatExpandedResults is not stored as it will be recalculated from results
+    if (chatMessages.length > 0) {
+      (window as any).lastChatMessages = chatMessages;
+      (window as any).lastChatAgentData = chatAgentData;
+      (window as any).lastChatAccessMode = chatAccessMode;
+      // Note: Additional chat state (loadedChatUid, insertedMessagesCount, selectedModel)
+      // is managed at the FullResultsChat level and should be persisted there
+    } else {
+      // If no messages, clear the persisted state
+      delete (window as any).lastChatMessages;
+      delete (window as any).lastChatAgentData;
+      delete (window as any).lastChatAccessMode;
+    }
+
     // Remove the popup container directly
     setTimeout(() => {
       const container = document.getElementById("full-results-popup-container");
@@ -583,6 +616,10 @@ export const useFullResultsState = (
     setChatMessages([]);
     setChatAgentData(null);
     setChatExpandedResults(null);
+    // Also clear persisted chat state from window object
+    delete (window as any).lastChatMessages;
+    delete (window as any).lastChatAgentData;
+    delete (window as any).lastChatAccessMode;
   };
 
   const handleExpandedToggle = () => {

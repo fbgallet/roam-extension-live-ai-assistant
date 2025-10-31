@@ -122,8 +122,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(null);
-  const [loadedChatUid, setLoadedChatUid] = useState<string | null>(null);
+  const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(() => {
+    // Restore from persisted state if available
+    // Make sure to clean the title (remove #liveai/chat tag if present)
+    const persistedTitle = (window as any).lastLoadedChatTitle;
+    return persistedTitle ? persistedTitle.replace(/#liveai\/chat/g, "").trim() : null;
+  });
+  const [loadedChatUid, setLoadedChatUid] = useState<string | null>(() => {
+    // Restore from persisted state if available
+    return (window as any).lastLoadedChatUid || initialLoadedChatUid || null;
+  });
   const [selectedStyle, setSelectedStyle] = useState<string>(() => {
     // Load style from window object (whether pinned or not), or use initialStyle/defaultStyle
     const sessionStyle = (window as any).__currentChatStyle;
@@ -183,7 +191,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Track the number of initial messages loaded from Roam
   // This helps us exclude them when inserting the conversation back
   // Using state instead of ref so ChatHeader can display the updated count
-  const [insertedMessagesCount, setInsertedMessagesCount] = useState<number>(0);
+  const [insertedMessagesCount, setInsertedMessagesCount] = useState<number>(() => {
+    // Restore from persisted state if available
+    return (window as any).lastInsertedMessagesCount || 0;
+  });
   const hasAutoExecutedRef = useRef(false); // Prevent double execution
 
   // Initialize chat from provided initial state
@@ -827,9 +838,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     []
   ); // Track result selection changes
-  const [selectedModel, setSelectedModel] = useState<string>(
-    initialChatModel || defaultModel
-  );
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    // Restore from persisted state if available, otherwise use initial or default
+    return (window as any).lastChatModel || initialChatModel || defaultModel;
+  });
   const [modelTokensLimit, setModelTokensLimit] = useState<number>(
     modelAccordingToProvider(initialChatModel || defaultModel).tokensLimit ||
       128000
@@ -963,6 +975,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     );
   }, [selectedModel]);
 
+  // Persist chat-specific state whenever it changes
+  // This allows restoration after popup close/reopen
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      (window as any).lastLoadedChatUid = loadedChatUid;
+      (window as any).lastLoadedChatTitle = loadedChatTitle;
+      (window as any).lastInsertedMessagesCount = insertedMessagesCount;
+      (window as any).lastChatModel = selectedModel;
+    }
+  }, [loadedChatUid, loadedChatTitle, insertedMessagesCount, selectedModel, chatMessages.length]);
+
   const getSelectedResultsForChat = () => {
     // Create copies to prevent mutation of shared objects from parent component
     const results = selectedResults.length > 0 ? selectedResults : allResults;
@@ -982,6 +1005,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Clear tool usage history
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = [];
+    // Clear persisted chat-specific state from window object
+    delete (window as any).lastLoadedChatUid;
+    delete (window as any).lastLoadedChatTitle;
+    delete (window as any).lastInsertedMessagesCount;
+    delete (window as any).lastChatModel;
   };
 
   const copyToClipboard = async (text: string) => {
@@ -1038,6 +1066,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             blockUid: targetRef.current,
             newContent: firstMsg?.content,
           });
+          // Set the title from the first message content (without the tag)
+          setLoadedChatUid(targetRef.current);
+          setLoadedChatTitle(firstMsg?.content?.replace(/#liveai\/chat/g, "").trim() || "");
         } else {
           // Create a summary of the conversation for the LLM (first 50 chars of each message)
           const conversationSummary = newMessages
@@ -1061,10 +1092,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             isButtonToInsert: false,
           });
         }
-        setLoadedChatUid(
-          targetContent.trim() || getBlockContentByUid(targetRef.current)
-        );
+
+        // After title generation, get the actual title and set both UID and title
+        // Remove the #liveai/chat tag from the displayed title
+        const generatedTitle = getBlockContentByUid(targetRef.current);
         setLoadedChatUid(targetRef.current);
+        setLoadedChatTitle(generatedTitle.replace(/#liveai\/chat/g, "").trim());
       }
 
       // Insert each message separately to properly handle markdown structure

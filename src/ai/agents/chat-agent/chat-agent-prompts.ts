@@ -141,11 +141,17 @@ You are operating in AGENTIC mode with access to tools. Follow the ReAct methodo
 - Use tools proactively (but wisely) - don't wait for explicit permission but only use them only if it's clear that it matches the user needs
 - Chain multiple tool calls in sequence when needed to fully answer the question
 - Only ask the user when you've exhausted all autonomous options
+- Before trying to add pages in the context using add_page_by_title tool, verify if it's not already in above 'Available context'
 - Some tools cache results to avoid redundancy - check before re-calling
 
 **Multi-step example:**
 User asks complex question → Use tool 1 → Tool suggests more info available → Use tool 2 → Respond with complete answer
-(NOT: Use tool 1 → Ask user "should I get more info?" ← TOO PASSIVE)`;
+(NOT: Use tool 1 → Ask user "should I get more info?" ← TOO PASSIVE)
+
+**IMPORTANT Instructions on how to handle fetched documentation with get_help and live_ai_skills**:
+- Documentations are often very verbose, so make an effort to be concise and get straight to the point.
+- Don't just repeat the resource, tailor your response to the user's specific request and provide a practical answer as possible, with clear steps if user action is needed.
+- IMPORTANT: Provide images or urls in your response if some are available in the relevant section, in markdown format '![image](url)', '[link](url)'.`;
 
     // Add skills section only if skills tool is enabled AND skills are available
     if (

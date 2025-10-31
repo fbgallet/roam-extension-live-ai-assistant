@@ -532,9 +532,20 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
 
       // Call toolResponseCallback to capture tool's response for UI display
       if (state.toolResponseCallback) {
+        // For help tool, extract only the display portion (title and source)
+        let displayResponse = msg.content;
+        if (msg.name === "get_help" && msg.content) {
+          const displayMatch = msg.content.match(
+            /\[DISPLAY\]([\s\S]*?)\[\/DISPLAY\]/
+          );
+          if (displayMatch) {
+            displayResponse = displayMatch[1].trim();
+          }
+        }
+
         state.toolResponseCallback({
           toolName: msg.name,
-          response: msg.content,
+          response: displayResponse,
         });
       }
     }
