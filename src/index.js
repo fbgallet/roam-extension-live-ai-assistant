@@ -44,6 +44,7 @@ import MCPConfigComponent from "./components/MCPConfigComponent";
 import { mcpManager } from "./ai/agents/mcp-agent/mcpManager";
 import React from "react";
 import "./components/full-results-popup/index.tsx"; // Register window.LiveAI.openFullResultsPopup
+import { initializeHelpDepot } from "./ai/agents/chat-agent/tools/helpDepotUtils";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -1215,6 +1216,10 @@ function getPanelConfig() {
 export default {
   onload: async ({ extensionAPI }) => {
     extensionStorage = extensionAPI.settings;
+
+    // Initialize help depot after extensionStorage is ready
+    initializeHelpDepot();
+
     // await extensionAPI.settings.panel.create(panelConfig);
     // get settings from setting panel
     if (extensionAPI.settings.get("visibility") === null)

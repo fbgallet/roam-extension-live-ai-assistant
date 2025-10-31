@@ -34,10 +34,8 @@ export const getChatTools = (
   if (enabledTools && enabledTools.size > 0) {
     return chatTools.filter((tool) => {
       // Check if this tool's name is in the enabledTools set
-      const toolName = Object.keys(CHAT_TOOLS).find(
-        (name) => CHAT_TOOLS[name].tool === tool
-      );
-      return toolName && enabledTools.has(toolName);
+      // Use the tool's name property instead of comparing instances
+      return tool && tool.name && enabledTools.has(tool.name);
     });
   }
 

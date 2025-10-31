@@ -11,94 +11,117 @@ import { z } from "zod";
 import {
   getEnabledTopics,
   convertGithubUrlToRaw,
+  BUILTIN_LIVEAI_TOPICS,
 } from "./helpDepotUtils";
 
-// Base URL for raw GitHub content
-const GITHUB_RAW_BASE =
-  "https://raw.githubusercontent.com/fbgallet/roam-extension-live-ai-assistant/main";
+/**
+ * Builds the help tool description dynamically based on enabled topics
+ */
+function buildHelpToolDescription(): string {
+  // Get enabled topics at call time (dynamic)
+  const enabledTopics = getEnabledTopics();
 
-// Documentation mapping
-const DOC_URLS: Record<string, string> = {
-  overview: `${GITHUB_RAW_BASE}/README.md`,
-  pricing: `${GITHUB_RAW_BASE}/docs/api-keys-and-pricing.md`,
-  "generative-ai": `${GITHUB_RAW_BASE}/docs/generative-ai.md`,
-  "mcp-agent": `${GITHUB_RAW_BASE}/docs/mcp-agent.md`,
-  "query-agents": `${GITHUB_RAW_BASE}/docs/query-agents.md`,
-  "live-outliner": `${GITHUB_RAW_BASE}/docs/live-outliner.md`,
-  // chat-agent documentation (to be added later)
-  "chat-agent": `${GITHUB_RAW_BASE}/docs/chat-agent.md`,
-  "official-roam-faq": `${GITHUB_RAW_BASE}/docs/roam-help/official-roam-faq.md`,
-};
+  // Group topics by category
+  const topicsByCategory: Record<string, string[]> = {};
 
-export const helpTool = tool(
-  async (input: { topic: string }, config) => {
-    const { topic } = input;
+  // Add built-in Live AI topics
+  topicsByCategory["Live AI Extension"] = BUILTIN_LIVEAI_TOPICS.map(
+    (t) => `  - "${t.id}": ${t.shortDescription}`
+  );
 
-    // Check if topic is from depot (third-party docs)
-    const enabledTopics = getEnabledTopics();
-    const depotTopic = enabledTopics.find((t) => t.id === topic);
+  // Add depot topics grouped by category
+  const depotTopics = enabledTopics.filter(
+    (t) => !BUILTIN_LIVEAI_TOPICS.some((bt) => bt.id === t.id)
+  );
 
-    let rawUrl: string;
-    let publicUrl: string;
-
-    if (depotTopic) {
-      // Handle depot topic
-      rawUrl = convertGithubUrlToRaw(depotTopic.url);
-      publicUrl = depotTopic.url;
-    } else if (DOC_URLS[topic]) {
-      // Handle built-in Live AI docs
-      rawUrl = DOC_URLS[topic];
-      publicUrl = DOC_URLS[topic]
-        .replace("raw.githubusercontent.com", "github.com")
-        .replace("/main/", "/blob/main/");
-    } else {
-      // Unknown topic
-      const availableTopics = [
-        ...Object.keys(DOC_URLS),
-        ...enabledTopics.map((t) => t.id),
-      ];
-      return `[DISPLAY]Error: Unknown documentation topic "${topic}". Available topics: ${availableTopics.join(
-        ", "
-      )}[/DISPLAY]`;
+  depotTopics.forEach((t) => {
+    const categoryName = t.category || "Other";
+    if (!topicsByCategory[categoryName]) {
+      topicsByCategory[categoryName] = [];
     }
-
-    // Check if this documentation was already fetched using the tool results cache
-    const toolResultsCache = config?.configurable?.toolResultsCache || {};
-    const docAlreadyFetched = Object.values(toolResultsCache).some(
-      (cached: any) =>
-        cached.tool_name === "get_help" &&
-        cached.content &&
-        typeof cached.content === "string" &&
-        cached.content.includes(`# Documentation: ${topic}`)
+    topicsByCategory[categoryName].push(
+      `  - "${t.id}": ${t.shortDescription} (by ${t.author})`
     );
+  });
 
-    if (docAlreadyFetched) {
-      return `[DISPLAY]Documentation for "${topic}" was already provided earlier in this conversation.
+  // Build the description
+  const categorySections = Object.entries(topicsByCategory)
+    .map(([category, topics]) => `${category}:\n${topics.join("\n")}`)
+    .join("\n\n");
 
-Source: ${publicUrl}[/DISPLAY]`;
-    }
+  console.log("categorySections :>> ", categorySections);
 
-    try {
-      // Fetch the documentation from GitHub
-      const response = await fetch(rawUrl);
+  return `Fetch documentation when user asks for help about Live AI features or other enabled topics.
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          return `[DISPLAY]Documentation not yet available for "${topic}". This documentation may be coming soon.[/DISPLAY]`;
-        }
-        return `[DISPLAY]Error fetching documentation: ${response.status} ${response.statusText}[/DISPLAY]`;
+Available Topics:
+${categorySections}
+
+Choose the most relevant topic based on the user's question.`;
+}
+
+/**
+ * Creates the help tool with current enabled topics
+ * Should be called each time tools are loaded to get fresh topic list
+ */
+export function createHelpTool() {
+  return tool(
+    async (input: { topic: string }, config) => {
+      const { topic } = input;
+
+      // Check enabled topics (includes both built-in and depot topics)
+      const enabledTopics = getEnabledTopics();
+      const selectedTopic = enabledTopics.find((t) => t.id === topic);
+
+      if (!selectedTopic) {
+        // Unknown topic
+        const availableTopics = enabledTopics.map((t) => t.id);
+        return `[DISPLAY]Error: Unknown documentation topic "${topic}". Available topics: ${availableTopics.join(
+          ", "
+        )}[/DISPLAY]`;
       }
 
-      const content = await response.text();
+      // Get URLs from the topic
+      const rawUrl = convertGithubUrlToRaw(selectedTopic.url);
+      const publicUrl = selectedTopic.url;
 
-      // Build topic display name
-      const topicDisplayName = depotTopic
-        ? `${depotTopic.topic} (by ${depotTopic.author})`
-        : topic;
+      // Check if this documentation was already fetched using the tool results cache
+      const toolResultsCache = config?.configurable?.toolResultsCache || {};
+      const docAlreadyFetched = Object.values(toolResultsCache).some(
+        (cached: any) =>
+          cached.tool_name === "get_help" &&
+          cached.content &&
+          typeof cached.content === "string" &&
+          cached.content.includes(`# Documentation: ${topic}`)
+      );
 
-      // Return the documentation content with source URL
-      // Format: [DISPLAY]...[/DISPLAY] for UI callback, then full content for agent context
-      return `[DISPLAY]Source: ${publicUrl}[/DISPLAY]
+      if (docAlreadyFetched) {
+        return `[DISPLAY]Documentation for "${topic}" was already provided earlier in this conversation.
+
+Source: ${publicUrl}[/DISPLAY]`;
+      }
+
+      try {
+        // Fetch the documentation from GitHub
+        const response = await fetch(rawUrl);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            return `[DISPLAY]Documentation not yet available for "${topic}". This documentation may be coming soon.[/DISPLAY]`;
+          }
+          return `[DISPLAY]Error fetching documentation: ${response.status} ${response.statusText}[/DISPLAY]`;
+        }
+
+        const content = await response.text();
+
+        // Build topic display name with author if not a built-in topic
+        const isBuiltIn = BUILTIN_LIVEAI_TOPICS.some((bt) => bt.id === selectedTopic.id);
+        const topicDisplayName = isBuiltIn
+          ? selectedTopic.topic
+          : `${selectedTopic.topic} (by ${selectedTopic.author})`;
+
+        // Return the documentation content with source URL
+        // Format: [DISPLAY]...[/DISPLAY] for UI callback, then full content for agent context
+        return `[DISPLAY]Source: ${publicUrl}[/DISPLAY]
 
 # Documentation: ${topicDisplayName}
 
@@ -108,51 +131,23 @@ ${content}
 
 ---
 `;
-    } catch (error) {
-      console.error("Error fetching documentation:", error);
-      return `[DISPLAY]Error fetching documentation: ${
-        error instanceof Error ? error.message : String(error)
-      }[/DISPLAY]`;
+      } catch (error) {
+        console.error("Error fetching documentation:", error);
+        return `[DISPLAY]Error fetching documentation: ${
+          error instanceof Error ? error.message : String(error)
+        }[/DISPLAY]`;
+      }
+    },
+    {
+      name: "get_help",
+      description: buildHelpToolDescription(),
+      schema: z.object({
+        topic: z
+          .string()
+          .describe(
+            "The documentation topic ID to fetch. Must be one of the available topic IDs listed in the description. Choose based on what the user is asking about."
+          ),
+      }),
     }
-  },
-  {
-    name: "get_help",
-    description: `Fetch documentation about Live AI extension features or Roam Research app when the user asks for help.
-
-Topics:
-- "overview": General introduction and getting started with Live AI extension
-- "pricing": LLM providers, API keys, and pricing information
-- "generative-ai": Advanced generative AI features (custom prompts, inline context, smartblocks, etc.)
-- "mcp-agent": MCP agent documentation
-- "query-agents": Query agents including Ask Your Graph
-- "live-outliner": Live Outliner features
-- "chat-agent": Chat agent documentation (coming soon)
-- "official-roam-faq": FAQ about Roam Research
-
-Use this tool when users ask questions about:
-- How to use Live AI extension or any of its features
-- Pricing or API keys
-- Ask Your Graph agent
-- Chat agent
-- MCP integration
-- Custom prompts or advanced features
-- Any other extension functionality
-- Roam Research app`,
-    schema: z.object({
-      topic: z
-        .enum([
-          "overview",
-          "pricing",
-          "generative-ai",
-          "mcp-agent",
-          "query-agents",
-          "live-outliner",
-          "chat-agent",
-          "official-roam-faq",
-        ])
-        .describe(
-          "The documentation topic to fetch. Choose based on what the user is asking about."
-        ),
-    }),
-  }
-);
+  );
+}

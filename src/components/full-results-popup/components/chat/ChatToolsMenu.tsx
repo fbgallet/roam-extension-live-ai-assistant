@@ -31,6 +31,8 @@ import {
   MAX_ENABLED_TOPICS,
   type HelpTopic,
 } from "../../../../ai/agents/chat-agent/tools/helpDepotUtils";
+import "../../style/chatToolsMenu.css";
+import { MINIMAL } from "@blueprintjs/core/lib/esm/common/classes";
 
 interface ChatToolsMenuProps {
   enabledTools: Set<string>;
@@ -244,77 +246,38 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
 
             {/* Help Topics Configuration (only for get_help tool) */}
             {isGetHelpTool && enabledTools.has("get_help") && (
-              <div
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#f5f5f5",
-                  borderLeft: "3px solid #137cbd",
-                }}
-              >
+              <div className="help-topics-section">
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "8px",
-                    cursor: "pointer",
-                  }}
+                  className="help-topics-header"
                   onClick={() =>
                     setIsHelpSectionExpanded(!isHelpSectionExpanded)
                   }
                 >
-                  <div style={{ display: "flex", alignItems: "center" }}>
+                  <div className="help-topics-header-left">
                     <Icon
                       icon={
                         isHelpSectionExpanded ? "chevron-down" : "chevron-right"
                       }
                       size={12}
                     />
-                    <span
-                      style={{ marginLeft: "6px", fontSize: "12px", fontWeight: 500 }}
-                    >
-                      Help Topics
-                    </span>
+                    <span>Help Topics</span>
                   </div>
-                  <span style={{ fontSize: "11px", color: "#666" }}>
+                  <span className="help-topics-count">
                     {selectedHelpTopics.length}/{MAX_ENABLED_TOPICS} enabled
                   </span>
                 </div>
 
                 <Collapse isOpen={isHelpSectionExpanded}>
-                  <div style={{ marginTop: "8px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "4px",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      <Button
-                        small
-                        minimal
-                        icon="refresh"
-                        text="Refresh"
-                        loading={isRefreshingDepot}
-                        onClick={refreshHelpDepot}
-                      />
-                      {selectedHelpTopics.length > 0 && (
-                        <Button
-                          small
-                          minimal
-                          icon="cross"
-                          text="Clear"
-                          onClick={handleClearHelpTopics}
-                        />
-                      )}
-                    </div>
-
+                  <div className="help-topics-collapsed">
                     <HelpTopicsMultiSelect
                       topics={helpTopics}
                       selectedTopics={selectedHelpTopics}
                       onSelect={handleHelpTopicSelect}
                       onDeselect={handleHelpTopicDeselect}
                       maxSelections={MAX_ENABLED_TOPICS}
+                      isRefreshing={isRefreshingDepot}
+                      onRefresh={refreshHelpDepot}
+                      onClearAll={handleClearHelpTopics}
                     />
                   </div>
                 </Collapse>
@@ -426,6 +389,9 @@ interface HelpTopicsMultiSelectProps {
   onSelect: (topic: HelpTopic) => void;
   onDeselect: (topic: HelpTopic) => void;
   maxSelections: number;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  onClearAll: () => void;
 }
 
 const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
@@ -434,9 +400,31 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
   onSelect,
   onDeselect,
   maxSelections,
+  isRefreshing,
+  onRefresh,
+  onClearAll,
 }) => {
   const selectedIds = new Set(selectedTopics.map((t) => t.id));
   const isMaxReached = selectedTopics.length >= maxSelections;
+
+  // Map category to tag intent
+  const getCategoryIntent = (category: string) => {
+    switch (category) {
+      case "extension-liveai":
+        return "primary";
+      case "roam-core":
+        return "success";
+      case "roam-depot":
+      case "extension-third-party":
+        return "warning";
+      case "workflows":
+        return "none";
+      case "integrations":
+        return "none";
+      default:
+        return "none";
+    }
+  };
 
   const renderTopic: ItemRenderer<HelpTopic> = (
     topic,
@@ -454,11 +442,27 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
         key={topic.id}
         text={
           <div>
-            <div style={{ fontWeight: 500 }}>{topic.topic}</div>
-            <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 500 }}>
+              {topic.topic}
+            </div>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "500px",
+                color: "#5c7080",
+                marginTop: "0px",
+              }}
+            >
               by {topic.author}
             </div>
-            <div style={{ fontSize: "10px", color: "#999", marginTop: "2px" }}>
+            <div
+              style={{
+                fontSize: "10px",
+                color: "#5c7080",
+                marginTop: "1px",
+                textWrap: "wrap",
+              }}
+            >
               {topic.shortDescription}
             </div>
           </div>
@@ -469,6 +473,7 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
         onFocus={handleFocus}
         icon={isSelected ? "tick" : "blank"}
         shouldDismissPopover={false}
+        className="help-topics-multiselect-menu-item"
       />
     );
   };
@@ -491,36 +496,70 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
     }
   };
 
-  const renderTag = (topic: HelpTopic) => topic.topic;
+  const renderTag = (topic: HelpTopic) =>
+    // <Tag minimal intent={getCategoryIntent(topic.category) as any}>
+    //   {topic.topic}
+    // </Tag>
+    topic.topic;
 
   return (
-    <MultiSelect<HelpTopic>
-      items={topics}
-      selectedItems={selectedTopics}
-      itemRenderer={renderTopic}
-      itemPredicate={filterTopic}
-      tagRenderer={renderTag}
-      onItemSelect={handleItemSelect}
-      tagInputProps={{
-        onRemove: (_tag, index) => {
-          onDeselect(selectedTopics[index]);
-        },
-        placeholder:
-          selectedTopics.length === 0
-            ? "Select help topics..."
-            : `${selectedTopics.length}/${maxSelections} selected`,
-        rightElement:
-          isMaxReached ? (
-            <Tag minimal intent="warning">
-              Max
-            </Tag>
-          ) : undefined,
-      }}
-      popoverProps={{
-        minimal: true,
-        fill: true,
-      }}
-      fill
-    />
+    <div className="help-topics-multiselect-container">
+      <div className="help-topics-multiselect-wrapper">
+        <MultiSelect<HelpTopic>
+          items={topics}
+          selectedItems={selectedTopics}
+          itemRenderer={renderTopic}
+          itemPredicate={filterTopic}
+          tagRenderer={renderTag}
+          onItemSelect={handleItemSelect}
+          tagInputProps={{
+            onRemove: (_tag, index) => {
+              onDeselect(selectedTopics[index]);
+            },
+            tagProps: {
+              className: "help-topics-tag",
+              minimal: true,
+              onRemove: (e: React.MouseEvent) => {
+                e.stopPropagation();
+              },
+            },
+            placeholder: "Search or select help topics...",
+            rightElement: (
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "4px" }}
+              >
+                <Tag minimal intent={isMaxReached ? "warning" : "none"}>
+                  {selectedTopics.length}/{maxSelections}
+                </Tag>
+                <Tooltip content="Refresh topics from GitHub" position="top">
+                  <Button
+                    minimal
+                    icon="refresh"
+                    loading={isRefreshing}
+                    onClick={onRefresh}
+                    style={{ minWidth: "16px", minHeight: "16px" }}
+                  />
+                </Tooltip>
+                {selectedTopics.length > 0 && (
+                  <Tooltip content="Clear all selections" position="top">
+                    <Button
+                      minimal
+                      icon="cross"
+                      onClick={onClearAll}
+                      style={{ minWidth: "16px", minHeight: "16px" }}
+                    />
+                  </Tooltip>
+                )}
+              </div>
+            ),
+          }}
+          popoverProps={{
+            className: "help-topics-multiselect-wrapper",
+            minimal: true,
+          }}
+          fill
+        />
+      </div>
+    </div>
   );
 };

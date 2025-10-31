@@ -1,0 +1,59 @@
+/* Chat Tools Menu Styles */
+
+/* Help Topics Section */
+.help-topics-section {
+  padding: 8px;
+  background-color: rgba(177, 178, 191, 0.1);
+  border-left: 3px solid #137cbd;
+}
+
+.help-topics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.help-topics-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.help-topics-header-left span {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.help-topics-count {
+  font-size: 11px;
+  color: #666;
+}
+
+/* MultiSelect Container */
+.help-topics-multiselect-container {
+  width: 100%;
+}
+
+/* Collapsed Section */
+.help-topics-collapsed {
+  margin-top: 6px;
+}
+
+.help-topics-multiselect-menu {
+  transform: translateY(100px);
+}
+
+.help-topics-multiselect-menu-item.bp3-menu-item.bp3-intent-primary.bp3-active {
+  background-color: rgba(177, 178, 191, 0.1);
+  color: inherit;
+}
+
+.p3-transition-container:has(.help-topics-multiselect-menu-item) {
+  top: -200px;
+}
+
+.help-topics-tag {
+  font-size: 11px;
+}
