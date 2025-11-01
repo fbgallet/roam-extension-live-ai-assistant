@@ -93,6 +93,7 @@ export async function aiCompletion({
   roamContext = null,
   target = "",
   isButtonToInsert = true,
+  includePdfInContext = true,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;
@@ -128,6 +129,7 @@ export async function aiCompletion({
     targetUid,
     isButtonToInsert,
     thinking: llm.thinking,
+    includePdfInContext,
   };
 
   if (llm.provider === "Google") {
@@ -195,6 +197,7 @@ export const aiCompletionRunner = async ({
   roamContext = undefined,
   isButtonToInsert = true,
   forceNotInConversation = false,
+  includePdfInContext = true,
 }) => {
   let withAssistantRole = target === "new" ? true : false;
 
@@ -465,6 +468,7 @@ export const insertCompletion = async ({
           roamContext,
           target,
           isButtonToInsert,
+          includePdfInContext,
         });
   console.log("aiResponse :>> ", aiResponse);
 

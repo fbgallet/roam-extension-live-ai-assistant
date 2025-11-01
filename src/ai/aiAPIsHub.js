@@ -548,6 +548,7 @@ export async function claudeCompletion({
   isButtonToInsert = true,
   thinking,
   tools,
+  includePdfInContext = true,
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
@@ -656,11 +657,11 @@ export async function claudeCompletion({
       if (!isUrlToFetch && isModelSupportingImage(model)) {
         if (
           pdfLinkRegex.test(JSON.stringify(prompt)) ||
-          pdfLinkRegex.test(content)
+          (includePdfInContext && pdfLinkRegex.test(content))
         ) {
           options.messages = await addPdfUrlToMessages(
             messages,
-            content,
+            includePdfInContext ? content : "",
             provider
           );
         } else
@@ -874,6 +875,7 @@ export async function openaiCompletion({
   responseFormat = "text",
   targetUid,
   isButtonToInsert,
+  includePdfInContext = true,
 }) {
   let respStr = "";
   let usage = {};
@@ -893,10 +895,14 @@ export async function openaiCompletion({
   if (isModelSupportingImage(model)) {
     if (
       pdfLinkRegex.test(JSON.stringify(prompt)) ||
-      pdfLinkRegex.test(content)
+      (includePdfInContext && pdfLinkRegex.test(content))
     ) {
       withPdf = true;
-      messages = await addPdfUrlToMessages(messages, content, provider);
+      messages = await addPdfUrlToMessages(
+        messages,
+        includePdfInContext ? content : "",
+        provider
+      );
     } else messages = await addImagesUrlToMessages(messages, content);
   }
 

@@ -50,6 +50,7 @@ export const useContextMenuState = () => {
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
+  const [includePdfInContext, setIncludePdfInContext] = useState(true);
 
   // Mode State
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
@@ -123,6 +124,7 @@ export const useContextMenuState = () => {
     }
 
     setIsChildrenTreeToInclude(includeChildrenByDefault);
+    setIncludePdfInContext(true);
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;
@@ -175,6 +177,8 @@ export const useContextMenuState = () => {
     setAdditionalPrompt,
     model,
     setModel,
+    includePdfInContext,
+    setIncludePdfInContext,
 
     // Mode State
     isOutlinerAgent,

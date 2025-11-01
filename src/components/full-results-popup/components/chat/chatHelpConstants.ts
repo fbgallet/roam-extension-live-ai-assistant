@@ -4,15 +4,15 @@
  * Pre-written help responses and tips for the chat interface
  */
 
-export const CHAT_HELP_RESPONSE = `## Chat Agent Quick Guide
+export const CHAT_HELP_RESPONSE = `## Chat panel Quick Guide
 
 The Chat agent helps you analyze and interact with your search results:
 
-**Main Features:**
-- 💬 **Analyze results**: Ask questions about your search results, get summaries, insights, connections
-- ➕ **Add context**: Add pages by title or explore linked references to expand your context
-- 🎯 **Filter results**: Select specific results based on criteria (dates, content, semantic analysis)
-- 🔄 **Agentic mode**: Enable tools for advanced features like fetching help documentation
+**Chat agent main features:**
+- **Analyze query results**: Ask questions about blocks or pages in the results panel, get summaries, insights, connections
+- **Add context**: Expand the context by natural language requests
+- **Filter results**: Select specific results based on criteria (dates, content, semantic analysis)
+- **Agentic mode**: Enable tools for advanced features like fetching help documentation
 
 **How to use:**
 1. Select results from your search

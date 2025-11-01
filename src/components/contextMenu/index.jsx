@@ -107,6 +107,8 @@ export const StandaloneContextMenu = () => {
     additionalPrompt,
     setAdditionalPrompt,
     setModel,
+    includePdfInContext,
+    setIncludePdfInContext,
 
     // Mode State
     isOutlinerAgent,
@@ -590,6 +592,7 @@ export const StandaloneContextMenu = () => {
       isOutlinerAgent,
       isInConversation,
       commands,
+      includePdfInContext,
       // Setters
       setDefaultLgg,
       setRootUid,
@@ -1343,6 +1346,8 @@ export const StandaloneContextMenu = () => {
               setRoamContext={setRoamContext}
               rootUid={rootUid}
               renderDnpPeriodItem={renderDnpPeriodItem}
+              includePdfInContext={includePdfInContext}
+              setIncludePdfInContext={setIncludePdfInContext}
             />
 
             <TokenEstimateDisplay

@@ -66,6 +66,7 @@ export const handleClickOnCommand = async ({
   isCompletionOnly,
   isChildrenTreeToInclude,
   commands,
+  includePdfInContext,
   // Setters
   setDefaultLgg,
   setRootUid,
@@ -576,6 +577,7 @@ export const handleClickOnCommand = async ({
         ? capturedRoamContext
         : null,
       forceNotInConversation: isInConversation && command.id === 1,
+      includePdfInContext,
     });
   } else {
     if (command.id === 20)

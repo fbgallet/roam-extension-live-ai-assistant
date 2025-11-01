@@ -33,6 +33,8 @@ const ContextSelectionPanel = ({
   setRoamContext,
   rootUid,
   renderDnpPeriodItem,
+  includePdfInContext,
+  setIncludePdfInContext,
 }) => {
   return (
     <>
@@ -48,9 +50,7 @@ const ContextSelectionPanel = ({
           >
             <strong>Prompt: </strong>
             <Tooltip
-              content={
-                <div>Prompt = focused block + all its children </div>
-              }
+              content={<div>Prompt = focused block + all its children </div>}
               hoverOpenDelay={800}
               openOnTargetFocus={false}
             >
@@ -136,6 +136,24 @@ const ContextSelectionPanel = ({
             onChange={(e) => updateContext("linkedRefs", e)}
           />
         )}
+        <Tooltip
+          content={
+            <div>
+              Include PDF content from context
+              <br />
+              (disable to skip PDF processing)
+            </div>
+          }
+          hoverOpenDelay={800}
+          openOnTargetFocus={false}
+        >
+          <Checkbox
+            checked={includePdfInContext}
+            label="PDF"
+            inline={true}
+            onChange={() => setIncludePdfInContext((prev) => !prev)}
+          />
+        </Tooltip>
         <Tooltip
           content={
             <div>
