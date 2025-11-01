@@ -42,7 +42,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
 6. [Detailed documentation and advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
 
-![Live AI Demo q](https://github.com/user-attachments/assets/e7fee859-df46-44a7-a4ba-3b638314e26c)
+![Live AI chat Hello world](https://github.com/user-attachments/assets/735b589d-2249-4953-998d-bf879f253284)
 
 ## 1. **GETTING STARTED**
 
@@ -64,7 +64,7 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 ### Your first prompts using Chat panel
 
-🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! You'll be guided and assisted by the Chat Agent to discover all the new features. Since v.22, it's the easiest entry point to Live AI (but discover also below the very useful Context menu)
+🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! You'll be guided and assisted by the Chat Agent to discover all the new features. Since v.22, it's the easiest entry point to Live AI (but discover also below the very useful Context menu). See the .gif just above 'Getting Started'.
 
 ### Your first prompts using buttons & Live AI context menu
 
@@ -94,7 +94,7 @@ Once the context menu is open, the first selected command is `Focused block as p
 >
 > You can also write a quick prompt directly in the search bar of the context menu and run the command "Use this custom prompt". The AI generated response will be inserted as last block of the current page/view.
 
-<img width="800" alt="Live AI context menu" src="https://github.com/user-attachments/assets/ce558dd4-33f4-484b-bb65-7bd0aa794218" />
+<img width="706" height="328" alt="Live AI context menu" src="https://github.com/user-attachments/assets/02af44cb-37cd-4a44-bf1b-daf495dcd869" />
 
 > [!TIP]
 > ⚡️ In practice, the process to send some prompt to your AI assistant is almost instant:
