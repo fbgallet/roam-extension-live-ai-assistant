@@ -30,10 +30,11 @@ export function modelViaLanggraph(
 
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {
-      console.log("llmOutput :>> ", output.llmOutput);
       console.log(
         "Used tokens",
-        output.llmOutput?.tokenUsage || output.llmOutput?.usage || output.llmOutput?.usage_metadata
+        output.llmOutput?.tokenUsage ||
+          output.llmOutput?.usage ||
+          output.llmOutput?.usage_metadata
       );
       const usage: TokensUsage = {
         input_tokens:

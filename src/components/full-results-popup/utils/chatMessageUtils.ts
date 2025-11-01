@@ -412,6 +412,7 @@ export const renderMarkdown = (text: string): string => {
   // Configure DOMPurify to allow target="_blank" on links and all formatting tags including tables and images
   return DOMPurify.sanitize(rendered, {
     ADD_ATTR: [
+      "href",
       "target",
       "rel",
       "class",
@@ -439,6 +440,7 @@ export const renderMarkdown = (text: string): string => {
       "h6",
       "img",
     ],
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|www):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   });
 };
 

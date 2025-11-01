@@ -563,10 +563,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     };
 
     const handleBlockRefClick = (event: MouseEvent) => {
-      event.preventDefault();
       const target = event.target as HTMLElement;
 
+      // Only handle Roam-specific links, let external links work normally
       if (target.classList.contains("roam-block-ref-chat")) {
+        event.preventDefault();
         const blockUid = target.getAttribute("data-block-uid");
         if (!blockUid) return;
 
@@ -1169,6 +1170,98 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Keep markdown formatting but remove HTML tags
     const cleanText = messageContent.replace(/<[^>]*>/g, "").trim();
     await copyToClipboard(cleanText);
+  };
+
+  const handleDeleteMessage = (messageIndex: number) => {
+    // Delete both the user message and assistant response (chat turn)
+    // Find the corresponding user message (should be the one before the assistant message)
+    const userMessageIndex = messageIndex - 1;
+
+    if (userMessageIndex >= 0 && chatMessages[userMessageIndex]?.role === "user") {
+      // Delete both user and assistant messages
+      setChatMessages((prev) =>
+        prev.filter((_, idx) => idx !== userMessageIndex && idx !== messageIndex)
+      );
+    } else {
+      // Just delete the assistant message if user message not found
+      setChatMessages((prev) =>
+        prev.filter((_, idx) => idx !== messageIndex)
+      );
+    }
+  };
+
+  const handleRetryMessage = async (messageIndex: number) => {
+    // Find the user message that triggered this assistant response
+    const userMessageIndex = messageIndex - 1;
+
+    if (userMessageIndex < 0 || chatMessages[userMessageIndex]?.role !== "user") {
+      AppToaster.show({
+        message: "Cannot retry: user message not found",
+        intent: "warning",
+        timeout: 3000,
+      });
+      return;
+    }
+
+    if (isTyping) {
+      AppToaster.show({
+        message: "Please wait for the current response to complete",
+        intent: "warning",
+        timeout: 3000,
+      });
+      return;
+    }
+
+    const userMessage = chatMessages[userMessageIndex];
+
+    // Remove all messages after and including the user message
+    setChatMessages((prev) => prev.slice(0, userMessageIndex));
+
+    // Re-add the user message and regenerate
+    setChatMessages((prev) => [...prev, userMessage]);
+
+    setIsTyping(true);
+    setIsStreaming(true);
+    setStreamingContent("");
+    setToolUsageHistory([]);
+    toolUsageHistoryRef.current = [];
+
+    try {
+      const contextResults = getSelectedResultsForChat();
+
+      // Check if the message had a command
+      if (userMessage.commandPrompt && userMessage.commandName) {
+        await processChatMessageWithCommand(
+          userMessage.content,
+          contextResults,
+          userMessage.commandPrompt,
+          userMessage.commandName,
+          undefined,
+          selectedStyle
+        );
+      } else {
+        await processChatMessage(
+          userMessage.content,
+          contextResults,
+          undefined,
+          undefined,
+          undefined,
+          selectedStyle
+        );
+      }
+    } catch (error) {
+      console.error("Retry error:", error);
+      const errorMessage: ChatMessage = {
+        role: "assistant",
+        content: "Sorry, I encountered an error while retrying. Please try again.",
+        timestamp: new Date(),
+      };
+      setChatMessages((prev) => [...prev, errorMessage]);
+    }
+
+    setIsTyping(false);
+    setIsStreaming(false);
+    setStreamingContent("");
   };
 
   const copyFullConversation = async () => {
@@ -1897,6 +1990,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         chatMode={chatMode}
         hasSearchResults={allResults.length > 0}
         onCopyMessage={copyAssistantMessage}
+        onDeleteMessage={handleDeleteMessage}
+        onRetryMessage={handleRetryMessage}
         onSuggestionClick={setChatInput}
         onHelpButtonClick={handleHelpButtonClick}
         messagesContainerRef={messagesContainerRef}

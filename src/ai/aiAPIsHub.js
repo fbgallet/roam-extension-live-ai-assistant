@@ -193,6 +193,10 @@ export async function translateAudio(filename) {
   }
 }
 
+// Global variable to track currently playing audio
+let currentAudio = null;
+let currentAudioText = null;
+
 export async function textToSpeech(inputText, instructions) {
   if (!inputText) return;
   if (!openaiLibrary) {
@@ -205,6 +209,28 @@ export async function textToSpeech(inputText, instructions) {
   if (Array.isArray(inputText)) {
     inputText = getResolvedContentFromBlocks(inputText, false, false);
   }
+
+  // If clicking TTS for the same text that's currently playing, stop it
+  if (currentAudio && currentAudioText === inputText) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+    currentAudioText = null;
+    AppToaster.show({
+      message: "Audio stopped",
+      timeout: 2000,
+    });
+    return;
+  }
+
+  // If there's a different audio playing, stop it first
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+    currentAudioText = null;
+  }
+
   try {
     const response = await openaiLibrary.audio.speech.create({
       model: "gpt-4o-mini-tts",
@@ -220,10 +246,16 @@ export async function textToSpeech(inputText, instructions) {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
 
+    // Store reference to current audio
+    currentAudio = audio;
+    currentAudioText = inputText;
+
     // events to handle stop or end of audio
     const stopAudio = () => {
       audio.pause();
       audio.currentTime = 0;
+      currentAudio = null;
+      currentAudioText = null;
       document.removeEventListener("keydown", handleKeyPress);
     };
     const handleKeyPress = (event) => {
@@ -233,6 +265,8 @@ export async function textToSpeech(inputText, instructions) {
       }
     };
     audio.addEventListener("ended", () => {
+      currentAudio = null;
+      currentAudioText = null;
       document.removeEventListener("keydown", handleKeyPress);
     });
 

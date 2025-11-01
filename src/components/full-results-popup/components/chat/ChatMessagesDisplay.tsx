@@ -5,7 +5,14 @@
  */
 
 import React, { useEffect, useRef } from "react";
-import { Button, Tooltip, Icon } from "@blueprintjs/core";
+import {
+  Button,
+  Icon,
+  Menu,
+  MenuItem,
+  Popover,
+  Position,
+} from "@blueprintjs/core";
 import { ChatMessage, ChatMode } from "../../types/types";
 import { renderMarkdown } from "../../utils/chatMessageUtils";
 import {
@@ -13,6 +20,7 @@ import {
   LIVE_AI_HELP_RESPONSE,
   getRandomTip,
 } from "./chatHelpConstants";
+import { textToSpeech } from "../../../../ai/aiAPIsHub";
 
 // Helper function to detect if content contains KaTeX formulas
 const containsKaTeX = (content: string): boolean => {
@@ -108,6 +116,8 @@ interface ChatMessagesDisplayProps {
   chatMode: ChatMode;
   hasSearchResults: boolean;
   onCopyMessage: (content: string) => void;
+  onDeleteMessage: (index: number) => void;
+  onRetryMessage: (index: number) => void;
   onSuggestionClick: (suggestion: string) => void;
   onHelpButtonClick: (
     type: "chat" | "liveai" | "tip" | "helpabout",
@@ -127,6 +137,8 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   chatMode,
   hasSearchResults,
   onCopyMessage,
+  onDeleteMessage,
+  onRetryMessage,
   onSuggestionClick,
   onHelpButtonClick,
   messagesContainerRef,
@@ -477,18 +489,43 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           )}
                       </span>
 
-                      <span
-                        className="full-results-chat-copy-link"
-                        title="Copy message to clipboard"
-                      >
-                        <Tooltip content="Copy message to clipboard">
-                          <Button
-                            icon="clipboard"
-                            onClick={() => onCopyMessage(message.content)}
-                            minimal
-                            small
-                          />
-                        </Tooltip>
+                      <span className="full-results-chat-copy-link">
+                        <Popover
+                          content={
+                            <Menu>
+                              <MenuItem
+                                icon="clipboard"
+                                text="Copy to clipboard"
+                                onClick={() => onCopyMessage(message.content)}
+                              />
+                              <MenuItem
+                                icon="refresh"
+                                text="Retry"
+                                onClick={() => onRetryMessage(index)}
+                              />
+                              <MenuItem
+                                icon="volume-up"
+                                text="Text to Speech (via OpenAI)"
+                                title="Esc or click again to stop"
+                                onClick={async () => {
+                                  await textToSpeech(
+                                    message.content,
+                                    undefined
+                                  );
+                                }}
+                              />
+                              <MenuItem
+                                icon="trash"
+                                text="Delete chat turn"
+                                intent="danger"
+                                onClick={() => onDeleteMessage(index)}
+                              />
+                            </Menu>
+                          }
+                          position={Position.BOTTOM_RIGHT}
+                        >
+                          <Button icon="more" minimal small />
+                        </Popover>
                       </span>
                     </>
                   )}

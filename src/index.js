@@ -112,6 +112,14 @@ export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
 
+const modeMap = {
+  "Always ask user": "ask_user",
+  "Automatic until result": "auto_until_result",
+  "Always with fuzzy": "always_fuzzy",
+  "Always with synonyms": "always_synonyms",
+  "Always with all": "always_all",
+};
+
 export let extensionStorage;
 
 export function setDefaultModel(str = "gpt-4.1-mini") {
@@ -443,13 +451,6 @@ function getPanelConfig() {
             "Always with all",
           ],
           onChange: (evt) => {
-            const modeMap = {
-              "Always ask user": "ask_user",
-              "Automatic until result": "auto_until_result",
-              "Always with fuzzy": "always_fuzzy",
-              "Always with synonyms": "always_synonyms",
-              "Always with all": "always_all",
-            };
             automaticSemanticExpansionMode = modeMap[evt];
           },
         },
@@ -1382,14 +1383,6 @@ export default {
     const rawExpansionMode = extensionAPI.settings.get(
       "automaticSemanticExpansionMode"
     );
-    // Apply mapping to ensure internal values are used
-    const modeMap = {
-      "Always ask user": "ask_user",
-      "Automatic until result": "auto_until_result",
-      "Always with fuzzy": "always_fuzzy",
-      "Always with synonyms": "always_synonyms",
-      "Always with all": "always_all",
-    };
     automaticSemanticExpansionMode =
       modeMap[rawExpansionMode] || rawExpansionMode;
     if (extensionAPI.settings.get("maxCapturingDepth") === null)
