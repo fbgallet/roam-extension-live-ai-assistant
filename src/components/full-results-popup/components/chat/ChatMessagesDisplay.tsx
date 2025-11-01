@@ -144,7 +144,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   messagesContainerRef,
 }) => {
   // Memoize the initial random tip so it doesn't change on every render
-  const [initialTip] = React.useState(() => getRandomTip());
+  const [initialTip] = React.useState(() => getRandomTip("chat"));
 
   // Function to render help buttons based on help type
   const renderHelpButtons = (helpType?: "chat" | "liveai" | "tip") => {
@@ -196,7 +196,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
             </button>
           )}
           <button
-            onClick={() => onHelpButtonClick("tip", getRandomTip())}
+            onClick={() => onHelpButtonClick("tip", getRandomTip("chat"))}
             disabled={isTyping}
           >
             <Icon icon="lightbulb" size={12} style={{ marginRight: "4px" }} />

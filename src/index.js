@@ -287,7 +287,7 @@ export async function incrementCommandCounter(commandId) {
 
 function getPanelConfig() {
   const panelConfig = {
-    tabTitle: "Live AI Assistant",
+    tabTitle: "Live AI",
     settings: [
       {
         id: "visibility",

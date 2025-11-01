@@ -125,7 +125,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Live AI Assistant - Tokens usage and cost"
+      title="Live AI - Tokens usage and cost"
       className="tokens-dialog"
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
@@ -136,7 +136,7 @@ const TokensDialog = ({ isOpen, onClose }) => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            here in Live AI Assistant docs
+            here in Live AI docs
           </a>
         </p>
         <p>

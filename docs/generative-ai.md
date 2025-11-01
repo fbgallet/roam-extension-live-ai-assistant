@@ -69,7 +69,7 @@ You can set a style for the session (until the graph is reloaded) by clicking on
 
 ## 5) SmartBlocks commands
 
-You can insert the following commands in your SmartBlocks template to use or run Live AI Assistant directly from your templates:
+You can insert the following commands in your SmartBlocks template to use or run Live AI directly from your templates:
 
 ### <%SPEECHTOROAM%>
 

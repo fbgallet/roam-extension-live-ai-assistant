@@ -16,13 +16,15 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.21
+### 🆕 New in v.22 (November 2025)
 
-- Use PDF as context for OpenAI or Anthropic models
-- Ask Your Graph agent (complete overhaul) & Ask Linked References: deep search agent for your Roam graph, with multiple semantic expansion strategies and new interface to chat with filtered/selected results
-- MCP agent (for advanced users): make Roam an MCP client for local or distant servers !
-- New models supported natively: GPT-5, Grok 4, DeepSeek V3.1 & reasoning effort setting (see note below)
-- Added {children} option for inline context definition
+- Better design of chat/results popup, can be displayed as a left/right panel
+- **Chat panel** for smooth conversations
+- **Chat agent**, relying on tools to query your graph, handle context, leverage rich instructions and resources with Live AI Skills (inspired by Anthropic Agent Skills), chat with help documents...
+- **Query composer** to compose natural language queries, combine them, add specific pages, etc., and save them to reuse them easily
+- Ask Your Graph agent support now **sequences of queries** to better handle complexes queries and better DNPs and attributes handling
+- New models supported natively: Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supported web fetching), gpt-5-search-api
+- Added 'Pdf' checkbox in Context menu
 
 > [!NOTE]
 > New OpenAI **GPT-5** model is by default a reasoning model and is quite slow, way slower than previous OpenAI non-reasoning models.
@@ -56,17 +58,25 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 Choose the AI models provider(s) that will provide you with an API key to use their services at will and copy your API key in the extension settings.
 
-OpenAI and Anthropic currently provide the most tested models for Live AI, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation. Web Search or PDF reading can be achieved both with specific OpenAI or Anthropic models.
+OpenAI and Anthropic currently provide the most tested models for Live AI, but many other options are available. For paid models, you will be billed for each request based on the number of tokens used, which in practice is **very much cheaper** than existing subscriptions, and without the specific limitations of these subscriptions (you don't need any subscription to use Live AI, do not confuse the paid use of the API with, for example, ChatGPT Plus). Be aware that OpenAI API key is required for specific features: voice transcription, text-to-speech and Image generation (now also supported by Google API). Web Search or PDF reading can be achieved both with specific OpenAI or Anthropic models.
 
 Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
+### Your first prompts using Chat panel
+
+🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! You'll be guided and assisted by the Chat Agent to discover all the new features. Since v.22, it's the easiest entry point to Live AI (but discover also below the very useful Context menu)
+
 ### Your first prompts using buttons & Live AI context menu
 
-Just write some basic prompt in a block (or press the microphone button and provide vocal instructions), keep the cursor focus in this block and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+Or you can also simply write some basic prompt in any block (or press the microphone button and provide vocal instructions) and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+
+For request to AI models directly from your notes, the **KEY PRINCIPLE** is simple:
+
+> **the focused or selected block(s) is the prompt**
 
 <img width="600" alt="Live AI buttons" src="https://github.com/user-attachments/assets/7aac243d-3a0d-4cd7-9d6d-c5075162fee1" />
 
-This simple process can be still more efficient with keyboard only, using `Live AI context menu`, a rich context menu with a search box to access any Live AI command very quicky.
+This simple process can be still more efficient with keyboard only, using `Live AI Context menu`, a rich context menu with a search box to access any Live AI command and context definition very quicky.
 
 > [!IMPORTANT]
 > The context menu is the main entry point to Live AI, read the following instructions carrefuly:
@@ -100,12 +110,14 @@ The following 5 ingredients will be part of your requests (the last 3 are option
 - **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them) or pdf file (only OpenAI and Anthropic models). Note that block references will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
 - **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused block as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
-- **OUTPUT TARGET**: the AI model response will be inserted directly in your graph. By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
+- **OUTPUT TARGET**: the AI model response will be inserted directly in your graph (or in the chat, and inserted in your graph only on demand). By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). `Chat` will open the chat panel and display the response of the LLM. Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
 - **STYLE**: the output format of the AI model response. You can provide details on how the answer should be written as well as how it will be inserted into Roam, for example, whether it should be broken down into more or less blocks (by default, Live AI supports most Roam-specific formatting like bold or highlighted text, headings, and Katex...). Live AI provide a few predefined styles and you can create your own custom styles. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles) for more details.
 
-### Chat with your AI Assistant
+### Chat inline (in blocks) with your AI Assistant
 
-You can easily continue and deepen any conversation with an AI Assistant:
+The Chat panel is now the easiest way to have ephemeral or deep conversations with your AI assistant.
+
+But you can also easily continue any conversation with an AI Assistant inline in Roam blocks (or switch at any moment to chat interface):
 
 ![Live AI chat demo 2](https://github.com/user-attachments/assets/db9582f1-9db5-4c21-954a-eab5a21aa030)
 
@@ -143,6 +155,7 @@ To define the context, you can either check the corresponding box in the context
 - **Sidebar** (click +`Shift`): all the content of the sidebar
 - **DNPs** (click +`Ctrl`): a defined range of previous Daily notes (relative to the currently opened or focused DNP, but NOT including today or current day, unless triggered from a not-DNP)
 - **[[page]]** mentions: the content and linked references of the mentioned pages (as [[page]], #tag or atttribute::)
+- **Pdf**: if .pdf documents are present in your notes, as file or as web url, they can be processed by the AI model (OpenAI or Anthropic models)
 
 > [!TIP]
 > If a context is defined (or if you have selected multiple blocks as prompt) the uids (or block reference identifier) of all the corresponding blocks will be provided to the LLM, so it can refer to one of them if needed.
@@ -186,7 +199,7 @@ In the extension settings, you can change the voice and provide instructions to 
 
 ⚠️ Currently Web Search can only be achieved with OpenAI dedicated models, Anthropic models or Grok models.
 
-The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
+The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-5-search-api`, `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
 
 The models don't just summarize different relevant content found on the internet. You can use a rich prompt that requests all types of advanced and structured content processing that the LLM will gather.
 
@@ -197,14 +210,16 @@ You can set the default model to use for Web search (OpenAI or Anthropic models)
 
 Web search context option (in extension settings) for OpenAI models: you can choose the context size extracted from relevant websites. Low: fastest, cheaper. High: slower, higher cost. See pricing [here](https://platform.openai.com/docs/pricing#web-search)
 
+Now Anthropic models can even fetch specific web page if you insert the url in your prompt (if allowed by the web domain).
+
 ### Images generation
 
-You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key and your organization’s authentication (identity verification).
+You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization’s authentication (identity verification)) or Google API key.
 
 - **Image quality** (low, medium or high): the low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc] for details).
-- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background, you have to specify it in your prompt (or the model will choose by itself)
+- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background, you have to specify it in your prompt (or the model will choose by itself). For Google models, you can specify ratio (e.g.: 1:1, 16:9, etc.)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
-- **Image edition with mask**: you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+- **Image edition with mask**: (only for OpenAPI models, Google 'nano banana' allow image edition without any mask: just insert the image to edit in your prompt) you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ### Use PDF files as input
 
@@ -230,6 +245,8 @@ You can even add feedback on the errors or shortcomings of the previous result: 
 
 Create your custom prompts simply by inserting `#liveai/prompt` in some block. The content of this block will be used as title of your custom prompt and all its children will be used as a structured prompt (block references will be resolved). They will appear in the "custom prompts" section of the context menu.
 In the title block of your custom prompt, you can define an inline context, see the syntax [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context).
+
+**Live AI Skills**, inspired by Anthropic Agent Skills, provide a new way to rely on predefined and rich set of instructions and resources, see [detailed documentation here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md). It's only available in the Chat agent.
 
 ### Styles
 
@@ -261,7 +278,9 @@ Ask anything to your entire graph, the agent will find the most relevant data to
 
 #### **Versatile retrieval**:
 
-Ask Your Graph is an agent with tools to search for nodes that meet the conditions you provide in natural language. These conditions can be:
+Ask Your Graph is an agent with tools to search for nodes that meet the conditions you provide in natural language. Simply write your natural language query in any block and run Ask Your Graph agent from the Context menu or command panels. Or enable the corresponding tool in the Chat panel and the chat agent will recognize if your prompt is a graph query or not by itself!
+
+The conditions in a query to Ask your graph can be:
 
 - text or exact "quotes",
 - page references,
@@ -270,7 +289,7 @@ Ask Your Graph is an agent with tools to search for nodes that meet the conditio
 - time intervals,
 - specific pages only, or DNP only/excluded,
 
-Conditions can be combined logically in natural language or using symbols (+ for AND, | for OR, - for NOT). You can also ask for a limited number of result and for random results!
+Conditions can be combined logically in natural language or using symbols (+ for AND, | for OR, - for NOT). They can also be combined sequentially (Do this, then that...): it's often better to combine multiple simple queries than an complex query. You can also ask for a limited number of result and for **random** results!
 
 > [!TIP]
 > Stick to simple logic so as not to narrow down the search too much from start.
@@ -279,7 +298,7 @@ Conditions can be combined logically in natural language or using symbols (+ for
 The nodes matching these conditions can be:
 
 - blocks and their children (default search: block + direct children), up to 3 levels deep, with optional conditions for both the parent and at least one child,
-- pages based on their title,
+- pages based on their title or Daily notes based on a time range,
 - blocks matching all conditions (specify "in same block" in your query),
 - pages based on their full content,
 - pages containing at least one block matching all conditions.
@@ -315,15 +334,17 @@ Examples of request:
 
 - A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results, allowing to filter/select some of them and chat with them!
 - You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
-- Each user query can be saved for further exploration and the 3 most recents queries remain available. Run "Open results view" command to load and chat with saved queries.
+- Each user query can be saved for further exploration and the 3 most recents queries remain available. Each query can also be combined with other queries or completed by specific pages or blocks. Run "Open results view" command to load and chat with saved queries.
 
 #### **Control the privacy level of your agent usage**:
 
-There are three privacy levels letting you decide what data may become accessible to the LLM:
+There are three privacy levels letting you decide what data may become accessible to the LLM when running Ask Your Graph from a Roam block:
 
 - in "Private" mode, the LLM will never access block content, only their uid and page titles.
 - in "Balanced" mode (and by default in the chat interface), the LLM receives block content only at the response synthesis stage; all intermediate steps rely only on uids and page titles.
 - in "Full" mode, the agent may use the content and hierarchy of blocks and pages whenever needed for its search. Results can be more precise, but processing will take longer.
+
+In Chat panel, by principle, all blocks and pages loaded in the context will be read (at least partially) by the LLM. If you want to prevent any distant LLM to acccess block or page content, disable tools allowing to load pages or blocks and don't add context to the chat.
 
 Ask Your Graph offers many search options, from the simplest to the most complex. Just phrase your request in natural language (or use voice transcription!), the agent does the rest! But if you want to make the most of the agent’s capabilities, check out the detailed documentation: [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 
@@ -366,6 +387,8 @@ With Live AI, you generally have control over what you decide to send or not to 
 1. [Query Agents](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md)
 2. [Live Outliner Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md)
 3. [MCP Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/mcp-agent.md)
+4. [Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md)
+5. [Skills for Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md)
 
 - **LLM Providers**
 

@@ -103,7 +103,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   // DEPRECATED IN V.12
   // extensionAPI.ui.commandPalette.addCommand({
   //   label:
-  //     "Live AI Assistant: Transcribe & send as prompt to Outliner Agent",
+  //     "Live AI: Transcribe & send as prompt to Outliner Agent",
   //   callback: () => {
   //     const button = document.getElementsByClassName(
   //       "speech-post-processing"

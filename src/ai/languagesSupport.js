@@ -9,7 +9,7 @@ export function getValidLanguageCode(input) {
   } else {
     AppToaster.show({
       message:
-        "Live AI Assistant: Incorrect language code for transcription, see instructions in settings panel.",
+        "Live AI: Incorrect language code for transcription, see instructions in settings panel.",
     });
     return "";
   }

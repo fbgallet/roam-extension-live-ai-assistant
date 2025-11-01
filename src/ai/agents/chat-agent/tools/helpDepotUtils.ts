@@ -233,8 +233,8 @@ export async function loadDepot(
     const fallbackDepot: HelpDepot = {
       topics: BUILTIN_LIVEAI_TOPICS,
       categories: {
-        "extension-liveai": "Live AI Assistant extension docs",
-        "roam-core": "Official Roam Research documentation",
+        "extension-liveai": "Live AI extension docs",
+        "roam-core": "Roam Research documentation and tips",
       },
     };
 

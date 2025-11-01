@@ -479,7 +479,7 @@ export const BUILTIN_COMMANDS = [
     icon: "media",
     prompt: "",
     category: "CREATION",
-    keyWords: "draw, picture",
+    keyWords: "draw, picture, nano banana",
     includeUids: false,
     isIncompatibleWith: {
       style: true,

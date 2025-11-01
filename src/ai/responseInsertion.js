@@ -93,7 +93,7 @@ export async function aiCompletion({
   roamContext = null,
   target = "",
   isButtonToInsert = true,
-  includePdfInContext = true,
+  includePdfInContext = false,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;
@@ -197,7 +197,7 @@ export const aiCompletionRunner = async ({
   roamContext = undefined,
   isButtonToInsert = true,
   forceNotInConversation = false,
-  includePdfInContext = true,
+  includePdfInContext = false,
 }) => {
   let withAssistantRole = target === "new" ? true : false;
 
@@ -295,6 +295,7 @@ export const aiCompletionRunner = async ({
     selectedUids: selectionUids,
     roamContext,
     isButtonToInsert,
+    includePdfInContext,
   });
 };
 
@@ -317,6 +318,7 @@ export const insertCompletion = async ({
   roamContext,
   isButtonToInsert = true,
   retryInstruction,
+  includePdfInContext = false,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.systemPrompt = systemPrompt;

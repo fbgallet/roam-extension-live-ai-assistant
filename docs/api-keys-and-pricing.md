@@ -1,15 +1,15 @@
 ## Choose your LLMs provider
 
 If you haven't already, you will need to create a user account with one of the following providers. Payment is made to them and generally involves crediting your account in advance with a specific amount (you can start with 5 or 10$, which is usually more than enough for several months).
-All features of Live AI Assistant have been tested with OpenAI and Anthropic models, and they also work well with DeepSeek, Grok and Llama3.3 on Groq. Most models available on OpenRouter work for generative AI, but it's more unpredictable for Query Agents and Live Outliner. Currently, Gemini models work only with generative AI, not agents.
+All features of Live AI have been tested with OpenAI and Anthropic models, and they also work well with DeepSeek, Grok, Gemini... Most models available on OpenRouter work for generative AI, but it's more unpredictable for Query Agents and Live Outliner. Local models via Ollama have not been enought tested with agents but should work with basic generative AI.
 
 ## Get API Keys
 
 - To use GPT models, voice transcription, TTS and image generation, provide an OpenAI API key (by copying/pasting an existing key or generating a new one via [this link](https://platform.openai.com/api-keys)). A payment method has to be defined in API > Settings > Billing > [Payment methods](https://platform.openai.com/account/billing/payment-methods). OpenAI API usage is a paid service, see API usage fees here.
 
-NB: API fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI Assistant.
+NB: API fees should not be confused with the ChatGPT Plus subscription; they are strictly separate. You do not need the ChatGPT plus subscription to use Live AI.
 
-- To use Anthropic (Claude) models, or DeepSeek models, or Grok models, you have to provide an API key for each of these providers. The principle is the same, you have to create an account, credit your account with a few dollars, get an API and copy it in Live AI Assistant settings.
+- To use Anthropic (Claude) models, Google Gemini models, DeepSeek models, or Grok models, you have to provide an API key for each of these providers. The principle is the same, you have to create an account, credit your account with a few dollars, get an API and copy it in Live AI settings.
 
 - To use [any other existing models](https://openrouter.ai/docs#models), you can provide an OpenRouter API Key or a Groq API Key. You can define OpenRouter as your default model provider or use it as a complement to direct access to OpenAI and Anthropic API. Using Groq, you can also replace default Whisper model by `whisper-large-v3` model.
 
@@ -25,11 +25,11 @@ By default, logging of your inputs & outputs in OpenRouter's settings is enabled
 
 ## Main models pricing per million tokens
 
-Pricing currently used in cost calculations in Live AI Assistant
+Pricing currently used in cost calculations in Live AI
 
 In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like gpt-5, o3, Claude Sonnet 4 Thinking, deepseek-v3 Thinking, etc.).
 
-NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI Assistant are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
+NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
 
 | **Model**                    | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
 | ---------------------------- | ------------------------- | -------------------------- |

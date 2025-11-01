@@ -50,7 +50,7 @@ export const useContextMenuState = () => {
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
-  const [includePdfInContext, setIncludePdfInContext] = useState(true);
+  const [includePdfInContext, setIncludePdfInContext] = useState(false);
 
   // Mode State
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);

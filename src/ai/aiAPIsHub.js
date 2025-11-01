@@ -627,10 +627,11 @@ export async function imageGeneration(
 
       usage["input_tokens"] = result.usage["input_tokens_details"];
       usage["output_tokens"] = result.usage["output_tokens"];
-      tokensCallback({
-        input_tokens: result.usage["input_tokens"],
-        output_tokens: usage["output_tokens"],
-      });
+      if (tokensCallback)
+        tokensCallback({
+          input_tokens: result.usage["input_tokens"],
+          output_tokens: usage["output_tokens"],
+        });
       updateTokenCounter(model, usage);
     }
     const image_base64 = result.data[0].b64_json;
@@ -825,7 +826,7 @@ export async function claudeCompletion({
   isButtonToInsert = true,
   thinking,
   tools,
-  includePdfInContext = true,
+  includePdfInContext = false,
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
@@ -1152,7 +1153,7 @@ export async function openaiCompletion({
   responseFormat = "text",
   targetUid,
   isButtonToInsert,
-  includePdfInContext = true,
+  includePdfInContext = false,
 }) {
   let respStr = "";
   let usage = {};
@@ -1389,7 +1390,7 @@ export async function googleCompletion({
   responseFormat = "text",
   targetUid,
   isButtonToInsert,
-  includePdfInContext = true,
+  includePdfInContext = false,
 }) {
   let respStr = "";
   let usage = {};
