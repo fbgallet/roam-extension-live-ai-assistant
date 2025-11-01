@@ -449,7 +449,7 @@ export const insertCompletion = async ({
   let aiResponse =
     command?.slice(0, 16) === "Image generation"
       ? await imageGeneration(
-          prompt.at(-1).content + (context ? "\n" + context : ""),
+          prompt.at(-1).content, // Only pass the pure user prompt, no context or system instructions
           command?.split("(")[1].split(")")[0],
           model
         )

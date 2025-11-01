@@ -266,6 +266,23 @@ export const modelsPricing = {
     input: 1.25,
     output: 10,
   },
+  "gemini-2.5-flash-image": {
+    input: 0.3,
+    input_image: 0.3,
+    output: 39000, // $0.039 per image = $39 per 1000 images
+  },
+  "imagen-4.0-fast-generate-001": {
+    input: 0,
+    output: 20000, // $0.02 per image = $20 per 1000 images
+  },
+  "imagen-4.0-generate-001": {
+    input: 0,
+    output: 40000, // $0.04 per image = $40 per 1000 images
+  },
+  "imagen-4.0-ultra-generate-001": {
+    input: 0,
+    output: 60000, // $0.06 per image = $60 per 1000 images
+  },
 };
 
 // Deprecated for now on OpenAI API

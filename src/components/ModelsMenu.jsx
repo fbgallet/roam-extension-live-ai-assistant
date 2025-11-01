@@ -141,28 +141,60 @@ const ModelsMenu = ({
   const openAiImageModels = () => {
     return (
       <>
-        <MenuItem
-          onClick={(e) => {
-            handleClickOnModel(e);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e);
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-          tabindex="0"
-          text="gpt-image-1-mini"
-        />
-        <MenuItem
-          onClick={(e) => {
-            handleClickOnModel(e);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e);
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-          tabindex="0"
-          text="gpt-image-1"
-        />
+        {openaiLibrary?.apiKey && (
+          <>
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="gpt-image-1-mini"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="gpt-image-1"
+            />
+          </>
+        )}
+        {googleLibrary?.apiKey && (
+          <>
+            {openaiLibrary?.apiKey && <MenuDivider />}
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="gemini-2.5-flash-image"
+              labelElement="nano 🍌"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="imagen-4.0-generate-001"
+            />
+          </>
+        )}
       </>
     );
   };

@@ -745,17 +745,15 @@ export const StandaloneContextMenu = () => {
 
   const insertModelsMenu = (callback, command) => {
     const shouldShow =
-      displayModelsMenu ||
-      command.id === 1 ||
-      command.id === 100 ||
-      command.id === 101 ||
-      command.id === 102 ||
-      command.id === 102 ||
-      command.name === "Web search" ||
-      (command.name.includes("Image generation") &&
-        command.name !== "Text to Speech" &&
-        !command.name.includes("Image generation"));
-
+      (displayModelsMenu ||
+        command.id === 1 ||
+        command.id === 100 ||
+        command.id === 101 ||
+        command.id === 102 ||
+        command.id === 102 ||
+        command.name === "Web search" ||
+        command.name.includes("Image generation")) &&
+      command.name !== "Text to Speech";
     if (shouldShow) {
       if (!ModelsMenu) {
         console.error("❌ ModelsMenu is undefined!");

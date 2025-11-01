@@ -281,21 +281,299 @@ export async function textToSpeech(inputText, instructions) {
   }
 }
 
+async function processPromptForImagen(prompt) {
+  // Use Gemini to translate and extract parameters from the prompt
+  if (!googleLibrary) return { prompt, config: {} };
+
+  try {
+    const systemPrompt = `You are a prompt processor for Google Imagen. Your task is to:
+1. Translate the prompt to English if it's not already in English
+2. Extract image generation parameters from natural language descriptions
+3. Return a JSON object with the processed prompt and configuration
+
+Extract these parameters if mentioned:
+- numberOfImages: between 1-4 (default: 1)
+- imageSize: "1K" or "2K" (default: "1K")
+- aspectRatio: "1:1", "3:4", "4:3", "9:16", or "16:9" (default: "1:1")
+
+Examples:
+Input: "Un robot tenant un skateboard rouge, format 16:9"
+Output: {"prompt": "Robot holding a red skateboard", "config": {"aspectRatio": "16:9"}}
+
+Input: "Generate 3 images of a sunset in portrait mode"
+Output: {"prompt": "Sunset", "config": {"numberOfImages": 3, "aspectRatio": "3:4"}}
+
+Return ONLY valid JSON, no other text.`;
+
+    const response = await googleLibrary.models.generateContent({
+      model: "gemini-2.0-flash-exp",
+      contents: [{ text: `Process this prompt: ${prompt}` }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    let resultText = response.text;
+    // Remove markdown code blocks if present
+    resultText = resultText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+
+    const result = JSON.parse(resultText);
+    return {
+      prompt: result.prompt || prompt,
+      config: result.config || {},
+    };
+  } catch (error) {
+    console.error("Error processing prompt for Imagen:", error);
+    return { prompt, config: {} };
+  }
+}
+
 export async function imageGeneration(
   prompt,
   quality = "auto",
   model,
   tokensCallback
 ) {
-  if (!openaiLibrary) {
+  // Determine if we're using Google Imagen/Gemini or OpenAI
+  const isGoogleImagen =
+    model === "imagen-4.0-generate-001" ||
+    model === "imagen-4.0-ultra-generate-001" ||
+    model === "imagen-4.0-fast-generate-001" ||
+    model === "gemini-2.5-flash-image" ||
+    (model && model.includes("gemini"));
+
+  // Select appropriate model based on quality if model includes "gemini" but isn't specific
+  if (
+    isGoogleImagen &&
+    model.includes("gemini") &&
+    model !== "gemini-2.5-flash-image"
+  ) {
+    // Default to gemini-2.5-flash-image (nano banana)
+    model = "gemini-2.5-flash-image";
+  } else if (
+    isGoogleImagen &&
+    !model.includes("gemini") &&
+    !model.includes("imagen")
+  ) {
+    // If it's determined as Google but not specific, use default
+    model = "gemini-2.5-flash-image";
+  }
+
+  // For Imagen-specific models, adjust based on quality
+  if (model && model.startsWith("imagen-4.0")) {
+    if (quality === "high") {
+      model = "imagen-4.0-ultra-generate-001";
+    } else if (quality === "low") {
+      model = "imagen-4.0-fast-generate-001";
+    } else {
+      // "medium" or "auto"
+      model = "imagen-4.0-generate-001";
+    }
+  }
+
+  // Check required libraries
+  if (isGoogleImagen && !googleLibrary) {
+    AppToaster.show({
+      message: `Google API Key is needed for Gemini/Imagen image generation`,
+      timeout: 10000,
+    });
+    return;
+  }
+
+  if (!isGoogleImagen && !openaiLibrary) {
     AppToaster.show({
       message: `OpenAI API Key is needed for image generation`,
       timeout: 10000,
     });
     return;
   }
+
   try {
-    model === "gpt-image-1" ? "gpt-image-1" : "gpt-image-1-mini";
+    let result;
+
+    // Google Gemini/Imagen generation
+    if (isGoogleImagen) {
+      // Check if there are images in the prompt (for editing)
+      roamImageRegex.lastIndex = 0;
+      const matchingImagesInPrompt = Array.from(
+        prompt.matchAll(roamImageRegex)
+      );
+
+      // For nano banana (gemini-2.5-flash-image), support image editing
+      if (model === "gemini-2.5-flash-image" && matchingImagesInPrompt.length) {
+        console.log("Using nano banana for image editing");
+
+        // Extract the first image for editing
+        const imageUrl = matchingImagesInPrompt[0][2];
+
+        // Remove image markdown from prompt
+        let textPrompt = prompt;
+        for (const match of matchingImagesInPrompt) {
+          textPrompt = textPrompt.replace(
+            match[0],
+            match[1] ? `[${match[1]}]` : ""
+          );
+        }
+
+        // Process text prompt for translation
+        const { prompt: processedPrompt } = await processPromptForImagen(
+          textPrompt
+        );
+
+        // Fetch the image
+        const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
+        const imageArrayBuffer = await imageBlob.arrayBuffer();
+        const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
+
+        // Detect MIME type (assume PNG if unknown)
+        const mimeType = imageBlob.type || "image/png";
+
+        // Create multi-part prompt with text and image
+        const contents = [
+          { text: processedPrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64,
+            },
+          },
+        ];
+
+        console.log("Nano banana editing with:", {
+          prompt: processedPrompt,
+          imageUrl,
+          mimeType,
+        });
+
+        // Use generateContent for nano banana editing
+        result = await googleLibrary.models.generateContent({
+          model: "gemini-2.5-flash-image",
+          contents: contents,
+        });
+
+        // Extract the generated image from response
+        if (result.candidates && result.candidates.length > 0) {
+          for (const part of result.candidates[0].content.parts) {
+            if (part.inlineData) {
+              const imageData = part.inlineData.data;
+              const buffer = Buffer.from(imageData, "base64");
+              const blob = new Blob([buffer], { type: "image/png" });
+              const firebaseUrl = await roamAlphaAPI.file.upload({
+                file: blob,
+              });
+
+              // Track usage for nano banana editing (1 image = 1 "output token" for pricing)
+              const usage = {
+                input_tokens: 0,
+                output_tokens: 1, // 1 image generated
+              };
+              if (tokensCallback) {
+                tokensCallback(usage);
+              }
+              updateTokenCounter(model, usage);
+
+              return firebaseUrl;
+            }
+          }
+          throw new Error("No image in nano banana response");
+        } else {
+          throw new Error("No response from nano banana");
+        }
+      } else {
+        // Standard generation (no input image)
+        // Process prompt with Gemini for translation and parameter extraction
+        const { prompt: processedPrompt, config } =
+          await processPromptForImagen(prompt);
+
+        console.log("Processed prompt for Google image generation:", {
+          model,
+          original: prompt,
+          processed: processedPrompt,
+          config,
+        });
+
+        // Nano banana uses generateContent API
+        if (model === "gemini-2.5-flash-image") {
+          const contents = [{ text: processedPrompt }];
+
+          result = await googleLibrary.models.generateContent({
+            model: "gemini-2.5-flash-image",
+            contents: contents,
+          });
+
+          // Extract the generated image from response
+          if (result.candidates && result.candidates.length > 0) {
+            for (const part of result.candidates[0].content.parts) {
+              if (part.inlineData) {
+                const imageData = part.inlineData.data;
+                const buffer = Buffer.from(imageData, "base64");
+                const blob = new Blob([buffer], { type: "image/png" });
+                const firebaseUrl = await roamAlphaAPI.file.upload({
+                  file: blob,
+                });
+
+                // Track usage for nano banana generation (1 image = 1 "output token" for pricing)
+                const usage = {
+                  input_tokens: 0,
+                  output_tokens: 1, // 1 image generated
+                };
+                if (tokensCallback) {
+                  tokensCallback(usage);
+                }
+                updateTokenCounter(model, usage);
+
+                return firebaseUrl;
+              }
+            }
+            throw new Error("No image in nano banana response");
+          } else {
+            throw new Error("No response from nano banana");
+          }
+        } else {
+          // Imagen models use generateImages API
+          result = await googleLibrary.models.generateImages({
+            model,
+            prompt: processedPrompt,
+            config: {
+              numberOfImages: config.numberOfImages || 1,
+              imageSize: config.imageSize,
+              aspectRatio: config.aspectRatio,
+            },
+          });
+
+          // Process the first generated image
+          if (result.generatedImages && result.generatedImages.length > 0) {
+            const imgBytes = result.generatedImages[0].image.imageBytes;
+            const buffer = Buffer.from(imgBytes, "base64");
+            const blob = new Blob([buffer], { type: "image/png" });
+            const firebaseUrl = await roamAlphaAPI.file.upload({
+              file: blob,
+            });
+
+            // Track usage for Imagen models (1 image = 1 "output token" for pricing)
+            const usage = {
+              input_tokens: 0,
+              output_tokens: 1, // 1 image generated
+            };
+            if (tokensCallback) {
+              tokensCallback(usage);
+            }
+            updateTokenCounter(model, usage);
+
+            return firebaseUrl;
+          } else {
+            throw new Error("No images generated");
+          }
+        }
+      }
+    }
+
+    // OpenAI image generation (existing logic)
+    if (!model || model !== "gpt-image-1") {
+      model = "gpt-image-1-mini";
+    }
+
     let mode = "generate";
     let options = {
       model,
@@ -305,7 +583,6 @@ export async function imageGeneration(
       background: "auto",
       moderation: "low",
     };
-    let result;
 
     // extract images from prompt
     roamImageRegex.lastIndex = 0;
@@ -1112,15 +1389,23 @@ export async function googleCompletion({
   responseFormat = "text",
   targetUid,
   isButtonToInsert,
+  includePdfInContext = true,
 }) {
   let respStr = "";
   let usage = {};
 
   try {
+    // Detect if PDFs or images are present
+    const hasPdfInPrompt = pdfLinkRegex.test(JSON.stringify(prompt));
+    const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
+    const hasImageInPrompt = roamImageRegex.test(JSON.stringify(prompt));
+    const hasImageInContent = roamImageRegex.test(content);
+
     // Prepare system instruction and history in Google's format
     const history = [];
     const systemInstruction = systemPrompt + (content ? "\n\n" + content : "");
     let currentMessage = "";
+    let currentMessageParts = [];
 
     // Convert prompt array to Google's chat history format
     for (let i = 0; i < prompt.length; i++) {
@@ -1134,19 +1419,89 @@ export async function googleCompletion({
         if (i === prompt.length - 1) {
           // Last user message is the current message to send
           currentMessage = msg.content;
+          currentMessageParts = [{ text: msg.content }];
+
+          // Add PDFs from the last prompt message
+          if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
+            currentMessageParts = await addPdfToGeminiMessage(
+              currentMessageParts,
+              msg.content
+            );
+            // Remove PDF URLs from the text
+            pdfLinkRegex.lastIndex = 0;
+            currentMessageParts[0].text = currentMessageParts[0].text
+              .replace(pdfLinkRegex, "")
+              .trim();
+          }
+
+          // Add images from the last prompt message
+          if (hasImageInPrompt && roamImageRegex.test(msg.content)) {
+            currentMessageParts = await addImagesToGeminiMessage(
+              currentMessageParts,
+              msg.content
+            );
+            // Remove image markdown from the text
+            roamImageRegex.lastIndex = 0;
+            currentMessageParts[0].text = currentMessageParts[0].text
+              .replace(roamImageRegex, "[Image]")
+              .trim();
+          }
         } else {
+          let userParts = [{ text: msg.content }];
+
+          // Add PDFs from history messages
+          if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
+            userParts = await addPdfToGeminiMessage(userParts, msg.content);
+            // Remove PDF URLs from the text
+            pdfLinkRegex.lastIndex = 0;
+            userParts[0].text = userParts[0].text
+              .replace(pdfLinkRegex, "")
+              .trim();
+          }
+
+          // Add images from history messages
+          if (hasImageInPrompt && roamImageRegex.test(msg.content)) {
+            userParts = await addImagesToGeminiMessage(userParts, msg.content);
+            // Remove image markdown from the text
+            roamImageRegex.lastIndex = 0;
+            userParts[0].text = userParts[0].text
+              .replace(roamImageRegex, "[Image]")
+              .trim();
+          }
+
           history.push({
             role: "user",
-            parts: [{ text: msg.content }],
+            parts: userParts,
           });
         }
       }
+    }
+
+    // Add PDFs from context if enabled
+    if (hasPdfInContent) {
+      currentMessageParts = await addPdfToGeminiMessage(
+        currentMessageParts,
+        content
+      );
+    }
+
+    // Add images from context
+    if (hasImageInContent) {
+      currentMessageParts = await addImagesToGeminiMessage(
+        currentMessageParts,
+        content
+      );
     }
 
     console.log("Messages sent as prompt to Gemini:", {
       systemInstruction,
       history,
       currentMessage,
+      currentMessageParts,
+      hasPdfInPrompt,
+      hasPdfInContent,
+      hasImageInPrompt,
+      hasImageInContent,
     });
 
     const isToStream = streamResponse && responseFormat === "text";
@@ -1178,6 +1533,12 @@ export async function googleCompletion({
     // Create chat instance
     const chat = aiClient.chats.create(chatConfig);
 
+    // Prepare the message to send (use parts format if PDFs or images are present)
+    const messageToSend =
+      hasPdfInPrompt || hasPdfInContent || hasImageInPrompt || hasImageInContent
+        ? { message: currentMessageParts }
+        : { message: currentMessage };
+
     if (isToStream) {
       if (isButtonToInsert)
         insertInstantButtons({
@@ -1191,9 +1552,7 @@ export async function googleCompletion({
       const streamElt = insertParagraphForStream(targetUid);
 
       try {
-        const streamResponse = await chat.sendMessageStream({
-          message: currentMessage,
-        });
+        const streamResponse = await chat.sendMessageStream(messageToSend);
 
         for await (const chunk of streamResponse) {
           if (isCanceledStreamGlobal) {
@@ -1222,7 +1581,7 @@ export async function googleCompletion({
         else streamElt.remove();
       }
     } else {
-      const response = await chat.sendMessage({ message: currentMessage });
+      const response = await chat.sendMessage(messageToSend);
       console.log("Google response :>>", response);
       respStr = response.text || "";
 
@@ -1479,6 +1838,82 @@ const addPdfUrlToMessages = async (messages, content, provider) => {
   }
 
   return messages;
+};
+
+const addPdfToGeminiMessage = async (messageParts, content) => {
+  // Extract PDF URLs from the content
+  pdfLinkRegex.lastIndex = 0;
+  const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
+
+  for (let i = 0; i < matchingPdfInContext.length; i++) {
+    try {
+      const pdfUrl = matchingPdfInContext[i][1] || matchingPdfInContext[i][2];
+
+      // Fetch the PDF from the URL
+      const pdfResponse = await fetch(pdfUrl);
+      if (!pdfResponse.ok) {
+        console.error(`Failed to fetch PDF from ${pdfUrl}`);
+        continue;
+      }
+
+      const pdfArrayBuffer = await pdfResponse.arrayBuffer();
+      const pdfBase64 = Buffer.from(pdfArrayBuffer).toString("base64");
+
+      // Add PDF as inline data to the message parts
+      messageParts.push({
+        inlineData: {
+          mimeType: "application/pdf",
+          data: pdfBase64,
+        },
+      });
+
+      console.log(`Added PDF from ${pdfUrl} to Gemini message`);
+    } catch (error) {
+      console.error(`Error processing PDF: ${error.message}`);
+    }
+  }
+
+  return messageParts;
+};
+
+const addImagesToGeminiMessage = async (messageParts, content) => {
+  // Extract image URLs from the content
+  roamImageRegex.lastIndex = 0;
+  const matchingImagesInContent = Array.from(content.matchAll(roamImageRegex));
+
+  for (let i = 0; i < matchingImagesInContent.length; i++) {
+    try {
+      const imageUrl = matchingImagesInContent[i][2];
+
+      // Fetch the image from the URL
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        console.error(`Failed to fetch image from ${imageUrl}`);
+        continue;
+      }
+
+      const imageArrayBuffer = await imageResponse.arrayBuffer();
+      const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
+
+      // Detect MIME type from URL or response headers
+      const contentType =
+        imageResponse.headers.get("content-type") || "image/jpeg";
+
+      // Add image as inline data to the message parts
+      messageParts.push({
+        inlineData: {
+          mimeType: contentType,
+          data: imageBase64,
+        },
+      });
+
+      console.log(`Added image from ${imageUrl} to Gemini message`);
+    } catch (error) {
+      console.error(`Error processing image: ${error.message}`);
+    }
+  }
+
+  return messageParts;
 };
 
 // export const getTokenizer = async () => {

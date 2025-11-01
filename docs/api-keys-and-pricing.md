@@ -57,6 +57,14 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | grok-3-mini                  | $0.30                     | $0.50                      |
 | grok-3-mini-fast             | $0.60                     | $4.00                      |
 | grok-3 & grok-4              | $3.00                     | $15.00                     |
+| **Google (Gemini)**          |                           |                            |
+| gemini-2.5-flash-lite        | $0.10                     | $0.40                      |
+| gemini-2.5-flash             | $0.30                     | $2.50                      |
+| gemini-2.5-pro               | $1.25                     | $10.00                     |
+| gemini-2.5-flash-image\*\*\* | text/image: $0.30         | $0.039 per image           |
+| imagen-4.0-fast\*\*\*        | -                         | $0.02 per image            |
+| imagen-4.0-generate\*\*\*    | -                         | $0.04 per image            |
+| imagen-4.0-ultra\*\*\*       | -                         | $0.06 per image            |
 
 (\*) additional pricing for OpenAI Web Search models **by 1k calls** (included as input tokens for each request in Live AI tokens counter):
 
@@ -68,6 +76,11 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 - low quality: $0.011
 - medim: $0.042
 - high: $0.167
+
+(\*\*\*) Google image generation models pricing:
+
+- **gemini-2.5-flash-image (nano banana)**: Charges $0.30 per 1M input tokens (text or image), and $0.039 per generated image. Supports both image generation and editing.
+- **Imagen-4.0 models**: Charge only per generated image (no input charges). Fast: $0.02/image, Standard: $0.04/image, Ultra: $0.06/image. Generation only (no editing).
 
 For a complete and up-to-date comparison of pricing and performance, see https://artificialanalysis.ai/models#pricing
 
