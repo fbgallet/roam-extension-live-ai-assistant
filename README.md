@@ -6,6 +6,8 @@
 
 **Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, and chat with the results!**
 
+![Live AI chat Hello world](https://github.com/user-attachments/assets/735b589d-2249-4953-998d-bf879f253284)
+
 ## If you want to support my work
 
 If you want to encourage me to develop further and enhance Live AI extension, you can [buy me a coffee ☕ here](https://buymeacoffee.com/fbgallet) or [sponsor me on Github](https://github.com/sponsors/fbgallet). Thanks in advance for your support! 🙏
@@ -41,8 +43,6 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 4. [Agents (Query agents, Ask Your Graph and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
 6. [Detailed documentation and advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
-
-![Live AI chat Hello world](https://github.com/user-attachments/assets/735b589d-2249-4953-998d-bf879f253284)
 
 ## 1. **GETTING STARTED**
 
