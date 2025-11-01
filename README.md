@@ -329,8 +329,9 @@ Examples of request:
 
 - Once your query returns results (by default inserted in your graph in Private mode, limited to 20, or selected and commented in Balanced/Full modes), you can view, filter, and sort them in the full results view.
 - From there, you can chat directly with the results or with a selected subset of results. In its responses, the agent will reference the concerned results. You can instantly connect what the agent says with the related blocks just by hovering over them!
-
-  <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/d4e42351-315c-4990-a006-e3620b48678d" />
+- 
+   
+  <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
 
 - A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results, allowing to filter/select some of them and chat with them!
 - You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
