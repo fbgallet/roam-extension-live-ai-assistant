@@ -72,7 +72,8 @@
   padding: 8px;
   border-top: 1px solid rgba(167, 182, 194, 0.4);
   background: inherit;
-  position: relative;
+  /* Remove position: relative to not interfere with popover positioning */
+  /* position: relative; */
 }
 
 /* Ensure query manager isn't clipped by parent containers */
@@ -413,7 +414,7 @@
 
 .query-composer-textarea {
   width: 100%;
-  min-height: 70px;
+  /* min-height: 70px; */
   border: 1px solid rgba(167, 182, 194, 0.4);
   border-radius: 6px;
   padding: 8px;
@@ -506,9 +507,34 @@
   gap: 8px;
 }
 
-.direct-content-input-row .direct-content-page-multiselect {
+/* Wrapper for MultiSelect to create proper positioning context */
+.direct-content-multiselect-wrapper {
   flex: 1;
-  min-width: 0; /* Allows flex item to shrink below its content size */
+  min-width: 0;
+  position: relative;
+  z-index: 10;
+  /* Ensure popover isn't clipped */
+  overflow: visible;
+}
+
+/* Make sure the popover appears above other content */
+.direct-content-multiselect-wrapper .bp3-popover {
+  z-index: 20;
+}
+
+/* Ensure the popover has proper styling when not using portal */
+.direct-content-multiselect-wrapper .direct-content-popover-multiselect {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.direct-content-multiselect-wrapper .direct-content-popover-multiselect .bp3-menu {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.direct-content-input-row .direct-content-page-multiselect {
+  width: 100%;
 }
 
 .direct-content-add-button {
@@ -716,8 +742,31 @@
   color: white !important;
 }
 
-.bp3-transition-container:has(.direct-content-popover-multiselect) {
-  top: 180px !important;
+/* Ensure popover has proper z-index */
+.bp3-portal .bp3-transition-container:has(.direct-content-popover-multiselect) {
+  z-index: 100;
+}
+
+/* When the popover opens, recalculate its position using JavaScript */
+.bp3-portal .direct-content-popover-multiselect.bp3-popover {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.bp3-portal .direct-content-popover-multiselect.bp3-popover .bp3-popover-content {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+/* Ensure the popover content is properly sized */
+.direct-content-popover-multiselect.bp3-popover {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.direct-content-popover-multiselect .bp3-menu {
+  max-height: 350px;
+  overflow-y: auto;
 }
 
 /* Page Selections Display in Query composer */

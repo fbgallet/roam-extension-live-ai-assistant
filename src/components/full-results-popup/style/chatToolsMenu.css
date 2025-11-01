@@ -36,6 +36,13 @@
   width: 100%;
 }
 
+/* Prevent tag remove button from triggering popover */
+.help-topics-tag .bp3-tag-remove {
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
 /* Collapsed Section */
 .help-topics-collapsed {
   margin-top: 6px;

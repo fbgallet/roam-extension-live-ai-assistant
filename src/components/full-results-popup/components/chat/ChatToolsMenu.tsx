@@ -406,6 +406,8 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
 }) => {
   const selectedIds = new Set(selectedTopics.map((t) => t.id));
   const isMaxReached = selectedTopics.length >= maxSelections;
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const isClickingRemoveButton = React.useRef(false);
 
   // Map category to tag intent
   const getCategoryIntent = (category: string) => {
@@ -503,7 +505,23 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
     topic.topic;
 
   return (
-    <div className="help-topics-multiselect-container">
+    <div
+      className="help-topics-multiselect-container"
+      onMouseDown={(e) => {
+        // Prevent clicks on tag remove buttons from opening the popover
+        const target = e.target as HTMLElement;
+        const isRemoveButton =
+          target.closest(".bp3-tag-remove") ||
+          target.classList.contains("bp3-tag-remove");
+
+        if (isRemoveButton) {
+          isClickingRemoveButton.current = true;
+          setTimeout(() => {
+            isClickingRemoveButton.current = false;
+          }, 100);
+        }
+      }}
+    >
       <div className="help-topics-multiselect-wrapper">
         <MultiSelect<HelpTopic>
           items={topics}
@@ -519,9 +537,6 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
             tagProps: {
               className: "help-topics-tag",
               minimal: true,
-              onRemove: (e: React.MouseEvent) => {
-                e.stopPropagation();
-              },
             },
             placeholder: "Search or select help topics...",
             rightElement: (
@@ -556,6 +571,14 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
           popoverProps={{
             className: "help-topics-multiselect-wrapper",
             minimal: true,
+            isOpen: isPopoverOpen,
+            onInteraction: (nextOpenState) => {
+              // Don't open if clicking remove button
+              if (nextOpenState && isClickingRemoveButton.current) {
+                return;
+              }
+              setIsPopoverOpen(nextOpenState);
+            },
           }}
           fill
         />

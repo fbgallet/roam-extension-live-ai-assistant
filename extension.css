@@ -3395,6 +3395,10 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   margin-right: 0;
 }
 
+.full-results-main-content .bp3-button {
+  z-index: 6;
+}
+
 /* When chat is shown, add margin to main content */
 .full-results-modal.chat-open .full-results-main-content {
   margin-right: 10px;

@@ -17,75 +17,6 @@ export interface DirectContentResult {
 }
 
 /**
- * Process Daily Notes Pages for a specified period
- */
-async function processDNPPages(
-  dnpDays: number,
-  addContent: boolean,
-  addRefs: boolean
-): Promise<{
-  pageData: Array<{ title: string; uid: string | null }>;
-  pageSelection: PageSelection | null;
-}> {
-  const { getYesterdayDate } = await import("../../../utils/roamAPI.js");
-
-  let currentDate = new Date();
-  let foundDnpCount = 0;
-  const pageData: Array<{ title: string; uid: string | null }> = [];
-
-  for (let i = 0; i < dnpDays; i++) {
-    if (i > 0) {
-      currentDate = getYesterdayDate(currentDate);
-    }
-
-    const dnpUid = `${String(currentDate.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(currentDate.getDate()).padStart(
-      2,
-      "0"
-    )}-${currentDate.getFullYear()}`;
-
-    const pageTitle =
-      window.roamAlphaAPI?.util?.dateToPageTitle?.(currentDate);
-
-    const pageExists =
-      window.roamAlphaAPI?.util?.getPageUidByPageTitle?.(pageTitle);
-
-    if (pageExists || pageTitle) {
-      pageData.push({
-        title: pageTitle || dnpUid,
-        uid: dnpUid,
-      });
-      foundDnpCount++;
-    } else {
-      console.log(
-        `⚠️ [DirectContent] DNP not found: ${dnpUid} -> "${pageTitle}"`
-      );
-    }
-  }
-
-  if (foundDnpCount === 0) {
-    console.warn(
-      `⚠️ [DirectContent] No Daily Notes Pages found for the last ${dnpDays} days.`
-    );
-  }
-
-  const pageSelection =
-    foundDnpCount > 0
-      ? {
-          title: `Daily Notes (${dnpDays} days)`,
-          uid: "dnp",
-          includeContent: addContent,
-          includeLinkedRefs: addRefs,
-          dnpPeriod: dnpDays,
-        }
-      : null;
-
-  return { pageData, pageSelection };
-}
-
-/**
  * Add page content with full metadata
  */
 async function addPageContent(
@@ -301,16 +232,194 @@ export async function handleDirectContentAdd(
             "⚠️ [DirectContent] No current page context available"
           );
         }
-      } else if (pageSelection === "dnp") {
-        const dnpResult = await processDNPPages(
-          dnpPeriod,
-          includePageContent,
-          includeLinkedRefs
+      } else if (pageSelection === "sidebar") {
+        // Load sidebar content using roamContextLoader
+        const { loadResultsFromRoamContext } = await import(
+          "./roamContextLoader"
         );
-        pageData.push(...dnpResult.pageData);
-        if (dnpResult.pageSelection) {
-          addedPageSelections.push(dnpResult.pageSelection);
+
+        console.log("📂 [DirectContent] Loading sidebar content...");
+
+        // Load sidebar blocks/pages
+        if (includePageContent) {
+          const sidebarResults = await loadResultsFromRoamContext({
+            roamContext: { sidebar: true },
+          });
+
+          newResults.push(...sidebarResults.results);
+
+          console.log(
+            `✅ [DirectContent] Added ${sidebarResults.results.length} items from sidebar`
+          );
         }
+
+        // Add linked references for each page/block in the sidebar
+        if (includeLinkedRefs) {
+          console.log("🔗 [DirectContent] Loading linked references for sidebar items...");
+
+          // Get sidebar windows to extract UIDs
+          const sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
+          const sidebarUids: string[] = [];
+
+          for (const windowConfig of sidebarWindows) {
+            const type = windowConfig.type;
+
+            if (type === "block" && windowConfig["block-uid"]) {
+              sidebarUids.push(windowConfig["block-uid"]);
+            } else if (type === "outline" && windowConfig["page-uid"]) {
+              sidebarUids.push(windowConfig["page-uid"]);
+            }
+            // For 'mentions' type, the linked refs are already shown, so we skip
+          }
+
+          console.log(`🔗 [DirectContent] Found ${sidebarUids.length} sidebar items for linked refs`);
+
+          // Load linked references for each sidebar item
+          for (const uid of sidebarUids) {
+            const linkedRefsResults = await loadResultsFromRoamContext({
+              roamContext: {
+                linkedRefs: true,
+                pageViewUid: uid,
+              },
+            });
+
+            newResults.push(...linkedRefsResults.results);
+
+            console.log(
+              `✅ [DirectContent] Added ${linkedRefsResults.results.length} linked refs for sidebar item ${uid}`
+            );
+          }
+        }
+
+        addedPageSelections.push({
+          title: "Sidebar",
+          uid: "sidebar",
+          includeContent: includePageContent,
+          includeLinkedRefs: includeLinkedRefs,
+        });
+
+        console.log(
+          `✅ [DirectContent] Completed sidebar loading (${newResults.length} total items added)`
+        );
+      } else if (pageSelection.startsWith("block:")) {
+        // Handle block selection using roamContextLoader
+        const blockUid = pageSelection.substring(6); // Remove "block:" prefix
+
+        const { loadResultsFromRoamContext } = await import(
+          "./roamContextLoader"
+        );
+        const { getBlockContentByUid } = await import(
+          "../../../utils/roamAPI.js"
+        );
+
+        console.log(`📦 [DirectContent] Loading block: ${blockUid}`);
+
+        // Load block content
+        const blockResults = await loadResultsFromRoamContext({
+          roamContext: {
+            block: true,
+            blockArgument: [blockUid],
+          },
+        });
+
+        newResults.push(...blockResults.results);
+
+        // Add linked references if requested
+        if (includeLinkedRefs) {
+          console.log(`🔗 [DirectContent] Loading linked references for block: ${blockUid}`);
+
+          // Use pageViewUid to specify which block to find linked references for
+          const linkedRefsResults = await loadResultsFromRoamContext({
+            roamContext: {
+              linkedRefs: true,
+              pageViewUid: blockUid, // This will be added to linkedRefUids
+            },
+          });
+
+          newResults.push(...linkedRefsResults.results);
+
+          console.log(
+            `✅ [DirectContent] Added ${linkedRefsResults.results.length} linked references for block`
+          );
+        }
+
+        const blockContent = getBlockContentByUid(blockUid);
+        const blockPreview =
+          blockContent && blockContent.length > 50
+            ? blockContent.substring(0, 50) + "..."
+            : blockContent || blockUid;
+
+        addedPageSelections.push({
+          title: `Block: ${blockPreview}`,
+          uid: blockUid,
+          includeContent: true,
+          includeLinkedRefs: includeLinkedRefs,
+        });
+
+        console.log(
+          `✅ [DirectContent] Added block with ${blockResults.results.length} item(s)`
+        );
+      } else if (pageSelection === "dnp") {
+        // Load DNP content using roamContextLoader
+        const { loadResultsFromRoamContext } = await import(
+          "./roamContextLoader"
+        );
+
+        console.log(
+          `📅 [DirectContent] Loading Daily Notes Pages (${dnpPeriod} days)...`
+        );
+
+        const dnpResults = await loadResultsFromRoamContext({
+          roamContext: {
+            logPages: true,
+            logPagesArgument: dnpPeriod,
+          },
+        });
+
+        // Add DNP results - handle based on includePageContent setting
+        if (includePageContent) {
+          newResults.push(...dnpResults.results);
+        }
+
+        // Add linked references if requested
+        if (includeLinkedRefs && dnpResults.results.length > 0) {
+          // Get UIDs of all DNP pages
+          const dnpPageUids = dnpResults.results
+            .filter((r) => r.isPage)
+            .map((r) => r.uid);
+
+          console.log(
+            `🔗 [DirectContent] Loading linked references for ${dnpPageUids.length} DNP pages...`
+          );
+
+          // Load linked references for these pages
+          const linkedRefsResults = await loadResultsFromRoamContext({
+            roamContext: {
+              linkedRefs: true,
+              linkedRefsArgument: dnpPageUids.map(
+                (uid) => dnpResults.results.find((r) => r.uid === uid)?.pageTitle
+              ).filter(Boolean) as string[],
+            },
+          });
+
+          newResults.push(...linkedRefsResults.results);
+
+          console.log(
+            `✅ [DirectContent] Added ${linkedRefsResults.results.length} linked references`
+          );
+        }
+
+        addedPageSelections.push({
+          title: `Daily Notes (${dnpPeriod} days)`,
+          uid: "dnp",
+          includeContent: includePageContent,
+          includeLinkedRefs: includeLinkedRefs,
+          dnpPeriod: dnpPeriod,
+        });
+
+        console.log(
+          `✅ [DirectContent] Added ${dnpResults.results.length} DNP items`
+        );
       } else {
         // Specific page selected
         const { getPageUidByPageName } = await import(

@@ -1,6 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Button, Icon, Tag, NumericInput } from "@blueprintjs/core";
 import { MultiSelect, ItemRenderer, Select } from "@blueprintjs/select";
+import {
+  getBlockContentByUid,
+  getMainViewUid,
+} from "../../../../utils/roamAPI.js";
+import { uidRegex } from "../../../../utils/regex.js";
 
 // DNP period options similar to ContextSelectionPanel
 const DNP_PERIOD_OPTIONS = [
@@ -19,7 +24,8 @@ interface PageOption {
   value: string;
   label: string;
   isSpecial?: boolean;
-  uid?: string; // Store the actual UID for regular pages
+  uid?: string; // Store the actual UID for regular pages or blocks
+  isBlock?: boolean; // Whether this is a block (not a page)
 }
 
 interface DirectContentSelectorProps {
@@ -71,48 +77,179 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
     return matchingOption ? matchingOption.value : "Custom";
   });
 
-  // Get current page title from context
-  const getCurrentPageTitle = (): string | null => {
-    if (currentPageContext?.title) {
-      console.log(
-        "✅ [DirectContentSelector] Using currentPageContext:",
-        currentPageContext
-      );
-      return currentPageContext.title;
-    }
+  // State for current page/block context - refreshed when menu opens
+  const [livePageContext, setLivePageContext] = useState(currentPageContext);
+  const [currentBlockContext, setCurrentBlockContext] = useState<{
+    uid: string;
+    title: string;
+  } | null>(null);
 
-    console.warn("⚠️ [DirectContentSelector] No currentPageContext provided");
+  // State for pasted block UID detection
+  const [pastedBlockUid, setPastedBlockUid] = useState<string | null>(null);
+  const [pastedBlockContent, setPastedBlockContent] = useState<string | null>(
+    null
+  );
+  const [currentQuery, setCurrentQuery] = useState<string>("");
+
+  // Refresh current page and block context when popover opens
+  const refreshContexts = useCallback(async () => {
+    try {
+      const mainViewUid = await getMainViewUid();
+
+      if (!mainViewUid) {
+        setLivePageContext({ uid: null, title: null });
+        setCurrentBlockContext(null);
+        return;
+      }
+
+      // Check if mainViewUid is a page or a block
+      const pageData = window.roamAlphaAPI.pull("[:node/title]", [
+        ":block/uid",
+        mainViewUid,
+      ]);
+
+      if (pageData && pageData[":node/title"]) {
+        // It's a page - set as current page
+        const pageTitle = pageData[":node/title"];
+        setLivePageContext({
+          uid: mainViewUid,
+          title: pageTitle,
+        });
+        setCurrentBlockContext(null);
+      } else {
+        // It's a zoomed block - set as current block and find its page
+        const blockContent = getBlockContentByUid(mainViewUid);
+        if (blockContent) {
+          const blockTitle =
+            blockContent.length > 50
+              ? blockContent.substring(0, 50) + "..."
+              : blockContent;
+          setCurrentBlockContext({
+            uid: mainViewUid,
+            title: blockTitle,
+          });
+
+          // Also get the page this block belongs to
+          const blockFullData = window.roamAlphaAPI.pull(
+            "[{:block/page [:block/uid :node/title]}]",
+            [":block/uid", mainViewUid]
+          );
+
+          if (blockFullData?.[":block/page"]) {
+            const pageUid = blockFullData[":block/page"][":block/uid"];
+            const pageTitle = blockFullData[":block/page"][":node/title"];
+            setLivePageContext({
+              uid: pageUid,
+              title: pageTitle,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        "❌ [DirectContentSelector] Error refreshing contexts:",
+        error
+      );
+    }
+  }, []);
+
+  // Detect block UID from pasted text
+  const detectBlockUid = useCallback((query: string) => {
+    try {
+      // Reset regex lastIndex before using it
+      uidRegex.lastIndex = 0;
+
+      // Match ((uid)) pattern using the existing regex
+      const blockRefMatch = uidRegex.exec(query);
+
+      if (blockRefMatch) {
+        // Extract UID from ((uid)) - remove (( and ))
+        const fullMatch = blockRefMatch[0];
+        const uid = fullMatch.substring(2, fullMatch.length - 2);
+
+        const blockContent = getBlockContentByUid(uid);
+
+        if (blockContent) {
+          setPastedBlockUid(uid);
+          setPastedBlockContent(blockContent);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("❌ [DirectContentSelector] Error fetching block:", error);
+    }
+    // Clear if no valid block UID found
+    setPastedBlockUid(null);
+    setPastedBlockContent(null);
+  }, []);
+
+  // Get current page title from live context
+  const getCurrentPageTitle = (): string | null => {
+    if (livePageContext?.title) {
+      return livePageContext.title;
+    }
     return null;
   };
 
   // Create page options combining special options with available pages
-  // Use useMemo to re-create options when currentPageContext or availablePages change
+  // Use useMemo to re-create options when contexts or availablePages change
   const pageOptions = useMemo(() => {
     const currentPageTitle = getCurrentPageTitle();
     const specialOptions: PageOption[] = [];
 
-    // Only add "Current Page" if we have a current page
-    if (currentPageTitle) {
-      console.log(
-        "✅ [DirectContentSelector] Adding 'Current Page' option:",
-        currentPageTitle
-      );
+    // Add "Current Page" if we have a current page
+    if (currentPageTitle && livePageContext?.uid) {
       specialOptions.push({
         value: "current",
         label: `Current Page: ${currentPageTitle}`,
         isSpecial: true,
+        uid: livePageContext.uid,
       });
-    } else {
-      console.warn(
-        "⚠️ [DirectContentSelector] No current page title - 'Current Page' option not added"
-      );
     }
 
+    // Add "Current Block" if we're zoomed on a block (not the main page)
+    if (currentBlockContext?.uid) {
+      specialOptions.push({
+        value: `block:${currentBlockContext.uid}`,
+        label: `Current Block: ${currentBlockContext.title}`,
+        isSpecial: true,
+        uid: currentBlockContext.uid,
+        isBlock: true,
+      });
+    }
+
+    // Add "Sidebar" option
+    specialOptions.push({
+      value: "sidebar",
+      label: "Sidebar",
+      isSpecial: true,
+    });
+
+    // Add "Daily Notes Pages"
     specialOptions.push({
       value: "dnp",
       label: "Daily Notes Pages",
       isSpecial: true,
     });
+
+    // Add pasted block option if detected (only if it's not the current block)
+    if (
+      pastedBlockUid &&
+      pastedBlockContent &&
+      pastedBlockUid !== currentBlockContext?.uid
+    ) {
+      const blockPreview =
+        pastedBlockContent.length > 50
+          ? pastedBlockContent.substring(0, 50) + "..."
+          : pastedBlockContent;
+      specialOptions.push({
+        value: `block:${pastedBlockUid}`,
+        label: `Add this block: ${blockPreview}`,
+        isSpecial: true,
+        uid: pastedBlockUid,
+        isBlock: true,
+      });
+    }
 
     const regularPageOptions: PageOption[] = availablePages.map((page) => ({
       value: page,
@@ -121,7 +258,13 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
     }));
 
     return [...specialOptions, ...regularPageOptions];
-  }, [currentPageContext, availablePages]); // Re-create when these change
+  }, [
+    livePageContext,
+    currentBlockContext,
+    pastedBlockUid,
+    pastedBlockContent,
+    availablePages,
+  ]); // Re-create when these change
 
   // Blueprint Select item renderer
   const renderPageOption: ItemRenderer<PageOption> = (
@@ -148,6 +291,20 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
   // Filter predicate for Blueprint Select
   const filterPageOption = (query: string, option: PageOption) => {
     if (!query) return true;
+
+    // Check if query contains a block UID pattern
+    const hasBlockUid = query.includes("((") && query.includes("))");
+
+    // If query contains a block UID, only show the pasted block option
+    if (hasBlockUid) {
+      // Only show options that are blocks (pasted or current block with matching UID)
+      return option.isBlock && option.uid && query.includes(option.uid);
+    }
+
+    // Always show special options for regular queries
+    if (option.isSpecial) return true;
+
+    // Filter regular page options by query
     return option.label.toLowerCase().includes(query.toLowerCase());
   };
 
@@ -187,15 +344,41 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
 
   // Tag renderer for selected pages - required by MultiSelect
   const renderTag = (item: PageOption) => {
+    // For blocks, show "Block: [content]" instead of the full label
+    if (item.isBlock && item.uid) {
+      const blockContent = getBlockContentByUid(item.uid);
+      if (blockContent) {
+        const preview =
+          blockContent.length > 30
+            ? blockContent.substring(0, 30) + "..."
+            : blockContent;
+        return `Block: ${preview}`;
+      }
+    }
     return item.label;
   };
 
-  // Handle search query for pages
-  const handlePageQuery = (query: string) => {
-    if (onQueryPages && query.length > 0) {
-      onQueryPages(query);
-    }
-  };
+  // Handle search query for pages and detect block UIDs
+  const handlePageQuery = useCallback(
+    (query: string) => {
+      setCurrentQuery(query);
+
+      // Detect block UID in the query
+      detectBlockUid(query);
+
+      // Call parent query handler for page search ONLY if it's not a block UID pattern
+      // Block UIDs will be handled by the detected option instead
+      if (onQueryPages && query.length > 0 && !query.includes("((")) {
+        onQueryPages(query);
+      }
+    },
+    [onQueryPages, detectBlockUid]
+  );
+
+  // Refresh contexts when component mounts or when requested
+  useEffect(() => {
+    refreshContexts();
+  }, [refreshContexts]);
 
   // DNP period item renderer
   const renderDnpPeriodItem = (
@@ -229,48 +412,56 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
 
   return (
     <div className="query-tool-section">
-      <h6>Complete results with selected Pages or their linked references</h6>
+      <h6>Complete results with selected Pages or Blocks</h6>
 
       <div className="direct-content-page-selector">
         <div className="direct-content-input-row">
-          <MultiSelect<PageOption>
-            items={pageOptions}
-            itemRenderer={renderPageOption}
-            itemPredicate={filterPageOption}
-            onItemSelect={handlePageSelect}
-            onQueryChange={handlePageQuery}
-            tagRenderer={renderTag}
-            selectedItems={getSelectedPageOptions()}
-            popoverProps={{
-              minimal: true,
-              position: "bottom-left",
-              popoverClassName: "direct-content-popover-multiselect",
-            }}
-            fill={true}
-            placeholder="Select pages..."
-            disabled={isAddingDirectContent}
-            resetOnSelect={true}
-            className="direct-content-page-multiselect"
-            tagInputProps={{
-              onRemove: (_value: React.ReactNode, index: number) => {
-                // Extract the actual page value from selectedPages by index
-                const pageToRemove = selectedPages[index];
-                if (pageToRemove) {
-                  handlePageRemove(pageToRemove);
-                }
-              },
-              disabled: isAddingDirectContent,
-              tagProps: (value: string) => {
-                const pageOption = pageOptions.find(
-                  (opt) => opt.value === value
-                );
-                return {
-                  intent: pageOption?.isSpecial ? "primary" : "none",
-                  minimal: true,
-                };
-              },
-            }}
-          />
+          <div className="direct-content-multiselect-wrapper">
+            <MultiSelect<PageOption>
+              items={pageOptions}
+              itemRenderer={renderPageOption}
+              itemPredicate={filterPageOption}
+              onItemSelect={handlePageSelect}
+              onQueryChange={handlePageQuery}
+              tagRenderer={renderTag}
+              selectedItems={getSelectedPageOptions()}
+              popoverProps={{
+                minimal: true,
+                placement: "bottom-end",
+                popoverClassName: "direct-content-popover-multiselect",
+                usePortal: true,
+                enforceFocus: false,
+                onOpened: () => {
+                  // Refresh contexts when popover opens
+                  refreshContexts();
+                },
+              }}
+              fill={true}
+              placeholder="Search pages or paste ((block ref))..."
+              disabled={isAddingDirectContent}
+              resetOnSelect={true}
+              className="direct-content-page-multiselect"
+              tagInputProps={{
+                onRemove: (_value: React.ReactNode, index: number) => {
+                  // Extract the actual page value from selectedPages by index
+                  const pageToRemove = selectedPages[index];
+                  if (pageToRemove) {
+                    handlePageRemove(pageToRemove);
+                  }
+                },
+                disabled: isAddingDirectContent,
+                tagProps: (value: string) => {
+                  const pageOption = pageOptions.find(
+                    (opt) => opt.value === value
+                  );
+                  return {
+                    intent: pageOption?.isSpecial ? "primary" : "none",
+                    minimal: true,
+                  };
+                },
+              }}
+            />
+          </div>
           <Button
             icon={isAddingDirectContent ? "refresh" : "plus"}
             intent="primary"
@@ -296,7 +487,7 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
         </div>
       </div>
 
-      {!isToDisable && (
+      {selectedPages.length > 0 && (
         <div className="direct-content-types">
           <label className="bp3-control bp3-checkbox direct-content-checkbox">
             <input
@@ -306,7 +497,7 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
               disabled={isAddingDirectContent}
             />
             <span className="bp3-control-indicator"></span>
-            Page
+            Content
           </label>
           <label className="bp3-control bp3-checkbox direct-content-checkbox">
             <input
