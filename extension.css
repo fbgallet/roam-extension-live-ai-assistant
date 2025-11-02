@@ -2787,6 +2787,9 @@ html:has(head style#blueprint-css)
   max-width: 85%;
   word-wrap: break-word;
 }
+.full-results-chat-content ul {
+  padding-inline-start: 25px;
+}
 
 /* Modern Chat Bubbles */
 .full-results-chat-text {
@@ -4273,6 +4276,10 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   /* Adjust message bubbles */
   .full-results-chat-content {
     max-width: 100%;
+  }
+
+  .full-results-chat-content ul {
+    padding-inline-start: 15px;
   }
 
   .full-results-chat-text {

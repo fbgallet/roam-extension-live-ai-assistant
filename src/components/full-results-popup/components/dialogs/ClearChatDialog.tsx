@@ -1,11 +1,13 @@
 import React from "react";
 import { Button, Dialog, Classes } from "@blueprintjs/core";
+import { ChatMessage } from "../../types/types";
+import { countRealMessages } from "../../utils/chatMessageUtils";
 
 interface ClearChatDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onClearChat: () => void;
-  totalMessages: number;
+  chatMessages: ChatMessage[];
   insertedMessages: number;
 }
 
@@ -13,9 +15,11 @@ export const ClearChatDialog: React.FC<ClearChatDialogProps> = ({
   isOpen,
   onClose,
   onClearChat,
-  totalMessages,
+  chatMessages,
   insertedMessages,
 }) => {
+  // Only count real messages (exclude help messages like tips and help docs)
+  const totalMessages = countRealMessages(chatMessages);
   const uninsertedMessages = totalMessages - insertedMessages;
   const hasUninsertedMessages = uninsertedMessages > 0;
 

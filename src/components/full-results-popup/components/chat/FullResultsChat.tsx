@@ -27,6 +27,7 @@ import { getChatTitleFromUid } from "../../utils/chatStorage";
 import {
   calculateTotalTokens,
   convertMarkdownToRoamFormat,
+  hasRealMessages,
 } from "../../utils/chatMessageUtils";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
@@ -979,13 +980,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Persist chat-specific state whenever it changes
   // This allows restoration after popup close/reopen
   useEffect(() => {
-    if (chatMessages.length > 0) {
+    if (hasRealMessages(chatMessages)) {
       (window as any).lastLoadedChatUid = loadedChatUid;
       (window as any).lastLoadedChatTitle = loadedChatTitle;
       (window as any).lastInsertedMessagesCount = insertedMessagesCount;
       (window as any).lastChatModel = selectedModel;
     }
-  }, [loadedChatUid, loadedChatTitle, insertedMessagesCount, selectedModel, chatMessages.length]);
+  }, [loadedChatUid, loadedChatTitle, insertedMessagesCount, selectedModel, chatMessages]);
 
   const getSelectedResultsForChat = () => {
     // Create copies to prevent mutation of shared objects from parent component

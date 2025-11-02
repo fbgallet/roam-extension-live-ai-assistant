@@ -645,3 +645,26 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
 
   return converted;
 };
+
+/**
+ * Counts only "real" messages (excluding help messages)
+ * Help messages (Chat help, Live AI help, Tips) should not be counted
+ * as actual conversation messages for warning dialogs or persistence
+ *
+ * @param messages - Array of chat messages
+ * @returns Number of non-help messages
+ */
+export const countRealMessages = (messages: ChatMessage[]): number => {
+  return messages.filter((msg) => !msg.isHelpMessage).length;
+};
+
+/**
+ * Checks if there are any real messages (excluding help messages)
+ * Used to determine if chat actions like insert/clear should be available
+ *
+ * @param messages - Array of chat messages
+ * @returns true if there are non-help messages
+ */
+export const hasRealMessages = (messages: ChatMessage[]): boolean => {
+  return messages.some((msg) => !msg.isHelpMessage);
+};

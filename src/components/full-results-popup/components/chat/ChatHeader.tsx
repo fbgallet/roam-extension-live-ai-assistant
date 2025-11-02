@@ -9,6 +9,7 @@ import { Button, Icon, Tooltip } from "@blueprintjs/core";
 import { Result, ChatMessage } from "../../types/types";
 import { ChatHistorySelect } from "./ChatHistorySelect";
 import { ClearChatDialog } from "../dialogs/ClearChatDialog";
+import { hasRealMessages } from "../../utils/chatMessageUtils";
 
 interface ChatHeaderProps {
   selectedResults: Result[];
@@ -77,7 +78,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </span>
             </Tooltip>
           )}
-          {chatMessages.length > 0 && (
+          {hasRealMessages(chatMessages) && (
             <>
               {
                 <Tooltip
@@ -104,15 +105,24 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   small
                 />
               </Tooltip>
-              <Tooltip content="Reset chat conversation">
-                <Button
-                  icon="trash"
-                  onClick={() => setIsClearDialogOpen(true)}
-                  minimal
-                  small
-                />
-              </Tooltip>
             </>
+          )}
+          {chatMessages.length > 0 && (
+            <Tooltip content="Reset chat conversation">
+              <Button
+                icon="trash"
+                onClick={() => {
+                  // If only help messages, clear directly without confirmation
+                  if (!hasRealMessages(chatMessages)) {
+                    onResetChat();
+                  } else {
+                    setIsClearDialogOpen(true);
+                  }
+                }}
+                minimal
+                small
+              />
+            </Tooltip>
           )}
           <Tooltip
             openOnTargetFocus={false}
@@ -166,7 +176,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         isOpen={isClearDialogOpen}
         onClose={() => setIsClearDialogOpen(false)}
         onClearChat={onResetChat}
-        totalMessages={chatMessages.length}
+        chatMessages={chatMessages}
         insertedMessages={insertedMessagesCount}
       />
     </div>

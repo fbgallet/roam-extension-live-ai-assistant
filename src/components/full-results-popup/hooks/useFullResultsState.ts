@@ -38,6 +38,7 @@ import { getSelectedResultsList } from "../utils/chatHelpers";
 import { defaultModel, extensionStorage } from "../../..";
 import { handleDirectContentAdd as directContentHandler } from "../utils/directContentHandler";
 import { addRecentQuery } from "../utils/queryStorage";
+import { hasRealMessages } from "../utils/chatMessageUtils";
 
 export const useFullResultsState = (
   results: Result[],
@@ -554,14 +555,14 @@ export const useFullResultsState = (
     // Persist chat messages and related state in window object
     // Similar to how results are persisted in window.lastAskYourGraphResults
     // Note: chatExpandedResults is not stored as it will be recalculated from results
-    if (chatMessages.length > 0) {
+    if (hasRealMessages(chatMessages)) {
       (window as any).lastChatMessages = chatMessages;
       (window as any).lastChatAgentData = chatAgentData;
       (window as any).lastChatAccessMode = chatAccessMode;
       // Note: Additional chat state (loadedChatUid, insertedMessagesCount, selectedModel)
       // is managed at the FullResultsChat level and should be persisted there
     } else {
-      // If no messages, clear the persisted state
+      // If no real messages (only help messages or empty), clear the persisted state
       delete (window as any).lastChatMessages;
       delete (window as any).lastChatAgentData;
       delete (window as any).lastChatAccessMode;
