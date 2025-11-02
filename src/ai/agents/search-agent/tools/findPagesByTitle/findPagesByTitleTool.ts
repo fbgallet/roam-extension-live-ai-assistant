@@ -12,6 +12,7 @@ import {
 import { schema, llmFacingSchema } from "./schemas";
 import { executePageTitleQuery } from "./executors";
 import { dnpUidRegex } from "../../../../../utils/regex.js";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Find pages by title conditions with flexible matching
@@ -37,6 +38,12 @@ const findPagesByTitleImpl = async (
     adaptedConditions,
     state
   );
+
+  // Show expansion feedback if semantic expansion occurred
+  const hasExpansions = expandedConditions.length > adaptedConditions.length;
+  if (hasExpansions) {
+    updateAgentToaster(`🔍 Page Title Search: Expanding search with related terms...`);
+  }
 
   console.log(
     `🔍 [TitleTool] Processed ${expandedConditions.length} conditions from ${conditions.length} original`
@@ -250,7 +257,14 @@ const findPagesByTitleImpl = async (
   // Limit results
   const wasLimited = structuredResults.length > limit;
   if (wasLimited) {
+    updateAgentToaster(
+      `⚡ Page Title Search: Showing top ${limit} of ${structuredResults.length} pages`
+    );
     structuredResults = structuredResults.slice(0, limit);
+  } else if (structuredResults.length > 0) {
+    updateAgentToaster(
+      `✅ Page Title Search: Found ${structuredResults.length} page${structuredResults.length > 1 ? 's' : ''}`
+    );
   }
 
   return structuredResults;

@@ -4,6 +4,7 @@ import { extractUidsFromResults } from "../../helpers/searchUtils";
 import { createToolResult } from "../../helpers/semanticExpansion";
 import { schema } from "./schemas";
 import { fetchBlockDetails, fetchPageDetails } from "./executors";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Get detailed information about specific nodes (blocks or pages)
@@ -66,6 +67,8 @@ const getNodeDetailsImpl = async (
   if (allResults.length > limit) {
     allResults = allResults.slice(0, limit);
   }
+
+  updateAgentToaster(`✅ Get Details: Retrieved details for ${allResults.length} nodes`);
 
   console.log(`📊 Returning details for ${allResults.length} nodes`);
   return allResults;

@@ -7,6 +7,7 @@ import {
   getTargetBlockUids,
   extractReferencesFromBlocks,
 } from "./executors";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Extract page references from blocks or pages
@@ -201,6 +202,8 @@ const extractPageReferencesImpl = async (
 
   // Step 6: Limit results
   const limitedResults = filteredReferences.slice(0, limit);
+
+  updateAgentToaster(`✅ Extract References: Found ${limitedResults.length} page references`);
 
   return limitedResults;
 };

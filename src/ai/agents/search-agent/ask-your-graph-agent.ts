@@ -23,6 +23,7 @@ import { insertStructuredAIResponse } from "../../responseInsertion";
 import { chatRoles, getInstantAssistantRole, defaultModel } from "../../..";
 import {
   updateAgentToaster,
+  replaceLastToasterMessage,
   parseJSONWithFields,
   generateSummaryText,
 } from "../shared/agentsUtils";
@@ -564,7 +565,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     // Handle privacy mode escalation
     if (analysis.suggestedMode && state.privateMode) {
       updateAgentToaster(
-        `🔒 This query needs ${analysis.suggestedMode} mode for content analysis`
+        `🔒 This query requires "${analysis.suggestedMode}" security level to access block content`
       );
 
       // Use the same pattern as showResultsThenExpand to pause execution
@@ -583,8 +584,11 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     // Expansion guidance is now handled in ReAct Assistant prompt when needed
     const expansionGuidanceForLLM = "";
 
-    // Show user-friendly summary in toaster
-    updateAgentToaster(`🔍 Symbolic query: ${analysis.formalQuery}`);
+    // Replace the parsing message with query results
+    replaceLastToasterMessage(
+      "🎯 Parsing user intent...",
+      `🔍 Symbolic query: ${analysis.formalQuery}`
+    );
     updateAgentToaster(`🔍 ${analysis.searchStrategy} search strategy planned`);
     if (analysis.isExpansionGlobal) {
       updateAgentToaster(
@@ -615,7 +619,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     };
   } catch (error) {
     console.error("Intent parsing failed:", error);
-    updateAgentToaster("⚠️ Using fallback parsing");
+    updateAgentToaster("⚠️ Using simplified query analysis");
 
     // Fallback with basic parsing - still track any tokens used even on error
     const fallbackTokens = {
@@ -1252,12 +1256,12 @@ ${
                 }`
               : "";
 
-            return `${termDisplay}${limitText}${scopeText}`;
+            return `Content Search: ${termDisplay}${limitText}${scopeText}`;
           }
           const searchText =
             args.conditions?.find((c: any) => c.type === "text")?.text ||
             "content";
-          return `"${searchText}" in blocks`;
+          return `Content Search: "${searchText}"`;
 
         case "findPagesByContent":
           if (args.conditions && Array.isArray(args.conditions)) {
@@ -1270,23 +1274,23 @@ ${
             const combineLogic =
               args.combineConditions === "OR" ? " OR " : " AND ";
             const limitText = args.conditions.length > 3 ? "..." : "";
-            return `pages with ${searchTerms.join(combineLogic)}${limitText}`;
+            return `Page Content Search: ${searchTerms.join(combineLogic)}${limitText}`;
           }
           const pageSearchText = args.searchText || args.query || "content";
-          return `pages with "${pageSearchText}"`;
+          return `Page Content Search: "${pageSearchText}"`;
 
         case "findPagesByTitle":
           const titleText = args.pageTitle || args.searchText || "page";
-          return `pages titled "${titleText}"`;
+          return `Page Title Search: "${titleText}"`;
 
         case "findPagesSemantically":
-          return `related to "${args.query || "concept"}"`;
+          return `Semantic Search: "${args.query || "concept"}"`;
 
         case "extractPageReferences":
           const blockCount = Array.isArray(args.blockUids)
             ? args.blockUids.length
             : "results";
-          return `analyzing ${blockCount} blocks → finding referenced pages`;
+          return `Extract References: ${blockCount} block${blockCount !== 1 ? 's' : ''}`;
 
         case "combineResults":
           const operation = args.operation || "union";
@@ -1299,24 +1303,24 @@ ${
               : operation === "intersection"
               ? "finding common"
               : "processing";
-          return `${opText} ${resultCount} search results`;
+          return `Combine Results: ${opText} ${resultCount} sets`;
 
         case "getNodeDetails":
           const nodeType = args.pageTitle ? "page" : "block";
           const nodeName = args.pageTitle || `block ${args.blockUid || ""}`;
-          return `reading ${nodeType} details: ${nodeName}`;
+          return `Get Details: ${nodeType} ${nodeName}`;
 
         case "findBlocksWithHierarchy":
           const hierarchyQuery =
             args.conditions?.find((c: any) => c.type === "text")?.text ||
             "blocks";
-          return `"${hierarchyQuery}" with context hierarchy`;
+          return `Hierarchy Search: "${hierarchyQuery}" with relationships`;
 
         case "extractHierarchyContent":
           const hierarchyCount = Array.isArray(args.blockUids)
             ? args.blockUids.length
             : "results";
-          return `extracting hierarchy from ${hierarchyCount} blocks`;
+          return `Extract Hierarchy: ${hierarchyCount} block${hierarchyCount !== 1 ? 's' : ''}`;
 
         case "executeDatomicQuery":
           if (args.query) {
@@ -1325,18 +1329,23 @@ ${
               args.query.length > 50
                 ? args.query.substring(0, 47) + "..."
                 : args.query;
-            return `executing custom Datalog: ${queryPreview}`;
+            return `Datalog Query: ${queryPreview}`;
           } else if (args.variables) {
             // Parameterized query
             const varCount = Object.keys(args.variables).length;
             const queryHint = args.description || "parameterized query";
-            return `executing query with ${varCount} variables: ${queryHint}`;
+            return `Datalog Query: ${queryHint}`;
           } else {
             // Auto-generated query
             const queryHint =
-              args.description || args.criteria || "advanced database search";
-            return `generating & executing query: ${queryHint}`;
+              args.description || args.criteria || "advanced search";
+            return `Datalog Query: ${queryHint}`;
           }
+
+        case "findDailyNotesByPeriod":
+          const startDate = args.startDate || "start";
+          const endDate = args.endDate || "end";
+          return `Daily Notes Search: ${startDate} to ${endDate}`;
 
         default:
           return `${toolName
@@ -1383,11 +1392,13 @@ ${
       }
     }
 
-    updateAgentToaster(
+    replaceLastToasterMessage(
+      "🤖 Understanding your request...",
       `🔍 ${explanation} (${(llmDuration / 1000).toFixed(1)}s)`
     );
   } else {
-    updateAgentToaster(
+    replaceLastToasterMessage(
+      "🤖 Understanding your request...",
       `✅ Analysis complete (${(llmDuration / 1000).toFixed(1)}s)`
     );
   }
@@ -1631,7 +1642,14 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   }
 
   const llmDuration = Date.now() - llmStartTime;
-  updateAgentToaster(
+
+  // Replace the temporary "Generating..." or "Crafting..." message
+  const tempMessage = state.isDirectChat
+    ? "💬 Generating chat response..."
+    : "✍️ Crafting final response...";
+
+  replaceLastToasterMessage(
+    tempMessage,
     `✅ Response generated (${(llmDuration / 1000).toFixed(1)}s)`
   );
 
@@ -1720,24 +1738,36 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
       const toolCalls = state.timingMetrics.toolCalls;
 
       const streamingNote = state.wasStreamed ? " (with streaming)" : "";
-      updateAgentToaster(
+
+      // Detailed timing for console
+      console.log(
         `⏱️ Total: ${totalDuration}s (LLM: ${llmTime}s/${llmCalls} calls, Tools: ${toolTime}s/${toolCalls} calls)${streamingNote}`
       );
+
+      // Simplified timing for toaster
+      replaceLastToasterMessage(
+        "📝 Preparing your results...",
+        `✅ Completed in ${totalDuration}s`
+      );
     } else {
-      updateAgentToaster(`⏱️ Total execution time: ${totalDuration}s`);
+      replaceLastToasterMessage(
+        "📝 Preparing your results...",
+        `✅ Completed in ${totalDuration}s`
+      );
     }
   }
 
-  // Display total tokens used in toaster
+  // Display total tokens used in both console and toaster
   if (
     state.totalTokensUsed &&
     (state.totalTokensUsed.input > 0 || state.totalTokensUsed.output > 0)
   ) {
     const totalTokens =
       state.totalTokensUsed.input + state.totalTokensUsed.output;
-    updateAgentToaster(
-      `🔢 Total tokens: ${totalTokens} (${state.totalTokensUsed.input} in / ${state.totalTokensUsed.output} out)`
-    );
+    const tokenMessage = `Total tokens: ${totalTokens} (${state.totalTokensUsed.input} in / ${state.totalTokensUsed.output} out)`;
+
+    console.log(`🔢 ${tokenMessage}`);
+    updateAgentToaster(`🔢 ${tokenMessage}`);
   }
 
   let targetUid: string;
@@ -1817,7 +1847,7 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
 // Adaptive context expansion node with intelligent depth and truncation
 const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
-  updateAgentToaster("🌳 Analyzing context expansion needs...");
+  updateAgentToaster("🌳 Checking if more surrounding context is needed...");
 
   // Get final results for context expansion
   const finalResults = Object.values(state.resultStore || {}).filter(
@@ -1893,8 +1923,9 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
       },
     };
 
-    updateAgentToaster(
-      `🌳 Context expansion completed (${expandedResults.length} results)`
+    replaceLastToasterMessage(
+      "🌳 Checking if more surrounding context is needed...",
+      `🌳 Added surrounding context (${expandedResults.length} results)`
     );
 
     return {
@@ -2048,6 +2079,12 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
 
   // Log result distribution for debugging
 
+  // Replace the formatting message
+  replaceLastToasterMessage(
+    "📝 Formatting results...",
+    `✅ Results formatted: ${totalCount} ${resultType}`
+  );
+
   return {
     ...state,
     finalAnswer: resultText,
@@ -2106,11 +2143,36 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
       ? `⚠️ No results found. Try expansion strategies:`
       : `⚠️ Found ${resultCount} results. Try expansion for better coverage:`;
 
-  updateAgentToaster(message + resultsSummary, {
-    showExpansionButton: true,
-    expansionOptions: expansionOptions,
-    showFullResultsButton: resultCount > 0, // Enable full results button if we have results
-  });
+  replaceLastToasterMessage(
+    "📝 Formatting results...",
+    message + resultsSummary
+  );
+
+  // Don't call updateAgentToaster with empty string - just update the buttons
+  // The buttons will be added to the existing toaster message
+  const toasterElement = (window as any).agentToasterStream?.closest?.(".bp3-toast");
+  if (toasterElement) {
+    const existingButtons = toasterElement.querySelector(".buttons");
+    if (existingButtons) {
+      existingButtons.remove();
+    }
+
+    // Use the addButtonsToToaster function to add expansion buttons
+    setTimeout(() => {
+      const { addButtonsToToaster } = require("../shared/agentsUtils");
+      addButtonsToToaster(
+        null,
+        ".search-agent-toaster",
+        (window as any).agentToasterInstance,
+        {
+          showExpansionButton: true,
+          expansionOptions: expansionOptions,
+          showStopButton: false,
+          showFullResultsButton: resultCount > 0,
+        }
+      );
+    }, 50);
+  }
 
   // INTERRUPT: Stop execution and wait for human input
   // Make sure full results are available for popup during interrupt

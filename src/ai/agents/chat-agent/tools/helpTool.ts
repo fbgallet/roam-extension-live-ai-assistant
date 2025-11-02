@@ -49,8 +49,6 @@ function buildHelpToolDescription(): string {
     .map(([category, topics]) => `${category}:\n${topics.join("\n")}`)
     .join("\n\n");
 
-  console.log("categorySections :>> ", categorySections);
-
   return `Fetch documentation when user asks for help about Live AI features or other enabled topics.
 
 Available Topics:
@@ -114,7 +112,9 @@ Source: ${publicUrl}[/DISPLAY]`;
         const content = await response.text();
 
         // Build topic display name with author if not a built-in topic
-        const isBuiltIn = BUILTIN_LIVEAI_TOPICS.some((bt) => bt.id === selectedTopic.id);
+        const isBuiltIn = BUILTIN_LIVEAI_TOPICS.some(
+          (bt) => bt.id === selectedTopic.id
+        );
         const topicDisplayName = isBuiltIn
           ? selectedTopic.topic
           : `${selectedTopic.topic} (by ${selectedTopic.author})`;

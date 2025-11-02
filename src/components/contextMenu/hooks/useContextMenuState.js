@@ -124,7 +124,7 @@ export const useContextMenuState = () => {
     }
 
     setIsChildrenTreeToInclude(includeChildrenByDefault);
-    setIncludePdfInContext(true);
+    setIncludePdfInContext(false);
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;

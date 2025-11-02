@@ -7,6 +7,7 @@ import {
 } from "../../helpers/searchUtils";
 import { createToolResult } from "../../helpers/semanticExpansion";
 import { schema, BlockNode, HierarchyContent } from "./schemas";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Extract and format hierarchical content from specific blocks
@@ -38,6 +39,10 @@ const extractHierarchyContentImpl = async (
     blockUids,
     undefined, // No page UIDs for this tool
     state
+  );
+
+  updateAgentToaster(
+    `🔗 Extract Hierarchy: Processing ${finalBlockUids.length} block${finalBlockUids.length > 1 ? 's' : ''}...`
   );
 
   console.log(
@@ -102,6 +107,12 @@ const extractHierarchyContentImpl = async (
     } catch (error) {
       console.error(`Error processing block ${rootUid}:`, error);
     }
+  }
+
+  if (results.length > 0) {
+    updateAgentToaster(
+      `✅ Extract Hierarchy: Extracted ${results.length} hierarchy${results.length > 1 ? ' structures' : ''}`
+    );
   }
 
   return results;

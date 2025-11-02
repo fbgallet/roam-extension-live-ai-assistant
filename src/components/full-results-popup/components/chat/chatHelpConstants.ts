@@ -6,29 +6,31 @@
 
 export const CHAT_HELP_RESPONSE = `### Chat Panel Quick Guide
 
-Easy to use like a simple chat but with the power of an agent capable of querying your Roam graph and giving you fresh insights through its integration with the results panel!
+Easy to use like a simple chat but with the power of an agent capable of querying your Roam graph and giving you fresh insights through its integration with the context panel!
 
 #### **Simple and Smooth Chat**
 - **Ephemeral** conversations by default - nothing saved unless you click "Insert in Roam"
 - **Save & Continue**: Tag blocks with #liveai/chat to save conversations and reload them later
 - **Flexible Layout**: Position as right/left/bottom panel or modal - preferences auto-saved
 - **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt) and styles (#liveai/style)
-- **Fast Model Switching**: Type first letters of provider name to switch instantly
+- **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
+
+#### **Context panel**
+- **Easy access**: switch to a detailed context view (click on the vertical button on the left of chat panel) or split view
+- **Easy set up**: add pages/blocks manually, by loading saved queries, or by creating new ones
+- **Precise control**: filter, sort and select the most relevant data for your chat
 
 #### **Chat Agent: Intelligent Context & Tools**
-- **Access Modes**:
+- **Access Modes**: adaptative depth of pages/blocks in the context
   - 🛡️ **Balanced**: 30% context window, faster responses, adaptive depth (0-4 levels for blocks, 4 for pages)
   - 🔓 **Full Access**: 75% context window, deeper analysis, unlimited depth (0-99 levels for blocks, unlimited for pages)
 - **6 Powerful Tools**: add_pages, linked_references, select_by_criteria, ask_your_graph, get_help, skills
 - **Smart Context**: Agent loads pages/blocks dynamically based on mentions and needs
 - **Query Integration**: Run queries, compose searches, manage results directly in the panel
-- **Adaptive Expansion**: Children depth scales with result count (1-10 results = max depth, 200+ = no expansion)
 
 #### **Key Features**
 - **Bidirectional Roam Integration**: Chat → Roam (insert button), Roam → Chat (load #liveai/chat blocks)
-- **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
-- **Interactive References**: Click ((block-refs)) or [[page-refs]] to navigate (Shift/Alt modifiers supported)
-- **Token Tracking**: See input/output tokens per message, monitor conversation costs
+- **Interactive References**: Hover over [block refs](((block-refs))) or [[page-refs]] to highlight them in the result view (Shift/Alt modifiers supported so open them)
 - **Tool Visibility**: Watch agent actions in real-time with tool usage display
 
 #### **Recommendations**
@@ -48,9 +50,9 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
 - 💥 **Context menu**: Access all Live AI features from anywhere in Roam by just pressing 'Cmd-Ctrl-A' or 'Cmd+Right click': define context, select prompts, call natural language query agents, search on the web, generate images...
-- 💬 **Chat panel**: chat with your notes, linked references or any other query result
 - ✍️ **Custom prompts**: Create reusable prompts with \`#liveai/prompt\`
 - 🎨 **Custom styles**: Define output formats with \`#liveai/style\`
+- 💬 **Chat panel**: chat with your notes, linked references or any other query result
 
 #### **Multimodal features**
 - 🎤 **Voice**: Dictate notes and commands, Text-to-speech

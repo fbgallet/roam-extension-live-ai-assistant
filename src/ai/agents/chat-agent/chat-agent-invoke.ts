@@ -106,7 +106,7 @@ export async function invokeChatAgent(
   let userMessage = [{ role: "user", content: options.userMessage }];
   if (isModelSupportingImage(options.model.id)) {
     const stringifiedHistory = JSON.stringify(options.conversationHistory);
-    console.log("stringifiedHistory :>> ", stringifiedHistory);
+
     const messagesWithImage = await addImagesUrlToMessages(
       [undefined, userMessage[0]],
       stringifiedHistory
@@ -114,9 +114,8 @@ export async function invokeChatAgent(
     userMessage = messagesWithImage.slice(1);
   }
 
-  console.log("userMessage :>> ", userMessage);
   const hMessage = userMessage.map((msg) => new HumanMessage(msg));
-  console.log("hMessage :>> ", hMessage);
+
   // Build initial state
   const initialState: Partial<ChatAgentStateType> = {
     // Model

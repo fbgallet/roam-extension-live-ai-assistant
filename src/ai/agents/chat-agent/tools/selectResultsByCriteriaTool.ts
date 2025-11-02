@@ -160,8 +160,6 @@ export const selectResultsByCriteriaTool = tool(
       return "Error: LLM analysis requested but no model available. This may be a configuration issue.";
     }
 
-    console.log(`🎯 Selecting results based on criteria...`);
-
     let matchedResults: any[] = [];
 
     // Filter results based on criteria
@@ -237,7 +235,9 @@ export const selectResultsByCriteriaTool = tool(
           if (llm) {
             // Build criteria description for LLM
             const attributeCriteria = attribute_values
-              ? `has attribute "${attribute_name}" with value(s): ${attribute_values.join(", ")}`
+              ? `has attribute "${attribute_name}" with value(s): ${attribute_values.join(
+                  ", "
+                )}`
               : `has attribute "${attribute_name}"`;
             try {
               matches = await analyzeResultWithLLM(
@@ -315,7 +315,9 @@ export const selectResultsByCriteriaTool = tool(
     }
     if (attribute_name) {
       if (attribute_values && attribute_values.length > 0) {
-        report += `- Attribute "${attribute_name}" with values: ${attribute_values.join(", ")}\n`;
+        report += `- Attribute "${attribute_name}" with values: ${attribute_values.join(
+          ", "
+        )}\n`;
       } else {
         report += `- Has attribute "${attribute_name}" (any value)\n`;
       }
@@ -408,7 +410,7 @@ You can combine multiple filters - all must match for a result to be selected.`,
         .array(z.string())
         .optional()
         .describe(
-          'Array of values to match for the attribute. Handles different formats: tags (#ethics), page links ([[Victor Hugo]]), or plain text. Case-insensitive. Leave empty to match any value for the attribute.'
+          "Array of values to match for the attribute. Handles different formats: tags (#ethics), page links ([[Victor Hugo]]), or plain text. Case-insensitive. Leave empty to match any value for the attribute."
         ),
       use_llm_analysis: z
         .boolean()

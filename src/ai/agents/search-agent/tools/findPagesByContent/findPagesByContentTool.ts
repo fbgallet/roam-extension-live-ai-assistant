@@ -28,6 +28,7 @@ import {
   withAutomaticExpansion,
   createToolResult,
 } from "../../helpers/semanticExpansion";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Find pages by analyzing their content blocks with aggregation and filtering
@@ -237,8 +238,16 @@ const findPagesByContentImpl = async (
   enrichedResults = sortPageResults(enrichedResults, sortBy, finalConditions);
 
   // Step 7: Limit results
-  if (enrichedResults.length > limit) {
+  const wasLimited = enrichedResults.length > limit;
+  if (wasLimited) {
+    updateAgentToaster(
+      `⚡ Page Content Search: Showing top ${limit} of ${enrichedResults.length} pages`
+    );
     enrichedResults = enrichedResults.slice(0, limit);
+  } else if (enrichedResults.length > 0) {
+    updateAgentToaster(
+      `✅ Page Content Search: Found ${enrichedResults.length} page${enrichedResults.length > 1 ? 's' : ''}`
+    );
   }
 
   return enrichedResults;

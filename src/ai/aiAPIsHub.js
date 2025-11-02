@@ -402,8 +402,6 @@ export async function imageGeneration(
 
       // For nano banana (gemini-2.5-flash-image), support image editing
       if (model === "gemini-2.5-flash-image" && matchingImagesInPrompt.length) {
-        console.log("Using nano banana for image editing");
-
         // Extract the first image for editing
         const imageUrl = matchingImagesInPrompt[0][2];
 
@@ -439,12 +437,6 @@ export async function imageGeneration(
             },
           },
         ];
-
-        console.log("Nano banana editing with:", {
-          prompt: processedPrompt,
-          imageUrl,
-          mimeType,
-        });
 
         // Use generateContent for nano banana editing
         result = await googleLibrary.models.generateContent({
@@ -485,13 +477,6 @@ export async function imageGeneration(
         // Process prompt with Gemini for translation and parameter extraction
         const { prompt: processedPrompt, config } =
           await processPromptForImagen(prompt);
-
-        console.log("Processed prompt for Google image generation:", {
-          model,
-          original: prompt,
-          processed: processedPrompt,
-          config,
-        });
 
         // Nano banana uses generateContent API
         if (model === "gemini-2.5-flash-image") {
@@ -830,7 +815,7 @@ export async function claudeCompletion({
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
-    console.log("model from claudeCompletion :>> ", model);
+
     try {
       let messages =
         command === "Web search"
@@ -957,8 +942,6 @@ export async function claudeCompletion({
         body: JSON.stringify(options),
       });
 
-      console.log("response :>> ", response);
-
       // handle streamed responses (not working from client-side)
       let respStr = "";
       // console.log("response :>> ", response);
@@ -1061,7 +1044,7 @@ export async function claudeCompletion({
           });
           return "";
         } finally {
-          console.log("citations :>> ", citations);
+          // console.log("citations :>> ", citations);
           if (citations.length && citations.find((cit) => cit.url)) {
             respStr += "\n\nWeb sources:\n";
             citations.forEach((cit) => {
@@ -1071,7 +1054,7 @@ export async function claudeCompletion({
           }
           streamEltCopy = DOMPurify.sanitize(streamElt.innerHTML);
           if (isCanceledStreamGlobal)
-            console.log("Anthropic API response stream interrupted.");
+            console.warn("Anthropic API response stream interrupted.");
           else streamElt.remove();
         }
       } else {
@@ -1184,7 +1167,7 @@ export async function openaiCompletion({
     } else messages = await addImagesUrlToMessages(messages, content);
   }
 
-  console.log("Messages sent as prompt to the model:", messages);
+  // console.log("Messages sent as prompt to the model:", messages);
 
   const isToStream =
     model.startsWith("o1") || model === "o3-pro"
@@ -1271,7 +1254,7 @@ export async function openaiCompletion({
     let streamEltCopy = "";
     let annotations;
 
-    console.log("OpenAI response :>>", response);
+    // console.log("OpenAI response :>>", response);
 
     if (isToStream) {
       if (isButtonToInsert)
@@ -1493,17 +1476,6 @@ export async function googleCompletion({
         content
       );
     }
-
-    console.log("Messages sent as prompt to Gemini:", {
-      systemInstruction,
-      history,
-      currentMessage,
-      currentMessageParts,
-      hasPdfInPrompt,
-      hasPdfInContent,
-      hasImageInPrompt,
-      hasImageInContent,
-    });
 
     const isToStream = streamResponse && responseFormat === "text";
 
@@ -1760,7 +1732,7 @@ export const addImagesUrlToMessages = async (
 
 export const isModelSupportingImage = (model) => {
   model = model.toLowerCase();
-  console.log("model :>> ", model);
+
   if (
     model.includes("gpt-4o") ||
     model.includes("gpt-4.1") ||
@@ -1867,8 +1839,6 @@ const addPdfToGeminiMessage = async (messageParts, content) => {
           data: pdfBase64,
         },
       });
-
-      console.log(`Added PDF from ${pdfUrl} to Gemini message`);
     } catch (error) {
       console.error(`Error processing PDF: ${error.message}`);
     }
@@ -1907,8 +1877,6 @@ const addImagesToGeminiMessage = async (messageParts, content) => {
           data: imageBase64,
         },
       });
-
-      console.log(`Added image from ${imageUrl} to Gemini message`);
     } catch (error) {
       console.error(`Error processing image: ${error.message}`);
     }

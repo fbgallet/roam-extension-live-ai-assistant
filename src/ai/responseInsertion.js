@@ -204,9 +204,7 @@ export const aiCompletionRunner = async ({
   // console.log("prompt in aiCompletionRunner :>> ", prompt);
   console.log("roamContext in aiCompletionRunner :>> ", roamContext);
 
-  console.log("style :>> ", style);
   systemPrompt = getStylePrompt(style);
-  console.log("systemPrompt as style :>> ", systemPrompt);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
@@ -258,7 +256,7 @@ export const aiCompletionRunner = async ({
   );
   if (noData) return;
 
-  console.log("context :>> ", context);
+  // console.log("context :>> ", context);
 
   if ((sourceUid || selectedText) && !selectedUids?.length && !context)
     includeUids = false;
@@ -274,7 +272,7 @@ export const aiCompletionRunner = async ({
   if (additionalPrompt && !completedPrompt.includes(additionalPrompt))
     completedPrompt = concatAdditionalPrompt(completedPrompt, additionalPrompt);
   // console.log("systemPrompt :>> ", systemPrompt);
-  console.log("completed prompt from aiCompletionRunner :>> ", completedPrompt);
+  // console.log("completed prompt from aiCompletionRunner :>> ", completedPrompt);
 
   insertCompletion({
     prompt: completedPrompt,
@@ -472,7 +470,7 @@ export const insertCompletion = async ({
           isButtonToInsert,
           includePdfInContext,
         });
-  console.log("aiResponse :>> ", aiResponse);
+  console.log("AI Model response :>> ", aiResponse);
 
   if (isInConversation)
     aiResponse = aiResponse.replace(assistantRole, "").trim();
@@ -483,7 +481,7 @@ export const insertCompletion = async ({
       simulateClick();
       await updateBlock({ blockUid: targetUid, newContent: "" });
     }
-    console.log("command :>> ", command);
+    // console.log("command :>> ", command);
     insertStructuredAIResponse({
       targetUid,
       content: aiResponse,

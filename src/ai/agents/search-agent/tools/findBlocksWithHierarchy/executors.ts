@@ -98,7 +98,7 @@ export const executeStrictHierarchySearch = async (
 
   if (results.length > 0) {
     updateAgentToaster(
-      `🏗️ Parent→child search: ${results.length} hierarchy relationships found`
+      `🏗️ Hierarchy Search: Parent→child: ${results.length} relationships found`
     );
   }
 
@@ -448,7 +448,7 @@ export const executeInverseStrictHierarchySearch = async (
 
   if (hierarchyResults.length > 0) {
     updateAgentToaster(
-      `🏗️ Child←parent search: ${hierarchyResults.length} hierarchy relationships found`
+      `🏗️ Hierarchy Search: Child←parent: ${hierarchyResults.length} relationships found`
     );
   }
 
@@ -709,7 +709,7 @@ export const executeDeepStrictHierarchySearch = async (
 
   if (results.length > 0) {
     updateAgentToaster(
-      `🌳 Ancestor→descendant search (depth ${options.maxHierarchyDepth}): ${results.length} hierarchy relationships found`
+      `🌳 Hierarchy Search: Ancestor→descendant (depth ${options.maxHierarchyDepth}): ${results.length} relationships found`
     );
   }
   return [results]; // Return as array of result sets
@@ -1013,7 +1013,7 @@ export const executeBidirectionalSearch = async (
 
   if (totalHierarchyMatches > 0) {
     updateAgentToaster(
-      `↔️ Bidirectional search: ${totalHierarchyMatches} hierarchy relationships found → ${finalResults.length} total results`
+      `↔️ Hierarchy Search: Bidirectional: ${totalHierarchyMatches} relationships found → ${finalResults.length} total results`
     );
   }
 
@@ -1182,11 +1182,11 @@ export const executeDeepBidirectionalSearch = async (
 
   if (totalHierarchyMatches > 0) {
     updateAgentToaster(
-      `🌊 Processed ${parentsAnalyzed} parent blocks (depth ${maxDepth}): ${totalHierarchyMatches} hierarchy connections → ${finalResults.length} results`
+      `🌊 Hierarchy Search: Deep bidirectional: Processed ${parentsAnalyzed} parent blocks (depth ${maxDepth}) → ${finalResults.length} results`
     );
   } else if (parentsAnalyzed > 0) {
     updateAgentToaster(
-      `🌊 Processed ${parentsAnalyzed} parent blocks (depth ${maxDepth}): no hierarchy connections found`
+      `🌊 Hierarchy Search: Deep bidirectional: Processed ${parentsAnalyzed} parent blocks (depth ${maxDepth}), no connections found`
     );
   }
 
@@ -1299,7 +1299,7 @@ export const executeFlexibleHierarchySearch = async (
   // }
 
   updateAgentToaster(
-    `🔀 Flexible search: ${hierarchyResults.length} hierarchy relationships found → ${finalResults.length} total results`
+    `🔀 Hierarchy Search: Flexible: ${hierarchyResults.length} relationships found → ${finalResults.length} total results`
   );
 
   return [finalResults]; // Return as single result set (already deduplicated)

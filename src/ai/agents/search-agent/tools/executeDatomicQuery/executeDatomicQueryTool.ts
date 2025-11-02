@@ -7,6 +7,7 @@ import {
 import { createToolResult } from "../../helpers/semanticExpansion";
 import { dnpUidRegex } from "../../../../../utils/regex.js";
 import { schema, DatomicQueryResult } from "./schemas";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Execute Datomic/Datalog queries against the Roam Research database
@@ -103,6 +104,14 @@ const generateDatomicQueryImpl = async (
     fromResultId,
   } = input;
 
+  updateAgentToaster(
+    `🔍 Datalog Query: ${
+      userQuery
+        ? "Executing custom query"
+        : `Searching ${targetEntity}s`
+    }...`
+  );
+
   console.log(
     `🔍 ExecuteDatomicQuery: ${
       userQuery
@@ -176,6 +185,7 @@ const generateDatomicQueryImpl = async (
         const executionResults = await executeDatomicQuery(result.query);
         result.executionTime = performance.now() - executionStartTime;
         result.executionResults = executionResults;
+        updateAgentToaster(`✅ Datalog Query: Found ${executionResults.length} results`);
         console.log(
           `✅ Query executed successfully: ${
             executionResults.length
@@ -275,6 +285,7 @@ const generateDatomicQueryImpl = async (
       const executionResults = await executeDatomicQuery(result.query);
       result.executionTime = performance.now() - executionStartTime;
       result.executionResults = executionResults;
+      updateAgentToaster(`✅ Datalog Query: Found ${executionResults.length} results`);
       console.log(
         `✅ Query executed successfully: ${
           executionResults.length

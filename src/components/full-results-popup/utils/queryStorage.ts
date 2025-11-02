@@ -39,7 +39,13 @@ export interface IntentParserResult {
   needsPostProcessing?: boolean;
   postProcessingType?: string;
   isExpansionGlobal?: boolean;
-  semanticExpansion?: "fuzzy" | "synonyms" | "related_concepts" | "broader_terms" | "all" | "custom";
+  semanticExpansion?:
+    | "fuzzy"
+    | "synonyms"
+    | "related_concepts"
+    | "broader_terms"
+    | "all"
+    | "custom";
   customSemanticExpansion?: string;
   preferredModel?: string; // Model to use for this query execution
   searchDetails?: {
@@ -66,7 +72,7 @@ export interface PageSelection {
 }
 
 // Storage types for unified system
-export type StorageType = 'temporary' | 'recent' | 'saved';
+export type StorageType = "temporary" | "recent" | "saved";
 
 // Unified storage options
 export interface UnifiedStorageOptions {
@@ -106,10 +112,10 @@ export interface StoredQuery {
 
 export interface QueryStorage {
   recent: StoredQuery[]; // Last 3 queries (excluding current)
-  saved: StoredQuery[];  // User-saved queries
+  saved: StoredQuery[]; // User-saved queries
 }
 
-const STORAGE_KEY = 'askYourGraphQueries';
+const STORAGE_KEY = "askYourGraphQueries";
 const MAX_RECENT_QUERIES = 3;
 
 /**
@@ -143,10 +149,10 @@ export const getStoredQueries = (): QueryStorage => {
     // Convert timestamps and sanitize structure
     return {
       recent: (parsed.recent || []).map(sanitizeQuery),
-      saved: (parsed.saved || []).map(sanitizeQuery)
+      saved: (parsed.saved || []).map(sanitizeQuery),
     };
   } catch (error) {
-    console.warn('Error loading stored queries:', error);
+    console.warn("Error loading stored queries:", error);
     return { recent: [], saved: [] };
   }
 };
@@ -158,17 +164,24 @@ export const saveQueries = (queries: QueryStorage): void => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
   } catch (error) {
-    console.error('Error saving queries:', error);
+    console.error("Error saving queries:", error);
   }
 };
 
 /**
  * Add a query to recent list (automatically manages the 3-query limit)
  */
-export const addRecentQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>): void => {
+export const addRecentQuery = (
+  query: Omit<StoredQuery, "id" | "timestamp">
+): void => {
   // VALIDATION: Don't save queries without userQuery AND without pageSelections
-  if (!query.userQuery && (!query.pageSelections || query.pageSelections.length === 0)) {
-    console.warn("⚠️ [addRecentQuery] Skipping query without userQuery or pageSelections");
+  if (
+    !query.userQuery &&
+    (!query.pageSelections || query.pageSelections.length === 0)
+  ) {
+    console.warn(
+      "⚠️ [addRecentQuery] Skipping query without userQuery or pageSelections"
+    );
     return;
   }
 
@@ -177,7 +190,7 @@ export const addRecentQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>): vo
   const newQuery: StoredQuery = {
     ...query,
     id: generateQueryId(),
-    timestamp: new Date()
+    timestamp: new Date(),
   };
 
   // Add to front and limit to MAX_RECENT_QUERIES
@@ -189,14 +202,17 @@ export const addRecentQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>): vo
 /**
  * Save a query permanently with optional custom name
  */
-export const saveQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>, customName?: string): string => {
+export const saveQuery = (
+  query: Omit<StoredQuery, "id" | "timestamp">,
+  customName?: string
+): string => {
   const queries = getStoredQueries();
 
   const newQuery: StoredQuery = {
     ...query,
     id: generateQueryId(),
     timestamp: new Date(),
-    name: customName || generateQueryName(query.userQuery)
+    name: customName || generateQueryName(query.userQuery),
   };
 
   queries.saved.push(newQuery);
@@ -209,7 +225,10 @@ export const saveQuery = (query: Omit<StoredQuery, 'id' | 'timestamp'>, customNa
  * Save a composed query with query steps and page selections
  */
 export const saveComposedQuery = (
-  baseQuery: Omit<StoredQuery, 'id' | 'timestamp' | 'isComposed' | 'querySteps' | 'pageSelections'>,
+  baseQuery: Omit<
+    StoredQuery,
+    "id" | "timestamp" | "isComposed" | "querySteps" | "pageSelections"
+  >,
   querySteps: QueryStep[],
   pageSelections: PageSelection[],
   customName?: string
@@ -220,10 +239,16 @@ export const saveComposedQuery = (
     ...baseQuery,
     id: generateQueryId(),
     timestamp: new Date(),
-    name: customName || generateComposedQueryName(baseQuery.userQuery, querySteps, pageSelections),
+    name:
+      customName ||
+      generateComposedQueryName(
+        baseQuery.userQuery,
+        querySteps,
+        pageSelections
+      ),
     isComposed: true,
     querySteps,
-    pageSelections
+    pageSelections,
   };
 
   queries.saved.push(composedQuery);
@@ -244,7 +269,7 @@ export const updateToComposedQuery = (
 
   // Look in both recent and saved queries
   const allQueries = [...queries.recent, ...queries.saved];
-  const existingQuery = allQueries.find(q => q.id === queryId);
+  const existingQuery = allQueries.find((q) => q.id === queryId);
 
   if (!existingQuery) {
     return false;
@@ -254,16 +279,18 @@ export const updateToComposedQuery = (
   existingQuery.isComposed = true;
   existingQuery.querySteps = [
     ...(existingQuery.querySteps || []),
-    ...(newQuerySteps || [])
+    ...(newQuerySteps || []),
   ];
   existingQuery.pageSelections = [
     ...(existingQuery.pageSelections || []),
-    ...(newPageSelections || [])
+    ...(newPageSelections || []),
   ];
 
   // Update the name to reflect it's composed
-  if (!existingQuery.name?.includes('(Composed)')) {
-    existingQuery.name = (existingQuery.name || generateQueryName(existingQuery.userQuery)) + ' (Composed)';
+  if (!existingQuery.name?.includes("(Composed)")) {
+    existingQuery.name =
+      (existingQuery.name || generateQueryName(existingQuery.userQuery)) +
+      " (Composed)";
   }
 
   saveQueries(queries);
@@ -273,16 +300,19 @@ export const updateToComposedQuery = (
 /**
  * Update an existing query in storage (saved or recent)
  */
-export const updateQuery = (id: string, updates: Partial<StoredQuery>): boolean => {
+export const updateQuery = (
+  id: string,
+  updates: Partial<StoredQuery>
+): boolean => {
   const queries = getStoredQueries();
 
   // Try to find in saved queries first
-  let queryIndex = queries.saved.findIndex(q => q.id === id);
+  let queryIndex = queries.saved.findIndex((q) => q.id === id);
   let isSaved = true;
 
   // If not found, try recent queries
   if (queryIndex === -1) {
-    queryIndex = queries.recent.findIndex(q => q.id === id);
+    queryIndex = queries.recent.findIndex((q) => q.id === id);
     isSaved = false;
   }
 
@@ -301,14 +331,6 @@ export const updateQuery = (id: string, updates: Partial<StoredQuery>): boolean 
     timestamp: updates.timestamp || targetArray[queryIndex].timestamp,
   };
 
-  console.log("💾 [updateQuery] Updating query:", {
-    id,
-    isSaved,
-    oldPageSelections: targetArray[queryIndex].pageSelections?.length || 0,
-    newPageSelections: updatedQuery.pageSelections?.length || 0,
-    pageSelections: updatedQuery.pageSelections
-  });
-
   targetArray[queryIndex] = updatedQuery;
 
   saveQueries(queries);
@@ -318,7 +340,10 @@ export const updateQuery = (id: string, updates: Partial<StoredQuery>): boolean 
 /**
  * Clean up broken queries with undefined or empty userQuery (TEMPORARY)
  */
-export const cleanupBrokenQueries = (): { removedCount: number; queries: string[] } => {
+export const cleanupBrokenQueries = (): {
+  removedCount: number;
+  queries: string[];
+} => {
   const queries = getStoredQueries();
   const removedIds: string[] = [];
 
@@ -326,36 +351,39 @@ export const cleanupBrokenQueries = (): { removedCount: number; queries: string[
   const initialRecentLength = queries.recent.length;
 
   // Filter out queries with invalid userQuery
-  queries.saved = queries.saved.filter(q => {
-    if (!q.userQuery || q.userQuery.trim() === '') {
+  queries.saved = queries.saved.filter((q) => {
+    if (!q.userQuery || q.userQuery.trim() === "") {
       removedIds.push(q.id);
-      console.warn('🗑️ [Cleanup] Removing broken saved query:', q.id, q);
+      console.warn("🗑️ [Cleanup] Removing broken saved query:", q.id, q);
       return false;
     }
     return true;
   });
 
-  queries.recent = queries.recent.filter(q => {
-    if (!q.userQuery || q.userQuery.trim() === '') {
+  queries.recent = queries.recent.filter((q) => {
+    if (!q.userQuery || q.userQuery.trim() === "") {
       removedIds.push(q.id);
-      console.warn('🗑️ [Cleanup] Removing broken recent query:', q.id, q);
+      console.warn("🗑️ [Cleanup] Removing broken recent query:", q.id, q);
       return false;
     }
     return true;
   });
 
-  const totalRemoved = (initialSavedLength - queries.saved.length) + (initialRecentLength - queries.recent.length);
+  const totalRemoved =
+    initialSavedLength -
+    queries.saved.length +
+    (initialRecentLength - queries.recent.length);
 
   if (totalRemoved > 0) {
     saveQueries(queries);
     console.log(`✅ [Cleanup] Removed ${totalRemoved} broken queries`);
   } else {
-    console.log('✅ [Cleanup] No broken queries found');
+    console.log("✅ [Cleanup] No broken queries found");
   }
 
   return {
     removedCount: totalRemoved,
-    queries: removedIds
+    queries: removedIds,
   };
 };
 
@@ -366,7 +394,7 @@ export const deleteSavedQuery = (id: string): boolean => {
   const queries = getStoredQueries();
   const initialLength = queries.saved.length;
 
-  queries.saved = queries.saved.filter(q => q.id !== id);
+  queries.saved = queries.saved.filter((q) => q.id !== id);
 
   if (queries.saved.length < initialLength) {
     saveQueries(queries);
@@ -381,14 +409,14 @@ export const deleteSavedQuery = (id: string): boolean => {
  */
 export const renameSavedQuery = (id: string, newName: string): boolean => {
   const queries = getStoredQueries();
-  const query = queries.saved.find(q => q.id === id);
-  
+  const query = queries.saved.find((q) => q.id === id);
+
   if (query) {
     query.name = newName.trim() || generateQueryName(query.userQuery);
     saveQueries(queries);
     return true;
   }
-  
+
   return false;
 };
 
@@ -397,8 +425,8 @@ export const renameSavedQuery = (id: string, newName: string): boolean => {
  */
 export const getQueryById = (id: string): StoredQuery | null => {
   const queries = getStoredQueries();
-  
-  return [...queries.recent, ...queries.saved].find(q => q.id === id) || null;
+
+  return [...queries.recent, ...queries.saved].find((q) => q.id === id) || null;
 };
 
 /**
@@ -420,12 +448,12 @@ const generateQueryId = (): string => {
  */
 const generateQueryName = (userQuery: string): string => {
   // Truncate and clean up the query for display
-  const cleaned = userQuery.trim().replace(/\s+/g, ' ');
+  const cleaned = userQuery.trim().replace(/\s+/g, " ");
   if (cleaned.length <= 50) {
     return cleaned;
   }
 
-  return cleaned.substring(0, 47) + '...';
+  return cleaned.substring(0, 47) + "...";
 };
 
 /**
@@ -442,14 +470,16 @@ const generateComposedQueryName = (
 
   const components = [];
   if (stepCount > 0) {
-    components.push(`${stepCount} additional ${stepCount === 1 ? 'query' : 'queries'}`);
+    components.push(
+      `${stepCount} additional ${stepCount === 1 ? "query" : "queries"}`
+    );
   }
   if (pageCount > 0) {
-    components.push(`${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`);
+    components.push(`${pageCount} ${pageCount === 1 ? "page" : "pages"}`);
   }
 
   if (components.length > 0) {
-    return `${baseName} (+ ${components.join(', ')})`;
+    return `${baseName} (+ ${components.join(", ")})`;
   }
 
   return `${baseName} (Composed)`;
@@ -459,21 +489,31 @@ const generateComposedQueryName = (
  * Get current query info (from window - only for initial popup state)
  * This should only be used when opening the popup from external triggers
  */
-export const getCurrentQueryInfo = (): { userQuery?: string; formalQuery?: string; intentParserResult?: IntentParserResult } => {
+export const getCurrentQueryInfo = (): {
+  userQuery?: string;
+  formalQuery?: string;
+  intentParserResult?: IntentParserResult;
+} => {
   return {
     userQuery: (window as any).lastUserQuery || undefined,
     formalQuery: (window as any).lastFormalQuery || undefined,
-    intentParserResult: (window as any).lastIntentParserResult || undefined
+    intentParserResult: (window as any).lastIntentParserResult || undefined,
   };
 };
 
 /**
  * Get query execution plan for a composed query
  */
-export const getComposedQueryExecutionPlan = (query: StoredQuery): {
-  initialQuery: { userQuery: string; formalQuery: string; intentParserResult: IntentParserResult };
+export const getComposedQueryExecutionPlan = (
+  query: StoredQuery
+): {
+  initialQuery: {
+    userQuery: string;
+    formalQuery: string;
+    intentParserResult: IntentParserResult;
+  };
   additionalSteps: Array<{
-    type: 'query' | 'pages';
+    type: "query" | "pages";
     data: QueryStep | PageSelection[];
   }>;
 } | null => {
@@ -485,20 +525,20 @@ export const getComposedQueryExecutionPlan = (query: StoredQuery): {
     initialQuery: {
       userQuery: query.userQuery,
       formalQuery: query.formalQuery,
-      intentParserResult: query.intentParserResult
+      intentParserResult: query.intentParserResult,
     },
     additionalSteps: [] as Array<{
-      type: 'query' | 'pages';
+      type: "query" | "pages";
       data: QueryStep | PageSelection[];
-    }>
+    }>,
   };
 
   // Add query steps
   if (query.querySteps) {
-    query.querySteps.forEach(step => {
+    query.querySteps.forEach((step) => {
       plan.additionalSteps.push({
-        type: 'query',
-        data: step
+        type: "query",
+        data: step,
       });
     });
   }
@@ -506,8 +546,8 @@ export const getComposedQueryExecutionPlan = (query: StoredQuery): {
   // Add page selections (group them together for efficiency)
   if (query.pageSelections && query.pageSelections.length > 0) {
     plan.additionalSteps.push({
-      type: 'pages',
-      data: query.pageSelections
+      type: "pages",
+      data: query.pageSelections,
     });
   }
 
@@ -522,24 +562,30 @@ export const getComposedQueryExecutionPlan = (query: StoredQuery): {
  * FIXED: Robust query composition function that handles all composition scenarios correctly
  */
 export const composeQueries = (
-  baseQuery: StoredQuery | Omit<StoredQuery, 'id' | 'timestamp'>,
-  additionalQuery: StoredQuery | Omit<StoredQuery, 'id' | 'timestamp'> | QueryStep
-): Omit<StoredQuery, 'id' | 'timestamp'> => {
-
+  baseQuery: StoredQuery | Omit<StoredQuery, "id" | "timestamp">,
+  additionalQuery:
+    | StoredQuery
+    | Omit<StoredQuery, "id" | "timestamp">
+    | QueryStep
+): Omit<StoredQuery, "id" | "timestamp"> => {
   // Extract steps from base query (NEVER include the base query itself as a step)
   const baseSteps: QueryStep[] = [];
 
   // If base query is composed, extract ONLY its additional steps (not the base)
-  if ('isComposed' in baseQuery && baseQuery.isComposed && baseQuery.querySteps) {
+  if (
+    "isComposed" in baseQuery &&
+    baseQuery.isComposed &&
+    baseQuery.querySteps
+  ) {
     baseSteps.push(...baseQuery.querySteps);
   }
 
   // Extract steps from additional query
   const additionalSteps: QueryStep[] = [];
 
-  if ('userQuery' in additionalQuery && 'formalQuery' in additionalQuery) {
+  if ("userQuery" in additionalQuery && "formalQuery" in additionalQuery) {
     // Check if it's a QueryStep (just has userQuery and formalQuery)
-    if (!('isComposed' in additionalQuery)) {
+    if (!("isComposed" in additionalQuery)) {
       // It's a pure QueryStep - add it directly with all its properties
       additionalSteps.push({
         userQuery: additionalQuery.userQuery,
@@ -574,18 +620,24 @@ export const composeQueries = (
   }
 
   // Combine page selections
-  const basePageSelections = ('isComposed' in baseQuery && baseQuery.isComposed) ? (baseQuery.pageSelections || []) : [];
-  const additionalPageSelections = ('isComposed' in additionalQuery && additionalQuery.isComposed) ? (additionalQuery.pageSelections || []) : [];
+  const basePageSelections =
+    "isComposed" in baseQuery && baseQuery.isComposed
+      ? baseQuery.pageSelections || []
+      : [];
+  const additionalPageSelections =
+    "isComposed" in additionalQuery && additionalQuery.isComposed
+      ? additionalQuery.pageSelections || []
+      : [];
 
   // Create the composed query - base query stays as userQuery, everything else becomes steps
-  const composedQuery: Omit<StoredQuery, 'id' | 'timestamp'> = {
+  const composedQuery: Omit<StoredQuery, "id" | "timestamp"> = {
     userQuery: baseQuery.userQuery,
     formalQuery: baseQuery.formalQuery || baseQuery.userQuery,
     intentParserResult: baseQuery.intentParserResult,
     isComposed: true,
     querySteps: [...baseSteps, ...additionalSteps],
     pageSelections: [...basePageSelections, ...additionalPageSelections],
-    name: ('name' in baseQuery) ? baseQuery.name : undefined
+    name: "name" in baseQuery ? baseQuery.name : undefined,
   };
 
   return composedQuery;
@@ -596,53 +648,58 @@ export const composeQueries = (
  * Note: For temporary storage, caller should use React state instead of this function
  */
 export const storeQuery = (
-  query: Omit<StoredQuery, 'id' | 'timestamp'>,
+  query: Omit<StoredQuery, "id" | "timestamp">,
   options: UnifiedStorageOptions,
   onTemporaryStore?: (query: StoredQuery) => void
 ): string => {
-  console.log("💾 [storeQuery] Storing query:", {
-    type: options.type,
-    userQuery: query.userQuery,
-    pageSelections: query.pageSelections?.length || 0,
-    pageSelectionsData: query.pageSelections,
-    isComposed: query.isComposed
-  });
+  // console.log("💾 [storeQuery] Storing query:", {
+  //   type: options.type,
+  //   userQuery: query.userQuery,
+  //   pageSelections: query.pageSelections?.length || 0,
+  //   pageSelectionsData: query.pageSelections,
+  //   isComposed: query.isComposed
+  // });
 
   const queryWithMetadata: StoredQuery = {
     ...query,
     id: generateQueryId(),
     timestamp: new Date(),
-    name: options.customName || (query.isComposed ?
-      generateComposedQueryName(query.userQuery, query.querySteps || [], query.pageSelections || []) :
-      undefined)
+    name:
+      options.customName ||
+      (query.isComposed
+        ? generateComposedQueryName(
+            query.userQuery,
+            query.querySteps || [],
+            query.pageSelections || []
+          )
+        : undefined),
   };
 
-  console.log("💾 [storeQuery] Query with metadata:", {
-    id: queryWithMetadata.id,
-    pageSelections: queryWithMetadata.pageSelections?.length || 0,
-    pageSelectionsData: queryWithMetadata.pageSelections
-  });
-
   switch (options.type) {
-    case 'temporary':
+    case "temporary":
       // Use callback to store in React state instead of window
       if (onTemporaryStore) {
         onTemporaryStore(queryWithMetadata);
       } else {
         // Fallback to window for backward compatibility
-        console.warn('Temporary storage without callback - consider using React state');
+        console.warn(
+          "Temporary storage without callback - consider using React state"
+        );
         (window as any).__currentComposedQuery = queryWithMetadata;
         (window as any).__currentComposedQueryId = queryWithMetadata.id;
       }
       return queryWithMetadata.id;
 
-    case 'recent':
+    case "recent":
       const queries = getStoredQueries();
-      queries.recent = [queryWithMetadata, ...queries.recent].slice(0, MAX_RECENT_QUERIES);
+      queries.recent = [queryWithMetadata, ...queries.recent].slice(
+        0,
+        MAX_RECENT_QUERIES
+      );
       saveQueries(queries);
       return queryWithMetadata.id;
 
-    case 'saved':
+    case "saved":
       const savedQueries = getStoredQueries();
       savedQueries.saved.push(queryWithMetadata);
       saveQueries(savedQueries);

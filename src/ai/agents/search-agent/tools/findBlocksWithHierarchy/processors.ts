@@ -58,7 +58,7 @@ export const expandConditions = async (
   );
 
   if (conditionsToExpand.length > 0 && !state?.expansionToasterShown) {
-    updateAgentToaster(`🔍 Expanding search with related terms...`);
+    updateAgentToaster(`🔍 Hierarchy Search: Expanding search with related terms...`);
     // Mark that we've shown the toaster to prevent repeated messages
     if (state) {
       state.expansionToasterShown = true;

@@ -7,6 +7,7 @@ import {
   filterResultsByDateRange,
 } from "./executors";
 import { withAutomaticExpansion } from "../../helpers/semanticExpansion";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Find Daily Notes Pages by time period
@@ -36,6 +37,10 @@ export const findDailyNotesByPeriodImpl = async (
   if (startDate > endDate) {
     throw new Error("Start date must be before or equal to end date.");
   }
+
+  updateAgentToaster(
+    `🔍 Daily Notes Search: Finding daily notes from ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}...`
+  );
 
   console.log(
     `🗓️ [findDailyNotesByPeriod] Searching DNPs from ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`
@@ -78,6 +83,8 @@ export const findDailyNotesByPeriodImpl = async (
 
   // Apply limit
   const limitedResults = results.slice(0, limit);
+
+  updateAgentToaster(`✅ Daily Notes Search: Found ${limitedResults.length} daily note pages`);
 
   console.log(
     `🎉 [findDailyNotesByPeriod] Returning ${limitedResults.length} DNP pages (out of ${results.length} total)`

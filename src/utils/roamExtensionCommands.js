@@ -231,7 +231,6 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI: Open Chat panel",
     callback: async (e) => {
-      console.log("e :>> ", e);
       const { currentUid, selectionUids } = getFocusAndSelection();
 
       let roamContext = {};
@@ -563,7 +562,6 @@ const getInfosFromSmartBlockParams = async ({
               maxUid: 0,
               withDash: true,
             });
-          console.log("stringifiedPrompt :>> ", stringifiedPrompt);
         } else
           stringifiedPrompt += (stringifiedPrompt ? "\n\n" : "") + subPrompt;
       }

@@ -4,7 +4,7 @@
 
 **Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, images, .pdf, etc.) and get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context, and all up-to-date LLMs (even local models through Ollama or OpenAI compatible servers)!**
 
-**Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, and chat with the results!**
+**Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, explore, filter and chat with the results!**
 
 ![Live AI chat Hello world](https://github.com/user-attachments/assets/735b589d-2249-4953-998d-bf879f253284)
 
@@ -20,12 +20,11 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ### 🆕 New in v.22 (November 2025)
 
-- Better design of chat/results popup, can be displayed as a left/right panel
-- **Chat panel** for smooth conversations
+- **Chat panel** for smooth conversations, can be displayed as a left/right panel or full screen, combined with a rich context panel
 - **Chat agent**, relying on tools to query your graph, handle context, leverage rich instructions and resources with Live AI Skills (inspired by Anthropic Agent Skills), chat with help documents...
-- **Query composer** to compose natural language queries, combine them, add specific pages, etc., and save them to reuse them easily
-- Ask Your Graph agent support now **sequences of queries** to better handle complexes queries and better DNPs and attributes handling
-- New models supported natively: Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supported web fetching), gpt-5-search-api
+- **Query composer** to compose natural language queries, combine them, add specific pages, etc., and save them to reuse them easily, providing a well defined context for Chat
+- Ask Your Graph agent support now **sequences of queries** to better handle complexe queries and better handling of DNPs and attributes
+- New models supported natively: Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supporting web fetching), gpt-5-search-api
 - Added 'Pdf' checkbox in Context menu
 
 > [!NOTE]
@@ -47,7 +46,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ## 1. **GETTING STARTED**
 
 - [Get an API key](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#get-an-api-key)
-- [Your first prompt](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#your-first-prompts-using-buttons--live-ai-context-menu)
+- [Your first prompt](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#your-first-prompts-using-the-chat-panel)
 - [The basics of AI requests](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#the-basics-of-ai-requests)
 - [Chat with your AI Assistant](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#chat-with-your-ai-assistant)
 - [Apply built-in prompts to existing content](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content)
@@ -62,16 +61,23 @@ OpenAI and Anthropic currently provide the most tested models for Live AI, but m
 
 Obtaining an API key is a simple operation, accessible to any user. Follow the [instructions provided here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md) if you do not already have API keys and see [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens) current API pricing.
 
-### Your first prompts using Chat panel
+### Your first prompts using the Chat panel
 
-🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! You'll be guided and assisted by the Chat Agent to discover all the new features. Since v.22, it's the easiest entry point to Live AI (but discover also below the very useful Context menu). See the .gif just above 'Getting Started'.
+🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! Just write your request and press Enter!
+
+See the demo .gif [in the introduction section](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai). N.B.: in this demo the Live AI buttons are in the top bar instead of left sidebar (you can switch in the extension settings)
+
+When opening the Chat panel, you can click on buttons to have help about the Chat, or Live AI in general, or get tips. You can even be guided by the Chat Agent to discover all the new features! Just ask questions.
+
+Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roam command palette (`Cmd+p`) for "Live AI: Open Chat panel" to open it still quicker!
 
 ### Your first prompts using buttons & Live AI context menu
 
-Or you can also simply write some basic prompt in any block (or press the microphone button and provide vocal instructions) and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and insert the response in the children blocks of your prompt.
+You want still a smoother experience without breaking your flow in Roam ? Simply write some prompt in any block (or press the microphone button and provide vocal instructions) and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and almost instantly insert the response in the children blocks of your prompt.
 
 > [!TIP]
 > For request to AI models directly from your notes, the **KEY PRINCIPLE** is simple:
+>
 > **The prompt is the focused or selected block(s)**
 
 <img width="600" alt="Live AI sidebar buttons" src="https://github.com/user-attachments/assets/1bddaf8e-d9f9-452b-a048-34d4a85d323c" />
@@ -79,7 +85,7 @@ Or you can also simply write some basic prompt in any block (or press the microp
 This simple process can be still more efficient with keyboard only, using `Live AI Context menu`, a rich context menu with a search box to access any Live AI command and context definition very quicky.
 
 > [!IMPORTANT]
-> The context menu is the main entry point to Live AI, read the following instructions carrefuly:
+> The context menu is the main entry point to Live AI, from where all features are accessible, including Chat panel, Tokens counter Query agents... Read the following instructions carrefuly:
 
 To open Live AI **context menu**, you can either:
 
@@ -115,7 +121,7 @@ The following 5 ingredients will be part of your requests (the last 3 are option
 
 ### Chat inline (in blocks) with your AI Assistant
 
-The Chat panel is now the easiest way to have ephemeral or deep conversations with your AI assistant.
+The Chat panel is now the easiest way to have ephemeral or deep conversations with your AI assistant and allow easily to switch from Chat interface to Roam blocks by saving current conversation in Roam blocks on demand, or continue any existing conversation. A saved conversation is just a block including `#liveai/chat`: direct children blocks are the conversation turns.
 
 But you can also easily continue any conversation with an AI Assistant inline in Roam blocks (or switch at any moment to chat interface):
 
@@ -139,6 +145,10 @@ Often, you will ask your assistant to process information already available in y
 > [!TIP]
 > ⚡️ In practice, all you need is a hotkey and a few letters to quickly find a command.
 > For example, to translate a block into French, you just need to press 'cmd + Ctrl + a', type 'fre' in the search bar of the context menu and press Enter! It's almost instant !
+>
+> The **KEY PRINCIPLE** for built-in or custom prompt is:
+>
+> **The focused or selected block(s) is the content to which the instructions are applied**
 
 You can also add specific instructions to built-in prompts simply by clicking the `+` button on the left of the prompt search box !
 
@@ -191,7 +201,7 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 ### Text to speech (TTS)
 
-You can have any selection read aloud (the focus block, part of the selected text in that block, or a set of selected blocks). You just need an active OpenAI key (since the `gpt-4o-mini-tts` model will be used) and run the `Text To Speech` command from Live AI context menu. Press `Escape` to stop the reading. Estimated cost is $0.015/minute.
+You can have any selection read aloud (the focus block, part of the selected text in that block, or a set of selected blocks). You just need an active OpenAI key (since the `gpt-4o-mini-tts` model will be used) and run the `Text To Speech` command from Live AI context menu. Press `Escape` to stop the reading. It can take a few seconds for processing data before speaking. Estimated cost is $0.015/minute.
 
 In the extension settings, you can change the voice and provide instructions to control aspects of speech, including: Accent, Emotional range, Intonation, Impressions, Speed of speech, Tone, Whispering...
 
@@ -216,10 +226,15 @@ Now Anthropic models can even fetch specific web page if you insert the url in y
 
 You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization’s authentication (identity verification)) or Google API key.
 
-- **Image quality** (low, medium or high): the low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc] for details).
-- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background, you have to specify it in your prompt (or the model will choose by itself). For Google models, you can specify ratio (e.g.: 1:1, 16:9, etc.)
+See [best practices for Google gemini-2.5-flash-image 'nano banana' here](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) (don't care about the code on this page, all is handled by Live AI)
+
+In the built-in prompts menu, choose among three levels of **image quality** (except for gemini-2.5-flash-image): low, medium or high. The low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) for details).
+
+In you prompt, you can provide:
+
+- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio (e.g.: 1:1, 16:9, etc.)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
-- **Image edition with mask**: (only for OpenAPI models, Google 'nano banana' allow image edition without any mask: just insert the image to edit in your prompt) you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+- **Image edition**: gemini-2.5-flash-image allows direct image edition without any mask: just insert the image to edit in your prompt and ask for modifications. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ### Use PDF files as input
 
@@ -329,9 +344,7 @@ Examples of request:
 
 - Once your query returns results (by default inserted in your graph in Private mode, limited to 20, or selected and commented in Balanced/Full modes), you can view, filter, and sort them in the full results view.
 - From there, you can chat directly with the results or with a selected subset of results. In its responses, the agent will reference the concerned results. You can instantly connect what the agent says with the related blocks just by hovering over them!
-- 
-   
-  <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
+- <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
 
 - A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results, allowing to filter/select some of them and chat with them!
 - You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.

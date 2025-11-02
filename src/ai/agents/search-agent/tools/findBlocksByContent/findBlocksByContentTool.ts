@@ -127,7 +127,7 @@ export const findBlocksByContentImpl = async (
 
   const hasExpansions = expandedConditions.length > finalConditions.length;
   if (hasExpansions) {
-    updateAgentToaster(`🔍 Expanding search with related terms...`);
+    updateAgentToaster(`🔍 Content Search: Expanding search with related terms...`);
   }
 
   // Step 2: Build and execute search query
@@ -176,7 +176,7 @@ export const findBlocksByContentImpl = async (
   // Step 3: Only call enrichWithHierarchy if we actually need hierarchy data
   if (optimizedIncludeChildren || optimizedIncludeParents) {
     updateAgentToaster(
-      `🔗 Adding context to ${fuzzyFilteredResults.length} results...`
+      `🔗 Content Search: Adding parent/child blocks to ${fuzzyFilteredResults.length} results...`
     );
 
     enrichedResults = await enrichWithHierarchy(
@@ -278,7 +278,7 @@ export const findBlocksByContentImpl = async (
   } else if (resultMode === "summary" && finalResults.length > 500) {
     // Summary mode: Allow up to 500 for Full Results popup, but warn about costs
     updateAgentToaster(
-      `⚡ Limiting to 500 of ${finalResults.length} results (max for popup)`
+      `⚡ Content Search: Limiting to 500 of ${finalResults.length} results (max for popup)`
     );
     finalResults = finalResults.slice(0, 500);
     wasLimited = true;
@@ -289,27 +289,27 @@ export const findBlocksByContentImpl = async (
   ) {
     // Only limit UIDs mode in full access mode where content goes to LLM
     updateAgentToaster(
-      `⚡ Limiting to 100 of ${finalResults.length} results for analysis`
+      `⚡ Content Search: Limiting to 100 of ${finalResults.length} results for analysis`
     );
     finalResults = finalResults.slice(0, 100);
     wasLimited = true;
   } else if (resultMode === "uids_only" && finalResults.length > 3000) {
     // General limit for uids_only mode for popup display (independent of security mode)
     updateAgentToaster(
-      `⚡ Limiting to 3000 of ${finalResults.length} results for popup display`
+      `⚡ Content Search: Limiting to 3000 of ${finalResults.length} results for popup display`
     );
     finalResults = finalResults.slice(0, 3000);
     wasLimited = true;
   } else if (resultMode === "full" && finalResults.length > 300) {
     // EMERGENCY SAFEGUARD: Full mode should NEVER return unlimited results
     updateAgentToaster(
-      `🚨 Showing first 300 of ${finalResults.length} results (maximum allowed)`
+      `🚨 Content Search: Showing first 300 of ${finalResults.length} results (maximum allowed)`
     );
     finalResults = finalResults.slice(0, 300);
     wasLimited = true;
   } else if (finalResults.length > limit) {
     updateAgentToaster(
-      `⚡ Showing top ${limit} of ${finalResults.length} results`
+      `⚡ Content Search: Showing top ${limit} of ${finalResults.length} results`
     );
     finalResults = finalResults.slice(0, limit);
     wasLimited = true;

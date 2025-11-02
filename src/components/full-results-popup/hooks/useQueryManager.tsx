@@ -492,8 +492,6 @@ export const useQueryManager = ({
   }, [renameQueryId, renameValue]);
 
   const handleClearAllQueries = useCallback(() => {
-    console.log("🗑️ [QueryManager] Clearing all stored queries");
-
     // Clear all queries from localStorage
     try {
       localStorage.removeItem("askYourGraphQueries");

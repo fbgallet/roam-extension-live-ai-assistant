@@ -10,7 +10,7 @@
  *    - In this case, the new query REPLACES the previous "last" query
  */
 
-import { StoredQuery } from './queryStorage';
+import { StoredQuery } from "./queryStorage";
 
 export interface WindowQueryState {
   results: any[];
@@ -32,14 +32,6 @@ export const updateWindowQueryStorage = (
   query: StoredQuery,
   targetUid?: string
 ): void => {
-  console.log('💾 [windowStorage] Updating window storage:', {
-    resultsCount: results.length,
-    userQuery: query.userQuery,
-    isComposed: query.isComposed,
-    querySteps: query.querySteps?.length || 0,
-    pageSelections: query.pageSelections?.length || 0,
-  });
-
   (window as any).lastAskYourGraphResults = results;
   (window as any).lastUserQuery = query.userQuery;
   (window as any).lastFormalQuery = query.formalQuery;

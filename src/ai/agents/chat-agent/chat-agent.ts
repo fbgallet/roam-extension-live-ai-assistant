@@ -168,7 +168,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     enabledTools: state.enabledTools,
   });
 
-  console.log("systemPrompt :>> ", systemPrompt);
+  console.log("Complete systemPrompt :>> ", systemPrompt);
 
   sys_msg = new SystemMessage({ content: systemPrompt });
 
@@ -679,8 +679,6 @@ const finalize = async (state: typeof ChatAgentState.State) => {
 
   // Add assistant response
   newHistory.push(`Assistant: ${finalAnswer}`);
-
-  console.log("newHistory :>> ", newHistory);
 
   return {
     finalAnswer,

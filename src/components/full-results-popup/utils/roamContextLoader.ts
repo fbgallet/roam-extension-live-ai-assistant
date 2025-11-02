@@ -56,14 +56,12 @@ export const loadResultsFromRoamContext = async ({
   const pageUids: string[] = [];
   const linkedRefUids: string[] = []; // UIDs (pages or blocks) to find linked references for
 
-  console.log("roamContext :>> ", roamContext);
+  console.log("roamContext to load:>> ", roamContext);
 
   try {
     // 1. Extract elements from sidebar if needed
     if (roamContext.sidebar) {
       const sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
-
-      console.log("sidebarWindows :>> ", sidebarWindows);
 
       for (const windowConfig of sidebarWindows) {
         const type = windowConfig.type;
@@ -175,8 +173,6 @@ export const loadResultsFromRoamContext = async ({
           mainViewUid,
         ]);
         const isPage = !!viewData?.[":node/title"];
-
-        console.log("isPage :>> ", isPage);
 
         if (isPage) {
           // It's a page - add to pageUids

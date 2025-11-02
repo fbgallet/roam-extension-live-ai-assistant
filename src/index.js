@@ -1432,10 +1432,7 @@ export default {
     // await extensionAPI.settings.set("tokensCounter", null);
     if (extensionAPI.settings.get("tokensCounter") === null)
       updateTokenCounter(undefined, {});
-    console.log(
-      "Tokens usage :>> ",
-      extensionAPI.settings.get("tokensCounter")
-    );
+
     extensionStorage.set("outlinerRootUid", null);
 
     // extensionAPI.settings.set("conversationHistory", null);
@@ -1448,6 +1445,10 @@ export default {
         counter: [],
         last: null,
       });
+
+    // set FullResultsPopup as side panel by default
+    if (extensionAPI.settings.get("fullResultsPopup_sidePanelMode") === null)
+      await extensionAPI.settings.set("fullResultsPopup_sidePanelMode", "true");
 
     createContainer();
 

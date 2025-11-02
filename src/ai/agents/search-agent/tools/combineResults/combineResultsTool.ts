@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createToolResult } from "../../helpers/semanticExpansion";
 import { schema, llmFacingSchema, CombinedResult } from "./schemas";
+import { updateAgentToaster } from "../../../shared/agentsUtils";
 
 /**
  * Combine and deduplicate results from multiple search operations
@@ -127,6 +128,8 @@ const combineResultsImpl = async (
   const stats = calculateStats(processedSets, combinedUids, operation);
 
   console.log("stats :>> ", stats);
+
+  updateAgentToaster(`✅ Combine Results: Found ${combinedUids.length} unique results`);
 
   // Step 10: Build result
   const result: CombinedResult = {

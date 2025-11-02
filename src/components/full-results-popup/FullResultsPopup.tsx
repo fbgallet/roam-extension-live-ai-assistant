@@ -89,7 +89,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {
     const saved = localStorage.getItem("fullResultsPopup_sidePanelWidth");
-    return saved ? parseInt(saved, 10) : 600;
+    return saved ? parseInt(saved, 10) : 500;
   });
 
   const [sidePanelHeight, setSidePanelHeight] = useState(() => {

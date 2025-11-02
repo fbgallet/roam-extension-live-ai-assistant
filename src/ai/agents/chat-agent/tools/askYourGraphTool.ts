@@ -19,31 +19,18 @@ export const askYourGraphTool = tool(
   ): Promise<string> => {
     const { query, reason } = input;
 
-    console.log(
-      `🔍 [askYourGraphTool] Executing search agent query: "${query}"`
-    );
     if (reason) {
       console.log(`   Reason: ${reason}`);
     }
-
-    console.log("🔍 [askYourGraphTool] Config received:", {
-      hasConfig: !!config,
-      configType: typeof config,
-      hasConfigurable: !!(config as any)?.configurable,
-    });
 
     const configurable = (config as any)?.configurable || {};
     const addResultsCallback = configurable.addResultsCallback;
     const model = configurable.model;
 
-    console.log("🔍 [askYourGraphTool] Configurable contents:", {
-      hasAddResultsCallback: !!addResultsCallback,
-      hasModel: !!model,
-      configurableKeys: Object.keys(configurable),
-    });
-
     if (!addResultsCallback) {
-      console.error("❌ [askYourGraphTool] addResultsCallback not found in config");
+      console.error(
+        "❌ [askYourGraphTool] addResultsCallback not found in config"
+      );
       console.error("Config object:", config);
       console.error("Configurable object:", configurable);
       return "❌ Error: addResultsCallback not available in tool configuration";
@@ -100,7 +87,9 @@ export const askYourGraphTool = tool(
 
         // Format token usage if available
         const tokenInfo = tokensUsed
-          ? ` | 🪙 ${tokensUsed.input_tokens?.toLocaleString() || 0} in / ${tokensUsed.output_tokens?.toLocaleString() || 0} out`
+          ? ` | 🪙 ${tokensUsed.input_tokens?.toLocaleString() || 0} in / ${
+              tokensUsed.output_tokens?.toLocaleString() || 0
+            } out`
           : "";
 
         return `**🔍 Search Query Executed**
@@ -122,7 +111,9 @@ Consider:
       }
     } catch (error: any) {
       console.error("[askYourGraphTool] Search agent execution failed:", error);
-      return `❌ Search agent execution failed: ${error.message || "Unknown error"}
+      return `❌ Search agent execution failed: ${
+        error.message || "Unknown error"
+      }
 
 The query "${query}" could not be executed. Try:
 - Simplifying the query

@@ -1,4 +1,11 @@
+import { isDailyNote } from "../../../ai/agents/search-agent/helpers/searchUtils";
+import { findBlocksByContentImpl } from "../../../ai/agents/search-agent/tools/findBlocksByContent/findBlocksByContentTool";
+import {
+  getBlockContentByUid,
+  getPageUidByPageName,
+} from "../../../utils/roamAPI.js";
 import { PageSelection } from "./queryStorage";
+import { loadResultsFromRoamContext } from "./roamContextLoader";
 
 export interface DirectContentOptions {
   selectedPages: string[];
@@ -36,9 +43,6 @@ async function addPageContent(
   if (pageData && pageData.length > 0) {
     const [pageUid, pageTitle, pageCreated, pageModified, pullData] =
       pageData[0];
-    const { isDailyNote } = await import(
-      "../../../ai/agents/search-agent/helpers/searchUtils"
-    );
 
     // Add the page itself
     newResults.push({
@@ -105,10 +109,6 @@ async function addLinkedReferences(
   pageTitle: string,
   newResults: any[]
 ): Promise<void> {
-  const { findBlocksByContentImpl } = await import(
-    "../../../ai/agents/search-agent/tools/findBlocksByContent/findBlocksByContentTool"
-  );
-
   const linkedRefs = await findBlocksByContentImpl({
     conditions: [
       {
@@ -150,21 +150,16 @@ export async function executeStoredPageSelections(
 
   for (let i = 0; i < pageSelections.length; i++) {
     const pageSelection = pageSelections[i];
-    const pagesToAdd = pageSelection.uid === "dnp" ? ["dnp"] : [pageSelection.title];
+    const pagesToAdd =
+      pageSelection.uid === "dnp" ? ["dnp"] : [pageSelection.title];
 
     if (onProgress) {
       onProgress(
-        `📄 Adding page ${i + 1}/${pageSelections.length}: ${pageSelection.title}...`
+        `📄 Adding page ${i + 1}/${pageSelections.length}: ${
+          pageSelection.title
+        }...`
       );
     }
-
-    console.log(
-      `📋 [PageSelectionExecutor] Adding page selection: ${pageSelection.title}`,
-      {
-        includeContent: pageSelection.includeContent,
-        includeLinkedRefs: pageSelection.includeLinkedRefs,
-      }
-    );
 
     // Use handleDirectContentAdd to process the page
     const result = await handleDirectContentAdd(accumulatedResults, {
@@ -201,7 +196,13 @@ export async function handleDirectContentAdd(
   currentResults: any[],
   options: DirectContentOptions
 ): Promise<DirectContentResult> {
-  const { selectedPages, includePageContent, includeLinkedRefs, dnpPeriod, currentPageContext } = options;
+  const {
+    selectedPages,
+    includePageContent,
+    includeLinkedRefs,
+    dnpPeriod,
+    currentPageContext,
+  } = options;
 
   if (!includePageContent && !includeLinkedRefs) {
     console.warn("⚠️ [DirectContent] No content types selected");
@@ -228,17 +229,10 @@ export async function handleDirectContentAdd(
             includeLinkedRefs: includeLinkedRefs,
           });
         } else {
-          console.warn(
-            "⚠️ [DirectContent] No current page context available"
-          );
+          console.warn("⚠️ [DirectContent] No current page context available");
         }
       } else if (pageSelection === "sidebar") {
         // Load sidebar content using roamContextLoader
-        const { loadResultsFromRoamContext } = await import(
-          "./roamContextLoader"
-        );
-
-        console.log("📂 [DirectContent] Loading sidebar content...");
 
         // Load sidebar blocks/pages
         if (includePageContent) {
@@ -247,18 +241,13 @@ export async function handleDirectContentAdd(
           });
 
           newResults.push(...sidebarResults.results);
-
-          console.log(
-            `✅ [DirectContent] Added ${sidebarResults.results.length} items from sidebar`
-          );
         }
 
         // Add linked references for each page/block in the sidebar
         if (includeLinkedRefs) {
-          console.log("🔗 [DirectContent] Loading linked references for sidebar items...");
-
           // Get sidebar windows to extract UIDs
-          const sidebarWindows = window.roamAlphaAPI.ui.rightSidebar.getWindows();
+          const sidebarWindows =
+            window.roamAlphaAPI.ui.rightSidebar.getWindows();
           const sidebarUids: string[] = [];
 
           for (const windowConfig of sidebarWindows) {
@@ -272,8 +261,6 @@ export async function handleDirectContentAdd(
             // For 'mentions' type, the linked refs are already shown, so we skip
           }
 
-          console.log(`🔗 [DirectContent] Found ${sidebarUids.length} sidebar items for linked refs`);
-
           // Load linked references for each sidebar item
           for (const uid of sidebarUids) {
             const linkedRefsResults = await loadResultsFromRoamContext({
@@ -284,10 +271,6 @@ export async function handleDirectContentAdd(
             });
 
             newResults.push(...linkedRefsResults.results);
-
-            console.log(
-              `✅ [DirectContent] Added ${linkedRefsResults.results.length} linked refs for sidebar item ${uid}`
-            );
           }
         }
 
@@ -297,22 +280,9 @@ export async function handleDirectContentAdd(
           includeContent: includePageContent,
           includeLinkedRefs: includeLinkedRefs,
         });
-
-        console.log(
-          `✅ [DirectContent] Completed sidebar loading (${newResults.length} total items added)`
-        );
       } else if (pageSelection.startsWith("block:")) {
         // Handle block selection using roamContextLoader
         const blockUid = pageSelection.substring(6); // Remove "block:" prefix
-
-        const { loadResultsFromRoamContext } = await import(
-          "./roamContextLoader"
-        );
-        const { getBlockContentByUid } = await import(
-          "../../../utils/roamAPI.js"
-        );
-
-        console.log(`📦 [DirectContent] Loading block: ${blockUid}`);
 
         // Load block content
         const blockResults = await loadResultsFromRoamContext({
@@ -326,8 +296,6 @@ export async function handleDirectContentAdd(
 
         // Add linked references if requested
         if (includeLinkedRefs) {
-          console.log(`🔗 [DirectContent] Loading linked references for block: ${blockUid}`);
-
           // Use pageViewUid to specify which block to find linked references for
           const linkedRefsResults = await loadResultsFromRoamContext({
             roamContext: {
@@ -337,10 +305,6 @@ export async function handleDirectContentAdd(
           });
 
           newResults.push(...linkedRefsResults.results);
-
-          console.log(
-            `✅ [DirectContent] Added ${linkedRefsResults.results.length} linked references for block`
-          );
         }
 
         const blockContent = getBlockContentByUid(blockUid);
@@ -355,19 +319,8 @@ export async function handleDirectContentAdd(
           includeContent: true,
           includeLinkedRefs: includeLinkedRefs,
         });
-
-        console.log(
-          `✅ [DirectContent] Added block with ${blockResults.results.length} item(s)`
-        );
       } else if (pageSelection === "dnp") {
         // Load DNP content using roamContextLoader
-        const { loadResultsFromRoamContext } = await import(
-          "./roamContextLoader"
-        );
-
-        console.log(
-          `📅 [DirectContent] Loading Daily Notes Pages (${dnpPeriod} days)...`
-        );
 
         const dnpResults = await loadResultsFromRoamContext({
           roamContext: {
@@ -388,25 +341,20 @@ export async function handleDirectContentAdd(
             .filter((r) => r.isPage)
             .map((r) => r.uid);
 
-          console.log(
-            `🔗 [DirectContent] Loading linked references for ${dnpPageUids.length} DNP pages...`
-          );
-
           // Load linked references for these pages
           const linkedRefsResults = await loadResultsFromRoamContext({
             roamContext: {
               linkedRefs: true,
-              linkedRefsArgument: dnpPageUids.map(
-                (uid) => dnpResults.results.find((r) => r.uid === uid)?.pageTitle
-              ).filter(Boolean) as string[],
+              linkedRefsArgument: dnpPageUids
+                .map(
+                  (uid) =>
+                    dnpResults.results.find((r) => r.uid === uid)?.pageTitle
+                )
+                .filter(Boolean) as string[],
             },
           });
 
           newResults.push(...linkedRefsResults.results);
-
-          console.log(
-            `✅ [DirectContent] Added ${linkedRefsResults.results.length} linked references`
-          );
         }
 
         addedPageSelections.push({
@@ -416,15 +364,9 @@ export async function handleDirectContentAdd(
           includeLinkedRefs: includeLinkedRefs,
           dnpPeriod: dnpPeriod,
         });
-
-        console.log(
-          `✅ [DirectContent] Added ${dnpResults.results.length} DNP items`
-        );
       } else {
         // Specific page selected
-        const { getPageUidByPageName } = await import(
-          "../../../utils/roamAPI.js"
-        );
+
         const pageUid = getPageUidByPageName(pageSelection);
         if (pageUid) {
           pageData.push({

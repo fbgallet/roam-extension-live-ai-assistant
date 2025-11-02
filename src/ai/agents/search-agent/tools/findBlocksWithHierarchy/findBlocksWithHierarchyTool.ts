@@ -910,7 +910,7 @@ export const expandSingleCondition = async (
             effectiveExpansionStrategy
           );
           updateAgentToaster(
-            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+            `🔍 Hierarchy Search: Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
               ", "
             )}`
           );
@@ -942,7 +942,7 @@ export const expandSingleCondition = async (
             effectiveExpansionStrategy
           );
           updateAgentToaster(
-            `🔍 Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
+            `🔍 Hierarchy Search: Expanded "${cleanText}" (${strategyLabel}) → ${cleanText}, ${expansionTerms.join(
               ", "
             )}`
           );
@@ -1245,7 +1245,7 @@ const processHierarchicalCombinations = async (
   options: any,
   state?: any
 ): Promise<any[]> => {
-  updateAgentToaster("🔀 Testing all hierarchical combinations...");
+  updateAgentToaster("🔀 Hierarchy Search: Testing all hierarchical combinations...");
 
   // Extract only positive AND conditions (NOT conditions should be distributed across all combinations)
   const positiveConditions: any[] = [];
@@ -1332,7 +1332,7 @@ const processHierarchicalCombinations = async (
       .join(" + ");
 
     updateAgentToaster(
-      `🔀 Testing combination ${i + 1}/${combinations.length}: (${leftDesc}) ${
+      `🔀 Hierarchy Search: Testing combination ${i + 1}/${combinations.length}: (${leftDesc}) ${
         hierarchyCondition.operator
       } (${rightDesc})`
     );
@@ -1387,7 +1387,7 @@ const processHierarchicalCombinations = async (
   const finalResults = Array.from(allResults.values());
 
   updateAgentToaster(
-    `✅ Combination testing complete: ${finalResults.length} unique results from ${combinations.length} combinations`
+    `✅ Hierarchy Search: Combination testing complete: ${finalResults.length} unique results from ${combinations.length} combinations`
   );
 
   // Note: Semantic expansion should be applied by the calling function after combination testing
