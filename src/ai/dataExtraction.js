@@ -445,7 +445,12 @@ export const getResolvedContentFromBlocks = (
         level += parents.length;
       }
       let hierarchyShift = withHierarchy ? getNChar(" ", level) + "- " : "";
-      let resolvedContent = resolveReferences(getBlockContentByUid(uid));
+      let resolvedContent = resolveReferences(
+        getBlockContentByUid(uid),
+        undefined,
+        undefined,
+        getNChar(" ", level)
+      );
       content +=
         (index > 0 ? "\n" : "") +
         hierarchyShift +
@@ -469,7 +474,8 @@ export function convertTreeToLinearArray(
   maxCapturing = 99,
   maxUid = 99,
   withDash = false,
-  uidsToExclude = ""
+  uidsToExclude = "",
+  initialLeftShift
 ) {
   let linearArray = [];
   let allBlocksUids = [];
@@ -505,7 +511,7 @@ export function convertTreeToLinearArray(
                   ""
                 : "- ") +
               (toExcludeAsBlock ? "" : uidString) +
-              resolveReferences(content)
+              resolveReferences(content, undefined, undefined, leftShift)
           );
       } else level--;
       if (element.children && !toExcludeWithChildren) {
@@ -515,7 +521,7 @@ export function convertTreeToLinearArray(
     });
   }
 
-  traverseArray(tree);
+  traverseArray(tree, initialLeftShift);
 
   return { linearArray, allBlocksUids, excludedUids };
 }
@@ -683,6 +689,7 @@ export const getFlattenedContentFromTree = ({
   withDash = false,
   isParentToIgnore = false,
   tree = undefined,
+  initialLeftShift = "",
 }) => {
   let flattenedBlocks = "";
   if (parentUid || tree) {
@@ -692,14 +699,16 @@ export const getFlattenedContentFromTree = ({
         isParentToIgnore ? tree[0].children : tree,
         maxCapturing,
         maxUid,
-        withDash
+        withDash,
+        "",
+        initialLeftShift
       );
       let content = linearArray.join("\n");
       if (content.length > 0 && content.replace("\n", "").trim())
         flattenedBlocks = "\n" + content;
     }
   }
-  return flattenedBlocks.trim();
+  return initialLeftShift + flattenedBlocks.trim();
 };
 
 export const getFlattenedContentFromLinkedReferences = (
@@ -851,7 +860,12 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
-      getArgumentFromOption(prompt, options, elt, roamContext);
+      getArgumentFromOption(
+        resolveReferences(prompt),
+        options,
+        elt,
+        roamContext
+      );
       hasContext = true;
     }
   });
@@ -873,12 +887,16 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
 
 const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
   if (options.includes(`${optionName}(`)) {
+    console.log("prompt :>> ", prompt);
+    console.log("optionName :>> ", optionName);
     if (optionName === "block")
       prompt = prompt.replaceAll("((", "").replaceAll("))", "");
     let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
+    console.log("prompt :>> ", prompt);
+    console.log("argument :>> ", argument);
     const args = [];
     const splittedArgument = argument.split("+");
-    // console.log("splittedArgument :>> ", splittedArgument);
+    console.log("splittedArgument :>> ", splittedArgument);
     optionName !== "logPages" &&
       splittedArgument.forEach((arg) => {
         switch (optionName) {

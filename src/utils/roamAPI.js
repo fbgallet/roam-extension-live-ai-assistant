@@ -1,4 +1,7 @@
-import { getRoamContextFromPrompt } from "../ai/dataExtraction";
+import {
+  getFlattenedContentFromTree,
+  getRoamContextFromPrompt,
+} from "../ai/dataExtraction";
 import { copyTreeBranches } from "../ai/responseInsertion";
 import { AppToaster } from "../components/Toaster";
 import { sliceByWordLimit } from "./dataProcessing";
@@ -7,6 +10,7 @@ import {
   contextRegex,
   dateStringRegex,
   dnpUidRegex,
+  embedRegex,
   flexibleUidRegex,
   strictPageRegex,
   uidRegex,
@@ -555,10 +559,38 @@ export const getReferencesCitation = (blockUids) => {
   return "";
 };
 
-export const resolveReferences = (content, refsArray = [], once = false) => {
+export const resolveReferences = (
+  content,
+  refsArray = [],
+  once = false,
+  leftShift = ""
+) => {
   uidRegex.lastIndex = 0;
+  embedRegex.lastIndex = 0;
   // console.log("content :>> ", content);
-  if (uidRegex.test(content)) {
+  if (embedRegex.test(content)) {
+    let embedMatch = content.match(embedRegex);
+    let includeParent = embedMatch[1] === "-children" ? false : true;
+    let isPageEmbed = strictPageRegex.test(embedMatch[2]) ? true : false;
+    let reference = embedMatch[2] && embedMatch[2].slice(2, -2);
+    leftShift += "  ";
+    let embedContent = `Embeded content of ${
+      isPageEmbed ? `page [[${reference}]]` : `block ((${reference}))`
+    }:\n${leftShift}<${isPageEmbed ? "page" : "block"}-embed-begin>\n`;
+    embedContent += getFlattenedContentFromTree({
+      parentUid: isPageEmbed ? getPageUidByPageName(reference) : reference,
+      isParentToIgnore: isPageEmbed || !includeParent ? true : false,
+      maxCapturing: 99,
+      maxUid: 0,
+      withDash: true,
+      initialLeftShift: leftShift,
+    });
+    embedContent += `\n${leftShift}<${
+      isPageEmbed ? "page" : "block"
+    }-embed-end>\n`;
+    // console.log("embedContent :>> ", embedContent);
+    return content.replace(embedMatch[0], embedContent);
+  } else if (uidRegex.test(content)) {
     let inlineContext = "";
     contextRegex.lastIndex = 0;
     if (contextRegex.test(content)) {

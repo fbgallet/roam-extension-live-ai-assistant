@@ -4,6 +4,8 @@ export const dnpUidRegex =
 export const flexibleUidRegex = /\(?\(?([^\)]{9})\)?\)?/;
 export const pageRegex = /\[\[.*\]\]/g;
 export const strictPageRegex = /^\[\[.*\]\]$/; // very simplified, not recursive...
+export const embedRegex =
+  /\{\{\[?\[?embed(-path|-children|)\]?\]?:\s?([^\}]+)\}\}/;
 export const contextRegex = /\{\{context:\s?(.*)\}\}|\(\(context:\s?(.*)\)\)/;
 export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
