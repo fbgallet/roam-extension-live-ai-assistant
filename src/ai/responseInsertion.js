@@ -61,11 +61,13 @@ import {
 import {
   concatAdditionalPrompt,
   getConversationArray,
+  getCustomStyleByUid,
+  getCustomStyles,
   getFlattenedContentFromArrayOfBlocks,
   getInputDataFromRoamContext,
 } from "./dataExtraction";
 import { uidRegex } from "../utils/regex";
-import { customStyles } from "../components/contextMenu";
+
 import { BUILTIN_STYLES } from "./styleConstants";
 import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
@@ -204,7 +206,7 @@ export const aiCompletionRunner = async ({
   // console.log("prompt in aiCompletionRunner :>> ", prompt);
   console.log("roamContext in aiCompletionRunner :>> ", roamContext);
 
-  systemPrompt = getStylePrompt(style);
+  systemPrompt = await getStylePrompt(style);
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
@@ -603,15 +605,16 @@ export async function insertChildrenBlocksRecursively(
   return uidsToExclude;
 }
 
-export const getStylePrompt = (style) => {
+export const getStylePrompt = async (style) => {
   if (style === "Normal") return;
   let stylePromptText;
   if (BUILTIN_STYLES.includes(style)) stylePromptText = stylePrompts[style];
   else {
-    const customStl = customStyles.find((custom) => custom.name === style);
-    if (customStl) stylePromptText = customStl.prompt;
+    const customStyles = getCustomStyles();
+    const customStl = customStyles.find((custom) => custom.title === style);
+    if (customStl) stylePromptText = await getCustomStyleByUid(customStl.uid);
   }
   if (stylePromptText)
-    stylePromptText = introduceStylePrompt + stylePromptText + "\n";
+    stylePromptText = introduceStylePrompt + stylePromptText + "\n\n";
   return stylePromptText;
 };

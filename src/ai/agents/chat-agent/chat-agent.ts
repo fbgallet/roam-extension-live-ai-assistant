@@ -153,7 +153,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
 
   // Build system prompt - NOTE: Don't include tool descriptions
   // LangChain's bindTools() handles tool schemas automatically via the API
-  const systemPrompt = buildChatSystemPrompt({
+  const systemPrompt = await buildChatSystemPrompt({
     lastMessage: lastMessage,
     style: state.style,
     // Command prompt is included in system prompt and also added to conversationHistory
@@ -586,7 +586,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     );
 
     // Rebuild system prompt
-    const systemPrompt = buildChatSystemPrompt({
+    const systemPrompt = await buildChatSystemPrompt({
       lastMessage: state.messages?.at(-1)?.content?.toString() || "",
       style: state.style,
       commandPrompt: state.commandPrompt,

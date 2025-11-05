@@ -215,7 +215,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
   });
 
   extensionAPI.ui.commandPalette.addCommand({
-    label: "Live AI: Ask Your Graph Full Results View",
+    label: "Live AI: View results (last Ask Your Graph query)",
     callback: () => {
       // Use shared utility function from FullResultsPopup
       import("../components/full-results-popup")
@@ -307,7 +307,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         });
 
         insertCompletion({
-          systemPrompt: getStylePrompt(defaultStyle),
+          systemPrompt: await getStylePrompt(defaultStyle),
           prompt: stringifiedPrompt,
           targetUid,
           context: stringifiedContext,

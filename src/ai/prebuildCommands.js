@@ -241,7 +241,7 @@ export const BUILTIN_COMMANDS = [
   },
   {
     id: 93,
-    name: "Ask Your Graph => Results directly in full view",
+    name: "Ask Your Graph => Results directly in Context panel",
     callback: (args) =>
       askYourGraph({
         ...args,
@@ -255,11 +255,11 @@ export const BUILTIN_COMMANDS = [
       chat: true,
     },
     target: "new",
-    keyWords: "popup only private results view",
+    keyWords: "popup full view chat",
   },
   {
     id: 94,
-    name: "Open Results view (last Ask Your Graph query)",
+    name: "View last results in Context panel (Ask Your Graph)",
     callback: openLastAskYourGraphResults,
     category: "QUERY AGENTS",
     icon: "list-detail-view",

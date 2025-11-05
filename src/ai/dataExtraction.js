@@ -1142,6 +1142,48 @@ export const getOrderedCustomPromptBlocks = (tag) => {
   return ordered || [];
 };
 
+export const getCustomStyles = () => {
+  const orderedStyles = getOrderedCustomPromptBlocks("liveai/style");
+  if (orderedStyles) {
+    const customStyles = orderedStyles.map((custom) => {
+      return {
+        title: custom.content,
+        uid: custom.uid,
+      };
+    });
+    return customStyles;
+  }
+  return [];
+};
+
+export const getCustomStyleByUid = async (uid) => {
+  let prompt = getFlattenedContentFromTree({
+    parentUid: uid,
+    maxCapturing: 99,
+    maxUid: 0,
+    withDash: true,
+    isParentToIgnore: true,
+  });
+
+  const inlineContext = getRoamContextFromPrompt(prompt);
+  if (inlineContext) {
+    prompt = inlineContext.updatedPrompt;
+
+    if (hasTrueBooleanKey(inlineContext.roamContext)) {
+      const context =
+        (await getAndNormalizeContext({
+          roamContext: inlineContext.roamContext,
+          withHierarchy: true,
+        })) || "";
+      console.log("context :>> ", context);
+      prompt +=
+        "\n\n**General context serving as resources to be considered in order to provide the most relevant answers possible**:\n" +
+        context;
+    }
+  }
+  return prompt;
+};
+
 export const getUnionContext = (context1, context2) => {
   return {
     linkedRefs: context1?.linkedRefs || context2?.linkedRefs,

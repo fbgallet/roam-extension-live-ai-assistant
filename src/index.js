@@ -30,7 +30,6 @@ import {
 import { BUILTIN_STYLES } from "./ai/styleConstants";
 import {
   cleanupContextMenu,
-  customStyleTitles,
   initializeContextMenu,
 } from "./components/contextMenu";
 import { getValidLanguageCode } from "./ai/languagesSupport";
@@ -38,6 +37,7 @@ import {
   getArrayFromList,
   getFlattenedContentFromTree,
   getMaxDephObjectFromList,
+  getOrderedCustomPromptBlocks,
 } from "./ai/dataExtraction";
 import { uidRegex } from "./utils/regex";
 import MCPConfigComponent from "./components/MCPConfigComponent";
@@ -111,6 +111,7 @@ export let openaiLibrary,
 export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
+export let customStyles;
 
 const modeMap = {
   "Always ask user": "ask_user",
@@ -375,7 +376,7 @@ function getPanelConfig() {
           "Choose the AI assistant character/style applied by default to each response",
         action: {
           type: "select",
-          items: BUILTIN_STYLES.concat(customStyleTitles),
+          items: BUILTIN_STYLES.concat(customStyles.map((s) => s.title)),
           onChange: (evt) => {
             defaultStyle = evt;
           },
@@ -1486,6 +1487,7 @@ export default {
       );
     }
     chatRoles = getRolesFromString(chatRolesStr, defaultModel);
+    customStyles = getOrderedCustomPromptBlocks("liveai/style");
 
     updateAvailableModels();
     // console.log("availableModels :>> ", availableModels);

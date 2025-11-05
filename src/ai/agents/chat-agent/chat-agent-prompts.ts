@@ -14,7 +14,7 @@ import { getStylePrompt } from "../../responseInsertion";
 import { getFormattedSkillsList } from "../chat-agent/tools/skillsUtils";
 
 // Base system prompt for chat agent
-export const buildChatSystemPrompt = ({
+export const buildChatSystemPrompt = async ({
   lastMessage,
   style,
   commandPrompt,
@@ -36,7 +36,7 @@ export const buildChatSystemPrompt = ({
   isAgentMode?: boolean;
   activeSkillInstructions?: string;
   enabledTools?: Set<string>;
-}): string => {
+}): Promise<string> => {
   // Different base prompt depending on whether we have search results context
   let systemPrompt =
     defaultAssistantCharacter +
@@ -185,9 +185,7 @@ ${skillsList}`;
 
   // Add style-specific formatting if provided
   if (style !== "Normal") {
-    systemPrompt += `\n\n## Response Style\nFormat your response using the following style (if there is conflict with certain previous instructions, the following ones take precedence):\n\n${getStylePrompt(
-      style
-    )}`;
+    systemPrompt += `\n\n## Response Style\n\n${await getStylePrompt(style)}`;
   }
 
   // console.log("Complete systemPrompt :>> ", systemPrompt);

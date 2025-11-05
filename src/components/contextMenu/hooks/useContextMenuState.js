@@ -48,6 +48,7 @@ export const useContextMenuState = () => {
   const [targetBlock, setTargetBlock] = useState("auto");
   const [style, setStyle] = useState(defaultStyle);
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
+  const [customStyles, setCustomStyles] = useState([]);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
   const [includePdfInContext, setIncludePdfInContext] = useState(false);
@@ -171,6 +172,8 @@ export const useContextMenuState = () => {
     setTargetBlock,
     style,
     setStyle,
+    customStyles,
+    setCustomStyles,
     isPinnedStyle,
     setIsPinnedStyle,
     additionalPrompt,

@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import ReactDOM from "react-dom";
 import {
   availableModels,
+  customStyles,
   defaultModel,
   extensionStorage,
   menuModifierKey,
@@ -21,7 +22,7 @@ import { CATEGORY_ICON } from "../../ai/prebuildCommands";
 import { languages } from "../../ai/languagesSupport";
 import {
   getAndNormalizeContext,
-  getFlattenedContentFromTree,
+  getCustomStyles,
   getFocusAndSelection,
   getOrderedCustomPromptBlocks,
   isPromptInConversation,
@@ -32,7 +33,6 @@ import {
   getPageUidByBlockUid,
   isExistingBlock,
   isLogView,
-  hasBlockChildren,
 } from "../../utils/roamAPI";
 import { invokeOutlinerAgent } from "../../ai/agents/outliner-agent/invoke-outliner-agent";
 import { hasTrueBooleanKey } from "../../utils/dataProcessing";
@@ -53,15 +53,9 @@ import {
   handleClickOnCommand as handleClickOnCommandLogic,
   getInstantPrompt,
 } from "./logic/commandProcessing";
-import { BUILTIN_STYLES } from "../../ai/styleConstants";
 
 const SELECT_CMD = "Set as active Live Outline";
 const UNSELECT_CMD = "Disable current Live Outline";
-
-export let customStyleTitles = getOrderedCustomPromptBlocks("liveai/style").map(
-  (custom) => custom.content
-);
-export let customStyles;
 
 export const StandaloneContextMenu = () => {
   // Use the custom hook for all state management
@@ -87,6 +81,8 @@ export const StandaloneContextMenu = () => {
     setCommands,
     userCommands,
     setUserCommands,
+    customStyles,
+    setCustomStyles,
     liveOutlines,
     setLiveOutlines,
     templates,
@@ -1234,22 +1230,7 @@ export const StandaloneContextMenu = () => {
   };
 
   const updateCustomStyles = () => {
-    const orderedStyles = getOrderedCustomPromptBlocks("liveai/style");
-    if (orderedStyles) {
-      customStyleTitles = orderedStyles.map((custom) => custom.content);
-      customStyles = orderedStyles.map((custom) => {
-        return {
-          name: custom.content,
-          prompt: getFlattenedContentFromTree({
-            parentUid: custom.uid,
-            maxCapturing: 99,
-            maxUid: 0,
-            withDash: true,
-            isParentToIgnore: true,
-          }),
-        };
-      });
-    }
+    setCustomStyles(getCustomStyles());
   };
 
   const updateLiveOutlines = () => {
@@ -1357,7 +1338,7 @@ export const StandaloneContextMenu = () => {
               setStyle={setStyle}
               isPinnedStyle={isPinnedStyle}
               setIsPinnedStyle={setIsPinnedStyle}
-              customStyleTitles={customStyleTitles}
+              customStyleTitles={customStyles.map((styles) => styles.title)}
               inputRef={inputRef}
             />
             <CommandSuggest

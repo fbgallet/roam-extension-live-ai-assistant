@@ -1540,7 +1540,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
               content={
                 canUseSplitView
                   ? "Click: Show split view | Shift+click: Results only"
-                  : "Switch to query manager & results"
+                  : "Switch to context & query composer"
               }
             >
               <div

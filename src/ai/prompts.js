@@ -982,7 +982,7 @@ ${completionCommands.mermaid}`;
 /**********************/
 
 export const introduceStylePrompt =
-  "All your responses will follow this style format constraints. Any further instructions are of course to apply, unless they are contrary to this one:\n";
+  "All your responses will follow this style format constraints and instructions. Any other provided instructions are of course also to apply, unless they are contrary to these ones:\n";
 
 export const stylePrompts = {
   Concise:
