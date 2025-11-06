@@ -1478,14 +1478,14 @@ export const getEnhancedLimits = (
     case "private":
       return {
         maxResults: 50000, // 10x increase from 5000
-        defaultLimit: 1000, // 10x increase from 100
+        defaultLimit: 5000, // 10x increase from 100
         summaryLimit: 100, // For LLM context
       };
     case "balanced":
       return {
         maxResults: 10000, // 10x increase from 1000
-        defaultLimit: 500, // 5x increase from 100
-        summaryLimit: 50, // For LLM context
+        defaultLimit: 5000,
+        summaryLimit: 100, // For LLM context
         // NEW: Progressive content limits based on result count
         getContentLimit: (resultCount: number): number | null => {
           if (resultCount < 10) return null; // Full content
@@ -1496,8 +1496,8 @@ export const getEnhancedLimits = (
     case "full":
       return {
         maxResults: 10000, // Match balanced mode - content richness is the differentiator
-        defaultLimit: 500, // Match balanced mode
-        summaryLimit: 20, // Keep lower due to richer content per item
+        defaultLimit: 5000, // Match balanced mode
+        summaryLimit: 50, // Keep lower due to richer content per item
         // Progressive content strategy for full mode
         getContentStrategy: (resultCount: number): string => {
           if (resultCount < 30) return "rich_content_with_hierarchy";
@@ -1507,8 +1507,8 @@ export const getEnhancedLimits = (
       };
     default:
       return {
-        maxResults: 1000,
-        defaultLimit: 100,
+        maxResults: 5000,
+        defaultLimit: 1000,
         summaryLimit: 20,
       };
   }

@@ -40,14 +40,14 @@ export const buildChatSystemPrompt = async ({
   // Different base prompt depending on whether we have search results context
   let systemPrompt =
     defaultAssistantCharacter +
-    `\nYour main purpose is to talk with the user in a way that's insightful, offering useful thoughts and accurate information, helping user to leverage their Roam Research knowledge graph and notes${
+    `\nYour main purpose is to talk with the user in a way that's insightful, offering useful thoughts and accurate information${
       resultsContext.length
-        ? " through selection of pages or blocks available in the context or"
+        ? ", helping them to leverage their Roam Research knowledge graph and notes through selection of pages or blocks available in the context or simply answering their request by relying on your own knwoledge base when their request doesn't seem related to the current context"
         : ""
-    } by loading or handling requested data from its database using available tools.${
+    }. ${
       !toolsEnabled
-        ? " If a user's request appears to be asking you to do something in their Roam database that you're not able to do, it might be because they haven't turned on the right tools. In that case, suggest that they look at which tools are available and enabled by clicking 🔧 button at the bottom, and have them read through their brief descriptions or ask for help about existing way to load Roam data in the context of this chat."
-        : ""
+        ? "Rely on you own knowledge base to answer the user request. But if a user's request appears to be asking you to do something in their Roam database like loading some page, it might be because they haven't turned on the agent tools. In that case, suggest that they enable them by clicking 🔧 button at the bottom, and have them read through their brief descriptions or ask for help about existing way to load Roam data in the context of this chat."
+        : "If and only if the user explicitly requests or refers to data in their Roam database (specifically using 'page', or 'block', 'tag' or 'attribute' keywords) and their content is requested to provide a relevant response, you can try to load the requested data from its database using available tools. But if their request is more general than something that could be find on a personal knowledge graph, proceed it as a normal request relying on your own knowledge base."
     }`;
 
   const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
@@ -60,7 +60,13 @@ export const buildChatSystemPrompt = async ({
 - Ask clarifying questions when needed
 - Build on **previous conversation** context when relevant
 - Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.
-- Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})`;
+- Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})
+
+### Roam Formatting
+IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
+- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
+- **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
+- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.`;
 
   // Add results context if available
   if (resultsContext) {
@@ -78,12 +84,6 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Use the full context** - leverage parent blocks, page context, and children to understand meaning
 - **Identify** relationships, contradictions, common themes, or missing pieces
 - **Be analytical** - help the user understand significance and context
-
-### Roam Formatting
-IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
-- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
-- **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
-- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.
 
 ### Analysis Approach
 - When provided with search results, analyze their meaning and relationships
@@ -135,10 +135,11 @@ You are operating in AGENTIC mode with access to tools. Follow the ReAct methodo
 2. **Act**: Decide or not to use tools to gather that information (can be multiple sequential calls)
 3. **Observe**: Review tool responses - do I need more? If yes, use more tools
 4. **Respond**: Only respond to user when you have comprehensive information
-**In short: Be Autonomous and Thorough:**
+**In short: Be Autonomous and Thorough**
 
 **Tool Usage Philosophy:**
-- Use tools proactively (but wisely) - don't wait for explicit permission but only use them only if it's clear that it matches the user needs
+- Use tools proactively (but wisely) - don't wait for explicit permission but use them only if it's clear that it matches the user needs
+- Carefully judge whether the user's request is simply calling upon your intelligence and knowledge base, as is most commonly the case, or whether it's targeting content from their Roam database, which would require calling a tool—something that will often be quite explicit and less frequent.
 - Chain multiple tool calls in sequence when needed to fully answer the question
 - Only ask the user when you've exhausted all autonomous options
 - Before trying to add pages in the context using add_page_by_title tool, verify if it's not already in above 'Available context'
@@ -260,24 +261,26 @@ export const buildResultsContext = (
       const parts = [];
       const isPage = !result.pageUid; // Pages don't have pageUid property
 
-      // UID (always present)
+      // UID (if present)
       if (result.uid) parts.push(`UID: ${result.uid}`);
 
-      // Content first (most important)
+      // Content (if available)
       if (result.expandedBlock?.original || result.content) {
         const content = result.expandedBlock?.original || result.content;
         parts.push(`Content: ${content}`);
-      } else {
-        parts.push(`Content: [Content not available]`);
       }
 
       // Location info differs between pages and blocks
       if (isPage) {
         // For pages: just indicate it's a page
-        if (result.pageTitle) parts.push(`Page: [[${result.pageTitle}]]`);
+        if (result.pageTitle || result.title) {
+          parts.push(`Page: [[${result.pageTitle || result.title}]]`);
+        }
       } else {
         // For blocks: show which page they're in
-        if (result.pageTitle) parts.push(`In page: [[${result.pageTitle}]]`);
+        if (result.pageTitle || result.title) {
+          parts.push(`In page: [[${result.pageTitle || result.title}]]`);
+        }
       }
 
       // Parent info (only for blocks that have parent context)
@@ -294,8 +297,12 @@ export const buildResultsContext = (
       if (result.created) parts.push(`Created: ${result.created}`);
       if (result.modified) parts.push(`Modified: ${result.modified}`);
 
+      // Only include result if it has at least one displayable field
+      if (parts.length === 0) return null;
+
       return `Result ${index + 1}:\n${parts.join("\n")}`;
     })
+    .filter((r) => r !== null) // Remove empty results
     .join("\n\n---\n\n");
 
   context += formattedResults;

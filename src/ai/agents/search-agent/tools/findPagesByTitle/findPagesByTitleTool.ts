@@ -254,14 +254,21 @@ const findPagesByTitleImpl = async (
     return b.modified.getTime() - a.modified.getTime(); // Most recent first
   });
 
-  // Limit results
-  const wasLimited = structuredResults.length > limit;
-  if (wasLimited) {
-    updateAgentToaster(
-      `⚡ Page Title Search: Showing top ${limit} of ${structuredResults.length} pages`
-    );
-    structuredResults = structuredResults.slice(0, limit);
+  // Limit results only if limit is specified
+  if (limit && limit > 0) {
+    const wasLimited = structuredResults.length > limit;
+    if (wasLimited) {
+      updateAgentToaster(
+        `⚡ Page Title Search: Showing top ${limit} of ${structuredResults.length} pages`
+      );
+      structuredResults = structuredResults.slice(0, limit);
+    } else if (structuredResults.length > 0) {
+      updateAgentToaster(
+        `✅ Page Title Search: Found ${structuredResults.length} page${structuredResults.length > 1 ? 's' : ''}`
+      );
+    }
   } else if (structuredResults.length > 0) {
+    // No limit specified - return all results
     updateAgentToaster(
       `✅ Page Title Search: Found ${structuredResults.length} page${structuredResults.length > 1 ? 's' : ''}`
     );

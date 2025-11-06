@@ -31,6 +31,23 @@ export async function performAdaptiveExpansion(
 ): Promise<any[]> {
   if (!results || results.length === 0) return [];
 
+  // Check if these are metadata-only results (title-only, no UIDs)
+  // These cannot be expanded because we don't have UIDs to fetch content
+  const isMetadataOnly = results.every((r) => !r.uid && !r.pageUid && r.title);
+
+  if (isMetadataOnly) {
+    console.log(
+      `📋 [AdaptiveExpansion] Metadata-only results detected (${results.length} items), skipping expansion`
+    );
+    // Return results as-is, formatted for display
+    return results.map((r) => ({
+      ...r,
+      pageTitle: r.title,
+      // Mark as already formatted so chat agent uses them directly
+      isMetadataOnly: true,
+    }));
+  }
+
   const resultCount = results.length;
   const availableBudget = Math.max(0, charLimit - currentContentLength);
 
@@ -41,9 +58,24 @@ export async function performAdaptiveExpansion(
       : EXPANSION_BUDGETS.balanced;
   const expansionBudget = Math.min(availableBudget, modeBudget);
 
+  console.log(`🌳 [AdaptiveExpansion] Budget calculation:`, {
+    charLimit,
+    currentContentLength,
+    availableBudget,
+    modeBudget,
+    expansionBudget,
+    accessMode,
+  });
+
   // Separate pages from blocks
   const pages = results.filter((r) => r.isPage === true);
   const blocks = results.filter((r) => !r.isPage);
+
+  console.log(`🌳 [AdaptiveExpansion] Separated results:`, {
+    totalResults: results.length,
+    pages: pages.length,
+    blocks: blocks.length,
+  });
 
   // Extract block UIDs for hierarchy queries (only for blocks, pages don't have parents)
   const blockUids = blocks
@@ -52,6 +84,12 @@ export async function performAdaptiveExpansion(
 
   // Extract page UIDs for children queries
   const pageUids = pages.filter((r) => r.uid).map((r) => r.uid);
+
+  console.log(`🌳 [AdaptiveExpansion] Extracted UIDs:`, {
+    blockUids: blockUids.length,
+    pageUids: pageUids.length,
+    pageUidsSample: pageUids.slice(0, 3),
+  });
 
   let expandedResults: any[] = [];
 

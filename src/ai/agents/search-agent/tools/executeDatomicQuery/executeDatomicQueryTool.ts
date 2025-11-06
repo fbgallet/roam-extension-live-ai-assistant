@@ -104,11 +104,155 @@ const generateDatomicQueryImpl = async (
     fromResultId,
   } = input;
 
+  // SPECIAL CASE: Handle GET_ALL_PAGES_METADATA_ONLY marker
+  // This is triggered by exploratory query scope selection for "all_page_titles" strategy
+  if (
+    queryDescription === "GET_ALL_PAGES_METADATA_ONLY" ||
+    (userQuery && userQuery.includes("GET_ALL_PAGES_METADATA_ONLY"))
+  ) {
+    console.log(
+      "🔍 ExecuteDatomicQuery: Special case - GET_ALL_PAGES_METADATA_ONLY"
+    );
+    updateAgentToaster("🔍 Datalog Query: Fetching all page titles...");
+
+    // Use pull to get all data in one query
+    // Note: :block/_refs gets reverse refs (blocks that reference this page)
+    const allPagesQuery = `[:find ?uid ?title (pull ?page [:block/children {:block/_refs [:block/uid]}])
+ :where
+    [?page :node/title ?title]
+    [?page :block/uid ?uid]
+    [(re-pattern "(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-(19|20)[0-9][0-9]") ?dnp-pattern]
+    (not [(re-find ?dnp-pattern ?uid)])]`;
+
+    const result: DatomicQueryResult = {
+      query: allPagesQuery,
+      explanation:
+        "Fetching all page titles (excluding Daily Note Pages) with children and reference counts for pattern analysis",
+      estimatedComplexity: "medium",
+      warnings: [],
+      optimizationSuggestions: [],
+      parameters: {},
+    };
+
+    if (executeQuery) {
+      try {
+        const executionStartTime = performance.now();
+        console.log(`🚀 Executing GET_ALL_PAGES_METADATA_ONLY query...`);
+        const rawResults = await executeDatomicQuery(allPagesQuery);
+        console.log("rawResults sample (first 3) :>> ", rawResults.slice(0, 3));
+
+        // Process results with pull data
+        // Structure is: [uid, title, {children: [...], _refs: [{uid: "..."}, ...]}]
+        const processedResults = rawResults.map((row) => {
+          const uid = row[0];
+          const title = row[1];
+          const pullData = row[2] || {};
+
+          // Debug first result to see actual structure
+          if (uid === rawResults[0][0]) {
+            console.log("First pullData structure:", {
+              raw: pullData,
+              keys: Object.keys(pullData),
+              children: pullData[":block/children"] || pullData["children"],
+              refs: pullData[":block/_refs"] || pullData["_refs"]
+            });
+          }
+
+          // Children are blocks under this page - can be with or without colon prefix
+          const children = pullData[":block/children"] || pullData["children"];
+          const childCount = Array.isArray(children) ? children.length : 0;
+
+          // _refs are blocks that reference this page (reverse refs)
+          const refs = pullData[":block/_refs"] || pullData["_refs"];
+          const refCount = Array.isArray(refs) ? refs.length : 0;
+
+          return [uid, title, childCount, refCount];
+        });
+
+        console.log("Processed results sample (first 5):", processedResults.slice(0, 5));
+
+        // Filter results: exclude pages with no children AND no refs, or pages with no children AND only 1 ref
+        const filteredResults = processedResults.filter((row) => {
+          const childCount = row[2];
+          const refCount = row[3];
+
+          // Exclude if no children AND no refs
+          if (childCount === 0 && refCount === 0) return false;
+
+          // Exclude if no children AND only 1 ref
+          if (childCount === 0 && refCount === 1) return false;
+
+          return true;
+        });
+
+        // Count filtered pages by category
+        const noChildrenNoRefs = processedResults.filter(
+          (row) => row[2] === 0 && row[3] === 0
+        ).length;
+        const noChildrenOneRef = processedResults.filter(
+          (row) => row[2] === 0 && row[3] === 1
+        ).length;
+        const filteredCount = noChildrenNoRefs + noChildrenOneRef;
+
+        // Convert filtered results to minimal format for pattern analysis
+        // Only return titles - no UIDs needed for metadata-only analysis
+        const executionResults = filteredResults.map((row) => ({
+          title: row[1],
+        }));
+
+        result.executionTime = performance.now() - executionStartTime;
+        result.executionResults = executionResults;
+
+        const filterMessage =
+          filteredCount > 0
+            ? ` (filtered ${filteredCount}: ${noChildrenNoRefs} empty, ${noChildrenOneRef} minimal)`
+            : "";
+
+        updateAgentToaster(
+          `✅ Datalog Query: Found ${executionResults.length} pages${filterMessage}`
+        );
+        console.log(
+          `✅ Query executed successfully: ${
+            executionResults.length
+          } pages in ${result.executionTime.toFixed(1)}ms${filterMessage}`
+        );
+
+        if (filteredCount > 0) {
+          result.optimizationSuggestions.push(
+            `Filtered out ${filteredCount} low-value pages: ${noChildrenNoRefs} with no content/refs, ${noChildrenOneRef} with only 1 ref`
+          );
+        }
+      } catch (error) {
+        console.error(`❌ Query execution failed:`, error);
+        result.warnings.push(`Query execution failed: ${error.message}`);
+      }
+    }
+
+    // Return simple JSON structure (not using createToolResult to avoid double-stringification)
+    if (result.executionResults) {
+      return JSON.stringify({
+        success: true,
+        data: result.executionResults, // Already an array of {uid, title} objects
+        metadata: {
+          totalFound: result.executionResults.length,
+          queryInfo: {
+            originalQuery: result.query,
+            explanation: result.explanation,
+            estimatedComplexity: result.estimatedComplexity,
+            executionTime: result.executionTime,
+            warnings: result.warnings,
+            optimizationSuggestions: result.optimizationSuggestions,
+          },
+        },
+      }) as any; // Cast needed because tool() wrapper requires string return
+    }
+
+    return JSON.stringify(result) as any;
+  }
+
   updateAgentToaster(
     `🔍 Datalog Query: ${
-      userQuery
-        ? "Executing custom query"
-        : `Searching ${targetEntity}s`
+      userQuery ? "Executing custom query" : `Searching ${targetEntity}s`
     }...`
   );
 
@@ -185,7 +329,9 @@ const generateDatomicQueryImpl = async (
         const executionResults = await executeDatomicQuery(result.query);
         result.executionTime = performance.now() - executionStartTime;
         result.executionResults = executionResults;
-        updateAgentToaster(`✅ Datalog Query: Found ${executionResults.length} results`);
+        updateAgentToaster(
+          `✅ Datalog Query: Found ${executionResults.length} results`
+        );
         console.log(
           `✅ Query executed successfully: ${
             executionResults.length
@@ -285,7 +431,9 @@ const generateDatomicQueryImpl = async (
       const executionResults = await executeDatomicQuery(result.query);
       result.executionTime = performance.now() - executionStartTime;
       result.executionResults = executionResults;
-      updateAgentToaster(`✅ Datalog Query: Found ${executionResults.length} results`);
+      updateAgentToaster(
+        `✅ Datalog Query: Found ${executionResults.length} results`
+      );
       console.log(
         `✅ Query executed successfully: ${
           executionResults.length
@@ -535,6 +683,12 @@ export const executeDatomicQueryTool = tool(
       // Extract state from config
       const state = config?.configurable?.state;
       const queryResult = await generateDatomicQueryImpl(input, state);
+
+      // SPECIAL CASE: If generateDatomicQueryImpl already returned a JSON string
+      // (e.g., for GET_ALL_PAGES_METADATA_ONLY), return it directly without re-wrapping
+      if (typeof queryResult === 'string') {
+        return queryResult; // Already properly formatted JSON string
+      }
 
       // If query was executed and has results, return them properly formatted
       if (

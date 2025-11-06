@@ -1007,6 +1007,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Clear tool usage history
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = [];
+    // Clear typing/streaming state to re-enable textarea
+    setIsTyping(false);
+    setIsStreaming(false);
+    // Clear streaming content
+    setStreamingContent("");
     // Clear persisted chat-specific state from window object
     delete (window as any).lastLoadedChatUid;
     delete (window as any).lastLoadedChatTitle;

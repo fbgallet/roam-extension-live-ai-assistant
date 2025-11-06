@@ -30,7 +30,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 > [!NOTE]
 > New OpenAI **GPT-5** model is by default a reasoning model and is quite slow, way slower than previous OpenAI non-reasoning models.
 > The reasoning effort is set by default to "low" to make it more responsive; you can change this setting in the settings menu. Setting it to "minimal" will give it a reaction time close to a non-reasoning model.
-> A non-reasoning version of GPT-5 is also available for more reactive generative AI use (but it will be automatically replaced by GPT-5-mini for agent, being not compatible with tools call)
+> A non-reasoning version of GPT-5 is also available for more reactive generative AI use (but it will be automatically replaced by GPT-5 for agent, being not compatible with tools call)
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

@@ -5,8 +5,18 @@
  * Leverages existing dataExtraction functions for tree processing.
  */
 
-import { getTreeByUid, resolveReferences } from "../../../../utils/roamAPI";
-import { convertTreeToLinearArray, getFlattenedContentFromTree } from "../../../dataExtraction";
+import {
+  getPageNameByPageUid,
+  getPageUidByPageName,
+  getParentBlock,
+  getTreeByUid,
+  hasBlockChildren,
+  resolveReferences,
+} from "../../../../utils/roamAPI";
+import {
+  convertTreeToLinearArray,
+  getFlattenedContentFromTree,
+} from "../../../dataExtraction";
 
 export interface SkillInfo {
   name: string;
@@ -56,7 +66,7 @@ export function extractAllSkills(): SkillInfo[] {
 
     for (const [uid, blockString] of results) {
       // Extract skill name (everything before the tag)
-      const name = blockString.replace(/#liveai\/skill/gi, '').trim();
+      const name = blockString.replace(/#liveai\/skill/gi, "").trim();
 
       // Get the tree to extract description
       const tree = getTreeByUid(uid);
@@ -66,11 +76,15 @@ export function extractAllSkills(): SkillInfo[] {
       const children = rootBlock.children || [];
 
       // Find description in first child
-      let description = '';
+      let description = "";
       if (children.length > 0) {
-        const firstChild = children.sort((a, b) => (a.order || 0) - (b.order || 0))[0];
+        const firstChild = children.sort(
+          (a, b) => (a.order || 0) - (b.order || 0)
+        )[0];
         if (firstChild && firstChild.string) {
-          description = firstChild.string.replace(/^Description::?\s*/i, '').trim();
+          description = firstChild.string
+            .replace(/^Description::?\s*/i, "")
+            .trim();
         }
       }
 
@@ -83,7 +97,7 @@ export function extractAllSkills(): SkillInfo[] {
 
     return skills;
   } catch (error) {
-    console.error('Error extracting skills:', error);
+    console.error("Error extracting skills:", error);
     return [];
   }
 }
@@ -94,7 +108,9 @@ export function extractAllSkills(): SkillInfo[] {
  * @param skillUid The UID of the skill block
  * @returns Skill instructions with list of available resources
  */
-export function extractSkillInstructions(skillUid: string): SkillInstructions | null {
+export function extractSkillInstructions(
+  skillUid: string
+): SkillInstructions | null {
   try {
     const tree = getTreeByUid(skillUid);
     if (!tree || !tree[0]) return null;
@@ -104,11 +120,15 @@ export function extractSkillInstructions(skillUid: string): SkillInstructions | 
 
     if (children.length === 0) return null;
 
-    const sortedChildren = [...children].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const sortedChildren = [...children].sort(
+      (a, b) => (a.order || 0) - (b.order || 0)
+    );
 
     // Extract name and description
-    const name = rootBlock.string.replace(/#liveai\/skill/gi, '').trim();
-    const description = sortedChildren[0]?.string?.replace(/^Description::?\s*/i, '').trim() || '';
+    const name = rootBlock.string.replace(/#liveai\/skill/gi, "").trim();
+    const description =
+      sortedChildren[0]?.string?.replace(/^Description::?\s*/i, "").trim() ||
+      "";
 
     // Extract instructions (skip first child which is description)
     const instructionsBlocks = sortedChildren.slice(1);
@@ -121,12 +141,14 @@ export function extractSkillInstructions(skillUid: string): SkillInstructions | 
     // 2. Collect resource metadata
     // This is a special case that convertTreeToLinearArray doesn't handle directly
     function processBlock(block: any, indent: number = 0) {
-      const blockString = block.string || '';
-      const isResource = blockString.includes('#liveai/skill-resource');
+      const blockString = block.string || "";
+      const isResource = blockString.includes("#liveai/skill-resource");
 
       if (isResource) {
         // Collect resource metadata
-        const resourceTitle = blockString.replace(/#liveai\/skill-resource/gi, '').trim();
+        const resourceTitle = blockString
+          .replace(/#liveai\/skill-resource/gi, "")
+          .trim();
         resources.push({
           title: resourceTitle,
           blockString: blockString,
@@ -134,7 +156,7 @@ export function extractSkillInstructions(skillUid: string): SkillInstructions | 
         });
 
         // Add resource reference (with resolved block refs)
-        const indentStr = '  '.repeat(indent);
+        const indentStr = "  ".repeat(indent);
         const resolvedTitle = resolveReferences(resourceTitle);
         instructionLines.push(
           `${indentStr}- ${resolvedTitle} [Deeper resource available]`
@@ -142,13 +164,15 @@ export function extractSkillInstructions(skillUid: string): SkillInstructions | 
         // Don't process children of resource blocks
       } else {
         // Add instruction with resolved references
-        const indentStr = '  '.repeat(indent);
+        const indentStr = "  ".repeat(indent);
         const resolvedContent = resolveReferences(blockString);
         instructionLines.push(`${indentStr}- ${resolvedContent}`);
 
         // Recursively process children
         if (block.children && block.children.length > 0) {
-          const sortedChildren = [...block.children].sort((a, b) => (a.order || 0) - (b.order || 0));
+          const sortedChildren = [...block.children].sort(
+            (a, b) => (a.order || 0) - (b.order || 0)
+          );
           sortedChildren.forEach((child) => processBlock(child, indent + 1));
         }
       }
@@ -160,11 +184,11 @@ export function extractSkillInstructions(skillUid: string): SkillInstructions | 
     return {
       name,
       description,
-      instructions: instructionLines.join('\n'),
+      instructions: instructionLines.join("\n"),
       resources,
     };
   } catch (error) {
-    console.error('Error extracting skill instructions:', error);
+    console.error("Error extracting skill instructions:", error);
     return null;
   }
 }
@@ -182,21 +206,25 @@ export function extractSkillResource(
 ): SkillResourceContent | null {
   try {
     // Clean the resource title for matching
-    const cleanedResourceTitle = resourceTitle.replace(/#liveai\/skill-resource/gi, '').trim();
+    const cleanedResourceTitle = resourceTitle
+      .replace(/\s?#liveai\/skill-resource/gi, "")
+      .trim();
 
     // Use Datomic query to find descendant blocks that:
     // 1. Are descendants of the skill block (using :block/parents reverse relationship)
     // 2. Reference the liveai/skill-resource page
     // 3. Contain the cleaned resource title in their content
-    const query = `[:find ?uid ?string
+    const query = `[:find ?uid ?string ?refs-uid
                     :where
                     [?parent :block/uid "${skillUid}"]
                     [?block :block/parents ?parent]
                     [?skill-resource-page :node/title "liveai/skill-resource"]
                     [?block :block/refs ?skill-resource-page]
                     [?block :block/uid ?uid]
-                    [?block :block/string ?string]
-                    [(clojure.string/includes? ?string "${cleanedResourceTitle}")]]`;
+                    [?block :block/string ?string]                    
+                    [(clojure.string/includes? ?string "${resourceTitle}")]
+                    [?block :block/refs ?refs]
+                    [?refs :block/uid ?refs-uid]]`;
 
     const results = window.roamAlphaAPI.q(query);
 
@@ -204,28 +232,54 @@ export function extractSkillResource(
       return null;
     }
 
-    // Use the first matching result
-    const [resourceUid] = results[0];
+    const resourceUid = results[0][0];
+    const resourceRefs = results
+      .filter((r) => r[2] !== getPageUidByPageName("liveai/skill-resource"))
+      .map((r) => r[2]);
+
+    let content = "";
+    if (resourceRefs && resourceRefs.length) {
+      content = "**Resources pages content**:\n";
+      resourceRefs.forEach((ref: string) => {
+        const isPage = !getParentBlock(ref);
+        if (isPage)
+          content += `Content of [[${getPageNameByPageUid(ref)}]] page:\n`;
+        else content += `Content of ((${ref})) block:\n`;
+        content += getFlattenedContentFromTree({
+          parentUid: ref,
+          maxCapturing: 99,
+          maxUid: 0,
+          withDash: true,
+          isParentToIgnore: isPage,
+          initialLeftShift: "  ",
+        });
+        content += "\n\n";
+      });
+    }
 
     // Use existing getFlattenedContentFromTree to extract children efficiently
     // This automatically handles:
     // - Block reference resolution
     // - Proper indentation
     // - Tree traversal
-    const content = getFlattenedContentFromTree({
-      parentUid: resourceUid,
-      maxCapturing: 99,
-      maxUid: 0,
-      withDash: true,
-      isParentToIgnore: true, // Don't include the parent block itself, just children
-    });
+    content +=
+      (content.length && hasBlockChildren(resourceUid)
+        ? "Direct resource content:\n"
+        : "") +
+      getFlattenedContentFromTree({
+        parentUid: resourceUid,
+        maxCapturing: 99,
+        maxUid: 0,
+        withDash: true,
+        isParentToIgnore: true, // Don't include the parent block itself, just children
+      });
 
     return {
       title: cleanedResourceTitle,
-      content: content || '(No additional content in this resource)',
+      content: content || "(No additional content in this resource)",
     };
   } catch (error) {
-    console.error('Error extracting skill resource:', error);
+    console.error("Error extracting skill resource:", error);
     return null;
   }
 }
@@ -239,12 +293,14 @@ export function getFormattedSkillsList(short: boolean = false): string {
   const skills = extractAllSkills();
 
   if (skills.length === 0) {
-    return 'No skills available. Users can create skills by adding blocks with #liveai/skill tag.';
+    return "No skills available. Users can create skills by adding blocks with #liveai/skill tag.";
   }
 
   const skillsList = skills
-    .map(skill => short ? `"${skill.name}"` : `- "${skill.name}": ${skill.description}`)
-    .join(short ? ', ' : '\n');
+    .map((skill) =>
+      short ? `"${skill.name}"` : `- "${skill.name}": ${skill.description}`
+    )
+    .join(short ? ", " : "\n");
 
   return short ? skillsList : `Available skills:\n${skillsList}`;
 }

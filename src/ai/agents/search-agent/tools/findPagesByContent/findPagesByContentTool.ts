@@ -184,7 +184,6 @@ const findPagesByContentImpl = async (
       state
     );
   } else {
-    console.log(`📚 Using block-level processing (${finalSearchScope} scope)`);
     matchingBlocks = await processAllConditions(
       expandedConditions,
       finalCombineConditions,

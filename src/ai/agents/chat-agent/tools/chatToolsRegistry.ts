@@ -45,7 +45,7 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       tool: askYourGraphTool,
       securityLevel: "secure",
       description:
-        "Execute complex natural language queries using the full search agent. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely complex queries - prefer add_pages_by_title or add_linked_references_by_title for simple lookups.",
+        "Execute complex natural language queries in the user roam's knowledge graph using Ask Your Graph agent to find matching pages or blocks to add to context. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely database queries, not common questions - and prefer add_pages_by_title or add_linked_references_by_title for simple lookups.",
     },
     get_help: {
       tool: createHelpTool(), // Create fresh tool with current enabled topics

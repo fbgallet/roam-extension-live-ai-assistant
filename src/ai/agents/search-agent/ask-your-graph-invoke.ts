@@ -123,7 +123,7 @@ const invokeSearchAgentInternal = async ({
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
   if (llmInfos.id === "gpt-5-chat-latest")
-    llmInfos = modelAccordingToProvider("gpt-5-mini");
+    llmInfos = modelAccordingToProvider("gpt-5");
   const spinnerId = displaySpinner(rootUid);
 
   // Initialize toaster for progress tracking with stop functionality
@@ -238,6 +238,7 @@ const invokeSearchAgentInternal = async ({
         try {
           window.removeEventListener("agentExpansion", listener);
           window.removeEventListener("agentPrivacyMode", listener);
+          window.removeEventListener("agentScopeSelection", listener);
         } catch (e) {
           // Ignore errors from removing non-existent listeners
         }
@@ -362,11 +363,12 @@ const invokeSearchAgentInternal = async ({
     // Invoke agent with interrupt handling
     let response = await ReactSearchAgent.invoke(initialState);
 
-    // If the response has pendingExpansion or pendingPrivacyEscalation, it means we need to wait for user input
-    // The state has been updated by showResultsThenExpand or showPrivacyModeDialog, so we don't resume from this response
+    // If the response has pendingExpansion, pendingPrivacyEscalation, or pendingScopeOptions, it means we need to wait for user input
+    // The state has been updated by showResultsThenExpand, showPrivacyModeDialog, or showScopeSelectionDialog, so we don't resume from this response
     if (
       (response as any).pendingExpansion ||
-      (response as any).pendingPrivacyEscalation
+      (response as any).pendingPrivacyEscalation ||
+      (response as any).pendingScopeOptions
     ) {
       // Update the stored state with the current response state
       (window as any).currentSearchAgentState = response;
@@ -376,6 +378,7 @@ const invokeSearchAgentInternal = async ({
     if (
       (response as any).pendingExpansion ||
       (response as any).pendingPrivacyEscalation ||
+      (response as any).pendingScopeOptions ||
       (!response.finalAnswer && !response.targetUid)
     ) {
       // Set up a promise that resolves when user makes a choice
@@ -545,6 +548,7 @@ const invokeSearchAgentInternal = async ({
             try {
               window.removeEventListener("agentExpansion", listener);
               window.removeEventListener("agentPrivacyMode", listener);
+              window.removeEventListener("agentScopeSelection", listener);
             } catch (e) {
               // Ignore errors from removing non-existent listeners
             }
@@ -640,13 +644,170 @@ const invokeSearchAgentInternal = async ({
             }
           };
 
+          // Scope selection event listener for handling exploratory query scope selection
+          const scopeSelectionEventListener = async (event: CustomEvent) => {
+            if (isProcessingExpansion) {
+              return;
+            }
+            isProcessingExpansion = true;
+
+            try {
+              // Clean up listeners and timers immediately
+              window.removeEventListener(
+                "agentExpansion",
+                expansionEventListener
+              );
+              window.removeEventListener(
+                "agentPrivacyMode",
+                privacyModeEventListener
+              );
+              window.removeEventListener(
+                "agentScopeSelection",
+                scopeSelectionEventListener
+              );
+              if (timeoutId) clearTimeout(timeoutId);
+              if (abortListener)
+                abortController.signal.removeEventListener(
+                  "abort",
+                  abortListener
+                );
+
+              // Update agent state with selected scope strategy
+              if ((window as any).currentSearchAgentState) {
+                const state = (window as any).currentSearchAgentState;
+                const { selectedStrategy, userIntent } = event.detail;
+
+                // Import the strategy mapper
+                const { mapScopeStrategyToQuery } = await import(
+                  "./ask-your-graph-agent"
+                );
+
+                // Map the selected strategy to executable query
+                const queryConfig = mapScopeStrategyToQuery(
+                  selectedStrategy,
+                  userIntent || state.userIntent || "Exploratory analysis"
+                );
+
+                // Check if this strategy requires content access and user doesn't have it
+                const hasContentAccess = state.permissions?.contentAccess || false;
+                const needsContentAccess =
+                  queryConfig.constraints?.requiresAnalysis ||
+                  queryConfig.constraints?.needsContentExpansion;
+
+                // If strategy needs content but user doesn't have access, show privacy dialog
+                // Skip if privacy mode was forced (e.g., inherited from chat agent)
+                if (
+                  needsContentAccess &&
+                  (state.privateMode || !hasContentAccess) &&
+                  !state.isPrivacyModeForced
+                ) {
+                  const currentMode = state.privateMode ? "Private" : "Secure";
+
+                  // Show privacy escalation dialog
+                  const { displayAskGraphModeDialog } = await import(
+                    "../../../utils/domElts.js"
+                  );
+
+                  displayAskGraphModeDialog({
+                    currentMode: currentMode,
+                    suggestedMode: "balanced",
+                    userQuery: state.userQuery,
+                    onModeSelect: async (newMode: string) => {
+                      // Update privacy mode based on selection
+                      if (newMode === "private") {
+                        state.privateMode = true;
+                        state.permissions = { contentAccess: false };
+                      } else if (newMode === "balanced") {
+                        state.privateMode = false;
+                        state.permissions = { contentAccess: false };
+                      } else {
+                        // full mode
+                        state.privateMode = false;
+                        state.permissions = { contentAccess: true };
+                      }
+
+                      // Now update state and resume execution
+                      state.formalQuery = queryConfig.formalQuery;
+                      state.userIntent = queryConfig.userIntent;
+                      state.searchDetails = queryConfig.constraints;
+                      state.searchStrategy = "direct";
+                      state.queryComplexity = "simple";
+                      state.analysisType = "summary";
+                      state.pendingScopeOptions = undefined;
+                      state.pendingRecommendedStrategy = undefined;
+                      state.isPrivacyModeUpdated = true;
+
+                      try {
+                        // Resume graph execution with the updated state
+                        const finalResponse = await ReactSearchAgent.invoke(state, {
+                          recursionLimit: 50,
+                          streamMode: "values",
+                        });
+
+                        // Clean up global state
+                        delete (window as any).currentSearchAgentState;
+
+                        // Process the final response and resolve with its result
+                        const result = await processAgentResponse(finalResponse);
+                        resolve(result);
+                      } catch (error) {
+                        console.error("❌ [Graph] Error resuming after privacy change:", error);
+                        reject(error);
+                      }
+                    },
+                  });
+
+                  return; // Wait for user response
+                }
+
+                // Update state with the selected query configuration
+                state.formalQuery = queryConfig.formalQuery;
+                state.userIntent = queryConfig.userIntent;
+                state.searchDetails = queryConfig.constraints;
+                state.searchStrategy = "direct";
+                state.queryComplexity = "simple";
+                state.analysisType = "summary";
+                // Clear pending scope state
+                state.pendingScopeOptions = undefined;
+                state.pendingRecommendedStrategy = undefined;
+                // Bypass IntentParser since we already have the query
+                state.isPrivacyModeUpdated = true;
+
+                // Resume graph execution with the updated state
+                const finalResponse = await ReactSearchAgent.invoke(state, {
+                  recursionLimit: 50,
+                  streamMode: "values",
+                });
+
+                // Clean up global state
+                delete (window as any).currentSearchAgentState;
+
+                // Process the final response and resolve with its result
+                const result = await processAgentResponse(finalResponse);
+                resolve(result);
+              } else {
+                reject(new Error("Agent state not found"));
+              }
+            } catch (error) {
+              console.error(
+                "❌ [Graph] Error handling scope selection:",
+                error
+              );
+              reject(error);
+            } finally {
+              isProcessingExpansion = false;
+            }
+          };
+
           // Track this listener for cleanup
           (window as any)._expansionListeners = [
             expansionEventListener,
             privacyModeEventListener,
+            scopeSelectionEventListener,
           ];
           window.addEventListener("agentExpansion", expansionEventListener);
           window.addEventListener("agentPrivacyMode", privacyModeEventListener);
+          window.addEventListener("agentScopeSelection", scopeSelectionEventListener);
 
           // Store the expansion listener reference for later cleanup
           (window as any)._currentExpansionListener = expansionEventListener;
@@ -681,6 +842,10 @@ const invokeSearchAgentInternal = async ({
               "agentPrivacyMode",
               privacyModeEventListener
             );
+            window.removeEventListener(
+              "agentScopeSelection",
+              scopeSelectionEventListener
+            );
             if (timeoutId) clearTimeout(timeoutId);
             reject(new Error("Operation cancelled by user"));
           };
@@ -696,13 +861,17 @@ const invokeSearchAgentInternal = async ({
               "agentPrivacyMode",
               privacyModeEventListener
             );
+            window.removeEventListener(
+              "agentScopeSelection",
+              scopeSelectionEventListener
+            );
             if (abortListener)
               abortController.signal.removeEventListener(
                 "abort",
                 abortListener
               );
             reject(
-              new Error("User input timeout - no privacy mode choice made")
+              new Error("User input timeout - no scope/mode choice made")
             );
           }, 300000); // 5 minutes timeout
         }
@@ -734,7 +903,7 @@ const invokeSearchAgentInternal = async ({
               Array.isArray(resultEntry.data)
             ) {
               const validResults = resultEntry.data.filter(
-                (r) => r && (r.uid || r.pageUid || r.pageTitle)
+                (r) => r && (r.uid || r.pageUid || r.pageTitle || r.title)
               );
 
               allFullResults.push(...validResults);
@@ -742,7 +911,7 @@ const invokeSearchAgentInternal = async ({
             // Handle legacy structure: direct array
             else if (Array.isArray(resultEntry)) {
               const validResults = resultEntry.filter(
-                (r) => r && (r.uid || r.pageUid || r.pageTitle)
+                (r) => r && (r.uid || r.pageUid || r.pageTitle || r.title)
               );
 
               allFullResults.push(...validResults);
@@ -756,7 +925,7 @@ const invokeSearchAgentInternal = async ({
             (toolResults: any) => {
               if (Array.isArray(toolResults)) {
                 const validResults = toolResults.filter(
-                  (r) => r && (r.uid || r.pageUid || r.pageTitle)
+                  (r) => r && (r.uid || r.pageUid || r.pageTitle || r.title)
                 );
 
                 allFullResults.push(...validResults);
@@ -767,7 +936,7 @@ const invokeSearchAgentInternal = async ({
               ) {
                 // Handle the case where results are nested under fullResults.data
                 const validResults = toolResults.fullResults.data.filter(
-                  (r) => r && (r.uid || r.pageUid || r.pageTitle)
+                  (r) => r && (r.uid || r.pageUid || r.pageTitle || r.title)
                 );
 
                 allFullResults.push(...validResults);
@@ -1080,8 +1249,6 @@ export const invokeExpandedSearchDirect = async ({
 }) => {
   // Use centralized strategy mapping function
   const mappedStrategy = mapLabelToStrategy(expansionLabel, expansionStrategy);
-
-  console.log(`🔧 [Direct Expansion] Mapped strategy: "${mappedStrategy}"`);
 
   // Create expansion agent data to pass semantic expansion parameters
   const expansionAgentData = {

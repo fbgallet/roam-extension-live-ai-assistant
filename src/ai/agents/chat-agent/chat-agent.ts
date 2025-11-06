@@ -39,7 +39,7 @@ import {
   SUMMARIZATION_PROMPT,
 } from "./chat-agent-prompts";
 import { getChatTools } from "./chat-tools";
-import { imageGeneration } from "../../aiAPIsHub";
+import { imageGeneration, modelAccordingToProvider } from "../../aiAPIsHub";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -236,9 +236,16 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   }
 
   // Bind tools if enabled
-  const llm_with_tools = state.toolsEnabled
-    ? llm.bindTools(state.chatTools)
-    : llm;
+  let llm_with_tools = llm;
+  if (state.enabledTools) {
+    if (llm.id === "gpt-5-chat-latest") {
+      const toolGptModel = modelViaLanggraph(
+        modelAccordingToProvider("gpt-5"),
+        turnTokensUsage
+      );
+      llm_with_tools = toolGptModel.bindTools(state.chatTools);
+    } else llm_with_tools = llm.bindTools(state.chatTools);
+  }
 
   // Streaming setup
   let streamingContent = "";
@@ -490,6 +497,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       model: state.model, // Pass model info so tools can reuse the same LLM
       llm: llm, // Pass the initialized LLM instance directly
       toolResultsCache: state.toolResultsCache || {}, // Pass cache for tool result deduplication
+      permissions: state.permissions, // Pass privacy mode so sub-agents can inherit it
     },
   };
 
@@ -532,9 +540,12 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
 
       // Call toolResponseCallback to capture tool's response for UI display
       if (state.toolResponseCallback) {
-        // For help tool, extract only the display portion (title and source)
+        // For help and skills tools, extract only the display portion
         let displayResponse = msg.content;
-        if (msg.name === "get_help" && msg.content) {
+        if (
+          (msg.name === "get_help" || msg.name === "live_ai_skills") &&
+          msg.content
+        ) {
           const displayMatch = msg.content.match(
             /\[DISPLAY\]([\s\S]*?)\[\/DISPLAY\]/
           );

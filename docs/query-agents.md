@@ -199,6 +199,66 @@ The agent understands natural date expressions:
 "2 random pages about books"
 ```
 
+### Exploratory Queries & Pattern Analysis
+
+When you want to discover broad patterns, themes, or categories across your graph without a specific search target, you can use the **Pattern analysis** command. This feature helps you understand what's in your graph through structured data sampling.
+
+#### How It Works
+
+1. **Trigger Pattern Analysis**:
+   - Use the command: **"Ask Your Graph - Pattern analysis"**
+   - Available when no block is focused (shows in context menu alongside "Ask Linked References")
+   - Also available as a submenu item of "Ask Your Graph" when a block is focused
+
+2. **Choose Your Scope Strategy**:
+   The agent will present 4 sampling strategies to analyze different aspects of your graph:
+
+   - **All Page Titles** 📋
+     - Analyzes page naming patterns and categories
+     - Fastest option - metadata only
+     - Best for: High-level topic overview, identifying main themes
+     - Example queries: "What are the main topics in my graph?", "Show me page naming patterns"
+
+   - **Recent Daily Notes** 📅
+     - Analyzes last 90 days of daily notes
+     - Includes full content of each page
+     - Best for: Recent activity patterns, habit tracking, temporal insights
+     - Example queries: "What have I been working on lately?", "Show patterns in my daily notes"
+
+   - **Recently Modified Pages** ⏱️
+     - Analyzes 100 most recently edited pages
+     - Best for: Current projects, active work areas
+     - Example queries: "What am I actively working on?", "Recent project themes"
+
+   - **Random Sample** 🎲
+     - Analyzes 100 randomly selected pages
+     - Provides unbiased cross-section
+     - Best for: Statistical overview, discovering forgotten areas
+     - Example queries: "Give me a diverse sample of my graph", "What topics do I cover?"
+
+3. **Cancel Anytime**:
+   - Click the "Cancel" button in the scope selection dialog to stop the process
+
+#### Privacy & Content Access
+
+- **Title-only analysis** (All Page Titles): No content access required - fastest and most private
+- **Content analysis** (other strategies): Will prompt for privacy mode upgrade if you're in Secure mode:
+  - Recommended: **Balanced mode** for good analysis with privacy protection
+  - Alternative: **Full Access mode** for deeper analysis
+
+#### Example Usage
+
+Natural language queries that trigger pattern analysis:
+```
+"What are the main themes in my graph?"
+"Show me patterns across my notes"
+"What topics do I write about most?"
+"Analyze my graph structure"
+"What categories exist in my database?"
+```
+
+Or directly use the **"Ask Your Graph - Pattern analysis"** command from the context menu.
+
 ### Available Search Tools
 
 The agent has access to 10 specialized tools organized by security level:

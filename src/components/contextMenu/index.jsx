@@ -670,11 +670,17 @@ export const StandaloneContextMenu = () => {
     // ✨ ASK YOUR GRAPH CONDITIONAL FILTERING: Show different commands based on focus state
     const hasFocusedBlock = !!focusedBlockUid?.current;
 
-    // If no block is focused, show only the new "Ask Linked References" command (id: 95) and "Open Results view" (id: 94)
-    // Hide the regular Ask Your Graph commands (id: 92, 920, 921, 922, 93)
+    // If no block is focused, show:
+    // - Pattern analysis command (id: 93) - always visible
+    // - "Ask Linked References" command (id: 95)
+    // - "Open Results view" (id: 94)
+    // Hide the regular Ask Your Graph commands (id: 92, 920, 921, 922, 923)
     if (!hasFocusedBlock) {
-      if ([92, 920, 921, 922, 93].includes(item.id)) {
+      if ([92, 920, 921, 922, 923].includes(item.id)) {
         return false; // Hide regular Ask Your Graph commands when no block is focused
+      }
+      if (item.id === 93) {
+        return true;
       }
     }
 
@@ -975,25 +981,6 @@ export const StandaloneContextMenu = () => {
           <>
             <MenuItem
               tabindex="0"
-              text="Most used prompts"
-              style={{ opacity: 0.6, cursor: "default" }}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <>
-                {mostUsed &&
-                  mostUsed.length &&
-                  mostUsed.map((cmd) => renderItem(cmd))}
-                <MenuDivider className="menu-hint" title={"Last used:"} />
-                {usedCommands?.last &&
-                  renderItem(
-                    commands.find((cmd) => cmd.id === usedCommands?.last)
-                  )}
-              </>
-            </MenuItem>
-            <MenuItem
-              tabindex="0"
               text="Custom prompts"
               style={{ opacity: 0.6, cursor: "default" }}
               onClick={(e) => {
@@ -1015,6 +1002,25 @@ export const StandaloneContextMenu = () => {
                     }
                   />
                 )}
+              </>
+            </MenuItem>
+            <MenuItem
+              tabindex="0"
+              text="Most used prompts"
+              style={{ opacity: 0.6, cursor: "default" }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <>
+                {mostUsed &&
+                  mostUsed.length &&
+                  mostUsed.map((cmd) => renderItem(cmd))}
+                <MenuDivider className="menu-hint" title={"Last used:"} />
+                {usedCommands?.last &&
+                  renderItem(
+                    commands.find((cmd) => cmd.id === usedCommands?.last)
+                  )}
               </>
             </MenuItem>
           </>

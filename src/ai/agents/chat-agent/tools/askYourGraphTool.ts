@@ -14,10 +14,11 @@ export const askYourGraphTool = tool(
     input: {
       query: string;
       reason?: string;
+      metadataOnly?: boolean;
     },
     config
   ): Promise<string> => {
-    const { query, reason } = input;
+    const { query, reason, metadataOnly } = input;
 
     if (reason) {
       console.log(`   Reason: ${reason}`);
@@ -26,6 +27,7 @@ export const askYourGraphTool = tool(
     const configurable = (config as any)?.configurable || {};
     const addResultsCallback = configurable.addResultsCallback;
     const model = configurable.model;
+    const permissions = configurable.permissions || { contentAccess: false };
 
     if (!addResultsCallback) {
       console.error(
@@ -51,16 +53,20 @@ export const askYourGraphTool = tool(
       const startTime = Date.now();
 
       // Execute the search agent
+      // Inherit chat agent's privacy mode - chat is at minimum "balanced" mode
+      // so we never need to show privacy escalation dialog
       await invokeSearchAgentSecure({
         model: model?.id || "claude-3-5-sonnet-20241022",
         rootUid: "chat-agent-tool",
         targetUid: "chat-agent-tool",
         target: "add", // Always add mode - don't replace existing results
         prompt: query,
-        permissions: { contentAccess: false },
-        privateMode: true, // Only UIDs, no content processing
+        permissions: permissions, // Inherit from chat agent (balanced or full)
+        privateMode: false, // Chat is never in private mode
         previousAgentState: {
           forcePopupOnly: true, // Results only, no block insertion
+          metadataOnly: metadataOnly, // If true, return only page titles for pattern analysis
+          isPrivacyModeForced: true, // Skip privacy analysis since we inherit from chat
         },
       });
 
@@ -123,9 +129,11 @@ The query "${query}" could not be executed. Try:
   },
   {
     name: "ask_your_graph",
-    description: `Execute a complex natural language query against the Roam graph using the full search agent.
+    description: `Execute a complex natural language query against the user Roam's graph using the search agent to find pages or blocks matching conditions.
 
-This tool is the MOST POWERFUL search capability available, supporting:
+This tool should be called only when it's clear that the user search some data or pattern IN it's Roam database and not in the general knowledge of the LLM.
+
+This tool support:
 - Pattern matching and regex
 - Semantic search and concept expansion
 - Complex boolean logic (AND, OR, NOT)
@@ -133,24 +141,27 @@ This tool is the MOST POWERFUL search capability available, supporting:
 - Block properties and attributes
 - Tag and page filtering
 - Content analysis and relationships
+- Metadata-only mode for lightweight pattern analysis across ALL pages
 
 When to use:
 - Complex queries with multiple conditions (e.g., "blocks tagged with #todo created last week containing 'meeting'")
 - Pattern-based searches (e.g., "blocks with links to people pages")
 - Semantic queries (e.g., "concepts related to machine learning")
 - Temporal queries (e.g., "pages modified in the last month")
+- Graph-wide pattern analysis (use metadataOnly=true for lightweight analysis of ALL page titles)
 - When add_pages_by_title and add_linked_references_by_title are insufficient
 
 When NOT to use:
+- Simple question → direct LLM response
 - Simple page lookups → use add_pages_by_title instead
 - Simple linked references → use add_linked_references_by_title instead
-- This tool is SLOWER - only use for genuinely complex queries
 
 Example queries:
 - "blocks containing TODO items from last week"
 - "all pages about project management with recent updates"
 - "blocks linking to [[John Doe]] that mention meetings"
 - "pages tagged with #research created this month"
+- "what are the main categories or themes in my graph?" (with metadataOnly=true)
 
 The results will be added to your current context (not replacing existing results).`,
     schema: z.object({
@@ -164,6 +175,13 @@ The results will be added to your current context (not replacing existing result
         .optional()
         .describe(
           "Brief explanation of why this complex search is needed (helps with debugging and user transparency)"
+        ),
+      metadataOnly: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "If true, return only page titles for lightweight pattern analysis (no UIDs or content). Use when you need to analyze page naming patterns, categories, or themes across the entire graph without needing the actual content. Much faster and uses fewer tokens."
         ),
     }),
   }

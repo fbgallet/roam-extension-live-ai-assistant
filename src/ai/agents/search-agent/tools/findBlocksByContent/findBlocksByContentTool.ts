@@ -127,7 +127,9 @@ export const findBlocksByContentImpl = async (
 
   const hasExpansions = expandedConditions.length > finalConditions.length;
   if (hasExpansions) {
-    updateAgentToaster(`🔍 Content Search: Expanding search with related terms...`);
+    updateAgentToaster(
+      `🔍 Content Search: Expanding search with related terms...`
+    );
   }
 
   // Step 2: Build and execute search query
@@ -285,13 +287,13 @@ export const findBlocksByContentImpl = async (
   } else if (
     resultMode === "uids_only" &&
     securityMode === "full" &&
-    finalResults.length > 100
+    finalResults.length > 300
   ) {
     // Only limit UIDs mode in full access mode where content goes to LLM
     updateAgentToaster(
-      `⚡ Content Search: Limiting to 100 of ${finalResults.length} results for analysis`
+      `⚡ Content Search: Limiting to 300 of ${finalResults.length} results for analysis`
     );
-    finalResults = finalResults.slice(0, 100);
+    finalResults = finalResults.slice(0, 300);
     wasLimited = true;
   } else if (resultMode === "uids_only" && finalResults.length > 3000) {
     // General limit for uids_only mode for popup display (independent of security mode)

@@ -519,24 +519,37 @@ export const expandConditionsShared = async (
   const finalExpandedConditions = [];
 
   for (const condition of conditions) {
+    // Clean regex patterns if present (e.g., "regex:/.*/" -> ".*")
+    let cleanedText = condition.text;
+    let isRegexCondition = condition.matchType === "regex" || condition.type === "regex";
+
+    // Also detect regex: prefix from IntentParser output
+    if (cleanedText.startsWith("regex:/")) {
+      cleanedText = cleanedText.replace(/^regex:\/(.*)\/[gimsuvy]*$/, "$1");
+      isRegexCondition = true;
+    }
+
     // Convert to structured condition format
     const structuredCondition = {
       type: condition.type,
-      text: condition.text,
+      text: cleanedText,
       matchType: condition.matchType || "contains",
       semanticExpansion: condition.semanticExpansion,
       weight: condition.weight || 1.0,
       negate: condition.negate || false,
     };
 
-    // Apply semantic expansion if needed
+    // CRITICAL: Never apply semantic expansion to regex patterns
+    // Regex patterns should be used as-is, not expanded
     if (
+      isRegexCondition ||
       structuredCondition.type === "regex" ||
+      structuredCondition.matchType === "regex" ||
       (!hasGlobalExpansion &&
         !structuredCondition.semanticExpansion &&
         !hasSymbolExpansion)
     ) {
-      // No expansion needed
+      // No expansion needed - return condition with cleaned text
       finalExpandedConditions.push(structuredCondition);
       continue;
     }

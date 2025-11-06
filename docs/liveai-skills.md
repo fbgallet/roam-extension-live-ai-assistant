@@ -1,4 +1,4 @@
-# LiveAI Skills System
+# Live AI Skills
 
 The LiveAI Skills system provides a powerful way to give your chat agent specialized knowledge and instructions stored directly in your Roam Research graph. Skills use progressive loading to avoid context overload while providing deep, detailed guidance when needed.
 
@@ -53,6 +53,24 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
       - Advanced technique 1
       - Advanced technique 2
 ```
+
+### With Page References in Resources
+
+You can reference entire pages or blocks directly in a resource title using Roam's `[[page]]` or `((block-ref))` syntax. The content of the referenced pages/blocks will automatically be loaded as part of the resource content:
+
+```
+- Data Analysis Workflow #liveai/skill
+  - Description: Complete workflow for analyzing and visualizing data
+  - Instructions:
+    - Collect and clean data
+    - Perform statistical analysis
+    - Statistical methods from [[Statistical Analysis Guide]] #liveai/skill-resource
+      - Additional context-specific instructions here (optional)
+    - Create visualizations
+    - Visualization best practices from [[Data Visualization]] #liveai/skill-resource
+```
+
+When the agent loads these resources, the entire content of the referenced pages will be included, making it easy to reuse existing documentation or knowledge pages as skill resources.
 
 ## Example Skills
 
@@ -133,6 +151,30 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
       - IEEE format guidelines
 ```
 
+### Example 4: Using Page References
+
+This example shows how to reference existing pages in your graph:
+
+```
+- Company Onboarding Process #liveai/skill
+  - Description: Complete onboarding workflow for new team members
+  - Instructions:
+    - Send welcome email with access credentials
+    - Schedule orientation meetings
+    - Setup workstation and tools
+    - Technical setup guide from [[IT Setup Procedures]] #liveai/skill-resource
+    - Review company policies
+    - Company policies from [[Employee Handbook]] #liveai/skill-resource
+      - Additional note: Focus on sections 1-3 for first week
+    - Assign initial tasks and projects
+    - Project templates from [[Standard Project Templates]] #liveai/skill-resource
+```
+
+In this example:
+- The `[[IT Setup Procedures]]` page content will be loaded when this resource is accessed
+- The `[[Employee Handbook]]` page content plus the additional note will be included
+- The `[[Standard Project Templates]]` page content will be available when needed
+
 ## Usage Patterns
 
 ### Pattern 1: Simple Task (No Resources Needed)
@@ -140,6 +182,7 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 **User request**: "Help me write a blog post about AI"
 
 **Agent behavior**:
+
 1. Loads "Blog Post Writing" skill core instructions
 2. Has enough guidance from core instructions
 3. Proceeds with task following the workflow
@@ -149,6 +192,7 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 **User request**: "Review this code for security issues"
 
 **Agent behavior**:
+
 1. Loads "Code Review Best Practices" skill
 2. Sees "Security review checklist" resource available
 3. Loads security checklist resource for detailed guidance
@@ -159,6 +203,7 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 **User request**: "Write a research paper on climate change"
 
 **Agent behavior**:
+
 1. Loads "Academic Research Workflow" skill
 2. During literature review phase, loads "Literature search strategies" resource
 3. During analysis phase, loads "Statistical analysis guidelines" resource
@@ -172,11 +217,13 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 2. **Progressive Depth**: Put essential info in core, details in resources
 3. **Focused Resources**: Each resource should cover one specific topic
 4. **Actionable Instructions**: Use clear, step-by-step guidance
-5. **Reference Standards**: Link to pages/blocks with examples or templates
+5. **Leverage Existing Pages**: Use `[[page]]` references in resource titles to reuse existing documentation, guides, or knowledge pages
+6. **Combine References with Instructions**: You can reference pages and add additional context-specific instructions as children of the resource block
 
 ### Naming Conventions
 
 - **Skill Names**: Clear, descriptive, task-oriented
+
   - ✅ "Blog Post Writing"
   - ✅ "Code Review Best Practices"
   - ❌ "Writing Stuff"
@@ -208,6 +255,7 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 2. Chat agent sees list of available skills in tool description
 3. When skill is requested, core instructions load (excluding resource children)
 4. When resource is requested, only that resource's children load
+5. If a resource title contains `[[page]]` or `((block-ref))` references, the content of those pages/blocks is automatically fetched and included in the resource content
 
 ### Context Optimization
 
@@ -216,12 +264,48 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 - Agent only loads what it needs, when it needs it
 - Prevents context bloat from loading entire skill trees upfront
 
+## Tips and Tricks
+
+### Reusing Existing Documentation
+
+Instead of duplicating content, reference your existing pages:
+
+```
+- Project Management #liveai/skill
+  - Description: Manage projects using our team's methodologies
+  - Instructions:
+    - Review project requirements
+    - Follow our methodology from [[Project Management Framework]] #liveai/skill-resource
+    - Create project timeline
+    - Use templates from [[Project Templates]] #liveai/skill-resource
+```
+
+This approach:
+- Keeps your skills DRY (Don't Repeat Yourself)
+- Ensures skills stay up-to-date when referenced pages are updated
+- Reduces maintenance burden
+
+### Combining Multiple Pages
+
+You can reference multiple pages in a single resource:
+
+```
+- Security Review #liveai/skill
+  - Description: Comprehensive security review workflow
+  - Instructions:
+    - Review [[OWASP Top 10]] and [[Company Security Standards]] #liveai/skill-resource
+      - Pay special attention to authentication flows
+```
+
+Both pages' content will be loaded together with the additional instruction.
+
 ## Troubleshooting
 
 ### Skill Not Found
 
 **Problem**: Agent says skill doesn't exist
 **Solutions**:
+
 - Verify block has `#liveai/skill` tag
 - Check skill name matches exactly (case-insensitive)
 - Reload extension to re-index skills
@@ -230,6 +314,7 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 
 **Problem**: Agent can't access a resource
 **Solutions**:
+
 - Verify resource has `#liveai/skill-resource` tag
 - Check resource name matches exactly
 - Ensure resource is within the correct skill block hierarchy
@@ -238,6 +323,7 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 
 **Problem**: Agent doesn't use relevant skill
 **Solutions**:
+
 - Improve skill description to be more discoverable
 - Make description match likely user requests
 - Explicitly mention the skill name in your request

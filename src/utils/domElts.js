@@ -13,6 +13,7 @@ import App from "../App";
 import TokensDialog from "../components/TokensDisplay";
 import AskGraphModeDialog from "../components/AskGraphModeDialog";
 import AskGraphFirstTimeDialog from "../components/AskGraphFirstTimeDialog";
+import ScopeSelectionDialog from "../components/ScopeSelectionDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
 import { chatWithLinkedRefs } from "../components/full-results-popup";
@@ -160,6 +161,13 @@ export const displaySpinner = async (targetUid) => {
   let targetBlockElt, spinner, intervalId;
   setTimeout(() => {
     targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+
+    // If block doesn't exist in DOM (e.g., chat-agent-tool, query-composer), skip spinner
+    if (!targetBlockElt) {
+      console.warn("⚠️ displaySpinner: Block not found in DOM for UID:", targetUid);
+      return;
+    }
+
     if (targetBlockElt?.tagName.toLowerCase() === "textarea") {
       targetBlockElt = targetBlockElt.parentElement;
     }
@@ -352,6 +360,55 @@ export const displayAskGraphFirstTimeDialog = (dialogData) => {
         // Then call the callback
         if (dialogData.onModeSelect) {
           dialogData.onModeSelect(selectedMode);
+        }
+      }}
+    />,
+    container
+  );
+};
+
+export const displayScopeSelectionDialog = (dialogData) => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".scope-selection-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("scope-selection-dialog-container");
+  targetElt.appendChild(container);
+
+  function unmountScopeSelectionDialog() {
+    const node = document.querySelector(".scope-selection-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+
+  ReactDOM.render(
+    <ScopeSelectionDialog
+      isOpen={true}
+      onClose={unmountScopeSelectionDialog}
+      scopeOptions={dialogData.scopeOptions}
+      recommendedStrategy={dialogData.recommendedStrategy}
+      userQuery={dialogData.userQuery}
+      onScopeSelect={(selectedStrategy) => {
+        // Close dialog first
+        unmountScopeSelectionDialog();
+        // Then call the callback
+        if (dialogData.onScopeSelect) {
+          dialogData.onScopeSelect(selectedStrategy);
+        }
+      }}
+      onCancel={() => {
+        // Close dialog first
+        unmountScopeSelectionDialog();
+        // Then call the cancel callback if provided
+        if (dialogData.onCancel) {
+          dialogData.onCancel();
         }
       }}
     />,

@@ -94,8 +94,9 @@ For attribute in page searches, see below, operators are defined precisely.
 **Page Search Strategy Priority (use in this order):**
 1. **'page:(title:(pattern))'** - PRIMARY: page titles matching pattern (text or regex)
    Use when: "pages about X", "X pages", "find pages with X in title"
+   SPECIAL: 'page:(title:(regex:/.*/))' - Get ALL page titles (metadata-only, fast, for overview)
 2. **'page:(content:(pattern))'** - SECONDARY: page content matching pattern (text/regex/references)
-   Use when: "pages containing X", "pages that mention X", "pages with X content"  
+   Use when: "pages containing X", "pages that mention X", "pages with X content"
 3. **'page:(attr:key:type:(value))'** - SPECIFIC: attribute-value metadata searches (essentially content search)
    Use when: "pages of type X", "pages with X property", "pages where attribute Y is Z"
    - 'page:(attr:key:type:(A + B - C))' complex attribute queries with logical operators
@@ -517,6 +518,31 @@ By default, strict search without expansion will be applied.
 - **Connection words** ("related to", "connected", "links") → 'analyze:connections'
 - **Summary words** ("summarize", "overview", "what about") → 'analyze:summary'
 
+### 🎯 EXPLORATORY QUERY HANDLING (NEW)
+
+**DETECTION**: Broad analysis requests without specific filters (patterns, themes, trends, overview).
+- Examples (any language): "What patterns in my notes?", "Recurring themes?"
+- Not concerned: if a specific type of node (page or block) and a specific period or result number limit are present in the user request, proceed as normal query regex set to '/.*/'. Example: all blocks since 2 days → 'regex:/.*/'; 10 most recent pages → 'pages:(regex:/.*/)'
+
+**WHEN DETECTED → Set needsScope: true:**
+
+**Recommended Strategy Selection:**
+- Query mentions "recent"/"lately" → recommendedStrategy: "recent_modified"
+- Query mentions "daily notes"/"journal" → recommendedStrategy: "recent_dnp"
+- Pure exploration/broad patterns → recommendedStrategy: "all_page_titles"
+- Otherwise → recommendedStrategy: "random_pages"
+
+**OUTPUT when needsScope: true:**
+{
+  "userIntent": "Broad exploratory analysis without specific filters",
+  "needsScope": true,
+  "recommendedStrategy": "all_page_titles",
+  "language": "en",
+  "confidence": 0.85
+}
+
+**CRITICAL**: When needsScope=true, omit formalQuery and scopeOptions fields (agent will generate options and show dialog).
+
 ### 🎯 Query Decomposition Decision: Single vs Multi-Query
 
 **CRITICAL: Choose the right strategy based on query complexity**
@@ -599,6 +625,8 @@ Parse this user request: "${state.userQuery}"
 Respond with only valid JSON, no explanations or any additional comment.
 
 ## OUTPUT FORMAT (JSON):
+
+**NORMAL QUERIES** (with specific filters/conditions):
 {
   "userIntent": "Clear description of what user wants to accomplish",
   "formalQuery": "symbolic query using the operators above (NEVER use quotes around terms)",
@@ -618,6 +646,15 @@ Respond with only valid JSON, no explanations or any additional comment.
     !state.skipPrivacyAnalysis ? 'null | "Balanced" | "Full Access"' : "null"
   },
   "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
+  "confidence": 0.1-1.0
+}
+
+**EXPLORATORY QUERIES** (broad requests without filters, see EXPLORATORY QUERY HANDLING section):
+{
+  "userIntent": "Broad exploratory analysis without specific filters",
+  "needsScope": true,
+  "recommendedStrategy": "all_page_titles|recent_modified|recent_dnp|random_pages",
+  "language": "detected language",
   "confidence": 0.1-1.0
 }
 
@@ -859,16 +896,32 @@ const buildSimpleQueryPrompt = (state: any): string => {
     state.privateMode || false
   );
 
+  // Check if this is a DATOMIC: prefixed query for special handling
+  const isDatomicSpecial =
+    state.formalQuery && state.formalQuery.startsWith("DATOMIC:");
+  const datomicMarker = isDatomicSpecial
+    ? state.formalQuery.substring(8)
+    : null; // Remove "DATOMIC:" prefix
+
   return `${agentIntro}${privateModeInstructions}
 
 
 ## SIMPLE QUERY EXECUTION
 
 USER INTENT: ${state.userIntent || "Execute search"}
-SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
-'${
-    state.datomicQuery
-      ? `\nDATOMIC QUERY: ${state.datomicQuery}
+${
+  isDatomicSpecial
+    ? `SPECIAL DATOMIC MARKER: '${datomicMarker}'
+
+**CRITICAL**:
+1. Call executeDatomicQuery tool with queryDescription='${datomicMarker}' (this is a special marker that triggers automatic query execution)
+2. After receiving the results, DO NOT call any other tools
+3. Analyze the results and provide a comprehensive summary following the USER INTENT instructions`
+    : `SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}'`
+}
+${
+  state.datomicQuery
+    ? `\nDATOMIC QUERY: ${state.datomicQuery}
   \nSince a Datomic query is provided by the user, use executeDatomicQuery directly${
     state.needsPostProcessing
       ? `, then ${
@@ -878,8 +931,8 @@ SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
         } of the results`
       : ""
   }`
-      : ""
-  }
+    : ""
+}
 
 ## CORE SYMBOLIC OPERATORS:
 
@@ -917,7 +970,7 @@ SYMBOLIC QUERY: '${state.formalQuery || state.userQuery}
 
 **SPECIAL PATTERNS:**
 - **Expansion symbols**: 'text:car*' → condition: {text: 'car*', type: 'text'} (preserve symbols exactly)
-- **Regex patterns**: 'regex:/pattern/i' → condition: {text: '/pattern/i', type: 'regex'}
+- **Regex patterns**: 'regex:/pattern/i' → condition: {text: '(?i)pattern', type: 'regex'} (remove delimiting slashes and convert to Datomic datalog compatible regex pattern)
 - **Page references**: 'ref:title' → condition: {text: 'title', type: 'page_ref'}
 
 ## AVAILABLE TOOLS
@@ -940,7 +993,7 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
       ? `\n  * **GLOBAL SEMANTIC EXPANSION**: "${state.semanticExpansion}" strategy will be applied to ALL conditions automatically`
       : `\n  * **NO SEMANTIC EXPANSION**: Do not add semanticExpansion parameter to tool calls unless explicitly instructed above`
   }
-- For "regex" condition type, be sure to remove "regex:" keyword from the condition text, so it begins always with "/" (**Example**: formalQuery "regex:/^status::.*pending.*/i" → create condition {text: "/^status::.*pending.*/i", type: "regex"})
+- For "regex" condition type, be sure to remove "regex:" keyword from the condition text, removing delimiting slashes and convert to Datomic compatible regex (**Example**: formalQuery "regex:/^status::.*pending.*/i" → create condition {text: "(?i)^status::.*pending.*", type: "regex"})
 - Use 'in:scope' for limitToPages parameter only
 - Default to 'summary' result mode for efficiency
 - **ZERO RESULTS HANDLING**: If a tool call returns zero results, you MUST either:
@@ -948,10 +1001,16 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
   2. Respond with text stating no results were found and stop searching
   - Do NOT make the same tool calls repeatedly
   - Do NOT respond with just explanations without action${
+    state.searchDetails?.maxResults
+      ? `\n- **RESULT LIMIT**: Pass limit=${state.searchDetails.maxResults} to your tool call to get exactly ${state.searchDetails.maxResults} results`
+      : ""
+  }${
     state.searchDetails?.timeRange
-      ? `\n- **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
-          state.searchDetails.timeRange
-        )} (handled by agent state, do not pass dateRange parameter)`
+      ? `\n- **DATE FILTERING**: Pass dateRange parameter to tool: {start: "${
+          state.searchDetails.timeRange.start
+        }", end: "${state.searchDetails.timeRange.end}", filterMode: "${
+          state.searchDetails.timeRange.filterMode || "modified"
+        }"}`
       : ""
   }
 
@@ -966,13 +1025,31 @@ const buildComplexQueryPrompt = (state: any): string => {
     state.privateMode || false
   );
 
+  // Check if this is a DATOMIC: prefixed query for special handling
+  const isDatomicSpecial =
+    state.formalQuery && state.formalQuery.startsWith("DATOMIC:");
+  const datomicMarker = isDatomicSpecial
+    ? state.formalQuery.substring(8)
+    : null; // Remove "DATOMIC:" prefix
+
   return `${agentIntro}${privateModeInstructions}
 
 ## COMPLEX QUERY EXECUTION
 
 USER REQUEST: "${state.userQuery}"
 USER INTENT: ${state.userIntent || "Execute advanced search"}
-${state.formalQuery ? `SYMBOLIC QUERY: '${state.formalQuery}'` : ""}
+${
+  isDatomicSpecial
+    ? `SPECIAL DATOMIC MARKER: '${datomicMarker}'
+
+**CRITICAL**:
+1. Call executeDatomicQuery tool with queryDescription='${datomicMarker}' (this is a special marker that triggers automatic query execution)
+2. After receiving the results, DO NOT call any other tools
+3. Analyze the results and provide a comprehensive summary following the USER INTENT instructions`
+    : state.formalQuery
+    ? `SYMBOLIC QUERY: '${state.formalQuery}'`
+    : ""
+}
 ${
   state.datomicQuery
     ? `DATOMIC QUERY: ${state.datomicQuery}${
@@ -1038,10 +1115,16 @@ ${
     ? `\n🔒 **CRITICAL OVERRIDE**: User requested depth=0 (same-block search). MUST use findBlocksByContent, NOT findBlocksWithHierarchy.\n`
     : ""
 }${
+    state.searchDetails?.maxResults
+      ? `\n📊 **RESULT LIMIT**: Pass limit=${state.searchDetails.maxResults} to your tool call to get exactly ${state.searchDetails.maxResults} results`
+      : ""
+  }${
     state.searchDetails?.timeRange
-      ? `\n📅 **DATE FILTERING**: Results will be automatically filtered by date range ${JSON.stringify(
-          state.searchDetails.timeRange
-        )} (handled by agent state, do not pass dateRange parameter)`
+      ? `\n📅 **DATE FILTERING**: Pass dateRange parameter to tool: {start: "${
+          state.searchDetails.timeRange.start
+        }", end: "${state.searchDetails.timeRange.end}", filterMode: "${
+          state.searchDetails.timeRange.filterMode || "modified"
+        }"}`
       : ""
   }
 
@@ -1382,8 +1465,8 @@ Found [original total] matching results:
 - Provide thoughtful analysis while maintaining a conversational tone
 - Use natural language: "I notice that...", "It looks like...", "Based on what I'm seeing..."
 - For small result sets (≤15): Show results with conversational commentary
-- For larger result sets: Highlight the most interesting findings and ask if they want to explore specific areas
-- For block results (isBlock:true), use block embeds '{{[[embed-path]]: ((real-uid))}}' for key examples you're discussing
+- For larger result sets: Highlight the most interesting findings and ask if they want to explore specific areas. Never display more than 20 results (since we have a dedicated full results view available for better exploration of results)
+- For block results (isBlock:true), use block embeds '{{[[embed-path]]: ((uid))}}' for key examples you're discussing
 - For page results (isPage:true), use '[[title]]' syntax
 - Group results by themes with conversational explanations
 - End with engaging follow-up suggestions: "Would you like me to explore...", "I could also look into...", "Anything specific you'd like me to focus on?"
@@ -1399,9 +1482,9 @@ CONVERSATION FORMATTING:
 - Provide thoughtful analysis and organization of search results
 - Use your judgment to select most relevant results to display
 - For small result sets (≤15): Usually show all results with analysis
-- For larger result sets: Show most relevant results, summarize patterns and key insights
+- For larger result sets: Show most relevant results, summarize patterns and key insights. Never display more than 20 results (since we have a dedicated full results view available for better exploration of results)
 - For PAGE REFERENCES (isPage:true): List as [[Page Title]] (count references) with context
-- Use block embeds for block results (isBlock:true) {{[[embed-path]]: ((real-uid))}} for key examples BUT DON'T embed page results
+- Use block embeds for block results (isBlock:true) {{[[embed-path]]: ((uid))}} for key examples BUT DON'T embed page results
 - Add contextual comments, group by themes, and provide insights based on the data
 - When not showing all results, explain your selection approach and mention total count
 - Make your response valuable by highlighting patterns, connections, and key findings`;
@@ -1577,6 +1660,17 @@ export const extractResultDataForPrompt = (
     // Add items to combined list, deduplicating by UID but preferring context-expanded items
     for (const item of data) {
       const itemUid = item.uid || item.pageUid;
+
+      // Handle title-only items (metadata-only mode) - no UIDs, just titles
+      if (!itemUid && (item.title || item.pageTitle)) {
+        // For title-only items, just add them directly (no deduplication needed)
+        allResultData.push({
+          ...item,
+          sourceResultId: resultId,
+        });
+        continue;
+      }
+
       if (itemUid) {
         const existingItem = seenItems.get(itemUid);
         const isContextExpanded =
@@ -1656,6 +1750,45 @@ export const extractResultDataForPrompt = (
   // Process the deduplicated data directly
   if (allResultData.length > 0) {
     const data = allResultData;
+
+    // Check if this is GET_ALL_PAGES_METADATA_ONLY case (only titles, no content or UIDs)
+    // In this case, we want ALL results to be included for pattern analysis
+    // Be lenient: allow a few items with missing titles or other minor issues
+
+    const hasNoContent = data.every((item) => !item.content);
+    const hasNoUid = data.every(
+      (item) => !item.uid && !item.pageUid && !item.blockUid
+    );
+
+    // Count items with titles (be lenient - allow some empty titles)
+    const itemsWithTitle = data.filter(
+      (item) => item.pageTitle || item.title
+    ).length;
+    const titleCoverage = itemsWithTitle / data.length;
+
+    // Consider it metadata-only if:
+    // 1. No items have content
+    // 2. No items have UIDs (title-only format)
+    // 3. At least 95% of items have titles (allowing for a few edge cases)
+    const isMetadataOnly = hasNoContent && hasNoUid && titleCoverage >= 0.95;
+
+    // Special case: For metadata-only results (page titles analysis), include ALL results
+    if (isMetadataOnly && data.length > 20) {
+      // Extract just the titles - minimal token usage
+      const titles = data
+        .map((item) => item.pageTitle || item.title)
+        .filter(Boolean); // Remove any null/undefined titles
+
+      const dataString = titles
+        .map((title, idx) => `  ${idx + 1}. [[${title}]]`)
+        .join("\n");
+
+      formattedResults.push(
+        `Page Titles for Analysis (${titles.length} total):\n${dataString}`
+      );
+
+      return formattedResults.join("\n\n");
+    }
 
     let limitedData: any[];
 

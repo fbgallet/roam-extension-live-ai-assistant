@@ -139,6 +139,7 @@ const ReactSearchAgentState = Annotation.Root({
     | "need_new_search"
     | "analyze_complexity"
     | "show_privacy_dialog"
+    | "show_scope_options"
   >,
   reformulatedQuery: Annotation<string | undefined>,
   originalSearchContext: Annotation<string | undefined>,
@@ -184,6 +185,8 @@ const ReactSearchAgentState = Annotation.Root({
         maxResults?: number;
         requireRandom?: boolean;
         depthLimit?: number;
+        requiresAnalysis?: boolean;
+        needsContentExpansion?: boolean; // For scope strategy queries that need content
       }
     | undefined
   >,
@@ -227,6 +230,19 @@ const ReactSearchAgentState = Annotation.Root({
   streamingCallback: Annotation<((content: string) => void) | undefined>,
   // Token usage for this turn (returned to caller)
   tokensUsage: Annotation<TokensUsage | undefined>,
+  // NEW: Exploratory query scope selection
+  pendingScopeOptions: Annotation<
+    | Array<{
+        strategy: string;
+        description: string;
+        bestFor: string;
+        estimatedCount: number | string;
+      }>
+    | undefined
+  >,
+  pendingRecommendedStrategy: Annotation<string | undefined>,
+  // Force scope selection dialog (for Pattern analysis command)
+  forceScopeSelection: Annotation<boolean | undefined>,
 });
 
 // Global variables for the agent
@@ -236,14 +252,10 @@ let searchTools: any[] = [];
 
 // Export function to get current token usage (for popup execution)
 export const getCurrentTokenUsage = (): TokensUsage => {
-  console.log(
-    "🐛 [getCurrentTokenUsage] Returning turnTokensUsage:",
-    turnTokensUsage
-  );
-  console.log(
-    "🐛 [getCurrentTokenUsage] Stack trace:",
-    new Error().stack?.split("\n").slice(1, 4).join("\n")
-  );
+  // console.log(
+  //   "🐛 [getCurrentTokenUsage] Stack trace:",
+  //   new Error().stack?.split("\n").slice(1, 4).join("\n")
+  // );
   return { ...turnTokensUsage }; // Return a copy
 };
 
@@ -259,6 +271,146 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
 const conversationRouter = async (
   state: typeof ReactSearchAgentState.State
 ) => {
+  // Check if forceScopeSelection flag is set (from Pattern analysis command)
+  if (state.forceScopeSelection && !state.pendingScopeOptions) {
+    logger.info("Force scope selection requested - showing dialog");
+
+    // Generate scope options
+    const scopeOptions = [
+      {
+        strategy: "all_page_titles",
+        description: "Scan all page titles for topic overview",
+        bestFor: "Quick high-level exploration of all topics in your graph",
+        estimatedCount: "all",
+      },
+      {
+        strategy: "recent_dnp",
+        description: "Analyze patterns in last 90 daily notes",
+        bestFor:
+          "Understanding recent activities, habits, and temporal patterns",
+        estimatedCount: 90,
+      },
+      {
+        strategy: "random_pages",
+        description: "Random sample of 100 pages for diverse patterns",
+        bestFor: "Unbiased cross-section and statistical overview",
+        estimatedCount: 100,
+      },
+      {
+        strategy: "recent_modified",
+        description: "100 most actively edited pages",
+        bestFor: "Focus on current work and active projects",
+        estimatedCount: 100,
+      },
+    ];
+
+    // Store scope options and show dialog
+    return {
+      routingDecision: "show_scope_options" as const,
+      userIntent: state.userIntent || "Exploratory pattern analysis",
+      finalAnswer: "Please select a scope strategy for pattern analysis",
+      queryComplexity: "multi-step" as const,
+      pendingScopeOptions: scopeOptions,
+      pendingRecommendedStrategy: "recent_dnp",
+      forceScopeSelection: undefined, // Clear flag after processing
+    };
+  }
+
+  // Check for pending scope selection first
+  if (state.pendingScopeOptions && state.pendingScopeOptions.length > 0) {
+    logger.info("Pending scope selection detected - processing user choice");
+
+    // Extract strategy selection from user query
+    const query = state.userQuery.trim().toLowerCase();
+    let selectedStrategy: string | null = null;
+
+    // Try to match by number
+    const numberMatch = query.match(/^(\d+)/);
+    if (numberMatch) {
+      const index = parseInt(numberMatch[1]) - 1;
+      if (index >= 0 && index < state.pendingScopeOptions.length) {
+        selectedStrategy = state.pendingScopeOptions[index].strategy;
+      }
+    }
+
+    // Try to match by strategy name
+    if (!selectedStrategy) {
+      for (const option of state.pendingScopeOptions) {
+        if (query.includes(option.strategy.toLowerCase())) {
+          selectedStrategy = option.strategy;
+          break;
+        }
+      }
+    }
+
+    // If no match or user said "recommended"/"proceed"/"yes", use recommended strategy
+    if (
+      !selectedStrategy ||
+      /^(yes|ok|sure|proceed|recommended|default|go ahead)$/i.test(query)
+    ) {
+      selectedStrategy = state.pendingRecommendedStrategy || "all_page_titles";
+      logger.info(`Using recommended strategy: ${selectedStrategy}`);
+    }
+
+    // Map strategy to query
+    const queryConfig = mapScopeStrategyToQuery(
+      selectedStrategy,
+      state.userIntent || "Exploratory analysis"
+    );
+
+    logger.info(
+      `Mapped strategy "${selectedStrategy}" to query: ${queryConfig.formalQuery}`
+    );
+    updateAgentToaster(`🔍 Proceeding with: ${selectedStrategy}`);
+
+    // Check if this strategy requires content analysis and user doesn't have content access
+    const hasContentAccess = state.permissions?.contentAccess || false;
+    const needsContentAccess =
+      queryConfig.constraints?.requiresAnalysis ||
+      queryConfig.constraints?.needsContentExpansion;
+
+    // Show privacy escalation if strategy needs content but user doesn't have access
+    // This includes both private mode AND secure mode (permissions.contentAccess = false)
+    if (needsContentAccess && (state.privateMode || !hasContentAccess)) {
+      const currentMode = state.privateMode ? "Private" : "Secure";
+
+      logger.info(
+        `Strategy requires content analysis but user is in ${currentMode} mode - showing privacy escalation dialog`
+      );
+      updateAgentToaster(
+        `🔒 This analysis requires "balanced" or "full" mode to access page content`
+      );
+
+      return {
+        routingDecision: "show_privacy_dialog" as const,
+        userIntent: queryConfig.userIntent,
+        formalQuery: queryConfig.formalQuery,
+        searchDetails: queryConfig.constraints,
+        currentMode: currentMode,
+        suggestedMode: "balanced", // Suggest balanced mode for pattern analysis
+        queryComplexity: "simple" as const,
+        analysisType: "summary" as const,
+        searchStrategy: "direct" as const,
+        // Keep pending scope state in case user cancels
+        pendingScopeOptions: state.pendingScopeOptions,
+        pendingRecommendedStrategy: state.pendingRecommendedStrategy,
+      };
+    }
+
+    return {
+      routingDecision: "need_new_search" as const,
+      formalQuery: queryConfig.formalQuery,
+      userIntent: queryConfig.userIntent,
+      searchDetails: queryConfig.constraints,
+      searchStrategy: "direct" as const,
+      queryComplexity: "simple" as const,
+      // Clear pending scope state
+      pendingScopeOptions: undefined,
+      pendingRecommendedStrategy: undefined,
+      analysisType: "summary" as const, // Exploratory queries typically need summary
+    };
+  }
+
   // Check for direct expansion bypass first - should skip all other routing logic
   logger.debug("ConversationRouter state:", {
     isDirectExpansion: state.isDirectExpansion,
@@ -269,10 +421,6 @@ const conversationRouter = async (
   });
 
   if (state.isDirectExpansion) {
-    console.log(
-      `🔀 [ConversationRouter] Direct expansion detected → skipping to need_new_search`
-    );
-
     // For direct expansion, we need to generate formalQuery from the userQuery
     // since we're bypassing IntentParser but still need the formal query for expansion options
     const formalQuery = state.userQuery; // The userQuery already contains the formatted query with operators
@@ -489,14 +637,14 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       needsPostProcessing?: boolean;
       postProcessingType?: string;
       userIntent: string;
-      formalQuery: string;
-      constraints: {
+      formalQuery?: string;
+      constraints?: {
         timeRange?: { start: string; end: string };
         maxResults?: number;
         requireRandom?: boolean;
         depthLimit?: number;
       };
-      searchStrategy: "direct" | "hierarchical";
+      searchStrategy?: "direct" | "hierarchical";
       forceHierarchical?: boolean;
       analysisType?: "count" | "compare" | "connections" | "summary";
       expansionGuidance?: string;
@@ -511,6 +659,15 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       suggestedMode?: "Balanced" | "Full Access";
       language: string;
       confidence: number;
+      // NEW: Exploratory query fields
+      needsScope?: boolean;
+      scopeOptions?: Array<{
+        strategy: string;
+        description: string;
+        bestFor: string;
+        estimatedCount: number | string;
+      }>;
+      recommendedStrategy?: string;
     }>(responseContent, {
       routingDecision: ["routingDecision"],
       datomicQuery: ["datomicQuery"],
@@ -529,6 +686,9 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       suggestedMode: ["suggestedMode"],
       language: ["language"],
       confidence: ["confidence"],
+      needsScope: ["needsScope"],
+      scopeOptions: ["scopeOptions"],
+      recommendedStrategy: ["recommendedStrategy"],
     });
 
     if (!analysis) {
@@ -541,6 +701,76 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
         confidence: 0.5,
         totalTokensUsed: updatedTotalTokens,
         timingMetrics: updatedTimingMetrics,
+      };
+    }
+
+    // Handle exploratory query - needs scope clarification
+    if (analysis.needsScope) {
+      logger.info("Exploratory query detected - needs scope selection");
+      updateAgentToaster("🔍 Analyzing exploratory request...");
+
+      // Generate scope options dynamically
+      const scopeOptions = [
+        {
+          strategy: "all_page_titles",
+          description: "Scan all page titles for topic overview",
+          bestFor: "Quick high-level exploration of all topics in your graph",
+          estimatedCount: "all",
+        },
+        {
+          strategy: "recent_dnp",
+          description: "Analyze patterns in last 90 daily notes",
+          bestFor:
+            "Understanding recent activities, habits, and temporal patterns",
+          estimatedCount: 90,
+        },
+        {
+          strategy: "random_pages",
+          description: "Random sample of 100 pages for diverse patterns",
+          bestFor: "Unbiased cross-section and statistical overview",
+          estimatedCount: 100,
+        },
+        {
+          strategy: "recent_modified",
+          description: "100 most actively edited pages",
+          bestFor: "Focus on current work and active projects",
+          estimatedCount: 100,
+        },
+      ];
+
+      // Format scope options for presentation to user
+      const optionsText = scopeOptions
+        .map(
+          (opt, idx) =>
+            `${idx + 1}. **${opt.strategy}**: ${
+              opt.description
+            }\n   *Best for: ${opt.bestFor}* (≈${opt.estimatedCount} pages)`
+        )
+        .join("\n\n");
+
+      const scopeMessage = `I detected that you're looking for broad patterns or themes across your database. To provide meaningful analysis, I need to sample your data.
+
+Here are the available strategies:
+
+${optionsText}
+
+**Recommended**: ${analysis.recommendedStrategy}
+
+Please choose a strategy by number (1-${scopeOptions.length}), or I can proceed with the recommended approach.`;
+
+      // Store the scope selection request in the finalAnswer to present to user
+      return {
+        routingDecision: "show_scope_options" as const,
+        userIntent: analysis.userIntent,
+        finalAnswer: scopeMessage,
+        queryComplexity: "multi-step" as const,
+        language: analysis.language,
+        confidence: analysis.confidence,
+        totalTokensUsed: updatedTotalTokens,
+        timingMetrics: updatedTimingMetrics,
+        // Store dynamically generated scope options for follow-up handling
+        pendingScopeOptions: scopeOptions,
+        pendingRecommendedStrategy: analysis.recommendedStrategy,
       };
     }
 
@@ -644,6 +874,103 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
       totalTokensUsed: fallbackTokens,
       timingMetrics: fallbackTiming,
     };
+  }
+};
+
+/**
+ * Map exploratory scope strategy to executable query
+ * Converts user selection (or recommended default) into formal query + constraints
+ */
+export const mapScopeStrategyToQuery = (
+  strategy: string,
+  originalIntent: string
+): {
+  formalQuery: string;
+  constraints?: any;
+  userIntent: string;
+} => {
+  const now = new Date();
+  const getDaysAgo = (days: number) => {
+    const date = new Date(now);
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split("T")[0];
+  };
+
+  switch (strategy) {
+    case "all_page_titles":
+      return {
+        formalQuery: "DATOMIC:GET_ALL_PAGES_METADATA_ONLY",
+        constraints: {
+          getAllPages: true,
+          includeDaily: false,
+          maxResults: null,
+          requiresAnalysis: true, // Flag to prevent directFormat bypass
+        },
+        userIntent: `${originalIntent} - Use executeDatomicQuery tool with queryDescription parameter set to 'GET_ALL_PAGES_METADATA_ONLY' (this is a special marker that automatically executes a query to fetch ALL page titles excluding daily notes). After getting the results, analyze the page titles to identify topic clusters, recurring themes, and patterns. Group pages by topic and highlight dominant themes in your analysis.`,
+      };
+
+    case "recent_dnp":
+      return {
+        formalQuery: "page:(dnp)",
+        constraints: {
+          timeRange: {
+            start: getDaysAgo(90),
+            end: now.toISOString().split("T")[0],
+            filterMode: "created" as const,
+          },
+          maxResults: 100,
+          requiresAnalysis: true, // Force responseWriter for pattern analysis
+          needsContentExpansion: true, // Expand pages with their full content for analysis
+        },
+        userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findPagesByTitle with page:(dnp), dateRange={start: "${getDaysAgo(
+          90
+        )}", end: "${
+          now.toISOString().split("T")[0]
+        }", filterMode: "created"}, limit=100, purpose="final" (or omit purpose). After receiving the results, the system will automatically expand each page with its full content (children blocks). Analyze the CONTENT of these daily notes to identify patterns, themes, and insights.`,
+      };
+
+    case "random_pages":
+      return {
+        formalQuery: "page:(title:(regex:/.*/i))",
+        constraints: {
+          requireRandom: true,
+          maxResults: 100,
+          requiresAnalysis: true, // Force responseWriter for pattern analysis
+          needsContentExpansion: true, // Expand pages with their full content for analysis
+        },
+        userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findPagesByTitle with conditions=[{text: ".*", matchType: "regex"}], limit=100, purpose="final" (or omit purpose). After receiving the results, the system will automatically expand each page with its full content (children blocks). Analyze the CONTENT of these pages to identify patterns, themes, and insights.`,
+      };
+
+    case "recent_modified":
+      return {
+        formalQuery: "page:(title:(regex:/.*/i))",
+        constraints: {
+          maxResults: 100,
+          requiresAnalysis: true, // Force responseWriter for pattern analysis
+          needsContentExpansion: true, // Expand pages with their full content for analysis
+          // Will be sorted by modification date (most recent first) in tool execution
+        },
+        userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findPagesByTitle with conditions=[{text: ".*", matchType: "regex"}], limit=100, purpose="final" (or omit purpose). The tool will automatically sort by modification date (most recent first), returning the 100 most recently modified pages. After receiving the results, the system will automatically expand each page with its full content (children blocks). Analyze the CONTENT of these pages to identify patterns, themes, and insights.`,
+      };
+
+    case "topic_filtered":
+      // This requires additional user input, handled separately
+      return {
+        formalQuery: "",
+        userIntent: `${originalIntent} - Topic filtering requires specific tag/topic input`,
+      };
+
+    default:
+      // Fallback to random pages
+      return {
+        formalQuery: "page:(title:(regex:/.*/i))",
+        constraints: {
+          requireRandom: true,
+          maxResults: 100,
+          requiresAnalysis: true, // Force responseWriter for pattern analysis
+        },
+        userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findPagesByTitle with conditions=[{text: ".*", matchType: "regex"}], limit=100, purpose="final" (or omit purpose). After receiving results, analyze them for patterns.`,
+      };
   }
 };
 
@@ -906,7 +1233,8 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
   // Initialize LLM
   llm = modelViaLanggraph(state.model, turnTokensUsage);
 
-  console.log("llm :>> ", llm);
+  // console.log("llm :>> ", llm);
+  llm.supportsStrictToolCalling = true;
 
   // Show model information in toaster
   const modelDisplayName =
@@ -1218,15 +1546,6 @@ ${
       (responseTokens.output_tokens || 0),
   };
 
-  // Debug token tracking after assistant call
-  console.log("🐛 [Assistant] LLM call completed:", {
-    isPopupExecution: (state as any).isPopupExecution,
-    llmDuration: llmDuration + "ms",
-    responseTokens: responseTokens,
-    updatedTotalTokens: updatedTotalTokens,
-    turnTokensUsageAfter: turnTokensUsage,
-  });
-
   if (response.tool_calls && response.tool_calls.length > 0) {
     // Generate user-friendly explanations for tool calls
     const toolExplanations = response.tool_calls.map((tc: any) => {
@@ -1274,7 +1593,9 @@ ${
             const combineLogic =
               args.combineConditions === "OR" ? " OR " : " AND ";
             const limitText = args.conditions.length > 3 ? "..." : "";
-            return `Page Content Search: ${searchTerms.join(combineLogic)}${limitText}`;
+            return `Page Content Search: ${searchTerms.join(
+              combineLogic
+            )}${limitText}`;
           }
           const pageSearchText = args.searchText || args.query || "content";
           return `Page Content Search: "${pageSearchText}"`;
@@ -1290,7 +1611,9 @@ ${
           const blockCount = Array.isArray(args.blockUids)
             ? args.blockUids.length
             : "results";
-          return `Extract References: ${blockCount} block${blockCount !== 1 ? 's' : ''}`;
+          return `Extract References: ${blockCount} block${
+            blockCount !== 1 ? "s" : ""
+          }`;
 
         case "combineResults":
           const operation = args.operation || "union";
@@ -1320,7 +1643,9 @@ ${
           const hierarchyCount = Array.isArray(args.blockUids)
             ? args.blockUids.length
             : "results";
-          return `Extract Hierarchy: ${hierarchyCount} block${hierarchyCount !== 1 ? 's' : ''}`;
+          return `Extract Hierarchy: ${hierarchyCount} block${
+            hierarchyCount !== 1 ? "s" : ""
+          }`;
 
         case "executeDatomicQuery":
           if (args.query) {
@@ -1488,7 +1813,51 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   // Add current user message
   // In popup execution mode, userQuery is the actual user message
   // In regular execution mode, userQuery is the parsed user request
-  const userMessage = new HumanMessage({ content: state.userQuery });
+  // For exploratory queries with requiresAnalysis, use userIntent which contains the analysis instructions
+  let messageContent =
+    state.searchDetails?.requiresAnalysis && state.userIntent
+      ? state.userIntent
+      : state.userQuery;
+
+  // SPECIAL CASE: If requiresAnalysis is true and we have results in resultStore,
+  // we're in responseWriter after tools have been called. Strip out the tool call instructions.
+  if (
+    state.searchDetails?.requiresAnalysis &&
+    state.resultStore &&
+    Object.keys(state.resultStore).length > 0
+  ) {
+    // Check if we have final results (tools have been executed)
+    const hasFinalResults = Object.values(state.resultStore).some(
+      (result: any) => result?.purpose === "final" && result?.data?.length > 0
+    );
+
+    if (hasFinalResults) {
+      // Remove the tool call instruction part, keep only the analysis instructions
+      // Handle multiple patterns:
+      // 1. "- Use executeDatomicQuery tool... After getting the results, analyze..."
+      // 2. "- SINGLE-STEP QUERY: Call findPagesByTitle... After receiving results, analyze..."
+
+      // Pattern 1: executeDatomicQuery
+      messageContent = messageContent.replace(
+        /- Use executeDatomicQuery tool[^.]*\.\s*After getting the results,/i,
+        "- Using the provided search results,"
+      );
+
+      // Pattern 2: findPagesByTitle with SINGLE-STEP QUERY
+      messageContent = messageContent.replace(
+        /- SINGLE-STEP QUERY: Call findPagesByTitle[^.]*\.\s*After receiving results,/i,
+        "- Using the provided search results,"
+      );
+
+      // Pattern 3: Generic "tool call" followed by "analyze"
+      messageContent = messageContent.replace(
+        /- SINGLE-STEP QUERY: Call \w+[^.]*\.\s*(The tool will[^.]*\.)?\s*After receiving results,/i,
+        "- Using the provided search results,"
+      );
+    }
+  }
+
+  const userMessage = new HumanMessage({ content: messageContent });
   messages.push(userMessage);
 
   if ((state as any).isPopupExecution) {
@@ -1534,12 +1903,12 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   let streamingTargetUid: string | undefined = undefined;
 
   if (shouldStream) {
-    // Skip block creation for popup execution - streaming will be text-only
-    if (!(state as any).isPopupExecution) {
+    // Skip block creation for popup execution or forcePopupOnly - streaming will be text-only or returned as data
+    if (!(state as any).isPopupExecution && !state.forcePopupOnly) {
       // For streaming, we need to create the response block first
       const { getInstantAssistantRole } = await import("../../..");
       const { chatRoles } = await import("../../..");
-      const { createChildBlock } = await import("../../../utils/roamAPI");
+      const { createChildBlock, insertBlockInCurrentView } = await import("../../../utils/roamAPI");
       const { insertParagraphForStream } = await import(
         "../../../utils/domElts"
       );
@@ -1549,7 +1918,12 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
         : chatRoles?.assistant || "";
 
       // Create response block first for streaming
-      streamingTargetUid = await createChildBlock(state.rootUid, assistantRole);
+      // If no rootUid (no block focused), insert at end of current page
+      if (state.rootUid) {
+        streamingTargetUid = await createChildBlock(state.rootUid, assistantRole);
+      } else {
+        streamingTargetUid = await insertBlockInCurrentView(assistantRole);
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 100));
       // Create streaming element for displaying progress
@@ -1672,14 +2046,6 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     toolCalls: state.timingMetrics?.toolCalls || 0,
   };
 
-  // Debug: Check popup execution status
-  console.log(
-    "🔍 [Assistant] isPopupExecution:",
-    (state as any).isPopupExecution,
-    "turnTokensUsage:",
-    turnTokensUsage
-  );
-
   return {
     messages: [...state.messages, response],
     finalAnswer: finalAnswerContent,
@@ -1780,7 +2146,14 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     const assistantRole = state.model.id
       ? getInstantAssistantRole(state.model.id)
       : chatRoles?.assistant || "";
-    targetUid = await createChildBlock(state.rootUid, assistantRole);
+
+    // If no rootUid (no block focused), insert at end of current page
+    if (state.rootUid) {
+      targetUid = await createChildBlock(state.rootUid, assistantRole);
+    } else {
+      const { insertBlockInCurrentView } = await import("../../../utils/roamAPI");
+      targetUid = await insertBlockInCurrentView(assistantRole);
+    }
   }
 
   await insertStructuredAIResponse({
@@ -1806,9 +2179,6 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   const expansionApplied =
     state.expansionGuidance?.includes("zero_results") ||
     state.expansionGuidance?.includes("Progressive expansion needed");
-
-  // Debug token usage before return
-  console.log("🔍 [insertResponse] Returning tokensUsage:", turnTokensUsage);
 
   return {
     targetUid,
@@ -1849,23 +2219,58 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   updateAgentToaster("🌳 Checking if more surrounding context is needed...");
 
+  // For scope strategy queries, expand content regardless of purpose
+  // This ensures pattern analysis gets full page content
+  const isScopeStrategyQuery = state.searchDetails?.needsContentExpansion;
+
+  console.log(
+    `🌳 [ContextExpansion] Starting expansion - isScopeStrategyQuery: ${isScopeStrategyQuery}`
+  );
+
   // Get final results for context expansion
+  // For scope strategies, accept any active results (purpose might not be set to "final")
   const finalResults = Object.values(state.resultStore || {}).filter(
-    (result) =>
-      result?.purpose === "final" &&
-      result?.status === "active" &&
-      result?.data?.length > 0
+    (result) => {
+      if (isScopeStrategyQuery) {
+        // For scope strategies, accept any active results with data
+        return result?.status === "active" && result?.data?.length > 0;
+      }
+      // For normal queries, require purpose="final"
+      return (
+        result?.purpose === "final" &&
+        result?.status === "active" &&
+        result?.data?.length > 0
+      );
+    }
   );
 
   if (finalResults.length === 0) {
+    console.log(
+      `🌳 [ContextExpansion] EARLY RETURN: No final results found in resultStore`
+    );
+    console.log(
+      `🌳 [ContextExpansion] ResultStore keys:`,
+      Object.keys(state.resultStore || {})
+    );
+    console.log(
+      `🌳 [ContextExpansion] ResultStore contents:`,
+      JSON.stringify(state.resultStore, null, 2).slice(0, 500)
+    );
     return state; // Pass through unchanged
   }
+
+  console.log(
+    `🌳 [ContextExpansion] Found ${finalResults.length} result sets to expand`
+  );
 
   const allResults = finalResults.flatMap((r) => r.data || []);
   const resultCount = allResults.length;
 
   // Skip expansion if too many results (performance protection)
-  if (resultCount > 150) {
+  if (resultCount > 500) {
+    console.log(
+      `🌳 [ContextExpansion] EARLY RETURN: Too many results (${resultCount} > 500)`
+    );
     return state;
   }
 
@@ -1875,6 +2280,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     : state.permissions?.contentAccess
     ? "full"
     : "balanced";
+
   if (mode === "private") {
     return state;
   }
@@ -1889,12 +2295,18 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     ? "Full Access"
     : "Balanced";
 
-  const modelTokensLimit = modelAccordingToProvider(llm).tokensLimit || 32000;
+  const modelTokensLimit = state.model?.id
+    ? (modelAccordingToProvider(state.model.id) as any).tokensLimit || 32000
+    : 32000;
+
   const expansionBudget =
     accessMode === "Full Access" ? modelTokensLimit * 3 : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
 
   console.log(
-    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}`
+    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}, mode: ${mode}, accessMode: ${accessMode}`
+  );
+  console.log(
+    `🌳 [ContextExpansion] About to expand ${resultCount} results (${allResults.filter((r) => r.isPage).length} pages, ${allResults.filter((r) => !r.isPage).length} blocks)`
   );
 
   // Perform adaptive context expansion
@@ -1905,7 +2317,23 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     accessMode
   );
 
+  console.log(
+    `🌳 [ContextExpansion] Expansion complete - got ${expandedResults.length} expanded results`
+  );
+
   if (expandedResults.length > 0) {
+    // Log sample of expanded content
+    const sampleExpanded = expandedResults[0];
+    console.log(
+      `🌳 [ContextExpansion] Sample expanded result:`,
+      {
+        uid: sampleExpanded.uid,
+        hasContent: !!sampleExpanded.content,
+        contentLength: sampleExpanded.content?.length || 0,
+        contentPreview: sampleExpanded.content?.slice(0, 200),
+      }
+    );
+
     // Store expanded results in result store
     const contextResultId = `contextExpansion_${state.nextResultId || 1}`;
     const updatedResultStore = { ...state.resultStore };
@@ -1923,6 +2351,10 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
       },
     };
 
+    console.log(
+      `🌳 [ContextExpansion] Stored expanded results in resultStore with id: ${contextResultId}`
+    );
+
     replaceLastToasterMessage(
       "🌳 Checking if more surrounding context is needed...",
       `🌳 Added surrounding context (${expandedResults.length} results)`
@@ -1935,6 +2367,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     };
   }
 
+  console.log(`🌳 [ContextExpansion] No expanded results - returning state unchanged`);
   return state;
 };
 
@@ -2150,7 +2583,9 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
 
   // Don't call updateAgentToaster with empty string - just update the buttons
   // The buttons will be added to the existing toaster message
-  const toasterElement = (window as any).agentToasterStream?.closest?.(".bp3-toast");
+  const toasterElement = (window as any).agentToasterStream?.closest?.(
+    ".bp3-toast"
+  );
   if (toasterElement) {
     const existingButtons = toasterElement.querySelector(".buttons");
     if (existingButtons) {
@@ -2185,6 +2620,58 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
     pendingExpansion: true,
     expansionMessage: message + resultsSummary,
     expansionOptions: expansionOptions,
+  };
+};
+
+/**
+ * Show scope selection dialog and wait for user choice
+ * Similar to showPrivacyModeDialog but for exploratory query scope selection
+ */
+const showScopeSelectionDialog = async (
+  state: typeof ReactSearchAgentState.State
+) => {
+  // Import the display function dynamically to avoid circular dependencies
+  const { displayScopeSelectionDialog } = await import(
+    "../../../utils/domElts.js"
+  );
+
+  logger.info("Showing scope selection dialog");
+
+  // Show the scope selection dialog with callback to handle user choice
+  displayScopeSelectionDialog({
+    scopeOptions: state.pendingScopeOptions,
+    recommendedStrategy: state.pendingRecommendedStrategy,
+    userQuery: state.userQuery,
+    onScopeSelect: (selectedStrategy: string) => {
+      logger.info(`User selected scope strategy: ${selectedStrategy}`);
+      // Dispatch custom event to resume graph execution
+      const event = new CustomEvent("agentScopeSelection", {
+        detail: {
+          selectedStrategy,
+          userIntent: state.userIntent,
+        },
+      });
+      window.dispatchEvent(event);
+    },
+    onCancel: () => {
+      logger.info("User cancelled scope selection");
+      // Dispatch abort event to stop the agent
+      const event = new CustomEvent("agentAbort", {
+        detail: {
+          reason: "User cancelled scope selection",
+        },
+      });
+      window.dispatchEvent(event);
+    },
+  });
+
+  // INTERRUPT: Stop execution and wait for user scope selection
+  // The graph execution will pause here until user selects a strategy
+  return {
+    ...state,
+    // Keep scope options in state for the event handler
+    pendingScopeOptions: state.pendingScopeOptions,
+    pendingRecommendedStrategy: state.pendingRecommendedStrategy,
   };
 };
 
@@ -2264,10 +2751,13 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
   });
 
   // OPTIMIZATION: For simple private mode cases with results, skip LLM and format directly
+  const requiresAnalysis = state.searchDetails?.requiresAnalysis || false;
+
   const canSkipResponseWriter =
     state.privateMode &&
     !state.isConversationMode &&
     hasSufficientResults &&
+    !requiresAnalysis && // Don't skip if analysis explicitly required
     !state.userQuery?.includes("analysis") && // Don't skip for analysis requests
     !state.userQuery?.includes("explain") &&
     !state.userQuery?.includes("summary");
@@ -2280,6 +2770,7 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
     hasUserLimits &&
     !state.isConversationMode &&
     hasSufficientResults &&
+    !requiresAnalysis && // Don't skip if analysis explicitly required
     !state.userQuery?.includes("analysis") &&
     !state.userQuery?.includes("explain") &&
     !state.userQuery?.includes("summary");
@@ -2415,6 +2906,11 @@ const routeAfterIntentParsing = (state: typeof ReactSearchAgentState.State) => {
     return "showPrivacyModeDialog";
   }
 
+  if (state.routingDecision === "show_scope_options") {
+    logger.flow("Graph", "IntentParser → SHOW_SCOPE_SELECTION_DIALOG");
+    return "showScopeSelectionDialog";
+  }
+
   const route =
     state.routingDecision === "use_cache" ? "cacheProcessor" : "assistant";
   logger.flow("Graph", `IntentParser → ${route.toUpperCase()}`);
@@ -2538,18 +3034,30 @@ const toolsWithResultLifecycle = async (
 
 // Smart routing after tool execution - skip assistant when results are sufficient
 const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
-  // Special routing for popup execution - skip all formatting and go directly to end
-  if ((state as any).isPopupExecution) {
+  // Special routing for popup execution or forcePopupOnly - skip all formatting and go directly to end
+  // This is critical when called from chat-agent: results should be returned as-is to the chat agent
+  if ((state as any).isPopupExecution || state.forcePopupOnly) {
     return "__end__";
   }
 
   // Check if we have actual result data (not just result store entries)
   const hasResults =
     state.resultStore &&
-    Object.values(state.resultStore).some(
-      (result) =>
-        result?.data && Array.isArray(result.data) && result.data.length > 0
-    );
+    Object.values(state.resultStore).some((result: any) => {
+      if (!result?.data) return false;
+
+      // Handle case where data might be a JSON string instead of parsed array
+      if (typeof result.data === "string" && result.data.length > 0) {
+        try {
+          const parsed = JSON.parse(result.data);
+          return Array.isArray(parsed) && parsed.length > 0;
+        } catch {
+          return false;
+        }
+      }
+
+      return Array.isArray(result.data) && result.data.length > 0;
+    });
 
   if (hasResults) {
     // Get the most recent result with actual data
@@ -2557,7 +3065,9 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
     const latestResult = resultEntries[resultEntries.length - 1]?.[1];
 
     // Detect if query requires multi-step analysis beyond simple block retrieval
-    const requiresAnalysis = detectAnalyticalQuery(state.userQuery || "");
+    const requiresAnalysis =
+      state.searchDetails?.requiresAnalysis ||
+      detectAnalyticalQuery(state.userQuery || "");
 
     const canSkipAssistant =
       // Tool purpose is final (not intermediate exploration)
@@ -2570,22 +3080,35 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       // Query doesn't require multi-step analysis
       !requiresAnalysis;
 
+    // Check if this is a scope strategy query (exploratory pattern analysis)
+    // These queries should ALWAYS go directly to contextExpansion after first tool call
+    // to prevent multiple tool calls
+    const isScopeStrategyQuery = state.searchDetails?.needsContentExpansion;
+
+    console.log(`🔀 [Tools Routing] Decision factors:`, {
+      isScopeStrategyQuery,
+      canSkipAssistant,
+      latestResultPurpose: latestResult?.purpose,
+      isConversationMode: state.isConversationMode,
+    });
+
     if (canSkipAssistant) {
+      console.log(`🔀 [Tools] Routing to: directFormat (private mode)`);
       return "directFormat";
     } else if (
-      latestResult?.purpose === "final" &&
-      !state.isConversationMode &&
-      !state.privateMode
+      // For scope strategy queries (exploratory pattern analysis):
+      // Always skip assistant loop after first tool call and go directly to contextExpansion → responseWriter
+      // This prevents multiple tool calls when analyzing patterns
+      (isScopeStrategyQuery && !state.isConversationMode) ||
+      // For final results with requiresAnalysis (like metadata-only queries),
+      // skip assistant loop and go directly to contextExpansion → responseWriter
+      // This prevents the tool from being called multiple times
+      (latestResult?.purpose === "final" && !state.isConversationMode)
     ) {
-      // Balanced and Full modes route through contextExpansion for adaptive expansion
-      const currentMode = state.privateMode
-        ? "private"
-        : state.permissions?.contentAccess
-        ? "full"
-        : "balanced";
-
+      console.log(`🔀 [Tools] Routing to: contextExpansion (scope strategy or final result)`);
       return "contextExpansion";
     } else {
+      console.log(`🔀 [Tools] Routing to: assistant (normal flow)`);
       return "assistant";
     }
   }
@@ -2683,11 +3206,25 @@ const processToolResultsWithLifecycle = (
         currentResultId++; // Increment for next result
 
         if (toolResult.success && toolResult.data) {
+          // Parse data if it's a JSON string (can happen with some tool wrappers)
+          let data = toolResult.data;
+
+          // Keep parsing while data is a string (handle multiple stringifications)
+          while (typeof data === "string") {
+            try {
+              const parsed = JSON.parse(data);
+              data = parsed;
+            } catch {
+              // If parsing fails, stop trying
+              break;
+            }
+          }
+
           // Handle successful results
           handleResultLifecycle(
             updatedResultStore,
             resultId,
-            toolResult.data,
+            data,
             message.name,
             lifecycleParams,
             toolResult.metadata
@@ -2824,6 +3361,7 @@ builder
   .addNode("responseWriter", responseWriter)
   .addNode("directFormat", directFormat)
   .addNode("showResultsThenExpand", showResultsThenExpand)
+  .addNode("showScopeSelectionDialog", showScopeSelectionDialog)
   .addNode("showPrivacyModeDialog", showPrivacyModeDialog)
   .addNode("insertResponse", insertResponse)
 
@@ -2837,6 +3375,7 @@ builder
   .addEdge("contextExpansion", "responseWriter")
   .addConditionalEdges("responseWriter", routeAfterResponseWriter)
   .addConditionalEdges("directFormat", routeAfterDirectFormat)
+  .addEdge("showScopeSelectionDialog", "__end__")
   .addEdge("insertResponse", "__end__");
 
 // Note: Expansion event handling is now managed in ask-your-graph-invoke.ts

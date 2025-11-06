@@ -6,6 +6,7 @@ import {
   chatWithLinkedRefs,
 } from "../components/full-results-popup";
 import { languages } from "./languagesSupport";
+import { isSupported } from "dompurify";
 
 export const CATEGORY_ICON = {
   "OUTLINER AGENT": "properties",
@@ -194,7 +195,7 @@ export const BUILTIN_COMMANDS = [
     },
     target: "new",
     keyWords: "Natural language search privacy modes secure balanced full",
-    submenu: [920, 921, 922],
+    submenu: [920, 921, 922, 923],
   },
   {
     id: 920,
@@ -240,7 +241,7 @@ export const BUILTIN_COMMANDS = [
     hideIfDefaultMode: "Full Access",
   },
   {
-    id: 93,
+    id: 923,
     name: "Ask Your Graph => Results directly in Context panel",
     callback: (args) =>
       askYourGraph({
@@ -250,12 +251,35 @@ export const BUILTIN_COMMANDS = [
       }),
     category: "QUERY AGENTS",
     icon: "list-detail-view",
+    isSub: true,
     isIncompatibleWith: {
       outliner: true,
       chat: true,
     },
     target: "new",
     keyWords: "popup full view chat",
+  },
+  {
+    id: 93,
+    name: "Ask Your Graph - Pattern analysis",
+    callback: (args) =>
+      askYourGraph({
+        ...args,
+        prompt: "Show me patterns and themes in my graph",
+        previousAgentState: {
+          // Force scope selection dialog
+          forceScopeSelection: true,
+        },
+      }),
+    category: "QUERY AGENTS",
+    icon: "chart",
+    isSub: true,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+    target: "new",
+    keyWords: "pattern analysis explore themes categories scope",
   },
   {
     id: 94,

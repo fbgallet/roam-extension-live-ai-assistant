@@ -43,7 +43,7 @@ To create a skill, add a block with the structure:
 
     // Find the requested skill (case-insensitive match)
     const skill = availableSkills.find(
-      (s) => s.name.toLowerCase() === skill_name.toLowerCase()
+      (s) => s.name.toLowerCase().trim() === skill_name.toLowerCase().trim()
     );
 
     if (!skill) {
@@ -68,7 +68,9 @@ To create a skill, add a block with the structure:
         }`;
       }
 
-      return `# Skill: ${skill.name}
+      return `[DISPLAY]Loaded resource "${resourceContent.title}" from skill "${skill.name}"[/DISPLAY]
+
+# Skill: ${skill.name}
 
 ## Resource: ${resourceContent.title}
 
@@ -87,7 +89,15 @@ You have loaded deeper instructions for "${resourceContent.title}". Use these de
     }
 
     // Build response with core instructions and available resources
-    let response = `# Skill: ${instructions.name}
+    let response = `[DISPLAY]Loaded skill "${instructions.name}"${
+      instructions.resources.length > 0
+        ? ` (${instructions.resources.length} resource${
+            instructions.resources.length === 1 ? "" : "s"
+          } available)`
+        : ""
+    }[/DISPLAY]
+
+# Skill: ${instructions.name}
 
 ## Description
 ${instructions.description}

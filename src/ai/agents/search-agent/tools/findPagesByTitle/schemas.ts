@@ -26,7 +26,7 @@ export const schema = z.object({
     })
     .optional()
     .nullable(),
-  limit: z.number().min(1).max(1000).default(100),
+  limit: z.number().min(1).max(10000).optional().nullable(),
 });
 
 // LLM-facing schema with semantic expansion support
@@ -89,13 +89,20 @@ export const llmFacingSchema = z.object({
     })
     .optional()
     .nullable()
-    .describe("Limit to pages created within date range"),
+    .describe("Limit to pages created/modified within date range"),
+  limit: z
+    .number()
+    .min(1)
+    .max(10000)
+    .optional()
+    .nullable()
+    .describe("Maximum number of results to return. If not specified, returns all matching pages. Results are sorted by relevance and modification date."),
   // Result lifecycle management
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
     .nullable()
     .describe(
-      "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
+      "Purpose of these results: 'final' (default) for single-step queries where results go directly to user, 'intermediate' only for multi-step queries (PIPE/UNION/INTERSECTION), 'replacement' to replace previous results, 'completion' to add to previous results. IMPORTANT: Use 'final' or omit this parameter for normal queries."
     ),
 });

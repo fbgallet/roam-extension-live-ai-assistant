@@ -88,7 +88,15 @@ export const BUILTIN_LIVEAI_TOPICS: HelpTopic[] = [
     topic: "Chat Agent",
     author: "fbgallet",
     url: "https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md",
-    shortDescription: "Chat agent documentation (coming soon)",
+    shortDescription: "Chat agent documentation",
+    category: "extension-liveai",
+  },
+  {
+    id: "skills",
+    topic: "Skills",
+    author: "fbgallet",
+    url: "https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md",
+    shortDescription: "Live AI Skills tools documentation",
     category: "extension-liveai",
   },
 ];
