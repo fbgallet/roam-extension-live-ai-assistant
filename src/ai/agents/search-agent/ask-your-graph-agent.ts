@@ -243,6 +243,8 @@ const ReactSearchAgentState = Annotation.Root({
   pendingRecommendedStrategy: Annotation<string | undefined>,
   // Force scope selection dialog (for Pattern analysis command)
   forceScopeSelection: Annotation<boolean | undefined>,
+  // Flag to skip scope analysis in IntentParser (when user explicitly skipped scope selection)
+  skipScopeAnalysis: Annotation<boolean | undefined>,
 });
 
 // Global variables for the agent
@@ -305,6 +307,7 @@ const conversationRouter = async (
     ];
 
     // Store scope options and show dialog
+    // Keep forceScopeSelection flag so dialog knows not to show skip button
     return {
       routingDecision: "show_scope_options" as const,
       userIntent: state.userIntent || "Exploratory pattern analysis",
@@ -312,7 +315,7 @@ const conversationRouter = async (
       queryComplexity: "multi-step" as const,
       pendingScopeOptions: scopeOptions,
       pendingRecommendedStrategy: "recent_dnp",
-      forceScopeSelection: undefined, // Clear flag after processing
+      // Keep forceScopeSelection true - will be cleared after dialog selection
     };
   }
 
@@ -596,6 +599,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     privateMode: state.privateMode,
     rootUid: state.rootUid,
     skipPrivacyAnalysis: state.isPrivacyModeForced, // Skip privacy analysis if mode was forced
+    skipScopeAnalysis: state.skipScopeAnalysis, // Skip scope analysis if user explicitly skipped it
   });
 
   try {
@@ -918,15 +922,15 @@ export const mapScopeStrategyToQuery = (
             end: now.toISOString().split("T")[0],
             filterMode: "created" as const,
           },
-          maxResults: 100,
+          maxResults: 90,
           requiresAnalysis: true, // Force responseWriter for pattern analysis
           needsContentExpansion: true, // Expand pages with their full content for analysis
         },
-        userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findPagesByTitle with page:(dnp), dateRange={start: "${getDaysAgo(
+        userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findDailyNotesByPeriod with timeRange={start: "${getDaysAgo(
           90
         )}", end: "${
           now.toISOString().split("T")[0]
-        }", filterMode: "created"}, limit=100, purpose="final" (or omit purpose). After receiving the results, the system will automatically expand each page with its full content (children blocks). Analyze the CONTENT of these daily notes to identify patterns, themes, and insights.`,
+        }", filterMode: "created"}, limit=90, purpose="final" (or omit purpose). This will return the last 90 daily note pages (from the last 90 days based on creation date). After receiving the results, the system will automatically expand each page with its full content (children blocks). Analyze the CONTENT of these daily notes to identify patterns, themes, and insights.`,
       };
 
     case "random_pages":
@@ -1317,7 +1321,8 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
 
   // Tools are already filtered by permissions in loadModel
   // Note: State-aware tool wrappers are now handled in toolsWithResults for proper execution
-  const llm_with_tools = llm.bindTools(state.searchTools);
+  // IMPORTANT: Set strict: false to avoid OpenAI schema validation errors with optional parameters
+  const llm_with_tools = llm.bindTools(state.searchTools, { strict: false });
 
   // Check if we need to add expansion strategies to the system prompt
 
@@ -2642,12 +2647,24 @@ const showScopeSelectionDialog = async (
     scopeOptions: state.pendingScopeOptions,
     recommendedStrategy: state.pendingRecommendedStrategy,
     userQuery: state.userQuery,
+    forceScopeSelection: state.forceScopeSelection, // Hide skip button if true
     onScopeSelect: (selectedStrategy: string) => {
       logger.info(`User selected scope strategy: ${selectedStrategy}`);
       // Dispatch custom event to resume graph execution
       const event = new CustomEvent("agentScopeSelection", {
         detail: {
           selectedStrategy,
+          userIntent: state.userIntent,
+        },
+      });
+      window.dispatchEvent(event);
+    },
+    onSkip: () => {
+      logger.info("User skipped scope selection - running query directly");
+      // Dispatch event to run query without scope
+      const event = new CustomEvent("agentScopeSelection", {
+        detail: {
+          selectedStrategy: null, // null means skip scope analysis
           userIntent: state.userIntent,
         },
       });

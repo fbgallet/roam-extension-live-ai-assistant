@@ -395,12 +395,21 @@ export const displayScopeSelectionDialog = (dialogData) => {
       scopeOptions={dialogData.scopeOptions}
       recommendedStrategy={dialogData.recommendedStrategy}
       userQuery={dialogData.userQuery}
+      forceScopeSelection={dialogData.forceScopeSelection}
       onScopeSelect={(selectedStrategy) => {
         // Close dialog first
         unmountScopeSelectionDialog();
         // Then call the callback
         if (dialogData.onScopeSelect) {
           dialogData.onScopeSelect(selectedStrategy);
+        }
+      }}
+      onSkip={() => {
+        // Close dialog first
+        unmountScopeSelectionDialog();
+        // Then call the skip callback if provided
+        if (dialogData.onSkip) {
+          dialogData.onSkip();
         }
       }}
       onCancel={() => {

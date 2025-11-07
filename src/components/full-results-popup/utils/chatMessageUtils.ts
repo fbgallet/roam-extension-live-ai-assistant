@@ -27,7 +27,7 @@ const parseMarkdownTable = (tableText: string): string => {
   const headerCells = lines[0]
     .split("|")
     .map((cell) => cell.trim())
-    .filter((cell) => cell.length > 0);
+    .slice(1, -1); // Remove first and last empty strings from leading/trailing pipes
 
   // Check separator row (should contain dashes and optional colons for alignment)
   const separatorRow = lines[1];
@@ -39,7 +39,7 @@ const parseMarkdownTable = (tableText: string): string => {
   const alignments = separatorRow
     .split("|")
     .map((cell) => cell.trim())
-    .filter((cell) => cell.length > 0)
+    .slice(1, -1) // Remove first and last empty strings from leading/trailing pipes
     .map((cell) => {
       if (cell.match(/^:-+:$/)) return "center";
       if (cell.match(/^-+:$/)) return "right";
@@ -64,7 +64,7 @@ const parseMarkdownTable = (tableText: string): string => {
     const cells = lines[i]
       .split("|")
       .map((cell) => cell.trim())
-      .filter((cell) => cell.length > 0);
+      .slice(1, -1); // Remove first and last empty strings from leading/trailing pipes
 
     if (cells.length > 0) {
       html += "<tr>";
@@ -72,7 +72,9 @@ const parseMarkdownTable = (tableText: string): string => {
         const align = alignments[j]
           ? ` style="text-align: ${alignments[j]}"`
           : "";
-        html += `<td${align}>${cell}</td>`;
+        // Use &nbsp; for empty cells to preserve table structure
+        const cellContent = cell.length > 0 ? cell : "&nbsp;";
+        html += `<td${align}>${cellContent}</td>`;
       });
       html += "</tr>";
     }
@@ -494,7 +496,7 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
         line
           .split("|")
           .map((cell) => cell.trim())
-          .filter((cell) => cell.length > 0)
+          .slice(1, -1) // Remove first and last empty strings from leading/trailing pipes
       );
 
     if (allRows.length === 0) return match;
@@ -508,7 +510,10 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
         const indent = "  ".repeat(colIndex + 1);
 
         // First row (header) gets bold formatting
-        const cellContent = rowIndex === 0 ? `**${cell}**` : cell || " ";
+        // Use a single space for empty cells to preserve table structure
+        const cellContent = rowIndex === 0
+          ? (cell.length > 0 ? `**${cell}**` : " ")
+          : (cell.length > 0 ? cell : " ");
 
         roamTable += `${indent}- ${cellContent}\n`;
       });

@@ -193,6 +193,7 @@ export const buildIntentParserPrompt = (state: {
   privateMode: boolean;
   rootUid?: string;
   skipPrivacyAnalysis?: boolean; // Skip privacy mode analysis when privacy mode is forced
+  skipScopeAnalysis?: boolean; // Skip scope selection analysis (when user explicitly skipped it)
 }): string => {
   // Pre-check for Datomic queries - if detected, use specialized prompt
   if (isDatomicQuery(state.userQuery)) {
@@ -517,7 +518,9 @@ By default, strict search without expansion will be applied.
 - **Comparative words** ("compare", "versus", "difference") → 'analyze:compare'
 - **Connection words** ("related to", "connected", "links") → 'analyze:connections'
 - **Summary words** ("summarize", "overview", "what about") → 'analyze:summary'
-
+${
+  !state.skipScopeAnalysis
+    ? `
 ### 🎯 EXPLORATORY QUERY HANDLING (NEW)
 
 **DETECTION**: Broad analysis requests without specific filters (patterns, themes, trends, overview).
@@ -542,7 +545,9 @@ By default, strict search without expansion will be applied.
 }
 
 **CRITICAL**: When needsScope=true, omit formalQuery and scopeOptions fields (agent will generate options and show dialog).
-
+`
+    : ""
+}
 ### 🎯 Query Decomposition Decision: Single vs Multi-Query
 
 **CRITICAL: Choose the right strategy based on query complexity**
@@ -648,7 +653,9 @@ Respond with only valid JSON, no explanations or any additional comment.
   "language": "detected language in full name (e.g., 'English', 'français', 'español', 'deutsch')",
   "confidence": 0.1-1.0
 }
-
+${
+  !state.skipScopeAnalysis
+    ? `
 **EXPLORATORY QUERIES** (broad requests without filters, see EXPLORATORY QUERY HANDLING section):
 {
   "userIntent": "Broad exploratory analysis without specific filters",
@@ -657,7 +664,9 @@ Respond with only valid JSON, no explanations or any additional comment.
   "language": "detected language",
   "confidence": 0.1-1.0
 }
-
+`
+    : ""
+}
 Focus on creating precise symbolic queries that will find the most relevant data to fulfill the user's actual intent.`;
 };
 

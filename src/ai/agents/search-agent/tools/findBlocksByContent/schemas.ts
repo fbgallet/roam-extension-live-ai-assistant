@@ -115,7 +115,6 @@ export const schema = extendedConditionsSchema.extend({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
@@ -226,7 +225,6 @@ export const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .nullable()
     .describe(
       "SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."
     ),
@@ -260,7 +258,6 @@ export const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .nullable()
     .describe(
       "GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."
     ),
@@ -282,31 +279,26 @@ export const llmFacingSchema = z.object({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
   limitToPages: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Search only within these specific pages (by exact title)"),
   fromResultId: z
     .string()
     .optional()
-    .nullable()
     .describe(
       "Limit to results from previous search (e.g., 'findBlocksByContent_001') - major performance boost"
     ),
   limitToBlockUids: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Limit to specific block UIDs"),
   limitToPageUids: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Limit to blocks within specific page UIDs"),
   fuzzyMatching: z
     .boolean()

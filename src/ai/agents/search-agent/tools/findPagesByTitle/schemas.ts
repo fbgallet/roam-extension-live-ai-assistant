@@ -57,8 +57,6 @@ export const llmFacingSchema = z.object({
             "automatic",
           ])
           .optional()
-          .nullable()
-          .default(undefined)
           .describe(
             "Semantic expansion strategy (only when explicitly requested): fuzzy=typos/variations, synonyms=alternative terms, related_concepts=associated terms, broader_terms=categories, all=comprehensive expansion, automatic=progressive expansion until results (use sparingly)"
           ),
@@ -82,26 +80,22 @@ export const llmFacingSchema = z.object({
       start: z
         .string()
         .optional()
-        .nullable()
         .describe("Start date (YYYY-MM-DD)"),
-      end: z.string().optional().nullable().describe("End date (YYYY-MM-DD)"),
-      filterMode: z.enum(["created", "modified"]).optional().nullable(),
+      end: z.string().optional().describe("End date (YYYY-MM-DD)"),
+      filterMode: z.enum(["created", "modified"]).optional(),
     })
     .optional()
-    .nullable()
     .describe("Limit to pages created/modified within date range"),
   limit: z
     .number()
     .min(1)
     .max(10000)
     .optional()
-    .nullable()
     .describe("Maximum number of results to return. If not specified, returns all matching pages. Results are sorted by relevance and modification date."),
   // Result lifecycle management
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose of these results: 'final' (default) for single-step queries where results go directly to user, 'intermediate' only for multi-step queries (PIPE/UNION/INTERSECTION), 'replacement' to replace previous results, 'completion' to add to previous results. IMPORTANT: Use 'final' or omit this parameter for normal queries."
     ),

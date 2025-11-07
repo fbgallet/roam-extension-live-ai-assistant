@@ -6,21 +6,18 @@ export const schema = z.object({
   queryDescription: z
     .string()
     .optional()
-    .nullable()
     .describe(
       "Natural language description of what you want to find (for auto-generated queries)"
     ),
   targetEntity: z
     .enum(["block", "page"])
     .optional()
-    .nullable()
     .describe(
       "Whether to search for blocks or pages (for auto-generated queries)"
     ),
   searchTerms: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Key terms to search for (for auto-generated queries)"),
   conditionLogic: z
     .enum(["AND", "OR"])
@@ -39,7 +36,6 @@ export const schema = z.object({
   limitToPages: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe(
       "Limit search to blocks within specific pages (by page title). Use this for 'in page [[X]]' queries."
     ),
@@ -52,16 +48,15 @@ export const schema = z.object({
   query: z
     .string()
     .optional()
-    .nullable()
     .describe(
       "Raw Datalog query to execute directly (alternative to auto-generation)"
     ),
 
   // Mode 3: Parameterized queries
   variables: z
-    .record(z.string(), z.any())
+    .object({})
+    .passthrough()
     .optional()
-    .nullable()
     .describe(
       "Variables to substitute in parameterized queries (e.g. {'$page-title': 'ProjectAlpha'})"
     ),
@@ -70,21 +65,18 @@ export const schema = z.object({
   limitToBlockUids: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe(
       "Inject block UID filtering into query (adds UID constraints automatically)"
     ),
   limitToPageUids: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe(
       "Inject page UID filtering into query (adds page UID constraints automatically)"
     ),
   fromResultId: z
     .string()
     .optional()
-    .nullable()
     .describe("Extract UIDs from previous result and inject into query"),
 
   // Execution control
@@ -102,7 +94,6 @@ export const schema = z.object({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),

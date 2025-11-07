@@ -8,10 +8,19 @@ const ScopeSelectionDialog = ({
   recommendedStrategy,
   userQuery,
   onScopeSelect,
+  onSkip,
   onCancel,
+  forceScopeSelection,
 }) => {
   const handleScopeSelect = (strategy) => {
     onScopeSelect(strategy);
+    onClose();
+  };
+
+  const handleSkip = () => {
+    if (onSkip) {
+      onSkip();
+    }
     onClose();
   };
 
@@ -127,6 +136,11 @@ const ScopeSelectionDialog = ({
           <Button onClick={handleCancel} intent="none">
             Cancel
           </Button>
+          {!forceScopeSelection && (
+            <Button onClick={handleSkip} intent="primary">
+              Skip scope analysis
+            </Button>
+          )}
         </div>
       </div>
     </Dialog>

@@ -66,7 +66,6 @@ export const schema = z.object({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
@@ -91,36 +90,30 @@ export const llmFacingSchema = z.object({
   blockUids: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Block UIDs to analyze"),
   pageUids: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Page UIDs to analyze"),
   pageTitles: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Page titles to analyze"),
   fromResultId: z
     .string()
     .optional()
-    .nullable()
     .describe(
       "Extract from previous search result (e.g., 'findBlocksByContent_001')"
     ),
   excludePages: z
     .array(z.string())
     .optional()
-    .nullable()
     .describe("Page titles to exclude"),
   excludeDaily: z.boolean().default(false).describe("Exclude daily note pages"),
   // Result lifecycle management
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),

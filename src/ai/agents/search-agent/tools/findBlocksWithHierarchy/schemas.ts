@@ -271,7 +271,6 @@ export const schema = z.object({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
@@ -311,7 +310,6 @@ export const llmFacingSchema = z.object({
           })
         )
         .optional()
-        .nullable()
         .describe("Left side conditions for hierarchy relationship"),
       leftCombination: z.enum(["AND", "OR"]).default("AND"),
       rightConditions: z
@@ -325,7 +323,6 @@ export const llmFacingSchema = z.object({
           })
         )
         .optional()
-        .nullable()
         .describe("Right side conditions for hierarchy relationship"),
       rightCombination: z.enum(["AND", "OR"]).default("AND"),
 
@@ -349,7 +346,6 @@ export const llmFacingSchema = z.object({
           })
         )
         .optional()
-        .nullable()
         .describe(
           "Left side condition groups for complex logic like ((A|B) AND NOT C)"
         ),
@@ -373,12 +369,10 @@ export const llmFacingSchema = z.object({
           })
         )
         .optional()
-        .nullable()
         .describe("Right side condition groups for complex logic"),
       rightGroupCombination: z.enum(["AND", "OR"]).default("AND"),
     })
     .optional()
-    .nullable()
     .describe(
       "Structured hierarchy condition with operator and left/right conditions"
     ),
@@ -387,7 +381,6 @@ export const llmFacingSchema = z.object({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
@@ -407,7 +400,6 @@ export const llmFacingSchema = z.object({
     .min(1)
     .max(10)
     .optional()
-    .nullable()
     .describe(
       "ONLY specify if user explicitly requests depth (e.g. 'depth=3'). Otherwise OMIT this field to use automatic depth based on operators."
     ),
@@ -416,7 +408,6 @@ export const llmFacingSchema = z.object({
   excludeBlockUid: z
     .string()
     .optional()
-    .nullable()
     .describe("Block UID to exclude from results"),
 });
 

@@ -59,7 +59,6 @@ export const llmFacingSchema = z.object({
             "all",
           ])
           .optional()
-          .nullable()
           .describe(
             "Semantic expansion strategy to apply. Use 'fuzzy' for typos, 'synonyms' for alternatives, 'related_concepts' for associated terms, 'all' for chained expansion"
           ),
@@ -70,7 +69,6 @@ export const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .nullable()
     .describe(
       "SIMPLE: List of conditions for basic logic. Use this OR conditionGroups, not both."
     ),
@@ -112,7 +110,6 @@ export const llmFacingSchema = z.object({
       })
     )
     .optional()
-    .nullable()
     .describe(
       "GROUPED: Groups of conditions for complex logic like ((A|B) AND NOT C). Use this OR conditions, not both."
     ),
@@ -161,14 +158,12 @@ export const llmFacingSchema = z.object({
   fromResultId: z
     .string()
     .optional()
-    .nullable()
     .describe(
       "Limit to pages from previous result (e.g., 'findPagesByTitle_001') - major performance boost"
     ),
   excludeBlockUid: z
     .string()
     .optional()
-    .nullable()
     .describe(
       "Block UID to exclude from search (typically the user's query block)"
     ),
@@ -176,7 +171,6 @@ export const llmFacingSchema = z.object({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),
@@ -332,7 +326,6 @@ export const schema = extendedConditionsSchema.extend({
   purpose: z
     .enum(["final", "intermediate", "replacement", "completion"])
     .optional()
-    .nullable()
     .describe(
       "Purpose: 'final' for user response data, 'intermediate' for non-final multi-step, 'replacement' to replace previous results, 'completion' to add to previous results"
     ),

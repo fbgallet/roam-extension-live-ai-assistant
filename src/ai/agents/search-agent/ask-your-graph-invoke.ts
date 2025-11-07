@@ -677,6 +677,33 @@ const invokeSearchAgentInternal = async ({
                 const state = (window as any).currentSearchAgentState;
                 const { selectedStrategy, userIntent } = event.detail;
 
+                // If selectedStrategy is null, user chose to skip scope analysis
+                if (selectedStrategy === null) {
+                  // Clear scope state and let the agent continue with the original query
+                  state.pendingScopeOptions = undefined;
+                  state.pendingRecommendedStrategy = undefined;
+                  state.forceScopeSelection = undefined;
+                  // CRITICAL: Set flag to skip scope analysis in IntentParser
+                  state.skipScopeAnalysis = true;
+                  // Reset routing to re-run through conversationRouter and IntentParser
+                  state.routingDecision = "analyze_complexity";
+
+                  // Resume graph execution - IntentParser will parse the query
+                  // without scope selection instructions
+                  const finalResponse = await ReactSearchAgent.invoke(state, {
+                    recursionLimit: 50,
+                    streamMode: "values",
+                  });
+
+                  // Clean up global state
+                  delete (window as any).currentSearchAgentState;
+
+                  // Process the final response and resolve with its result
+                  const result = await processAgentResponse(finalResponse);
+                  resolve(result);
+                  return;
+                }
+
                 // Import the strategy mapper
                 const { mapScopeStrategyToQuery } = await import(
                   "./ask-your-graph-agent"
