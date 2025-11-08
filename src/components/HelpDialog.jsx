@@ -10,10 +10,15 @@ const HelpDialog = ({ isOpen, onClose }) => {
     >
       <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
         <p>
-          <strong>Live AI</strong> v.22 November 2025 by{" "}
+          <strong>Live AI</strong> v.22, November 2025 by{" "}
           <a href="https://github.com/sponsors/fbgallet" target="_blank">
             Fabrice Gallet
           </a>
+        </p>
+        <p>
+          💡 Remember that you can directly ask for help in the Chat panel if
+          the Get Help tool is enabled: the agent will go through the document
+          to respond to you as precisely as possible to guide you !
         </p>
         <Divider />
         <strong>Set Hotkeys for most useful commands</strong>:
@@ -29,6 +34,9 @@ const HelpDialog = ({ isOpen, onClose }) => {
           <li>
             <em>Ask AI (prompt in focused/selected blocks)</em> (also to
             continue a conversation)
+          </li>
+          <li>
+            <em>Open Chat panel</em>
           </li>
           <li>
             <em>Start/Pause recording your vocal note</em>
@@ -220,6 +228,24 @@ const HelpDialog = ({ isOpen, onClose }) => {
                   rel="noopener noreferrer"
                 >
                   Live Outliner
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Chat Agent
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Skills for Chat Agent
                 </a>
               </li>
               <li>
