@@ -396,6 +396,7 @@ export const insertCompletion = async ({
     prompt = instructionsOnOutline + prompt;
   }
 
+  console.log("User prompt :>>", prompt);
   console.log("SystemPrompt :>> ", systemPrompt);
   console.log("Context :>> ", content);
 

@@ -135,11 +135,13 @@ const invokeSearchAgentInternal = async ({
 
   const modeInfo = getModeInfo(privateMode, permissions);
 
-  // Only suppress toaster when running FROM the popup (isPopupExecution with conversation mode)
-  // When forcePopupOnly is true, the agent is run FROM Roam but results go TO the popup,
-  // so we still want to show toaster progress feedback
+  // Suppress toaster when:
+  // 1. Running FROM the popup (isPopupExecution with conversation mode)
+  // 2. Running FROM the chat agent tool (rootUid === "chat-agent-tool")
+  // When forcePopupOnly is true but NOT from chat-agent-tool, we still want toaster feedback
   const shouldSuppressToaster =
-    isPopupExecution && agentData?.isConversationMode;
+    (isPopupExecution && agentData?.isConversationMode) ||
+    rootUid === "chat-agent-tool";
 
   initializeAgentToaster(
     "search",
@@ -366,11 +368,14 @@ const invokeSearchAgentInternal = async ({
     }
 
     // Check if the graph was interrupted (user needs to provide input)
+    // Note: Don't treat forcePopupOnly mode as an interrupt - it's a valid completion state
+    // In forcePopupOnly mode, targetUid may be null (results go to popup, not Roam), so check agentData
+    const isForcePopupOnlyMode = agentData?.forcePopupOnly || conversationData?.forcePopupOnly;
     if (
       (response as any).pendingExpansion ||
       (response as any).pendingPrivacyEscalation ||
       (response as any).pendingScopeOptions ||
-      (!response.finalAnswer && !response.targetUid)
+      (!response.finalAnswer && !response.targetUid && !isForcePopupOnlyMode)
     ) {
       // Set up a promise that resolves when user makes a choice
       return new Promise((resolve, reject) => {
@@ -902,12 +907,6 @@ const invokeSearchAgentInternal = async ({
     // Helper function to process agent response
     async function processAgentResponse(response: any): Promise<any> {
       try {
-        // Debug: Check if tokensUsage is in the response
-        console.log(
-          "🔍 [processAgentResponse] Response tokensUsage:",
-          response.tokensUsage
-        );
-
         // Extract full results for the popup functionality
         const allFullResults = [];
 
@@ -1069,15 +1068,6 @@ const invokeSearchAgentInternal = async ({
 
         // Handle forcePopupOnly mode - automatically open the popup and skip Roam block insertion
         if (agentData?.forcePopupOnly) {
-          console.log(
-            `🎯 [forcePopupOnly] Processing results for popup display`,
-            {
-              fullResultsCount: fullResults.length,
-              rootUid,
-              targetUid: response?.targetUid,
-            }
-          );
-
           // Add fullResults to response object for direct access (avoids window race conditions)
           (response as any).fullResults = fullResults;
 
@@ -1111,16 +1101,6 @@ const invokeSearchAgentInternal = async ({
             // Get intentParserResult from window (was set at line 849)
             const intentParserResult = (window as any).lastIntentParserResult;
 
-            console.log(
-              `🚀 [forcePopupOnly] Opening popup with ${fullResults.length} results`,
-              {
-                userQuery,
-                formalQuery: response?.formalQuery,
-                forceOpenChat,
-                hasIntentParserResult: !!intentParserResult,
-              }
-            );
-
             openFullResultsPopup({
               results: fullResults,
               targetUid: response?.targetUid,
@@ -1129,10 +1109,6 @@ const invokeSearchAgentInternal = async ({
               forceOpenChat,
               intentParserResult,
             });
-          } else {
-            console.log(
-              `🔧 [Skip popup] Called from query composer or composed query execution - rootUid: ${rootUid}`
-            );
           }
 
           // Return early to skip conversation buttons and Roam block insertion

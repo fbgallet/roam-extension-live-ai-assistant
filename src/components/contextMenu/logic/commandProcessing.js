@@ -86,15 +86,6 @@ export const handleClickOnCommand = async ({
   const target =
     targetBlock === "auto" ? command.target || "new" : targetBlock || "new";
 
-  console.log(
-    "🎯 [commandProcessing] targetBlock (from ref):",
-    targetBlock,
-    "target:",
-    target,
-    "command:",
-    command.name
-  );
-
   // Handle "chat" target: open chat popup with command and style context
   if (target === "chat" || command.name === "Open Chat panel") {
     if (command.name === "Open Chat panel") {
