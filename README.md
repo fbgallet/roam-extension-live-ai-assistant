@@ -6,7 +6,7 @@
 
 **Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, explore, filter and chat with the results!**
 
-![Live AI chat Hello world](https://github.com/user-attachments/assets/735b589d-2249-4953-998d-bf879f253284)
+![Top demo Live AI Ask your graph in chat](https://github.com/user-attachments/assets/77129426-5cfe-4d0b-b6a3-df2db343baa8)
 
 ## If you want to support my work
 
@@ -74,6 +74,8 @@ Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roa
 > [!TIP]
 > When opening the Chat panel, you can click on buttons to have help about the Chat, or Live AI in general, or get tips.
 > You can even be guided by the Chat Agent to discover all the new features! Verify that 'Get help' tool is enabled, and just ask questions. The agent will rely on this help file and other Live AI detailed help file support you in learning how to use this extension!
+
+<img width="595" height="706" alt="image" src="https://github.com/user-attachments/assets/e8bb7b43-ed80-4017-9b1c-bbea53af5504" />
 
 ### Your first prompts using buttons
 
