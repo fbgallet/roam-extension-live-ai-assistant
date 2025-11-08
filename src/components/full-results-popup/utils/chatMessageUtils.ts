@@ -442,7 +442,8 @@ export const renderMarkdown = (text: string): string => {
       "h6",
       "img",
     ],
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|www):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    ALLOWED_URI_REGEXP:
+      /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|www):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   });
 };
 
@@ -492,11 +493,12 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
     // Parse all rows (including header)
     const allRows = lines
       .filter((_, index) => index !== 1) // Skip separator row (index 1)
-      .map((line) =>
-        line
-          .split("|")
-          .map((cell) => cell.trim())
-          .slice(1, -1) // Remove first and last empty strings from leading/trailing pipes
+      .map(
+        (line) =>
+          line
+            .split("|")
+            .map((cell) => cell.trim())
+            .slice(1, -1) // Remove first and last empty strings from leading/trailing pipes
       );
 
     if (allRows.length === 0) return match;
@@ -511,9 +513,14 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
 
         // First row (header) gets bold formatting
         // Use a single space for empty cells to preserve table structure
-        const cellContent = rowIndex === 0
-          ? (cell.length > 0 ? `**${cell}**` : " ")
-          : (cell.length > 0 ? cell : " ");
+        const cellContent =
+          rowIndex === 0
+            ? cell.length > 0
+              ? `**${cell}**`
+              : " "
+            : cell.length > 0
+            ? cell
+            : " ";
 
         roamTable += `${indent}- ${cellContent}\n`;
       });
@@ -538,6 +545,21 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
  */
 export const convertRoamToMarkdownFormat = (roamText: string): string => {
   let converted = roamText;
+  console.log("converted :>> ", converted);
+
+  // 0. Normalize indentation - find minimum indent and remove it from all lines
+  const lines = converted.split("\n");
+  const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+  if (nonEmptyLines.length > 0) {
+    const minIndent = Math.min(
+      ...nonEmptyLines.map(line => line.match(/^(\s*)/)?.[1].length || 0)
+    );
+    if (minIndent > 0) {
+      converted = lines.map(line =>
+        line.length > 0 ? line.slice(minIndent) : line
+      ).join("\n");
+    }
+  }
 
   // 1. Convert highlights: ^^text^^ → ==text==
   converted = converted.replace(/\^\^(.+?)\^\^/g, "==$1==");
@@ -556,15 +578,16 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
   //                - col3_row1
   //            - col1_row2
   //              - col2_row2...
-  const roamTableRegex = /-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\s*-\s+.+\n?)+)/gm;
-  converted = converted.replace(roamTableRegex, (match, tableContent) => {
+  const roamTableRegex = /(\s*)-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\1  .*\n?)+)/gm;
+  converted = converted.replace(roamTableRegex, (_match, _tableIndent, tableContent) => {
     // Parse all lines first
     const parsedLines: Array<{ level: number; content: string }> = [];
     // DON'T trim here - it removes leading spaces from first line!
     const lines = tableContent.split("\n");
 
     for (const line of lines) {
-      const indentMatch = line.match(/^(\s*)-\s+(.+)$/);
+      // Match lines with dash, allowing optional space and content
+      const indentMatch = line.match(/^(\s*)-\s*(.*)$/);
       if (!indentMatch) continue;
 
       const indent = indentMatch[1].length;
@@ -578,10 +601,13 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
         .replace(/__(.+?)__/g, "$1") // Remove italic
         .trim();
 
-      parsedLines.push({ level: indentLevel, content: cleanContent });
+      // Use a space for empty cells to preserve table structure
+      const cellContent = cleanContent || " ";
+
+      parsedLines.push({ level: indentLevel, content: cellContent });
     }
 
-    if (parsedLines.length === 0) return match;
+    if (parsedLines.length === 0) return _match;
 
     // Determine base level from first line
     const baseLevel = parsedLines[0].level;
@@ -596,18 +622,19 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
       if (currentLine.level === baseLevel) {
         const row: string[] = [currentLine.content];
 
-        // Collect nested columns (each one level deeper than the last)
+        // Collect nested columns - they should be sequentially deeper
         let j = i + 1;
-        let expectedLevel = currentLine.level + 1;
+        let currentLevel = currentLine.level;
 
-        // Keep going as long as we find increasingly nested items
+        // Keep going while we're still in nested items for this row
         while (j < parsedLines.length && parsedLines[j].level > baseLevel) {
-          if (parsedLines[j].level >= expectedLevel) {
+          // The next column should be exactly one level deeper
+          if (parsedLines[j].level === currentLevel + 1) {
             row.push(parsedLines[j].content);
-            expectedLevel = parsedLines[j].level + 1;
+            currentLevel = parsedLines[j].level;
             j++;
           } else {
-            // Found an item that's not deeper than expected, stop
+            // Not the expected nesting level, stop
             break;
           }
         }
@@ -620,7 +647,7 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
       }
     }
 
-    if (rows.length === 0) return match;
+    if (rows.length === 0) return _match;
 
     // Build markdown table
     const maxCols = Math.max(...rows.map((row) => row.length));
@@ -634,15 +661,17 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
       return padded;
     });
 
-    // Build header row
-    let markdownTable = "| " + paddedRows[0].join(" | ") + " |\n";
+    // Build header row (use space for empty cells)
+    let markdownTable =
+      "| " + paddedRows[0].map((cell) => cell || " ").join(" | ") + " |\n";
 
     // Build separator row
     markdownTable += "| " + Array(maxCols).fill("---").join(" | ") + " |\n";
 
-    // Build data rows
+    // Build data rows (use space for empty cells)
     for (let i = 1; i < paddedRows.length; i++) {
-      markdownTable += "| " + paddedRows[i].join(" | ") + " |\n";
+      markdownTable +=
+        "| " + paddedRows[i].map((cell) => cell || " ").join(" | ") + " |\n";
     }
 
     return "\n" + markdownTable;

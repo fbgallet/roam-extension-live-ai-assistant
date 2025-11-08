@@ -487,33 +487,34 @@ export function convertTreeToLinearArray(
     tree.forEach((element) => {
       allBlocksUids.push(element.uid);
       let toExcludeWithChildren = false;
-      let content = element.string;
-      if (content) {
-        let uidString =
-          (maxUid && level > maxUid) || !maxUid || !uidsInPrompt
-            ? ""
-            : "((" + element.uid + ")) ";
-        toExcludeWithChildren = exclusionStrings.some((str) =>
-          content.includes(str)
+      let content = element.string || "";
+      let uidString =
+        (maxUid && level > maxUid) || !maxUid || !uidsInPrompt
+          ? ""
+          : "((" + element.uid + ")) ";
+      toExcludeWithChildren = exclusionStrings.some((str) =>
+        content.includes(str)
+      );
+      let toExcludeAsBlock =
+        uidsToExclude.includes(element.uid) ||
+        (uidsToExclude === "{text}" && content.includes("{text}"));
+      if (toExcludeAsBlock) {
+        content = content.replace("{text}", "").trim();
+        excludedUids.push(element.uid);
+      }
+      if (!toExcludeWithChildren /*&& !toExcludeAsBlock*/) {
+        // For empty blocks with dash formatting, use a space to preserve structure
+        const blockContent = content || (withDash && level > 1 ? " " : "");
+        linearArray.push(
+          leftShift +
+            (!withDash || level === 1 //&&
+              ? //((maxUid && level > maxUid) || !maxUid)
+                ""
+              : "- ") +
+            (toExcludeAsBlock ? "" : uidString) +
+            resolveReferences(blockContent, undefined, undefined, leftShift)
         );
-        let toExcludeAsBlock =
-          uidsToExclude.includes(element.uid) ||
-          (uidsToExclude === "{text}" && content.includes("{text}"));
-        if (toExcludeAsBlock) {
-          content = content.replace("{text}", "").trim();
-          excludedUids.push(element.uid);
-        }
-        if (!toExcludeWithChildren /*&& !toExcludeAsBlock*/)
-          linearArray.push(
-            leftShift +
-              (!withDash || level === 1 //&&
-                ? //((maxUid && level > maxUid) || !maxUid)
-                  ""
-                : "- ") +
-              (toExcludeAsBlock ? "" : uidString) +
-              resolveReferences(content, undefined, undefined, leftShift)
-          );
-      } else level--;
+      }
       if (element.children && !toExcludeWithChildren) {
         if (maxCapturing && level >= maxCapturing) return;
         traverseArray(element.children, leftShift + "  ", level + 1);
