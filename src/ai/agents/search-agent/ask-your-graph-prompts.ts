@@ -1015,11 +1015,9 @@ ${toolNames.map((name) => `- ${name}`).join("\n")}
       : ""
   }${
     state.searchDetails?.timeRange
-      ? `\n- **DATE FILTERING**: Pass dateRange parameter to tool: {start: "${
-          state.searchDetails.timeRange.start
-        }", end: "${state.searchDetails.timeRange.end}", filterMode: "${
-          state.searchDetails.timeRange.filterMode || "modified"
-        }"}`
+      ? `\n- **CRITICAL - DATE FILTERING**: You MUST pass this EXACT dateRange parameter to your tool call - DO NOT recalculate dates:
+   dateRange: {start: "${state.searchDetails.timeRange.start}", end: "${state.searchDetails.timeRange.end}", filterMode: "${state.searchDetails.timeRange.filterMode || "modified"}"}
+   (These dates have already been calculated correctly - use them as-is)`
       : ""
   }
 
@@ -1129,11 +1127,9 @@ ${
       : ""
   }${
     state.searchDetails?.timeRange
-      ? `\n📅 **DATE FILTERING**: Pass dateRange parameter to tool: {start: "${
-          state.searchDetails.timeRange.start
-        }", end: "${state.searchDetails.timeRange.end}", filterMode: "${
-          state.searchDetails.timeRange.filterMode || "modified"
-        }"}`
+      ? `\n📅 **CRITICAL - DATE FILTERING**: You MUST pass this EXACT dateRange parameter to your tool call - DO NOT recalculate dates:
+   dateRange: {start: "${state.searchDetails.timeRange.start}", end: "${state.searchDetails.timeRange.end}", filterMode: "${state.searchDetails.timeRange.filterMode || "modified"}"}
+   (These dates have already been calculated correctly - use them as-is)`
       : ""
   }
 
