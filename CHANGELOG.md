@@ -12,7 +12,7 @@
 **Updates**
 - Better support of sequences of queries by Ask Your Graph (using new formal query operator: UNION/INTERSECTION/DIFFERENCE and PIPE)
 - FindDailyNotesByPeriod tool for Ask Your Graph to extract DNPs
-- Added 'Pdf' checkbox in Context menu
+- Added 'Pdf' checkbox in Context menu + .pdf support by OpenRouter models
 - Added 'Chat' as possible target in Context menu
 - blocks/pages embed are now resolved (supported in prompt or context or custom prompt/style)
 - custom style support inline context
@@ -25,6 +25,15 @@
 ** Fixed **
 - More reliable use of Regex by Ask Your Graph agent
 - "Include Children" option was still not reliable
+- In Chat:
+  - highlighting block/pages in context on hover in chat messages was not reliable
+  - expand/collapse blocks/pages works better    
+- In Context panel (full results view): 
+  - filter by string search or by reference was not working on pages
+- Ask Linked Reference button doesn't appear anymore on Daily log
+- Default style was overriding choosen style
+- When "gpt-5 (non reasoning)" was choosen by default, it was replaced by gpt-5 nano
+- `{replace}` option in smartblocks was not working properly
 
 ## v.21 (September 23th, 2025) Major update of Ask Your Graph agent
 
@@ -343,5 +352,6 @@
 - Reference to focused block to append transcription or use as context was not working
 - Block selection was not taken into account if made after start of recording
 - Default settings were not visible on installation
+
 
 
