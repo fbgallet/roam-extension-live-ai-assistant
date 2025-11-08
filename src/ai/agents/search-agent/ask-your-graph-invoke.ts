@@ -135,27 +135,18 @@ const invokeSearchAgentInternal = async ({
 
   const modeInfo = getModeInfo(privateMode, permissions);
 
-  // Only show toaster if not in chat mode within popup AND not in forcePopupOnly mode
+  // Only suppress toaster when running FROM the popup (isPopupExecution with conversation mode)
+  // When forcePopupOnly is true, the agent is run FROM Roam but results go TO the popup,
+  // so we still want to show toaster progress feedback
   const shouldSuppressToaster =
-    (isPopupExecution && agentData?.isConversationMode) ||
-    agentData?.forcePopupOnly;
+    isPopupExecution && agentData?.isConversationMode;
 
-  if (!shouldSuppressToaster) {
-    initializeAgentToaster(
-      "search",
-      `${modeInfo.icon} ${modeInfo.name} mode`,
-      abortController,
-      false // suppressToaster = false
-    );
-  } else if (agentData?.forcePopupOnly) {
-    // Still initialize without toaster for forcePopupOnly (needed for abort controller)
-    initializeAgentToaster(
-      "search",
-      `${modeInfo.icon} ${modeInfo.name} mode`,
-      abortController,
-      true // suppressToaster = true
-    );
-  }
+  initializeAgentToaster(
+    "search",
+    `${modeInfo.icon} ${modeInfo.name} mode`,
+    abortController,
+    shouldSuppressToaster
+  );
 
   try {
     // Handle conversation state and retry logic using shared utilities
@@ -1078,6 +1069,15 @@ const invokeSearchAgentInternal = async ({
 
         // Handle forcePopupOnly mode - automatically open the popup and skip Roam block insertion
         if (agentData?.forcePopupOnly) {
+          console.log(
+            `🎯 [forcePopupOnly] Processing results for popup display`,
+            {
+              fullResultsCount: fullResults.length,
+              rootUid,
+              targetUid: response?.targetUid,
+            }
+          );
+
           // Add fullResults to response object for direct access (avoids window race conditions)
           (response as any).fullResults = fullResults;
 
@@ -1111,6 +1111,16 @@ const invokeSearchAgentInternal = async ({
             // Get intentParserResult from window (was set at line 849)
             const intentParserResult = (window as any).lastIntentParserResult;
 
+            console.log(
+              `🚀 [forcePopupOnly] Opening popup with ${fullResults.length} results`,
+              {
+                userQuery,
+                formalQuery: response?.formalQuery,
+                forceOpenChat,
+                hasIntentParserResult: !!intentParserResult,
+              }
+            );
+
             openFullResultsPopup({
               results: fullResults,
               targetUid: response?.targetUid,
@@ -1121,7 +1131,7 @@ const invokeSearchAgentInternal = async ({
             });
           } else {
             console.log(
-              "🔧 [Skip popup] Called from query composer or composed query execution"
+              `🔧 [Skip popup] Called from query composer or composed query execution - rootUid: ${rootUid}`
             );
           }
 

@@ -1,8 +1,8 @@
 # Live AI
 
-**AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam. Interact with your favorite AI directly in Roam blocks, making the most of Roam’s interface to truly extend your thinking rather than just read answers! No usage limits, pay only for what you use (probably just a few dozen cents per month).**
+**AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam. Interact with your favorite AI directly in Roam blocks, making the most of Roam’s interface to truly extend your thinking rather than just read answers! Or discover a new way to explore your graph in the agentic Chat interface. No usage limits, pay only for what you use (probably just a few dozen cents per month) or rely on free local models through Ollama or OpenAI compatible servers.**
 
-**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, images, .pdf, etc.) and get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context, and all up-to-date LLMs (even local models through Ollama or OpenAI compatible servers)!**
+**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, images, .pdf, etc.) and chat with this content or get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context!**
 
 **Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, explore, filter and chat with the results!**
 
@@ -21,9 +21,10 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ### 🆕 New in v.22 (November 2025)
 
 - **Chat panel** for smooth conversations, can be displayed as a left/right panel or full screen, combined with a rich context panel
-- **Chat agent**, relying on tools to query your graph, handle context, leverage rich instructions and resources with Live AI Skills (inspired by Anthropic Agent Skills), chat with help documents...
+- **Chat agent**, relying on tools to query your graph, handle context, leverage rich instructions and resources with [Live AI Skills](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md) (inspired by Anthropic Agent Skills), chat with help documents...
 - **Query composer** to compose natural language queries, combine them, add specific pages, etc., and save them to reuse them easily, providing a well defined context for Chat
 - Ask Your Graph agent support now **sequences of queries** to better handle complexe queries and better handling of DNPs and attributes
+- 'Ask Your Graph - Pattern analysis' command for quick overview of all pages in your graph or recent pages or Daily notes
 - New models supported natively: Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supporting web fetching), gpt-5-search-api
 - Added 'Pdf' checkbox in Context menu
 
@@ -47,6 +48,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 - [Get an API key](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#get-an-api-key)
 - [Your first prompt](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#your-first-prompts-using-the-chat-panel)
+- [Live AI context menu](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai-context-menu)
 - [The basics of AI requests](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#the-basics-of-ai-requests)
 - [Chat with your AI Assistant](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#chat-with-your-ai-assistant)
 - [Apply built-in prompts to existing content](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content)
@@ -69,9 +71,9 @@ See the demo .gif [in the introduction section](https://github.com/fbgallet/roam
 
 When opening the Chat panel, you can click on buttons to have help about the Chat, or Live AI in general, or get tips. You can even be guided by the Chat Agent to discover all the new features! Just ask questions.
 
-Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roam command palette (`Cmd+p`) for "Live AI: Open Chat panel" to open it still quicker!
+Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roam command palette (`Cmd+p`) for `Live AI: Open Chat panel` command to open it still quicker!
 
-### Your first prompts using buttons & Live AI context menu
+### Your first prompts using buttons
 
 You want still a smoother experience without breaking your flow in Roam ? Simply write some prompt in any block (or press the microphone button and provide vocal instructions) and click on the "Ask AI" button (⚡️ lightning bolt icon). That's all ! It will send your prompt to the default model and almost instantly insert the response in the children blocks of your prompt.
 
@@ -82,10 +84,12 @@ You want still a smoother experience without breaking your flow in Roam ? Simply
 
 <img width="600" alt="Live AI sidebar buttons" src="https://github.com/user-attachments/assets/1bddaf8e-d9f9-452b-a048-34d4a85d323c" />
 
-This simple process can be still more efficient with keyboard only, using `Live AI Context menu`, a rich context menu with a search box to access any Live AI command and context definition very quicky.
+### Live AI context menu
 
 > [!IMPORTANT]
-> The context menu is the main entry point to Live AI, from where all features are accessible, including Chat panel, Tokens counter Query agents... Read the following instructions carrefuly:
+> The context menu is the **main entry point to Live AI**, from where all features are accessible, including Chat panel, Tokens counter Query agents... Read the following instructions carrefuly:
+
+This simple process - write and get instant response in Roam blocks - can be still more efficient with keyboard only, using `Live AI Context menu`, a rich context menu with a search box to access any Live AI command and context definition very quicky.
 
 To open Live AI **context menu**, you can either:
 
@@ -95,13 +99,6 @@ To open Live AI **context menu**, you can either:
 
 Once the context menu is open, the first selected command is `Focused block as prompt` if a block is focused. Select this command to send your prompt to the default model.
 
-> [!NOTE]
-> This first command, used to send your own prompts to an AI model, will automatically adjust to the selection state: focus, blocks selection, text selection, entire page or zoom view if neither focus nor selection.
->
-> You can also write a quick prompt directly in the search bar of the context menu and run the command "Use this custom prompt". The AI generated response will be inserted as last block of the current page/view.
-
-<img width="706" height="328" alt="Live AI context menu" src="https://github.com/user-attachments/assets/02af44cb-37cd-4a44-bf1b-daf495dcd869" />
-
 > [!TIP]
 > ⚡️ In practice, the process to send some prompt to your AI assistant is almost instant:
 >
@@ -109,14 +106,21 @@ Once the context menu is open, the first selected command is `Focused block as p
 > - trigger hotkeys (`Cmd + Ctrl+ a` by default) to open the Live AI context menu
 > - press `Enter` to run the first command: 'Focused block as prompt' or press down arrow to select the next command 'Focused block & all children as prompt' to include all the descendants of the focused block in the prompt
 
+<img width="706" height="328" alt="Live AI context menu" src="https://github.com/user-attachments/assets/02af44cb-37cd-4a44-bf1b-daf495dcd869" />
+
+> [!NOTE]
+> This first command, used to send your own prompts to an AI model, will automatically adjust to the selection state: focus, blocks selection, text selection, entire page or zoom view if neither focus nor selection.
+>
+> You can also write a quick prompt directly in the search bar of the context menu and run the command "Use this custom prompt". The AI generated response will be inserted as last block of the current page/view.
+
 ### The basics of AI requests
 
 The following 5 ingredients will be part of your requests (the last 3 are optional):
 
-- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them) or pdf file (only OpenAI and Anthropic models). Note that block references will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
+- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them) or .pdf files (only OpenAI and Anthropic models). Note that block references and block or page embed will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
 - **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused block as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
-- **OUTPUT TARGET**: the AI model response will be inserted directly in your graph (or in the chat, and inserted in your graph only on demand). By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). `Chat` will open the chat panel and display the response of the LLM. Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
+- **OUTPUT TARGET**: the AI model response will be inserted directly in your graph (unless from the Chat panel, where you can insert responses or whole chat in your graph on demand). By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). `Chat` will open the chat panel and display the response of the LLM. Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
 - **STYLE**: the output format of the AI model response. You can provide details on how the answer should be written as well as how it will be inserted into Roam, for example, whether it should be broken down into more or less blocks (by default, Live AI supports most Roam-specific formatting like bold or highlighted text, headings, and Katex...). Live AI provide a few predefined styles and you can create your own custom styles. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#styles) for more details.
 
 ### Chat inline (in blocks) with your AI Assistant
@@ -402,7 +406,7 @@ With Live AI, you generally have control over what you decide to send or not to 
 2. [Live Outliner Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/live-outliner.md)
 3. [MCP Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/mcp-agent.md)
 4. [Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md)
-5. [Skills for Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md)
+5. [Skills for Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md)
 
 - **LLM Providers**
 
