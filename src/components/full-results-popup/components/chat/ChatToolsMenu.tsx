@@ -498,11 +498,7 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
     }
   };
 
-  const renderTag = (topic: HelpTopic) =>
-    // <Tag minimal intent={getCategoryIntent(topic.category) as any}>
-    //   {topic.topic}
-    // </Tag>
-    topic.topic;
+  const renderTag = (topic: HelpTopic) => topic.topic;
 
   return (
     <div
@@ -534,10 +530,11 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
             onRemove: (_tag, index) => {
               onDeselect(selectedTopics[index]);
             },
-            tagProps: {
+            tagProps: (_value, index) => ({
               className: "help-topics-tag",
               minimal: true,
-            },
+              intent: getCategoryIntent(selectedTopics[index]?.category || ""),
+            }),
             placeholder: "Search or select help topics...",
             rightElement: (
               <div

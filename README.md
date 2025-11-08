@@ -69,9 +69,11 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 See the demo .gif [in the introduction section](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai). N.B.: in this demo the Live AI buttons are in the top bar instead of left sidebar (you can switch in the extension settings)
 
-When opening the Chat panel, you can click on buttons to have help about the Chat, or Live AI in general, or get tips. You can even be guided by the Chat Agent to discover all the new features! Just ask questions.
-
 Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roam command palette (`Cmd+p`) for `Live AI: Open Chat panel` command to open it still quicker!
+
+> [!TIP]
+> When opening the Chat panel, you can click on buttons to have help about the Chat, or Live AI in general, or get tips.
+> You can even be guided by the Chat Agent to discover all the new features! Verify that 'Get help' tool is enabled, and just ask questions. The agent will rely on this help file and other Live AI detailed help file support you in learning how to use this extension!
 
 ### Your first prompts using buttons
 
