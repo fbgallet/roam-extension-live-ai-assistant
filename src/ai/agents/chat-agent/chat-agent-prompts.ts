@@ -5,6 +5,7 @@
  */
 
 import { getCurrentDateContext } from "../../../utils/roamAPI";
+import { getCustomPromptByUid } from "../../dataExtraction";
 import {
   completionCommands,
   defaultAssistantCharacter,
@@ -64,7 +65,7 @@ export const buildChatSystemPrompt = async ({
 
 ### Roam Formatting
 IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
-- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((abc123)))' or '[the key finding](((xyz789)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
+- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((uid)))' or '[the key finding](((uid)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
 - **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
 - **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.`;
 
@@ -170,14 +171,15 @@ ${skillsList}`;
   // Add command-specific instructions if provided
   // Note: These instructions are also added to conversationHistory in finalize()
   // so they persist across turns until summarization
-  if (commandPrompt) {
-    let completeCommandPrompt = buildCompleteCommandPrompt(
-      commandPrompt,
-      lastMessage || resultsContext
-    );
-    if (completeCommandPrompt)
-      systemPrompt += `\n\n## Built-in or custom instructions for the CURRENT conversation turn \n${completeCommandPrompt}`;
-  }
+  // if (commandPrompt) {
+  //   let completeCommandPrompt = buildCompleteCommandPrompt(
+  //     commandPrompt,
+  //     lastMessage, //|| resultsContext,
+  //     !!resultsContext
+  //   );
+  //   if (completeCommandPrompt)
+  //     systemPrompt += `\n\n## Built-in or custom instructions for the CURRENT conversation turn \n${completeCommandPrompt}`;
+  // }
 
   systemPrompt += `\n\n## Syntax contrainst:
 - ${hierarchicalResponseFormat.trim()}
@@ -197,17 +199,31 @@ ${skillsList}`;
 // Build command instructions
 export const buildCompleteCommandPrompt = (
   commandPrompt: string | undefined,
-  content: string | undefined
+  content: string | undefined,
+  hasContext: boolean
 ): string => {
   let commandInstructions = "";
   if (commandPrompt && !commandPrompt.includes("Image generation")) {
     const splittedCommand = commandPrompt.split(":");
     commandInstructions = completionCommands[splittedCommand[0]];
+    // If custom prompt
+    if (!commandInstructions) {
+      const customCommand = getCustomPromptByUid(commandPrompt);
+      commandInstructions = customCommand?.prompt || " ";
+    }
 
-    commandInstructions = commandInstructions.replace(
-      "<target content>",
-      content
-    );
+    if (commandInstructions.includes("<target content>"))
+      commandInstructions = commandInstructions.replace(
+        "<target content>",
+        content ||
+          (hasContext
+            ? "Apply these instructions to the content of '## Available Context' section above"
+            : "")
+      );
+    else {
+      if (content)
+        commandInstructions = `Custom instructions: ${commandInstructions}\n\nUser message: ${content}`;
+    }
 
     if (splittedCommand.length > 1)
       commandInstructions = commandInstructions.replace(
@@ -215,6 +231,16 @@ export const buildCompleteCommandPrompt = (
         splittedCommand[1]
       );
   }
+  // else if (command.category === "CUSTOM PROMPTS") {
+  //   const customCommand = getCustomPromptByUid(command.prompt);
+  //   prompt = customCommand.prompt;
+  //   if (customCommand.context)
+  //     customContext = getUnionContext(
+  //       capturedRoamContext,
+  //       customCommand.context
+  //     );
+  // }
+  console.log("commandInstructions :>> ", commandInstructions);
   return commandInstructions;
 };
 
@@ -253,7 +279,7 @@ export const buildResultsContext = (
     contextDescription ||
     `You are analyzing ${results.length} search result(s).`;
 
-  context += `\n\nSEARCH RESULTS DATA:\n`;
+  context += `\n\n`;
 
   // Format results exactly as FullResultsChat does
   const formattedResults = results
@@ -293,14 +319,26 @@ export const buildResultsContext = (
         parts.push(`Children:\n${result.expandedBlock.childrenOutline}`);
       }
 
-      // Timestamps
-      if (result.created) parts.push(`Created: ${result.created}`);
-      if (result.modified) parts.push(`Modified: ${result.modified}`);
+      // Timestamps - show only date, not time
+      if (result.created) {
+        const createdStr = String(result.created)
+          .split(" ")
+          .slice(0, 4)
+          .join(" ");
+        parts.push(`Created: ${createdStr}`);
+      }
+      if (result.modified) {
+        const modifiedStr = String(result.modified)
+          .split(" ")
+          .slice(0, 4)
+          .join(" ");
+        parts.push(`Modified: ${modifiedStr}`);
+      }
 
       // Only include result if it has at least one displayable field
       if (parts.length === 0) return null;
 
-      return `Result ${index + 1}:\n${parts.join("\n")}`;
+      return /*`Result ${index + 1}:\n */ `${parts.join("\n")}`;
     })
     .filter((r) => r !== null) // Remove empty results
     .join("\n\n---\n\n");

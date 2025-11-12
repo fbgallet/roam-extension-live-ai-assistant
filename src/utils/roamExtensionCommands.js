@@ -25,6 +25,7 @@ import {
   extractNormalizedUidFromRef,
   filterTopLevelBlocks,
   getFirstChildUid,
+  getPageUidByBlockUid,
   resolveReferences,
 } from "./roamAPI";
 import { invokeNLQueryInterpreter } from "../ai/agents/nl-query";
@@ -39,6 +40,7 @@ import {
   getFocusAndSelection,
   getTemplateForPostProcessing,
   handleModifierKeys,
+  getRoamContextFromPrompt,
 } from "../ai/dataExtraction";
 import { flexibleUidRegex, sbParamRegex } from "./regex";
 import { openChatPopup } from "../components/full-results-popup";
@@ -275,7 +277,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       \nParameters:
       \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
       \n2: context or content to apply the prompt to (text | block ref | {current} | {children} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
-      \n3: target block reference | {replace[-]} | {append} (default: first child)
+      \n3: target block reference | {replace[-]} | {append} | {chat} (default: first child)
       \n4: model (model ID or void string or "default" for default Live AI model)
       \n5: levels within the refs/log to include in the context (number, default fixed in settings)
       \n6: includes all block references in context (true/false, default: false)`,
@@ -296,6 +298,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           stringifiedContext,
           instantModel,
           toAppend,
+          shouldOpenChat,
+          roamContext,
         } = await getInfosFromSmartBlockParams({
           sbContext,
           prompt,
@@ -305,6 +309,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           contextDepth,
           includeRefs,
         });
+
+        // If target is {chat}, open chat popup with auto-execution
+        if (shouldOpenChat) {
+          await openChatPopup({
+            conversationHistory: [
+              { role: "user", content: stringifiedPrompt }
+            ],
+            model: instantModel || model,
+            rootUid: sbContext.currentUid,
+            roamContext: roamContext,
+            viewMode: roamContext && Object.keys(roamContext).length > 0 ? "both" : "chat-only",
+            commandPrompt: "prompt", // Use "prompt" to trigger auto-execution without additional command processing
+          });
+          return [toAppend];
+        }
 
         insertCompletion({
           systemPrompt: await getStylePrompt(defaultStyle),
@@ -542,6 +561,7 @@ const getInfosFromSmartBlockParams = async ({
   let toAppend = "";
   let targetUid;
   let isContentToReplace = false;
+  let shouldOpenChat = false;
 
   let stringifiedPrompt = "";
   if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
@@ -569,18 +589,11 @@ const getInfosFromSmartBlockParams = async ({
   } else stringifiedPrompt = resolveReferences(prompt);
   prompt = stringifiedPrompt;
 
-  context =
-    context === "{current}"
-      ? currentBlockContent
-      : await getContextFromSbCommand(
-          context,
-          currentUid,
-          selectionUids,
-          contextDepth,
-          includeRefs,
-          model
-        );
+  // Store context for potential chat opening
+  let roamContext = null;
+  let stringifiedContext = null;
 
+  // Check early if we need to open chat to parse context differently
   if ((!target && !currentBlockContent.trim()) || target === "{current}") {
     target = "{replace}";
   }
@@ -590,33 +603,93 @@ const getInfosFromSmartBlockParams = async ({
     target = "{append}";
   }
 
-  switch (target) {
-    case "{replace}":
-    case "{replace-}":
-      isContentToReplace = true;
-      simulateClick(document.querySelector(".roam-body-main"));
-    case "{append}":
-      targetUid = currentUid;
-      break;
-    default:
-      const uid = target ? extractNormalizedUidFromRef(target.trim()) : "";
-      targetUid = uid || (await createChildBlock(currentUid, assistantRole));
+  // Check if target is {chat}
+  if (target === "{chat}") {
+    shouldOpenChat = true;
+    // Build RoamContext from the context parameter if provided
+    if (context && context !== "{current}") {
+      // Parse context to extract RoamContext object
+      if (sbParamRegex.test(context.trim())) {
+        const contextParam = context.trim().slice(1, -1);
+        const contextObj = getRoamContextFromPrompt(
+          `((context: ${contextParam}))`,
+          false,
+          currentUid
+        );
+        if (contextObj && contextObj.roamContext) {
+          roamContext = contextObj.roamContext;
+          // Add pageViewUid if page context is used
+          if (roamContext.page) {
+            roamContext.pageViewUid = getPageUidByBlockUid(currentUid);
+          }
+        } else {
+          // Fallback: try to parse as block references
+          const splittedContext = contextParam.split("+");
+          roamContext = {
+            block: true,
+            blockArgument: [],
+          };
+          splittedContext.forEach((item) => {
+            const uid = extractNormalizedUidFromRef(item);
+            if (uid) roamContext.blockArgument.push(uid);
+          });
+          // If no valid UIDs found, set roamContext to null
+          if (roamContext.blockArgument.length === 0) {
+            roamContext = null;
+          }
+        }
+      }
+    }
+  } else {
+    // Process context parameter for non-chat targets
+    if (context) {
+      stringifiedContext =
+        context === "{current}"
+          ? currentBlockContent
+          : await getContextFromSbCommand(
+              context,
+              currentUid,
+              selectionUids,
+              contextDepth,
+              includeRefs,
+              model
+            );
+    }
   }
-  if (isContentToReplace) {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    await window.roamAlphaAPI.updateBlock({
-      block: {
-        uid: targetUid,
-        string: target === "{replace-}" ? "" : assistantRole,
-      },
-    });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+
+  if (!shouldOpenChat) {
+    // Original target handling for non-chat targets
+    switch (target) {
+      case "{replace}":
+      case "{replace-}":
+        isContentToReplace = true;
+        simulateClick(document.querySelector(".roam-body-main"));
+      case "{append}":
+        targetUid = currentUid;
+        break;
+      default:
+        const uid = target ? extractNormalizedUidFromRef(target.trim()) : "";
+        targetUid = uid || (await createChildBlock(currentUid, assistantRole));
+    }
+    if (isContentToReplace) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await window.roamAlphaAPI.updateBlock({
+        block: {
+          uid: targetUid,
+          string: target === "{replace-}" ? "" : assistantRole,
+        },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
   }
+
   return {
     stringifiedPrompt: prompt,
     targetUid,
-    stringifiedContext: context,
+    stringifiedContext,
     instantModel: model,
     toAppend,
+    shouldOpenChat,
+    roamContext,
   };
 };

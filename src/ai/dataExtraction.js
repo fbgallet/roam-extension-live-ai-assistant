@@ -857,7 +857,7 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
   prompt = prompt.replace("ref", "linkedRefs").replace("DNPs", "logPages");
   options = options.replace("ref", "linkedRefs").replace("DNPs", "logPages");
   // console.log("command :>> ", command);
-  console.log("options :>> ", options);
+
   elts.forEach((elt) => {
     if (options.includes(elt)) {
       roamContext[elt] = true;
@@ -870,7 +870,7 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
       hasContext = true;
     }
   });
-  console.log("roamContext from prompt:>> ", roamContext);
+
   if (hasContext)
     return {
       roamContext: roamContext,
@@ -888,16 +888,13 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
 
 const getArgumentFromOption = (prompt, options, optionName, roamContext) => {
   if (options.includes(`${optionName}(`)) {
-    console.log("prompt :>> ", prompt);
-    console.log("optionName :>> ", optionName);
     if (optionName === "block")
       prompt = prompt.replaceAll("((", "").replaceAll("))", "");
     let argument = prompt.split(`${optionName}(`)[1].split(")")[0];
-    console.log("prompt :>> ", prompt);
-    console.log("argument :>> ", argument);
+
     const args = [];
     const splittedArgument = argument.split("+");
-    console.log("splittedArgument :>> ", splittedArgument);
+
     optionName !== "logPages" &&
       splittedArgument.forEach((arg) => {
         switch (optionName) {
@@ -1109,7 +1106,7 @@ export const getCustomPromptByUid = (uid) => {
       withDash: true,
       isParentToIgnore: true,
     }) + "\n";
-  console.log("prompt in getCustomPromp: ", prompt);
+
   const inlineContext = getRoamContextFromPrompt(prompt);
   if (inlineContext) prompt = inlineContext.updatedPrompt;
   if (prompt.toLowerCase().includes("<built-in:")) {

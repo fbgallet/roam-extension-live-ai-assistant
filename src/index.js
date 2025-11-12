@@ -35,6 +35,7 @@ import {
 import { getValidLanguageCode } from "./ai/languagesSupport";
 import {
   getArrayFromList,
+  getCustomStyles,
   getFlattenedContentFromTree,
   getMaxDephObjectFromList,
   getOrderedCustomPromptBlocks,
@@ -1487,7 +1488,8 @@ export default {
       );
     }
     chatRoles = getRolesFromString(chatRolesStr, defaultModel);
-    customStyles = getOrderedCustomPromptBlocks("liveai/style");
+
+    customStyles = getCustomStyles();
 
     updateAvailableModels();
     // console.log("availableModels :>> ", availableModels);

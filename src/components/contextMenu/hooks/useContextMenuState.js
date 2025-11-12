@@ -4,10 +4,8 @@ import {
   defaultStyle,
   includeChildrenByDefault,
   logPagesNbDefault,
-  defaultModel,
 } from "../../..";
 import { BUILTIN_COMMANDS } from "../../../ai/prebuildCommands";
-import { mcpManager } from "../../../ai/agents/mcp-agent/mcpManager";
 
 const voidRoamContext = {
   linkedRefs: false,

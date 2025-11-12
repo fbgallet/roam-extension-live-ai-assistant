@@ -443,12 +443,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           isOpen={isCommandSuggestOpen ? false : undefined}
           content={
             <p>
-              Apply built-in or custom prompt
+              Use built-in or custom prompt
               <br />
-              - on user input below or, if none,
-              <br />
-              - on selected context or, if none,
-              <br />- on conversation history
+              or apply it to user input below
             </p>
           }
         >

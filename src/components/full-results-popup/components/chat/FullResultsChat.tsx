@@ -33,7 +33,11 @@ import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
 import { ChatInputArea } from "./ChatInputArea";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
-import { getOrderedCustomPromptBlocks } from "../../../../ai/dataExtraction";
+import {
+  getCustomPromptByUid,
+  getCustomStyles,
+} from "../../../../ai/dataExtraction";
+import { loadResultsFromRoamContext } from "../../utils/roamContextLoader";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -127,7 +131,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Restore from persisted state if available
     // Make sure to clean the title (remove #liveai/chat tag if present)
     const persistedTitle = (window as any).lastLoadedChatTitle;
-    return persistedTitle ? persistedTitle.replace(/#liveai\/chat/g, "").trim() : null;
+    return persistedTitle
+      ? persistedTitle.replace(/#liveai\/chat/g, "").trim()
+      : null;
   });
   const [loadedChatUid, setLoadedChatUid] = useState<string | null>(() => {
     // Restore from persisted state if available
@@ -171,16 +177,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Get custom style titles
   const customStyleTitles = useMemo(() => {
-    try {
-      if (typeof getOrderedCustomPromptBlocks === "function") {
-        return getOrderedCustomPromptBlocks("liveai/style").map(
-          (custom: any) => custom.content
-        );
-      }
-    } catch (error) {
-      console.warn("Failed to load custom styles:", error);
-    }
-    return [];
+    return getCustomStyles().map((custom: any) => custom.title);
   }, []);
 
   // Track command context for auto-execution
@@ -192,10 +189,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Track the number of initial messages loaded from Roam
   // This helps us exclude them when inserting the conversation back
   // Using state instead of ref so ChatHeader can display the updated count
-  const [insertedMessagesCount, setInsertedMessagesCount] = useState<number>(() => {
-    // Restore from persisted state if available
-    return (window as any).lastInsertedMessagesCount || 0;
-  });
+  const [insertedMessagesCount, setInsertedMessagesCount] = useState<number>(
+    () => {
+      // Restore from persisted state if available
+      return (window as any).lastInsertedMessagesCount || 0;
+    }
+  );
   const hasAutoExecutedRef = useRef(false); // Prevent double execution
 
   // Initialize chat from provided initial state
@@ -238,9 +237,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
 
     // Initialize command context if provided
-    let commandName: string;
+    let commandName: string | undefined = undefined;
     if (initialCommandPrompt || initialCommandId || initialStyle) {
-      // Get command name from BUILTIN_COMMANDS
+      // Get command name from BUILTIN_COMMANDS if initialCommandId is provided
       if (initialCommandId) {
         const command = BUILTIN_COMMANDS.find(
           (cmd) => cmd.id === initialCommandId
@@ -248,13 +247,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         if (command) {
           commandName = command.name;
         }
-
-        setCommandContext({
-          commandPrompt: initialCommandPrompt,
-          commandName,
-        });
       }
-    } else {
+
+      // Set command context regardless of whether we have a commandId
       setCommandContext({
         commandPrompt: initialCommandPrompt,
         commandName,
@@ -284,6 +279,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const lastMessage = chatMessages[chatMessages.length - 1];
       if (lastMessage.role !== "user") return;
 
+      // If not in chat-only mode, wait for results to be loaded before auto-executing
+      // This ensures context is available when the AI processes the message
+      if (!chatOnlyMode && allResults.length === 0 && paginatedResults.length === 0) {
+        return;
+      }
+
+      // Mark as executed BEFORE starting to prevent duplicate executions
       hasAutoExecutedRef.current = true;
 
       // Update the last message to include command info if it doesn't have it yet
@@ -308,6 +310,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       try {
         const contextResults = getSelectedResultsForChat();
+
         if (commandContext?.commandPrompt === "prompt") {
           await processChatMessage(
             lastMessage.content,
@@ -347,9 +350,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     };
 
     if (isOpen && commandContext) {
-      autoExecuteCommand();
+      // Only auto-execute if we have messages and (no context required OR context is loaded)
+      if (chatMessages.length > 0) {
+        // If roamContext was provided, wait for allResults to be populated
+        // Otherwise execute immediately
+        autoExecuteCommand();
+      }
     }
-  }, [isOpen, commandContext, chatMessages]);
+  }, [isOpen, commandContext, chatMessages, allResults]);
 
   // Track if chat was previously closed to detect when it opens
   const prevIsOpenRef = useRef(isOpen);
@@ -986,7 +994,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       (window as any).lastInsertedMessagesCount = insertedMessagesCount;
       (window as any).lastChatModel = selectedModel;
     }
-  }, [loadedChatUid, loadedChatTitle, insertedMessagesCount, selectedModel, chatMessages]);
+  }, [
+    loadedChatUid,
+    loadedChatTitle,
+    insertedMessagesCount,
+    selectedModel,
+    chatMessages,
+  ]);
 
   const getSelectedResultsForChat = () => {
     // Create copies to prevent mutation of shared objects from parent component
@@ -1075,7 +1089,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           });
           // Set the title from the first message content (without the tag)
           setLoadedChatUid(targetRef.current);
-          setLoadedChatTitle(firstMsg?.content?.replace(/#liveai\/chat/g, "").trim() || "");
+          setLoadedChatTitle(
+            firstMsg?.content?.replace(/#liveai\/chat/g, "").trim() || ""
+          );
         } else {
           // Create a summary of the conversation for the LLM (first 50 chars of each message)
           const conversationSummary = newMessages
@@ -1124,9 +1140,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         let fullContent = "";
         if (shouldShowCommandName) {
-          fullContent = msg.content
-            ? `**[${msg.commandName}]**\n\n${msg.content}`
+          // Check if commandPrompt is a UID (custom prompt) or a built-in command key
+          // Custom prompts have UIDs (9 characters), built-in commands have keys like "summarize"
+          const isCustomPrompt =
+            msg.commandPrompt && msg.commandPrompt.length === 9;
+          const commandDisplay = isCustomPrompt
+            ? `**[((${msg.commandPrompt}))]**`
             : `**[${msg.commandName}]**`;
+
+          fullContent = msg.content
+            ? `${commandDisplay}\n\n${msg.content}`
+            : commandDisplay;
         } else {
           fullContent = msg.content || "";
         }
@@ -1183,16 +1207,19 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Find the corresponding user message (should be the one before the assistant message)
     const userMessageIndex = messageIndex - 1;
 
-    if (userMessageIndex >= 0 && chatMessages[userMessageIndex]?.role === "user") {
+    if (
+      userMessageIndex >= 0 &&
+      chatMessages[userMessageIndex]?.role === "user"
+    ) {
       // Delete both user and assistant messages
       setChatMessages((prev) =>
-        prev.filter((_, idx) => idx !== userMessageIndex && idx !== messageIndex)
+        prev.filter(
+          (_, idx) => idx !== userMessageIndex && idx !== messageIndex
+        )
       );
     } else {
       // Just delete the assistant message if user message not found
-      setChatMessages((prev) =>
-        prev.filter((_, idx) => idx !== messageIndex)
-      );
+      setChatMessages((prev) => prev.filter((_, idx) => idx !== messageIndex));
     }
   };
 
@@ -1200,7 +1227,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Find the user message that triggered this assistant response
     const userMessageIndex = messageIndex - 1;
 
-    if (userMessageIndex < 0 || chatMessages[userMessageIndex]?.role !== "user") {
+    if (
+      userMessageIndex < 0 ||
+      chatMessages[userMessageIndex]?.role !== "user"
+    ) {
       AppToaster.show({
         message: "Cannot retry: user message not found",
         intent: "warning",
@@ -1259,7 +1289,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       console.error("Retry error:", error);
       const errorMessage: ChatMessage = {
         role: "assistant",
-        content: "Sorry, I encountered an error while retrying. Please try again.",
+        content:
+          "Sorry, I encountered an error while retrying. Please try again.",
         timestamp: new Date(),
       };
       setChatMessages((prev) => [...prev, errorMessage]);
@@ -1282,9 +1313,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         let fullContent = "";
         if (shouldShowCommandName) {
-          fullContent = msg.content
-            ? `**[${msg.commandName}]**\n\n${msg.content}`
+          // Check if commandPrompt is a UID (custom prompt) or a built-in command key
+          // Custom prompts have UIDs (9 characters), built-in commands have keys like "summarize"
+          const isCustomPrompt =
+            msg.commandPrompt && msg.commandPrompt.length === 9;
+          const commandDisplay = isCustomPrompt
+            ? `**[((${msg.commandPrompt}))]**`
             : `**[${msg.commandName}]**`;
+
+          fullContent = msg.content
+            ? `${commandDisplay}\n\n${msg.content}`
+            : commandDisplay;
         } else {
           fullContent = msg.content;
         }
@@ -1423,13 +1462,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     isFromSlashCommand: boolean = false,
     instantModel: string = ""
   ) => {
-    console.log(
-      "🎯 Command selected:",
-      command,
-      "fromSlash:",
-      isFromSlashCommand
-    );
-
     if (isTyping) {
       console.warn("⚠️ Cannot execute command while agent is responding");
       return;
@@ -1662,7 +1694,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Use conversation history from previous agent turn (if available)
       // This preserves commandPrompt instructions and other context added by the agent
       // Only rebuild from chatMessages if no agent data exists (first turn)
-      const currentConversationHistory = chatAgentData?.conversationHistory ||
+      const currentConversationHistory =
+        chatAgentData?.conversationHistory ||
         chatMessages.map((msg) => {
           const role = msg.role === "user" ? "User" : "Assistant";
           return `${role}: ${msg.content}`;
@@ -1943,11 +1976,51 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     styleKey?: string
   ) => {
     try {
+      let finalContextResults = contextResults;
+
+      // Load additional context if the custom prompt has inline context definition
+      if (commandPromptKey) {
+        const customPrompt = getCustomPromptByUid(commandPromptKey);
+
+        // If the custom prompt has a roamContext definition, load the corresponding elements
+        if (customPrompt?.context) {
+          try {
+            const { results: additionalResults } =
+              await loadResultsFromRoamContext({
+                roamContext: customPrompt.context,
+                rootUid: undefined, // No root UID to exclude
+              });
+
+            // Merge the additional results with existing context results
+            // Deduplicate by UID
+            const existingUids = new Set(
+              contextResults.map((r) => r.uid).filter(Boolean)
+            );
+            const uniqueAdditionalResults = additionalResults.filter(
+              (r: Result) => r.uid && !existingUids.has(r.uid)
+            );
+
+            finalContextResults = [
+              ...contextResults,
+              ...uniqueAdditionalResults,
+            ];
+
+            // Add the loaded results to the parent component's state so they appear in the UI
+            if (uniqueAdditionalResults.length > 0) {
+              onAddResults(uniqueAdditionalResults);
+            }
+          } catch (error) {
+            console.error("Error loading context from custom prompt:", error);
+            // Continue with original context if loading fails
+          }
+        }
+      }
+
       // Call processChatMessage with command and style parameters
       // The chat agent will handle command prompt loading and application
       await processChatMessage(
         message,
-        contextResults,
+        finalContextResults,
         commandPromptKey,
         commandName,
         commandModel,

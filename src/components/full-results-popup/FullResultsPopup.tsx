@@ -84,7 +84,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   // Side panel mode state with localStorage persistence
   const [isSidePanelMode, setIsSidePanelMode] = useState(() => {
     const saved = localStorage.getItem("fullResultsPopup_sidePanelMode");
-    return saved === "true";
+    return saved !== null ? saved === "true" : true;
   });
 
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {

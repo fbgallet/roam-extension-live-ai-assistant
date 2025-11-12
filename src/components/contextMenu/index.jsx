@@ -13,6 +13,7 @@ import {
   availableModels,
   customStyles,
   defaultModel,
+  defaultStyle,
   extensionStorage,
   menuModifierKey,
 } from "../..";
@@ -180,6 +181,7 @@ export const StandaloneContextMenu = () => {
 
   useEffect(() => {
     if (isOpen) {
+      if (!isPinnedStyle) setStyle(defaultStyle);
       if (rootUid && !isExistingBlock(rootUid)) {
         setRootUid(null);
         toggleOutlinerSelection(null, false);

@@ -92,10 +92,11 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
    - `{page}` or `{page([[title1]]+[[title2]]+...)}`: the current page view in the main window or the specified list of pages between parentheses separated by `+`, title with or without brackets.
    - `{ref}` or `{ref([[title1]]+[[title2]]+...)}` or `{linkedRefs}`: the current page linked references or the linked references of the specified list of pages.
    - `{DNPs(nb)}` or `{logPages(nb)}`: the daily log, with 'nb' for the number of last DNP to include from the current date or the current DNP.
-3. Block reference of the target block (in `uid` or `((uid))` format), where the response will be inserted (Default: new direct child block) or one of the following instruction, only usefull for short response (not parsed in multiple blocks):
+3. Block reference of the target block (in `uid` or `((uid))` format), where the response will be inserted (Default: new direct child block) or one of the following instructions:
    - `{replace}`: replace the current block content, preceded by the assistant name (as defined in role setting)
    - `{replace-}`: replace the current block content, without assistant name, only the response
    - `{append}`: append the response to the current block content
+   - `{chat}`: open the Live AI Chat panel with the prompt and context loaded, and automatically execute the AI response (useful for interactive conversations with context)
 4. AI model to query: exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`. Default: default model defined in extension settings.
 5. Levels within the linked references or DNP to include in the context: number, default fixed in settings.
 6. Insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
@@ -105,6 +106,8 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 `<%LIVEAIGEN:Summarize the content provided in context,{current},{append}%>` => text prompt applied to the current block content, AI response appended to the current block content.
 
 `<%LIVEAIGEN:{((cSoBrilIU))+((Iuq6UTY5C))},[[my last article]],,,4%>` => prompt in the first referenced block (and children) and instructions (for example about the output format) in the second referenced block, will be applied to the content of 'my last article' page and all its linked references (including up to the 4 levels).
+
+`<%LIVEAIGEN:Analyze this content,{children},{chat}%>` => opens the Live AI Chat panel with "Analyze this content" as the prompt, all children blocks as context displayed in the Results panel, and automatically executes the AI response for an interactive conversation.
 
 ### <%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`
 

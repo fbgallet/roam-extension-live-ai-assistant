@@ -142,10 +142,11 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   originalUserMessageForHistory = lastMessage;
 
   let isConversationContextToInclude = lastMessage || resultsContext;
-  if (state.commandPrompt && state.conversationHistory.length) {
+  if (state.commandPrompt) {
     let completedLastMessage = buildCompleteCommandPrompt(
       state.commandPrompt,
-      lastMessage || resultsContext || conversationContext
+      lastMessage,
+      !!resultsContext
     );
     state.messages.pop();
     state.messages.push(new HumanMessage(completedLastMessage));
@@ -234,6 +235,8 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
     return { messages: [...state.messages, new AIMessage(imageLink)] };
   }
+
+  console.log("messages in current chat turn :>> ", messages);
 
   // Bind tools if enabled
   let llm_with_tools = llm;
@@ -665,31 +668,16 @@ const finalize = async (state: typeof ChatAgentState.State) => {
   // Update conversation history
   const newHistory = [...(state.conversationHistory || [])];
 
-  // If a commandPrompt was used in this turn, add the detailed instructions to history
-  // This ensures they persist across turns until summarization
-  if (state.commandPrompt) {
-    // Use the original user message (before it was potentially modified in loadModel)
-    const expandedCommandPrompt = buildCompleteCommandPrompt(
-      state.commandPrompt,
-      originalUserMessageForHistory
-    );
-    if (expandedCommandPrompt) {
-      newHistory.push(
-        `[Built-in or custom instructions for this stored conversation turn]: ${expandedCommandPrompt}`
-      );
-    }
-  }
-
   // Add user message
   const userMessage = state.messages.find(
     (msg) => msg.getType?.() === "human" || msg._getType?.() === "human"
   );
   if (userMessage) {
-    newHistory.push(`User: ${userMessage.content}`);
+    newHistory.push(`\n<User>: ${userMessage.content}`);
   }
 
   // Add assistant response
-  newHistory.push(`Assistant: ${finalAnswer}`);
+  newHistory.push(`\n<Assistant>: ${finalAnswer}`);
 
   return {
     finalAnswer,

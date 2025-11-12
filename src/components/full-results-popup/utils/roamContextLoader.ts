@@ -56,8 +56,6 @@ export const loadResultsFromRoamContext = async ({
   const pageUids: string[] = [];
   const linkedRefUids: string[] = []; // UIDs (pages or blocks) to find linked references for
 
-  console.log("roamContext to load:>> ", roamContext);
-
   try {
     // 1. Extract elements from sidebar if needed
     if (roamContext.sidebar) {
@@ -220,10 +218,10 @@ export const loadResultsFromRoamContext = async ({
       if (blockUid === rootUid && blockUid !== roamContext.pageViewUid)
         continue; // Skip the root block
 
-      const blockData = window.roamAlphaAPI.pull("[*]", [
-        ":block/uid",
-        blockUid,
-      ]);
+      const blockData = window.roamAlphaAPI.pull(
+        "[:block/uid :block/string :block/page {:block/page [:block/uid]} :edit/time :create/time]",
+        [":block/uid", blockUid]
+      );
       if (blockData) {
         const pageUid = blockData[":block/page"]?.[":block/uid"];
         const pageTitle = pageUid ? getPageNameByPageUid(pageUid) : undefined;
