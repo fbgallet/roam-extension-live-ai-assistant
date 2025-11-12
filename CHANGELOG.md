@@ -1,3 +1,40 @@
+## v.22 (November, 2025) Major update, Chat panel & Chat agent
+
+**New features**
+
+- **Chat panel** (left/right/bottom panel, modal or full screen) + switch with Context panel
+- **Chat agent** with tools to handle context, get help, load Skills
+- **Query composer** in Context panel: save/load queries, add pages or blocks, combine multiple queries
+- `Ask Your Graph - Pattern analysis` command and dialog when user is too broad
+- New models supported natively: Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supporting web fetching), gpt-5-search-api
+- Get help about Live AI (and more...) by asking the Chat agent
+
+**Updates**
+- Better support of sequences of queries by Ask Your Graph (using new formal query operator: UNION/INTERSECTION/DIFFERENCE and PIPE)
+- FindDailyNotesByPeriod tool for Ask Your Graph to extract DNPs
+- Added 'Pdf' checkbox in Context menu + .pdf support by OpenRouter models
+- Added 'Chat' as possible target in Context menu
+- blocks/pages embed are now resolved (supported in prompt or context or custom prompt/style)
+- custom style support inline context
+- complete Markdown support in Chat (including tables, images, links...)
+- load chat tagged with `#liveai/chat`, insert current chat in Roam blocks
+- Balanced/Full mode in Chat now adjust their limit to model context window (no arbitrary limit)
+- Results in Context panel: optimized rendering, each item can be removed or replaced by..., sort by selection
+- Better design for Context and Chat popup/panel, better dark themes compatibility
+
+** Fixed **
+- More reliable use of Regex by Ask Your Graph agent
+- "Include Children" option was still not reliable
+- In Chat:
+  - highlighting block/pages in context on hover in chat messages was not reliable
+  - expand/collapse blocks/pages works better    
+- In Context panel (full results view): 
+  - filter by string search or by reference was not working on pages
+- Ask Linked Reference button doesn't appear anymore on Daily log
+- Default style was overriding choosen style
+- When "gpt-5 (non reasoning)" was choosen by default, it was replaced by gpt-5 nano
+- `{replace}` option in smartblocks was not working properly
+
 ## v.21 (September 23th, 2025) Major update of Ask Your Graph agent
 
 **New features**
@@ -315,4 +352,6 @@
 - Reference to focused block to append transcription or use as context was not working
 - Block selection was not taken into account if made after start of recording
 - Default settings were not visible on installation
+
+
 
