@@ -2,6 +2,7 @@
 
 **Updates**
 
+- gpt-5.1 support
 - Grok-4-fast support
 - `addToContext` tool replace `addPages...` and `addLinkedRef...` tools in Chat agent, more flexibile (add blocks, current page, sidebar...)
 - `{chat}` target in LIVEAIGEN SmartBlock command
