@@ -586,7 +586,7 @@ const ModelsMenu = ({
             <>
               {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
               <MenuItem
-                icon={defaultModel === "Grok-3-mini" && "pin"}
+                icon={defaultModel === "Grok-4" && "pin"}
                 onClick={(e) => {
                   handleClickOnModel(e);
                 }}
@@ -595,11 +595,11 @@ const ModelsMenu = ({
                 }}
                 onContextMenu={(e) => handleContextMenu(e)}
                 tabindex="0"
-                text="Grok-3-mini"
+                text="Grok-4"
                 labelElement="128k"
               >
                 <MenuItem
-                  icon={defaultModel === "Grok-3-mini-fast" && "pin"}
+                  icon={defaultModel === "Grok-4-fast-non-reasoning" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -608,11 +608,11 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Grok-3-mini-fast"
-                  labelElement="128k"
+                  text="Grok-4-fast-non-reasoning"
+                  labelElement="2000k"
                 />
                 <MenuItem
-                  icon={defaultModel === "Grok-3-mini-high" && "pin"}
+                  icon={defaultModel === "Grok-4-fast-reasoning" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -621,8 +621,8 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Grok-3-mini-high"
-                  labelElement="128k"
+                  text="Grok-4-fast-reasoning"
+                  labelElement="2000k"
                 />
               </MenuItem>
               <MenuItem
@@ -651,20 +651,47 @@ const ModelsMenu = ({
                   text="Grok-3-fast"
                   labelElement="128k"
                 />
+                <MenuItem
+                  icon={defaultModel === "Grok-3-mini" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-3-mini"
+                  labelElement="128k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Grok-3-mini-fast" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-3-mini-fast"
+                  labelElement="128k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Grok-3-mini-high" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Grok-3-mini-high"
+                  labelElement="128k"
+                />
               </MenuItem>
-              <MenuItem
-                icon={defaultModel === "Grok-4" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="Grok-4"
-                labelElement="128k"
-              />
+
               {!isWebSearch && (
                 <MenuItem
                   icon={defaultModel === "Grok-2 Vision" && "pin"}

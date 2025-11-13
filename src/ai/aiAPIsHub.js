@@ -725,7 +725,11 @@ export function modelAccordingToProvider(model) {
       llm.id = model;
       llm.web = true;
       llm.name = model.charAt(0).toUpperCase() + model.slice(1);
-      if (model.includes("grok-3-mini") || model === "grok-4") {
+      if (
+        model.includes("grok-3-mini") ||
+        model === "grok-4" ||
+        model === "grok-4-fast-reasoning"
+      ) {
         llm.thinking = true;
       }
     }
@@ -1271,7 +1275,8 @@ export async function openaiCompletion({
       if (
         model === "deepseek-reasoner" ||
         model.includes("grok-3-mini") ||
-        model === "grok-4"
+        model === "grok-4" ||
+        model === "grok-4-fast-reasoning"
       ) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
@@ -1299,7 +1304,8 @@ export async function openaiCompletion({
             streamData?.delta?.reasoning_content &&
             (model === "deepseek-reasoner" ||
               model.includes("grok-3-mini") ||
-              model === "grok-4")
+              model === "grok-4" ||
+              model === "grok-4-fast-reasoning")
           )
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
