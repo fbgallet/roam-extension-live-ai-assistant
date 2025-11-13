@@ -83,6 +83,10 @@ export function modelViaLanggraph(
     llmInfos.provider === "groq" ||
     llmInfos.provider === "Grok"
   ) {
+    if (llmInfos.id.includes("gpt-5") && llmInfos.thinking) {
+      options["reasoning"] = { effort: reasoningEffort, summary: "auto" };
+    }
+    console.log("options :>> ", options);
     llm = new ChatOpenAI({
       model: llmInfos.id,
       ...options,

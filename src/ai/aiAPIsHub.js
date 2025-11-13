@@ -1136,6 +1136,7 @@ export async function openaiCompletion({
   content,
   responseFormat = "text",
   targetUid,
+  thinking,
   isButtonToInsert,
   includePdfInContext = false,
 }) {
@@ -1195,11 +1196,12 @@ export async function openaiCompletion({
           : { type: responseFormat };
       isToStream && (options["stream_options"] = { include_usage: true });
     }
+    console.log("model :>> ", model);
+
     if (
       model.includes("o3") ||
       model.includes("o4") ||
-      model === "gpt-5.1 reasoning" ||
-      model === "gpt-5"
+      (model.includes("gpt-5") && thinking)
     ) {
       if (withPdf) options["reasoning"] = { effort: reasoningEffort };
       else options["reasoning_effort"] = reasoningEffort;

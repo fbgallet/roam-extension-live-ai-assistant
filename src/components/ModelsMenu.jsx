@@ -280,7 +280,7 @@ const ModelsMenu = ({
 
               <MenuItem text="'Reasoning' GPT-5 & o models">
                 <MenuItem
-                  icon={defaultModel === "gpt-5-nano" && "pin"}
+                  icon={defaultModel === "gpt-5.1 reasoning" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -289,9 +289,23 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="gpt-5-nano"
+                  text="gpt-5.1 reasoning"
                   labelElement="400k"
                 />
+                <MenuItem
+                  icon={defaultModel === "gpt-5" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="gpt-5"
+                  labelElement="400k"
+                />
+
                 <MenuItem
                   icon={defaultModel === "gpt-5-mini" && "pin"}
                   onClick={(e) => {
@@ -306,7 +320,7 @@ const ModelsMenu = ({
                   labelElement="400k"
                 />
                 <MenuItem
-                  icon={defaultModel === "gpt-5" && "pin"}
+                  icon={defaultModel === "gpt-5-nano" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -315,7 +329,7 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="gpt-5"
+                  text="gpt-5-nano"
                   labelElement="400k"
                 />
                 <MenuItem
