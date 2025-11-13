@@ -11,7 +11,9 @@ export const getAvailableModels = (provider) => {
   switch (provider) {
     case "OpenAI":
       return [
+        "gpt-5.1-chat-latest",
         "gpt-5-chat-latest",
+        "gpt-5.1",
         "gpt-5",
         "gpt-5-mini",
         "gpt-5-nano",
@@ -57,7 +59,9 @@ export const getAvailableModels = (provider) => {
 
 export const tokensLimit = {
   "gpt-5": 400000,
+  "gpt-5.1": 400000,
   "gpt-5-chat-latest": 400000,
+  "gpt-5.1-chat-latest": 400000,
   "gpt-5-mini": 400000,
   "gpt-5-nano": 400000,
   "gpt-5-search-api": 128000,
@@ -108,11 +112,23 @@ export const modelsPricing = {
     input: 0.25,
     output: 2,
   },
+  "gpt-5.1-mini": {
+    input: 0.25,
+    output: 2,
+  },
   "gpt-5": {
     input: 1.25,
     output: 10,
   },
+  "gpt-5.1": {
+    input: 1.25,
+    output: 10,
+  },
   "gpt-5-chat-latest": {
+    input: 1.25,
+    output: 10,
+  },
+  "gpt-5.1-chat-latest": {
     input: 1.25,
     output: 10,
   },

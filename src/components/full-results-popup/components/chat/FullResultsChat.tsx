@@ -281,7 +281,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // If not in chat-only mode, wait for results to be loaded before auto-executing
       // This ensures context is available when the AI processes the message
-      if (!chatOnlyMode && allResults.length === 0 && paginatedResults.length === 0) {
+      if (
+        !chatOnlyMode &&
+        allResults.length === 0 &&
+        paginatedResults.length === 0
+      ) {
         return;
       }
 
@@ -1103,7 +1107,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             })
             .join("\n");
 
-          const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant}" and ending with "#liveai/chat". Be concise and specific.\n\nConversation:\n${conversationSummary}`;
+          const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant}" and ending with "#liveai/chat". Be concise and specific and write in the same language as the one used in the conversation.\n\nConversation:\n${conversationSummary}`;
 
           // Generate title using insertCompletion
           // Type assertion needed because insertCompletion has many optional parameters
@@ -1127,10 +1131,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // For each message: create role block, then parse content as children
       let currentTargetUid = targetRef.current;
       let isFirstMessage = true;
+      const assistantRole = getInstantAssistantRole(selectedModel);
 
       for (const msg of newMessages) {
-        const rolePrefix =
-          msg.role === "user" ? chatRoles.user : chatRoles.assistant;
+        const rolePrefix = msg.role === "user" ? chatRoles.user : assistantRole;
 
         // Build the full content including command name if present
         const shouldShowCommandName =

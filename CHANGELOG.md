@@ -1,4 +1,18 @@
-## v.22 (November, 2025) Major update, Chat panel & Chat agent
+## v.23 (November 13th, 2025) Small fixes
+
+**Updates**
+
+- `{chat}` target in LIVEAIGEN SmartBlock command
+- Custom prompt block reference will be inserted in the chat history if chat is inserted in Roam or copied to clipboard
+- Inline context of custom prompt will be loaded in the Context panel
+
+**Fixed**
+
+- Custom prompts were broken in Chat panel
+- Custom styles were not available in Default style extension settings
+- When inserting a chat in Roam, the default model was always replacing currently used model
+
+## v.22 (November 10th, 2025) Major update, Chat panel & Chat agent
 
 **New features**
 
@@ -10,6 +24,7 @@
 - Get help about Live AI (and more...) by asking the Chat agent
 
 **Updates**
+
 - Better support of sequences of queries by Ask Your Graph (using new formal query operator: UNION/INTERSECTION/DIFFERENCE and PIPE)
 - FindDailyNotesByPeriod tool for Ask Your Graph to extract DNPs
 - Added 'Pdf' checkbox in Context menu + .pdf support by OpenRouter models
@@ -22,13 +37,14 @@
 - Results in Context panel: optimized rendering, each item can be removed or replaced by..., sort by selection
 - Better design for Context and Chat popup/panel, better dark themes compatibility
 
-** Fixed **
+**Fixed**
+
 - More reliable use of Regex by Ask Your Graph agent
 - "Include Children" option was still not reliable
 - In Chat:
   - highlighting block/pages in context on hover in chat messages was not reliable
-  - expand/collapse blocks/pages works better    
-- In Context panel (full results view): 
+  - expand/collapse blocks/pages works better
+- In Context panel (full results view):
   - filter by string search or by reference was not working on pages
 - Ask Linked Reference button doesn't appear anymore on Daily log
 - Default style was overriding choosen style
@@ -352,6 +368,3 @@
 - Reference to focused block to append transcription or use as context was not working
 - Block selection was not taken into account if made after start of recording
 - Default settings were not visible on installation
-
-
-

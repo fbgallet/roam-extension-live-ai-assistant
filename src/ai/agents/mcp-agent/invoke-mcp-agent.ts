@@ -95,7 +95,7 @@ export const invokeMCPAgent = async ({
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
   if (llmInfos.id === "gpt-5-chat-latest")
-    llmInfos = modelAccordingToProvider("gpt-5-mini");
+    llmInfos = modelAccordingToProvider("gpt-5");
   const spinnerId = displaySpinner(rootUid);
 
   displayMCPToast("");
