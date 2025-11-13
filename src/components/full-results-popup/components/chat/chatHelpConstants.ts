@@ -65,7 +65,7 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 - 📝 **Live Outliner**: AI-assisted outlining and content updated/generation
 
 #### **Supported LLM Providers:**
-OpenAI (GPT-4, GPT-5), Anthropic (Claude), Google (Gemini), xAI (Grok), DeepSeek, Ollama (local models), and more!
+OpenAI (GPT-4.1, GPT-5.1), Anthropic (Claude), Google (Gemini), xAI (Grok), DeepSeek, Ollama (local models), and more!
 
 Made made with joy and perseverance by [Fabrice Gallet](https://github.com/sponsors/fbgallet)`;
 

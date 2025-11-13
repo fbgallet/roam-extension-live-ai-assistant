@@ -18,20 +18,15 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.22 (November 2025)
+### 🆕 New in v.22 & v.23 (November 2025)
 
 - **Chat panel** for smooth conversations, can be displayed as a left/right panel or full screen, combined with a rich context panel
-- **Chat agent**, relying on tools to query your graph, handle context, leverage rich instructions and resources with [Live AI Skills](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md) (inspired by Anthropic Agent Skills), chat with help documents...
+- **Chat agent**, relying on tools to query your graph, handle context with natural language, leverage rich instructions and resources with [Live AI Skills](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md) (inspired by Anthropic Agent Skills), chat with help documents...
 - **Query composer** to compose natural language queries, combine them, add specific pages, etc., and save them to reuse them easily, providing a well defined context for Chat
 - Ask Your Graph agent support now **sequences of queries** to better handle complexe queries and better handling of DNPs and attributes
 - 'Ask Your Graph - Pattern analysis' command for quick overview of all pages in your graph or recent pages or Daily notes
-- New models supported natively: Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supporting web fetching), gpt-5-search-api
+- New models supported natively: GPT-5.1, Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supporting web fetching), gpt-5-search-api, Grok-4-fast
 - Added 'Pdf' checkbox in Context menu
-
-> [!NOTE]
-> New OpenAI **GPT-5** model is by default a reasoning model and is quite slow, way slower than previous OpenAI non-reasoning models.
-> The reasoning effort is set by default to "low" to make it more responsive; you can change this setting in the settings menu. Setting it to "minimal" will give it a reaction time close to a non-reasoning model.
-> A non-reasoning version of GPT-5 is also available for more reactive generative AI use (but it will be automatically replaced by GPT-5 for agent, being not compatible with tools call)
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

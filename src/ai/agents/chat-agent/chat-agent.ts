@@ -241,13 +241,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   // Bind tools if enabled
   let llm_with_tools = llm;
   if (state.enabledTools) {
-    if (llm.id === "gpt-5-chat-latest") {
-      const toolGptModel = modelViaLanggraph(
-        modelAccordingToProvider("gpt-5"),
-        turnTokensUsage
-      );
-      llm_with_tools = toolGptModel.bindTools(state.chatTools);
-    } else llm_with_tools = llm.bindTools(state.chatTools);
+    llm_with_tools = llm.bindTools(state.chatTools);
   }
 
   // Streaming setup

@@ -1299,9 +1299,11 @@ export default {
     voiceInstructions = extensionAPI.settings.get("voiceInstructions");
     if (
       extensionAPI.settings.get("defaultModel") === null ||
-      extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo"
+      extensionAPI.settings.get("defaultModel") === "gpt-3.5-turbo" ||
+      extensionAPI.settings.get("defaultModel") === "gpt-5 (not reasoning)" ||
+      extensionAPI.settings.get("defaultModel") === "gpt-5-chat-latest"
     )
-      await extensionAPI.settings.set("defaultModel", "gpt-4.1-mini");
+      await extensionAPI.settings.set("defaultModel", "gpt-5.1");
     if (extensionAPI.settings.get("defaultModel").includes("Sonnet 3.7"))
       await extensionAPI.settings.set(
         "defaultModel",

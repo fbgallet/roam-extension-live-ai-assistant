@@ -122,8 +122,7 @@ const invokeSearchAgentInternal = async ({
   const abortController = new AbortController();
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
-  if (llmInfos.id === "gpt-5-chat-latest")
-    llmInfos = modelAccordingToProvider("gpt-5");
+
   const spinnerId = displaySpinner(rootUid);
 
   // Initialize toaster for progress tracking with stop functionality
@@ -370,7 +369,8 @@ const invokeSearchAgentInternal = async ({
     // Check if the graph was interrupted (user needs to provide input)
     // Note: Don't treat forcePopupOnly mode as an interrupt - it's a valid completion state
     // In forcePopupOnly mode, targetUid may be null (results go to popup, not Roam), so check agentData
-    const isForcePopupOnlyMode = agentData?.forcePopupOnly || conversationData?.forcePopupOnly;
+    const isForcePopupOnlyMode =
+      agentData?.forcePopupOnly || conversationData?.forcePopupOnly;
     if (
       (response as any).pendingExpansion ||
       (response as any).pendingPrivacyEscalation ||
@@ -712,7 +712,8 @@ const invokeSearchAgentInternal = async ({
                 );
 
                 // Check if this strategy requires content access and user doesn't have it
-                const hasContentAccess = state.permissions?.contentAccess || false;
+                const hasContentAccess =
+                  state.permissions?.contentAccess || false;
                 const needsContentAccess =
                   queryConfig.constraints?.requiresAnalysis ||
                   queryConfig.constraints?.needsContentExpansion;
@@ -762,19 +763,27 @@ const invokeSearchAgentInternal = async ({
 
                       try {
                         // Resume graph execution with the updated state
-                        const finalResponse = await ReactSearchAgent.invoke(state, {
-                          recursionLimit: 50,
-                          streamMode: "values",
-                        });
+                        const finalResponse = await ReactSearchAgent.invoke(
+                          state,
+                          {
+                            recursionLimit: 50,
+                            streamMode: "values",
+                          }
+                        );
 
                         // Clean up global state
                         delete (window as any).currentSearchAgentState;
 
                         // Process the final response and resolve with its result
-                        const result = await processAgentResponse(finalResponse);
+                        const result = await processAgentResponse(
+                          finalResponse
+                        );
                         resolve(result);
                       } catch (error) {
-                        console.error("❌ [Graph] Error resuming after privacy change:", error);
+                        console.error(
+                          "❌ [Graph] Error resuming after privacy change:",
+                          error
+                        );
                         reject(error);
                       }
                     },
@@ -830,7 +839,10 @@ const invokeSearchAgentInternal = async ({
           ];
           window.addEventListener("agentExpansion", expansionEventListener);
           window.addEventListener("agentPrivacyMode", privacyModeEventListener);
-          window.addEventListener("agentScopeSelection", scopeSelectionEventListener);
+          window.addEventListener(
+            "agentScopeSelection",
+            scopeSelectionEventListener
+          );
 
           // Store the expansion listener reference for later cleanup
           (window as any)._currentExpansionListener = expansionEventListener;
@@ -893,9 +905,7 @@ const invokeSearchAgentInternal = async ({
                 "abort",
                 abortListener
               );
-            reject(
-              new Error("User input timeout - no scope/mode choice made")
-            );
+            reject(new Error("User input timeout - no scope/mode choice made"));
           }, 300000); // 5 minutes timeout
         }
       });

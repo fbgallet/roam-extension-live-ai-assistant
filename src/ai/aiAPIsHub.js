@@ -745,7 +745,8 @@ export function modelAccordingToProvider(model) {
       model.startsWith("o") ||
       (model.includes("gpt-5") &&
         !model.includes("chat") &&
-        !model.includes("search"))
+        !model.includes("search") &&
+        model !== "gpt-5.1")
     ) {
       llm.thinking = true;
     }
@@ -758,13 +759,9 @@ export function modelAccordingToProvider(model) {
       } else if (!model.includes("gpt-5")) {
         llm.id = model + "-preview";
       }
-    } else if (
-      model === "gpt-5-chat-latest" ||
-      model === "gpt-5 (not reasoning)"
-    ) {
-      llm.id = "gpt-5-chat-latest";
-      llm.name = "gpt-5 (not reasoning)";
-      llm.thinking = false;
+    } else if (model === "gpt-5.1 reasoning") {
+      llm.id = "gpt-5.1";
+      llm.name = "gpt-5.1 reasoning";
     } else llm.id = model || "gpt-4.1-mini";
     llm.library = openaiLibrary;
   }
@@ -1201,9 +1198,8 @@ export async function openaiCompletion({
     if (
       model.includes("o3") ||
       model.includes("o4") ||
-      (model.includes("gpt-5") &&
-        model !== "gpt-5-chat-latest" &&
-        model !== "gpt-5-search-api")
+      model === "gpt-5.1 reasoning" ||
+      model === "gpt-5"
     ) {
       if (withPdf) options["reasoning"] = { effort: reasoningEffort };
       else options["reasoning_effort"] = reasoningEffort;

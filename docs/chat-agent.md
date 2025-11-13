@@ -170,29 +170,35 @@ The chat integrates seamlessly with the Results Panel and Query Manager:
 
 When agent mode is enabled, you can select which tools the agent can use. Each tool serves a specific purpose:
 
-### `add_pages_by_title`
+### `add_to_context` ⭐ Primary Tool
 
-**Purpose**: Add one or more pages to the chat context by their titles
+**Purpose**: Universal tool for adding Roam content to the chat context
+
+**Capabilities**:
+- Add pages by title or current/main page
+- Add blocks by UID, focused block, or sidebar content
+- Add linked references for pages
+- Add recent daily notes (e.g., last 7 days)
+- Language-agnostic: understands "current page", "page actuelle", "このページ", etc.
+
 **Use when**:
+- User mentions page titles: "Tell me about [[Project Planning]]"
+- User refers to current context: "Summarize the current page"
+- User asks about linked references: "What references [[Machine Learning]]?"
+- User wants sidebar content: "Analyze the blocks in my sidebar"
+- User asks about recent notes: "What did I work on last week?"
 
-- User mentions page titles in their questions
-- Need to load page content into conversation
-- Exploring specific pages or topics
+**Smart resolution**:
+- Detects Daily Notes view and prompts for time period
+- Handles blocks, pages, and linked references appropriately
+- Uses the existing roamContextLoader for consistent behavior
 
-**Options**: Can include first-level child blocks
-
-**Example**: "Tell me about my [[Project Planning]] page"
-
-### `add_linked_references_by_title`
-
-**Purpose**: Add all blocks that reference a given page
-**Use when**:
-
-- Need to see what mentions or links to a page
-- Analyzing connections and relationships
-- Finding all usages of a concept
-
-**Example**: "Show me all blocks that reference [[Machine Learning]]"
+**Examples**:
+- "Add the Project Planning page to context"
+- "Load the current page" (automatically detects which page is open)
+- "Show me the focused block"
+- "Add everything from my sidebar"
+- "Include the last 7 days of daily notes"
 
 ### `select_results_by_criteria`
 
@@ -211,22 +217,40 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 
 **Example**: "Select only the blocks from last week that mention tasks"
 
-### `ask_your_graph`
+### `ask_your_graph` ⚡ Heavy Tool
 
-**Purpose**: Execute complex natural language queries
+**Purpose**: Execute complex natural language queries using the full search agent
+
+**Status**: **Disabled by default** - Must be explicitly enabled in tools menu due to token/time cost
+
 **Capabilities**:
-
 - Pattern matching with wildcards
 - Semantic search (`~word` finds similar concepts)
 - Fuzzy search (`word*` finds variations)
 - Boolean logic (AND `+`, OR `|`, NOT `-`)
 - Date ranges and filters
 - Advanced Roam query syntax
+- Graph-wide pattern analysis
 
-**Use when**: User asks genuinely complex questions requiring search
-**Prefer other tools** for simple page/reference lookups
+**Use when**:
+- Complex multi-condition queries
+- Pattern-based searches across the entire graph
+- Semantic queries requiring concept expansion
+- Temporal queries with date ranges
+- When `add_to_context` is insufficient
 
-**Example**: "Find all meeting notes from last month that mention budget -personal"
+**Avoid for**:
+- Simple page lookups (use `add_to_context` instead)
+- Simple linked references (use `add_to_context` instead)
+- Basic questions answerable from general knowledge
+
+**Cost**: ⚡ May take several seconds and use significant tokens
+
+**Examples**:
+- "Find all meeting notes from last month that mention budget -personal"
+- "Blocks containing TODO items from last week"
+- "Pages about project management with recent updates"
+- "What are the main themes in my graph?" (with metadataOnly mode)
 
 ### `get_help`
 
@@ -265,6 +289,21 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 - For faster responses: disable tools when not needed
 - For brief chats without graph access: turn off tools entirely
 
+### Tool Defaults
+
+By default, the following tool configuration is applied:
+
+**Enabled by default**:
+- `add_to_context` - Primary tool for loading context
+- `select_results_by_criteria` - Result filtering
+- `get_help` - Extension documentation
+- `live_ai_skills` - Specialized workflows
+
+**Disabled by default**:
+- `ask_your_graph` ⚡ - Heavy operation, must be explicitly enabled
+
+You can customize which tools are enabled via the tools menu (wrench icon). Your preferences are saved across sessions.
+
 ---
 
 ## Context Management
@@ -288,9 +327,10 @@ The agent can enrich context on-the-fly:
 
 **Tool-based loading** (if tools are enabled):
 
-- Agent automatically loads pages when needed for answering
-- Fetches linked references when analyzing connections
-- Executes queries to find relevant information
+- Agent automatically uses `add_to_context` to load pages, blocks, and references
+- Understands contextual references like "current page", "focused block", "sidebar"
+- Can load daily notes for temporal analysis
+- Executes complex queries when simple tools are insufficient (if `ask_your_graph` is enabled)
 
 **Context View**:
 
@@ -454,9 +494,14 @@ When the agent uses tools, they're displayed in the conversation:
 2. **Be specific** about what you need
    - "Load the Project Planning page" => clear tool usage
    - "Tell me about planning" => agent must infer
+   - "Add the current page" => agent understands contextual references
 3. **Monitor tool usage** in the conversation
    - See what the agent is doing
    - Adjust your questions if needed
+4. **Enable `ask_your_graph` only when needed**
+   - Keep it disabled for normal conversations
+   - Enable it when you need complex graph-wide searches
+   - Disable after use to save tokens
 
 ### For Complex Tasks
 

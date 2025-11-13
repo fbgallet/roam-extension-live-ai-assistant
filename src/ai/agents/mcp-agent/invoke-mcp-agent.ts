@@ -94,8 +94,7 @@ export const invokeMCPAgent = async ({
   console.log("🚀 Starting invokeMCPAgent with roamContext:", roamContext);
 
   let llmInfos: LlmInfos = modelAccordingToProvider(model);
-  if (llmInfos.id === "gpt-5-chat-latest")
-    llmInfos = modelAccordingToProvider("gpt-5");
+
   const spinnerId = displaySpinner(rootUid);
 
   displayMCPToast("");
