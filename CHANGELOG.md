@@ -2,9 +2,8 @@
 
 **Updates**
 
-- gpt-5.1 support
-- Grok-4-fast support
-- `addToContext` tool replace `addPages...` and `addLinkedRef...` tools in Chat agent, more flexibile (add blocks, current page, sidebar...)
+- GPT-5.1 and Grok-4-fast support
+- `addToContext` tool replace `addPages...` and `addLinkedRef...` tools in Chat agent (support add blocks by ref, current page, sidebar...)
 - `{chat}` target in LIVEAIGEN SmartBlock command
 - Custom prompt block reference will be inserted in the chat history if chat is inserted in Roam or copied to clipboard
 - Inline context of custom prompt will be loaded in the Context panel
