@@ -199,6 +199,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
       {availableTools.map(([toolName, toolInfo]) => {
         const isExpanded = expandedDescriptions.has(toolName);
         const isGetHelpTool = toolName === "get_help";
+        const isAskYourGraph = toolName === "ask_your_graph";
 
         return (
           <React.Fragment key={toolName}>
@@ -220,6 +221,20 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                     <span style={{ marginLeft: "6px" }}>
                       {formatToolName(toolName)}
                     </span>
+                    {isAskYourGraph && (
+                      <Tooltip
+                        content="Heavy operation: May take several seconds and use significant tokens"
+                        hoverOpenDelay={300}
+                      >
+                        <Tag
+                          minimal
+                          intent="warning"
+                          style={{ marginLeft: "8px", fontSize: "10px" }}
+                        >
+                          ⚡ Heavy
+                        </Tag>
+                      </Tooltip>
+                    )}
                   </div>
                   <div
                     className={`chat-tool-description ${

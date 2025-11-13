@@ -869,13 +869,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       return new Set(storedTools);
     }
 
-    // Initialize with all tools enabled by default
+    // Initialize with all tools enabled by default, except ask_your_graph
     const allTools = new Set<string>();
     Object.keys(
       require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry")
         .CHAT_TOOLS
     ).forEach((toolName) => {
-      allTools.add(toolName);
+      // Disable ask_your_graph by default (it's heavy and requires confirmation)
+      if (toolName !== "ask_your_graph") {
+        allTools.add(toolName);
+      }
     });
 
     // Also enable all skills by default

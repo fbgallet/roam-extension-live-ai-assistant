@@ -11,6 +11,8 @@ import { z } from "zod";
 import {
   getPageUidByPageName,
   getOrderedDirectChildren,
+  getMainPageUid,
+  getPageNameByPageUid,
 } from "../../../../utils/roamAPI";
 import { Result } from "../../../../components/full-results-popup/types/types";
 
@@ -19,10 +21,11 @@ export const addPagesByTitleTool = tool(
     input: {
       page_titles: string[];
       include_children?: boolean;
+      use_current_page?: boolean;
     },
     config
   ) => {
-    const { page_titles, include_children = false } = input;
+    const { page_titles, include_children = false, use_current_page = false } = input;
 
     // Get current context and callback from config
     const currentContext = config?.configurable?.currentResultsContext || [];
@@ -41,6 +44,32 @@ export const addPagesByTitleTool = tool(
     const alreadyInContext: string[] = [];
     const notFound: string[] = [];
 
+    // If use_current_page is true, add the current/main page
+    if (use_current_page) {
+      try {
+        const currentPageUid = await getMainPageUid();
+        if (currentPageUid) {
+          const currentPageTitle = getPageNameByPageUid(currentPageUid);
+          if (currentPageTitle) {
+            if (existingPageUids.has(currentPageUid)) {
+              alreadyInContext.push(currentPageTitle);
+            } else {
+              pagesToAdd.push({ title: currentPageTitle, uid: currentPageUid });
+            }
+          } else {
+            // If no page title found, user is likely in Daily Notes (log) view
+            return "⚠️ You appear to be in the Daily Notes (log) view. Please ask the user to specify a time period for the daily notes they want to analyze (e.g., 'last 7 days', 'this week', 'last month'). You can then use the appropriate tool to retrieve daily notes context.";
+          }
+        } else {
+          return "⚠️ Could not detect a current page. If you're in the Daily Notes view, please ask the user to specify a time period for the daily notes they want to analyze.";
+        }
+      } catch (error) {
+        console.error("Error getting current page:", error);
+        return "Error: Could not retrieve the current page. Make sure you have a page open in Roam.";
+      }
+    }
+
+    // Process explicitly provided page titles
     for (const title of page_titles) {
       const pageUid = getPageUidByPageName(title);
 
@@ -135,18 +164,24 @@ export const addPagesByTitleTool = tool(
   {
     name: "add_pages_by_title",
     description:
-      "Add one or more pages to the chat context by their titles. By default, only adds the page itself. Set include_children=true to also add first-level child blocks. Use this when the user asks about pages not currently in context.",
+      "Add one or more pages to the chat context by their titles. By default, only adds the page itself. Set include_children=true to also add first-level child blocks. Use this when the user asks about pages not currently in context. If the user refers to the current/main/active/opened page (in any language), set use_current_page=true to automatically retrieve it.",
     schema: z.object({
       page_titles: z
         .array(z.string())
         .describe(
-          "Array of page titles to add to the context. Use exact page titles as they appear in Roam."
+          "Array of page titles to add to the context. Use exact page titles as they appear in Roam. Can be empty if only use_current_page is needed."
         ),
       include_children: z
         .boolean()
         .optional()
         .describe(
           "If true, also adds first-level child blocks of the pages. Default is false."
+        ),
+      use_current_page: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true, adds the currently open/main/active page in Roam to the context. Use this when the user refers to 'current page', 'this page', 'main page', 'active page', or similar references in any language. Default is false."
         ),
     }),
   }

@@ -12,6 +12,7 @@ import {
   getPageUidByBlockUid,
   getPageNameByPageUid,
   getPathOfBlock,
+  getMainPageUid,
 } from "../../../../utils/roamAPI.js";
 import { Result } from "../../../../components/full-results-popup/types/types";
 
@@ -19,10 +20,11 @@ export const addLinkedReferencesByTitleTool = tool(
   async (
     input: {
       page_titles: string[];
+      use_current_page?: boolean;
     },
     config
   ) => {
-    const { page_titles } = input;
+    const { page_titles, use_current_page = false } = input;
 
     // Get current context and callback from config
     const currentContext = config?.configurable?.currentResultsContext || [];
@@ -41,7 +43,31 @@ export const addLinkedReferencesByTitleTool = tool(
     const notFound: string[] = [];
     const newResults: Result[] = [];
 
-    for (const title of page_titles) {
+    // Build the list of page titles to process
+    let titlesToProcess = [...page_titles];
+
+    // If use_current_page is true, add the current page title
+    if (use_current_page) {
+      try {
+        const currentPageUid = await getMainPageUid();
+        if (currentPageUid) {
+          const currentPageTitle = getPageNameByPageUid(currentPageUid);
+          if (currentPageTitle) {
+            titlesToProcess.push(currentPageTitle);
+          } else {
+            // If no page title found, user is likely in Daily Notes (log) view
+            return "⚠️ You appear to be in the Daily Notes (log) view. Please ask the user to specify a page title for which they want to see linked references.";
+          }
+        } else {
+          return "⚠️ Could not detect a current page. Please ask the user to specify a page title for which they want to see linked references.";
+        }
+      } catch (error) {
+        console.error("Error getting current page:", error);
+        return "Error: Could not retrieve the current page. Make sure you have a page open in Roam.";
+      }
+    }
+
+    for (const title of titlesToProcess) {
       try {
         // Get blocks mentioning this page title
         const linkedRefs = getBlocksMentioningTitle(title);
@@ -138,12 +164,18 @@ export const addLinkedReferencesByTitleTool = tool(
   {
     name: "add_linked_references_by_title",
     description:
-      "Add all blocks that reference a given page to the chat context. Use this when the user asks about what references a page, or wants to see all mentions of a topic. This adds blocks from across the graph that link to the specified page(s).",
+      "Add all blocks that reference a given page to the chat context. Use this when the user asks about what references a page, or wants to see all mentions of a topic. This adds blocks from across the graph that link to the specified page(s). If the user refers to the current/main/active page (in any language), set use_current_page=true to automatically retrieve its linked references.",
     schema: z.object({
       page_titles: z
         .array(z.string())
         .describe(
-          "Array of page titles whose linked references should be added to the context. Use exact page titles as they appear in Roam."
+          "Array of page titles whose linked references should be added to the context. Use exact page titles as they appear in Roam. Can be empty if only use_current_page is needed."
+        ),
+      use_current_page: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true, retrieves linked references for the currently open/main/active page in Roam. Use this when the user refers to 'current page', 'this page', 'main page', or similar references in any language. Default is false."
         ),
     }),
   }

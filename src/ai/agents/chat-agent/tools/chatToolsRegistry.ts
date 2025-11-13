@@ -4,8 +4,7 @@
  * Registry of tools specific to the chat agent (separate from search agent tools)
  */
 
-import { addPagesByTitleTool } from "./addPagesByTitleTool";
-import { addLinkedReferencesByTitleTool } from "./addLinkedReferencesByTitleTool";
+import { addToContextTool } from "./addToContextTool";
 import { selectResultsByCriteriaTool } from "./selectResultsByCriteriaTool";
 import { createHelpTool } from "./helpTool";
 import { liveaiSkillsTool } from "./liveaiSkillsTool";
@@ -23,17 +22,11 @@ export interface ChatToolInfo {
  */
 function getChatToolsRegistry(): Record<string, ChatToolInfo> {
   return {
-    add_pages_by_title: {
-      tool: addPagesByTitleTool,
+    add_to_context: {
+      tool: addToContextTool,
       securityLevel: "secure",
       description:
-        "Add one or more pages to the chat context by their titles. Optionally includes first-level child blocks. Use when user asks about pages not currently in the conversation.",
-    },
-    add_linked_references_by_title: {
-      tool: addLinkedReferencesByTitleTool,
-      securityLevel: "secure",
-      description:
-        "Add all blocks that reference a given page to the chat context. Use when user wants to see what mentions or references a particular page/topic.",
+        "Universal tool for adding Roam content (pages, blocks, linked references, sidebar, daily notes) to the chat context. Supports 'current page', 'focused block', and 'sidebar' in any language. Primary tool for expanding context.",
     },
     select_results_by_criteria: {
       tool: selectResultsByCriteriaTool,
@@ -45,7 +38,7 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       tool: askYourGraphTool,
       securityLevel: "secure",
       description:
-        "Execute complex natural language queries in the user roam's knowledge graph using Ask Your Graph agent to find matching pages or blocks to add to context. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely database queries, not common questions - and prefer add_pages_by_title or add_linked_references_by_title for simple lookups.",
+        "Execute complex natural language queries in the user roam's knowledge graph using Ask Your Graph agent to find matching pages or blocks to add to context. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely database queries, not common questions - prefer add_to_context for simple lookups.",
     },
     get_help: {
       tool: createHelpTool(), // Create fresh tool with current enabled topics
@@ -66,17 +59,11 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
 // For actual tool instances, use getChatToolsFromRegistry which calls getChatToolsRegistry()
 // NOTE: This doesn't include actual tool instances, just metadata
 export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
-  add_pages_by_title: {
+  add_to_context: {
     tool: null, // Will be created on-demand
     securityLevel: "secure",
     description:
-      "Add one or more pages to the chat context by their titles. Optionally includes first-level child blocks. Use when user asks about pages not currently in the conversation.",
-  },
-  add_linked_references_by_title: {
-    tool: null,
-    securityLevel: "secure",
-    description:
-      "Add all blocks that reference a given page to the chat context. Use when user wants to see what mentions or references a particular page/topic.",
+      "Universal tool for adding Roam content (pages, blocks, linked references, sidebar, daily notes) to the chat context. Supports 'current page', 'focused block', and 'sidebar' in any language. Primary tool for expanding context.",
   },
   select_results_by_criteria: {
     tool: null,
@@ -88,7 +75,7 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     tool: null,
     securityLevel: "secure",
     description:
-      "Execute complex natural language queries using the full search agent. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely complex queries - prefer add_pages_by_title or add_linked_references_by_title for simple lookups.",
+      "Execute complex natural language queries using the full search agent. Supports pattern matching, semantic search, boolean logic, date ranges, and advanced filtering. Use ONLY for genuinely complex queries - prefer add_to_context for simple lookups.",
   },
   get_help: {
     tool: null,
