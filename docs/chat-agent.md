@@ -67,6 +67,8 @@ Agent mode is automatically enabled when you enable at least one tool in the cha
 - Managing context intelligently
 - Executing complex multi-step workflows
 
+<img width="3904" height="2018" alt="image" src="https://github.com/user-attachments/assets/998223bc-1a93-4b40-8f63-277866bf24b2" />
+
 ### Access Modes
 
 The agent operates in two access modes that control how deeply it expands context:
@@ -542,7 +544,8 @@ When the agent uses tools, they're displayed in the conversation:
 **For quality** (accurate, thoughtful):
 
 - Claude Sonnet or Haiku
-- GPT-4.1 or GPT-5
+- GPT-5.1
+- Google Gemini Pro
 
 **For speed** (quick responses):
 
