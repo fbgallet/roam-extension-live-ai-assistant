@@ -3,6 +3,7 @@
 **Updates**
 
 - Chat with linked references button: now apply the existing filters
+- Chat agent system prompt optimization: 50% less tokens when no tools, approx. 20% less with tools
 
 **Fixed**
 
