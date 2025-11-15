@@ -865,30 +865,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
     // Try to load from storage first
     const storedTools = extensionStorage.get("chatEnabledTools");
-    if (storedTools && Array.isArray(storedTools)) {
+    if (storedTools !== undefined && storedTools !== null && Array.isArray(storedTools)) {
+      // Return stored tools even if empty array (user disabled all)
       return new Set(storedTools);
     }
 
-    // Initialize with all tools enabled by default, except ask_your_graph
-    const allTools = new Set<string>();
-    Object.keys(
-      require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry")
-        .CHAT_TOOLS
-    ).forEach((toolName) => {
-      // Disable ask_your_graph by default (it's heavy and requires confirmation)
-      if (toolName !== "ask_your_graph") {
-        allTools.add(toolName);
-      }
-    });
-
-    // Also enable all skills by default
-    const skills =
-      require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
-    skills.forEach((skill: any) => {
-      allTools.add(`skill:${skill.name}`);
-    });
-
-    return allTools;
+    // First launch: only enable add_to_context by default
+    return new Set(["add_to_context"]);
   });
 
   // Save enabled tools to storage whenever they change

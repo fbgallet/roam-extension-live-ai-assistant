@@ -66,8 +66,8 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
       setSkills(loadedSkills);
 
       // Auto-enable new skills that aren't in the enabled set yet
-      // (only if liveai_skills tool is enabled)
-      if (enabledTools.has("liveai_skills")) {
+      // (only if live_ai_skills tool is enabled)
+      if (enabledTools.has("live_ai_skills")) {
         loadedSkills.forEach((skill) => {
           const skillKey = `skill:${skill.name}`;
           if (!enabledTools.has(skillKey)) {

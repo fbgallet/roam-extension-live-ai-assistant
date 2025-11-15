@@ -16,14 +16,10 @@ import { getFormattedSkillsList } from "../chat-agent/tools/skillsUtils";
 
 // Base system prompt for chat agent
 export const buildChatSystemPrompt = async ({
-  lastMessage,
   style,
-  commandPrompt,
   toolsEnabled,
   conversationContext,
   resultsContext,
-  accessMode,
-  isAgentMode,
   activeSkillInstructions,
   enabledTools,
 }: {
@@ -39,35 +35,101 @@ export const buildChatSystemPrompt = async ({
   enabledTools?: Set<string>;
 }): Promise<string> => {
   // Different base prompt depending on whether we have search results context
+
   let systemPrompt =
     defaultAssistantCharacter +
     `\nYour main purpose is to talk with the user in a way that's insightful, offering useful thoughts and accurate information${
       resultsContext.length
-        ? ", helping them to leverage their Roam Research knowledge graph and notes through selection of pages or blocks available in the context or simply answering their request by relying on your own knwoledge base when their request doesn't seem related to the current context"
+        ? ", helping them to leverage their Roam Research knowledge graph and notes through selection of pages or blocks available in the 'Available Context' section or simply answering their request by relying on your own knwoledge base when their request doesn't seem related to the current context"
         : ""
     }. ${
       !toolsEnabled
-        ? "Rely on you own knowledge base to answer the user request. But if a user's request appears to be asking you to do something in their Roam database like loading some page, it might be because they haven't turned on the agent tools. In that case, suggest that they enable them by clicking 🔧 button at the bottom, and have them read through their brief descriptions or ask for help about existing way to load Roam data in the context of this chat."
-        : "If and only if the user explicitly requests or refers to data in their Roam database (specifically using 'page', or 'block', 'tag' or 'attribute' keywords) and their content is requested to provide a relevant response, you can try to load the requested data from its database using available tools. But if their request is more general than something that could be find on a personal knowledge graph, proceed it as a normal request relying on your own knowledge base."
+        ? "If a user's request appears to be asking you to do something in their Roam database like loading some page or querying Help documents, it might be because they haven't turned on the agent tools. In that case, suggest them to enable corresponding tools."
+        : ""
     }`;
 
   const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
     getCurrentDateContext(new Date());
 
-  systemPrompt += `\n\n## Response Guidelines
+  systemPrompt += `\n\n**Today is**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})
+  
+## Response Guidelines
 
-- Focus on understanding the **user's actual need**, **think carefully** about the best way to provide a satisfactory answer
+- **Think carefully** about the best way to provide a satisfactory answer to the user need
 - **Be concise** - get to the point quickly unless more detail is requested
 - Ask clarifying questions when needed
-- Build on **previous conversation** context when relevant
-- Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.
-- Today is ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})
+- Build on 'Conversation Context' when relevant
+- Be honest about limitations, don't confuse mere speculation, reasonable inference, and evidence.`;
 
-### Roam Formatting
-IMPORTTANT: When referencing content from the Roam database, use Roam's syntax correctly and respect it STRICTLY:
-- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((uid)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((uid)))' or '[the key finding](((uid)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((uid))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((uid)))'.
-- **Multiple block references** - For citing multiple sources, use: '[source 1](((uid1))), [source 2](((uid2))), [source 3](((uid3)))' instead of '((uid1)), ((uid2)), ((uid3))'.
-- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.`;
+  // Add tool usage guidance - DON'T include tool descriptions when using bindTools
+  // LangChain's bindTools handles tool schemas automatically via the API
+  if (toolsEnabled) {
+    // Check if live_ai_skills tool is enabled
+    const isSkillsToolEnabled =
+      toolsEnabled && enabledTools.has("live_ai_skills");
+    const isContextToolsEnabled =
+      toolsEnabled &&
+      (enabledTools.has("add_to_context") ||
+        enabledTools.has("ask_your_graph"));
+    const isHelpToolEnabled =
+      toolsEnabled && enabledTools.has("live_ai_skills");
+
+    // Get available skills if the tool is enabled
+    const skillsList = isSkillsToolEnabled ? getFormattedSkillsList() : null;
+
+    // Just add general guidance, no specific tool descriptions
+    systemPrompt += `\n\n## ReAct Agent Mode (Reason + Act)
+
+You are operating in AGENTIC mode with access to tools. Follow the ReAct methodology:
+1. **Reason**: What does the user need? What information do I need to provide a complete answer?
+2. **Act**: Decide or not to use tools to gather that information (can be multiple sequential calls)
+3. **Observe**: Review tool responses - do I need more? If yes, use more tools
+4. **Respond**: Only respond to user when you have comprehensive information
+**In short: Be Autonomous and Thorough**
+
+**Tool Usage Philosophy:**
+- Use tools proactively (but wisely) - don't wait for explicit permission but use them only if it's clear that it matches the user needs
+- Some tools cache results to avoid redundancy - check before re-calling
+${
+  isContextToolsEnabled
+    ? `- If and only if the user explicitly requests or refers to data in their Roam database (specifically using 'page', or 'block', 'tag' or 'attribute' keywords or corresponding Roam syntax '[[page]]', #tag...) and their content is requested to provide a relevant response, first verify if it's already available in the 'Available Context' section, otherwise load the requested data from its database using available tools. But if their request is more general than something that could be find on a personal knowledge graph, proceed it as a normal request relying on your own knowledge base.`
+    : ""
+}
+${
+  isHelpToolEnabled
+    ? `**IMPORTANT Instructions on how to handle fetched documentation with get_help and live_ai_skills**:
+- Documentations are often very verbose, so make an effort to be concise and get straight to the point.
+- Don't just repeat the resource, tailor your response to the user's specific request and provide a practical answer as possible, with clear steps if user action is needed.
+- IMPORTANT: Provide images or urls in your response if some are available in the relevant section, in markdown format '![image](url)', '[link](url)'.`
+    : ""
+}`;
+
+    // Add skills section only if skills tool is enabled AND skills are available
+    if (
+      isSkillsToolEnabled &&
+      skillsList &&
+      !skillsList.includes("No skills available")
+    ) {
+      systemPrompt += `\n\n⚠️ IMPORTANT: When the user's request matches ANY skill above (even partially), use the live_ai_skills tool to load expert instructions. Skills contain specialized workflows that will help you complete the task correctly.
+
+**Skills Available in User's Knowledge Base:**
+${skillsList}`;
+
+      // Add active skill instructions if available (these persist across turns)
+      if (activeSkillInstructions) {
+        systemPrompt += `\n\n## Active Skill Instructions
+
+${activeSkillInstructions}
+
+**⚠️ CRITICAL - Use These Instructions:**
+- These skill instructions are ALREADY LOADED and ready to use
+- DO NOT call live_ai_skills again for this same skill/resource - it's wasteful
+- These instructions contain specialized knowledge that supersedes your general knowledge
+- Follow them exactly to complete the user's task
+- Only call live_ai_skills again if you need a DIFFERENT skill or a DEEPER resource not already present here`;
+      }
+    }
+  }
 
   // Add results context if available
   if (resultsContext) {
@@ -86,11 +148,10 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Identify** relationships, contradictions, common themes, or missing pieces
 - **Be analytical** - help the user understand significance and context
 
-### Analysis Approach
-- When provided with search results, analyze their meaning and relationships
-- **Leverage hierarchical context** to understand each block's true meaning and purpose
-
-Remember: The user wants concise understanding and analysis, not lengthy recaps.`;
+### IMPORTTANT formatting contrainsts when referencing content from the Context. Respect it STRICTLY:
+- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((UID))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((UID)))'.
+- **Multiple block references** - For citing multiple sources, use: '[source 1](((UID1))), [source 2](((UID2))), [source 3](((UID3)))' instead of '((UID1)), ((UID2)), ((UID3))'.
+- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.`;
   }
 
   // Add conversation context if available
@@ -99,89 +160,13 @@ Remember: The user wants concise understanding and analysis, not lengthy recaps.
 
 This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[Built-in or custom instructions for this stored conversation turn]") are historical context - they applied to previous requests. Follow built-on or custom instructions that appear eventually below for the CURRENT request.
 
-${conversationContext}`;
+${conversationContext}
+
+-- END of the Conversation Context --`;
   }
 
-  // Add active skill instructions if available (these persist across turns)
-  if (activeSkillInstructions) {
-    systemPrompt += `\n\n## Active Skill Instructions
+  systemPrompt += `\n\n## Basic syntax contrainsts:
 
-${activeSkillInstructions}
-
-**⚠️ CRITICAL - Use These Instructions:**
-- These skill instructions are ALREADY LOADED and ready to use
-- DO NOT call live_ai_skills again for this same skill/resource - it's wasteful
-- These instructions contain specialized knowledge that supersedes your general knowledge
-- Follow them exactly to complete the user's task
-- Only call live_ai_skills again if you need a DIFFERENT skill or a DEEPER resource not already present here`;
-  }
-
-  // Add tool usage guidance - DON'T include tool descriptions when using bindTools
-  // LangChain's bindTools handles tool schemas automatically via the API
-  if (toolsEnabled) {
-    // Check if live_ai_skills tool is enabled
-    const isSkillsToolEnabled =
-      !enabledTools || enabledTools.has("live_ai_skills");
-
-    // Get available skills if the tool is enabled
-    const skillsList = isSkillsToolEnabled ? getFormattedSkillsList() : null;
-
-    // Just add general guidance, no specific tool descriptions
-    systemPrompt += `\n\n## ReAct Agent Mode (Reason + Act)
-
-You are operating in AGENTIC mode with access to tools. Follow the ReAct methodology:
-
-**ReAct Pattern (internal thought process):**
-1. **Reason**: What does the user need? What information do I need to provide a complete answer?
-2. **Act**: Decide or not to use tools to gather that information (can be multiple sequential calls)
-3. **Observe**: Review tool responses - do I need more? If yes, use more tools
-4. **Respond**: Only respond to user when you have comprehensive information
-**In short: Be Autonomous and Thorough**
-
-**Tool Usage Philosophy:**
-- Use tools proactively (but wisely) - don't wait for explicit permission but use them only if it's clear that it matches the user needs
-- Carefully judge whether the user's request is simply calling upon your intelligence and knowledge base, as is most commonly the case, or whether it's targeting content from their Roam database, which would require calling a tool—something that will often be quite explicit and less frequent.
-- Chain multiple tool calls in sequence when needed to fully answer the question
-- Only ask the user when you've exhausted all autonomous options
-- Before trying to add pages in the context using add_page_by_title tool, verify if it's not already in above 'Available context'
-- Some tools cache results to avoid redundancy - check before re-calling
-
-**Multi-step example:**
-User asks complex question → Use tool 1 → Tool suggests more info available → Use tool 2 → Respond with complete answer
-(NOT: Use tool 1 → Ask user "should I get more info?" ← TOO PASSIVE)
-
-**IMPORTANT Instructions on how to handle fetched documentation with get_help and live_ai_skills**:
-- Documentations are often very verbose, so make an effort to be concise and get straight to the point.
-- Don't just repeat the resource, tailor your response to the user's specific request and provide a practical answer as possible, with clear steps if user action is needed.
-- IMPORTANT: Provide images or urls in your response if some are available in the relevant section, in markdown format '![image](url)', '[link](url)'.`;
-
-    // Add skills section only if skills tool is enabled AND skills are available
-    if (
-      isSkillsToolEnabled &&
-      skillsList &&
-      !skillsList.includes("No skills available")
-    ) {
-      systemPrompt += `\n\n⚠️ IMPORTANT: When the user's request matches ANY skill above (even partially), use the live_ai_skills tool to load expert instructions. Skills contain specialized workflows that will help you complete the task correctly.
-
-**Skills Available in User's Knowledge Base:**
-${skillsList}`;
-    }
-  }
-
-  // Add command-specific instructions if provided
-  // Note: These instructions are also added to conversationHistory in finalize()
-  // so they persist across turns until summarization
-  // if (commandPrompt) {
-  //   let completeCommandPrompt = buildCompleteCommandPrompt(
-  //     commandPrompt,
-  //     lastMessage, //|| resultsContext,
-  //     !!resultsContext
-  //   );
-  //   if (completeCommandPrompt)
-  //     systemPrompt += `\n\n## Built-in or custom instructions for the CURRENT conversation turn \n${completeCommandPrompt}`;
-  // }
-
-  systemPrompt += `\n\n## Syntax contrainst:
 - ${hierarchicalResponseFormat.trim()}
 - Generally respects markdown syntax, except where otherwise indicated.
 - If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: $$formula$$. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;

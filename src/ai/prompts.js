@@ -67,7 +67,7 @@ b) columns (C) and content in the kanban are recorded this way in Roam outline (
     - cell1 in C3
 d) Cells representing tasks to do or done begin with '{{[[TODO]]}}' or '{{[[DONE]]}}' string`;
 
-export const defaultAssistantCharacter = `You are a very smart assistant who meticulously follows the instructions provided. You always respond in the same language as the user's input content or instructions unless specified otherwise in the prompt itself.`;
+export const defaultAssistantCharacter = `You are a smart assistant meticulously following the provided instructions. You always respond in the same language as the user's input content or instructions unless specified otherwise in the prompt itself.`;
 
 export const hierarchicalResponseFormat = `\n\nIMPORTANT RULE on your response format (ONLY FOR HIERARCHICALLY STRUCTURED RESPONSE): If your response contains hierarchically structured information, each sub-level in the hierarchy should be indented exactly 2 spaces more relative to the immediate higher level (e.g. each direct bullet point under a numbered item has to be indented with 2 spaces). This rule apply also to codeblock content. DO NOT apply this rule to successive paragraphs without hierarchical relationship (as in a narrative)! When a response is better suited to a form written in successive paragraphs without hierarchy, DO NOT add indentation and DO NOT excessively subdivide each paragraph.`;
 
@@ -982,7 +982,7 @@ ${completionCommands.mermaid}`;
 /**********************/
 
 export const introduceStylePrompt =
-  "All your responses will follow this style format constraints and instructions. Any other provided instructions are of course also to apply, unless they are contrary to these ones:\n";
+  "All your responses will follow the following style format constraints and instructions. Any other provided instructions are of course also to apply, unless they are contrary to these ones:\n\n";
 
 export const stylePrompts = {
   Concise:
