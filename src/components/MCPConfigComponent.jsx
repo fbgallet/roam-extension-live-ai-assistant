@@ -50,12 +50,14 @@ const MCPConfigComponent = ({ extensionStorage }) => {
     mcpManager.initialize(extensionStorage);
   }, [extensionStorage]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      updateConnectionStates();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [servers]);
+  // REMOVED: 5-second polling interval (performance optimization)
+  // Connection states now update on-demand via manual refresh or after connection changes
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     updateConnectionStates();
+  //   }, 5000);
+  //   return () => clearInterval(interval);
+  // }, [servers]);
 
   const loadServers = () => {
     const mcpServers = extensionStorage?.get("mcpServers") || [];

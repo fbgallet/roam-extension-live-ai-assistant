@@ -1,3 +1,17 @@
+## v.24 (November 15th, 2025) Critical fixes
+
+**Updates**
+
+- Chat with linked references button: now apply the existing filters
+
+**Fixed**
+
+- ⚠️ Wrong designed CSS rules were causing general slowdown of Roam since v.22 ⚠️
+- Disabling all tools of the chat agent was not persisting between session
+- It's now possible to scroll when LLM is streaming its response
+- Adding successive "current page" from Content selector now works
+- "chat" target in Context menu trigger the LLM response in chat
+
 ## v.23 (November 13th, 2025) Small fixes
 
 **Updates**

@@ -517,19 +517,26 @@ export const StandaloneContextMenu = () => {
     }
   }, []);
 
+  // Global contextmenu listener - always active
   useEffect(() => {
     document.addEventListener("contextmenu", handleGlobalContextMenu);
+    return () => {
+      document.removeEventListener("contextmenu", handleGlobalContextMenu);
+    };
+  }, [handleGlobalContextMenu]);
+
+  // Click outside listener - only when menu is open
+  useEffect(() => {
     if (isOpen && !isHelpOpen && !isMCPConfigOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       setTimeout(() => {
         inputRef.current?.focus();
       }, 20);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
     }
-    return () => {
-      document.removeEventListener("contextmenu", handleGlobalContextMenu);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [handleGlobalContextMenu, handleClickOutside, isOpen]);
+  }, [handleClickOutside, isOpen, isHelpOpen, isMCPConfigOpen]);
 
   const updateOutlineSelectionCommand = ({ isToSelect = true }) => {
     setCommands((prev) => {

@@ -24,7 +24,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Access Modes**: adaptative depth of pages/blocks in the context
   - 🛡️ **Balanced**: 30% context window, faster responses, adaptive depth (0-4 levels for blocks, 4 for pages)
   - 🔓 **Full Access**: 75% context window, deeper analysis, unlimited depth (0-99 levels for blocks, unlimited for pages)
-- **6 Powerful Tools**: add_pages, linked_references, select_by_criteria, ask_your_graph, get_help, skills
+- **6 Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Get Help, Skills (only the first one is enabled by default)
 - **Smart Context**: Agent loads pages/blocks dynamically based on mentions and needs
 - **Query Integration**: Run queries, compose searches, manage results directly in the panel
 
@@ -35,8 +35,8 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 #### **Recommendations**
 - **For Speed**: Disable tools (~3000 tokens saved per message), use Balanced mode, combine questions
-- **For Quality**: Enable all tools, use Full Access mode, powerful models (Claude Sonnet, GPT-4)
-- **For Cost**: Use Balanced mode, cheaper models, batch questions, start new chats when switching topics
+- **For Quality**: use Full Access mode and powerful models (Claude Sonnet 4.5, GPT-5.1...)
+- **For Cost**: Disable tools, use Balanced mode, cheaper models, batch questions, start new chats when switching topics
 - **Inline vs Chat**: Use inline for Roam structure, Mermaid, PDFs; use chat for conversation, search analysis
 
 **📖 Complete Guide**: [Chat Agent Documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md) - includes detailed tool descriptions, depth strategies, and workflows
@@ -45,7 +45,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.22 (Nov 2025) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.24 (Nov 2025) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.

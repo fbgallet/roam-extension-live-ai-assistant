@@ -44,7 +44,9 @@ export const useFullResultsState = (
   results: Result[],
   isOpen: boolean,
   forceOpenChat: boolean = false,
-  targetUid?: string | null
+  targetUid?: string | null,
+  initialIncludedReferences?: string[],
+  initialExcludedReferences?: string[]
 ) => {
   // Selection state
   const [selectedResults, setSelectedResults] = useState<Set<number>>(
@@ -172,8 +174,12 @@ export const useFullResultsState = (
   const [isResizing, setIsResizing] = useState(false);
 
   // References filtering state
-  const [includedReferences, setIncludedReferences] = useState<string[]>([]);
-  const [excludedReferences, setExcludedReferences] = useState<string[]>([]);
+  const [includedReferences, setIncludedReferences] = useState<string[]>(
+    initialIncludedReferences || []
+  );
+  const [excludedReferences, setExcludedReferences] = useState<string[]>(
+    initialExcludedReferences || []
+  );
 
   // Direct Content Selector state
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
@@ -213,9 +219,9 @@ export const useFullResultsState = (
         (window as any).lastChatMessages.length > 0;
       setShowChat(forceOpenChat || hasPersistedMessages);
 
-      // Reset references filters
-      setIncludedReferences([]);
-      setExcludedReferences([]);
+      // Reset references filters (but preserve initial values if provided)
+      setIncludedReferences(initialIncludedReferences || []);
+      setExcludedReferences(initialExcludedReferences || []);
       setAvailableReferences([]);
       setFilteredAndSortedResults([]);
       setBlockContentMap(new Map());
@@ -322,6 +328,17 @@ export const useFullResultsState = (
         shouldShowDNPFilter,
       };
     }, [results]);
+
+  // Auto-correct viewMode when it becomes invalid
+  useEffect(() => {
+    if (viewMode === "blocks" && !hasBlocks) {
+      // Switched to "blocks only" but there are no blocks
+      setViewMode(hasPages ? "pages" : "mixed");
+    } else if (viewMode === "pages" && !hasPages) {
+      // Switched to "pages only" but there are no pages
+      setViewMode(hasBlocks ? "blocks" : "mixed");
+    }
+  }, [viewMode, hasBlocks, hasPages]);
 
   // Extract block/children content from original results (this doesn't need to change with filters)
   useEffect(() => {
@@ -519,6 +536,10 @@ export const useFullResultsState = (
     if (allCurrentSelected) {
       // Deselect all current page results
       currentPageIndices.forEach((idx) => newSelected.delete(idx));
+      // If we're deselecting all and no results remain selected, reset the selection filter
+      if (newSelected.size === 0) {
+        setSelectionFilter("all");
+      }
     } else {
       // Select all current page results
       currentPageIndices.forEach((idx) => newSelected.add(idx));
@@ -530,6 +551,8 @@ export const useFullResultsState = (
     if (isClosing) return;
     if (selectedResults.size === filteredAndSortedResults.length) {
       setSelectedResults(new Set());
+      // Reset selection filter when deselecting all
+      setSelectionFilter("all");
     } else {
       const allFilteredIndices = filteredAndSortedResults.map((result) =>
         results.indexOf(result)
@@ -566,6 +589,27 @@ export const useFullResultsState = (
       delete (window as any).lastChatMessages;
       delete (window as any).lastChatAgentData;
       delete (window as any).lastChatAccessMode;
+    }
+
+    // Clean up body classes immediately (don't wait for useEffect cleanup)
+    document.body.classList.remove(
+      'has-side-panel-right',
+      'has-side-panel-left',
+      'has-side-panel-bottom',
+      'has-side-panel-mode',
+      'has-fullscreen-side-panel',
+      'has-no-side-panel'
+    );
+
+    // Clean up html class for blueprint extension detection
+    document.documentElement.classList.remove('has-blueprint-extension');
+
+    // Clean up Roam app margins (reset inline styles)
+    const roamApp = document.getElementById("app");
+    if (roamApp) {
+      roamApp.style.marginRight = "0";
+      roamApp.style.marginLeft = "0";
+      roamApp.style.marginBottom = "0";
     }
 
     // Remove the popup container directly
@@ -899,13 +943,15 @@ export const useFullResultsState = (
     pagesToAdd?: string[],
     includeContent?: boolean,
     includeRefs?: boolean,
-    dnpPeriodDays?: number
+    dnpPeriodDays?: number,
+    livePageContext?: { uid: string | null; title: string | null }
   ): Promise<PageSelection[]> => {
     // Use parameters or fall back to state
     const pages = pagesToAdd ?? selectedPages;
     const addContent = includeContent ?? includePageContent;
     const addRefs = includeRefs ?? includeLinkedRefs;
     const dnpDays = dnpPeriodDays ?? dnpPeriod;
+    const pageContext = livePageContext ?? currentPageContext;
 
     setIsAddingDirectContent(true);
 
@@ -916,7 +962,7 @@ export const useFullResultsState = (
         includePageContent: addContent,
         includeLinkedRefs: addRefs,
         dnpPeriod: dnpDays,
-        currentPageContext,
+        currentPageContext: pageContext,
       });
 
       // Add new results to current results if we have any

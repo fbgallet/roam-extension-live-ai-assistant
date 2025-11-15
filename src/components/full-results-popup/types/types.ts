@@ -53,6 +53,9 @@ export interface FullResultsPopupProps {
   initialStyle?: string; // Style to apply to chat messages
   initialCommandId?: number; // Command ID from BUILTIN_COMMANDS
   initialCommandPrompt?: string; // Key in completionCommands
+  // Initial filter state
+  initialIncludedReferences?: string[]; // Pre-populate included references filter
+  initialExcludedReferences?: string[]; // Pre-populate excluded references filter
 }
 
 export type ViewMode = "blocks" | "pages" | "mixed";

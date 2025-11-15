@@ -52,7 +52,8 @@ async function addPageContent(
       created: new Date(pageCreated),
       modified: new Date(pageModified),
       pageTitle: pageTitle,
-      pageUid: pageUid,
+      // DO NOT set pageUid for page results - pages should only have uid, not pageUid
+      // Setting pageUid would make detectResultTypes think this is a block
       isDaily: isDailyNote(pageUid),
       totalBlocks: pullData[":block/children"]?.length || 0,
       isPage: true,

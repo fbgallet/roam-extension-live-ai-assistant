@@ -74,7 +74,12 @@ interface QueryManagerProps {
   setDNPPeriod: (period: number) => void;
   handleDirectContentAdd: (
     currentResults: any[],
-    setCurrentResults: (results: any[]) => void
+    setCurrentResults: (results: any[]) => void,
+    pagesToAdd?: string[],
+    includeContent?: boolean,
+    includeRefs?: boolean,
+    dnpPeriodDays?: number,
+    livePageContext?: { uid: string | null; title: string | null }
   ) => Promise<import("../../utils/queryStorage").PageSelection[]>;
   queryAvailablePages: (query?: string) => void;
 
@@ -923,10 +928,15 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                 }
               }}
               onDNPPeriodChange={setDNPPeriod}
-              onAddContent={async () => {
+              onAddContent={async (livePageContext) => {
                 const addedPageSelections = await handleDirectContentAdd(
                   currentResults,
-                  setCurrentResults
+                  setCurrentResults,
+                  undefined, // pagesToAdd - use default from state
+                  undefined, // includeContent - use default from state
+                  undefined, // includeRefs - use default from state
+                  undefined, // dnpPeriodDays - use default from state
+                  livePageContext // Pass the live/refreshed page context
                 );
 
                 // Add to session state for UI display (NO auto-save)
@@ -1002,13 +1012,43 @@ export const QueryManager: React.FC<QueryManagerProps> = ({
                             <button
                               className="bp3-tag-remove"
                               onClick={() => {
+                                // Remove from session page selections
                                 const sessionIndex =
-                                  index - loadedPageSelections.length;
+                                  index -
+                                  currentPageSelections.length -
+                                  loadedPageSelections.length;
                                 setSessionPageSelections((prev) =>
                                   prev.filter((_, i) => i !== sessionIndex)
                                 );
+
+                                // Remove corresponding results from currentResults
+                                // Find all results that belong to this page/block
+                                const pageSelectionToRemove = pageSelection;
+                                const updatedResults = currentResults.filter((result) => {
+                                  // For pages: match by pageTitle or title (if it's the page itself)
+                                  if (pageSelectionToRemove.uid) {
+                                    // Match by UID (works for both pages and blocks)
+                                    if (result.uid === pageSelectionToRemove.uid) {
+                                      return false; // Remove the page/block itself
+                                    }
+                                    // For pages, also remove all blocks that belong to this page
+                                    if (result.pageUid === pageSelectionToRemove.uid) {
+                                      return false; // Remove blocks from this page
+                                    }
+                                  }
+                                  // Also check by title for pages
+                                  if (result.pageTitle === pageSelectionToRemove.title) {
+                                    return false; // Remove blocks from this page
+                                  }
+                                  if (result.title === pageSelectionToRemove.title && result.isPage) {
+                                    return false; // Remove the page itself
+                                  }
+                                  return true; // Keep this result
+                                });
+
+                                setCurrentResults(updatedResults);
                               }}
-                              title="Remove"
+                              title="Remove page/block and its results"
                             />
                           )}
                         </span>

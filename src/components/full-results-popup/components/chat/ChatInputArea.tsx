@@ -597,7 +597,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         >
           <textarea
             ref={chatInputRef}
-            placeholder="Ask me about your results... (type / for commands, [[ for pages)"
+            placeholder="Write your prompt... (type / for commands, [[ for pages)"
             value={chatInput}
             onChange={(e) => {
               handleInputChange(e.target.value);

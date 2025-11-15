@@ -8,16 +8,39 @@ class MCPManager {
 
   initialize(extensionStorage) {
     this.extensionStorage = extensionStorage;
-    this.loadServersFromStorage();
+    // Don't auto-connect on load - connections will be established on-demand
+    // this.loadServersFromStorage();
   }
 
   async loadServersFromStorage() {
+    // DEPRECATED: No longer auto-connects on initialization
+    // Use ensureConnected() or connectToServer() to connect on-demand
     const mcpServers = this.extensionStorage?.get('mcpServers') || [];
-    
+
     for (const serverConfig of mcpServers) {
       if (serverConfig.enabled) {
         await this.connectToServer(serverConfig);
       }
+    }
+  }
+
+  /**
+   * Ensure all enabled servers are connected (lazy loading)
+   * Only connects if not already connected
+   */
+  async ensureConnected() {
+    const mcpServers = this.extensionStorage?.get('mcpServers') || [];
+    const connectPromises = [];
+
+    for (const serverConfig of mcpServers) {
+      if (serverConfig.enabled && !this.clients.has(serverConfig.id)) {
+        connectPromises.push(this.connectToServer(serverConfig));
+      }
+    }
+
+    // Connect in parallel for better performance
+    if (connectPromises.length > 0) {
+      await Promise.all(connectPromises);
     }
   }
 

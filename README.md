@@ -18,7 +18,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.22 & v.23 (November 2025)
+### 🆕 New in v.22 (November 2025) (v.23 & 24 are mostly fixes)
 
 - **Chat panel** for smooth conversations, can be displayed as a left/right panel or full screen, combined with a rich context panel
 - **Chat agent**, relying on tools to query your graph, handle context with natural language, leverage rich instructions and resources with [Live AI Skills](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md) (inspired by Anthropic Agent Skills), chat with help documents...

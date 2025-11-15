@@ -281,10 +281,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // If not in chat-only mode, wait for results to be loaded before auto-executing
       // This ensures context is available when the AI processes the message
+      // However, if commandContext exists (chat opened from context menu with command),
+      // we should proceed even without results, as the context might come from roamContext instead
       if (
         !chatOnlyMode &&
         allResults.length === 0 &&
-        paginatedResults.length === 0
+        paginatedResults.length === 0 &&
+        !commandContext?.commandPrompt // Allow execution when we have a command context
       ) {
         return;
       }
@@ -435,30 +438,76 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // State to track pending highlight after page change
   const [pendingHighlight, setPendingHighlight] = useState<string | null>(null);
 
+  // Track if user has manually scrolled during streaming
+  const [userScrolledDuringStreaming, setUserScrolledDuringStreaming] = useState(false);
+  const lastScrollHeightRef = useRef(0);
+  const previousMessagesLengthRef = useRef(0);
+  const wasStreamingRef = useRef(false);
+
   // Auto-scroll to the latest message when messages change
   useEffect(() => {
-    if (chatMessages.length > 0 && messagesContainerRef.current) {
-      // Find the last user message to position it at the top of the visible area
-      const userMessages = messagesContainerRef.current.querySelectorAll(
-        ".full-results-chat-message.user"
-      );
-      const lastUserMessage = userMessages[
-        userMessages.length - 1
-      ] as HTMLElement;
+    if (!messagesContainerRef.current) return;
 
-      if (lastUserMessage) {
-        // Scroll so the last user message is at the top of the container
-        lastUserMessage.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      } else {
-        // If no user messages, scroll to the bottom to show the latest content
-        messagesContainerRef.current.scrollTop =
-          messagesContainerRef.current.scrollHeight;
-      }
+    const container = messagesContainerRef.current;
+    const messagesLengthChanged = chatMessages.length !== previousMessagesLengthRef.current;
+    const streamingJustStarted = isStreaming && !wasStreamingRef.current;
+
+    // Update refs
+    previousMessagesLengthRef.current = chatMessages.length;
+    wasStreamingRef.current = isStreaming;
+
+    // Case 1: Initial load or new message added (but not streaming completion)
+    // Scroll to bottom when a new user message is added (start of new conversation turn)
+    if (messagesLengthChanged && !isStreaming) {
+      container.scrollTop = container.scrollHeight;
+      return;
     }
-  }, [chatMessages, streamingContent]);
+
+    // Case 2: Streaming just started - scroll to show the new assistant message
+    if (streamingJustStarted) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    // Case 3: During streaming - only auto-scroll if user hasn't manually scrolled
+    if (isStreaming && !userScrolledDuringStreaming && streamingContent) {
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Case 4: Streaming ended - do nothing, let user stay where they are
+  }, [chatMessages, streamingContent, isStreaming, userScrolledDuringStreaming]);
+
+  // Reset user scroll flag when streaming stops
+  useEffect(() => {
+    if (!isStreaming) {
+      setUserScrolledDuringStreaming(false);
+    }
+  }, [isStreaming]);
+
+  // Detect manual scrolling during streaming
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Only track manual scrolling during streaming
+      if (!isStreaming) return;
+
+      // Check if scroll was triggered by content growth (auto-scroll) or user action
+      const currentScrollHeight = container.scrollHeight;
+      const scrolledUp = container.scrollTop + container.clientHeight < currentScrollHeight - 50; // 50px threshold
+
+      // If user scrolled up during streaming, pause auto-scroll
+      if (scrolledUp && currentScrollHeight > lastScrollHeightRef.current) {
+        setUserScrolledDuringStreaming(true);
+      }
+
+      lastScrollHeightRef.current = currentScrollHeight;
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [isStreaming]);
 
   // Watch for page changes and handle pending highlights
   useEffect(() => {

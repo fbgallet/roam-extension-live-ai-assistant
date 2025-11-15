@@ -255,6 +255,21 @@ export const insertInstantButtons = async (props) => {
   targetElts.forEach((elt) => {
     let container = document.createElement("div");
     container.classList.add(selector.slice(1));
+
+    // Add data attribute to parent .rm-block for CSS performance (replacing :has() selector)
+    const blockElement = elt.closest('.rm-block');
+    if (blockElement) {
+      const hasRefCount = blockElement.querySelector('.rm-block__ref-count');
+      if (hasRefCount) {
+        blockElement.dataset.hasRefCount = 'true';
+      }
+      if (props.isOutlinerAgent) {
+        blockElement.dataset.hasInstantBtnOutliner = 'true';
+      } else {
+        blockElement.dataset.hasInstantBtn = 'true';
+      }
+    }
+
     if (props.isOutlinerAgent) elt.nextElementSibling.appendChild(container);
     else elt.appendChild(container);
     ReactDOM.render(<InstantButtons {...props} />, container);

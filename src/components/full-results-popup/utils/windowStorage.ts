@@ -97,3 +97,41 @@ export const clearWindowQueryStorage = (): void => {
   delete (window as any).previousIntentParserResult;
   delete (window as any).lastAgentResponseTargetUid;
 };
+
+/**
+ * Comprehensive cleanup of ALL extension window properties
+ * Called on extension unload to prevent memory leaks
+ */
+export const cleanupAllWindowStorage = (): void => {
+  // Query-related data
+  delete (window as any).lastAskYourGraphResults;
+  delete (window as any).lastUserQuery;
+  delete (window as any).lastFormalQuery;
+  delete (window as any).lastIntentParserResult;
+  delete (window as any).lastQuery;
+  delete (window as any).lastAgentResponseTargetUid;
+
+  // Chat-related data
+  delete (window as any).lastChatMessages;
+  delete (window as any).lastChatAgentData;
+  delete (window as any).lastChatAccessMode;
+
+  // Composition-related data
+  delete (window as any).__currentComposedQuery;
+  delete (window as any).__currentComposedQueryId;
+  delete (window as any).__originalQueryForComposition;
+  delete (window as any).previousUserQuery;
+  delete (window as any).previousFormalQuery;
+  delete (window as any).previousIntentParserResult;
+
+  // Other extension data
+  delete (window as any).mcpToasterStreamElement;
+
+  // LiveAI API functions
+  if ((window as any).LiveAI) {
+    delete (window as any).LiveAI.openFullResultsPopup;
+    delete (window as any).LiveAI.openChatPopup;
+    delete (window as any).LiveAI.prepareFullResultsOrChatOpening;
+    delete (window as any).LiveAI.chatWithLinkedRefs;
+  }
+};

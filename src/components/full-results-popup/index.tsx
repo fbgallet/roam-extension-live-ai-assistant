@@ -194,6 +194,10 @@ export interface OpenFullResultsPopupOptions {
   // Command context (for enriching chat prompts)
   commandId?: number; // Command ID from BUILTIN_COMMANDS
   commandPrompt?: string; // Key in completionCommands (e.g., "summarize", "keyInsights")
+
+  // Initial filter state
+  initialIncludedReferences?: string[]; // Pre-populate included references filter
+  initialExcludedReferences?: string[]; // Pre-populate excluded references filter
 }
 
 // React component for popup functionality
@@ -218,6 +222,8 @@ export const openFullResultsPopup = async (
     style = null,
     commandId = null,
     commandPrompt = null,
+    initialIncludedReferences = null,
+    initialExcludedReferences = null,
   } = options;
 
   // Handle loading results from RoamContext if provided
@@ -306,6 +312,8 @@ export const openFullResultsPopup = async (
         initialStyle={style}
         initialCommandId={commandId}
         initialCommandPrompt={commandPrompt}
+        initialIncludedReferences={initialIncludedReferences}
+        initialExcludedReferences={initialExcludedReferences}
       />
     );
   };
@@ -510,8 +518,28 @@ export const chatWithLinkedRefs = async ({
     }
 
     // Get page name
-
     const pageName = getPageNameByPageUid(currentPageUid);
+
+    // Extract linked references filters from Roam's native UI
+    let linkedRefsFilters: { includes: string[]; removes: string[] } = {
+      includes: [],
+      removes: [],
+    };
+
+    try {
+      // Use Roam API to get current linked refs filters
+      if (pageName) {
+        linkedRefsFilters = window.roamAlphaAPI.ui.filters.getPageLinkedRefsFilters({
+          page: { title: pageName },
+        });
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ [chatWithLinkedRefs] Failed to retrieve linked refs filters:",
+        error
+      );
+      // Continue with empty filters if API call fails
+    }
 
     // Create RoamContext for linked references
     const roamContext: RoamContext = {
@@ -537,6 +565,8 @@ export const chatWithLinkedRefs = async ({
         targetUid: effectiveTargetUid,
         viewMode: "chat-only",
         initialChatModel: model,
+        initialIncludedReferences: linkedRefsFilters.includes || [],
+        initialExcludedReferences: linkedRefsFilters.removes || [],
       });
     } else {
       console.log(

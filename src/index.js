@@ -46,6 +46,7 @@ import { mcpManager } from "./ai/agents/mcp-agent/mcpManager";
 import React from "react";
 import "./components/full-results-popup/index.tsx"; // Register window.LiveAI.openFullResultsPopup
 import { initializeHelpDepot } from "./ai/agents/chat-agent/tools/helpDepotUtils";
+import { cleanupAllWindowStorage } from "./components/full-results-popup/utils/windowStorage";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -1500,61 +1501,13 @@ export default {
 
     loadRoamExtensionCommands(extensionAPI);
 
-    mcpManager.initialize(extensionStorage);
+    // mcpManager.initialize(extensionStorage);
 
     mountComponent(position);
     if (!isComponentAlwaysVisible) toggleComponentVisibility();
 
     // Initialize window.LiveAI if it doesn't exist (don't overwrite existing functions)
     if (!window.LiveAI) window.LiveAI = {};
-
-    // Add cleanup function for broken queries (temporary)
-    import("./components/full-results-popup/utils/queryStorage.ts")
-      .then((module) => {
-        window.LiveAI.cleanupBrokenQueries = module.cleanupBrokenQueries;
-        console.log(
-          "🧹 Query cleanup available: window.LiveAI.cleanupBrokenQueries()"
-        );
-      })
-      .catch((err) => {
-        console.debug("⚠️ Cleanup function not available:", err.message);
-      });
-
-    // Add ReAct Search Agent testing functions for development
-    // DISABLED: Test files have been removed during refactoring
-    // if (process.env.NODE_ENV === "development" || true) {
-    //   // Always available for now
-    //   try {
-    //     // Use async import with better error handling
-    //     import(
-    //       /* webpackChunkName: "search-agent-tests" */ "./ai/agents/search-agent/tools/simple-test.js"
-    //     )
-    //       .then((testModule) => {
-    //         window.LiveAI.testReactSearch = {
-    //           testRoamAPI: testModule.testRoamAPIQueries,
-    //           testTool: testModule.testFindPagesByTitleTool,
-    //           testAgent: testModule.testReactAgent,
-    //           runAll: testModule.runAllTests,
-    //         };
-    //         console.log(
-    //           "🔧 ReAct Search Agent tests available: window.LiveAI.testReactSearch.runAll()"
-    //         );
-    //       })
-    //       .catch((err) => {
-    //         // Silently fail - tests are optional
-    //         console.debug(
-    //           "⚠️ ReAct Search Agent tests not available (development feature):",
-    //           err.message
-    //         );
-    //       });
-    //   } catch (err) {
-    //     // Silently fail - tests are optional development feature
-    //     console.debug(
-    //       "⚠️ ReAct Search Agent tests import failed (development feature):",
-    //       err.message
-    //     );
-    //   }
-    // }
 
     initializeContextMenu();
 
@@ -1575,6 +1528,12 @@ export default {
 
     // Remove navigation listeners
     removePageNavigationListeners();
+
+    // Disconnect all MCP servers (close WebSocket/SSE connections)
+    await mcpManager.disconnectAll();
+
+    // Clean up all window object properties (prevent memory leaks)
+    cleanupAllWindowStorage();
 
     console.log("Extension unloaded");
   },

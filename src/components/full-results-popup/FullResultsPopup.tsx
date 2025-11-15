@@ -71,6 +71,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   initialStyle,
   initialCommandId,
   initialCommandPrompt,
+  initialIncludedReferences,
+  initialExcludedReferences,
 }) => {
   // Query execution state
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
@@ -335,6 +337,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     }
   }, [isOpen]);
 
+  // Detect Blueprint extension and toggle html class (replacing expensive :has() selector)
+  React.useEffect(() => {
+    if (isOpen) {
+      const hasBlueprintExt = !!document.querySelector('head style#blueprint-css');
+      document.documentElement.classList.toggle('has-blueprint-extension', hasBlueprintExt);
+    }
+
+    return () => {
+      // Clean up on unmount
+      document.documentElement.classList.remove('has-blueprint-extension');
+    };
+  }, [isOpen]);
+
   // Two-section composition UI state
   // External state management for query composition (accessed by multiple modules)
   const [originalQueryForComposition, setOriginalQueryForComposition] =
@@ -582,7 +597,14 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setDNPPeriod,
     handleDirectContentAdd,
     queryAvailablePages,
-  } = useFullResultsState(currentResults, isOpen, forceOpenChat, targetUid);
+  } = useFullResultsState(
+    currentResults,
+    isOpen,
+    forceOpenChat,
+    targetUid,
+    initialIncludedReferences,
+    initialExcludedReferences
+  );
 
   // Query selection handler
   // Clear all results and query context for fresh start
@@ -1326,6 +1348,41 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       roamApp.style.marginBottom = "0";
     };
   }, [isSidePanelMode, sidePanelPosition, sidePanelWidth, sidePanelHeight]);
+
+  // Toggle body classes for CSS performance (replacing :has() selectors)
+  useEffect(() => {
+    // Remove all side panel classes first
+    document.body.classList.remove(
+      'has-side-panel-right',
+      'has-side-panel-left',
+      'has-side-panel-bottom',
+      'has-side-panel-mode',
+      'has-fullscreen-side-panel',
+      'has-no-side-panel'
+    );
+
+    // Add appropriate class based on current state
+    if (isFullscreen && isSidePanelMode) {
+      document.body.classList.add('has-fullscreen-side-panel');
+    } else if (isSidePanelMode) {
+      document.body.classList.add('has-side-panel-mode');
+      document.body.classList.add(`has-side-panel-${sidePanelPosition}`);
+    } else {
+      document.body.classList.add('has-no-side-panel');
+    }
+
+    return () => {
+      // Clean up on unmount
+      document.body.classList.remove(
+        'has-side-panel-right',
+        'has-side-panel-left',
+        'has-side-panel-bottom',
+        'has-side-panel-mode',
+        'has-fullscreen-side-panel',
+        'has-no-side-panel'
+      );
+    };
+  }, [isSidePanelMode, sidePanelPosition, isFullscreen]);
 
   // Auto-hide logic for narrow panels (only for side panels, not bottom)
   // Legacy auto-switch logic - now handled by layoutMode
@@ -2126,15 +2183,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                       small
                     />
 
-                    {hasBlocks && hasPages && (
+                    {(hasBlocks || hasPages) && (
                       <HTMLSelect
                         value={viewMode}
                         onChange={(e) => setViewMode(e.target.value as any)}
                         className="full-results-view-mode-select"
                       >
                         <option value="mixed">All Types</option>
-                        <option value="blocks">Blocks Only</option>
-                        <option value="pages">Pages Only</option>
+                        <option value="blocks" disabled={!hasBlocks}>
+                          Blocks Only
+                        </option>
+                        <option value="pages" disabled={!hasPages}>
+                          Pages Only
+                        </option>
                       </HTMLSelect>
                     )}
                   </div>

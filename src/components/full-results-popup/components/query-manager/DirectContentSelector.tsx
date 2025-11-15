@@ -46,7 +46,10 @@ interface DirectContentSelectorProps {
     checked: boolean
   ) => void;
   onDNPPeriodChange: (period: number) => void;
-  onAddContent: () => void;
+  onAddContent: (livePageContext?: {
+    uid: string | null;
+    title: string | null;
+  }) => void;
   onQueryPages?: (query: string) => void;
 }
 
@@ -200,7 +203,7 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
     // Add "Current Page" if we have a current page
     if (currentPageTitle && livePageContext?.uid) {
       specialOptions.push({
-        value: "current",
+        value: currentPageTitle, // Use the actual page title as value so each page is unique
         label: `Current Page: ${currentPageTitle}`,
         isSpecial: true,
         uid: livePageContext.uid,
@@ -466,7 +469,8 @@ const DirectContentSelector: React.FC<DirectContentSelectorProps> = ({
             icon={isAddingDirectContent ? "refresh" : "plus"}
             intent="primary"
             onClick={() => {
-              onAddContent();
+              // Pass the live page context to ensure we use the current page
+              onAddContent(livePageContext);
               // Clear selection after adding content
               onPageSelectionChange([]);
             }}

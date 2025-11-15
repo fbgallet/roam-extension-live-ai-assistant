@@ -114,6 +114,9 @@ export const invokeMCPAgent = async ({
   });
 
   try {
+    // Ensure MCP servers are connected (lazy loading on first use)
+    await mcpManager.ensureConnected();
+
     // Handle single or multiple servers
     const serverIds = Array.isArray(serverId) ? serverId : [serverId];
     const serverNames = Array.isArray(serverName) ? serverName : [serverName];

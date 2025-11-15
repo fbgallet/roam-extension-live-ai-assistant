@@ -641,31 +641,27 @@
   opacity: 0.4;
 }
 
-.rm-block:has(.rm-block__ref-count) .liveai-instant-btn-container,
+.rm-block[data-has-ref-count] .liveai-instant-btn-container,
 .fixed-highlight-elt-blue
-  > :first-of-type(.rm-block):has(.rm-block__ref-count)
+  > :first-of-type(.rm-block)[data-has-ref-count]
   .liveai-instant-btn-outliner-container {
   top: 25px;
 }
-.rm-block:has(.liveai-instant-btn-container):hover
-  > div
-  > .liveai-instant-btn-container {
+.rm-block[data-has-instant-btn]:hover > div > .liveai-instant-btn-container {
   opacity: 0.4;
 }
 
-.rm-block:has(.liveai-instant-btn-outliner-container):hover
+.rm-block[data-has-instant-btn-outliner]:hover
   > div
   > .liveai-instant-btn-outliner-container {
   opacity: 0.6;
 }
 
-.rm-block:has(.liveai-instant-btn-container)
-  .liveai-instant-btn-container:hover,
-.rm-block:has(.liveai-instant-btn-container):hover
-  .liveai-instant-btn-container:hover,
-.rm-block:has(.liveai-instant-btn-outliner-container)
+.rm-block[data-has-instant-btn] .liveai-instant-btn-container:hover,
+.rm-block[data-has-instant-btn]:hover .liveai-instant-btn-container:hover,
+.rm-block[data-has-instant-btn-outliner]
   .liveai-instant-btn-outliner-container:hover,
-.rm-block:has(.liveai-instant-btn-outliner-container):hover
+.rm-block[data-has-instant-btn-outliner]:hover
   .liveai-instant-btn-outliner-container:hover {
   opacity: 1;
 }
@@ -1801,6 +1797,7 @@ h3.full-results-title.bp3-heading {
 }
 
 .full-results-paths-toggle {
+  z-index: 6px;
   margin: 0;
 }
 
@@ -2702,10 +2699,9 @@ h3.full-results-title.bp3-heading {
 }
 
 /* If Blueprint extension is enabled... */
-html:has(head style#blueprint-css) .full-results-chat-assistant-message,
-html:has(head style#blueprint-css) .assistant .full-results-chat-text,
-html:has(head style#blueprint-css)
-  .full-results-chat-assistant-message.chat-help {
+html.has-blueprint-extension .full-results-chat-assistant-message,
+html.has-blueprint-extension .assistant .full-results-chat-text,
+html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   background: rgb(138 155 168 / 10%);
 }
 
@@ -3502,7 +3498,7 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
 
 /* When fullscreen is active, restore Roam app margin (panel is no longer "alongside") */
 .full-results-overlay.fullscreen.side-panel-mode ~ #app,
-body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
+body.has-fullscreen-side-panel #app {
   margin: 0 !important;
 }
 
@@ -3945,24 +3941,24 @@ body:has(.full-results-overlay.fullscreen.side-panel-mode) #app {
 
 /* Adjust Roam app to make space for side panel - Right */
 .full-results-overlay.side-panel-right ~ #app,
-body:has(.full-results-overlay.side-panel-right) #app {
+body.has-side-panel-right #app {
   transition: margin-right 0.3s ease;
 }
 
 /* Adjust Roam app to make space for side panel - Left */
 .full-results-overlay.side-panel-left ~ #app,
-body:has(.full-results-overlay.side-panel-left) #app {
+body.has-side-panel-left #app {
   transition: margin-left 0.3s ease;
 }
 
 /* Adjust Roam app to make space for side panel - Bottom */
 .full-results-overlay.side-panel-bottom ~ #app,
-body:has(.full-results-overlay.side-panel-bottom) #app {
+body.has-side-panel-bottom #app {
   transition: margin-bottom 0.3s ease;
 }
 
 /* When side panel is closed, restore Roam app */
-body:not(:has(.full-results-overlay.side-panel-mode)) #app {
+body.has-no-side-panel #app {
   margin-right: 0 !important;
   margin-left: 0 !important;
   margin-bottom: 0 !important;
@@ -4429,7 +4425,7 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   }
 
   .full-results-overlay.side-panel-mode ~ #app,
-  body:has(.full-results-overlay.side-panel-mode) #app {
+  body.has-side-panel-mode #app {
     margin: 0 !important;
   }
 
@@ -4525,7 +4521,9 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
 }
 
 /* Make sure popover doesn't interfere with textarea focus */
-.bp3-popover-content:has(.chat-command-suggest-menu.slash-mode) {
+/* Scoped to only affect our chat command suggest menu popovers */
+.full-results-modal
+  .bp3-popover-content:has(.chat-command-suggest-menu.slash-mode) {
   pointer-events: auto;
 }
 
@@ -4786,45 +4784,45 @@ body:not(:has(.full-results-overlay.side-panel-mode)) #app {
   color: #bf7326;
 }
 
-/* Dark mode support */
-.bp3-dark .laia-scope-selection-dialog-body {
+/* Dark mode support - scoped to our dialog only */
+.bp3-dark .laia-scope-selection-dialog .laia-scope-selection-dialog-body {
   background: #30404d;
 }
 
-.bp3-dark .laia-scope-user-query {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-user-query {
   background: #293742;
   border-color: #404854;
   color: #f5f8fa;
 }
 
-.bp3-dark .laia-scope-explanation {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-explanation {
   color: #abb3bf;
 }
 
-.bp3-dark .laia-scope-button {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-button {
   border-color: #404854;
   background: #30404d;
 }
 
-.bp3-dark .laia-scope-button:hover {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-button:hover {
   border-color: #5c7080;
   background: #394b59;
 }
 
-.bp3-dark .laia-scope-button-recommended {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-button-recommended {
   border-color: #48aff0;
   background: #1f2933;
 }
 
-.bp3-dark .laia-scope-title {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-title {
   color: #f5f8fa;
 }
 
-.bp3-dark .laia-scope-description {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-description {
   color: #abb3bf;
 }
 
-.bp3-dark .laia-scope-tip {
+.bp3-dark .laia-scope-selection-dialog .laia-scope-tip {
   background: #3f3105;
   border-color: #634e11;
   color: #f7e7a1;
