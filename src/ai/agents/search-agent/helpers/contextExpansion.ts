@@ -378,8 +378,8 @@ async function createExpandedPages(
 ): Promise<any[]> {
   const expandedPages: any[] = [];
 
-  // Create budget per page
-  const budgetPerPage = Math.floor(budget / originalPages.length);
+  // For pages, we don't strictly divide budget - each page gets the full budget
+  // This allows full page content to be loaded without artificial limits
 
   for (const page of originalPages) {
     try {
@@ -407,7 +407,8 @@ async function createExpandedPages(
       };
 
       // Add recursive children outline with page-specific depth limits
-      const availableBudgetForChildren = Math.max(budgetPerPage - 200, 500);
+      // Pages use the full budget - no artificial restrictions
+      const availableBudgetForChildren = budget;
 
       // PAGE-SPECIFIC DEPTH STRATEGY
       // Pages are less restrictive than blocks:
@@ -416,18 +417,19 @@ async function createExpandedPages(
       const maxDepth = accessMode === "Full Access" ? 999 : 4;
 
       // Extract children content for page
+      // Pass isPageExpansion=true to disable degressive limits for page content
       expandedPage.childrenOutline = await buildRecursiveChildrenOutline(
         page.uid,
         availableBudgetForChildren,
         maxDepth,
-        originalPages.length // Pass page count for context
+        originalPages.length, // Pass page count for context
+        1, // currentLevel
+        "  ", // indent
+        true // isPageExpansion - disable degressive limits for pages
       );
 
-      // Stringify the expanded page
-      const stringifiedPage = stringifyExpandedPage(
-        expandedPage,
-        budgetPerPage
-      );
+      // Stringify the expanded page (no budget limit - pages are not truncated)
+      const stringifiedPage = stringifyExpandedPage(expandedPage);
 
       expandedPages.push({
         ...page,
@@ -457,8 +459,9 @@ async function createExpandedPages(
 
 /**
  * Stringifies expanded page with proper formatting (no parent context)
+ * Pages are NOT truncated - we load their full content
  */
-function stringifyExpandedPage(expandedPage: any, budgetLimit: number): string {
+function stringifyExpandedPage(expandedPage: any): string {
   const parts: string[] = [];
 
   // Always include page title
@@ -466,19 +469,10 @@ function stringifyExpandedPage(expandedPage: any, budgetLimit: number): string {
     parts.push(`Page: ${expandedPage.original}`);
   }
 
-  // Calculate remaining budget after title
-  const fixedContentLength = (expandedPage.original?.length || 0) + 20;
-  const remainingBudget = Math.max(budgetLimit - fixedContentLength, 500);
-
   // Add children outline if available (pages don't have parent context)
+  // NO TRUNCATION for pages - include full content
   if (expandedPage.childrenOutline) {
-    const childrenLimit = Math.max(500, remainingBudget);
-    const truncatedChildren =
-      expandedPage.childrenOutline.length > childrenLimit
-        ? expandedPage.childrenOutline.substring(0, childrenLimit) +
-          "\n    ...[truncated]"
-        : expandedPage.childrenOutline;
-    parts.push(`Content:\n${truncatedChildren}`);
+    parts.push(`Content:\n${expandedPage.childrenOutline}`);
   }
 
   return parts.join("\n");
@@ -486,6 +480,7 @@ function stringifyExpandedPage(expandedPage: any, budgetLimit: number): string {
 
 /**
  * Builds recursive children outline with proper indentation (inspired by convertTreeToLinearArray)
+ * NEW STRATEGY: Extract full content first, only truncate if budget is exceeded
  */
 async function buildRecursiveChildrenOutline(
   parentUid: string,
@@ -493,9 +488,10 @@ async function buildRecursiveChildrenOutline(
   maxDepth: number = 2,
   resultCount: number = 50, // Total result count for degressive limits
   currentLevel: number = 1,
-  indent: string = "  "
+  indent: string = "  ",
+  isPageExpansion: boolean = false // If true, use full content limits for pages
 ): Promise<string> {
-  if (currentLevel > maxDepth || budget <= 0) return "";
+  if (currentLevel > maxDepth) return ""; // Only check depth, not budget yet
 
   // Query for direct children of the parent
   const childrenQuery = `
@@ -517,49 +513,14 @@ async function buildRecursiveChildrenOutline(
     // Sort by order
     const sortedChildren = childrenResults.sort((a, b) => a[2] - b[2]);
 
-    // ADAPTIVE 100-500 CHARACTER LIMITS with degressive limits for deeper levels
-    const budgetPerChild = Math.floor(
-      budget / Math.min(sortedChildren.length, 10)
-    ); // Max 10 children
-
-    // Base limits: 100-500 chars as requested
-    let minContentPerChild = 100;
-    let maxContentPerChild = 500;
-
-    // DEGRESSIVE LIMITS: reduce content per child as we go deeper
-    const depthFactor = Math.pow(0.7, currentLevel - 1); // 70% reduction per level
-    minContentPerChild = Math.max(
-      50,
-      Math.floor(minContentPerChild * depthFactor)
-    );
-    maxContentPerChild = Math.max(
-      100,
-      Math.floor(maxContentPerChild * depthFactor)
-    );
-
-    // RESULT COUNT ADAPTATION: fewer results = more content per child
-    const resultCountFactor =
-      resultCount <= 20
-        ? 1.5
-        : resultCount <= 50
-        ? 1.2
-        : resultCount <= 100
-        ? 1.0
-        : 0.8;
-    maxContentPerChild = Math.floor(maxContentPerChild * resultCountFactor);
-
-    const targetContentPerChild = Math.max(
-      minContentPerChild,
-      Math.min(maxContentPerChild, budgetPerChild)
-    );
-
+    // NEW STRATEGY: Extract ALL content first without truncation
     const outlineLines: string[] = [];
-    let remainingBudget = budget;
 
-    for (const [childUid, childContent] of sortedChildren.slice(0, 10)) {
-      if (remainingBudget <= 0) break;
+    // Limit to reasonable number of children to prevent infinite expansion
+    const maxChildren = isPageExpansion ? 100 : 10; // Pages can have more children shown
 
-      // Format child content with adaptive truncation + REFERENCE RESOLUTION
+    for (const [childUid, childContent] of sortedChildren.slice(0, maxChildren)) {
+      // Format child content + REFERENCE RESOLUTION
       let formattedContent = childContent || "";
 
       // RESOLVE BLOCK REFERENCES: Replace ((uid)) with actual block content
@@ -573,38 +534,43 @@ async function buildRecursiveChildrenOutline(
         // Continue with unresolved content if resolution fails
       }
 
-      // Apply content truncation after reference resolution
-      if (formattedContent.length > targetContentPerChild) {
-        formattedContent =
-          formattedContent.substring(0, targetContentPerChild) + "...";
-      }
-
+      // NO TRUNCATION YET - extract full content
       // Add current level with indentation
       outlineLines.push(`${indent}- ${formattedContent}`);
-      remainingBudget -= formattedContent.length;
 
-      // Recursively get children of this child if we have budget and depth remaining
-      if (currentLevel < maxDepth && remainingBudget > 100) {
-        // Need at least 100 chars for nested children
-        const nestedBudget = Math.floor(remainingBudget * 0.3); // 30% of remaining budget for nested levels
+      // Recursively get children of this child if we have depth remaining
+      if (currentLevel < maxDepth) {
         const nestedOutline = await buildRecursiveChildrenOutline(
           childUid,
-          nestedBudget,
+          budget, // Pass same budget (will be checked at the end)
           maxDepth,
-          resultCount, // Pass through result count
+          resultCount,
           currentLevel + 1,
-          indent + "  " // Increase indentation
+          indent + "  ", // Increase indentation
+          isPageExpansion
         );
 
         if (nestedOutline) {
           outlineLines.push(nestedOutline);
-          remainingBudget -= nestedOutline.length;
         }
       }
     }
 
-    const result = outlineLines.join("\n");
-    return result;
+    const fullContent = outlineLines.join("\n");
+
+    // NOW check if we need to truncate based on budget
+    // For pages: no truncation unless budget is explicitly exceeded
+    // For blocks: truncate if we exceed budget
+    if (!isPageExpansion && fullContent.length > budget && budget > 0) {
+      // Need to truncate - apply intelligent truncation
+      const truncatedContent = fullContent.substring(0, budget) + "\n    ...[content truncated to fit budget]";
+      console.log(
+        `🌳 [BuildRecursiveOutline] Truncated content from ${fullContent.length} to ${budget} chars at level ${currentLevel}`
+      );
+      return truncatedContent;
+    }
+
+    return fullContent;
   } catch (error) {
     console.error(`🌳 [BuildRecursiveOutline] Error for ${parentUid}:`, error);
     return "";
@@ -666,30 +632,51 @@ function stringifyExpandedBlock(
 
 /**
  * Applies intelligent truncation if total content exceeds budget
+ * NEW: Pages are NEVER truncated, only blocks are truncated when budget is exceeded
  */
 function applyIntelligentTruncation(
   expandedBlocks: any[],
   totalBudget: number
 ): any[] {
-  // Calculate total content length
-  const totalLength = expandedBlocks.reduce(
-    (sum, block) => sum + block.content.length,
-    0
+  // Separate pages from blocks
+  const pages = expandedBlocks.filter((item) => item.isPage === true || item.metadata?.isPage === true);
+  const blocks = expandedBlocks.filter((item) => !(item.isPage === true || item.metadata?.isPage === true));
+
+  // Calculate total content length for blocks only (pages are exempt)
+  const blocksLength = blocks.reduce((sum, block) => sum + block.content.length, 0);
+  const pagesLength = pages.reduce((sum, page) => sum + page.content.length, 0);
+  const totalLength = blocksLength + pagesLength;
+
+  console.log(
+    `🌳 [IntelligentTruncation] Total ${totalLength} chars (${blocksLength} blocks + ${pagesLength} pages), budget: ${totalBudget}`
   );
 
   if (totalLength <= totalBudget) {
+    console.log(`🌳 [IntelligentTruncation] Within budget, no truncation needed`);
     return expandedBlocks; // No truncation needed
   }
 
+  // Budget exceeded - but we NEVER truncate pages
+  // Only truncate blocks to fit remaining budget after pages
+  const remainingBudgetForBlocks = Math.max(0, totalBudget - pagesLength);
+
+  if (remainingBudgetForBlocks === 0 || blocks.length === 0) {
+    console.log(
+      `🌳 [IntelligentTruncation] Pages use full budget (${pagesLength} chars), no room for blocks`
+    );
+    // Return only pages if no budget left for blocks
+    return pages;
+  }
+
   console.log(
-    `🌳 [IntelligentTruncation] Total ${totalLength} chars > budget ${totalBudget}, applying proportional truncation`
+    `🌳 [IntelligentTruncation] Truncating blocks from ${blocksLength} to ${remainingBudgetForBlocks} chars to fit budget`
   );
 
-  // Calculate truncation ratio
-  const truncationRatio = totalBudget / totalLength;
-  const maxBlockLimit = Math.floor((totalBudget / expandedBlocks.length) * 0.9); // 90% of average budget per block
+  // Calculate truncation ratio for blocks only
+  const truncationRatio = remainingBudgetForBlocks / blocksLength;
+  const maxBlockLimit = Math.floor((remainingBudgetForBlocks / blocks.length) * 0.9); // 90% of average budget per block
 
-  return expandedBlocks.map((block) => {
+  const truncatedBlocks = blocks.map((block) => {
     const targetLength = Math.min(
       Math.floor(block.content.length * truncationRatio),
       maxBlockLimit
@@ -710,4 +697,7 @@ function applyIntelligentTruncation(
 
     return block;
   });
+
+  // Return pages (untruncated) + truncated blocks
+  return [...pages, ...truncatedBlocks];
 }

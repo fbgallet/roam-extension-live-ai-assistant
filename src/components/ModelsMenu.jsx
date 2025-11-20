@@ -24,7 +24,6 @@ import {
 } from "..";
 import { normalizeClaudeModel, tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "./Toaster";
-import { imageGeneration } from "../ai/aiAPIsHub";
 
 const ModelsMenu = ({
   callback,
@@ -726,7 +725,7 @@ const ModelsMenu = ({
             <MenuDivider />
           )}
           <MenuItem
-            icon={defaultModel === "gemini-2.5-flash-lite" && "pin"}
+            icon={defaultModel === "gemini-3-pro-preview" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -735,8 +734,21 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="gemini-2.5-flash-lite"
+            text="gemini-3-pro-preview"
             labelElement="1000k"
+          />
+          <MenuItem
+            icon={defaultModel === "gemini-2.5-pro" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-2.5-pro"
+            labelElement="2000k"
           />
           <MenuItem
             icon={defaultModel === "gemini-2.5-flash" && "pin"}
@@ -752,7 +764,7 @@ const ModelsMenu = ({
             labelElement="1000k"
           />
           <MenuItem
-            icon={defaultModel === "gemini-2.5-pro" && "pin"}
+            icon={defaultModel === "gemini-2.5-flash-lite" && "pin"}
             onClick={(e) => {
               handleClickOnModel(e);
             }}
@@ -761,8 +773,8 @@ const ModelsMenu = ({
             }}
             onContextMenu={(e) => handleContextMenu(e)}
             tabindex="0"
-            text="gemini-2.5-pro"
-            labelElement="2000k"
+            text="gemini-2.5-flash-lite"
+            labelElement="1000k"
           />
         </>
       ) : (

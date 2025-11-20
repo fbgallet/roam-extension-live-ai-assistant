@@ -54,7 +54,12 @@ export const getAvailableModels = (provider) => {
         "Grok-2 Vision",
       ];
     case "Google":
-      return ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro"];
+      return [
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-3-pro-preview",
+      ];
   }
 };
 
@@ -102,6 +107,7 @@ export const tokensLimit = {
   "gemini-2.5-flash-lite": 1048576,
   "gemini-2.5-flash": 1048576,
   "gemini-2.5-pro": 1048576,
+  "gemini-3-pro-preview": 1048576,
   custom: undefined,
 };
 
@@ -289,6 +295,11 @@ export const modelsPricing = {
     input: 1.25,
     output: 10,
   },
+  "gemini-3-pro-preview": {
+    input: 2,
+    output: 12,
+  },
+
   "gemini-2.5-flash-image": {
     input: 0.3,
     input_image: 0.3,

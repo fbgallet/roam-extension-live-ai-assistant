@@ -11,6 +11,16 @@ export const templateRegex = /\(\(template:.?(\(\([^\)]{9}\)\))\)\)/;
 export const dateStringRegex = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
 export const numbersRegex = /\d+/g;
 export const roamImageRegex = /!\[([^\]]*)\]\((http[^\s)]+)\)/g;
+export const roamVideoRegex =
+  /\{\{\[?\[?(video|youtube)\]?\]?:\s?(https?:[^\s}]+)\}/g;
+export const youtubeRegex =
+  /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+export const videoStartTimeRegex =
+  /(?:start|from):\s*(\d+):(\d+)|(?:start|from):\s*(\d+)/i;
+export const videoEndTimeRegex =
+  /(?:end|to):\s*(\d+):(\d+)|(?:end|to):\s*(\d+)/i;
+export const roamAudioRegex =
+  /\{\{\[?\[?audio\]?\]?:\s?(https?:[^\s}]+)\}|https?:[^\s)]+\.(mp3|wav|aiff|aac|ogg|flac|m4a)/gi;
 export const pdfLinkRegex =
   /(http[^\s)]+\.pdf)|{{\[?\[?pdf\]?\]?:\s?(https:[^\s})]+)}}/g;
 export const urlRegex =

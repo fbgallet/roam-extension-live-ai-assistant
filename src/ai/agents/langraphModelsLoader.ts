@@ -62,7 +62,8 @@ export function modelViaLanggraph(
     maxRetries: 2,
   };
   if (llmInfos.provider !== "ollama") options.apiKey = llmInfos.library?.apiKey;
-  else if (modelTemperature !== null) options.temperature = modelTemperature;
+  else if (modelTemperature !== null && !llmInfos.id.includes("gemini-3"))
+    options.temperature = modelTemperature;
   if (structuredOutput && llmInfos.provider === "groq")
     options.response_format = "json_object";
   if (structuredOutput && llmInfos.provider === "openRouter")
@@ -86,7 +87,8 @@ export function modelViaLanggraph(
     if (llmInfos.id.includes("gpt-5") && llmInfos.thinking) {
       options["reasoning"] = { effort: reasoningEffort, summary: "auto" };
     }
-    console.log("options :>> ", options);
+    // if (llmInfos.provider === "OpenAI") options["useResponsesApi"] = true;
+    // console.log("options :>> ", options);
     llm = new ChatOpenAI({
       model: llmInfos.id,
       ...options,
@@ -147,12 +149,18 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "Google") {
+    if (llmInfos.id.includes("gemini-3")) {
+      options["thinkingLevel"] =
+        reasoningEffort === "minimal" ? "low" : reasoningEffort;
+      options["includeThoughts"] = true;
+    }
     llm = new ChatGoogleGenerativeAI({
       model: llmInfos.id,
       ...options,
       baseUrl: llmInfos.library.baseURL,
     });
   }
+  console.log("options :>> ", options);
   return llm;
 }
 

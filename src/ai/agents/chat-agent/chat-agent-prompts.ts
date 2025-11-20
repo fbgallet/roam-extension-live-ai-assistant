@@ -273,10 +273,26 @@ export const buildResultsContext = (
       const isPage = !result.pageUid; // Pages don't have pageUid property
 
       // UID (if present)
-      if (result.uid) parts.push(`UID: ${result.uid}`);
+      if (result.uid && !isPage) parts.push(`Block UID: ${result.uid}`);
+
+      // Timestamps - show only date, not time
+      if (result.created) {
+        const createdStr = String(result.created)
+          .split(" ")
+          .slice(0, 4)
+          .join(" ");
+        parts.push(`Created: ${createdStr}`);
+      }
+      if (result.modified) {
+        const modifiedStr = String(result.modified)
+          .split(" ")
+          .slice(0, 4)
+          .join(" ");
+        parts.push(`Modified: ${modifiedStr}`);
+      }
 
       // Content (if available)
-      if (result.expandedBlock?.original || result.content) {
+      if (!isPage && (result.expandedBlock?.original || result.content)) {
         const content = result.expandedBlock?.original || result.content;
         parts.push(`Content: ${content}`);
       }
@@ -301,23 +317,11 @@ export const buildResultsContext = (
 
       // Children info (if available)
       if (result.expandedBlock?.childrenOutline) {
-        parts.push(`Children:\n${result.expandedBlock.childrenOutline}`);
-      }
-
-      // Timestamps - show only date, not time
-      if (result.created) {
-        const createdStr = String(result.created)
-          .split(" ")
-          .slice(0, 4)
-          .join(" ");
-        parts.push(`Created: ${createdStr}`);
-      }
-      if (result.modified) {
-        const modifiedStr = String(result.modified)
-          .split(" ")
-          .slice(0, 4)
-          .join(" ");
-        parts.push(`Modified: ${modifiedStr}`);
+        parts.push(
+          `${isPage ? "Content:\n" : "Children:\n"}${
+            result.expandedBlock.childrenOutline
+          }`
+        );
       }
 
       // Only include result if it has at least one displayable field

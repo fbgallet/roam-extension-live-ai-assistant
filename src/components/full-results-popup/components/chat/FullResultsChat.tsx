@@ -58,6 +58,15 @@ interface FullResultsChatProps {
   setChatAgentData: (data: any) => void;
   chatExpandedResults: Result[] | null;
   setChatExpandedResults: (results: Result[] | null) => void;
+  // Token estimation state (passed from parent to persist across view switches)
+  contextTokenEstimate: number;
+  setContextTokenEstimate: (estimate: number) => void;
+  willContextBeTruncated: boolean;
+  setWillContextBeTruncated: (truncated: boolean) => void;
+  hasCalculatedTokens: boolean;
+  setHasCalculatedTokens: (calculated: boolean) => void;
+  selectionChangedSinceCalculation: boolean;
+  setSelectionChangedSinceCalculation: (changed: boolean) => void;
   // Pagination props for cross-page navigation
   currentPage: number;
   setCurrentPage: (page: number) => void;
@@ -104,6 +113,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   setChatAgentData,
   chatExpandedResults,
   setChatExpandedResults,
+  contextTokenEstimate,
+  setContextTokenEstimate,
+  willContextBeTruncated,
+  setWillContextBeTruncated,
+  hasCalculatedTokens,
+  setHasCalculatedTokens,
+  selectionChangedSinceCalculation,
+  setSelectionChangedSinceCalculation,
   currentPage,
   setCurrentPage,
   resultsPerPage,
@@ -195,6 +212,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       return (window as any).lastInsertedMessagesCount || 0;
     }
   );
+  // Token estimation state is now managed by parent component and passed as props
+  const [isExpandingForEstimate, setIsExpandingForEstimate] = useState(false);
+  const lastCalculatedSelectionRef = useRef<string>("");
   const hasAutoExecutedRef = useRef(false); // Prevent double execution
 
   // Initialize chat from provided initial state
@@ -264,6 +284,171 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     initialCommandId,
     initialStyle,
   ]);
+
+  // Detect selection changes (but don't auto-calculate tokens)
+  useEffect(() => {
+    const resultsToEstimate = selectedResults.length > 0
+      ? selectedResults
+      : allResults;
+
+    const currentSelectionKey = resultsToEstimate
+      .map((r) => r.uid || r.pageUid)
+      .filter(Boolean)
+      .sort()
+      .join(",");
+
+    // Check if selection changed since last calculation
+    if (hasCalculatedTokens && currentSelectionKey !== lastCalculatedSelectionRef.current) {
+      setSelectionChangedSinceCalculation(true);
+    }
+
+    // If no results, reset everything
+    if (resultsToEstimate.length === 0) {
+      setContextTokenEstimate(0);
+      setWillContextBeTruncated(false);
+      setHasCalculatedTokens(false);
+      setSelectionChangedSinceCalculation(false);
+      lastCalculatedSelectionRef.current = "";
+    }
+  }, [selectedResults, allResults, hasCalculatedTokens]);
+
+  // Manual token calculation function (called when user clicks)
+  const calculateTokenEstimate = (expandedResultsToUse?: Result[]) => {
+    // Determine which results to use for estimation
+    const resultsToEstimate = selectedResults.length > 0
+      ? selectedResults
+      : allResults;
+
+    if (resultsToEstimate.length === 0) {
+      setContextTokenEstimate(0);
+      setWillContextBeTruncated(false);
+      setHasCalculatedTokens(false);
+      setSelectionChangedSinceCalculation(false);
+      return;
+    }
+
+    // Use provided expanded results or fall back to state
+    const expandedResults = expandedResultsToUse || chatExpandedResults;
+
+    // IMPORTANT: Only calculate if we have expanded results
+    // We should NOT calculate from raw results as they don't include page content
+    if (!expandedResults || expandedResults.length === 0) {
+      return;
+    }
+
+    // Store current selection key
+    const currentSelectionKey = resultsToEstimate
+      .map((r) => r.uid || r.pageUid)
+      .filter(Boolean)
+      .sort()
+      .join(",");
+    lastCalculatedSelectionRef.current = currentSelectionKey;
+
+    // Match expanded results to current selection by UID
+    const selectedUids = new Set(
+      resultsToEstimate.map((r) => r.uid || r.pageUid).filter(Boolean)
+    );
+
+    // Filter expanded results to only include selected ones
+    // If no selection (all results), use all expanded results
+    const resultsForCalculation = selectedResults.length > 0
+      ? expandedResults.filter((r) =>
+          selectedUids.has(r.uid) || selectedUids.has(r.pageUid)
+        )
+      : expandedResults;
+
+    // Calculate total character count from content
+    // For expanded results, we want the FULL EXPANDED content count (including children)
+    // Both pages and blocks have expandedLength in metadata which includes:
+    // - For pages: page title + all children content
+    // - For blocks: block content + parent context + children outline
+    // This gives us the pre-truncation size (before intelligent truncation is applied)
+    const totalChars = resultsForCalculation.reduce((sum, result) => {
+      // Use expandedLength (full content including children) or fallback to content.length
+      const contentLength = result.metadata?.expandedLength || result.content?.length || 0;
+      return sum + contentLength;
+    }, 0);
+
+    // Estimate tokens: ~0.3 tokens per character
+    const estimatedTokens = Math.round(totalChars * 0.3);
+    setContextTokenEstimate(estimatedTokens);
+
+    // Check if context will be truncated based on expansion budget
+    // Budget calculation matches the one used in handleExpandForEstimate and handleSendMessage
+    const expansionBudget =
+      chatAccessMode === "Full Access"
+        ? modelTokensLimit * 3
+        : modelTokensLimit * 2;
+
+    // Convert token limit to character limit for comparison
+    const charLimit = expansionBudget;
+    const willBeTruncated = totalChars > charLimit;
+    setWillContextBeTruncated(willBeTruncated);
+
+    // Mark that we've calculated tokens and selection hasn't changed since
+    setHasCalculatedTokens(true);
+    setSelectionChangedSinceCalculation(false);
+  };
+
+  // Handle manual expansion for token estimation
+  const handleExpandForEstimate = async () => {
+    if (isExpandingForEstimate) return; // Already expanding
+
+    const contextResults = selectedResults.length > 0 ? selectedResults : allResults;
+
+    if (contextResults.length === 0) {
+      return;
+    }
+
+    // Check if we already have expanded results that match current selection
+    if (chatExpandedResults && chatExpandedResults.length > 0) {
+      // Check if the current selection is a subset of what we already expanded
+      const contextUids = new Set(
+        contextResults.map((r) => r.uid || r.pageUid).filter(Boolean)
+      );
+      const expandedUids = new Set(
+        chatExpandedResults.map((r) => r.uid || r.pageUid).filter(Boolean)
+      );
+
+      // If all context UIDs are in expanded results, just recalculate
+      const allInExpanded = Array.from(contextUids).every((uid) =>
+        expandedUids.has(uid)
+      );
+
+      if (allInExpanded) {
+        calculateTokenEstimate();
+        return;
+      }
+    }
+
+    // Need to perform fresh expansion
+    setIsExpandingForEstimate(true);
+
+    try {
+      // Perform expansion using the same logic as sending a message
+      const expansionBudget =
+        chatAccessMode === "Full Access"
+          ? modelTokensLimit * 3
+          : modelTokensLimit * 2;
+
+      const expandedResults = await performAdaptiveExpansion(
+        contextResults.map((result) => ({ ...result })),
+        expansionBudget,
+        0,
+        chatAccessMode
+      );
+
+      setChatExpandedResults(expandedResults);
+
+      // Calculate tokens immediately with the expanded results
+      // Pass them directly to avoid state update delay
+      calculateTokenEstimate(expandedResults);
+    } catch (error) {
+      console.error("Error expanding results for token estimate:", error);
+    } finally {
+      setIsExpandingForEstimate(false);
+    }
+  };
 
   // Auto-execute command when chat opens with command context
   useEffect(() => {
@@ -1009,13 +1194,22 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     [chatMessages]
   );
 
-  // Reset cache when chat is closed/reopened
+  // Reset cache when chat is TRULY closed (not just hidden for view switch)
+  // Only reset if isOpen goes to false AND there are no real messages
+  // This preserves state when switching between results/chat views
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen && !hasRealMessages(chatMessages)) {
+      // Only reset if chat is truly closed (no conversation in progress)
       setChatExpandedResults(null);
       setLastSelectedResultIds([]);
+      // Also reset token estimation state
+      setHasCalculatedTokens(false);
+      setContextTokenEstimate(0);
+      setWillContextBeTruncated(false);
+      setSelectionChangedSinceCalculation(false);
+      lastCalculatedSelectionRef.current = "";
     }
-  }, [isOpen, setChatExpandedResults]);
+  }, [isOpen, chatMessages, setChatExpandedResults]);
 
   // Update tokensLimit when model is changed
   useEffect(() => {
@@ -2090,6 +2284,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         privateMode={privateMode}
         isTyping={isTyping}
         insertedMessagesCount={insertedMessagesCount}
+        contextTokenEstimate={contextTokenEstimate}
+        willContextBeTruncated={willContextBeTruncated}
+        modelTokensLimit={modelTokensLimit}
+        chatAccessMode={chatAccessMode}
+        isExpandingForEstimate={isExpandingForEstimate}
+        isContextExpanded={!!(chatExpandedResults && chatExpandedResults.length > 0)}
+        hasCalculatedTokens={hasCalculatedTokens}
+        selectionChangedSinceCalculation={selectionChangedSinceCalculation}
+        onExpandForEstimate={handleExpandForEstimate}
         onInsertConversation={insertConversationInRoam}
         onCopyFullConversation={copyFullConversation}
         onResetChat={resetChat}

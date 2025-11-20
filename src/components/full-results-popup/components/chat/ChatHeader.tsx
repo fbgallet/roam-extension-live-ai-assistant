@@ -23,6 +23,15 @@ interface ChatHeaderProps {
   privateMode: boolean;
   isTyping: boolean;
   insertedMessagesCount: number;
+  contextTokenEstimate: number;
+  willContextBeTruncated: boolean;
+  modelTokensLimit: number;
+  chatAccessMode: "Balanced" | "Full Access";
+  isExpandingForEstimate: boolean;
+  isContextExpanded: boolean;
+  hasCalculatedTokens: boolean;
+  selectionChangedSinceCalculation: boolean;
+  onExpandForEstimate: () => void;
   onInsertConversation: () => void;
   onCopyFullConversation: () => void;
   onResetChat: () => void;
@@ -42,6 +51,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   privateMode,
   isTyping,
   insertedMessagesCount,
+  contextTokenEstimate,
+  willContextBeTruncated,
+  modelTokensLimit,
+  chatAccessMode,
+  isExpandingForEstimate,
+  isContextExpanded,
+  hasCalculatedTokens,
+  selectionChangedSinceCalculation,
+  onExpandForEstimate,
   onInsertConversation,
   onCopyFullConversation,
   onResetChat,
@@ -60,11 +78,61 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <>Chatting about {allResults.length} visible results</>
             ) : (
               <>No context loaded</>
+            )}{" "}
+            {(selectedResults.length > 0 || allResults.length > 0) && (
+              <Tooltip
+                content={
+                  !hasCalculatedTokens
+                    ? isContextExpanded
+                      ? "Click to calculate token count from expanded context (includes full page content)"
+                      : "Click to expand context and calculate accurate token count (includes full page content)"
+                    : selectionChangedSinceCalculation
+                    ? "Selection changed - click to recalculate token count"
+                    : willContextBeTruncated
+                    ? `Full expanded context: ${contextTokenEstimate.toLocaleString()} tokens. Will be truncated to fit ${
+                        chatAccessMode === "Full Access" ? "~75%" : "~50%"
+                      } of ${modelTokensLimit.toLocaleString()} token context window.`
+                    : `Accurate token count from expanded context (within ${modelTokensLimit.toLocaleString()} token limit). Click to recalculate.`
+                }
+                openOnTargetFocus={false}
+              >
+                <span
+                  className="full-results-chat-context-tokens"
+                  onClick={onExpandForEstimate}
+                  style={{
+                    cursor: "pointer",
+                    textDecoration: "underline dotted",
+                    color:
+                      willContextBeTruncated && hasCalculatedTokens
+                        ? "#d13913"
+                        : undefined, // Red when truncation will occur
+                    fontWeight:
+                      willContextBeTruncated && hasCalculatedTokens
+                        ? "600"
+                        : undefined,
+                  }}
+                >
+                  {isExpandingForEstimate ? (
+                    <>(expanding...)</>
+                  ) : !hasCalculatedTokens ? (
+                    <>Click for token estimation ⟲</>
+                  ) : (
+                    <>
+                      (~{contextTokenEstimate.toLocaleString()} tokens
+                      {selectionChangedSinceCalculation && " ⟲"}
+                      {!selectionChangedSinceCalculation &&
+                        willContextBeTruncated &&
+                        " ⚠️"}
+                      )
+                    </>
+                  )}
+                </span>
+              </Tooltip>
             )}
             {(totalIn > 0 || totalOut > 0) && (
               <span className="full-results-chat-total-tokens">
                 {" "}
-                • Total tokens: {totalIn.toLocaleString()} in,{" "}
+                • Total: {totalIn.toLocaleString()} in,{" "}
                 {totalOut.toLocaleString()} out
               </span>
             )}

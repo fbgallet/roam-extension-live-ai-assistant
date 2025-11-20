@@ -52,7 +52,6 @@ import {
 import {
   claudeCompletion,
   googleCompletion,
-  imageGeneration,
   isAPIKeyNeeded,
   modelAccordingToProvider,
   ollamaCompletion,
@@ -72,6 +71,7 @@ import { BUILTIN_STYLES } from "./styleConstants";
 import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import { openChatPopup } from "../components/full-results-popup";
+import { imageGeneration } from "./multimodalAI";
 
 export const lastCompletion = {
   prompt: null,

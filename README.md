@@ -225,9 +225,72 @@ Web search context option (in extension settings) for OpenAI models: you can cho
 
 Now Anthropic models can even fetch specific web page if you insert the url in your prompt (if allowed by the web domain).
 
+### Video analysis
+
+⚠️ Currently video analysis is only available with **Google Gemini models**.
+
+You can analyze videos directly in your prompts by including video URLs or using Roam's video embed format. Simply insert a video in your prompt or context and the AI will analyze its content (if the video is in the context, you have to use "video" keyword in your prompt to activate video analysis)
+
+**Supported video formats:**
+
+- `{{[[video]]: url}}` - Standard Roam video embed
+- `{{[[youtube]]: url}}` - YouTube-specific embed
+- Direct YouTube URLs - The AI will detect and analyze YouTube URLs automatically
+
+**Video clipping support:**
+You can analyze specific segments of videos by adding time markers in your prompt (using `start:` or `from:` and/or `end:` or `to:`, and `s` or `m:ss` time format):
+
+- `start: 1:30` or `start: 90` - Start analysis at 1 minute 30 seconds (or 90 seconds)
+- `end: 5:00` or `end: 300` - End analysis at 5 minutes
+- Example: "Summarize this video start:2:00 end:4:30"
+
+**Important notes:**
+
+- Videos must be public and allow AI analysis (some YouTube videos may be restricted)
+- For large video files (>20MB), they will be uploaded via Google's Files API
+- Smaller videos are processed inline for faster analysis
+- All videos are processed at low resolution to optimize costs
+
+### Audio analysis
+
+⚠️ Currently audio analysis is only available with **Google Gemini models**.
+
+You can analyze audio files directly in your prompts by including audio URLs or using Roam's audio embed format. Simply insert an audio file in your prompt or context and the AI will transcribe and/or analyze its content (if the audio is in the context, you have to use "audio" keyword in your prompt to activate audio analysis).
+
+**Supported audio formats:**
+
+- `{{[[audio]]: url}}` - Roam audio embed format
+- Direct audio file URLs - Supports .mp3, .wav, .aiff, .aac, .ogg, .flac, .m4a extensions
+
+**Audio segment analysis:**
+You can analyze specific segments of audio files by adding time markers in your prompt (using `start:` or `from:` and/or `end:` or `to:`, and `s` or `m:ss` time format):
+
+- `start: 1:30` or `start: 90` - Start analysis at 1 minute 30 seconds (or 90 seconds)
+- `end: 5:00` or `end: 300` - End analysis at 5 minutes
+- Example: "Transcribe this audio start: 2:00 end: 4:30"
+- If no time markers are specified, the entire audio file will be analyzed
+
+**Use cases:**
+
+- Transcribe audio recordings (meetings, interviews, lectures, etc.)
+- Extract specific information from audio content
+- Analyze audio within a specific time range
+- Generate summaries or insights from audio files
+
+**Important notes:**
+
+- For large audio files (>20MB), they will be uploaded via Google's Files API
+- Smaller audio files are processed inline for faster analysis
+- If you don't provide specific instructions, the AI will provide a transcription by default
+- You can combine audio analysis with other AI capabilities (e.g., summarization, translation, Q&A)
+
+#### Speech to text command
+
+When a block contains audio, a **"Speech to text"** command appears in the context menu. It transcribes audio using Gemini (if current model includes "gemini") or OpenAI/Groq Whisper, then formats the output into proper paragraphs with speaker identification. Add custom instructions in the prompt field to customize transcription.
+
 ### Images generation
 
-You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization’s authentication (identity verification)) or Google API key.
+You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key.
 
 See [best practices for Google gemini-2.5-flash-image 'nano banana' here](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) (don't care about the code on this page, all is handled by Live AI)
 

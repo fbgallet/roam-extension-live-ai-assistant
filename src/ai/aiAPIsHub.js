@@ -8,29 +8,20 @@ import DOMPurify from "dompurify";
 import {
   ANTHROPIC_API_KEY,
   openaiLibrary,
-  transcriptionLanguage,
-  whisperPrompt,
   streamResponse,
   openrouterLibrary,
   openRouterModels,
   ollamaModels,
   modelTemperature,
   ollamaServer,
-  resImages,
   anthropicLibrary,
   isSafari,
   groqLibrary,
-  isUsingGroqWhisper,
   groqModels,
-  maxImagesNb,
   openRouterModelsInfo,
   deepseekLibrary,
   googleLibrary,
   grokLibrary,
-  websearchContext,
-  ttsVoice,
-  voiceInstructions,
-  transcriptionModel,
   customBaseURL,
   openAiCustomModels,
   customOpenaiLibrary,
@@ -49,13 +40,25 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
-import { pdfLinkRegex, roamImageRegex, urlRegex } from "../utils/regex";
-import { AppToaster, displayThinkingToast } from "../components/Toaster";
 import {
-  getFormatedPdfRole,
-  getResolvedContentFromBlocks,
-} from "./dataExtraction";
+  pdfLinkRegex,
+  roamImageRegex,
+  roamVideoRegex,
+  youtubeRegex,
+  roamAudioRegex,
+  urlRegex,
+} from "../utils/regex";
+import { AppToaster, displayThinkingToast } from "../components/Toaster";
 import { GoogleGenAI } from "@google/genai";
+import {
+  addImagesToGeminiMessage,
+  addImagesUrlToMessages,
+  addPdfToGeminiMessage,
+  addPdfUrlToMessages,
+  addVideosToGeminiMessage,
+  addAudioToGeminiMessage,
+  isModelSupportingImage,
+} from "./multimodalAI";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -107,532 +110,6 @@ export function initializeGoogleAPI(apiKey) {
     console.log(error.message);
     AppToaster.show({
       message: `Live AI - Error during the initialization of Gemini API: ${error.message}`,
-    });
-  }
-}
-
-export async function transcribeAudio(filename) {
-  if (!openaiLibrary && !groqLibrary) return null;
-  try {
-    // console.log(filename);
-    const options = {
-      file: filename,
-      model:
-        isUsingGroqWhisper && groqLibrary
-          ? "whisper-large-v3"
-          : transcriptionModel,
-      // stream: true, // doesn't work as real streaming here
-    };
-    if (transcriptionLanguage) options.language = transcriptionLanguage;
-    if (whisperPrompt) options.prompt = whisperPrompt;
-    const transcript =
-      isUsingGroqWhisper && groqLibrary
-        ? await groqLibrary.audio.transcriptions.create(options)
-        : await openaiLibrary.audio.transcriptions.create(options);
-    // console.log(transcript);
-
-    return transcript.text;
-
-    // streaming doesn't work as expected (await for the whole audio transcription before streaming...)
-    // let transcribedText = "";
-    // const streamElt = insertParagraphForStream("FSeIh5CS8"); // test uid
-    // let accumulatedData = "";
-    // for await (const event of transcript) {
-    //   accumulatedData += event;
-    //   const endOfMessageIndex = accumulatedData.indexOf("\n");
-    //   if (endOfMessageIndex !== -1) {
-    //     const completeMessage = accumulatedData.substring(0, endOfMessageIndex);
-    //     console.log("completedMessage :>> ", completeMessage);
-    //     if (completeMessage.startsWith("data: ")) {
-    //       try {
-    //         const jsonStr = completeMessage.replace("data: ", "");
-    //         const jsonObj = JSON.parse(jsonStr);
-    //         console.log("Nouvel objet reçu:", jsonObj);
-    //         // console.log(`Type: ${jsonObj.type}, Delta: ${jsonObj.delta}`);s
-    //         streamElt.innerHTML += jsonObj.delta;
-    //         transcribedText += jsonObj.delta;
-    //       } catch (error) {
-    //         console.error("Erreur de parsing JSON:", error);
-    //       }
-    //     }
-    //     accumulatedData = accumulatedData.substring(endOfMessageIndex + 2);
-    //   }
-    // }
-    // streamElt.remove();
-    // return transcribedText;
-  } catch (error) {
-    console.error(error.message);
-    AppToaster.show({
-      message: `${
-        isUsingGroqWhisper && groqLibrary ? "Groq API" : "OpenAI API"
-      } error msg: ${error.message}`,
-      timeout: 15000,
-    });
-    return "";
-  }
-}
-
-export async function translateAudio(filename) {
-  if (!openaiLibrary) return null;
-  try {
-    const options = {
-      file: filename,
-      model: "whisper-1",
-    };
-    // if (transcriptionLanguage) options.language = transcriptionLanguage;
-    // if (whisperPrompt) options.prompt = whisperPrompt;
-    const transcript = await openaiLibrary.audio.translations.create(options);
-    return transcript.text;
-  } catch (error) {
-    console.error(error);
-    AppToaster.show({
-      message: `OpenAI error msg: ${error.message}`,
-      timeout: 15000,
-    });
-    return null;
-  }
-}
-
-// Global variable to track currently playing audio
-let currentAudio = null;
-let currentAudioText = null;
-
-export async function textToSpeech(inputText, instructions) {
-  if (!inputText) return;
-  if (!openaiLibrary) {
-    AppToaster.show({
-      message: `OpenAI API Key is needed for Text to Speech feature`,
-      timeout: 10000,
-    });
-    return;
-  }
-  if (Array.isArray(inputText)) {
-    inputText = getResolvedContentFromBlocks(inputText, false, false);
-  }
-
-  // If clicking TTS for the same text that's currently playing, stop it
-  if (currentAudio && currentAudioText === inputText) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    currentAudio = null;
-    currentAudioText = null;
-    AppToaster.show({
-      message: "Audio stopped",
-      timeout: 2000,
-    });
-    return;
-  }
-
-  // If there's a different audio playing, stop it first
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    currentAudio = null;
-    currentAudioText = null;
-  }
-
-  try {
-    const response = await openaiLibrary.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: ttsVoice.toLowerCase() || "ash",
-      input: inputText,
-      instructions:
-        instructions ||
-        voiceInstructions ||
-        "Voice Affect: Calm, composed, and reassuring. Competent and in control, instilling trust.",
-      response_format: "wav",
-    });
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-
-    // Store reference to current audio
-    currentAudio = audio;
-    currentAudioText = inputText;
-
-    // events to handle stop or end of audio
-    const stopAudio = () => {
-      audio.pause();
-      audio.currentTime = 0;
-      currentAudio = null;
-      currentAudioText = null;
-      document.removeEventListener("keydown", handleKeyPress);
-    };
-    const handleKeyPress = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        stopAudio();
-      }
-    };
-    audio.addEventListener("ended", () => {
-      currentAudio = null;
-      currentAudioText = null;
-      document.removeEventListener("keydown", handleKeyPress);
-    });
-
-    audio.play();
-    document.addEventListener("keydown", handleKeyPress);
-  } catch (error) {
-    console.error(error);
-    AppToaster.show({
-      message: `OpenAI error msg: ${error.message}`,
-      timeout: 15000,
-    });
-  }
-}
-
-async function processPromptForImagen(prompt) {
-  // Use Gemini to translate and extract parameters from the prompt
-  if (!googleLibrary) return { prompt, config: {} };
-
-  try {
-    const systemPrompt = `You are a prompt processor for Google Imagen. Your task is to:
-1. Translate the prompt to English if it's not already in English
-2. Extract image generation parameters from natural language descriptions
-3. Return a JSON object with the processed prompt and configuration
-
-Extract these parameters if mentioned:
-- numberOfImages: between 1-4 (default: 1)
-- imageSize: "1K" or "2K" (default: "1K")
-- aspectRatio: "1:1", "3:4", "4:3", "9:16", or "16:9" (default: "1:1")
-
-Examples:
-Input: "Un robot tenant un skateboard rouge, format 16:9"
-Output: {"prompt": "Robot holding a red skateboard", "config": {"aspectRatio": "16:9"}}
-
-Input: "Generate 3 images of a sunset in portrait mode"
-Output: {"prompt": "Sunset", "config": {"numberOfImages": 3, "aspectRatio": "3:4"}}
-
-Return ONLY valid JSON, no other text.`;
-
-    const response = await googleLibrary.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: [{ text: `Process this prompt: ${prompt}` }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    let resultText = response.text;
-    // Remove markdown code blocks if present
-    resultText = resultText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-
-    const result = JSON.parse(resultText);
-    return {
-      prompt: result.prompt || prompt,
-      config: result.config || {},
-    };
-  } catch (error) {
-    console.error("Error processing prompt for Imagen:", error);
-    return { prompt, config: {} };
-  }
-}
-
-export async function imageGeneration(
-  prompt,
-  quality = "auto",
-  model,
-  tokensCallback
-) {
-  // Determine if we're using Google Imagen/Gemini or OpenAI
-  const isGoogleImagen =
-    model === "imagen-4.0-generate-001" ||
-    model === "imagen-4.0-ultra-generate-001" ||
-    model === "imagen-4.0-fast-generate-001" ||
-    model === "gemini-2.5-flash-image" ||
-    (model && model.includes("gemini"));
-
-  // Select appropriate model based on quality if model includes "gemini" but isn't specific
-  if (
-    isGoogleImagen &&
-    model.includes("gemini") &&
-    model !== "gemini-2.5-flash-image"
-  ) {
-    // Default to gemini-2.5-flash-image (nano banana)
-    model = "gemini-2.5-flash-image";
-  } else if (
-    isGoogleImagen &&
-    !model.includes("gemini") &&
-    !model.includes("imagen")
-  ) {
-    // If it's determined as Google but not specific, use default
-    model = "gemini-2.5-flash-image";
-  }
-
-  // For Imagen-specific models, adjust based on quality
-  if (model && model.startsWith("imagen-4.0")) {
-    if (quality === "high") {
-      model = "imagen-4.0-ultra-generate-001";
-    } else if (quality === "low") {
-      model = "imagen-4.0-fast-generate-001";
-    } else {
-      // "medium" or "auto"
-      model = "imagen-4.0-generate-001";
-    }
-  }
-
-  // Check required libraries
-  if (isGoogleImagen && !googleLibrary) {
-    AppToaster.show({
-      message: `Google API Key is needed for Gemini/Imagen image generation`,
-      timeout: 10000,
-    });
-    return;
-  }
-
-  if (!isGoogleImagen && !openaiLibrary) {
-    AppToaster.show({
-      message: `OpenAI API Key is needed for image generation`,
-      timeout: 10000,
-    });
-    return;
-  }
-
-  try {
-    let result;
-
-    // Google Gemini/Imagen generation
-    if (isGoogleImagen) {
-      // Check if there are images in the prompt (for editing)
-      roamImageRegex.lastIndex = 0;
-      const matchingImagesInPrompt = Array.from(
-        prompt.matchAll(roamImageRegex)
-      );
-
-      // For nano banana (gemini-2.5-flash-image), support image editing
-      if (model === "gemini-2.5-flash-image" && matchingImagesInPrompt.length) {
-        // Extract the first image for editing
-        const imageUrl = matchingImagesInPrompt[0][2];
-
-        // Remove image markdown from prompt
-        let textPrompt = prompt;
-        for (const match of matchingImagesInPrompt) {
-          textPrompt = textPrompt.replace(
-            match[0],
-            match[1] ? `[${match[1]}]` : ""
-          );
-        }
-
-        // Process text prompt for translation
-        const { prompt: processedPrompt } = await processPromptForImagen(
-          textPrompt
-        );
-
-        // Fetch the image
-        const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
-        const imageArrayBuffer = await imageBlob.arrayBuffer();
-        const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
-
-        // Detect MIME type (assume PNG if unknown)
-        const mimeType = imageBlob.type || "image/png";
-
-        // Create multi-part prompt with text and image
-        const contents = [
-          { text: processedPrompt },
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: imageBase64,
-            },
-          },
-        ];
-
-        // Use generateContent for nano banana editing
-        result = await googleLibrary.models.generateContent({
-          model: "gemini-2.5-flash-image",
-          contents: contents,
-        });
-
-        // Extract the generated image from response
-        if (result.candidates && result.candidates.length > 0) {
-          for (const part of result.candidates[0].content.parts) {
-            if (part.inlineData) {
-              const imageData = part.inlineData.data;
-              const buffer = Buffer.from(imageData, "base64");
-              const blob = new Blob([buffer], { type: "image/png" });
-              const firebaseUrl = await roamAlphaAPI.file.upload({
-                file: blob,
-              });
-
-              // Track usage for nano banana editing (1 image = 1 "output token" for pricing)
-              const usage = {
-                input_tokens: 0,
-                output_tokens: 1, // 1 image generated
-              };
-              if (tokensCallback) {
-                tokensCallback(usage);
-              }
-              updateTokenCounter(model, usage);
-
-              return firebaseUrl;
-            }
-          }
-          throw new Error("No image in nano banana response");
-        } else {
-          throw new Error("No response from nano banana");
-        }
-      } else {
-        // Standard generation (no input image)
-        // Process prompt with Gemini for translation and parameter extraction
-        const { prompt: processedPrompt, config } =
-          await processPromptForImagen(prompt);
-
-        // Nano banana uses generateContent API
-        if (model === "gemini-2.5-flash-image") {
-          const contents = [{ text: processedPrompt }];
-
-          result = await googleLibrary.models.generateContent({
-            model: "gemini-2.5-flash-image",
-            contents: contents,
-          });
-
-          // Extract the generated image from response
-          if (result.candidates && result.candidates.length > 0) {
-            for (const part of result.candidates[0].content.parts) {
-              if (part.inlineData) {
-                const imageData = part.inlineData.data;
-                const buffer = Buffer.from(imageData, "base64");
-                const blob = new Blob([buffer], { type: "image/png" });
-                const firebaseUrl = await roamAlphaAPI.file.upload({
-                  file: blob,
-                });
-
-                // Track usage for nano banana generation (1 image = 1 "output token" for pricing)
-                const usage = {
-                  input_tokens: 0,
-                  output_tokens: 1, // 1 image generated
-                };
-                if (tokensCallback) {
-                  tokensCallback(usage);
-                }
-                updateTokenCounter(model, usage);
-
-                return firebaseUrl;
-              }
-            }
-            throw new Error("No image in nano banana response");
-          } else {
-            throw new Error("No response from nano banana");
-          }
-        } else {
-          // Imagen models use generateImages API
-          result = await googleLibrary.models.generateImages({
-            model,
-            prompt: processedPrompt,
-            config: {
-              numberOfImages: config.numberOfImages || 1,
-              imageSize: config.imageSize,
-              aspectRatio: config.aspectRatio,
-            },
-          });
-
-          // Process the first generated image
-          if (result.generatedImages && result.generatedImages.length > 0) {
-            const imgBytes = result.generatedImages[0].image.imageBytes;
-            const buffer = Buffer.from(imgBytes, "base64");
-            const blob = new Blob([buffer], { type: "image/png" });
-            const firebaseUrl = await roamAlphaAPI.file.upload({
-              file: blob,
-            });
-
-            // Track usage for Imagen models (1 image = 1 "output token" for pricing)
-            const usage = {
-              input_tokens: 0,
-              output_tokens: 1, // 1 image generated
-            };
-            if (tokensCallback) {
-              tokensCallback(usage);
-            }
-            updateTokenCounter(model, usage);
-
-            return firebaseUrl;
-          } else {
-            throw new Error("No images generated");
-          }
-        }
-      }
-    }
-
-    // OpenAI image generation (existing logic)
-    if (!model || model !== "gpt-image-1") {
-      model = "gpt-image-1-mini";
-    }
-
-    let mode = "generate";
-    let options = {
-      model,
-      prompt,
-      quality,
-      size: "auto",
-      background: "auto",
-      moderation: "low",
-    };
-
-    // extract images from prompt
-    roamImageRegex.lastIndex = 0;
-    const matchingImagesInPrompt = Array.from(prompt.matchAll(roamImageRegex));
-    if (matchingImagesInPrompt.length) {
-      const imageURLs = [];
-      let maskIndex = null;
-      for (let i = 0; i < matchingImagesInPrompt.length; i++) {
-        imageURLs.push(matchingImagesInPrompt[i][2]);
-        if (matchingImagesInPrompt[i][1] === "mask") maskIndex = i;
-        prompt = prompt.replace(
-          matchingImagesInPrompt[i][0],
-          matchingImagesInPrompt[i][1]
-            ? i === maskIndex
-              ? `Image n°${i} is the mask`
-              : `Title of image n°${i + 1}: ${matchingImagesInPrompt[i][1]}`
-            : ""
-        );
-        //console.log(imageURLs);
-      }
-      mode = "edit";
-      const images = await Promise.all(
-        imageURLs.map(async (url) => await roamAlphaAPI.file.get({ url }))
-      );
-
-      if (maskIndex !== null) {
-        options.mask = images[maskIndex];
-        options.image = images[maskIndex === 0 ? 1 : 0];
-      } else {
-        options.image = images;
-      }
-    }
-    if (mode === "generate")
-      result = await openaiLibrary.images.generate(options);
-    else if (mode === "edit") result = await openaiLibrary.images.edit(options);
-    // console.log("result :>> ", result);
-    if (result.usage) {
-      const usage = {
-        input_tokens: {},
-        output_tokens: 0,
-      };
-
-      usage["input_tokens"] = result.usage["input_tokens_details"];
-      usage["output_tokens"] = result.usage["output_tokens"];
-      if (tokensCallback)
-        tokensCallback({
-          input_tokens: result.usage["input_tokens"],
-          output_tokens: usage["output_tokens"],
-        });
-      updateTokenCounter(model, usage);
-    }
-    const image_base64 = result.data[0].b64_json;
-    const byteCharacters = atob(image_base64);
-    const byteNumbers = Array.from(byteCharacters).map((c) => c.charCodeAt(0));
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: "image/png" });
-    const firebaseUrl = await roamAlphaAPI.file.upload({
-      file: blob,
-    });
-    return firebaseUrl;
-  } catch (error) {
-    console.error(error);
-    AppToaster.show({
-      message: `OpenAI error msg: ${error.message}`,
-      timeout: 15000,
     });
   }
 }
@@ -739,6 +216,7 @@ export function modelAccordingToProvider(model) {
     llm.id = model;
     llm.name = model;
     llm.library = googleLibrary;
+    if (model.includes("gemini-3")) llm.thinking = true;
   } else {
     llm.provider = "OpenAI";
     if (
@@ -1383,15 +861,48 @@ export async function googleCompletion({
   let usage = {};
 
   try {
-    // Detect if PDFs or images are present
+    // Detect if PDFs, images, videos, or audio are present
     const hasPdfInPrompt = pdfLinkRegex.test(JSON.stringify(prompt));
     const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
     const hasImageInPrompt = roamImageRegex.test(JSON.stringify(prompt));
     const hasImageInContent = roamImageRegex.test(content);
+    const hasVideoInPrompt =
+      roamVideoRegex.test(JSON.stringify(prompt)) ||
+      youtubeRegex.test(JSON.stringify(prompt));
+    const hasVideoInContent =
+      prompt.includes("video") &&
+      (roamVideoRegex.test(content) || youtubeRegex.test(content));
+    const hasAudioInPrompt = roamAudioRegex.test(JSON.stringify(prompt));
+    const hasAudioInContent =
+      prompt.includes("audio") && roamAudioRegex.test(content);
 
     // Prepare system instruction and history in Google's format
     const history = [];
-    const systemInstruction = systemPrompt + (content ? "\n\n" + content : "");
+    let systemInstruction = systemPrompt + (content ? "\n\n" + content : "");
+
+    // Add video instructions if videos are detected
+    if (hasVideoInPrompt || hasVideoInContent) {
+      const videoInstructions = `\n\nIMPORTANT VIDEO INSTRUCTIONS:
+1. When providing timestamps for specific moments from videos you are analyzing, always use Roam's timestamp format: '{{[[video-timestamp]]: ((${
+        targetUid || "video-block-uid"
+      })) hh:mm:ss}}'. This creates clickable timestamps. For example: {{[[video-timestamp]]: ((${
+        targetUid || "block-uid"
+      })) 00:02:35}} to reference 2 minutes and 35 seconds into the video.
+
+2. Note: If the user specified "start:" or "end:" keywords in their prompt (e.g., "start: 1:30" or "end: 120"), you are analyzing only that specific segment of the video, not the entire video. Adjust your analysis and timestamps accordingly.`;
+      systemInstruction += videoInstructions;
+    }
+
+    // Add audio instructions if audio files are detected
+    if (hasAudioInPrompt || hasAudioInContent) {
+      const audioInstructions = `\n\nIMPORTANT AUDIO INSTRUCTIONS:
+1. You are analyzing audio content. If the user doesn't give any specific instructions, just provide a transcription; otherwise, analyze the audio content according to their instructions.
+2. When transcribing, structure the output with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. DO NOT output a single monolithic block of text. Insert line breaks between distinct ideas or topics to improve readability.
+3. If the user specified "start:" or "end:" keywords in their prompt (e.g., "start: 1:30" or "end: 120"), you are analyzing only that specific segment of the audio, not the entire file. Adjust your transcription and analysis accordingly.
+4. When referencing specific moments in the audio, use standard timestamp format (MM:SS or HH:MM:SS).`;
+      systemInstruction += audioInstructions;
+    }
+
     let currentMessage = "";
     let currentMessageParts = [];
 
@@ -1434,6 +945,32 @@ export async function googleCompletion({
               .replace(roamImageRegex, "[Image]")
               .trim();
           }
+
+          // Add videos from the last prompt message
+          if (hasVideoInPrompt) {
+            currentMessageParts = await addVideosToGeminiMessage(
+              currentMessageParts,
+              msg.content
+            );
+            // Remove video markdown from the text
+            roamVideoRegex.lastIndex = 0;
+            currentMessageParts[0].text = currentMessageParts[0].text
+              .replace(roamVideoRegex, "[Video]")
+              .trim();
+          }
+
+          // Add audio from the last prompt message
+          if (hasAudioInPrompt) {
+            currentMessageParts = await addAudioToGeminiMessage(
+              currentMessageParts,
+              msg.content
+            );
+            // Remove audio markdown from the text
+            roamAudioRegex.lastIndex = 0;
+            currentMessageParts[0].text = currentMessageParts[0].text
+              .replace(roamAudioRegex, "[Audio]")
+              .trim();
+          }
         } else {
           let userParts = [{ text: msg.content }];
 
@@ -1454,6 +991,26 @@ export async function googleCompletion({
             roamImageRegex.lastIndex = 0;
             userParts[0].text = userParts[0].text
               .replace(roamImageRegex, "[Image]")
+              .trim();
+          }
+
+          // Add videos from history messages
+          if (hasVideoInPrompt && roamVideoRegex.test(msg.content)) {
+            userParts = await addVideosToGeminiMessage(userParts, msg.content);
+            // Remove video markdown from the text
+            roamVideoRegex.lastIndex = 0;
+            userParts[0].text = userParts[0].text
+              .replace(roamVideoRegex, "[Video]")
+              .trim();
+          }
+
+          // Add audio from history messages
+          if (hasAudioInPrompt && roamAudioRegex.test(msg.content)) {
+            userParts = await addAudioToGeminiMessage(userParts, msg.content);
+            // Remove audio markdown from the text
+            roamAudioRegex.lastIndex = 0;
+            userParts[0].text = userParts[0].text
+              .replace(roamAudioRegex, "[Audio]")
               .trim();
           }
 
@@ -1481,20 +1038,45 @@ export async function googleCompletion({
       );
     }
 
+    // Add videos from context
+    if (hasVideoInContent) {
+      currentMessageParts = await addVideosToGeminiMessage(
+        currentMessageParts,
+        content
+      );
+    }
+
+    // Add audio from context
+    if (hasAudioInContent) {
+      currentMessageParts = await addAudioToGeminiMessage(
+        currentMessageParts,
+        content
+      );
+    }
+
     const isToStream = streamResponse && responseFormat === "text";
 
     const generationConfig = {};
     if (responseFormat === "json_object") {
       generationConfig.responseMimeType = "application/json";
     }
-    if (modelTemperature !== null) {
+    if (modelTemperature !== null && !model.includes("gemini-3")) {
       generationConfig.temperature = modelTemperature;
+    }
+
+    if (model.includes("gemini-3")) {
+      // generationConfig["thinking-level"] =
+
+      generationConfig["thinkingConfig"] = {
+        thinkingLevel: reasoningEffort === "minimal" ? "low" : reasoningEffort,
+        includeThoughts: true,
+      };
     }
 
     // Create chat configuration
     const chatConfig = {
       model: model,
-      generationConfig,
+      config: { ...generationConfig },
     };
 
     // Add system instruction if provided
@@ -1507,12 +1089,21 @@ export async function googleCompletion({
       chatConfig.history = history;
     }
 
+    console.log("Gemini chatConfig :>> ", chatConfig);
+
     // Create chat instance
     const chat = aiClient.chats.create(chatConfig);
 
-    // Prepare the message to send (use parts format if PDFs or images are present)
+    // Prepare the message to send (use parts format if PDFs, images, videos, or audio are present)
     const messageToSend =
-      hasPdfInPrompt || hasPdfInContent || hasImageInPrompt || hasImageInContent
+      hasPdfInPrompt ||
+      hasPdfInContent ||
+      hasImageInPrompt ||
+      hasImageInContent ||
+      hasVideoInPrompt ||
+      hasVideoInContent ||
+      hasAudioInPrompt ||
+      hasAudioInContent
         ? { message: currentMessageParts }
         : { message: currentMessage };
 
@@ -1527,6 +1118,10 @@ export async function googleCompletion({
           isStreamStopped: false,
         });
       const streamElt = insertParagraphForStream(targetUid);
+      let thinkingToasterStream;
+      if (model.includes("gemini-3")) {
+        thinkingToasterStream = displayThinkingToast("Thinking process:");
+      }
 
       try {
         const streamResponse = await chat.sendMessageStream(messageToSend);
@@ -1536,16 +1131,24 @@ export async function googleCompletion({
             streamElt.innerHTML += "(⚠️ stream interrupted by user)";
             break;
           }
-          const chunkText = chunk.text || "";
-          respStr += chunkText;
-          streamElt.innerHTML += DOMPurify.sanitize(chunkText);
+          for (const part of chunk.candidates[0].content.parts) {
+            if (!part.text) {
+              continue;
+            } else if (part.thought) {
+              thinkingToasterStream.innerText += part.text;
+            } else {
+              const chunkText = part.text || "";
+              respStr += chunkText;
+              streamElt.innerHTML += DOMPurify.sanitize(chunkText);
 
-          // Capture usage metadata if available in chunks
-          if (chunk.usageMetadata) {
-            usage = {
-              input_tokens: chunk.usageMetadata.promptTokenCount || 0,
-              output_tokens: chunk.usageMetadata.candidatesTokenCount || 0,
-            };
+              // Capture usage metadata if available in chunks
+              if (chunk.usageMetadata) {
+                usage = {
+                  input_tokens: chunk.usageMetadata.promptTokenCount || 0,
+                  output_tokens: chunk.usageMetadata.candidatesTokenCount || 0,
+                };
+              }
+            }
           }
         }
       } catch (e) {
@@ -1559,7 +1162,7 @@ export async function googleCompletion({
       }
     } else {
       const response = await chat.sendMessage(messageToSend);
-      console.log("Google response :>>", response);
+      // console.log("Google response :>>", response);
       respStr = response.text || "";
 
       if (response.usageMetadata) {
@@ -1576,10 +1179,32 @@ export async function googleCompletion({
       updateTokenCounter(model, usage);
     }
 
-    console.log(respStr);
+    // console.log(respStr);
     return respStr;
   } catch (error) {
     console.error(error);
+
+    // Check if it's a 403 error related to video access
+    if (
+      error.message?.includes("403") ||
+      error.message?.includes("PERMISSION_DENIED")
+    ) {
+      AppToaster.show({
+        message: (
+          <>
+            <h4>Video Access Error</h4>
+            <p>
+              The YouTube video cannot be analyzed because it's either private,
+              restricted, or not allowed for AI analysis. Please ensure the
+              video is public and allows embedding.
+            </p>
+          </>
+        ),
+        timeout: 15000,
+      });
+      return "⚠️ Unable to analyze the video: The video is either private, restricted, or not allowed for AI analysis. Please check the video permissions.";
+    }
+
     AppToaster.show({
       message: `Google AI error msg: ${error.message}`,
       timeout: 15000,
@@ -1649,245 +1274,6 @@ export async function ollamaCompletion({
     return "";
   }
 }
-
-export const addImagesUrlToMessages = async (
-  messages,
-  content,
-  isAnthropicModel
-) => {
-  let nbCountdown = maxImagesNb;
-
-  for (let i = 1; i < messages.length; i++) {
-    roamImageRegex.lastIndex = 0;
-    const matchingImagesInPrompt = Array.from(
-      messages[i].content?.matchAll(roamImageRegex)
-    );
-    if (matchingImagesInPrompt.length) {
-      messages[i].content = [
-        {
-          type: "text",
-          text: messages[i].content,
-        },
-      ];
-    }
-    for (let j = 0; j < matchingImagesInPrompt.length; j++) {
-      messages[i].content[0].text = messages[i].content[0].text
-        .replace(matchingImagesInPrompt[j][0], `[Image ${i + 1}]`)
-        .trim();
-      if (nbCountdown > 0) {
-        if (!isAnthropicModel)
-          messages[i].content.push({
-            type: "image_url",
-            image_url: {
-              url: matchingImagesInPrompt[j][2],
-              detail: resImages,
-            },
-          });
-        else if (isAnthropicModel)
-          messages[i].content.push({
-            type: "image",
-            source: {
-              type: "url",
-              url: matchingImagesInPrompt[j][2],
-            },
-          });
-      }
-      nbCountdown--;
-    }
-  }
-
-  if (content && content.length) {
-    roamImageRegex.lastIndex = 0;
-    const matchingImagesInContext = Array.from(
-      content.matchAll(roamImageRegex)
-    );
-    for (let i = 0; i < matchingImagesInContext.length; i++) {
-      if (nbCountdown > 0) {
-        if (i === 0)
-          messages.splice(1, 0, {
-            role: "user",
-            content: [
-              { type: "text", text: "Image(s) provided in the context:" },
-            ],
-          });
-        if (!isAnthropicModel) {
-          messages[1].content.push({
-            type: "image_url",
-            image_url: {
-              url: matchingImagesInContext[i][2],
-              detail: resImages,
-            },
-          });
-        } else if (isAnthropicModel) {
-          messages[1].content.push({
-            type: "image",
-            source: {
-              type: "url",
-              url: matchingImagesInContext[i][2],
-            },
-          });
-        }
-        nbCountdown--;
-      }
-    }
-  }
-  return messages;
-};
-
-export const isModelSupportingImage = (model) => {
-  model = model.toLowerCase();
-
-  if (
-    model.includes("gpt-4o") ||
-    model.includes("gpt-4.1") ||
-    model.includes("gpt-5") ||
-    model.includes("vision") ||
-    model === "o4-mini" ||
-    model === "o3"
-  )
-    return true;
-  if (model.includes("claude")) return true;
-  if (openRouterModelsInfo.length) {
-    const ormodel = openRouterModelsInfo.find(
-      (m) => m.id.toLowerCase() === model
-    );
-    // console.log("ormodel :>> ", ormodel);
-    if (ormodel) return ormodel.imagePricing ? true : false;
-  }
-  return false;
-};
-
-const addPdfUrlToMessages = async (messages, content, provider) => {
-  for (let i = 1; i < messages.length; i++) {
-    pdfLinkRegex.lastIndex = 0;
-    const matchingPdfInPrompt = Array.from(
-      (typeof messages[i].content === "string"
-        ? messages[i].content?.matchAll(pdfLinkRegex)
-        : []) || []
-    );
-
-    if (matchingPdfInPrompt.length) {
-      messages[i].content = [
-        {
-          type: provider !== "OpenAI" ? "text" : "input_text",
-          text: messages[i].content,
-        },
-      ];
-    }
-
-    for (let j = 0; j < matchingPdfInPrompt.length; j++) {
-      messages[i].content[0].text = messages[i].content[0].text
-        .replace(matchingPdfInPrompt[j][0], "")
-        .trim();
-
-      const pdfRole = await getFormatedPdfRole(
-        matchingPdfInPrompt[j][1],
-        matchingPdfInPrompt[j][2],
-        provider
-      );
-
-      messages[i].content.push(pdfRole);
-    }
-  }
-
-  if (content && typeof content === "string" && content.length) {
-    pdfLinkRegex.lastIndex = 0;
-    const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
-
-    for (let i = 0; i < matchingPdfInContext.length; i++) {
-      if (i === 0)
-        messages.splice(1, 0, {
-          role: "user",
-          content: [
-            {
-              type: provider !== "OpenAI" ? "text" : "input_text",
-              text: "Pdf(s) provided in the context:",
-            },
-          ],
-        });
-      const pdfRole = await getFormatedPdfRole(
-        matchingPdfInContext[i][1],
-        matchingPdfInContext[i][2],
-        provider
-      );
-      messages[1].content.push(pdfRole);
-    }
-  }
-
-  return messages;
-};
-
-const addPdfToGeminiMessage = async (messageParts, content) => {
-  // Extract PDF URLs from the content
-  pdfLinkRegex.lastIndex = 0;
-  const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
-
-  for (let i = 0; i < matchingPdfInContext.length; i++) {
-    try {
-      const pdfUrl = matchingPdfInContext[i][1] || matchingPdfInContext[i][2];
-
-      // Fetch the PDF from the URL
-      const pdfResponse = await fetch(pdfUrl);
-      if (!pdfResponse.ok) {
-        console.error(`Failed to fetch PDF from ${pdfUrl}`);
-        continue;
-      }
-
-      const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-      const pdfBase64 = Buffer.from(pdfArrayBuffer).toString("base64");
-
-      // Add PDF as inline data to the message parts
-      messageParts.push({
-        inlineData: {
-          mimeType: "application/pdf",
-          data: pdfBase64,
-        },
-      });
-    } catch (error) {
-      console.error(`Error processing PDF: ${error.message}`);
-    }
-  }
-
-  return messageParts;
-};
-
-const addImagesToGeminiMessage = async (messageParts, content) => {
-  // Extract image URLs from the content
-  roamImageRegex.lastIndex = 0;
-  const matchingImagesInContent = Array.from(content.matchAll(roamImageRegex));
-
-  for (let i = 0; i < matchingImagesInContent.length; i++) {
-    try {
-      const imageUrl = matchingImagesInContent[i][2];
-
-      // Fetch the image from the URL
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        console.error(`Failed to fetch image from ${imageUrl}`);
-        continue;
-      }
-
-      const imageArrayBuffer = await imageResponse.arrayBuffer();
-      const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
-
-      // Detect MIME type from URL or response headers
-      const contentType =
-        imageResponse.headers.get("content-type") || "image/jpeg";
-
-      // Add image as inline data to the message parts
-      messageParts.push({
-        inlineData: {
-          mimeType: contentType,
-          data: imageBase64,
-        },
-      });
-    } catch (error) {
-      console.error(`Error processing image: ${error.message}`);
-    }
-  }
-
-  return messageParts;
-};
 
 // export const getTokenizer = async () => {
 //   try {

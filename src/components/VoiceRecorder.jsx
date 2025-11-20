@@ -50,7 +50,7 @@ import {
   setAsOutline,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
-import { transcribeAudio, translateAudio } from "../ai/aiAPIsHub.js";
+
 import {
   getConversationArray,
   getResolvedContentFromBlocks,
@@ -66,6 +66,7 @@ import {
   openChatPopup,
   openFullResultsPopup,
 } from "./full-results-popup/index.tsx";
+import { transcribeAudio, translateAudio } from "../ai/multimodalAI.js";
 
 function VoiceRecorder({
   blockUid,
@@ -558,9 +559,7 @@ function VoiceRecorder({
           currentValue.substring(selectionEnd);
       } else {
         // Otherwise, append to the end (with space if there's existing content)
-        newValue = currentValue
-          ? `${currentValue} ${transcribe}`
-          : transcribe;
+        newValue = currentValue ? `${currentValue} ${transcribe}` : transcribe;
       }
 
       // Update via React's onChange handler to properly update state

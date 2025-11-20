@@ -43,6 +43,7 @@ import {
   modelAccordingToProvider,
 } from "../../ai/aiAPIsHub";
 import { mcpManager } from "../../ai/agents/mcp-agent/mcpManager";
+import { roamAudioRegex } from "../../utils/regex";
 import ContextMenuHeader from "./components/ContextMenuHeader";
 import ContextSelectionPanel from "./components/ContextSelectionPanel";
 import TokenEstimateDisplay from "./components/TokenEstimateDisplay";
@@ -664,6 +665,22 @@ export const StandaloneContextMenu = () => {
       )
     )
       return false;
+    if (item.name === "Speech to text") {
+      // Only show if focused block contains audio
+      const blockContent = focusedBlockContent.current || "";
+      roamAudioRegex.lastIndex = 0;
+      if (!roamAudioRegex.test(blockContent)) {
+        return false;
+      }
+    }
+    if (item.name === "Text to Speech") {
+      // Hide if focused block contains audio (Speech to text will be shown instead)
+      const blockContent = focusedBlockContent.current || "";
+      roamAudioRegex.lastIndex = 0;
+      if (roamAudioRegex.test(blockContent)) {
+        return false;
+      }
+    }
     if (
       !focusedBlockUid?.current &&
       !selectedBlocks?.current?.length &&

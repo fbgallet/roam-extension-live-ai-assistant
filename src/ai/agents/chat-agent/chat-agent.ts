@@ -39,7 +39,7 @@ import {
   SUMMARIZATION_PROMPT,
 } from "./chat-agent-prompts";
 import { getChatTools } from "./chat-tools";
-import { imageGeneration, modelAccordingToProvider } from "../../aiAPIsHub";
+import { imageGeneration } from "../../multimodalAI";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -258,6 +258,14 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       "⚠️ Streaming disabled for Gemini model to avoid tool call issues"
     );
   }
+
+  // Reasoning not working with current version of langchain/openai
+  // const options = {};
+  // if (state.model.id.includes("gpt-5") && state.model.thinking)
+  //   options["reasoning"] = {
+  //     effort: reasoningEffort,
+  //     summary: "auto",
+  //   };
 
   if (shouldStream) {
     // Stream the response - use concat to properly accumulate tool call chunks

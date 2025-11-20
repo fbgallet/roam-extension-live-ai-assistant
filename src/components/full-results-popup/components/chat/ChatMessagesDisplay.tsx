@@ -20,7 +20,7 @@ import {
   LIVE_AI_HELP_RESPONSE,
   getRandomTip,
 } from "./chatHelpConstants";
-import { textToSpeech } from "../../../../ai/aiAPIsHub";
+import { textToSpeech } from "../../../../ai/multimodalAI";
 
 // Helper function to detect if content contains KaTeX formulas
 const containsKaTeX = (content: string): boolean => {

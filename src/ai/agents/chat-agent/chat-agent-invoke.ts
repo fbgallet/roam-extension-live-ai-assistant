@@ -10,7 +10,7 @@ import { LlmInfos, TokensUsage } from "../langraphModelsLoader";
 import {
   addImagesUrlToMessages,
   isModelSupportingImage,
-} from "../../aiAPIsHub";
+} from "../../multimodalAI";
 
 export interface ChatAgentOptions {
   // Required

@@ -111,6 +111,8 @@ export const BOTH_TIPS = [
   "**OpenRouter access**: Get 100+ models and the most recent ones with one API key via OpenRouter - perfect for testing different models without multiple accounts ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#get-api-keys))",
   "**Did you know?** Live AI can **extract text from images** (OCR) or analyze artwork! Use 'Extract text from image' or 'Image Analysis' commands on blocks containing images",
   "**Did you know?** Live AI can **create quizzes** from your notes! Use the 'Quiz on provided content' command or use 'Quiz' style for active learning and knowledge testing",
+  "**Did you know?** You can **analyze or transcribe audio files** with Gemini models! Just include audio URLs (`{{[[audio]]: url}}`) in your prompt or context. Use `start:` and `end:` to analyze specific segments (e.g., 'Transcribe this audio start: 2:00 end: 5:30')",
+  "**Did you know?** You can **analyze videos** (including YouTube) with Gemini models! Insert video URLs in your prompt or context, and use `start:`/`end:` keywords to focus on specific segments (e.g., 'Summarize this video start: 1:30 end: 4:00')",
 ];
 
 // Legacy: Combined tips array for backward compatibility

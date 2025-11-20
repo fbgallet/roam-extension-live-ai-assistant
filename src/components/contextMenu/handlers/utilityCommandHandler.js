@@ -1,4 +1,3 @@
-import { textToSpeech } from "../../../ai/aiAPIsHub";
 import { completionCommands } from "../../../ai/prompts";
 import {
   getCustomPromptByUid,
@@ -9,6 +8,7 @@ import {
 import { getParentBlock } from "../../../utils/roamAPI";
 import { languages } from "../../../ai/languagesSupport";
 import { extensionStorage } from "../../..";
+import { textToSpeech } from "../../../ai/multimodalAI";
 
 /**
  * Handles utility commands like text-to-speech, translations, custom prompts, conversations
@@ -54,18 +54,18 @@ export const handleUtilityCommand = async ({
     const customCommand = getCustomPromptByUid(command.prompt);
     const prompt = customCommand.prompt;
     let customContext = null;
-    
+
     if (customCommand.context) {
       customContext = getUnionContext(
         capturedRoamContext,
         customCommand.context
       );
     }
-    
-    return { 
-      handled: false, 
-      prompt, 
-      customContext 
+
+    return {
+      handled: false,
+      prompt,
+      customContext,
     };
   }
 
@@ -80,17 +80,15 @@ export const handleUtilityCommand = async ({
         : command.id === 1199
         ? customLgg
         : command.name;
-    
+
     if (defaultLgg !== selectedLgg) {
       setDefaultLgg(selectedLgg);
       extensionStorage.set("translationDefaultLgg", selectedLgg);
     }
-    
-    let prompt = command.prompt 
-      ? completionCommands[command.prompt]
-      : "";
+
+    let prompt = command.prompt ? completionCommands[command.prompt] : "";
     prompt = prompt.replace("<language>", selectedLgg);
-    
+
     return { handled: false, prompt };
   }
 
@@ -104,7 +102,7 @@ export const handleUtilityCommand = async ({
     const parentUid = getParentBlock(focusedBlockUid.current);
     let convParams = getConversationParamsFromHistory(parentUid);
     let conversationStyle = null;
-    
+
     if (!convParams) {
       convParams = { uid: parentUid };
       if (selectedBlocks.current)
@@ -119,7 +117,7 @@ export const handleUtilityCommand = async ({
       conversationStyle = convParams?.style;
       convParams?.context && setRoamContext(convParams?.context);
     }
-    
+
     return { handled: false, conversationStyle };
   }
 
@@ -127,7 +125,7 @@ export const handleUtilityCommand = async ({
   if (command.category === "AI MODEL") {
     const newModel = command.model;
     let newCommand;
-    
+
     // Determine which command to use based on context
     if (command.isOutlinerAgent && command.rootUid) {
       newCommand = commands.find((c) => c.id === 21);
@@ -136,15 +134,15 @@ export const handleUtilityCommand = async ({
     } else {
       newCommand = commands.find((c) => c.id === 1);
     }
-    
+
     if (newModel.includes("-search")) {
       newCommand.includeUids = false;
     }
-    
-    return { 
-      handled: false, 
-      command: newCommand, 
-      model: newModel 
+
+    return {
+      handled: false,
+      command: newCommand,
+      model: newModel,
     };
   }
 
@@ -155,11 +153,11 @@ export const handleUtilityCommand = async ({
       : command.id !== 19
       ? ""
       : command.prompt;
-    
+
     if (command.customPrompt) {
       prompt = prompt.replace("<target content>", command.customPrompt);
     }
-    
+
     return { handled: false, prompt };
   }
 

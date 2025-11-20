@@ -19,8 +19,11 @@ import {
   getParentBlock,
   hasBlockChildren,
 } from "../../../utils/roamAPI";
-import { aiCompletionRunner } from "../../../ai/responseInsertion";
-import { textToSpeech } from "../../../ai/aiAPIsHub";
+import {
+  aiCompletionRunner,
+  insertCompletion,
+} from "../../../ai/responseInsertion";
+
 import { mcpManager } from "../../../ai/agents/mcp-agent/mcpManager";
 import { invokeMCPAgent } from "../../../ai/agents/mcp-agent/invoke-mcp-agent";
 import {
@@ -39,8 +42,15 @@ import {
   insertInstantButtons,
   displayAskGraphModeDialog,
   displayAskGraphFirstTimeDialog,
+  displaySpinner,
+  removeSpinner,
 } from "../../../utils/domElts";
 import { openChatPopup } from "../../full-results-popup";
+import {
+  textToSpeech,
+  transcribeAudioFromBlock,
+} from "../../../ai/multimodalAI";
+import { AppToaster } from "../../../components/Toaster";
 
 export const handleClickOnCommand = async ({
   e,
@@ -135,6 +145,85 @@ export const handleClickOnCommand = async ({
     };
   if (command.name === "Text to Speech") {
     textToSpeech(getInstantPrompt(command, false), additionalPrompt);
+    return;
+  }
+  if (command.name === "Speech to text") {
+    // Ensure we have a valid focused block UID
+    let targetUid = focusedBlockUid.current;
+    if (!targetUid) {
+      const focusedBlock = window.roamAlphaAPI.ui.getFocusedBlock();
+      targetUid = focusedBlock?.["block-uid"] || null;
+    }
+
+    if (!targetUid) {
+      console.error("No valid block UID for transcription insertion");
+      return;
+    }
+
+    // Create child block first for the formatted transcription
+    const transcriptionUid = await createChildBlock(targetUid, "", 0);
+
+    // Display spinner immediately so user knows processing has started
+    const spinnerIntervalId = await displaySpinner(transcriptionUid);
+
+    try {
+      const blockContent = focusedBlockContent.current;
+      const rawTranscription = await transcribeAudioFromBlock(
+        blockContent,
+        additionalPrompt,
+        model
+      );
+
+      // Remove spinner after transcription is complete
+      removeSpinner(spinnerIntervalId);
+
+      if (rawTranscription) {
+        // Create a prompt to format the transcription properly
+        const formattingPrompt = [
+          {
+            role: "user",
+            content: `Format the following audio transcription into well-structured paragraphs. Organize the content by:
+- Breaking it into logical paragraphs based on topic changes or natural speech breaks
+- Identifying and marking different speakers if present (e.g., "Speaker 1:", "Speaker 2:")
+- Correcting any obvious transcription errors
+- Maintaining the original meaning and all important details
+
+Here is the raw transcription:
+
+${rawTranscription}`,
+          },
+        ];
+
+        const systemPrompt =
+          "You are a transcription formatter. Your task is to take raw audio transcriptions and format them into clear, well-organized text with proper paragraphs and structure.";
+
+        // Use insertCompletion to format and insert the transcription
+        // (insertCompletion will handle its own spinner for the formatting phase)
+        await insertCompletion({
+          prompt: formattingPrompt,
+          systemPrompt,
+          targetUid: transcriptionUid,
+          context: "",
+          typeOfCompletion: "gptCompletion",
+          instantModel: model,
+          command: "Speech to text",
+          style: "",
+          isInConversation: false,
+          withAssistantRole: false,
+          target: "new w/o",
+          isButtonToInsert: true,
+        });
+      }
+    } catch (error) {
+      // Remove spinner on error
+      removeSpinner(spinnerIntervalId);
+      console.error("Error in Speech to text command:", error);
+      AppToaster.show({
+        message: `Speech to text error: ${error.message}`,
+        timeout: 10000,
+      });
+    }
+
     return;
   }
   if (command.category === "QUERY AGENTS") {

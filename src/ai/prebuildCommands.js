@@ -161,6 +161,17 @@ export const BUILTIN_COMMANDS = [
     },
   },
   {
+    id: 4,
+    icon: "volume-down",
+    name: "Speech to text",
+    category: "",
+    keyWords: "STT, transcribe, audio, transcription",
+    showOnlyIfAudioInBlock: true,
+    isIncompatibleWith: {
+      chat: true,
+    },
+  },
+  {
     id: 80,
     name: "Natural language query",
     callback: invokeNLQueryInterpreter,

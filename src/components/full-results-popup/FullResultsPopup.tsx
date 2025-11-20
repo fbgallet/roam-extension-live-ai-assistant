@@ -522,6 +522,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     chatAccessMode,
     chatAgentData,
     chatExpandedResults,
+    contextTokenEstimate,
+    willContextBeTruncated,
+    hasCalculatedTokens,
+    selectionChangedSinceCalculation,
     isFullscreen,
     chatOnlyMode,
     mainContentWidth,
@@ -545,6 +549,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setChatAccessMode,
     setChatAgentData,
     setChatExpandedResults,
+    setContextTokenEstimate,
+    setWillContextBeTruncated,
+    setHasCalculatedTokens,
+    setSelectionChangedSinceCalculation,
     setIsFullscreen,
     setChatOnlyMode,
     setMainContentWidth,
@@ -2557,6 +2565,15 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 setChatAgentData={setChatAgentData}
                 chatExpandedResults={chatExpandedResults}
                 setChatExpandedResults={setChatExpandedResults}
+                // Token estimation state (persists across view switches)
+                contextTokenEstimate={contextTokenEstimate}
+                setContextTokenEstimate={setContextTokenEstimate}
+                willContextBeTruncated={willContextBeTruncated}
+                setWillContextBeTruncated={setWillContextBeTruncated}
+                hasCalculatedTokens={hasCalculatedTokens}
+                setHasCalculatedTokens={setHasCalculatedTokens}
+                selectionChangedSinceCalculation={selectionChangedSinceCalculation}
+                setSelectionChangedSinceCalculation={setSelectionChangedSinceCalculation}
                 // Pagination props for cross-page navigation
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}

@@ -167,6 +167,12 @@ export const useFullResultsState = (
     Result[] | null
   >(null);
 
+  // Token estimation state (persists across view switches)
+  const [contextTokenEstimate, setContextTokenEstimate] = useState<number>(0);
+  const [willContextBeTruncated, setWillContextBeTruncated] = useState<boolean>(false);
+  const [hasCalculatedTokens, setHasCalculatedTokens] = useState<boolean>(false);
+  const [selectionChangedSinceCalculation, setSelectionChangedSinceCalculation] = useState<boolean>(false);
+
   // Advanced UI state
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chatOnlyMode, setChatOnlyMode] = useState(false);
@@ -1017,6 +1023,10 @@ export const useFullResultsState = (
     chatAccessMode,
     chatAgentData,
     chatExpandedResults,
+    contextTokenEstimate,
+    willContextBeTruncated,
+    hasCalculatedTokens,
+    selectionChangedSinceCalculation,
     isFullscreen,
     chatOnlyMode,
     mainContentWidth,
@@ -1054,6 +1064,10 @@ export const useFullResultsState = (
     setChatAccessMode,
     setChatAgentData,
     setChatExpandedResults,
+    setContextTokenEstimate,
+    setWillContextBeTruncated,
+    setHasCalculatedTokens,
+    setSelectionChangedSinceCalculation,
     setIsFullscreen,
     setChatOnlyMode,
     setMainContentWidth,
