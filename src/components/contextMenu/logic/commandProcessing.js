@@ -12,6 +12,7 @@ import {
   chatRoles,
   getConversationParamsFromHistory,
   getInstantAssistantRole,
+  transcriptionModel,
 } from "../../..";
 import {
   createChildBlock,
@@ -160,8 +161,16 @@ export const handleClickOnCommand = async ({
       return;
     }
 
+    const instantModel = model || defaultModel;
+
     // Create child block first for the formatted transcription
-    const transcriptionUid = await createChildBlock(targetUid, "", 0);
+    const transcriptionUid = await createChildBlock(
+      targetUid,
+      `Speech transcription (${
+        instantModel?.includes("gemini") ? instantModel : transcriptionModel
+      }):`,
+      0
+    );
 
     // Display spinner immediately so user knows processing has started
     const spinnerIntervalId = await displaySpinner(transcriptionUid);
@@ -184,9 +193,8 @@ export const handleClickOnCommand = async ({
             role: "user",
             content: `Format the following audio transcription into well-structured paragraphs. Organize the content by:
 - Breaking it into logical paragraphs based on topic changes or natural speech breaks
-- Identifying and marking different speakers if present (e.g., "Speaker 1:", "Speaker 2:")
-- Correcting any obvious transcription errors
-- Maintaining the original meaning and all important details
+- If MORE than one speaker: identifying and marking different speakers (e.g., "Speaker 1:", "Speaker 2:"), only once per turn, not on each paragraph, and nest and indent content under the Speaker name in case of multiple paragraphs.
+- Reproducing exactly the initial transcription content, correcting only obvious transcription errors.
 
 Here is the raw transcription:
 
@@ -202,7 +210,7 @@ ${rawTranscription}`,
         await insertCompletion({
           prompt: formattingPrompt,
           systemPrompt,
-          targetUid: transcriptionUid,
+          targetUid: await createChildBlock(transcriptionUid),
           context: "",
           typeOfCompletion: "gptCompletion",
           instantModel: model,

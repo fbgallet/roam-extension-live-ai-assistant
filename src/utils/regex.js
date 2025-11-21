@@ -20,7 +20,7 @@ export const videoStartTimeRegex =
 export const videoEndTimeRegex =
   /(?:end|to):\s*(\d+):(\d+)|(?:end|to):\s*(\d+)/i;
 export const roamAudioRegex =
-  /\{\{\[?\[?audio\]?\]?:\s?(https?:[^\s}]+)\}|https?:[^\s)]+\.(mp3|wav|aiff|aac|ogg|flac|m4a)/gi;
+  /\{\{\[?\[?audio\]?\]?:\s?(https?:[^\s}]+)\}\}|https?:[^\s)]+\.(mp3|wav|aiff|aac|ogg|flac|m4a)/gi;
 export const pdfLinkRegex =
   /(http[^\s)]+\.pdf)|{{\[?\[?pdf\]?\]?:\s?(https:[^\s})]+)}}/g;
 export const urlRegex =

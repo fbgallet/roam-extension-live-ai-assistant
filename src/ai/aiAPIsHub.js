@@ -862,6 +862,11 @@ export async function googleCompletion({
 
   try {
     // Detect if PDFs, images, videos, or audio are present
+    roamVideoRegex.lastIndex = 0;
+    youtubeRegex.lastIndex = 0;
+    roamAudioRegex.lastIndex = 0;
+    roamImageRegex.lastIndex = 0;
+    pdfLinkRegex.lastIndex = 0;
     const hasPdfInPrompt = pdfLinkRegex.test(JSON.stringify(prompt));
     const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
     const hasImageInPrompt = roamImageRegex.test(JSON.stringify(prompt));
@@ -897,7 +902,7 @@ export async function googleCompletion({
     if (hasAudioInPrompt || hasAudioInContent) {
       const audioInstructions = `\n\nIMPORTANT AUDIO INSTRUCTIONS:
 1. You are analyzing audio content. If the user doesn't give any specific instructions, just provide a transcription; otherwise, analyze the audio content according to their instructions.
-2. When transcribing, structure the output with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. DO NOT output a single monolithic block of text. Insert line breaks between distinct ideas or topics to improve readability.
+2. When transcribing, structure the output with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. DO NOT output a single monolithic block of text. Insert line breaks between distinct ideas or topics to improve readability. If multiple speakers are detected, indicate speaker changes (try to name them properly or follow the user indication if provided). Give timestamps for the key moments.
 3. If the user specified "start:" or "end:" keywords in their prompt (e.g., "start: 1:30" or "end: 120"), you are analyzing only that specific segment of the audio, not the entire file. Adjust your transcription and analysis accordingly.
 4. When referencing specific moments in the audio, use standard timestamp format (MM:SS or HH:MM:SS).`;
       systemInstruction += audioInstructions;
@@ -1089,7 +1094,7 @@ export async function googleCompletion({
       chatConfig.history = history;
     }
 
-    console.log("Gemini chatConfig :>> ", chatConfig);
+    // console.log("Gemini chatConfig :>> ", chatConfig);
 
     // Create chat instance
     const chat = aiClient.chats.create(chatConfig);

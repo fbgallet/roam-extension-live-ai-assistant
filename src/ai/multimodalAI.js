@@ -35,7 +35,7 @@ export async function transcribeAudio(filename) {
   try {
     // console.log(filename);
     const defaultPrompt =
-      "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes.";
+      "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes. If audio is longuer than 30s, add mm:ss timestamp for key moments.";
     const options = {
       file: filename,
       model:
@@ -842,8 +842,6 @@ export const addVideosToGeminiMessage = async (messageParts, content) => {
   roamVideoRegex.lastIndex = 0;
   const matchingVideosInContent = Array.from(content.matchAll(roamVideoRegex));
 
-  console.log("matchingVideosInContent :>> ", matchingVideosInContent);
-
   for (let i = 0; i < matchingVideosInContent.length; i++) {
     try {
       // Group 1 is the keyword (video|youtube), Group 2 is the URL
@@ -1030,7 +1028,7 @@ export const transcribeAudioFromBlock = async (
     if (useGemini && googleLibrary) {
       // Use Gemini for transcription
       const defaultInstructions =
-        "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes.";
+        "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes (try to name them properly or follow the user indication if provided). Give timestamps for the key moments. If audio is longuer than 30s, add mm:ss timestamp for key moments.";
       const fullPrompt = userPrompt
         ? `${defaultInstructions}\n\nAdditional instructions: ${userPrompt}`
         : defaultInstructions;
@@ -1052,24 +1050,12 @@ export const transcribeAudioFromBlock = async (
       let audioBlob;
       if (audioUrl.includes("firebasestorage.googleapis.com")) {
         audioBlob = await roamAlphaAPI.file.get({ url: audioUrl });
-        console.log(
-          "Fetched audio from Firebase, blob size:",
-          audioBlob?.size,
-          "type:",
-          audioBlob?.type
-        );
       } else {
         const audioResponse = await fetch(audioUrl);
         if (!audioResponse.ok) {
           throw new Error(`Failed to fetch audio from ${audioUrl}`);
         }
         audioBlob = await audioResponse.blob();
-        console.log(
-          "Fetched audio from external URL, blob size:",
-          audioBlob?.size,
-          "type:",
-          audioBlob?.type
-        );
       }
 
       // Determine the correct MIME type and filename
@@ -1077,13 +1063,6 @@ export const transcribeAudioFromBlock = async (
       const extension =
         audioUrl.split(".").pop().toLowerCase().split("?")[0] || "mp3";
       const filename = `audio.${extension}`;
-
-      console.log(
-        "Creating audio file with name:",
-        filename,
-        "mimeType:",
-        mimeType
-      );
 
       // Create a File object for the API
       const audioFile = new File([audioBlob], filename, {
@@ -1155,8 +1134,6 @@ export const addAudioToGeminiMessage = async (messageParts, content) => {
   // Process audio files in {{[[audio]]: url}} format and direct audio URLs
   roamAudioRegex.lastIndex = 0;
   const matchingAudioInContent = Array.from(content.matchAll(roamAudioRegex));
-
-  console.log("matchingAudioInContent :>> ", matchingAudioInContent);
 
   for (let i = 0; i < matchingAudioInContent.length; i++) {
     try {
