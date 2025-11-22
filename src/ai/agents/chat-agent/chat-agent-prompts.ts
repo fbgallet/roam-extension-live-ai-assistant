@@ -22,6 +22,8 @@ export const buildChatSystemPrompt = async ({
   resultsContext,
   activeSkillInstructions,
   enabledTools,
+  hasAudioContent,
+  hasVideoContent,
 }: {
   lastMessage: string;
   style?: string;
@@ -33,6 +35,8 @@ export const buildChatSystemPrompt = async ({
   isAgentMode?: boolean;
   activeSkillInstructions?: string;
   enabledTools?: Set<string>;
+  hasAudioContent?: boolean;
+  hasVideoContent?: boolean;
 }): Promise<string> => {
   // Different base prompt depending on whether we have search results context
 
@@ -131,6 +135,48 @@ ${activeSkillInstructions}
     }
   }
 
+  // Add audio handling guidance only if audio is present in prompt or context
+  if (hasAudioContent) {
+    systemPrompt += `\n\n## Audio Analysis
+
+When the user provides audio files (either directly in their message or in the context):
+- Audio files are automatically transcribed before you receive them
+- The transcription will be included in the user's message as "Audio [N] transcription:"
+- You should respond naturally to the transcribed content
+- If the user asks follow-up questions about the audio, the transcription is already available - just reference it
+
+**Re-analyzing Audio:**
+If you determine the user wants a NEW/DIFFERENT analysis of the audio (not just referencing the existing transcription), you can request fresh transcription by including the marker "🔄 REQUEST_FRESH_AUDIO_TRANSCRIPTION" at the very START of your response (before any other text). The system will:
+1. Detect this marker
+2. Re-transcribe the audio (potentially with different parameters based on user request)
+3. Give you the fresh transcription
+4. Remove the marker from your response before showing it to the user
+
+**When to request fresh transcription:**
+- User explicitly asks to "re-analyze", "analyze again", or wants a "different analysis"
+- User mentions they want more detailed transcription, or transcription with different focus
+- User asks about specific parts/timestamps that might need fresh analysis
+
+**Important**: Only use this marker when you genuinely believe fresh transcription is needed. Normal follow-up questions can use the cached transcription.`;
+  }
+
+  // Add video handling guidance only if video is present in prompt or context
+  if (hasVideoContent) {
+    systemPrompt += `\n\n## Video Analysis
+
+When the user provides video files or YouTube URLs (either directly in their message or in the context):
+- Video content is automatically analyzed using Gemini's multimodal capabilities
+- The analysis will be returned directly to the user
+- **IMPORTANT**: Video analysis requires a Gemini model - if a non-Gemini model is selected, the user will be notified to switch models
+
+**Supported video formats:**
+- YouTube URLs (direct links like https://youtube.com/watch?v=... or https://youtu.be/...)
+- Roam video syntax: {{[[video]]: url}} or {{[[youtube]]: url}}
+- Direct video file URLs (mp4, webm, etc.)
+
+**Note**: Video analysis happens automatically when video content is detected. You don't need to request or process videos - the system handles this before you see the message.`;
+  }
+
   // Add results context if available
   if (resultsContext) {
     systemPrompt += `\n\n## Available Context\n${resultsContext}`;
@@ -188,7 +234,11 @@ export const buildCompleteCommandPrompt = (
   hasContext: boolean
 ): string => {
   let commandInstructions = "";
-  if (commandPrompt && !commandPrompt.includes("Image generation")) {
+  if (
+    commandPrompt &&
+    !commandPrompt.includes("Image generation") &&
+    commandPrompt !== "Web search"
+  ) {
     const splittedCommand = commandPrompt.split(":");
     commandInstructions = completionCommands[splittedCommand[0]];
     // If custom prompt

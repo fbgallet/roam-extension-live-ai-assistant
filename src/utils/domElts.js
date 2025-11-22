@@ -201,14 +201,35 @@ export const removeSpinner = (intervalId) => {
 };
 
 export const insertParagraphForStream = (targetUid) => {
-  let targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+  let targetBlockElt;
 
-  if (!targetBlockElt) targetBlockElt = document.querySelector(".rm-block");
+  // Check if this is a chat UI streaming request
+  if (targetUid === "chatResponse") {
+    // Look for the chat streaming container in the Full Results Chat panel
+    targetBlockElt = document.querySelector(".full-results-chat-streaming-container");
+
+    // If not found, create it in the chat messages area
+    if (!targetBlockElt) {
+      const chatMessagesArea = document.querySelector(".full-results-chat-messages");
+      if (chatMessagesArea) {
+        targetBlockElt = document.createElement("div");
+        targetBlockElt.classList.add("full-results-chat-streaming-container");
+        chatMessagesArea.appendChild(targetBlockElt);
+      }
+    }
+  } else {
+    // Regular Roam block streaming
+    targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+    if (!targetBlockElt) targetBlockElt = document.querySelector(".rm-block");
+  }
+
+  if (!targetBlockElt) return null;
+
   const previousStreamElt = targetBlockElt.querySelector(".speech-stream");
   if (previousStreamElt) previousStreamElt.remove();
   const streamElt = document.createElement("p");
   streamElt.classList.add("speech-stream");
-  if (targetBlockElt) targetBlockElt.appendChild(streamElt);
+  targetBlockElt.appendChild(streamElt);
   //displaySpinner(targetUid);
   return streamElt;
 };

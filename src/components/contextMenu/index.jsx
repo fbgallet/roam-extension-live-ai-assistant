@@ -665,7 +665,7 @@ export const StandaloneContextMenu = () => {
       )
     )
       return false;
-    if (item.name === "Speech to text") {
+    if (item.name === "Audio transcription") {
       // Only show if focused block contains audio
       const blockContent = focusedBlockContent.current || "";
       roamAudioRegex.lastIndex = 0;
@@ -674,7 +674,7 @@ export const StandaloneContextMenu = () => {
       }
     }
     if (item.name === "Text to Speech") {
-      // Hide if focused block contains audio (Speech to text will be shown instead)
+      // Hide if focused block contains audio (Audio transcription will be shown instead)
       const blockContent = focusedBlockContent.current || "";
       roamAudioRegex.lastIndex = 0;
       if (roamAudioRegex.test(blockContent)) {

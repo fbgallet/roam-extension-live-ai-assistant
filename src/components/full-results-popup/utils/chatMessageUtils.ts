@@ -113,6 +113,21 @@ export const renderMarkdown = (text: string): string => {
 
   let rendered = text;
 
+  // STEP 0: Protect Roam-specific embeds from markdown processing
+  // Extract and store audio/video embeds BEFORE any other processing
+  const roamEmbeds: string[] = [];
+  const roamEmbedPlaceholder = "ROAMEMBED-";
+
+  // Protect {{[[audio]]: url}}, {{[[video]]: url}}, {{[[youtube]]: url}}
+  rendered = rendered.replace(
+    /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/gi,
+    (match) => {
+      const index = roamEmbeds.length;
+      roamEmbeds.push(match);
+      return `${roamEmbedPlaceholder}${index}`;
+    }
+  );
+
   // STEP 1: Handle code blocks FIRST to protect their content from other transformations
   // Store code blocks temporarily to prevent interference with other patterns
   // Use CODEBLOCK-x format to avoid conflicts with markdown syntax
@@ -384,8 +399,14 @@ export const renderMarkdown = (text: string): string => {
     '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag. Shift+click: Open in sidebar. Alt+click: Open in main window">#$1</a>'
   );
 
-  // STEP 5: Restore code blocks, links, and inline code BEFORE wrapping in paragraphs or sanitizing
+  // STEP 5: Restore code blocks, links, inline code, and Roam embeds BEFORE wrapping in paragraphs or sanitizing
   // Use split/join approach for reliable placeholder replacement (replaceAll not available in all environments)
+
+  // Restore Roam embeds FIRST (these need to be intact for renderString in React component)
+  roamEmbeds.forEach((embed, index) => {
+    const placeholder = `${roamEmbedPlaceholder}${index}`;
+    rendered = rendered.split(placeholder).join(embed);
+  });
 
   // Restore multi-line code blocks
   codeBlocks.forEach((codeBlock, index) => {

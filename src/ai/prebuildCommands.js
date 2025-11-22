@@ -163,13 +163,10 @@ export const BUILTIN_COMMANDS = [
   {
     id: 4,
     icon: "volume-down",
-    name: "Speech to text",
+    name: "Audio transcription",
     category: "",
-    keyWords: "STT, transcribe, audio, transcription",
+    keyWords: "STT, transcribe, speech, audio, transcription",
     showOnlyIfAudioInBlock: true,
-    isIncompatibleWith: {
-      chat: true,
-    },
   },
   {
     id: 80,

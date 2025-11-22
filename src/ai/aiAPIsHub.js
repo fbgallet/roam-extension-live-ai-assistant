@@ -363,7 +363,7 @@ export async function claudeCompletion({
             type: "web_fetch_20250910",
             name: "web_fetch",
             max_uses: 5,
-            citations: { enabled: True },
+            citations: { enabled: true },
           },
         ];
         headers["anthropic-beta"] = "web-fetch-2025-09-10";
@@ -845,6 +845,146 @@ export async function openaiCompletion({
   }
 }
 
+/**
+ * Add inline citations to response text from Google Search grounding metadata
+ * Based on the groundingSupports and groundingChunks fields
+ *
+ * Citations are placed in parentheses at the end of sentences or paragraphs
+ * for better readability and following proper citation conventions.
+ *
+ * @param {object} response - The Gemini API response object
+ * @returns {string} - Text with inline citations and sources section
+ */
+function addGroundingCitations(response) {
+  if (!response.candidates || !response.candidates[0]) {
+    return response.text || "";
+  }
+
+  const candidate = response.candidates[0];
+  const groundingMetadata = candidate.groundingMetadata;
+
+  // If no grounding metadata, return original text
+  if (
+    !groundingMetadata ||
+    !groundingMetadata.groundingSupports ||
+    !groundingMetadata.groundingChunks
+  ) {
+    return response.text || "";
+  }
+
+  let text = response.text || "";
+  const supports = groundingMetadata.groundingSupports;
+  const chunks = groundingMetadata.groundingChunks;
+
+  /**
+   * Find the nearest sentence or paragraph boundary after a given position
+   * @param {string} text - The text to search
+   * @param {number} position - Starting position
+   * @returns {number} - Position of the nearest boundary
+   */
+  const findNearestBoundary = (text, position) => {
+    // Don't go beyond the end of text
+    if (position >= text.length) return text.length;
+
+    // Look for sentence-ending punctuation (.!?) followed by space/newline/end
+    // Also look for paragraph breaks (double newlines)
+    const afterPos = text.slice(position);
+
+    // First, check if we're already at or very close to a boundary
+    const immediateMatch = afterPos.match(/^[.!?]\s/);
+    if (immediateMatch) {
+      return position + immediateMatch[0].length - 1; // Before the space
+    }
+
+    // Look for the next sentence ending
+    const sentenceMatch = afterPos.match(/[.!?](?=\s|$)/);
+
+    // Look for the next paragraph break (double newline)
+    const paragraphMatch = afterPos.match(/\n\n/);
+
+    // Choose the closest boundary
+    let nearestPos = text.length;
+
+    if (sentenceMatch && sentenceMatch.index !== undefined) {
+      nearestPos = Math.min(nearestPos, position + sentenceMatch.index + 1);
+    }
+
+    if (paragraphMatch && paragraphMatch.index !== undefined) {
+      nearestPos = Math.min(nearestPos, position + paragraphMatch.index);
+    }
+
+    return nearestPos;
+  };
+
+  // Group supports by their boundary positions to avoid duplicate citations
+  const citationsByBoundary = new Map();
+
+  for (const support of supports) {
+    const endIndex = support.segment?.endIndex;
+    if (endIndex === undefined || !support.groundingChunkIndices?.length) {
+      continue;
+    }
+
+    // Find the appropriate boundary for this citation
+    const boundary = findNearestBoundary(text, endIndex);
+
+    // Get citation numbers for this support
+    const citationNumbers = support.groundingChunkIndices.map((i) => i + 1);
+
+    // Add to the set of citations for this boundary
+    if (!citationsByBoundary.has(boundary)) {
+      citationsByBoundary.set(boundary, new Set());
+    }
+    citationNumbers.forEach((num) => citationsByBoundary.get(boundary).add(num));
+  }
+
+  // Sort boundaries in descending order to avoid shifting issues when inserting
+  const sortedBoundaries = Array.from(citationsByBoundary.keys()).sort(
+    (a, b) => b - a
+  );
+
+  // Insert citations at boundaries
+  for (const boundary of sortedBoundaries) {
+    const citationNumbers = Array.from(citationsByBoundary.get(boundary)).sort(
+      (a, b) => a - b
+    );
+
+    // Format as numbered citations in parentheses
+    const citationString = ` ([${citationNumbers.join(", ")}])`;
+
+    text = text.slice(0, boundary) + citationString + text.slice(boundary);
+  }
+
+  // Add sources section at the end
+  const sources = chunks
+    .map((chunk, index) => {
+      const uri = chunk?.web?.uri;
+      const title = chunk?.web?.title || `Source ${index + 1}`;
+      if (uri) {
+        return `${index + 1}. [${title}](${uri})`;
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (sources.length > 0) {
+    text += "\n\n---\n\n**Sources:**\n" + sources.join("\n");
+  }
+
+  // Log search queries for debugging
+  if (
+    groundingMetadata.webSearchQueries &&
+    groundingMetadata.webSearchQueries.length > 0
+  ) {
+    console.log(
+      "🔍 Google Search queries used:",
+      groundingMetadata.webSearchQueries
+    );
+  }
+
+  return text;
+}
+
 export async function googleCompletion({
   aiClient,
   model,
@@ -1059,7 +1199,9 @@ export async function googleCompletion({
       );
     }
 
-    const isToStream = streamResponse && responseFormat === "text";
+    // Disable streaming for Web search to ensure proper grounding metadata processing
+    const isToStream =
+      streamResponse && responseFormat === "text" && command !== "Web search";
 
     const generationConfig = {};
     if (responseFormat === "json_object") {
@@ -1078,10 +1220,19 @@ export async function googleCompletion({
       };
     }
 
+    // Add Google Search grounding tool for Web search command
+    const toolsConfig = [];
+    if (command === "Web search") {
+      toolsConfig.push({ googleSearch: {} });
+    }
+
     // Create chat configuration
     const chatConfig = {
       model: model,
-      config: { ...generationConfig },
+      config: {
+        ...generationConfig,
+        ...(toolsConfig.length > 0 && { tools: toolsConfig }),
+      },
     };
 
     // Add system instruction if provided
@@ -1168,7 +1319,13 @@ export async function googleCompletion({
     } else {
       const response = await chat.sendMessage(messageToSend);
       // console.log("Google response :>>", response);
-      respStr = response.text || "";
+
+      // Process grounding citations if Web search was used
+      if (command === "Web search") {
+        respStr = addGroundingCitations(response);
+      } else {
+        respStr = response.text || "";
+      }
 
       if (response.usageMetadata) {
         usage = {

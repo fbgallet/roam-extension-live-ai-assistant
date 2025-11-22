@@ -42,6 +42,14 @@ import { getChatTools } from "./chat-tools";
 import {
   isImageGenerationRequest,
   handleImageGenerationCommand,
+  hasAudioContent,
+  handleAudioAnalysisRequest,
+  isRequestingFreshAudioTranscription,
+  handleFreshAudioTranscriptionRequest,
+  hasVideoContent,
+  handleVideoAnalysisRequest,
+  isWebSearchRequest,
+  handleWebSearchRequest,
 } from "./multimodal-commands";
 
 // Chat Agent State
@@ -100,6 +108,8 @@ const ChatAgentState = Annotation.Root({
   tokensUsage: Annotation<TokensUsage>,
   // Invalid tool call retry counter
   invalidToolCallRetries: Annotation<number>,
+  // Audio transcription cache (URL -> transcription)
+  audioTranscriptionCache: Annotation<Map<string, string>>,
 });
 
 // Module-level variables
@@ -172,6 +182,8 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     isAgentMode: state.isAgentMode,
     activeSkillInstructions: state.activeSkillInstructions,
     enabledTools: state.enabledTools,
+    hasAudioContent: hasAudioContent(lastMessage, state.resultsContext),
+    hasVideoContent: hasVideoContent(lastMessage, state.resultsContext),
   });
 
   sys_msg = new SystemMessage({ content: systemPrompt });
@@ -223,10 +235,28 @@ const summarizeConversation = async (state: typeof ChatAgentState.State) => {
  * Assistant node - generates response with optional tool calls
  */
 const assistant = async (state: typeof ChatAgentState.State) => {
-  const messages = [sys_msg, ...state.messages];
+  let messages = [sys_msg, ...state.messages];
   let gathered: any = undefined;
 
-  // Handle multimodal commands (image generation, audio, video)
+  // Handle multimodal commands (image generation, audio, video, web search)
+
+  // Handle web search command
+  if (isWebSearchRequest(state.commandPrompt)) {
+    const result = await handleWebSearchRequest(
+      originalUserMessageForHistory,
+      state.model.id, // Pass model ID for web search
+      state.resultsContext,
+      state.messages
+    );
+
+    if (result.tokensUsage) {
+      turnTokensUsage = { ...result.tokensUsage };
+    }
+
+    return { messages: result.messages };
+  }
+
+  // Handle image generation
   if (isImageGenerationRequest(state.commandPrompt, state.chatSessionId)) {
     const result = await handleImageGenerationCommand(
       originalUserMessageForHistory,
@@ -242,6 +272,67 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     }
 
     return { messages: result.messages };
+  }
+
+  // Handle audio analysis requests (automatic, not command-based)
+  // This modifies the messages to include transcription before passing to LLM
+  let updatedAudioCache = state.audioTranscriptionCache || new Map();
+  if (hasAudioContent(originalUserMessageForHistory, state.resultsContext)) {
+    const audioResult = await handleAudioAnalysisRequest(
+      originalUserMessageForHistory,
+      state.model.id,
+      state.resultsContext,
+      state.messages,
+      updatedAudioCache
+    );
+
+    // If this is transcription-only (no user instructions), return directly
+    if (audioResult.isTranscriptionOnly) {
+      return {
+        messages: audioResult.messages,
+        audioTranscriptionCache: audioResult.audioTranscriptions || updatedAudioCache,
+      };
+    }
+
+    // Update messages and cache if transcription occurred
+    if (audioResult.messages !== state.messages) {
+      // Use the enhanced messages with transcription context
+      messages = [sys_msg, ...audioResult.messages];
+      updatedAudioCache = audioResult.audioTranscriptions || updatedAudioCache;
+
+      // Note: We don't return here - we continue to process with the LLM
+      // The transcription is now part of the message context
+    } else if (audioResult.audioTranscriptions) {
+      // Just update cache if it changed
+      updatedAudioCache = audioResult.audioTranscriptions;
+    }
+  }
+
+  // Handle video analysis requests (automatic, not command-based, requires Gemini)
+  // This directly returns the video analysis without passing to LLM
+  if (hasVideoContent(originalUserMessageForHistory, state.resultsContext)) {
+    const videoResult = await handleVideoAnalysisRequest(
+      originalUserMessageForHistory,
+      state.model.id,
+      state.resultsContext,
+      state.messages
+    );
+
+    // If this is analysis-only (no additional user instructions after video), return directly
+    if (videoResult.isAnalysisOnly) {
+      return {
+        messages: videoResult.messages,
+      };
+    }
+
+    // If user provided additional instructions beyond the video, update messages
+    // and continue to LLM (video is already processed, analysis in message)
+    if (videoResult.messages !== state.messages) {
+      // Video analysis is complete, return it
+      return {
+        messages: videoResult.messages,
+      };
+    }
   }
 
   console.log("Complete systemPrompt :>> ", sys_msg);
@@ -342,9 +433,40 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       }
     }
 
+    // Check if LLM requested fresh audio transcription (streaming path)
+    const gatheredContent = gathered?.content?.toString() || "";
+    if (
+      isRequestingFreshAudioTranscription(gatheredContent) &&
+      hasAudioContent(originalUserMessageForHistory, state.resultsContext)
+    ) {
+      const freshResult = await handleFreshAudioTranscriptionRequest(
+        originalUserMessageForHistory,
+        state.model.id,
+        state.resultsContext,
+        state.messages,
+        llm_with_tools,
+        sys_msg
+      );
+
+      // Update token usage from re-invocation
+      if (freshResult.messages.length > state.messages.length) {
+        const freshResponse = freshResult.messages[freshResult.messages.length - 1];
+        if (freshResponse.usage_metadata) {
+          turnTokensUsage.input_tokens += freshResponse.usage_metadata.input_tokens || 0;
+          turnTokensUsage.output_tokens += freshResponse.usage_metadata.output_tokens || 0;
+        }
+      }
+
+      return {
+        messages: freshResult.messages,
+        audioTranscriptionCache: freshResult.audioTranscriptionCache,
+      };
+    }
+
     // Return the gathered message (which has proper tool_calls)
     return {
       messages: [...state.messages, gathered],
+      audioTranscriptionCache: updatedAudioCache,
     };
   } else {
     // Non-streaming response
@@ -358,6 +480,36 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       if (response.usage_metadata.output_tokens) {
         turnTokensUsage.output_tokens = response.usage_metadata.output_tokens;
       }
+    }
+
+    // Check if LLM requested fresh audio transcription (non-streaming path)
+    const responseContent = response.content?.toString() || "";
+    if (
+      isRequestingFreshAudioTranscription(responseContent) &&
+      hasAudioContent(originalUserMessageForHistory, state.resultsContext)
+    ) {
+      const freshResult = await handleFreshAudioTranscriptionRequest(
+        originalUserMessageForHistory,
+        state.model.id,
+        state.resultsContext,
+        state.messages,
+        llm_with_tools,
+        sys_msg
+      );
+
+      // Update token usage from re-invocation
+      if (freshResult.messages.length > state.messages.length) {
+        const freshResponse = freshResult.messages[freshResult.messages.length - 1];
+        if (freshResponse.usage_metadata) {
+          turnTokensUsage.input_tokens += freshResponse.usage_metadata.input_tokens || 0;
+          turnTokensUsage.output_tokens += freshResponse.usage_metadata.output_tokens || 0;
+        }
+      }
+
+      return {
+        messages: freshResult.messages,
+        audioTranscriptionCache: freshResult.audioTranscriptionCache,
+      };
     }
 
     // Check for tool calls and notify via callback
@@ -379,6 +531,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
     return {
       messages: [...state.messages, response],
+      audioTranscriptionCache: updatedAudioCache,
     };
   }
 };
@@ -611,8 +764,9 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     );
 
     // Rebuild system prompt
+    const lastMessage = state.messages?.at(-1)?.content?.toString() || "";
     const systemPrompt = await buildChatSystemPrompt({
-      lastMessage: state.messages?.at(-1)?.content?.toString() || "",
+      lastMessage: lastMessage,
       style: state.style,
       commandPrompt: state.commandPrompt,
       toolsEnabled: state.toolsEnabled,
@@ -622,6 +776,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       isAgentMode: state.isAgentMode,
       activeSkillInstructions: newActiveSkillInstructions,
       enabledTools: state.enabledTools,
+      hasAudioContent: hasAudioContent(lastMessage, updatedResultsContext),
     });
 
     sys_msg = new SystemMessage({ content: systemPrompt });
@@ -698,6 +853,7 @@ const finalize = async (state: typeof ChatAgentState.State) => {
     // Preserve state that should persist across turns
     activeSkillInstructions: state.activeSkillInstructions,
     toolResultsCache: state.toolResultsCache,
+    audioTranscriptionCache: state.audioTranscriptionCache,
     // Reset retry counter for next turn
     invalidToolCallRetries: 0,
   };

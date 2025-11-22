@@ -5,29 +5,32 @@
  * for image generation and other multimodal AI tasks
  */
 
-import { roamImageRegex } from "../../../utils/regex";
+import { roamImageRegex, roamAudioRegex, roamVideoRegex, youtubeRegex } from "../../../utils/regex";
 
 export interface ExtractedContext {
   images: string[];  // Array of image markdown: ![alt](url)
   textContent: string[];  // Array of text content from results
+  audioFiles: string[];  // Array of audio URLs or markdown: {{[[audio]]: url}}
+  videoFiles?: string[];  // Array of video URLs or YouTube links
 }
 
 /**
- * Extract images and text content from resultsContext for image generation
+ * Extract images, audio files and text content from resultsContext
  *
  * @param resultsContext - Array of Result objects from search/tools
- * @returns Extracted images and text content
+ * @returns Extracted images, audio files and text content
  */
 export function extractMultimodalContext(resultsContext: any[]): ExtractedContext {
   if (!resultsContext || resultsContext.length === 0) {
-    return { images: [], textContent: [] };
+    return { images: [], textContent: [], audioFiles: [] };
   }
 
   const images: string[] = [];
+  const audioFiles: string[] = [];
   const textContent: string[] = [];
 
   resultsContext.forEach((result: any, index: number) => {
-    // Extract images from content field using roamImageRegex
+    // Extract images and audio from content field
     if (result.content) {
       // Reset lastIndex for global regex
       roamImageRegex.lastIndex = 0;
@@ -39,9 +42,25 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
         });
       }
 
-      // Extract text content (remove images)
+      // Extract audio files
+      roamAudioRegex.lastIndex = 0;
+      const audioMatches = Array.from(result.content.matchAll(roamAudioRegex));
+
+      if (audioMatches.length > 0) {
+        audioMatches.forEach(match => {
+          // Extract URL from either {{[[audio]]: url}} or direct URL
+          const audioUrl = match[1] || match[0];
+          audioFiles.push(audioUrl);
+        });
+      }
+
+      // Extract text content (remove images and audio)
       roamImageRegex.lastIndex = 0;
-      const textOnly = result.content.replace(roamImageRegex, '').trim();
+      roamAudioRegex.lastIndex = 0;
+      let textOnly = result.content
+        .replace(roamImageRegex, '')
+        .replace(roamAudioRegex, '')
+        .trim();
       if (textOnly) {
         textContent.push(textOnly);
       }
@@ -52,7 +71,7 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
       images.push(`![](${result.imageUrl})`);
     }
 
-    // Check for images in text field
+    // Check for images and audio in text field
     if (result.text) {
       roamImageRegex.lastIndex = 0;
       const imageMatches = Array.from(result.text.matchAll(roamImageRegex));
@@ -63,15 +82,30 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
         });
       }
 
-      // Extract text content (remove images)
+      // Extract audio files
+      roamAudioRegex.lastIndex = 0;
+      const audioMatches = Array.from(result.text.matchAll(roamAudioRegex));
+
+      if (audioMatches.length > 0) {
+        audioMatches.forEach(match => {
+          const audioUrl = match[1] || match[0];
+          audioFiles.push(audioUrl);
+        });
+      }
+
+      // Extract text content (remove images and audio)
       roamImageRegex.lastIndex = 0;
-      const textOnly = result.text.replace(roamImageRegex, '').trim();
+      roamAudioRegex.lastIndex = 0;
+      let textOnly = result.text
+        .replace(roamImageRegex, '')
+        .replace(roamAudioRegex, '')
+        .trim();
       if (textOnly) {
         textContent.push(textOnly);
       }
     }
 
-    // Include plain text or content fields that don't have images
+    // Include plain text or content fields that don't have images or audio
     if (result.plainText && !result.content && !result.text) {
       textContent.push(result.plainText);
     }
@@ -79,9 +113,14 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
 
   // Remove duplicates
   const uniqueImages = Array.from(new Set(images));
+  const uniqueAudioFiles = Array.from(new Set(audioFiles));
   const uniqueTextContent = Array.from(new Set(textContent));
 
-  return { images: uniqueImages, textContent: uniqueTextContent };
+  return {
+    images: uniqueImages,
+    audioFiles: uniqueAudioFiles,
+    textContent: uniqueTextContent
+  };
 }
 
 /**

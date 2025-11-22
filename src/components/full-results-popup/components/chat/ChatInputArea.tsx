@@ -154,16 +154,37 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     const hasSlash = lastSlashIndex !== -1;
 
     if (hasSlash) {
+      // Extract the part before the last "/"
+      const beforeSlash = value.substring(0, lastSlashIndex);
       // Extract the part after the last "/"
       const afterSlash = value.substring(lastSlashIndex + 1);
+
+      // Check if this is likely a URL (has :// or multiple / characters suggesting a path)
+      const isLikelyUrl =
+        beforeSlash.includes("://") || // http://, https://, etc.
+        (beforeSlash.includes("/") && lastSlashIndex > 0); // Multiple slashes suggest path/URL
+
+      // Check if there's text before the slash without proper spacing
+      // A slash command should either be at the start or have at least 2 spaces before it
+      const textBeforeSlash = beforeSlash.trimEnd();
+      const spacesBeforeSlash = beforeSlash.length - textBeforeSlash.length;
+      const hasProperSpacingBefore =
+        lastSlashIndex === 0 || // At start of input
+        spacesBeforeSlash >= 2; // At least 2 spaces before the slash
+
+      // Check if there's a space after the slash (or 2+ spaces to be more lenient)
       const hasSpaceAfterSlash = afterSlash.includes(" ");
 
-      if (!hasSpaceAfterSlash && !isCommandSuggestOpen) {
+      // Only open command suggest if:
+      // 1. Not a URL
+      // 2. Has proper spacing before (start of input or 2+ spaces)
+      // 3. No space after the slash yet
+      if (!isLikelyUrl && hasProperSpacingBefore && !hasSpaceAfterSlash && !isCommandSuggestOpen) {
         // Open command suggest in slash mode
         setSlashCommandMode(true);
         setIsCommandSuggestOpen(true);
-      } else if (slashCommandMode && hasSpaceAfterSlash) {
-        // Close if user added space after slash, but maintain focus
+      } else if (slashCommandMode && (isLikelyUrl || !hasProperSpacingBefore || hasSpaceAfterSlash)) {
+        // Close if it's a URL, improper spacing, or user added space after slash
         setSlashCommandMode(false);
         setIsCommandSuggestOpen(false);
         // Maintain focus on the textarea
@@ -469,6 +490,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                   }}
                   initialQuery={getSlashQuery()}
                   isSlashMode={slashCommandMode}
+                  currentPrompt={chatInput}
                 />
               }
               placement="top"

@@ -38,12 +38,15 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // If content has KaTeX, we need to render it with Roam API for the formulas
-    if (containsKaTeX(content)) {
+    // Check if content has special Roam elements that need renderString
+    const hasRoamElements = containsKaTeX(content) ||
+      /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/i.test(content);
+
+    if (hasRoamElements) {
       // First, render the markdown structure normally
       containerRef.current.innerHTML = renderMarkdown(content);
 
-      // Then, find all text nodes and render any KaTeX formulas with Roam API
+      // Then, find all text nodes and render any Roam-specific elements with Roam API
       const textNodes: Node[] = [];
       const walker = document.createTreeWalker(
         containerRef.current,
@@ -53,20 +56,22 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
 
       let node: Node | null;
       while ((node = walker.nextNode())) {
-        if (node.textContent && /\$\$.+?\$\$/s.test(node.textContent)) {
+        if (node.textContent &&
+            (/\$\$.+?\$\$/s.test(node.textContent) ||
+             /\{\{\[\[(?:audio|video|youtube)\]\]:/i.test(node.textContent))) {
           textNodes.push(node);
         }
       }
 
-      // Replace text nodes containing KaTeX with Roam-rendered spans
+      // Replace text nodes containing Roam elements with Roam-rendered spans
       textNodes.forEach((textNode) => {
         const text = textNode.textContent || "";
         const parent = textNode.parentNode;
 
         if (!parent) return;
 
-        // Split by KaTeX formulas
-        const parts = text.split(/(\$\$.+?\$\$)/s);
+        // Split by KaTeX formulas and media embeds
+        const parts = text.split(/(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\})/is);
         const fragment = document.createDocumentFragment();
 
         parts.forEach((part) => {
@@ -83,6 +88,21 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
               span.textContent = part; // Fallback to showing raw formula
             }
             fragment.appendChild(span);
+          } else if (/^\{\{\[\[(?:audio|video|youtube)\]\]:/i.test(part)) {
+            // This is an audio or video embed - render with Roam API
+            const div = document.createElement("div");
+            div.style.display = "block";
+            div.style.margin = "8px 0";
+            try {
+              window.roamAlphaAPI?.ui.components.renderString({
+                el: div,
+                string: part,
+              });
+            } catch (error) {
+              console.error("Failed to render media embed:", error);
+              div.textContent = part; // Fallback to showing raw embed syntax
+            }
+            fragment.appendChild(div);
           } else if (part) {
             // Regular text
             fragment.appendChild(document.createTextNode(part));
@@ -92,7 +112,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
         parent.replaceChild(fragment, textNode);
       });
     } else {
-      // No KaTeX - just use regular markdown rendering
+      // No special Roam elements - just use regular markdown rendering
       containerRef.current.innerHTML = renderMarkdown(content);
     }
   }, [content]);

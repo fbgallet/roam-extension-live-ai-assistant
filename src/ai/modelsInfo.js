@@ -71,6 +71,17 @@ export const imageGenerationModels = [
   "imagen-4.0-generate-001",
 ];
 
+export const webSearchModels = [
+  "gpt-4o-mini-search-preview",
+  "gpt-4o-search-preview",
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5-20250929",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-3-pro-preview",
+];
+
 export const tokensLimit = {
   "gpt-5": 400000,
   "gpt-5.1": 400000,

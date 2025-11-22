@@ -28,6 +28,7 @@ import {
   imageGenerationModels,
   normalizeModelId,
   updateTokenCounter,
+  webSearchModels,
 } from "./ai/modelsInfo";
 import { BUILTIN_STYLES } from "./ai/styleConstants";
 import {
@@ -806,12 +807,7 @@ function getPanelConfig() {
         description: "Define the default model to run a 'Web search':",
         action: {
           type: "select",
-          items: [
-            "gpt-4o-mini-search-preview",
-            "gpt-4o-search-preview",
-            "claude-haiku-4-5-20251001",
-            "claude-sonnet-4-5-20250929",
-          ],
+          items: webSearchModels,
           onChange: async (evt) => {
             await extensionStorage.set("webModel", evt);
           },

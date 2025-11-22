@@ -204,18 +204,18 @@ A large number of [source languages are supported](https://platform.openai.com/d
 
 #### Audio transcription command
 
-When a block contains audio, an **"Audio transcription"** command appears in the context menu. It transcribes audio using Gemini (if current model includes "gemini") or OpenAI/Groq Whisper (using default Voice transcription model defined in settings), then formats the output into proper paragraphs. Add custom instructions in the prompt field to customize transcription and eventually name speakers.
-
-### Audio analysis
-
-⚠️ Currently audio analysis is only available with **Google Gemini models**
-
-You can analyze audio files directly in your prompts by including audio URLs or using Roam's audio embed format. Simply insert an audio file in your prompt or context and the AI will transcribe and/or analyze its content (if the audio is in the context, you have to use "audio" keyword in your prompt to activate audio analysis).
+You can easily transcribe entire audio recordings (meetings, interviews, lectures, etc.): when a block contains audio, an **"Audio transcription"** command appears in the context menu. It transcribes audio using Gemini (if current model includes "gemini") or OpenAI/Groq Whisper (using default Voice transcription model defined in settings), then formats the output into proper paragraphs. Add custom instructions in the prompt field to customize transcription and eventually name speakers.
 
 **Supported audio formats:**
 
 - `{{[[audio]]: url}}` - Roam audio embed format
 - Direct audio file URLs - Supports .mp3, .wav, .aiff, .aac, .ogg, .flac, .m4a extensions
+
+### Audio analysis
+
+⚠️ Currently audio analysis is only available with **Google Gemini models**
+
+You can analyze audio files directly in your prompts by including audio URLs or using Roam's audio embed format. Simply insert an audio file in your prompt or context and the AI will transcribe and/or analyze its content (if the audio is in the context, you have to use "audio" keyword in your prompt to activate audio analysis). So you can extract specific information from audio content, analyze audio within a specific time range, generate summaries or insights...
 
 **Audio segment analysis:**
 You can analyze specific segments of audio files by adding time markers in your prompt (using `start:` or `from:` and/or `end:` or `to:`, and `s` or `m:ss` time format):
@@ -225,17 +225,8 @@ You can analyze specific segments of audio files by adding time markers in your 
 - Example: "Transcribe this audio start: 2:00 end: 4:30"
 - If no time markers are specified, the entire audio file will be analyzed
 
-**Use cases:**
-
-- Transcribe audio recordings (meetings, interviews, lectures, etc.)
-- Extract specific information from audio content
-- Analyze audio within a specific time range
-- Generate summaries or insights from audio files
-
 **Important notes:**
 
-- For large audio files (>20MB), they will be uploaded via Google's Files API
-- Smaller audio files are processed inline for faster analysis
 - If you don't provide specific instructions, the AI will provide a transcription by default
 - You can combine audio analysis with other AI capabilities (e.g., summarization, translation, Q&A)
 
@@ -290,17 +281,17 @@ You can analyze specific segments of videos by adding time markers in your promp
 
 ### Images generation
 
-You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key.
+You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key. Google Gemini 'Nano banana pro' is currently the most suitable model for edition and text insertion in images and is set as default image generation model in settings.
 
-See [best practices for Google gemini-2.5-flash-image 'nano banana' here](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) (don't care about the code on this page, all is handled by Live AI)
+See [best practices for Google Gemini image models 'nano banana' here](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) (don't care about the code on this page, all is handled by Live AI)
 
-In the built-in prompts menu, choose among three levels of **image quality** (except for gemini-2.5-flash-image): low, medium or high. The low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) for details).
+In the built-in prompts menu, choose among three levels of **image quality** (except for gemini-2.5-flash-image): low, medium or high (1K, 2K or 4K for Nano banana pro). The low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) for details).
 
 In you prompt, you can provide:
 
-- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio (e.g.: 1:1, 16:9, etc.)
+- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio directly in your prompt (e.g.: 1:1, 4:3, 16:9, etc.)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
-- **Image edition**: gemini-2.5-flash-image and gemini-3-pro-image-preview allow direct image edition without any mask: just insert the image to edit in your prompt and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, you can refine images through multiple conversational edits; in Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. The chat maintains context across edits and model attribution is automatically added below each generated image. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+- **Image edition**: Gemini Nano banana models allow direct image edition without any mask: just insert the image to edit in your prompt or context and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, you can refine images through multiple conversational edits (once an image has been generated in the chat, all following message can only be used for image edition and no other purpose); in Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. The chat maintains context across edits and model attribution is automatically added below each generated image. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ### Use PDF files as input
 

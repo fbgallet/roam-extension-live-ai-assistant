@@ -148,7 +148,7 @@ export const handleClickOnCommand = async ({
     textToSpeech(getInstantPrompt(command, false), additionalPrompt);
     return;
   }
-  if (command.name === "Speech to text") {
+  if (command.name === "Audio transcription") {
     // Ensure we have a valid focused block UID
     let targetUid = focusedBlockUid.current;
     if (!targetUid) {
@@ -166,7 +166,7 @@ export const handleClickOnCommand = async ({
     // Create child block first for the formatted transcription
     const transcriptionUid = await createChildBlock(
       targetUid,
-      `Speech transcription (${
+      `Audio transcription (${
         instantModel?.includes("gemini") ? instantModel : transcriptionModel
       }):`,
       0
@@ -214,7 +214,7 @@ ${rawTranscription}`,
           context: "",
           typeOfCompletion: "gptCompletion",
           instantModel: model,
-          command: "Speech to text",
+          command: "Audio transcription",
           style: "",
           isInConversation: false,
           withAssistantRole: false,
@@ -225,9 +225,9 @@ ${rawTranscription}`,
     } catch (error) {
       // Remove spinner on error
       removeSpinner(spinnerIntervalId);
-      console.error("Error in Speech to text command:", error);
+      console.error("Error in Audio transcription command:", error);
       AppToaster.show({
-        message: `Speech to text error: ${error.message}`,
+        message: `Audio transcription error: ${error.message}`,
         timeout: 10000,
       });
     }

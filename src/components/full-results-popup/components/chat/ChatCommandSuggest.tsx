@@ -36,6 +36,7 @@ interface Command {
     specificStyles?: string[];
   };
   callback?: Function;
+  showOnlyIfAudioInBlock?: boolean;
 }
 
 interface ChatCommandSuggestProps {
@@ -48,6 +49,7 @@ interface ChatCommandSuggestProps {
   onClose: () => void;
   initialQuery?: string; // For slash command mode
   isSlashMode?: boolean; // Whether opened via slash command
+  currentPrompt?: string; // Current chat input for audio detection
 }
 
 const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
@@ -56,9 +58,18 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   onClose,
   initialQuery = "",
   isSlashMode = false,
+  currentPrompt = "",
 }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Check if there's audio in the current prompt
+  const hasAudioInPrompt = React.useMemo(() => {
+    if (!currentPrompt) return false;
+    // Check for Roam audio syntax: {{[[audio]]: url}}
+    const roamAudioRegex = /\{\{\[\[audio\]\]:\s*https?:[^\s}]+\}\}/gi;
+    return roamAudioRegex.test(currentPrompt);
+  }, [currentPrompt]);
 
   // Get all commands including custom prompts
   const allCommands = React.useMemo(() => {
@@ -81,13 +92,21 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
       if (cmd.isIncompatibleWith?.chat === true) {
         return false;
       }
-      // Exclude special commands that don't make sense in chat
-      if (!cmd.category) {
+      // Filter out "Audio transcription" command if no audio in prompt
+      if (cmd.showOnlyIfAudioInBlock && !hasAudioInPrompt) {
+        return false;
+      }
+      // Exclude special commands that don't have category (except conditionally shown commands)
+      if (
+        !cmd.category &&
+        !cmd.showOnlyIfAudioInBlock &&
+        cmd.name !== "Web search"
+      ) {
         return false;
       }
       return true;
     });
-  }, [allCommands]);
+  }, [allCommands, hasAudioInPrompt]);
 
   // Filter function for search
   const filterCommands = (query: string, item: Command): boolean => {
@@ -153,7 +172,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
               );
             })}
           </>
-        ) : item.name.includes("Image generation") ? (
+        ) : item.name.includes("Image generation") || item.name === "Web search" ? (
           <>
             <ModelsMenu
               callback={({ command, model }) => {
