@@ -63,6 +63,14 @@ export const getAvailableModels = (provider) => {
   }
 };
 
+export const imageGenerationModels = [
+  "gpt-image-1-mini",
+  "gpt-image-1",
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image-preview",
+  "imagen-4.0-generate-001",
+];
+
 export const tokensLimit = {
   "gpt-5": 400000,
   "gpt-5.1": 400000,
@@ -300,15 +308,22 @@ export const modelsPricing = {
     output: 12,
   },
   "gemini-3-pro-image-preview": {
+    // COMPLEX PRICING - see ai/utils/imageTokensCalculator.js for actual calculation
+    // Input: $2.00/1M tokens (text), $0.0011 per input image
+    // Output: $12.00/1M tokens (text/thinking), $0.134 per 1K/2K image OR $0.24 per 4K image
     input: 2.0,
-    input_image: 0.0011,
-    output: 240000, // $0.134 per 4K image = $240 per 1000 images
-    // + 12$/1M tokens for output text/thinking
+    input_image: 1.1, // $0.0011 per image = $1.1 per 1000 "images as tokens"
+    output: 12.0, // For text/thinking tokens only
+    output_image_1k: 134.0, // $0.134 per image = $134 per 1000 images
+    output_image_2k: 134.0,
+    output_image_4k: 240.0, // $0.24 per image = $240 per 1000 images
   },
   "gemini-2.5-flash-image": {
+    // Input: $0.30/1M tokens (text/image)
+    // Output: $0.039 per image (fixed)
     input: 0.3,
     input_image: 0.3,
-    output: 39000, // $0.039 per image = $39 per 1000 images
+    output: 39.0, // $0.039 per image = $39 per 1000 images
   },
   "imagen-4.0-fast-generate-001": {
     input: 0,

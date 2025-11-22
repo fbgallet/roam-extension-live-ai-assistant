@@ -23,7 +23,9 @@ import {
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
   getAvailableModels,
+  getImageGenerationModels,
   getModelsInfo,
+  imageGenerationModels,
   normalizeModelId,
   updateTokenCounter,
 } from "./ai/modelsInfo";
@@ -101,6 +103,7 @@ export let openRouterModels = [];
 export let isComponentAlwaysVisible;
 export let isComponentVisible;
 export let resImages;
+export let defaultImageModel;
 export let position;
 export let openaiLibrary,
   customOpenaiLibrary,
@@ -927,6 +930,19 @@ function getPanelConfig() {
         },
       },
       {
+        id: "defaultImageModel",
+        name: "Default image generation model",
+        description:
+          "Choose the default model for image generation. Falls back to gpt-image-1-mini if Google API key is missing:",
+        action: {
+          type: "select",
+          items: imageGenerationModels,
+          onChange: (evt) => {
+            defaultImageModel = evt;
+          },
+        },
+      },
+      {
         id: "webModel",
         name: "Web search model",
         description: "Define the default model to run a 'Web search':",
@@ -935,9 +951,8 @@ function getPanelConfig() {
           items: [
             "gpt-4o-mini-search-preview",
             "gpt-4o-search-preview",
-            "claude-3-5-haiku-20241022",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-7-sonnet-20250219",
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20250929",
           ],
           onChange: async (evt) => {
             await extensionStorage.set("webModel", evt);
@@ -1408,6 +1423,12 @@ export default {
     if (extensionAPI.settings.get("resImages") === null)
       await extensionAPI.settings.set("resImages", "auto");
     resImages = extensionAPI.settings.get("resImages");
+    if (extensionAPI.settings.get("defaultImageModel") === null)
+      await extensionAPI.settings.set(
+        "defaultImageModel",
+        "gemini-3-pro-image-preview"
+      );
+    defaultImageModel = extensionAPI.settings.get("defaultImageModel");
     if (extensionAPI.settings.get("webModel") === null)
       await extensionAPI.settings.set("webModel", "gpt-4o-mini-search-preview");
     // if (extensionAPI.settings.get("webContext") === null)

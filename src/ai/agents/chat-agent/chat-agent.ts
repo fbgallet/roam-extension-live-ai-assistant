@@ -39,7 +39,10 @@ import {
   SUMMARIZATION_PROMPT,
 } from "./chat-agent-prompts";
 import { getChatTools } from "./chat-tools";
-import { imageGeneration, imageGenerationChats } from "../../multimodalAI";
+import {
+  isImageGenerationRequest,
+  handleImageGenerationCommand,
+} from "./multimodal-commands";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -171,8 +174,6 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     enabledTools: state.enabledTools,
   });
 
-  console.log("Complete systemPrompt :>> ", systemPrompt);
-
   sys_msg = new SystemMessage({ content: systemPrompt });
 
   return {
@@ -225,43 +226,25 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   const messages = [sys_msg, ...state.messages];
   let gathered: any = undefined;
 
-  // Check if this is an image generation request
-  // Either from explicit command or continuing an image editing conversation
-  const isImageGeneration = state.commandPrompt?.slice(0, 16) === "Image generation";
-
-  // Check if we're in an active image editing session (chat exists for this session)
-  const hasImageChat = state.chatSessionId && (
-    imageGenerationChats.has(`${state.chatSessionId}_gemini-2.5-flash-image`) ||
-    imageGenerationChats.has(`${state.chatSessionId}_gemini-3-pro-image-preview`)
-  );
-
-  if (isImageGeneration || hasImageChat) {
-    // Use originalUserMessageForHistory which contains the user's actual prompt
-    // (the message in state.messages has been modified by loadModel to include command instructions)
-    const quality = state.commandPrompt?.split("(")[1]?.split(")")[0] || "auto";
-
-    // Determine model for image generation
-    let imageModel = state.model.id;
-    if (imageModel.includes("gemini") && !imageModel.includes("-image")) {
-      // Convert regular gemini model to image generation model
-      imageModel = imageModel.includes("3-pro")
-        ? "gemini-3-pro-image-preview"
-        : "gemini-2.5-flash-image";
-    }
-
-    const imageLink = await imageGeneration(
+  // Handle multimodal commands (image generation, audio, video)
+  if (isImageGenerationRequest(state.commandPrompt, state.chatSessionId)) {
+    const result = await handleImageGenerationCommand(
       originalUserMessageForHistory,
-      quality,
-      imageModel,
-      (t: any) => {
-        turnTokensUsage = { ...t };
-      },
-      state.chatSessionId // Enable multi-turn image editing in chat sessions
+      state.commandPrompt,
+      state.model.id,
+      state.resultsContext,
+      state.chatSessionId,
+      state.messages
     );
 
-    return { messages: [...state.messages, new AIMessage(imageLink)] };
+    if (result.tokensUsage) {
+      turnTokensUsage = { ...result.tokensUsage };
+    }
+
+    return { messages: result.messages };
   }
 
+  console.log("Complete systemPrompt :>> ", sys_msg);
   console.log("messages in current chat turn :>> ", messages);
 
   // Bind tools if enabled

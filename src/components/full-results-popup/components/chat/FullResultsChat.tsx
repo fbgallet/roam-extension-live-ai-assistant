@@ -180,7 +180,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Generate a unique chat session ID for multi-turn image editing
   // Use loadedChatUid if available, otherwise generate a new ID
   const chatSessionIdRef = useRef<string>(
-    loadedChatUid || `chat_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    loadedChatUid ||
+      `chat_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   );
 
   // Ref to track current context results for expansion callback
@@ -225,15 +226,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Initialize chat from provided initial state
   useEffect(() => {
-    console.log("🔍 FullResultsChat initializing with:", {
-      initialChatMessages,
-      initialChatPrompt,
-      initialLoadedChatUid,
-      initialCommandPrompt,
-      initialCommandId,
-      initialStyle,
-    });
-
     if (
       initialChatMessages &&
       Array.isArray(initialChatMessages) &&
@@ -293,9 +285,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Detect selection changes (but don't auto-calculate tokens)
   useEffect(() => {
-    const resultsToEstimate = selectedResults.length > 0
-      ? selectedResults
-      : allResults;
+    const resultsToEstimate =
+      selectedResults.length > 0 ? selectedResults : allResults;
 
     const currentSelectionKey = resultsToEstimate
       .map((r) => r.uid || r.pageUid)
@@ -304,7 +295,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       .join(",");
 
     // Check if selection changed since last calculation
-    if (hasCalculatedTokens && currentSelectionKey !== lastCalculatedSelectionRef.current) {
+    if (
+      hasCalculatedTokens &&
+      currentSelectionKey !== lastCalculatedSelectionRef.current
+    ) {
       setSelectionChangedSinceCalculation(true);
     }
 
@@ -321,9 +315,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Manual token calculation function (called when user clicks)
   const calculateTokenEstimate = (expandedResultsToUse?: Result[]) => {
     // Determine which results to use for estimation
-    const resultsToEstimate = selectedResults.length > 0
-      ? selectedResults
-      : allResults;
+    const resultsToEstimate =
+      selectedResults.length > 0 ? selectedResults : allResults;
 
     if (resultsToEstimate.length === 0) {
       setContextTokenEstimate(0);
@@ -357,11 +350,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Filter expanded results to only include selected ones
     // If no selection (all results), use all expanded results
-    const resultsForCalculation = selectedResults.length > 0
-      ? expandedResults.filter((r) =>
-          selectedUids.has(r.uid) || selectedUids.has(r.pageUid)
-        )
-      : expandedResults;
+    const resultsForCalculation =
+      selectedResults.length > 0
+        ? expandedResults.filter(
+            (r) => selectedUids.has(r.uid) || selectedUids.has(r.pageUid)
+          )
+        : expandedResults;
 
     // Calculate total character count from content
     // For expanded results, we want the FULL EXPANDED content count (including children)
@@ -371,7 +365,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // This gives us the pre-truncation size (before intelligent truncation is applied)
     const totalChars = resultsForCalculation.reduce((sum, result) => {
       // Use expandedLength (full content including children) or fallback to content.length
-      const contentLength = result.metadata?.expandedLength || result.content?.length || 0;
+      const contentLength =
+        result.metadata?.expandedLength || result.content?.length || 0;
       return sum + contentLength;
     }, 0);
 
@@ -400,7 +395,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const handleExpandForEstimate = async () => {
     if (isExpandingForEstimate) return; // Already expanding
 
-    const contextResults = selectedResults.length > 0 ? selectedResults : allResults;
+    const contextResults =
+      selectedResults.length > 0 ? selectedResults : allResults;
 
     if (contextResults.length === 0) {
       return;
@@ -630,7 +626,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [pendingHighlight, setPendingHighlight] = useState<string | null>(null);
 
   // Track if user has manually scrolled during streaming
-  const [userScrolledDuringStreaming, setUserScrolledDuringStreaming] = useState(false);
+  const [userScrolledDuringStreaming, setUserScrolledDuringStreaming] =
+    useState(false);
   const lastScrollHeightRef = useRef(0);
   const previousMessagesLengthRef = useRef(0);
   const wasStreamingRef = useRef(false);
@@ -640,7 +637,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     if (!messagesContainerRef.current) return;
 
     const container = messagesContainerRef.current;
-    const messagesLengthChanged = chatMessages.length !== previousMessagesLengthRef.current;
+    const messagesLengthChanged =
+      chatMessages.length !== previousMessagesLengthRef.current;
     const streamingJustStarted = isStreaming && !wasStreamingRef.current;
 
     // Update refs
@@ -666,7 +664,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
 
     // Case 4: Streaming ended - do nothing, let user stay where they are
-  }, [chatMessages, streamingContent, isStreaming, userScrolledDuringStreaming]);
+  }, [
+    chatMessages,
+    streamingContent,
+    isStreaming,
+    userScrolledDuringStreaming,
+  ]);
 
   // Reset user scroll flag when streaming stops
   useEffect(() => {
@@ -686,7 +689,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Check if scroll was triggered by content growth (auto-scroll) or user action
       const currentScrollHeight = container.scrollHeight;
-      const scrolledUp = container.scrollTop + container.clientHeight < currentScrollHeight - 50; // 50px threshold
+      const scrolledUp =
+        container.scrollTop + container.clientHeight < currentScrollHeight - 50; // 50px threshold
 
       // If user scrolled up during streaming, pause auto-scroll
       if (scrolledUp && currentScrollHeight > lastScrollHeightRef.current) {
@@ -696,8 +700,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       lastScrollHeightRef.current = currentScrollHeight;
     };
 
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
   }, [isStreaming]);
 
   // Watch for page changes and handle pending highlights
@@ -1105,7 +1109,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
     // Try to load from storage first
     const storedTools = extensionStorage.get("chatEnabledTools");
-    if (storedTools !== undefined && storedTools !== null && Array.isArray(storedTools)) {
+    if (
+      storedTools !== undefined &&
+      storedTools !== null &&
+      Array.isArray(storedTools)
+    ) {
       // Return stored tools even if empty array (user disabled all)
       return new Set(storedTools);
     }
@@ -2298,7 +2306,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         modelTokensLimit={modelTokensLimit}
         chatAccessMode={chatAccessMode}
         isExpandingForEstimate={isExpandingForEstimate}
-        isContextExpanded={!!(chatExpandedResults && chatExpandedResults.length > 0)}
+        isContextExpanded={
+          !!(chatExpandedResults && chatExpandedResults.length > 0)
+        }
         hasCalculatedTokens={hasCalculatedTokens}
         selectionChangedSinceCalculation={selectionChangedSinceCalculation}
         onExpandForEstimate={handleExpandForEstimate}

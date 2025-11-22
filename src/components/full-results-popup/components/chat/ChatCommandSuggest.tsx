@@ -359,6 +359,21 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
                 );
               })}
             </>
+          ) : item.name.includes("Image generation") ? (
+            <>
+              <ModelsMenu
+                callback={({ command, model }) => {
+                  onClose();
+                  setTimeout(() => {
+                    onCommandSelect(command, true, model);
+                  }, 0);
+                }}
+                command={item}
+                prompt={undefined}
+                setModel={undefined}
+                isConversationToContinue={undefined}
+              />
+            </>
           ) : null}
         </MenuItem>
       );
@@ -412,7 +427,6 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         itemPredicate={filterCommands}
         scrollToActiveItem={true}
         onItemSelect={(item, props) => {
-          console.log("props :>> ", props);
           onCommandSelect(item, false);
           onClose();
         }}

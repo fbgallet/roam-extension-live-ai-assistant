@@ -11,9 +11,11 @@ import {
   ttsVoice,
   voiceInstructions,
   transcriptionModel,
+  defaultImageModel,
 } from "..";
 
 import { updateTokenCounter } from "./modelsInfo";
+import { createImageUsageObject } from "./utils/imageTokensCalculator";
 
 // Storage for active image generation chat instances
 // Key: conversation parent UID, Value: chat instance
@@ -33,6 +35,7 @@ import {
   getFormatedPdfRole,
   getResolvedContentFromBlocks,
 } from "./dataExtraction";
+import { getParentBlock } from "../utils/roamAPI";
 
 export async function transcribeAudio(filename) {
   if (!openaiLibrary && !groqLibrary) return null;
@@ -280,7 +283,7 @@ Output: {"prompt": "Sunset", "config": {"numberOfImages": 3, "aspectRatio": "3:4
 Return ONLY valid JSON, no other text.`;
 
     const response = await googleLibrary.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash",
       contents: [{ text: `Process this prompt: ${prompt}` }],
       systemInstruction: { parts: [{ text: systemPrompt }] },
       config: {
@@ -321,12 +324,10 @@ function findExistingImageChat(blockUid, model) {
   while (currentUid && depth < maxDepth) {
     const chatKey = `${currentUid}_${model}`;
     if (imageGenerationChats.has(chatKey)) {
-      console.log("🔍 Found existing image chat at:", currentUid);
       return currentUid;
     }
 
     // Move up to parent using existing getParentBlock
-    const { getParentBlock } = require("../utils/roamAPI");
     const parentUid = getParentBlock(currentUid);
     if (parentUid) {
       currentUid = parentUid;
@@ -336,7 +337,6 @@ function findExistingImageChat(blockUid, model) {
     }
   }
 
-  console.log("🔍 No existing image chat found, will use:", blockUid);
   return null;
 }
 
@@ -360,17 +360,14 @@ function getOrCreateImageChat(conversationUid, model, config = {}) {
 
   if (!imageGenerationChats.has(chatKey)) {
     // Create new chat instance
-    console.log("🆕 Creating new image chat with key:", chatKey);
     const chat = googleLibrary.chats.create({
       model,
       config: {
-        responseModalities: ["TEXT", "IMAGE"],
+        responseModalities: ["IMAGE"],
         ...config,
       },
     });
     imageGenerationChats.set(chatKey, chat);
-  } else {
-    console.log("♻️ Reusing existing image chat with key:", chatKey);
   }
 
   return imageGenerationChats.get(chatKey);
@@ -404,10 +401,28 @@ export async function imageGeneration(
   tokensCallback,
   conversationUid = null // Optional: parent block UID for chat-based editing
 ) {
-  console.log("prompt :>> ", prompt);
-  console.log("quality :>> ", quality);
-  console.log("model :>> ", model);
-  console.log("conversationUid :>> ", conversationUid);
+
+  // Use default image model if no model specified
+  if (!model) {
+    model = defaultImageModel;
+  }
+
+  // Check if selected model requires Google API and fallback if not available
+  const requiresGoogle =
+    model === "gemini-2.5-flash-image" ||
+    model === "gemini-3-pro-image-preview" ||
+    model.includes("imagen-4.0");
+
+  if (requiresGoogle && !googleLibrary?.apiKey) {
+    const warningMessage = `Google API key required for ${model}. Falling back to gpt-image-1-mini.`;
+    console.warn(warningMessage);
+    AppToaster.show({
+      message: warningMessage,
+      intent: "warning",
+      timeout: 5000,
+    });
+    model = "gpt-image-1-mini";
+  }
 
   // Validate prompt - prevent generating random images with empty prompts
   if (!prompt || (typeof prompt === "string" && prompt.trim() === "")) {
@@ -495,11 +510,8 @@ export async function imageGeneration(
         prompt.matchAll(roamImageRegex)
       );
 
-      // For nano banana (gemini-2.5-flash-image), support image editing
+      // For nano banana, support image editing (single or multiple images)
       if (isNanoBanana && matchingImagesInPrompt.length) {
-        // Extract the first image for editing
-        const imageUrl = matchingImagesInPrompt[0][2];
-
         // Remove image markdown from prompt
         let textPrompt = prompt;
         for (const match of matchingImagesInPrompt) {
@@ -525,24 +537,27 @@ export async function imageGeneration(
           }
         }
 
-        // Fetch the image
-        const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
-        const imageArrayBuffer = await imageBlob.arrayBuffer();
-        const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
+        // Fetch and convert all images to base64
+        const imageDataArray = [];
+        for (const match of matchingImagesInPrompt) {
+          const imageUrl = match[2]; // URL is in capture group 2
 
-        // Detect MIME type (assume PNG if unknown)
-        const mimeType = imageBlob.type || "image/png";
+          const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
+          const imageArrayBuffer = await imageBlob.arrayBuffer();
+          const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
+          const mimeType = imageBlob.type || "image/png";
 
-        // Create multi-part prompt with text and image
-        const contents = [
-          { text: processedPrompt },
-          {
+          imageDataArray.push({
             inlineData: {
               mimeType: mimeType,
               data: imageBase64,
             },
-          },
-        ];
+          });
+        }
+
+        // Create multi-part prompt with text and all images
+        // Format: [text, image1, image2, ...]
+        const contents = [{ text: processedPrompt }, ...imageDataArray];
 
         // Build config object for nano banana
         const generateConfig = {
@@ -567,18 +582,43 @@ export async function imageGeneration(
           generateConfig.tools = [{ googleSearch: {} }];
         }
 
-        // Use generateContent for nano banana editing
-        result = await googleLibrary.models.generateContent({
-          model,
-          contents: contents,
-          ...(Object.keys(generateConfig).length > 0 && {
-            config: generateConfig,
-          }),
-        });
+        // Check if we should use chat-based API for multi-turn editing
+        const chat = conversationUid
+          ? getOrCreateImageChat(conversationUid, model, generateConfig)
+          : null;
+
+        if (chat) {
+          // Use chat.sendMessage for multi-turn image editing
+          result = await chat.sendMessage({
+            message: contents,
+            ...(Object.keys(generateConfig).length > 0 && {
+              config: generateConfig,
+            }),
+          });
+        } else {
+          // Use single-turn generateContent for image editing
+          result = await googleLibrary.models.generateContent({
+            model,
+            contents: contents,
+            ...(Object.keys(generateConfig).length > 0 && {
+              config: generateConfig,
+            }),
+          });
+        }
 
         // Extract the generated image from response
         if (result.candidates && result.candidates.length > 0) {
-          for (const part of result.candidates[0].content.parts) {
+          const candidate = result.candidates[0];
+
+          // Check if content and parts exist
+          if (!candidate.content || !candidate.content.parts) {
+            console.error("Invalid response structure:", result);
+            throw new Error(
+              "Invalid response structure: missing content.parts"
+            );
+          }
+
+          for (const part of candidate.content.parts) {
             // if (part.text) {
             //   // Text output in case of problem - return text to Roam
             //   console.log("Nano banana text response:", part.text);
@@ -591,11 +631,13 @@ export async function imageGeneration(
                 file: blob,
               });
 
-              // Track usage for nano banana editing (1 image = 1 "output token" for pricing)
-              const usage = {
-                input_tokens: 0,
-                output_tokens: 1, // 1 image generated
-              };
+              // Track usage for nano banana editing with proper token counting
+              const usage = createImageUsageObject(
+                model,
+                result,
+                nanoBananaConfig.imageSize || "2K",
+                true // hasInputImage
+              );
               if (tokensCallback) {
                 tokensCallback(usage);
               }
@@ -655,25 +697,12 @@ export async function imageGeneration(
             ? getOrCreateImageChat(conversationUid, model, generateConfig)
             : null;
 
-          console.log(
-            "🔑 Chat key would be:",
-            conversationUid ? `${conversationUid}_${model}` : "none"
-          );
-          console.log("💬 Using chat API:", !!chat);
-
           if (chat) {
             // Use chat.sendMessage for multi-turn conversation
-            console.log(
-              "📨 Sending message to chat with prompt:",
-              processedPrompt
-            );
             result = await chat.sendMessage({
               message: processedPrompt,
               ...(Object.keys(generateConfig).length > 0 && {
-                config: {
-                  responseModalities: ["TEXT", "IMAGE"],
-                  ...generateConfig,
-                },
+                config: generateConfig,
               }),
             });
           } else {
@@ -690,7 +719,17 @@ export async function imageGeneration(
 
           // Extract the generated image from response
           if (result.candidates && result.candidates.length > 0) {
-            for (const part of result.candidates[0].content.parts) {
+            const candidate = result.candidates[0];
+
+            // Check if content and parts exist
+            if (!candidate.content || !candidate.content.parts) {
+              console.error("Invalid response structure:", result);
+              throw new Error(
+                "Invalid response structure: missing content.parts"
+              );
+            }
+
+            for (const part of candidate.content.parts) {
               //   if (part.text) {
               //     // Text output in case of problem - return text to Roam
               //     console.log("Nano banana text response:", part.text);
@@ -703,11 +742,13 @@ export async function imageGeneration(
                   file: blob,
                 });
 
-                // Track usage for nano banana generation (1 image = 1 "output token" for pricing)
-                const usage = {
-                  input_tokens: 0,
-                  output_tokens: 1, // 1 image generated
-                };
+                // Track usage for nano banana generation with proper token counting
+                const usage = createImageUsageObject(
+                  model,
+                  result,
+                  nanoBananaConfig.imageSize || "2K",
+                  false // no input image
+                );
                 if (tokensCallback) {
                   tokensCallback(usage);
                 }
