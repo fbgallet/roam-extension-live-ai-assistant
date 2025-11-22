@@ -205,7 +205,7 @@ export function modelAccordingToProvider(model) {
       if (
         model.includes("grok-3-mini") ||
         model === "grok-4" ||
-        model === "grok-4-fast-reasoning"
+        model === "grok-4-1-fast-reasoning"
       ) {
         llm.thinking = true;
       }
@@ -752,7 +752,7 @@ export async function openaiCompletion({
         model === "deepseek-reasoner" ||
         model.includes("grok-3-mini") ||
         model === "grok-4" ||
-        model === "grok-4-fast-reasoning"
+        model === "grok-4-1-fast-reasoning"
       ) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
@@ -781,7 +781,7 @@ export async function openaiCompletion({
             (model === "deepseek-reasoner" ||
               model.includes("grok-3-mini") ||
               model === "grok-4" ||
-              model === "grok-4-fast-reasoning")
+              model === "grok-4-1-fast-reasoning")
           )
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;

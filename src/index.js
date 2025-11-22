@@ -296,172 +296,6 @@ function getPanelConfig() {
     tabTitle: "Live AI",
     settings: [
       {
-        id: "visibility",
-        name: "Button visibility",
-        description:
-          "Button always visible (if not, you have to use commande palette or hotkeys, except on Mobile)",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            isComponentAlwaysVisible = !isComponentAlwaysVisible;
-            unmountComponent(position);
-            mountComponent(position);
-            if (
-              window.innerWidth >= 500 &&
-              ((isComponentAlwaysVisible && !isComponentVisible) ||
-                (!isComponentAlwaysVisible && isComponentVisible))
-            ) {
-              toggleComponentVisibility();
-              isComponentVisible = isComponentAlwaysVisible;
-            }
-          },
-        },
-      },
-      {
-        id: "position",
-        name: "Button position",
-        description: "Where do you want to display Assistant button ?",
-        action: {
-          type: "select",
-          items: ["topbar", "left sidebar"],
-          onChange: (evt) => {
-            unmountComponent(position);
-            removeContainer(position);
-            position = evt === "topbar" ? "top" : "left";
-            createContainer(position);
-            mountComponent(position);
-            if (!isComponentVisible) toggleComponentVisibility();
-          },
-        },
-      },
-      {
-        id: "menuModKey",
-        name: "Context menu",
-        description:
-          "Key to press while right-clicking to open Context menu (no needed when hover Live IA icons):",
-        action: {
-          type: "select",
-          items: ["Meta", "Control", "Shift", "Alt", "disabled"],
-          onChange: (evt) => {
-            menuModifierKey = evt;
-          },
-        },
-      },
-
-      {
-        id: "defaultModel",
-        name: "Default AI model",
-        description:
-          "Choose the default model for AI completion with simple click or hotkeys:",
-        action: {
-          type: "select",
-          items: availableModels,
-          onChange: (evt) => {
-            setDefaultModel(evt);
-          },
-        },
-      },
-      {
-        id: "reasoningEffort",
-        name: "Reasoning effort",
-        description:
-          "Reasoning effort for OpenAI/Anthropic/Grok thinking models (higher is tokens and time consuming):",
-        action: {
-          type: "select",
-          items: ["minimal", "low", "medium", "high"],
-          onChange: (evt) => {
-            reasoningEffort = evt;
-          },
-        },
-      },
-      {
-        id: "defaultStyle",
-        name: "Default AI Style",
-        description:
-          "Choose the AI assistant character/style applied by default to each response",
-        action: {
-          type: "select",
-          items: BUILTIN_STYLES.concat(customStyles.map((s) => s.title)),
-          onChange: (evt) => {
-            defaultStyle = evt;
-          },
-        },
-      },
-      {
-        id: "temperature",
-        name: "Temperature",
-        description:
-          "Customize the temperature (randomness) of models responses (0 is the most deterministic, 1 the most creative)",
-        action: {
-          type: "select",
-          items: [
-            "models default",
-            "0",
-            "0.1",
-            "0.2",
-            "0.3",
-            "0.4",
-            "0.5",
-            "0.6",
-            "0.7",
-            "0.8",
-            "0.9",
-            "1",
-          ],
-          onChange: (evt) => {
-            modelTemperature =
-              evt === "models default" ? null : parseFloat(evt);
-          },
-        },
-      },
-      {
-        id: "askGraphMode",
-        name: "Ask Your Graph privacy mode",
-        description: (
-          <>
-            <span>
-              Default privacy mode for "Ask your graph" Agent searches:
-            </span>
-            <br />
-            <strong>Private:</strong> Only UIDs returned (no personal content
-            processing by LLMs)
-            <br />
-            <strong>Balanced:</strong> Agent tools handle only UIDs +
-            post-processing (only matching blocks processed by LLMs for final
-            response)
-            <br />
-            <strong>Full Access:</strong> More complete content access for
-            in-depth analysis
-          </>
-        ),
-        action: {
-          type: "select",
-          items: ["Private", "Balanced", "Full Access"],
-          onChange: (evt) => {
-            askGraphMode = evt;
-          },
-        },
-      },
-      {
-        id: "automaticSemanticExpansionMode",
-        name: "Ask You Graph semantic expansion",
-        description:
-          "Default 'Ask your graph' Agent semantic expansion behavior:",
-        action: {
-          type: "select",
-          items: [
-            "Always ask user",
-            "Automatic until result",
-            "Always with fuzzy",
-            "Always with synonyms",
-            "Always with all",
-          ],
-          onChange: (evt) => {
-            automaticSemanticExpansionMode = modeMap[evt];
-          },
-        },
-      },
-      {
         id: "openaiapi",
         name: "OpenAI API Key (GPT)",
         description: (
@@ -610,6 +444,393 @@ function getPanelConfig() {
         },
       },
       {
+        id: "openrouterapi",
+        name: "OpenRouter API Key",
+        description: (
+          <>
+            <span>Copy here your OpenRouter API key</span>
+            <br></br>
+            <a href="https://openrouter.ai/keys" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(async () => {
+              OPENROUTER_API_KEY = evt.target.value;
+              openrouterLibrary = initializeOpenAIAPI(
+                OPENROUTER_API_KEY,
+                "https://openrouter.ai/api/v1"
+              );
+              openRouterModelsInfo = await getModelsInfo();
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "openRouterModels",
+        name: "Models via OpenRouter",
+        className: "liveai-settings-largeinput",
+        description: (
+          <>
+            <span>
+              List of models ID to query through OpenRouter, separated by a
+              comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
+            </span>
+            <br></br>
+            <a href="https://openrouter.ai/docs#models" target="_blank">
+              List of supported models here
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            openRouterModels = getArrayFromList(evt.target.value);
+            openRouterModelsInfo = await getModelsInfo();
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "openrouterOnly",
+        name: "OpenRouter Only",
+        description:
+          "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            openRouterOnly = !openRouterOnly;
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "customModel",
+        name: "Custom OpenAI models",
+        className: "liveai-settings-largeinput",
+        description:
+          "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            openAiCustomModels = getArrayFromList(evt.target.value);
+            updateAvailableModels();
+          },
+        },
+      },
+      {
+        id: "customBaseUrl",
+        name: "Custom OpenAI baseURL",
+        description:
+          "Provide the baseURL of an OpenAI API compatible server (eventually local):",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            customBaseURL = evt.target.value;
+            if (customOpenAIOnly)
+              openaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            else
+              customOpenaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "customOpenAIOnly",
+        name: "Custom OpenAI server only",
+        description:
+          "Use the custom baseURL as the only server for OpenAI API (both is disabled):",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            customOpenAIOnly = !customOpenAIOnly;
+            if (!customOpenAIOnly)
+              customOpenaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            openAiCustomModels = getArrayFromList(
+              extensionStorage.get("customModel"),
+              ",",
+              customOpenAIOnly ? "" : "custom/"
+            );
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "groqapi",
+        name: "Groq API Key",
+        description: (
+          <>
+            <span>Copy here your Groq API key:</span>
+            <br></br>
+            <a href="https://console.groq.com/keys" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(() => {
+              GROQ_API_KEY = evt.target.value;
+              groqLibrary = initializeOpenAIAPI(
+                GROQ_API_KEY,
+                "https://api.groq.com/openai/v1"
+              );
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "groqModels",
+        name: "Models via Groq API",
+        className: "liveai-settings-largeinput",
+        description: (
+          <>
+            <span>
+              List of models ID to query through Groq API, separated by a comma.
+            </span>
+            <br></br>
+            <a href="https://console.groq.com/docs/models" target="_blank">
+              List of supported models here
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            groqModels = getArrayFromList(evt.target.value);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "ollamaServer",
+        name: "Ollama server",
+        description:
+          "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            ollamaServer =
+              evt.target.value.at(-1) === "/"
+                ? evt.target.value.slice(0, -1)
+                : evt.target.value;
+          },
+        },
+      },
+      {
+        id: "ollamaModels",
+        name: "Ollama local models",
+        className: "liveai-settings-largeinput",
+        description:
+          "Models on local server, separated by a comma. E.g: llama2,llama3",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            unmountComponent(position);
+            ollamaModels = getArrayFromList(evt.target.value);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "visibility",
+        name: "Button visibility",
+        description:
+          "Button always visible (if not, you have to use commande palette or hotkeys, except on Mobile)",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            isComponentAlwaysVisible = !isComponentAlwaysVisible;
+            unmountComponent(position);
+            mountComponent(position);
+            if (
+              window.innerWidth >= 500 &&
+              ((isComponentAlwaysVisible && !isComponentVisible) ||
+                (!isComponentAlwaysVisible && isComponentVisible))
+            ) {
+              toggleComponentVisibility();
+              isComponentVisible = isComponentAlwaysVisible;
+            }
+          },
+        },
+      },
+      {
+        id: "position",
+        name: "Button position",
+        description: "Where do you want to display Assistant button ?",
+        action: {
+          type: "select",
+          items: ["topbar", "left sidebar"],
+          onChange: (evt) => {
+            unmountComponent(position);
+            removeContainer(position);
+            position = evt === "topbar" ? "top" : "left";
+            createContainer(position);
+            mountComponent(position);
+            if (!isComponentVisible) toggleComponentVisibility();
+          },
+        },
+      },
+      {
+        id: "menuModKey",
+        name: "Context menu",
+        description:
+          "Key to press while right-clicking to open Context menu (no needed when hover Live IA icons):",
+        action: {
+          type: "select",
+          items: ["Meta", "Control", "Shift", "Alt", "disabled"],
+          onChange: (evt) => {
+            menuModifierKey = evt;
+          },
+        },
+      },
+
+      {
+        id: "defaultModel",
+        name: "Default AI model",
+        description:
+          "Choose the default model for AI completion with simple click or hotkeys:",
+        action: {
+          type: "select",
+          items: availableModels,
+          onChange: (evt) => {
+            setDefaultModel(evt);
+          },
+        },
+      },
+      {
+        id: "reasoningEffort",
+        name: "Reasoning effort",
+        description:
+          "Reasoning effort for OpenAI/Anthropic/Grok thinking models (higher is tokens and time consuming):",
+        action: {
+          type: "select",
+          items: ["minimal", "low", "medium", "high"],
+          onChange: (evt) => {
+            reasoningEffort = evt;
+          },
+        },
+      },
+      {
+        id: "defaultStyle",
+        name: "Default AI Style",
+        description:
+          "Choose the AI assistant character/style applied by default to each response",
+        action: {
+          type: "select",
+          items: BUILTIN_STYLES.concat(customStyles.map((s) => s.title)),
+          onChange: (evt) => {
+            defaultStyle = evt;
+          },
+        },
+      },
+      {
+        id: "temperature",
+        name: "Temperature",
+        description:
+          "Customize the temperature (randomness) of models responses (0 is the most deterministic, 1 the most creative)",
+        action: {
+          type: "select",
+          items: [
+            "models default",
+            "0",
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.5",
+            "0.6",
+            "0.7",
+            "0.8",
+            "0.9",
+            "1",
+          ],
+          onChange: (evt) => {
+            modelTemperature =
+              evt === "models default" ? null : parseFloat(evt);
+          },
+        },
+      },
+      {
+        id: "multiModal",
+        name: "Multimodal AI (audio, images, video...)",
+      },
+      {
+        id: "defaultImageModel",
+        name: "Default image generation model",
+        description:
+          "Choose the default model for image generation. Falls back to gpt-image-1-mini if Google API key is missing:",
+        action: {
+          type: "select",
+          items: imageGenerationModels,
+          onChange: (evt) => {
+            defaultImageModel = evt;
+          },
+        },
+      },
+      {
+        id: "webModel",
+        name: "Web search model",
+        description: "Define the default model to run a 'Web search':",
+        action: {
+          type: "select",
+          items: [
+            "gpt-4o-mini-search-preview",
+            "gpt-4o-search-preview",
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20250929",
+          ],
+          onChange: async (evt) => {
+            await extensionStorage.set("webModel", evt);
+          },
+        },
+      },
+      {
+        id: "transcriptionModel",
+        name: "Voice transcription model",
+        description:
+          "Choose which OpenAI hrefvoice transcription model to use: ",
+        action: {
+          type: "select",
+          items: ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
+          onChange: (evt) => {
+            transcriptionModel = evt;
+          },
+        },
+      },
+      {
         id: "whisper",
         name: "Use OpenAI Speech API",
         description:
@@ -624,15 +845,18 @@ function getPanelConfig() {
         },
       },
       {
-        id: "transcriptionModel",
-        name: "Voice transcription model",
+        id: "groqwhisper",
+        name: "Use Whisper via Groq",
         description:
-          "Choose which OpenAI hrefvoice transcription model to use: ",
+          "If you have provided a Groq API key, `whisper-large-v3` model will replace `whisper-v1` for transcription.",
         action: {
-          type: "select",
-          items: ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
+          type: "switch",
           onChange: (evt) => {
-            transcriptionModel = evt;
+            unmountComponent(position);
+            isUsingGroqWhisper = !isUsingGroqWhisper;
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
           },
         },
       },
@@ -757,6 +981,22 @@ function getPanelConfig() {
         },
       },
       {
+        id: "inlineAI",
+        name: "Options for inline AI",
+      },
+      {
+        id: "chatRoles",
+        name: "Chat roles",
+        description:
+          "Roles name inserted before your prompt and AI assistant answer, separated by a comma. Use <model> as placeholder for AI model name:",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            chatRoles = getRolesFromString(evt.target.value || "Me: ,AI: ");
+          },
+        },
+      },
+      {
         id: "streamResponse",
         name: "Stream response",
         description:
@@ -816,18 +1056,6 @@ function getPanelConfig() {
             uidsInPrompt = !uidsInPrompt;
             unmountComponent(position);
             mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "chatRoles",
-        name: "Chat roles",
-        description:
-          "Roles name inserted before your prompt and AI assistant answer, separated by a comma. Use <model> as placeholder for AI model name:",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            chatRoles = getRolesFromString(evt.target.value || "Me: ,AI: ");
           },
         },
       },
@@ -918,7 +1146,7 @@ function getPanelConfig() {
       },
       {
         id: "resImages",
-        name: "Images resolution",
+        name: "Images input resolution",
         description:
           "Low resolution limits tokens/image to 85 with. Default: let the model choose:",
         action: {
@@ -930,294 +1158,53 @@ function getPanelConfig() {
         },
       },
       {
-        id: "defaultImageModel",
-        name: "Default image generation model",
-        description:
-          "Choose the default model for image generation. Falls back to gpt-image-1-mini if Google API key is missing:",
+        id: "aiAgents",
+        name: "AI Agents",
+      },
+      {
+        id: "askGraphMode",
+        name: "Ask Your Graph privacy mode",
+        description: (
+          <>
+            <span>
+              Default privacy mode for "Ask your graph" Agent searches:
+            </span>
+            <br />
+            <strong>Private:</strong> Only UIDs returned (no personal content
+            processing by LLMs)
+            <br />
+            <strong>Balanced:</strong> Agent tools handle only UIDs +
+            post-processing (only matching blocks processed by LLMs for final
+            response)
+            <br />
+            <strong>Full Access:</strong> More complete content access for
+            in-depth analysis
+          </>
+        ),
         action: {
           type: "select",
-          items: imageGenerationModels,
+          items: ["Private", "Balanced", "Full Access"],
           onChange: (evt) => {
-            defaultImageModel = evt;
+            askGraphMode = evt;
           },
         },
       },
       {
-        id: "webModel",
-        name: "Web search model",
-        description: "Define the default model to run a 'Web search':",
+        id: "automaticSemanticExpansionMode",
+        name: "Ask You Graph semantic expansion",
+        description:
+          "Default 'Ask your graph' Agent semantic expansion behavior:",
         action: {
           type: "select",
           items: [
-            "gpt-4o-mini-search-preview",
-            "gpt-4o-search-preview",
-            "claude-haiku-4-5-20251001",
-            "claude-sonnet-4-5-20250929",
+            "Always ask user",
+            "Automatic until result",
+            "Always with fuzzy",
+            "Always with synonyms",
+            "Always with all",
           ],
-          onChange: async (evt) => {
-            await extensionStorage.set("webModel", evt);
-          },
-        },
-      },
-      // Deprecated in OpenAI API
-      // {
-      //   id: "webContext",
-      //   name: "Web Search context",
-      //   description: (
-      //     <>
-      //       Context size for Web Search OpenAI tool is medium by default. <br />
-      //       Low: fastest, cheaper. High: slower, higher cost.
-      //       <br />
-      //       <a
-      //         href="https://platform.openai.com/docs/pricing#web-search"
-      //         target="_blank"
-      //       >
-      //         See pricing here
-      //       </a>
-      //     </>
-      //   ),
-      //   action: {
-      //     type: "select",
-      //     items: ["high", "medium", "low"],
-      //     onChange: (evt) => {
-      //       websearchContext = evt;
-      //     },
-      //   },
-      // },
-      {
-        id: "customBaseUrl",
-        name: "Custom OpenAI baseURL",
-        description:
-          "Provide the baseURL of an OpenAI API compatible server (eventually local):",
-        action: {
-          type: "input",
           onChange: (evt) => {
-            customBaseURL = evt.target.value;
-            if (customOpenAIOnly)
-              openaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            else
-              customOpenaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "customOpenAIOnly",
-        name: "Custom OpenAI server only",
-        description:
-          "Use the custom baseURL as the only server for OpenAI API (both is disabled):",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            customOpenAIOnly = !customOpenAIOnly;
-            if (!customOpenAIOnly)
-              customOpenaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            openAiCustomModels = getArrayFromList(
-              extensionStorage.get("customModel"),
-              ",",
-              customOpenAIOnly ? "" : "custom/"
-            );
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "customModel",
-        name: "Custom OpenAI models",
-        className: "liveai-settings-largeinput",
-        description:
-          "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            openAiCustomModels = getArrayFromList(evt.target.value);
-            updateAvailableModels();
-          },
-        },
-      },
-      {
-        id: "openrouterapi",
-        name: "OpenRouter API Key",
-        description: (
-          <>
-            <span>Copy here your OpenRouter API key</span>
-            <br></br>
-            <a href="https://openrouter.ai/keys" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(async () => {
-              OPENROUTER_API_KEY = evt.target.value;
-              openrouterLibrary = initializeOpenAIAPI(
-                OPENROUTER_API_KEY,
-                "https://openrouter.ai/api/v1"
-              );
-              openRouterModelsInfo = await getModelsInfo();
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "openrouterOnly",
-        name: "OpenRouter Only",
-        description:
-          "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            openRouterOnly = !openRouterOnly;
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "openRouterModels",
-        name: "Models via OpenRouter",
-        className: "liveai-settings-largeinput",
-        description: (
-          <>
-            <span>
-              List of models ID to query through OpenRouter, separated by a
-              comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
-            </span>
-            <br></br>
-            <a href="https://openrouter.ai/docs#models" target="_blank">
-              List of supported models here
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            openRouterModels = getArrayFromList(evt.target.value);
-            openRouterModelsInfo = await getModelsInfo();
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "groqapi",
-        name: "Groq API Key",
-        description: (
-          <>
-            <span>Copy here your Groq API key:</span>
-            <br></br>
-            <a href="https://console.groq.com/keys" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(() => {
-              GROQ_API_KEY = evt.target.value;
-              groqLibrary = initializeOpenAIAPI(
-                GROQ_API_KEY,
-                "https://api.groq.com/openai/v1"
-              );
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "groqwhisper",
-        name: "Use Whisper via Groq",
-        description:
-          "If you have provided a Groq API key, `whisper-large-v3` model will replace `whisper-v1` for transcription.",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            unmountComponent(position);
-            isUsingGroqWhisper = !isUsingGroqWhisper;
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "groqModels",
-        name: "Models via Groq API",
-        className: "liveai-settings-largeinput",
-        description: (
-          <>
-            <span>
-              List of models ID to query through Groq API, separated by a comma.
-            </span>
-            <br></br>
-            <a href="https://console.groq.com/docs/models" target="_blank">
-              List of supported models here
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            groqModels = getArrayFromList(evt.target.value);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "ollamaModels",
-        name: "Ollama local models",
-        className: "liveai-settings-largeinput",
-        description:
-          "Models on local server, separated by a comma. E.g: llama2,llama3",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            unmountComponent(position);
-            ollamaModels = getArrayFromList(evt.target.value);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "ollamaServer",
-        name: "Ollama server",
-        description:
-          "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            ollamaServer =
-              evt.target.value.at(-1) === "/"
-                ? evt.target.value.slice(0, -1)
-                : evt.target.value;
+            automaticSemanticExpansionMode = modeMap[evt];
           },
         },
       },

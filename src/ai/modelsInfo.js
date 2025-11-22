@@ -44,8 +44,8 @@ export const getAvailableModels = (provider) => {
     case "Grok":
       return [
         "Grok-4",
-        "Grok-4-fast-reasoning",
-        "Grok-4-fast-non-reasoning",
+        "Grok-4-1-fast-reasoning",
+        "Grok-4-1-fast-non-reasoning",
         "Grok-3",
         "Grok-3-mini",
         "Grok-3-mini-fast",
@@ -110,8 +110,8 @@ export const tokensLimit = {
   "grok-3": 131072,
   "grok-3-fast": 131072,
   "grok-4": 256000,
-  "grok-4-fast-reasoning": 2000000,
-  "grok-4-fast-non-reasoning": 2000000,
+  "grok-4-1-fast-reasoning": 2000000,
+  "grok-4-1-fast-non-reasoning": 2000000,
   "gemini-2.5-flash-lite": 1048576,
   "gemini-2.5-flash": 1048576,
   "gemini-2.5-pro": 1048576,
@@ -279,11 +279,11 @@ export const modelsPricing = {
     input: 5,
     output: 25,
   },
-  "grok-4-fast-reasoning": {
+  "grok-4-1-fast-reasoning": {
     input: 0.2,
     output: 0.5,
   },
-  "grok-4-fast-non-reasoning": {
+  "grok-4-1-fast-non-reasoning": {
     input: 0.2,
     output: 0.5,
   },

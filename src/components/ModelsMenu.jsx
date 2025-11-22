@@ -622,7 +622,7 @@ const ModelsMenu = ({
                 labelElement="128k"
               >
                 <MenuItem
-                  icon={defaultModel === "Grok-4-fast-non-reasoning" && "pin"}
+                  icon={defaultModel === "Grok-4-1-fast-non-reasoning" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -631,11 +631,11 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Grok-4-fast-non-reasoning"
+                  text="Grok-4-1-fast-non-reasoning"
                   labelElement="2000k"
                 />
                 <MenuItem
-                  icon={defaultModel === "Grok-4-fast-reasoning" && "pin"}
+                  icon={defaultModel === "Grok-4-1-fast-reasoning" && "pin"}
                   onClick={(e) => {
                     handleClickOnModel(e);
                   }}
@@ -644,7 +644,7 @@ const ModelsMenu = ({
                   }}
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
-                  text="Grok-4-fast-reasoning"
+                  text="Grok-4-1-fast-reasoning"
                   labelElement="2000k"
                 />
               </MenuItem>
