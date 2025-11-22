@@ -202,6 +202,43 @@ You need either an account on OpenAI to benefit from Whisper (or `gpt-4o-transcr
 
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a generative AI, as it only requires asking it to translate into almost any language.
 
+#### Audio transcription command
+
+When a block contains audio, an **"Audio transcription"** command appears in the context menu. It transcribes audio using Gemini (if current model includes "gemini") or OpenAI/Groq Whisper (using default Voice transcription model defined in settings), then formats the output into proper paragraphs. Add custom instructions in the prompt field to customize transcription and eventually name speakers.
+
+### Audio analysis
+
+⚠️ Currently audio analysis is only available with **Google Gemini models**
+
+You can analyze audio files directly in your prompts by including audio URLs or using Roam's audio embed format. Simply insert an audio file in your prompt or context and the AI will transcribe and/or analyze its content (if the audio is in the context, you have to use "audio" keyword in your prompt to activate audio analysis).
+
+**Supported audio formats:**
+
+- `{{[[audio]]: url}}` - Roam audio embed format
+- Direct audio file URLs - Supports .mp3, .wav, .aiff, .aac, .ogg, .flac, .m4a extensions
+
+**Audio segment analysis:**
+You can analyze specific segments of audio files by adding time markers in your prompt (using `start:` or `from:` and/or `end:` or `to:`, and `s` or `m:ss` time format):
+
+- `start: 1:30` or `start: 90` - Start analysis at 1 minute 30 seconds (or 90 seconds)
+- `end: 5:00` or `end: 300` - End analysis at 5 minutes
+- Example: "Transcribe this audio start: 2:00 end: 4:30"
+- If no time markers are specified, the entire audio file will be analyzed
+
+**Use cases:**
+
+- Transcribe audio recordings (meetings, interviews, lectures, etc.)
+- Extract specific information from audio content
+- Analyze audio within a specific time range
+- Generate summaries or insights from audio files
+
+**Important notes:**
+
+- For large audio files (>20MB), they will be uploaded via Google's Files API
+- Smaller audio files are processed inline for faster analysis
+- If you don't provide specific instructions, the AI will provide a transcription by default
+- You can combine audio analysis with other AI capabilities (e.g., summarization, translation, Q&A)
+
 ### Text to speech (TTS)
 
 You can have any selection read aloud (the focus block, part of the selected text in that block, or a set of selected blocks). You just need an active OpenAI key (since the `gpt-4o-mini-tts` model will be used) and run the `Text To Speech` command from Live AI context menu. Press `Escape` to stop the reading. It can take a few seconds for processing data before speaking. Estimated cost is $0.015/minute.
@@ -251,43 +288,6 @@ You can analyze specific segments of videos by adding time markers in your promp
 - Smaller videos are processed inline for faster analysis
 - All videos are processed at low resolution to optimize costs
 
-### Audio analysis
-
-⚠️ Currently audio analysis is only available with **Google Gemini models**.
-
-You can analyze audio files directly in your prompts by including audio URLs or using Roam's audio embed format. Simply insert an audio file in your prompt or context and the AI will transcribe and/or analyze its content (if the audio is in the context, you have to use "audio" keyword in your prompt to activate audio analysis).
-
-**Supported audio formats:**
-
-- `{{[[audio]]: url}}` - Roam audio embed format
-- Direct audio file URLs - Supports .mp3, .wav, .aiff, .aac, .ogg, .flac, .m4a extensions
-
-**Audio segment analysis:**
-You can analyze specific segments of audio files by adding time markers in your prompt (using `start:` or `from:` and/or `end:` or `to:`, and `s` or `m:ss` time format):
-
-- `start: 1:30` or `start: 90` - Start analysis at 1 minute 30 seconds (or 90 seconds)
-- `end: 5:00` or `end: 300` - End analysis at 5 minutes
-- Example: "Transcribe this audio start: 2:00 end: 4:30"
-- If no time markers are specified, the entire audio file will be analyzed
-
-**Use cases:**
-
-- Transcribe audio recordings (meetings, interviews, lectures, etc.)
-- Extract specific information from audio content
-- Analyze audio within a specific time range
-- Generate summaries or insights from audio files
-
-**Important notes:**
-
-- For large audio files (>20MB), they will be uploaded via Google's Files API
-- Smaller audio files are processed inline for faster analysis
-- If you don't provide specific instructions, the AI will provide a transcription by default
-- You can combine audio analysis with other AI capabilities (e.g., summarization, translation, Q&A)
-
-#### Speech to text command
-
-When a block contains audio, a **"Speech to text"** command appears in the context menu. It transcribes audio using Gemini (if current model includes "gemini") or OpenAI/Groq Whisper, then formats the output into proper paragraphs with speaker identification. Add custom instructions in the prompt field to customize transcription.
-
 ### Images generation
 
 You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key.
@@ -300,7 +300,7 @@ In you prompt, you can provide:
 
 - **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio (e.g.: 1:1, 16:9, etc.)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
-- **Image edition**: gemini-2.5-flash-image allows direct image edition without any mask: just insert the image to edit in your prompt and ask for modifications. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+- **Image edition**: gemini-2.5-flash-image and gemini-3-pro-image-preview allow direct image edition without any mask: just insert the image to edit in your prompt and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, you can refine images through multiple conversational edits; in Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. The chat maintains context across edits and model attribution is automatically added below each generated image. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ### Use PDF files as input
 

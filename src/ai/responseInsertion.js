@@ -454,7 +454,9 @@ export const insertCompletion = async ({
       ? await imageGeneration(
           prompt.at(-1).content, // Only pass the pure user prompt, no context or system instructions
           command?.split("(")[1].split(")")[0],
-          model
+          model,
+          null, // tokensCallback
+          getParentBlock(targetUid) // Always use parent UID for image editing chat continuity
         )
       : await aiCompletion({
           instantModel: model,

@@ -299,7 +299,12 @@ export const modelsPricing = {
     input: 2,
     output: 12,
   },
-
+  "gemini-3-pro-image-preview": {
+    input: 2.0,
+    input_image: 0.0011,
+    output: 240000, // $0.134 per 4K image = $240 per 1000 images
+    // + 12$/1M tokens for output text/thinking
+  },
   "gemini-2.5-flash-image": {
     input: 0.3,
     input_image: 0.3,

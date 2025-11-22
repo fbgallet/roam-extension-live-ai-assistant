@@ -39,7 +39,7 @@ import {
   SUMMARIZATION_PROMPT,
 } from "./chat-agent-prompts";
 import { getChatTools } from "./chat-tools";
-import { imageGeneration } from "../../multimodalAI";
+import { imageGeneration, imageGenerationChats } from "../../multimodalAI";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -50,6 +50,8 @@ const ChatAgentState = Annotation.Root({
   style: Annotation<string | undefined>,
   // Command/prompt context
   commandPrompt: Annotation<string | undefined>,
+  // Chat session identifier for multi-turn image editing
+  chatSessionId: Annotation<string | undefined>,
   // Tool control
   toolsEnabled: Annotation<boolean>,
   enabledTools: Annotation<Set<string> | undefined>,
@@ -223,14 +225,38 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   const messages = [sys_msg, ...state.messages];
   let gathered: any = undefined;
 
-  if (state.commandPrompt?.slice(0, 16) === "Image generation") {
+  // Check if this is an image generation request
+  // Either from explicit command or continuing an image editing conversation
+  const isImageGeneration = state.commandPrompt?.slice(0, 16) === "Image generation";
+
+  // Check if we're in an active image editing session (chat exists for this session)
+  const hasImageChat = state.chatSessionId && (
+    imageGenerationChats.has(`${state.chatSessionId}_gemini-2.5-flash-image`) ||
+    imageGenerationChats.has(`${state.chatSessionId}_gemini-3-pro-image-preview`)
+  );
+
+  if (isImageGeneration || hasImageChat) {
+    // Use originalUserMessageForHistory which contains the user's actual prompt
+    // (the message in state.messages has been modified by loadModel to include command instructions)
+    const quality = state.commandPrompt?.split("(")[1]?.split(")")[0] || "auto";
+
+    // Determine model for image generation
+    let imageModel = state.model.id;
+    if (imageModel.includes("gemini") && !imageModel.includes("-image")) {
+      // Convert regular gemini model to image generation model
+      imageModel = imageModel.includes("3-pro")
+        ? "gemini-3-pro-image-preview"
+        : "gemini-2.5-flash-image";
+    }
+
     const imageLink = await imageGeneration(
-      state.messages.at(-1).content,
-      state.commandPrompt?.split("(")[1].split(")")[0],
-      state.model.id,
+      originalUserMessageForHistory,
+      quality,
+      imageModel,
       (t: any) => {
         turnTokensUsage = { ...t };
-      }
+      },
+      state.chatSessionId // Enable multi-turn image editing in chat sessions
     );
 
     return { messages: [...state.messages, new AIMessage(imageLink)] };

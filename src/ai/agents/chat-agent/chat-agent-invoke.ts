@@ -22,6 +22,9 @@ export interface ChatAgentOptions {
   conversationSummary?: string;
   exchangesSinceLastSummary?: number;
 
+  // Chat session identifier (for multi-turn image editing)
+  chatSessionId?: string;
+
   // Results context
   resultsContext?: any[];
   resultsDescription?: string;
@@ -131,6 +134,9 @@ export async function invokeChatAgent(
     enabledTools: options.enabledTools,
     accessMode: options.accessMode || "Balanced",
     isAgentMode: options.isAgentMode ?? false,
+
+    // Chat session identifier for multi-turn image editing
+    chatSessionId: options.chatSessionId,
 
     // Permissions
     permissions: options.permissions || { contentAccess: false },

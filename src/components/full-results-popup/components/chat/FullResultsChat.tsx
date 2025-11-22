@@ -177,6 +177,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   const targetRef = useRef<string | undefined>(targetUid);
 
+  // Generate a unique chat session ID for multi-turn image editing
+  // Use loadedChatUid if available, otherwise generate a new ID
+  const chatSessionIdRef = useRef<string>(
+    loadedChatUid || `chat_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+  );
+
   // Ref to track current context results for expansion callback
   // This allows the callback to access the latest results even during agent execution
   const currentContextResultsRef = useRef<Result[]>([]);
@@ -1957,6 +1963,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const agentResult = await invokeChatAgent({
         model: modelAccordingToProvider(commandModelFromCall || selectedModel),
         userMessage: message,
+
+        // Chat session ID for multi-turn image editing
+        chatSessionId: chatSessionIdRef.current,
 
         // Results context - pass the expanded results directly
         resultsContext: expandedResults,

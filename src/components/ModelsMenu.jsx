@@ -166,6 +166,7 @@ const ModelsMenu = ({
         {googleLibrary?.apiKey && (
           <>
             {openaiLibrary?.apiKey && <MenuDivider />}
+
             <MenuItem
               onClick={(e) => {
                 handleClickOnModel(e);
@@ -177,6 +178,18 @@ const ModelsMenu = ({
               tabindex="0"
               text="gemini-2.5-flash-image"
               labelElement="nano 🍌"
+            />
+            <MenuItem
+              onClick={(e) => {
+                handleClickOnModel(e);
+              }}
+              onKeyDown={(e) => {
+                handleKeyDownOnModel(e);
+              }}
+              onContextMenu={(e) => handleContextMenu(e)}
+              tabindex="0"
+              text="gemini-3-pro-image-preview"
+              labelElement="nano 🍌 pro"
             />
             <MenuItem
               onClick={(e) => {
