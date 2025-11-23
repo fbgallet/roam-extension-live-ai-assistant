@@ -11,7 +11,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { createChildBlock } from "../../utils/roamAPI.js";
+import { createChildBlock, filterTopLevelBlocks } from "../../utils/roamAPI.js";
 import { FullResultsPopupProps, Result } from "./types/types.js";
 import { FullResultsChat } from "./components/chat/FullResultsChat";
 import {
@@ -110,6 +110,10 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
   // Temporary message state for expand actions
   const [tempMessage, setTempMessage] = useState<string | null>(null);
+
+  // Drag and drop state
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const dragLeaveTimeoutRef = useRef<number | null>(null);
 
   // Layout mode state: "split" (A), "results-only" (B), "chat-only" (C)
   const [layoutMode, setLayoutMode] = useState<
@@ -972,6 +976,138 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setTimeout(() => setTempMessage(null), duration);
   };
 
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Clear any pending timeout
+    if (dragLeaveTimeoutRef.current) {
+      window.clearTimeout(dragLeaveTimeoutRef.current);
+      dragLeaveTimeoutRef.current = null;
+    }
+
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Check if we're leaving the drop zone boundaries
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // If the mouse is outside the container bounds, set a timeout to hide the overlay
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+      // Use a small delay to avoid flickering when moving between child elements
+      dragLeaveTimeoutRef.current = window.setTimeout(() => {
+        setIsDraggingOver(false);
+        dragLeaveTimeoutRef.current = null;
+      }, 100);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Clear any pending timeout
+    if (dragLeaveTimeoutRef.current) {
+      window.clearTimeout(dragLeaveTimeoutRef.current);
+      dragLeaveTimeoutRef.current = null;
+    }
+
+    setIsDraggingOver(false);
+
+    // Get UIDs from the drag data - try Roam-specific types first
+    const sourceUid = e.dataTransfer.getData("roam/block-uid-list")
+      || e.dataTransfer.getData("roam/block-uid-list-only-parents")
+      || e.dataTransfer.getData("text/plain")
+      || e.dataTransfer.getData("text");
+
+    if (!sourceUid) {
+      showTempMessage("⚠️ No block data found", 2000);
+      return;
+    }
+
+    // Parse UIDs - Roam can pass multiple UIDs separated by newlines or other delimiters
+    let uids = sourceUid.split(/[\n,;]/).map(uid => uid.trim()).filter(uid => uid);
+
+    // Filter to keep only top-level blocks (remove children if parent is also in the list)
+    if (uids.length > 1) {
+      uids = filterTopLevelBlocks(uids);
+    }
+
+    try {
+      // Fetch block data for each UID and add to results
+      const newResults: Result[] = [];
+
+      for (const uid of uids) {
+        const trimmedUid = uid.trim();
+        if (!trimmedUid) continue;
+
+        // Use Roam API to fetch block data
+        const blockData = window.roamAlphaAPI.pull(
+          "[:block/uid :block/string :block/page {:block/page [:block/uid :node/title]}]",
+          [":block/uid", trimmedUid]
+        );
+
+        if (blockData) {
+          const pageInfo = blockData[":block/page"];
+          const result: Result = {
+            uid: trimmedUid,
+            blockUid: trimmedUid,
+            content: blockData[":block/string"] || "",
+            text: blockData[":block/string"] || "",
+            pageUid: pageInfo?.[":block/uid"] || "",
+            pageTitle: pageInfo?.[":node/title"] || "",
+            isPage: false,
+          };
+          newResults.push(result);
+        }
+      }
+
+      if (newResults.length > 0) {
+        // Deduplicate with existing results
+        const existingUids = new Set(
+          currentResults.map((r) => r.blockUid || r.uid).filter(Boolean)
+        );
+
+        const uniqueNewResults = newResults.filter((r) => {
+          const uid = r.blockUid || r.uid;
+          if (!uid || existingUids.has(uid)) {
+            return false;
+          }
+          existingUids.add(uid);
+          return true;
+        });
+
+        if (uniqueNewResults.length > 0) {
+          setCurrentResults([...currentResults, ...uniqueNewResults]);
+          showTempMessage(
+            `✅ Added ${uniqueNewResults.length} block(s) to context${
+              newResults.length !== uniqueNewResults.length
+                ? ` (${newResults.length - uniqueNewResults.length} duplicate(s) filtered)`
+                : ""
+            }`
+          );
+        } else {
+          showTempMessage(
+            `ℹ️ All ${newResults.length} block(s) were already in context`,
+            2000
+          );
+        }
+      } else {
+        showTempMessage("⚠️ Could not load block data", 2000);
+      }
+    } catch (error) {
+      console.error("Error handling drop:", error);
+      showTempMessage(`❌ Error: ${error.message}`, 3000);
+    }
+  };
+
   // More actions handlers
   const handleReplaceByFirstChildren = () => {
     const selectedResultsList = getSelectedResultsList(
@@ -1317,6 +1453,15 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     }
   }, [layoutMode]);
 
+  // Cleanup drag timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dragLeaveTimeoutRef.current) {
+        window.clearTimeout(dragLeaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Automatically constrain layout when width becomes too narrow
   useEffect(() => {
     if (!canUseSplitView && layoutMode === "split") {
@@ -1592,7 +1737,22 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           </div>
         </div>
 
-        <div className="full-results-content-container">
+        <div
+          className="full-results-content-container"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* Drag and Drop Overlay */}
+          {isDraggingOver && (
+            <div className="full-results-drag-overlay">
+              <div className="full-results-drag-message">
+                <Icon icon="add" size={32} />
+                <p>Add to context</p>
+              </div>
+            </div>
+          )}
+
           {/* Edge Hover Buttons for Quick Layout Switching */}
 
           {/* Left Edge Button */}

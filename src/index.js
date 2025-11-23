@@ -1459,6 +1459,10 @@ export default {
     if (extensionAPI.settings.get("fullResultsPopup_sidePanelMode") === null)
       await extensionAPI.settings.set("fullResultsPopup_sidePanelMode", "true");
 
+    // Initialize chat enabled tools (first install only)
+    if (extensionAPI.settings.get("chatEnabledTools") === null)
+      await extensionAPI.settings.set("chatEnabledTools", ["add_to_context"]);
+
     createContainer();
 
     if (OPENAI_API_KEY || (customBaseURL && customOpenAIOnly))

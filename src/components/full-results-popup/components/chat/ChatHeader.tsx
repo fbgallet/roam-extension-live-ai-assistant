@@ -90,7 +90,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     ? "Selection changed - click to recalculate token count"
                     : willContextBeTruncated
                     ? `Full expanded context: ${contextTokenEstimate.toLocaleString()} tokens. Will be truncated to fit ${
-                        chatAccessMode === "Full Access" ? "~75%" : "~50%"
+                        chatAccessMode === "Full Access" ? "~90%" : "~50%"
                       } of ${modelTokensLimit.toLocaleString()} token context window.`
                     : `Accurate token count from expanded context (within ${modelTokensLimit.toLocaleString()} token limit). Click to recalculate.`
                 }

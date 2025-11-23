@@ -370,7 +370,7 @@ export const renderMarkdown = (text: string): string => {
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
     /\[\[(?!\<)([^\]]+)(?!<\>)\]\]/g,
-    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Filter by this page. Shift+click: Open in sidebar. Alt+click: Open in main window">$1</a><span class="rm-page-ref__brackets">]]</span>`
+    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Filter by this page.">$1</a><span class="rm-page-ref__brackets">]]</span>`
   );
 
   // Convert Roam embed syntax to clickable links
@@ -389,14 +389,14 @@ export const renderMarkdown = (text: string): string => {
   // Simple block reference ((uid)) - process AFTER [description](((uid)))
   rendered = rendered.replace(
     /(?<!\]\()\(\(([^\(]{9,10})\)\)(?!\}\})/g,
-    `<a href="#" data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window"><span class="bp3-icon bp3-icon-flow-end"></span></a>`
+    `<a  data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">(($1))</span></a>`
   );
 
   // Tag references #tag - make clickable
   // Use negative lookbehind to avoid matching # in URLs (e.g., https://example.com#anchor)
   rendered = rendered.replace(
     /(?<!\w|\/)#([a-zA-Z0-9\/_-]+)/g,
-    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Filter by this tag. Shift+click: Open in sidebar. Alt+click: Open in main window">#$1</a>'
+    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Filter by this tag.">#$1</a>'
   );
 
   // STEP 5: Restore code blocks, links, inline code, and Roam embeds BEFORE wrapping in paragraphs or sanitizing
@@ -570,15 +570,15 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
 
   // 0. Normalize indentation - find minimum indent and remove it from all lines
   const lines = converted.split("\n");
-  const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
   if (nonEmptyLines.length > 0) {
     const minIndent = Math.min(
-      ...nonEmptyLines.map(line => line.match(/^(\s*)/)?.[1].length || 0)
+      ...nonEmptyLines.map((line) => line.match(/^(\s*)/)?.[1].length || 0)
     );
     if (minIndent > 0) {
-      converted = lines.map(line =>
-        line.length > 0 ? line.slice(minIndent) : line
-      ).join("\n");
+      converted = lines
+        .map((line) => (line.length > 0 ? line.slice(minIndent) : line))
+        .join("\n");
     }
   }
 
@@ -599,104 +599,108 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
   //                - col3_row1
   //            - col1_row2
   //              - col2_row2...
-  const roamTableRegex = /(\s*)-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\1  .*\n?)+)/gm;
-  converted = converted.replace(roamTableRegex, (_match, _tableIndent, tableContent) => {
-    // Parse all lines first
-    const parsedLines: Array<{ level: number; content: string }> = [];
-    // DON'T trim here - it removes leading spaces from first line!
-    const lines = tableContent.split("\n");
+  const roamTableRegex =
+    /(\s*)-\s*\{\{\[\[table\]\]\}\}\s*\n((?:\1  .*\n?)+)/gm;
+  converted = converted.replace(
+    roamTableRegex,
+    (_match, _tableIndent, tableContent) => {
+      // Parse all lines first
+      const parsedLines: Array<{ level: number; content: string }> = [];
+      // DON'T trim here - it removes leading spaces from first line!
+      const lines = tableContent.split("\n");
 
-    for (const line of lines) {
-      // Match lines with dash, allowing optional space and content
-      const indentMatch = line.match(/^(\s*)-\s*(.*)$/);
-      if (!indentMatch) continue;
+      for (const line of lines) {
+        // Match lines with dash, allowing optional space and content
+        const indentMatch = line.match(/^(\s*)-\s*(.*)$/);
+        if (!indentMatch) continue;
 
-      const indent = indentMatch[1].length;
-      const indentLevel = Math.floor(indent / 2);
-      const content = indentMatch[2].trim();
+        const indent = indentMatch[1].length;
+        const indentLevel = Math.floor(indent / 2);
+        const content = indentMatch[2].trim();
 
-      // Remove formatting for content extraction
-      const cleanContent = content
-        .replace(/\*\*(.+?)\*\*/g, "$1") // Remove bold
-        .replace(/\^\^(.+?)\^\^/g, "$1") // Remove highlight
-        .replace(/__(.+?)__/g, "$1") // Remove italic
-        .trim();
+        // Remove formatting for content extraction
+        const cleanContent = content
+          .replace(/\*\*(.+?)\*\*/g, "$1") // Remove bold
+          .replace(/\^\^(.+?)\^\^/g, "$1") // Remove highlight
+          .replace(/__(.+?)__/g, "$1") // Remove italic
+          .trim();
 
-      // Use a space for empty cells to preserve table structure
-      const cellContent = cleanContent || " ";
+        // Use a space for empty cells to preserve table structure
+        const cellContent = cleanContent || " ";
 
-      parsedLines.push({ level: indentLevel, content: cellContent });
-    }
+        parsedLines.push({ level: indentLevel, content: cellContent });
+      }
 
-    if (parsedLines.length === 0) return _match;
+      if (parsedLines.length === 0) return _match;
 
-    // Determine base level from first line
-    const baseLevel = parsedLines[0].level;
-    const rows: string[][] = [];
+      // Determine base level from first line
+      const baseLevel = parsedLines[0].level;
+      const rows: string[][] = [];
 
-    // Process lines to build rows
-    let i = 0;
-    while (i < parsedLines.length) {
-      const currentLine = parsedLines[i];
+      // Process lines to build rows
+      let i = 0;
+      while (i < parsedLines.length) {
+        const currentLine = parsedLines[i];
 
-      // Each line at base level starts a new row
-      if (currentLine.level === baseLevel) {
-        const row: string[] = [currentLine.content];
+        // Each line at base level starts a new row
+        if (currentLine.level === baseLevel) {
+          const row: string[] = [currentLine.content];
 
-        // Collect nested columns - they should be sequentially deeper
-        let j = i + 1;
-        let currentLevel = currentLine.level;
+          // Collect nested columns - they should be sequentially deeper
+          let j = i + 1;
+          let currentLevel = currentLine.level;
 
-        // Keep going while we're still in nested items for this row
-        while (j < parsedLines.length && parsedLines[j].level > baseLevel) {
-          // The next column should be exactly one level deeper
-          if (parsedLines[j].level === currentLevel + 1) {
-            row.push(parsedLines[j].content);
-            currentLevel = parsedLines[j].level;
-            j++;
-          } else {
-            // Not the expected nesting level, stop
-            break;
+          // Keep going while we're still in nested items for this row
+          while (j < parsedLines.length && parsedLines[j].level > baseLevel) {
+            // The next column should be exactly one level deeper
+            if (parsedLines[j].level === currentLevel + 1) {
+              row.push(parsedLines[j].content);
+              currentLevel = parsedLines[j].level;
+              j++;
+            } else {
+              // Not the expected nesting level, stop
+              break;
+            }
           }
+
+          rows.push(row);
+          i = j; // Skip all the nested items we just processed
+        } else {
+          // This shouldn't happen if structure is correct, but skip it
+          i++;
         }
-
-        rows.push(row);
-        i = j; // Skip all the nested items we just processed
-      } else {
-        // This shouldn't happen if structure is correct, but skip it
-        i++;
       }
-    }
 
-    if (rows.length === 0) return _match;
+      if (rows.length === 0) return _match;
 
-    // Build markdown table
-    const maxCols = Math.max(...rows.map((row) => row.length));
+      // Build markdown table
+      const maxCols = Math.max(...rows.map((row) => row.length));
 
-    // Pad rows to have same number of columns
-    const paddedRows = rows.map((row) => {
-      const padded = [...row];
-      while (padded.length < maxCols) {
-        padded.push("");
+      // Pad rows to have same number of columns
+      const paddedRows = rows.map((row) => {
+        const padded = [...row];
+        while (padded.length < maxCols) {
+          padded.push("");
+        }
+        return padded;
+      });
+
+      // Build header row (use space for empty cells)
+      let markdownTable =
+        "| " + paddedRows[0].map((cell) => cell || " ").join(" | ") + " |\n";
+
+      // Build separator row
+      markdownTable += "| " + Array(maxCols).fill("---").join(" | ") + " |\n";
+
+      // Build data rows (use space for empty cells)
+      for (let i = 1; i < paddedRows.length; i++) {
+        markdownTable +=
+          "| " + paddedRows[i].map((cell) => cell || " ").join(" | ") + " |\n";
       }
-      return padded;
-    });
 
-    // Build header row (use space for empty cells)
-    let markdownTable =
-      "| " + paddedRows[0].map((cell) => cell || " ").join(" | ") + " |\n";
-
-    // Build separator row
-    markdownTable += "| " + Array(maxCols).fill("---").join(" | ") + " |\n";
-
-    // Build data rows (use space for empty cells)
-    for (let i = 1; i < paddedRows.length; i++) {
-      markdownTable +=
-        "| " + paddedRows[i].map((cell) => cell || " ").join(" | ") + " |\n";
+      return "\n" + markdownTable;
     }
-
-    return "\n" + markdownTable;
-  });
+  );
 
   return converted;
 };

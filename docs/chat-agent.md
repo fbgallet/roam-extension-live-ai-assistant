@@ -88,7 +88,7 @@ The agent operates in two access modes that control how deeply it expands contex
 
 #### 🔓 Full Access Mode
 
-- **Context Window**: Up to 75% of model's context window
+- **Context Window**: Up to 90% of model's context window
 - **Response Speed**: Slower due to larger context
 - **Block Depth**: Adaptive based on result count (0-99 levels)
   - 1-10 results: unlimited depth (practical limit: 99 levels)
@@ -122,8 +122,8 @@ The agent uses an intelligent context expansion system that adapts to the number
 
 **Content Budget Allocation**:
 
-- Balanced mode: ~30% of context window (e.g., 60k tokens for 200k model)
-- Full Access mode: ~75% of context window (e.g., 150k tokens for 200k model)
+- Balanced mode: ~50% of context window (e.g., 100k tokens for 200k model)
+- Full Access mode: ~90% of context window (e.g., 180k tokens for 200k model)
 - Budget is distributed proportionally across all results
 - Remaining space reserved for conversation history and instructions
 
@@ -177,6 +177,7 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 **Purpose**: Universal tool for adding Roam content to the chat context
 
 **Capabilities**:
+
 - Add pages by title or current/main page
 - Add blocks by UID, focused block, or sidebar content
 - Add linked references for pages
@@ -184,6 +185,7 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 - Language-agnostic: understands "current page", "page actuelle", "このページ", etc.
 
 **Use when**:
+
 - User mentions page titles: "Tell me about [[Project Planning]]"
 - User refers to current context: "Summarize the current page"
 - User asks about linked references: "What references [[Machine Learning]]?"
@@ -191,11 +193,13 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 - User asks about recent notes: "What did I work on last week?"
 
 **Smart resolution**:
+
 - Detects Daily Notes view and prompts for time period
 - Handles blocks, pages, and linked references appropriately
 - Uses the existing roamContextLoader for consistent behavior
 
 **Examples**:
+
 - "Add the Project Planning page to context"
 - "Load the current page" (automatically detects which page is open)
 - "Show me the focused block"
@@ -226,6 +230,7 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 **Status**: **Disabled by default** - Must be explicitly enabled in tools menu due to token/time cost
 
 **Capabilities**:
+
 - Pattern matching with wildcards
 - Semantic search (`~word` finds similar concepts)
 - Fuzzy search (`word*` finds variations)
@@ -235,6 +240,7 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 - Graph-wide pattern analysis
 
 **Use when**:
+
 - Complex multi-condition queries
 - Pattern-based searches across the entire graph
 - Semantic queries requiring concept expansion
@@ -242,6 +248,7 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 - When `add_to_context` is insufficient
 
 **Avoid for**:
+
 - Simple page lookups (use `add_to_context` instead)
 - Simple linked references (use `add_to_context` instead)
 - Basic questions answerable from general knowledge
@@ -249,6 +256,7 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 **Cost**: ⚡ May take several seconds and use significant tokens
 
 **Examples**:
+
 - "Find all meeting notes from last month that mention budget -personal"
 - "Blocks containing TODO items from last week"
 - "Pages about project management with recent updates"
@@ -296,12 +304,14 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 By default, the following tool configuration is applied:
 
 **Enabled by default**:
+
 - `add_to_context` - Primary tool for loading context
 - `select_results_by_criteria` - Result filtering
 - `get_help` - Extension documentation
 - `live_ai_skills` - Specialized workflows
 
 **Disabled by default**:
+
 - `ask_your_graph` ⚡ - Heavy operation, must be explicitly enabled
 
 You can customize which tools are enabled via the tools menu (wrench icon). Your preferences are saved across sessions.

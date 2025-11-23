@@ -718,11 +718,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
 
   // Track if any tools that add results were called
   let needsExpansion = false;
-  const resultsAddingTools = [
-    "add_linked_references_by_title",
-    "add_pages_by_title",
-    "ask_your_graph",
-  ];
+  const resultsAddingTools = ["ask_your_graph", "add_to_context"];
 
   toolMessages.forEach((msg: any) => {
     if (msg.tool_call_id && msg.content) {

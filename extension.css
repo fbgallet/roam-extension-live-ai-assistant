@@ -4827,3 +4827,48 @@ body.has-no-side-panel #app {
   border-color: #634e11;
   color: #f7e7a1;
 }
+
+/* Drag and Drop Overlay for FullResultsPopup */
+.full-results-drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.full-results-drag-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(19, 124, 189, 0.1);
+  border: 2px dashed #137cbd;
+  border-radius: 8px;
+  color: #137cbd;
+}
+
+.full-results-drag-message p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Dark mode support for drag overlay */
+.bp3-dark .full-results-drag-overlay {
+  background: rgba(48, 64, 77, 0.85);
+}
+
+.bp3-dark .full-results-drag-message {
+  background: rgba(72, 175, 240, 0.15);
+  border-color: #48aff0;
+  color: #48aff0;
+}

@@ -39,8 +39,11 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
     if (!containerRef.current) return;
 
     // Check if content has special Roam elements that need renderString
-    const hasRoamElements = containsKaTeX(content) ||
-      /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/i.test(content);
+    const hasRoamElements =
+      containsKaTeX(content) ||
+      /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/i.test(
+        content
+      );
 
     if (hasRoamElements) {
       // First, render the markdown structure normally
@@ -56,9 +59,11 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
 
       let node: Node | null;
       while ((node = walker.nextNode())) {
-        if (node.textContent &&
-            (/\$\$.+?\$\$/s.test(node.textContent) ||
-             /\{\{\[\[(?:audio|video|youtube)\]\]:/i.test(node.textContent))) {
+        if (
+          node.textContent &&
+          (/\$\$.+?\$\$/s.test(node.textContent) ||
+            /\{\{\[\[(?:audio|video|youtube)\]\]:/i.test(node.textContent))
+        ) {
           textNodes.push(node);
         }
       }
@@ -71,7 +76,9 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
         if (!parent) return;
 
         // Split by KaTeX formulas and media embeds
-        const parts = text.split(/(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\})/is);
+        const parts = text.split(
+          /(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\})/is
+        );
         const fragment = document.createDocumentFragment();
 
         parts.forEach((part) => {
@@ -352,9 +359,9 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                         (modelTokensLimit * 2) / 1000 / 6
                       )}k words)`
                     : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(
-                        (modelTokensLimit * 0.75) / 1000
-                      )}k tokens (75% of model context window, approx. ${Math.floor(
-                        (modelTokensLimit * 3) / 1000 / 6
+                        (modelTokensLimit * 0.9) / 1000
+                      )}k tokens (90% of model context window, approx. ${Math.floor(
+                        (modelTokensLimit * 3.8) / 1000 / 6
                       )}k words)`}{" "}
                   {/* TODO: Future evolution - Deep Analysis mode
                   {chatMode === "agent" ? (

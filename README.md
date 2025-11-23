@@ -18,15 +18,13 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.22 (November 2025) (v.23 & 24 are mostly fixes)
+### 🆕 New in v.25 (December 2025)
 
-- **Chat panel** for smooth conversations, can be displayed as a left/right panel or full screen, combined with a rich context panel
-- **Chat agent**, relying on tools to query your graph, handle context with natural language, leverage rich instructions and resources with [Live AI Skills](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md) (inspired by Anthropic Agent Skills), chat with help documents...
-- **Query composer** to compose natural language queries, combine them, add specific pages, etc., and save them to reuse them easily, providing a well defined context for Chat
-- Ask Your Graph agent support now **sequences of queries** to better handle complexe queries and better handling of DNPs and attributes
-- 'Ask Your Graph - Pattern analysis' command for quick overview of all pages in your graph or recent pages or Daily notes
-- New models supported natively: GPT-5.1, Gemini models (including Imagen-4 and 'nano banana'), Claude Sonnet 4.5 & Haiku 4.5 (supporting web fetching), gpt-5-search-api, Grok-4-fast
-- Added 'Pdf' checkbox in Context menu
+- Drag & drop block(s) to Chat panel to add them to the context
+- Gemini 3 Pro and Nano banana Pro support
+- Audio and Video analysis with Gemini models
+- Audio file transcription with OpenAI or Gemini
+- Pdf, image, audio, video and web search supported in Chat panel
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -185,7 +183,7 @@ To give you an idea, a request based on about 10 pages of text (4000 words) that
 
 You can track the cost of each request and the total per model for the current and past months by clicking the `$` button at the top of Live AI context menu popup. Learn more about models and providers pricing [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens).
 
-## 2. Model-Specific Features (Voice, Web search, Image, PDF)
+## 2. Model-Specific Features (Voice, Audi, Video, Web search, Image, PDF)
 
 ### Voice transcription
 
@@ -202,7 +200,7 @@ You need either an account on OpenAI to benefit from Whisper (or `gpt-4o-transcr
 
 A large number of [source languages are supported](https://platform.openai.com/docs/guides/speech-to-text/supported-languages), but the target language is currently limited to English. This limitation can be easily overcome through post-processing using a generative AI, as it only requires asking it to translate into almost any language.
 
-#### Audio transcription command
+### Audio transcription command
 
 You can easily transcribe entire audio recordings (meetings, interviews, lectures, etc.): when a block contains audio, an **"Audio transcription"** command appears in the context menu. It transcribes audio using Gemini (if current model includes "gemini") or OpenAI/Groq Whisper (using default Voice transcription model defined in settings), then formats the output into proper paragraphs. Add custom instructions in the prompt field to customize transcription and eventually name speakers.
 
@@ -236,23 +234,6 @@ You can have any selection read aloud (the focus block, part of the selected tex
 
 In the extension settings, you can change the voice and provide instructions to control aspects of speech, including: Accent, Emotional range, Intonation, Impressions, Speed of speech, Tone, Whispering...
 
-### Web search (or web as context)
-
-⚠️ Currently Web Search can only be achieved with OpenAI dedicated models, Anthropic models or Grok models.
-
-The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-5-search-api`, `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
-
-The models don't just summarize different relevant content found on the internet. You can use a rich prompt that requests all types of advanced and structured content processing that the LLM will gather.
-
-You can set the default model to use for Web search (OpenAI or Anthropic models) either in extension settings or by right-clicking on the choosen model in the submenu of `Web search` command.
-
-> [!WARNING]
-> ⚠️ To collect its data and prepare its response, the model will browse several sites: the input tokens used will be much higher than your prompt, leading to additional costs. Additionally, providers charge a fee per 1,000 queries: $10 for Anthropic, and between $25 and $50 for OpenAI, depending on the context size and model.
-
-Web search context option (in extension settings) for OpenAI models: you can choose the context size extracted from relevant websites. Low: fastest, cheaper. High: slower, higher cost. See pricing [here](https://platform.openai.com/docs/pricing#web-search)
-
-Now Anthropic models can even fetch specific web page if you insert the url in your prompt (if allowed by the web domain).
-
 ### Video analysis
 
 ⚠️ Currently video analysis is only available with **Google Gemini models**.
@@ -281,23 +262,40 @@ You can analyze specific segments of videos by adding time markers in your promp
 
 ### Images generation
 
-You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key. Google Gemini 'Nano banana pro' is currently the most suitable model for edition and text insertion in images and is set as default image generation model in settings.
+You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key. Google Gemini 3 'Nano banana Pro' is currently the most suitable model for edition and text insertion in images and is set as default image generation model in settings.
 
 See [best practices for Google Gemini image models 'nano banana' here](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) (don't care about the code on this page, all is handled by Live AI)
 
-In the built-in prompts menu, choose among three levels of **image quality** (except for gemini-2.5-flash-image): low, medium or high (1K, 2K or 4K for Nano banana pro). The low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (around 15 times cheaper than high quality, see the [pricing doc](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) for details).
+In the built-in prompts menu, choose among three levels of **image quality** (except for gemini-2.5-flash-image, always 1K): low, medium or high (equivalent to 1K, 2K or 4K for Nano banana pro). The low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (see the [pricing doc](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) for details).
 
 In you prompt, you can provide:
 
-- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio directly in your prompt (e.g.: 1:1, 4:3, 16:9, etc.)
+- **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio directly in your prompt (e.g.: 1:1, 2:3, 4:3, 16:9, etc.)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
 - **Image edition**: Gemini Nano banana models allow direct image edition without any mask: just insert the image to edit in your prompt or context and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, you can refine images through multiple conversational edits (once an image has been generated in the chat, all following message can only be used for image edition and no other purpose); in Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. The chat maintains context across edits and model attribution is automatically added below each generated image. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ### Use PDF files as input
 
-OpenAI and Anthropic models supporting images as input support also `.pdf` files in your prompt or in the context. You can insert them both as simple web url or as `{{[[pdf]]: ...}}` component specific to Roam (including the firebase url where your pdf is stored).
+OpenAI, Anthropic and Google models supporting images as input support also `.pdf` files in your prompt or in the context. You can insert them both as simple web url or as `{{[[pdf]]: ...}}` component specific to Roam (including the firebase url where your pdf is stored).
+
+In Chat panel, you can insert a pdf in the prompt or in the context and chat with its content! If your pdf is in the context, you have to explicitly mention "pdf" keyword in your first prompt to allow the agent to extract .pdf from the context.
 
 You have to know that for each page, text and an image of the page will be sent as input to the LLM: the total tokens count will be greater than for simple text input, even if there is no image in your .pdf.
+
+### Web search (or web as context)
+
+⚠️ Currently Web Search can be achieved with OpenAI dedicated models, or all Anthropic, Google or Grok models.
+
+The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-5-search-api`, `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
+
+The models don't just summarize different relevant content found on the internet. You can use a rich prompt that requests all types of advanced and structured content processing that the LLM will gather.
+
+You can set the default model to use for Web search either in extension settings or by right-clicking on the choosen model in the submenu of `Web search` command.
+
+> [!WARNING]
+> ⚠️ To collect its data and prepare its response, the model will browse several sites: the input tokens used will be much higher than your prompt, leading to additional costs. Additionally, providers charge a fee per 1,000 queries: $10 for Anthropic, and between $25 and $50 for OpenAI, depending on the context size and model.
+
+Anthropic models can even fetch specific web page if you insert the url in your prompt (if allowed by the web domain).
 
 ## 3. Going further to get better answers
 
@@ -403,7 +401,7 @@ Examples of request:
 - From there, you can chat directly with the results or with a selected subset of results. In its responses, the agent will reference the concerned results. You can instantly connect what the agent says with the related blocks just by hovering over them!
 - <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
 
-- A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results, allowing to filter/select some of them and chat with them!
+- A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results (reproducing the current filters), allowing to filter/select some of them and chat with them!
 - You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
 - Each user query can be saved for further exploration and the 3 most recents queries remain available. Each query can also be combined with other queries or completed by specific pages or blocks. Run "Open results view" command to load and chat with saved queries.
 

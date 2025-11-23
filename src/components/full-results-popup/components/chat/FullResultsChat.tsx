@@ -17,6 +17,7 @@ import {
   createSiblingBlock,
   hasBlockChildren,
   updateBlock,
+  isExistingBlock,
 } from "../../../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../../../utils/format";
@@ -888,7 +889,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         event.preventDefault(); // Prevent default link behavior
 
         if (event.shiftKey) {
-          // Shift+click: Open page in sidebar
+          // Shift+click: Add to included references filter
           const pageUid = getPageUidByPageName(pageTitle);
           if (pageUid) {
             window.roamAlphaAPI.ui.rightSidebar.addWindow({
@@ -906,6 +907,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           }
         } else if (event.altKey || event.metaKey) {
           // Alt/Option+click: Open page in main window
+          handleIncludeReference(pageTitle);
+
+          // Switch to results view if in chat-only mode
+          if (chatOnlyMode) {
+            handleChatOnlyToggle();
+          }
+        } else {
+          // Regular click: Open page in sidebar
           const pageUid = getPageUidByPageName(pageTitle);
           if (pageUid) {
             window.roamAlphaAPI.ui.mainWindow.openPage({
@@ -917,15 +926,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               pageTitle,
               pageUid
             );
-          }
-        } else {
-          // Regular click: Add to included references filter
-
-          handleIncludeReference(pageTitle);
-
-          // Switch to results view if in chat-only mode
-          if (chatOnlyMode) {
-            handleChatOnlyToggle();
           }
         }
       }
@@ -1107,19 +1107,12 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Track enabled/disabled state for each tool
   const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
-    // Try to load from storage first
+    // Load from storage (initialized in index.js on first install)
     const storedTools = extensionStorage.get("chatEnabledTools");
-    if (
-      storedTools !== undefined &&
-      storedTools !== null &&
-      Array.isArray(storedTools)
-    ) {
-      // Return stored tools even if empty array (user disabled all)
-      return new Set(storedTools);
-    }
 
-    // First launch: only enable add_to_context by default
-    return new Set(["add_to_context"]);
+    // Storage is guaranteed to have a value (set in index.js onload)
+    // Can be: [] (user disabled all) or [...] (enabled tools)
+    return new Set(storedTools || []);
   });
 
   // Save enabled tools to storage whenever they change
@@ -1292,7 +1285,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Capture the current inserted count at the start to avoid race conditions
     const currentInsertedCount = insertedMessagesCount;
 
-    if (!loadedChatUid) {
+    if (!loadedChatUid || !isExistingBlock(loadedChatUid)) {
       let focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
       if (
         !focusedUid &&
@@ -1908,8 +1901,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // expansionBudget is expressed in approx. maximum characters
         const expansionBudget =
           chatAccessMode === "Full Access"
-            ? modelTokensLimit * 3
-            : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
+            ? modelTokensLimit * 3.8
+            : modelTokensLimit * 2; //  ~90% context window vs ~50% context window
         expandedResults = await performAdaptiveExpansion(
           contextResults.map((result) => ({ ...result })), // Pass deep copies to prevent any mutation
           expansionBudget,

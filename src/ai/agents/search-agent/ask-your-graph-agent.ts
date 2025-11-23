@@ -1913,7 +1913,9 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       // For streaming, we need to create the response block first
       const { getInstantAssistantRole } = await import("../../..");
       const { chatRoles } = await import("../../..");
-      const { createChildBlock, insertBlockInCurrentView } = await import("../../../utils/roamAPI");
+      const { createChildBlock, insertBlockInCurrentView } = await import(
+        "../../../utils/roamAPI"
+      );
       const { insertParagraphForStream } = await import(
         "../../../utils/domElts"
       );
@@ -1925,7 +1927,10 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       // Create response block first for streaming
       // If no rootUid (no block focused), insert at end of current page
       if (state.rootUid) {
-        streamingTargetUid = await createChildBlock(state.rootUid, assistantRole);
+        streamingTargetUid = await createChildBlock(
+          state.rootUid,
+          assistantRole
+        );
       } else {
         streamingTargetUid = await insertBlockInCurrentView(assistantRole);
       }
@@ -2156,7 +2161,9 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     if (state.rootUid) {
       targetUid = await createChildBlock(state.rootUid, assistantRole);
     } else {
-      const { insertBlockInCurrentView } = await import("../../../utils/roamAPI");
+      const { insertBlockInCurrentView } = await import(
+        "../../../utils/roamAPI"
+      );
       targetUid = await insertBlockInCurrentView(assistantRole);
     }
   }
@@ -2305,13 +2312,17 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     : 32000;
 
   const expansionBudget =
-    accessMode === "Full Access" ? modelTokensLimit * 3 : modelTokensLimit * 2; //  ~75% context window vs ~50% context window
+    accessMode === "Full Access"
+      ? modelTokensLimit * 3.8
+      : modelTokensLimit * 2; //  ~90% context window vs ~50% context window
 
   console.log(
     `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}, mode: ${mode}, accessMode: ${accessMode}`
   );
   console.log(
-    `🌳 [ContextExpansion] About to expand ${resultCount} results (${allResults.filter((r) => r.isPage).length} pages, ${allResults.filter((r) => !r.isPage).length} blocks)`
+    `🌳 [ContextExpansion] About to expand ${resultCount} results (${
+      allResults.filter((r) => r.isPage).length
+    } pages, ${allResults.filter((r) => !r.isPage).length} blocks)`
   );
 
   // Perform adaptive context expansion
@@ -2329,15 +2340,12 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   if (expandedResults.length > 0) {
     // Log sample of expanded content
     const sampleExpanded = expandedResults[0];
-    console.log(
-      `🌳 [ContextExpansion] Sample expanded result:`,
-      {
-        uid: sampleExpanded.uid,
-        hasContent: !!sampleExpanded.content,
-        contentLength: sampleExpanded.content?.length || 0,
-        contentPreview: sampleExpanded.content?.slice(0, 200),
-      }
-    );
+    console.log(`🌳 [ContextExpansion] Sample expanded result:`, {
+      uid: sampleExpanded.uid,
+      hasContent: !!sampleExpanded.content,
+      contentLength: sampleExpanded.content?.length || 0,
+      contentPreview: sampleExpanded.content?.slice(0, 200),
+    });
 
     // Store expanded results in result store
     const contextResultId = `contextExpansion_${state.nextResultId || 1}`;
@@ -2372,7 +2380,9 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     };
   }
 
-  console.log(`🌳 [ContextExpansion] No expanded results - returning state unchanged`);
+  console.log(
+    `🌳 [ContextExpansion] No expanded results - returning state unchanged`
+  );
   return state;
 };
 
@@ -3122,7 +3132,9 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       // This prevents the tool from being called multiple times
       (latestResult?.purpose === "final" && !state.isConversationMode)
     ) {
-      console.log(`🔀 [Tools] Routing to: contextExpansion (scope strategy or final result)`);
+      console.log(
+        `🔀 [Tools] Routing to: contextExpansion (scope strategy or final result)`
+      );
       return "contextExpansion";
     } else {
       console.log(`🔀 [Tools] Routing to: assistant (normal flow)`);
