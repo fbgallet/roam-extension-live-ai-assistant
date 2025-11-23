@@ -14,10 +14,11 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Flexible Layout**: Position as right/left/bottom panel or modal - preferences auto-saved
 - **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt) and styles (#liveai/style)
 - **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
+- Support images, .pdf (with most models) and even audio or video analysis (with Gemini models)
 
 #### **Context panel**
 - **Easy access**: switch to a detailed context view (click on the vertical button on the left of chat panel) or split view
-- **Easy set up**: add pages/blocks manually, by loading saved queries, or by creating new ones
+- **Easy set up**: add pages/blocks manually, by loading saved queries, or by creating new ones, or simply drag&drop block(s)
 - **Precise control**: filter, sort and select the most relevant data for your chat
 
 #### **Chat Agent: Intelligent Context & Tools**
@@ -35,17 +36,19 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 #### **Recommendations**
 - **For Speed**: Disable tools (~3000 tokens saved per message), use Balanced mode, combine questions
-- **For Quality**: use Full Access mode and powerful models (Claude Sonnet 4.5, GPT-5.1...)
+- **For Quality**: use Full Access mode and powerful models (Claude Sonnet 4.5, GPT-5.1, Gemini 3 Pro...)
 - **For Cost**: Disable tools, use Balanced mode, cheaper models, batch questions, start new chats when switching topics
 - **Inline vs Chat**: Use inline for Roam structure, Mermaid, PDFs; use chat for conversation, search analysis
 
 **📖 Complete Guide**: [Chat Agent Documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md) - includes detailed tool descriptions, depth strategies, and workflows
 
-**💡 Agentic Help**: Enable tools and ask questions - the agent will use get_help tool to fetch relevant docs!`;
+**💡 Agentic Help**: Enable tools and ask questions - the agent will use get_help tool to fetch relevant docs!
+
+Made made with joy and perseverance by Fabrice Gallet. Do you want to support my work ? Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a cofee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social)`;
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.24 (Nov 2025) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.25 (Dec 2025) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
@@ -67,7 +70,7 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 #### **Supported LLM Providers:**
 OpenAI (GPT-4.1, GPT-5.1), Anthropic (Claude), Google (Gemini), xAI (Grok), DeepSeek, Ollama (local models), and more!
 
-Made made with joy and perseverance by [Fabrice Gallet](https://github.com/sponsors/fbgallet)`;
+Made made with joy and perseverance by Fabrice Gallet. Do you want to support my work ? Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a cofee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social)`;
 
 // Tips specific to Live AI (context menu, inline commands)
 export const LIVE_AI_TIPS = [
