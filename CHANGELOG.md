@@ -1,3 +1,24 @@
+## v.25 (November 24th, 2025) Better multimodal support
+
+**New features**
+
+- Audio and Video analysis with Gemini models
+- Audio file transcription with OpenAI or Gemini models
+
+**Updates**
+
+- Gemini 3 Pro and Nano banana Pro support
+- Drag & drop block(s) to Chat panel to add them to the context
+- Pdf, image, audio, video and web search supported in Chat panel
+- Direct image edition (with Nano banana) in child block or in chat
+
+**Fixed**
+
+- In Chat context: page content was truncated (now: only if exceeding context window)
+- More reliable blocks or pages mention in LLM responses in chat + click on page open it, click on block copy it to clipboard
+- When using addToContext tool, chat agent was unable to instantly rely on added nodes
+- Disabling all tools was still not persistent (addToContext was always enabled by default)
+
 ## v.24 (November 15th, 2025) Critical fixes
 
 **Updates**
