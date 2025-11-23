@@ -48,6 +48,8 @@ import {
   handleFreshAudioTranscriptionRequest,
   hasVideoContent,
   handleVideoAnalysisRequest,
+  hasPdfContent,
+  handlePdfAnalysisRequest,
   isWebSearchRequest,
   handleWebSearchRequest,
 } from "./multimodal-commands";
@@ -184,6 +186,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     enabledTools: state.enabledTools,
     hasAudioContent: hasAudioContent(lastMessage, state.resultsContext),
     hasVideoContent: hasVideoContent(lastMessage, state.resultsContext),
+    hasPdfContent: hasPdfContent(lastMessage, state.resultsContext),
   });
 
   sys_msg = new SystemMessage({ content: systemPrompt });
@@ -331,6 +334,33 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // Video analysis is complete, return it
       return {
         messages: videoResult.messages,
+      };
+    }
+  }
+
+  // Handle PDF analysis requests (automatic, not command-based, requires Gemini)
+  // This directly returns the PDF analysis without passing to LLM
+  if (hasPdfContent(originalUserMessageForHistory, state.resultsContext)) {
+    const pdfResult = await handlePdfAnalysisRequest(
+      originalUserMessageForHistory,
+      state.model.id,
+      state.resultsContext,
+      state.messages
+    );
+
+    // If this is analysis-only (no additional user instructions after PDF), return directly
+    if (pdfResult.isAnalysisOnly) {
+      return {
+        messages: pdfResult.messages,
+      };
+    }
+
+    // If user provided additional instructions beyond the PDF, update messages
+    // and continue to LLM (PDF is already processed, analysis in message)
+    if (pdfResult.messages !== state.messages) {
+      // PDF analysis is complete, return it
+      return {
+        messages: pdfResult.messages,
       };
     }
   }
@@ -777,6 +807,8 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       activeSkillInstructions: newActiveSkillInstructions,
       enabledTools: state.enabledTools,
       hasAudioContent: hasAudioContent(lastMessage, updatedResultsContext),
+      hasVideoContent: hasVideoContent(lastMessage, updatedResultsContext),
+      hasPdfContent: hasPdfContent(lastMessage, updatedResultsContext),
     });
 
     sys_msg = new SystemMessage({ content: systemPrompt });

@@ -24,6 +24,7 @@ export const buildChatSystemPrompt = async ({
   enabledTools,
   hasAudioContent,
   hasVideoContent,
+  hasPdfContent,
 }: {
   lastMessage: string;
   style?: string;
@@ -37,6 +38,7 @@ export const buildChatSystemPrompt = async ({
   enabledTools?: Set<string>;
   hasAudioContent?: boolean;
   hasVideoContent?: boolean;
+  hasPdfContent?: boolean;
 }): Promise<string> => {
   // Different base prompt depending on whether we have search results context
 
@@ -175,6 +177,23 @@ When the user provides video files or YouTube URLs (either directly in their mes
 - Direct video file URLs (mp4, webm, etc.)
 
 **Note**: Video analysis happens automatically when video content is detected. You don't need to request or process videos - the system handles this before you see the message.`;
+  }
+
+  // Add PDF handling guidance only if PDF is present in prompt or context
+  if (hasPdfContent) {
+    systemPrompt += `\n\n## PDF Analysis
+
+When the user provides PDF files (either directly in their message or in the context):
+- PDF files are automatically analyzed using Gemini's multimodal capabilities
+- The analysis will be returned directly to the user
+- **IMPORTANT**: PDF analysis requires a Gemini model - if a non-Gemini model is selected, the user will be notified to switch models
+
+**Supported PDF formats:**
+- Direct PDF URLs (http://example.com/document.pdf)
+- Roam PDF syntax: {{[[pdf]]: url}}
+- Firebase-hosted PDFs (automatically decrypted)
+
+**Note**: PDF analysis happens automatically when PDF content is detected. You don't need to request or process PDFs - the system handles this before you see the message.`;
   }
 
   // Add results context if available

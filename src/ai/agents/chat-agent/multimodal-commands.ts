@@ -26,6 +26,7 @@ import {
   roamAudioRegex,
   roamVideoRegex,
   youtubeRegex,
+  pdfLinkRegex,
 } from "../../../utils/regex";
 import { aiCompletion } from "../../responseInsertion";
 import { buildResultsContext } from "./chat-agent-prompts";
@@ -604,6 +605,190 @@ export async function handleVideoAnalysisRequest(
       messages: [
         ...currentMessages,
         new AIMessage(`⚠️ Error analyzing video: ${error.message}`),
+      ],
+    };
+  }
+}
+
+/**
+ * Detect if prompt or context contains PDF files
+ *
+ * @param userPrompt - The user's text prompt
+ * @param resultsContext - Results context from chat state
+ * @returns true if PDF is detected, false otherwise
+ */
+export function hasPdfContent(
+  userPrompt: string,
+  resultsContext: any[] | undefined
+): boolean {
+  // Check if user prompt contains PDF in Roam format: {{[[pdf]]: url}} or direct PDF URL
+  pdfLinkRegex.lastIndex = 0;
+  const pdfInPrompt = pdfLinkRegex.test(userPrompt);
+  if (pdfInPrompt) {
+    return true;
+  }
+
+  // Check if user mentions "pdf" in their prompt (suggesting they want to analyze PDF in context)
+  const mentionsPdf = /\b(pdf|document|paper)\b/i.test(userPrompt);
+
+  // Check if resultsContext contains PDF files
+  if (resultsContext && resultsContext.length > 0 && mentionsPdf) {
+    for (const result of resultsContext) {
+      const content = result.content || result.text || "";
+
+      // Check for PDF in Roam format or direct URLs
+      pdfLinkRegex.lastIndex = 0;
+      if (pdfLinkRegex.test(content)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Extract all PDF URLs from prompt and context
+ *
+ * @param userPrompt - The user's text prompt
+ * @param resultsContext - Results context from chat state
+ * @returns Array of PDF URLs
+ */
+function extractPdfUrls(
+  userPrompt: string,
+  resultsContext: any[] | undefined
+): string[] {
+  const pdfUrls: string[] = [];
+
+  // Extract from user prompt - Roam format {{[[pdf]]: url}} or direct PDF URLs
+  pdfLinkRegex.lastIndex = 0;
+  const pdfMatches = Array.from(userPrompt.matchAll(pdfLinkRegex));
+  pdfMatches.forEach((match) => {
+    const pdfUrl = match[1] || match[2]; // Group 1 is direct URL, Group 2 is Roam syntax URL
+    pdfUrls.push(pdfUrl);
+  });
+
+  // Extract from resultsContext if user mentions PDF
+  const mentionsPdf = /\b(pdf|document|paper)\b/i.test(userPrompt);
+  if (resultsContext && resultsContext.length > 0 && mentionsPdf) {
+    for (const result of resultsContext) {
+      const content = result.content || result.text || "";
+
+      // Extract PDFs from context
+      pdfLinkRegex.lastIndex = 0;
+      const contextPdfMatches = Array.from(content.matchAll(pdfLinkRegex));
+      contextPdfMatches.forEach((match) => {
+        const pdfUrl = match[1] || match[2];
+        if (!pdfUrls.includes(pdfUrl)) {
+          pdfUrls.push(pdfUrl);
+        }
+      });
+    }
+  }
+
+  // Remove duplicates
+  return Array.from(new Set(pdfUrls));
+}
+
+/**
+ * Handle PDF analysis request (requires Gemini model)
+ *
+ * @param originalUserPrompt - The user's original text prompt
+ * @param modelId - The model ID from state
+ * @param resultsContext - Results context containing PDF files
+ * @param currentMessages - Current message history
+ * @returns Result with updated messages
+ */
+export async function handlePdfAnalysisRequest(
+  originalUserPrompt: string,
+  modelId: string,
+  resultsContext: any[] | undefined,
+  currentMessages: any[]
+): Promise<MultimodalCommandResult & { isAnalysisOnly?: boolean }> {
+  // Check if Gemini model is being used (required for PDF)
+  if (!modelId.toLowerCase().includes("gemini")) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          "⚠️ PDF analysis requires a Gemini model. Please switch to a Gemini model to analyze PDF content."
+        ),
+      ],
+    };
+  }
+
+  // Check if Google library is available
+  if (!googleLibrary) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          "⚠️ PDF analysis requires Google API key. Please configure your Google API key in settings."
+        ),
+      ],
+    };
+  }
+
+  // Extract PDF URLs from prompt and context
+  const pdfUrls = extractPdfUrls(originalUserPrompt, resultsContext);
+
+  if (pdfUrls.length === 0) {
+    // No PDF found - return without modification
+    return { messages: currentMessages };
+  }
+
+  // Remove PDF URLs from prompt to check if user has additional instructions
+  let cleanedPrompt = originalUserPrompt;
+  pdfLinkRegex.lastIndex = 0;
+  cleanedPrompt = cleanedPrompt.replace(pdfLinkRegex, "").trim();
+
+  // Check if user just wants analysis (no additional instructions)
+  // If cleanedPrompt is empty or very short, they just want the default analysis
+  const isAnalysisOnly = !cleanedPrompt || cleanedPrompt.length < 3;
+
+  // Build the prompt for Gemini
+  const analysisPrompt = isAnalysisOnly
+    ? "Please analyze this PDF document. Provide a comprehensive summary including key points, main topics, and important information."
+    : cleanedPrompt;
+
+  // Build PDF content string (with Roam syntax for Firebase PDFs, plain URLs for external)
+  const pdfContent = pdfUrls
+    .map((url) => {
+      // Wrap in Roam syntax if not already
+      if (url.includes("firebasestorage.googleapis.com")) {
+        return `{{[[pdf]]: ${url}}}`;
+      } else {
+        // External PDFs can be plain URLs (URL Context tool will handle them)
+        return url;
+      }
+    })
+    .join("\n");
+
+  // Combine prompt with PDF content
+  const fullPrompt = `${pdfContent}\n\n${analysisPrompt}`;
+
+  try {
+    // Call Gemini API with URL Context tool for external PDFs
+    const response = await googleLibrary.models.generateContent({
+      model: modelId,
+      contents: [{ text: fullPrompt }],
+      config: {
+        tools: [{ urlContext: {} }], // Enable URL Context for external PDFs
+      },
+    });
+
+    const analysisText = response.text || "PDF analysis completed.";
+
+    return {
+      messages: [...currentMessages, new AIMessage(analysisText)],
+      isAnalysisOnly,
+    };
+  } catch (error) {
+    console.error("Error analyzing PDF:", error);
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(`⚠️ Error analyzing PDF: ${error.message}`),
       ],
     };
   }

@@ -452,7 +452,13 @@ export const insertCompletion = async ({
   let aiResponse =
     command?.slice(0, 16) === "Image generation"
       ? await imageGeneration(
-          prompt.at(-1).content, // Only pass the pure user prompt, no context or system instructions
+          // Build complete prompt with context (images and text from roamContext)
+          // Use raw context parameter (not formatted 'content') to include images from roamContext
+          context
+            ? `Context:\n${context}\n---\n\nInstruction: ${
+                prompt.at(-1).content
+              }`
+            : prompt.at(-1).content,
           command?.split("(")[1].split(")")[0],
           model,
           null, // tokensCallback

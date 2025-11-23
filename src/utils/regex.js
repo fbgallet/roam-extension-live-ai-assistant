@@ -22,7 +22,7 @@ export const videoEndTimeRegex =
 export const roamAudioRegex =
   /\{\{\[?\[?audio\]?\]?:\s?(https?:[^\s}]+)\}\}|https?:[^\s)]+\.(mp3|wav|aiff|aac|ogg|flac|m4a)/gi;
 export const pdfLinkRegex =
-  /(http[^\s)]+\.pdf)|{{\[?\[?pdf\]?\]?:\s?(https:[^\s})]+)}}/g;
+  /(http[^\s)]+\.pdf)|{{\[?\[?pdf\]?\]?:\s?(https?:[^\s})]+)}}/g;
 export const urlRegex =
   /(?:https?):\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/\/=]*)/g;
 export const sbParamRegex = /^\{.*\}$/;

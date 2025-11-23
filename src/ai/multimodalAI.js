@@ -363,7 +363,7 @@ function getOrCreateImageChat(conversationUid, model, config = {}) {
     const chat = googleLibrary.chats.create({
       model,
       config: {
-        responseModalities: ["IMAGE"],
+        responseModalities: ["TEXT", "IMAGE"],
         ...config,
       },
     });
@@ -401,7 +401,6 @@ export async function imageGeneration(
   tokensCallback,
   conversationUid = null // Optional: parent block UID for chat-based editing
 ) {
-
   // Use default image model if no model specified
   if (!model) {
     model = defaultImageModel;
@@ -525,6 +524,9 @@ export async function imageGeneration(
         const { prompt: processedPrompt, config: nanoBananaConfig } =
           parseNanoBananaParams(textPrompt);
 
+        // Ensure the model generates an image by adding explicit instruction
+        const enhancedPrompt = `${processedPrompt}\n\nIMPORTANT: You must generate an image based on the description and input image(s) above. Do not provide text-only responses.`;
+
         // Apply quality fallback for imageSize if not parsed (pro model only)
         if (isNanoBananaPro && !nanoBananaConfig.imageSize) {
           if (quality === "high") {
@@ -557,7 +559,7 @@ export async function imageGeneration(
 
         // Create multi-part prompt with text and all images
         // Format: [text, image1, image2, ...]
-        const contents = [{ text: processedPrompt }, ...imageDataArray];
+        const contents = [{ text: enhancedPrompt }, ...imageDataArray];
 
         // Build config object for nano banana
         const generateConfig = {
@@ -620,7 +622,7 @@ export async function imageGeneration(
 
           for (const part of candidate.content.parts) {
             // if (part.text) {
-            //   // Text output in case of problem - return text to Roam
+            //   // In case of text output
             //   console.log("Nano banana text response:", part.text);
             // }
             if (part.inlineData) {
@@ -659,6 +661,9 @@ export async function imageGeneration(
           const { prompt: processedPrompt, config: nanoBananaConfig } =
             parseNanoBananaParams(prompt);
 
+          // Ensure the model generates an image by adding explicit instruction
+          const enhancedPrompt = `${processedPrompt}\n\nIMPORTANT: You must generate an image based on the description above. Do not provide text-only responses.`;
+
           // Apply quality fallback for imageSize if not parsed (pro model only)
           if (isNanoBananaPro && !nanoBananaConfig.imageSize) {
             if (quality === "high") {
@@ -672,7 +677,9 @@ export async function imageGeneration(
           }
 
           // Build config object for nano banana
-          const generateConfig = {};
+          const generateConfig = {
+            responseModalities: ["IMAGE"],
+          };
           if (
             nanoBananaConfig.aspectRatio ||
             (isNanoBananaPro && nanoBananaConfig.imageSize)
@@ -700,14 +707,14 @@ export async function imageGeneration(
           if (chat) {
             // Use chat.sendMessage for multi-turn conversation
             result = await chat.sendMessage({
-              message: processedPrompt,
+              message: enhancedPrompt,
               ...(Object.keys(generateConfig).length > 0 && {
                 config: generateConfig,
               }),
             });
           } else {
             // Use single-turn generateContent API
-            const contents = [{ text: processedPrompt }];
+            const contents = [{ text: enhancedPrompt }];
             result = await googleLibrary.models.generateContent({
               model,
               contents: contents,
@@ -1058,33 +1065,41 @@ export const addPdfToGeminiMessage = async (messageParts, content) => {
   pdfLinkRegex.lastIndex = 0;
   const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
 
+  const externalPdfUrls = [];
+
   for (let i = 0; i < matchingPdfInContext.length; i++) {
     try {
       const pdfUrl = matchingPdfInContext[i][1] || matchingPdfInContext[i][2];
 
-      // Fetch the PDF from the URL
-      const pdfResponse = await fetch(pdfUrl);
-      if (!pdfResponse.ok) {
-        console.error(`Failed to fetch PDF from ${pdfUrl}`);
-        continue;
+      if (pdfUrl.includes("firebasestorage.googleapis.com")) {
+        // Firebase-hosted PDFs need to be uploaded via Files API (after decryption via Roam API)
+        const pdfBlob = await roamAlphaAPI.file.get({ url: pdfUrl });
+
+        const uploadedFile = await googleLibrary.files.upload({
+          file: pdfBlob,
+          config: {
+            mimeType: "application/pdf",
+          },
+        });
+
+        messageParts.push({
+          fileData: {
+            fileUri: uploadedFile.uri,
+            mimeType: uploadedFile.mimeType,
+          },
+        });
+      } else {
+        // External PDFs - use URL Context tool (Gemini fetches them directly)
+        externalPdfUrls.push(pdfUrl);
       }
-
-      const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-      const pdfBase64 = Buffer.from(pdfArrayBuffer).toString("base64");
-
-      // Add PDF as inline data to the message parts
-      messageParts.push({
-        inlineData: {
-          mimeType: "application/pdf",
-          data: pdfBase64,
-        },
-      });
     } catch (error) {
       console.error(`Error processing PDF: ${error.message}`);
+      console.error(error);
     }
   }
 
-  return messageParts;
+  // Return both message parts and external PDF URLs
+  return { messageParts, externalPdfUrls };
 };
 
 export const addImagesToGeminiMessage = async (messageParts, content) => {

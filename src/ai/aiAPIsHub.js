@@ -935,7 +935,9 @@ function addGroundingCitations(response) {
     if (!citationsByBoundary.has(boundary)) {
       citationsByBoundary.set(boundary, new Set());
     }
-    citationNumbers.forEach((num) => citationsByBoundary.get(boundary).add(num));
+    citationNumbers.forEach((num) =>
+      citationsByBoundary.get(boundary).add(num)
+    );
   }
 
   // Sort boundaries in descending order to avoid shifting issues when inserting
@@ -949,8 +951,8 @@ function addGroundingCitations(response) {
       (a, b) => a - b
     );
 
-    // Format as numbered citations in parentheses
-    const citationString = ` ([${citationNumbers.join(", ")}])`;
+    // Format as numbered citations
+    const citationString = ` [${citationNumbers.join(", ")}]`;
 
     text = text.slice(0, boundary) + citationString + text.slice(boundary);
   }
@@ -1067,15 +1069,27 @@ export async function googleCompletion({
 
           // Add PDFs from the last prompt message
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
-            currentMessageParts = await addPdfToGeminiMessage(
+            const pdfResult = await addPdfToGeminiMessage(
               currentMessageParts,
               msg.content
             );
-            // Remove PDF URLs from the text
+            currentMessageParts = pdfResult.messageParts;
+
+            // For external PDFs, keep URLs in text (for URL Context tool)
+            // For Firebase PDFs, remove from text (already uploaded to Files API)
             pdfLinkRegex.lastIndex = 0;
-            currentMessageParts[0].text = currentMessageParts[0].text
-              .replace(pdfLinkRegex, "")
-              .trim();
+            const allPdfMatches = Array.from(msg.content.matchAll(pdfLinkRegex));
+            let cleanedText = currentMessageParts[0].text;
+
+            for (const match of allPdfMatches) {
+              const url = match[1] || match[2];
+              // Only remove Firebase URLs (Files API), keep external URLs for URL Context
+              if (url.includes("firebasestorage.googleapis.com")) {
+                cleanedText = cleanedText.replace(match[0], "").trim();
+              }
+            }
+
+            currentMessageParts[0].text = cleanedText;
           }
 
           // Add images from the last prompt message
@@ -1121,12 +1135,24 @@ export async function googleCompletion({
 
           // Add PDFs from history messages
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
-            userParts = await addPdfToGeminiMessage(userParts, msg.content);
-            // Remove PDF URLs from the text
+            const pdfResult = await addPdfToGeminiMessage(userParts, msg.content);
+            userParts = pdfResult.messageParts;
+
+            // For external PDFs, keep URLs in text (for URL Context tool)
+            // For Firebase PDFs, remove from text (already uploaded to Files API)
             pdfLinkRegex.lastIndex = 0;
-            userParts[0].text = userParts[0].text
-              .replace(pdfLinkRegex, "")
-              .trim();
+            const allPdfMatches = Array.from(msg.content.matchAll(pdfLinkRegex));
+            let cleanedText = userParts[0].text;
+
+            for (const match of allPdfMatches) {
+              const url = match[1] || match[2];
+              // Only remove Firebase URLs (Files API), keep external URLs for URL Context
+              if (url.includes("firebasestorage.googleapis.com")) {
+                cleanedText = cleanedText.replace(match[0], "").trim();
+              }
+            }
+
+            userParts[0].text = cleanedText;
           }
 
           // Add images from history messages
@@ -1169,10 +1195,13 @@ export async function googleCompletion({
 
     // Add PDFs from context if enabled
     if (hasPdfInContent) {
-      currentMessageParts = await addPdfToGeminiMessage(
+      const pdfResult = await addPdfToGeminiMessage(
         currentMessageParts,
         content
       );
+      currentMessageParts = pdfResult.messageParts;
+      // Note: external PDF URLs from context are already in the systemInstruction (content)
+      // so URL Context tool will pick them up automatically
     }
 
     // Add images from context
@@ -1220,10 +1249,14 @@ export async function googleCompletion({
       };
     }
 
-    // Add Google Search grounding tool for Web search command
+    // Add tools configuration
     const toolsConfig = [];
     if (command === "Web search") {
       toolsConfig.push({ googleSearch: {} });
+    }
+    // Add URL Context tool for PDFs (allows Gemini to fetch external PDFs directly)
+    if (hasPdfInPrompt || hasPdfInContent) {
+      toolsConfig.push({ urlContext: {} });
     }
 
     // Create chat configuration
@@ -1247,8 +1280,11 @@ export async function googleCompletion({
 
     // console.log("Gemini chatConfig :>> ", chatConfig);
 
-    // Create chat instance
-    const chat = aiClient.chats.create(chatConfig);
+    // IMPORTANT: Use direct model API for PDFs (chat API doesn't support PDF fileData properly)
+    const usesDirectModelAPI = hasPdfInPrompt || hasPdfInContent;
+
+    // Create chat instance (only if not using direct model API)
+    const chat = usesDirectModelAPI ? null : aiClient.chats.create(chatConfig);
 
     // Prepare the message to send (use parts format if PDFs, images, videos, or audio are present)
     const messageToSend =
@@ -1263,7 +1299,57 @@ export async function googleCompletion({
         ? { message: currentMessageParts }
         : { message: currentMessage };
 
-    if (isToStream) {
+    if (usesDirectModelAPI) {
+      // Use direct model API for PDFs (chat API doesn't support PDF fileData properly)
+      // Build contents array for direct model API
+      const contents = [];
+
+      // Add history messages as contents (alternating user/model)
+      if (history.length > 0) {
+        history.forEach((msg) => {
+          contents.push({
+            role: msg.role,
+            parts: msg.parts,
+          });
+        });
+      }
+
+      // Add current message with PDFs
+      contents.push({
+        role: "user",
+        parts: currentMessageParts,
+      });
+
+      // Build generation config
+      const generateConfig = {
+        model: model,
+        contents: contents,
+        config: {
+          ...generationConfig,
+          // Add URL Context tool for PDFs
+          ...(toolsConfig.length > 0 && { tools: toolsConfig }),
+        },
+      };
+
+      // Add system instruction if provided
+      if (systemInstruction) {
+        generateConfig.systemInstruction = {
+          parts: [{ text: systemInstruction }],
+        };
+      }
+
+      // Call direct model API (non-streaming for PDFs)
+      const response = await aiClient.models.generateContent(generateConfig);
+
+      respStr = response.text || "";
+
+      if (response.usageMetadata) {
+        usage = {
+          input_tokens: response.usageMetadata.promptTokenCount || 0,
+          output_tokens: response.usageMetadata.candidatesTokenCount || 0,
+        };
+      }
+    } else if (isToStream) {
       if (isButtonToInsert)
         insertInstantButtons({
           model,
