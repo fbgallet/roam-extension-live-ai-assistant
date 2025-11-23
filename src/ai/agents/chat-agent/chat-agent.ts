@@ -293,7 +293,8 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     if (audioResult.isTranscriptionOnly) {
       return {
         messages: audioResult.messages,
-        audioTranscriptionCache: audioResult.audioTranscriptions || updatedAudioCache,
+        audioTranscriptionCache:
+          audioResult.audioTranscriptions || updatedAudioCache,
       };
     }
 
@@ -365,7 +366,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     }
   }
 
-  console.log("Complete systemPrompt :>> ", sys_msg);
+  console.log("Complete systemPrompt :>> ", sys_msg.content);
   console.log("messages in current chat turn :>> ", messages);
 
   // Bind tools if enabled
@@ -480,10 +481,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
       // Update token usage from re-invocation
       if (freshResult.messages.length > state.messages.length) {
-        const freshResponse = freshResult.messages[freshResult.messages.length - 1];
+        const freshResponse =
+          freshResult.messages[freshResult.messages.length - 1];
         if (freshResponse.usage_metadata) {
-          turnTokensUsage.input_tokens += freshResponse.usage_metadata.input_tokens || 0;
-          turnTokensUsage.output_tokens += freshResponse.usage_metadata.output_tokens || 0;
+          turnTokensUsage.input_tokens +=
+            freshResponse.usage_metadata.input_tokens || 0;
+          turnTokensUsage.output_tokens +=
+            freshResponse.usage_metadata.output_tokens || 0;
         }
       }
 
@@ -529,10 +533,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
       // Update token usage from re-invocation
       if (freshResult.messages.length > state.messages.length) {
-        const freshResponse = freshResult.messages[freshResult.messages.length - 1];
+        const freshResponse =
+          freshResult.messages[freshResult.messages.length - 1];
         if (freshResponse.usage_metadata) {
-          turnTokensUsage.input_tokens += freshResponse.usage_metadata.input_tokens || 0;
-          turnTokensUsage.output_tokens += freshResponse.usage_metadata.output_tokens || 0;
+          turnTokensUsage.input_tokens +=
+            freshResponse.usage_metadata.input_tokens || 0;
+          turnTokensUsage.output_tokens +=
+            freshResponse.usage_metadata.output_tokens || 0;
         }
       }
 

@@ -4,7 +4,10 @@
  * System prompts and templates for the chat agent
  */
 
-import { getCurrentDateContext } from "../../../utils/roamAPI";
+import {
+  getCurrentDateContext,
+  resolveReferences,
+} from "../../../utils/roamAPI";
 import { getCustomPromptByUid } from "../../dataExtraction";
 import {
   completionCommands,
@@ -41,8 +44,48 @@ export const buildChatSystemPrompt = async ({
   hasPdfContent?: boolean;
 }): Promise<string> => {
   // Different base prompt depending on whether we have search results context
+  // Add results context if available
 
-  let systemPrompt =
+  const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
+    getCurrentDateContext(new Date());
+  let systemPrompt = `**Current Date and Time**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})\n\n`;
+  if (resultsContext) {
+    systemPrompt += `## Available Context\n${resultsContext}
+    
+-- END of the Available Context --`;
+
+    // Guidelines for analyzing search results
+    systemPrompt += `\n\n## Context use Guidelines
+
+### Your Role - Provide Value Beyond Raw Data
+The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING matching user needs.
+
+- **Focus on the user request** to provide the most relevant response as possible
+- **DON'T repeat** content/metadata the user already sees
+- **Focus on** what the content MEANS, not what it SAYS
+- **Use the full context** - leverage parent blocks, page context, and children to understand meaning
+- **Identify** relationships, contradictions, common themes, or missing pieces
+- **Be analytical** - help the user understand significance and context
+
+### IMPORTTANT formatting contrainsts when referencing content from the Context. Respect them STRICTLY:
+- **Reference blocks (<BLOCK> items in the context)** - When possible, use a short descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. If description would be too long or it's simply requested to add a link to block source at the end of a sentence or paragraph, e.g. for citation, use the format '[*](((UID)))' (it will just display a clickable '*').
+- **Multiple block references** - For citing multiple sources, use: '[1](((UID1))), [2](((UID2))), [3](((UID3)))' instead of '((UID1)), ((UID2)), ((UID3))'.
+- **Reference pages** (<PAGE> items in the context) - Always use the syntax '[[page title]]' or '#title' for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.\n\n`;
+  }
+
+  // Add conversation context if available
+  if (conversationContext) {
+    systemPrompt += `## Conversation Context
+
+This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[Built-in or custom instructions for this stored conversation turn]") are historical context - they applied to previous requests. Follow built-on or custom instructions that appear eventually below for the CURRENT request.
+
+${conversationContext}
+
+-- END of the Conversation Context --\n\n`;
+  }
+
+  systemPrompt +=
+    "## General purpose Guidelines\n" +
     defaultAssistantCharacter +
     `\nYour main purpose is to talk with the user in a way that's insightful, offering useful thoughts and accurate information${
       resultsContext.length
@@ -54,12 +97,7 @@ export const buildChatSystemPrompt = async ({
         : ""
     }`;
 
-  const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
-    getCurrentDateContext(new Date());
-
-  systemPrompt += `\n\n**Today is**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})
-  
-## Response Guidelines
+  systemPrompt += `## Response Guidelines
 
 - **Think carefully** about the best way to provide a satisfactory answer to the user need
 - **Be concise** - get to the point quickly unless more detail is requested
@@ -196,45 +234,11 @@ When the user provides PDF files (either directly in their message or in the con
 **Note**: PDF analysis happens automatically when PDF content is detected. You don't need to request or process PDFs - the system handles this before you see the message.`;
   }
 
-  // Add results context if available
-  if (resultsContext) {
-    systemPrompt += `\n\n## Available Context\n${resultsContext}`;
-
-    // Guidelines for analyzing search results
-    systemPrompt += `\n\n## Context use Guidelines
-
-### Your Role - Provide Value Beyond Raw Data
-The user can already see the raw content and metadata - your job is to provide INSIGHTS, ANALYSIS, and UNDERSTANDING.
-
-- **Focus on the user request** to provide the most relevant response as possible
-- **DON'T repeat** content/metadata the user already sees
-- **Focus on** what the content MEANS, not what it SAYS
-- **Use the full context** - leverage parent blocks, page context, and children to understand meaning
-- **Identify** relationships, contradictions, common themes, or missing pieces
-- **Be analytical** - help the user understand significance and context
-
-### IMPORTTANT formatting contrainsts when referencing content from the Context. Respect it STRICTLY:
-- **Reference specific blocks (do not concern pages reference)** - Most of the time PREFER the descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. ONLY use bare '((UID))' syntax when you need to reference a block without integrating it into flowing text, e.g. for citation: '(source: ((UID)))'.
-- **Multiple block references** - For citing multiple sources, use: '[source 1](((UID1))), [source 2](((UID2))), [source 3](((UID3)))' instead of '((UID1)), ((UID2)), ((UID3))'.
-- **Reference pages** - Always use the syntax '[[page title]]' or #tag for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.`;
-  }
-
-  // Add conversation context if available
-  if (conversationContext) {
-    systemPrompt += `\n\n## Conversation Context
-
-This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[Built-in or custom instructions for this stored conversation turn]") are historical context - they applied to previous requests. Follow built-on or custom instructions that appear eventually below for the CURRENT request.
-
-${conversationContext}
-
--- END of the Conversation Context --`;
-  }
-
   systemPrompt += `\n\n## Basic syntax contrainsts:
 
 - ${hierarchicalResponseFormat.trim()}
 - Generally respects markdown syntax, except where otherwise indicated.
-- If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: $$formula$$. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
+- If you write mathematical or LaTex formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: '$$formula$$'. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
   // Add style-specific formatting if provided
   if (style !== "Normal") {
@@ -342,7 +346,25 @@ export const buildResultsContext = (
       const isPage = !result.pageUid; // Pages don't have pageUid property
 
       // UID (if present)
-      if (result.uid && !isPage) parts.push(`Block UID: ${result.uid}`);
+      if (result.uid && !isPage) {
+        parts.push(`<BLOCK>\nUID: ${result.uid}`);
+        if (result.pageTitle || result.title) {
+          parts.push(`In page: [[${result.pageTitle || result.title}]]`);
+        }
+        // Parent info (only for blocks that have parent context)
+        if (result.expandedBlock?.parent) {
+          parts.push(
+            `Parent: ${resolveReferences(result.expandedBlock.parent)}`
+          );
+        }
+      } else
+        parts.push(
+          `<PAGE>\nTitle: ${
+            result.pageTitle || result.title
+              ? `[[${result.pageTitle || result.title}]]`
+              : "no title found"
+          }`
+        );
 
       // Timestamps - show only date, not time
       if (result.created) {
@@ -363,25 +385,7 @@ export const buildResultsContext = (
       // Content (if available)
       if (!isPage && (result.expandedBlock?.original || result.content)) {
         const content = result.expandedBlock?.original || result.content;
-        parts.push(`Content: ${content}`);
-      }
-
-      // Location info differs between pages and blocks
-      if (isPage) {
-        // For pages: just indicate it's a page
-        if (result.pageTitle || result.title) {
-          parts.push(`Page: [[${result.pageTitle || result.title}]]`);
-        }
-      } else {
-        // For blocks: show which page they're in
-        if (result.pageTitle || result.title) {
-          parts.push(`In page: [[${result.pageTitle || result.title}]]`);
-        }
-      }
-
-      // Parent info (only for blocks that have parent context)
-      if (result.expandedBlock?.parent) {
-        parts.push(`Parent: ${result.expandedBlock.parent}`);
+        parts.push(`Content:\n${content}`);
       }
 
       // Children info (if available)
