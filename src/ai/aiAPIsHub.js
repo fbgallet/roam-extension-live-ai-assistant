@@ -443,7 +443,7 @@ export async function claudeCompletion({
         let thinkingToasterStream;
         if (thinking && isThinkingProcessToDisplay) {
           thinkingToasterStream = displayThinkingToast(
-            "Sonnet 4 Extended Thinking process:"
+            "Claude 4.5 Extended Thinking process:"
           );
         }
 

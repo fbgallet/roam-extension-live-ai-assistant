@@ -415,6 +415,14 @@ export function normalizeClaudeModel(model, getShortName) {
     case "claude opus 4.5":
       model = getShortName ? "Claude Opus 4.5" : "claude-opus-4-5-20251101";
       break;
+    case "claude-opus-4-5-20251101+thinking":
+    case "claude-4.5-opus+thinking":
+    case "claude opus thinking":
+    case "claude opus 4.5 thinking":
+      model = getShortName
+        ? "Claude Opus 4.5 Thinking"
+        : "claude-opus-4-5-20251101+thinking";
+      break;
     case "claude-4.1-opus":
     case "claude-opus-4-1-20250805":
     case "claude opus 4.1":
