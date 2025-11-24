@@ -7,7 +7,7 @@
 
 **Updates**
 
-- Gemini 3 Pro and Nano banana Pro support
+- New models support: Gemini 3 Pro and Nano banana Pro, Claude Opus 4.5
 - Drag & drop block(s) to Chat panel to add them to the context
 - Pdf, image, audio, video and web search supported in Chat panel
 - Direct image edition (with Nano banana) in child block or in chat

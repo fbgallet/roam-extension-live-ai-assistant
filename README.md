@@ -21,7 +21,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ### 🆕 New in v.25 (December 2025)
 
 - Drag & drop block(s) to Chat panel to add them to the context
-- Gemini 3 Pro and Nano banana Pro support
+- New models support: Gemini 3 Pro and Nano banana Pro, Claude Opus 4.5
 - Audio and Video analysis with Gemini models
 - Audio file transcription with OpenAI or Gemini
 - Pdf, image, audio, video and web search supported in Chat panel

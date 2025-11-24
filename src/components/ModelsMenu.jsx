@@ -494,6 +494,19 @@ const ModelsMenu = ({
             text="Claude Sonnet 4.5"
             labelElement="200k"
           />
+          <MenuItem
+            icon={defaultModel === "Claude Opus 4.5" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="Claude Opus 4.5"
+            labelElement="200k"
+          />
           {!isWebSearch && (
             <>
               <MenuItem
@@ -509,19 +522,7 @@ const ModelsMenu = ({
                 text="Claude Sonnet 4.5 Thinking"
                 labelElement="200k"
               />
-              <MenuItem
-                icon={defaultModel === "Claude Opus 4.1" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="Claude Opus 4.1"
-                labelElement="200k"
-              />
+
               <MenuItem text="Claude older models">
                 <MenuItem
                   icon={defaultModel === "Claude Haiku 3.5" && "pin"}
@@ -560,6 +561,19 @@ const ModelsMenu = ({
                   onContextMenu={(e) => handleContextMenu(e)}
                   tabindex="0"
                   text="Claude Sonnet 4"
+                  labelElement="200k"
+                />
+                <MenuItem
+                  icon={defaultModel === "Claude Opus 4.1" && "pin"}
+                  onClick={(e) => {
+                    handleClickOnModel(e);
+                  }}
+                  onKeyDown={(e) => {
+                    handleKeyDownOnModel(e);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e)}
+                  tabindex="0"
+                  text="Claude Opus 4.1"
                   labelElement="200k"
                 />
               </MenuItem>

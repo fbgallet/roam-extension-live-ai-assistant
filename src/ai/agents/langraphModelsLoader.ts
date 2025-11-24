@@ -121,7 +121,7 @@ export function modelViaLanggraph(
     options.maxTokens =
       llmInfos.id.includes("sonnet") || llmInfos.id.includes("4-5")
         ? 64000
-        : llmInfos.id.includes("opus")
+        : llmInfos.id.includes("opus-4-1")
         ? 32000
         : 8192;
     options.streaming = true;

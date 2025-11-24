@@ -328,7 +328,7 @@ export async function claudeCompletion({
           model.includes("4-5") ||
           model.includes("4.5")
             ? 64000
-            : model.includes("opus")
+            : model.includes("opus-4-1")
             ? 32000
             : 8192,
         model: thinking ? model.replace("+thinking", "") : model,
@@ -1078,7 +1078,9 @@ export async function googleCompletion({
             // For external PDFs, keep URLs in text (for URL Context tool)
             // For Firebase PDFs, remove from text (already uploaded to Files API)
             pdfLinkRegex.lastIndex = 0;
-            const allPdfMatches = Array.from(msg.content.matchAll(pdfLinkRegex));
+            const allPdfMatches = Array.from(
+              msg.content.matchAll(pdfLinkRegex)
+            );
             let cleanedText = currentMessageParts[0].text;
 
             for (const match of allPdfMatches) {
@@ -1135,13 +1137,18 @@ export async function googleCompletion({
 
           // Add PDFs from history messages
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
-            const pdfResult = await addPdfToGeminiMessage(userParts, msg.content);
+            const pdfResult = await addPdfToGeminiMessage(
+              userParts,
+              msg.content
+            );
             userParts = pdfResult.messageParts;
 
             // For external PDFs, keep URLs in text (for URL Context tool)
             // For Firebase PDFs, remove from text (already uploaded to Files API)
             pdfLinkRegex.lastIndex = 0;
-            const allPdfMatches = Array.from(msg.content.matchAll(pdfLinkRegex));
+            const allPdfMatches = Array.from(
+              msg.content.matchAll(pdfLinkRegex)
+            );
             let cleanedText = userParts[0].text;
 
             for (const match of allPdfMatches) {

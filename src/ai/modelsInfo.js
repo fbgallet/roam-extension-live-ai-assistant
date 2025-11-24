@@ -38,6 +38,7 @@ export const getAvailableModels = (provider) => {
         "Claude Sonnet 4",
         "Claude Sonnet 3.7",
         "Claude Opus 4.1",
+        "Claude Opus 4.5",
       ];
     case "DeepSeek":
       return ["DeepSeek-V3.2", "DeepSeek-V3.2 Thinking"];
@@ -111,6 +112,7 @@ export const tokensLimit = {
   "claude-sonnet-4-5-20250929": 200000,
   "claude-sonnet-4-5-20250929+thinking": 200000,
   "claude-opus-4-1-20250805": 200000,
+  "claude-opus-4-5-20251101": 200000,
   "deepseek-chat": 128000,
   "deepseek-reasoner": 128000,
   "grok-2-vision-1212": 32768,
@@ -249,6 +251,10 @@ export const modelsPricing = {
   "claude-sonnet-4-5-20250929": {
     input: 3,
     output: 15,
+  },
+  "claude-opus-4-5-20251101": {
+    input: 5,
+    output: 25,
   },
   "claude-opus-4-1-20250805": {
     input: 15,
@@ -403,9 +409,14 @@ export async function getModelsInfo() {
 
 export function normalizeClaudeModel(model, getShortName) {
   switch (model.toLowerCase()) {
+    case "claude-opus-4-5-20251101":
+    case "claude-4.5-opus":
+    case "claude opus":
+    case "claude opus 4.5":
+      model = getShortName ? "Claude Opus 4.5" : "claude-opus-4-5-20251101";
+      break;
     case "claude-4.1-opus":
     case "claude-opus-4-1-20250805":
-    case "claude opus":
     case "claude opus 4.1":
       model = getShortName ? "Claude Opus 4.1" : "claude-opus-4-1-20250805";
       break;
