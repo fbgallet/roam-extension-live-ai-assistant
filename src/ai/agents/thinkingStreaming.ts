@@ -1,8 +1,9 @@
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import { TokensUsage } from "./langraphModelsLoader";
 import { SystemMessage } from "@langchain/core/messages";
-import { AgentToaster, displayThinkingToast } from "../../components/Toaster";
+import { displayThinkingToast } from "../../components/Toaster";
 import { updateTokenCounter } from "../modelsInfo";
+import { isThinkingProcessToDisplay } from "../..";
 
 export const streamClaudeThinkingModel = async (
   llm: StructuredOutputType,
@@ -16,9 +17,9 @@ export const streamClaudeThinkingModel = async (
   });
 
   let streamedResponse = "";
-  let thinkingToasterStream: any = displayThinkingToast(
-    "Claude Sonnet 3.7 Extended Thinking process:"
-  );
+  let thinkingToasterStream: any = isThinkingProcessToDisplay
+    ? displayThinkingToast("Claude Sonnet 3.7 Extended Thinking process:")
+    : null;
 
   turnTokensUsage = {
     input_tokens: 0,

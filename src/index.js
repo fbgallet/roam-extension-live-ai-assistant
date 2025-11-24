@@ -118,6 +118,7 @@ export let isSafari =
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
   window.roamAlphaAPI.platform.isIOS;
 export let customStyles;
+export let isThinkingProcessToDisplay;
 
 const modeMap = {
   "Always ask user": "ask_user",
@@ -445,227 +446,6 @@ function getPanelConfig() {
         },
       },
       {
-        id: "openrouterapi",
-        name: "OpenRouter API Key",
-        description: (
-          <>
-            <span>Copy here your OpenRouter API key</span>
-            <br></br>
-            <a href="https://openrouter.ai/keys" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(async () => {
-              OPENROUTER_API_KEY = evt.target.value;
-              openrouterLibrary = initializeOpenAIAPI(
-                OPENROUTER_API_KEY,
-                "https://openrouter.ai/api/v1"
-              );
-              openRouterModelsInfo = await getModelsInfo();
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "openRouterModels",
-        name: "Models via OpenRouter",
-        className: "liveai-settings-largeinput",
-        description: (
-          <>
-            <span>
-              List of models ID to query through OpenRouter, separated by a
-              comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
-            </span>
-            <br></br>
-            <a href="https://openrouter.ai/docs#models" target="_blank">
-              List of supported models here
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            openRouterModels = getArrayFromList(evt.target.value);
-            openRouterModelsInfo = await getModelsInfo();
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "openrouterOnly",
-        name: "OpenRouter Only",
-        description:
-          "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            openRouterOnly = !openRouterOnly;
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "customModel",
-        name: "Custom OpenAI models",
-        className: "liveai-settings-largeinput",
-        description:
-          "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            openAiCustomModels = getArrayFromList(evt.target.value);
-            updateAvailableModels();
-          },
-        },
-      },
-      {
-        id: "customBaseUrl",
-        name: "Custom OpenAI baseURL",
-        description:
-          "Provide the baseURL of an OpenAI API compatible server (eventually local):",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            customBaseURL = evt.target.value;
-            if (customOpenAIOnly)
-              openaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            else
-              customOpenaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "customOpenAIOnly",
-        name: "Custom OpenAI server only",
-        description:
-          "Use the custom baseURL as the only server for OpenAI API (both is disabled):",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            customOpenAIOnly = !customOpenAIOnly;
-            if (!customOpenAIOnly)
-              customOpenaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            openAiCustomModels = getArrayFromList(
-              extensionStorage.get("customModel"),
-              ",",
-              customOpenAIOnly ? "" : "custom/"
-            );
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "groqapi",
-        name: "Groq API Key",
-        description: (
-          <>
-            <span>Copy here your Groq API key:</span>
-            <br></br>
-            <a href="https://console.groq.com/keys" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(() => {
-              GROQ_API_KEY = evt.target.value;
-              groqLibrary = initializeOpenAIAPI(
-                GROQ_API_KEY,
-                "https://api.groq.com/openai/v1"
-              );
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "groqModels",
-        name: "Models via Groq API",
-        className: "liveai-settings-largeinput",
-        description: (
-          <>
-            <span>
-              List of models ID to query through Groq API, separated by a comma.
-            </span>
-            <br></br>
-            <a href="https://console.groq.com/docs/models" target="_blank">
-              List of supported models here
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            groqModels = getArrayFromList(evt.target.value);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "ollamaServer",
-        name: "Ollama server",
-        description:
-          "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            ollamaServer =
-              evt.target.value.at(-1) === "/"
-                ? evt.target.value.slice(0, -1)
-                : evt.target.value;
-          },
-        },
-      },
-      {
-        id: "ollamaModels",
-        name: "Ollama local models",
-        className: "liveai-settings-largeinput",
-        description:
-          "Models on local server, separated by a comma. E.g: llama2,llama3",
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            unmountComponent(position);
-            ollamaModels = getArrayFromList(evt.target.value);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
         id: "visibility",
         name: "Button visibility",
         description:
@@ -741,6 +521,18 @@ function getPanelConfig() {
           items: ["minimal", "low", "medium", "high"],
           onChange: (evt) => {
             reasoningEffort = evt;
+          },
+        },
+      },
+      {
+        id: "displayThinkingProcess",
+        name: "Display thinking process",
+        description:
+          "Show the thinking process in a toast when using reasoning models (inline Ask AI only):",
+        action: {
+          type: "switch",
+          onChange: () => {
+            isThinkingProcessToDisplay = !isThinkingProcessToDisplay;
           },
         },
       },
@@ -1210,6 +1002,231 @@ function getPanelConfig() {
         description:
           "Configure MCP servers for external tools and capabilities directly from Context Menu (button on top right)",
       },
+      {
+        id: "localProviders",
+        name: "Alternative or Local LLM providers",
+      },
+      {
+        id: "openrouterapi",
+        name: "OpenRouter API Key",
+        description: (
+          <>
+            <span>Copy here your OpenRouter API key</span>
+            <br></br>
+            <a href="https://openrouter.ai/keys" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(async () => {
+              OPENROUTER_API_KEY = evt.target.value;
+              openrouterLibrary = initializeOpenAIAPI(
+                OPENROUTER_API_KEY,
+                "https://openrouter.ai/api/v1"
+              );
+              openRouterModelsInfo = await getModelsInfo();
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "openRouterModels",
+        name: "Models via OpenRouter",
+        className: "liveai-settings-largeinput",
+        description: (
+          <>
+            <span>
+              List of models ID to query through OpenRouter, separated by a
+              comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
+            </span>
+            <br></br>
+            <a href="https://openrouter.ai/docs#models" target="_blank">
+              List of supported models here
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            openRouterModels = getArrayFromList(evt.target.value);
+            openRouterModelsInfo = await getModelsInfo();
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "openrouterOnly",
+        name: "OpenRouter Only",
+        description:
+          "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            openRouterOnly = !openRouterOnly;
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "customModel",
+        name: "Custom OpenAI models",
+        className: "liveai-settings-largeinput",
+        description:
+          "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            openAiCustomModels = getArrayFromList(evt.target.value);
+            updateAvailableModels();
+          },
+        },
+      },
+      {
+        id: "customBaseUrl",
+        name: "Custom OpenAI baseURL",
+        description:
+          "Provide the baseURL of an OpenAI API compatible server (eventually local):",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            customBaseURL = evt.target.value;
+            if (customOpenAIOnly)
+              openaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            else
+              customOpenaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "customOpenAIOnly",
+        name: "Custom OpenAI server only",
+        description:
+          "Use the custom baseURL as the only server for OpenAI API (both is disabled):",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            customOpenAIOnly = !customOpenAIOnly;
+            if (!customOpenAIOnly)
+              customOpenaiLibrary = initializeOpenAIAPI(
+                OPENAI_API_KEY,
+                customBaseURL
+              );
+            openAiCustomModels = getArrayFromList(
+              extensionStorage.get("customModel"),
+              ",",
+              customOpenAIOnly ? "" : "custom/"
+            );
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "groqapi",
+        name: "Groq API Key",
+        description: (
+          <>
+            <span>Copy here your Groq API key:</span>
+            <br></br>
+            <a href="https://console.groq.com/keys" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(() => {
+              GROQ_API_KEY = evt.target.value;
+              groqLibrary = initializeOpenAIAPI(
+                GROQ_API_KEY,
+                "https://api.groq.com/openai/v1"
+              );
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "groqModels",
+        name: "Models via Groq API",
+        className: "liveai-settings-largeinput",
+        description: (
+          <>
+            <span>
+              List of models ID to query through Groq API, separated by a comma.
+            </span>
+            <br></br>
+            <a href="https://console.groq.com/docs/models" target="_blank">
+              List of supported models here
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            groqModels = getArrayFromList(evt.target.value);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "ollamaServer",
+        name: "Ollama server",
+        description:
+          "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            ollamaServer =
+              evt.target.value.at(-1) === "/"
+                ? evt.target.value.slice(0, -1)
+                : evt.target.value;
+          },
+        },
+      },
+      {
+        id: "ollamaModels",
+        name: "Ollama local models",
+        className: "liveai-settings-largeinput",
+        description:
+          "Models on local server, separated by a comma. E.g: llama2,llama3",
+        action: {
+          type: "input",
+          onChange: (evt) => {
+            unmountComponent(position);
+            ollamaModels = getArrayFromList(evt.target.value);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
     ],
   };
   return panelConfig;
@@ -1314,6 +1331,11 @@ export default {
     if (extensionAPI.settings.get("reasoningEffort") === null)
       await extensionAPI.settings.set("reasoningEffort", "low");
     reasoningEffort = extensionAPI.settings.get("reasoningEffort");
+    if (extensionAPI.settings.get("displayThinkingProcess") === null)
+      await extensionAPI.settings.set("displayThinkingProcess", true);
+    isThinkingProcessToDisplay = extensionAPI.settings.get(
+      "displayThinkingProcess"
+    );
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");
     customBaseURL = extensionAPI.settings.get("customBaseUrl");

@@ -20,7 +20,7 @@ export interface ChatMessage {
   commandName?: string;
   commandPrompt?: string;
   isHelpMessage?: boolean;
-  helpType?: "chat" | "liveai" | "tip";
+  helpType?: "chat" | "liveai" | "tip" | "whatsnew";
   toolUsage?: Array<{
     toolName: string;
     details: string;

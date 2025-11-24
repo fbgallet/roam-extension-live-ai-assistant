@@ -18,6 +18,7 @@ import { renderMarkdown } from "../../utils/chatMessageUtils";
 import {
   CHAT_HELP_RESPONSE,
   LIVE_AI_HELP_RESPONSE,
+  WHATS_NEW_RESPONSE,
   getRandomTip,
 } from "./chatHelpConstants";
 import { textToSpeech } from "../../../../ai/multimodalAI";
@@ -147,7 +148,7 @@ interface ChatMessagesDisplayProps {
   onRetryMessage: (index: number) => void;
   onSuggestionClick: (suggestion: string) => void;
   onHelpButtonClick: (
-    type: "chat" | "liveai" | "tip" | "helpabout",
+    type: "chat" | "liveai" | "tip" | "helpabout" | "whatsnew",
     promptOrContent: string
   ) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement>;
@@ -174,7 +175,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   const [initialTip] = React.useState(() => getRandomTip("chat"));
 
   // Function to render help buttons based on help type
-  const renderHelpButtons = (helpType?: "chat" | "liveai" | "tip") => {
+  const renderHelpButtons = (helpType?: "chat" | "liveai" | "tip" | "whatsnew") => {
     const showHelpAbout = helpType === "chat" || helpType === "liveai";
 
     return (
@@ -190,6 +191,15 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
           </div>
         )}
         <div className="full-results-chat-suggestions">
+          {helpType !== "whatsnew" && (
+            <button
+              onClick={() => onHelpButtonClick("whatsnew", WHATS_NEW_RESPONSE)}
+              disabled={isTyping}
+            >
+              <Icon icon="star" size={12} style={{ marginRight: "4px" }} />
+              What's New
+            </button>
+          )}
           {helpType !== "chat" && (
             <button
               onClick={() => onHelpButtonClick("chat", CHAT_HELP_RESPONSE)}

@@ -44,7 +44,8 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 **💡 Agentic Help**: Enable tools and ask questions - the agent will use get_help tool to fetch relevant docs!
 
-Made made with joy and perseverance by Fabrice Gallet. Do you want to support my work ? Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a cofee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social)`;
+#### **How to support my work ?**
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) @fbgallet`;
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
@@ -62,7 +63,7 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 - 🌁 **Image**: analysis and generation
 - 📑 **Pdf**: extract or analyze documents
 - 🕸️ **Web search**: Ask AI to find up-to-date or precise informations on the web!
- 
+
 #### **Explore and leverage your Roam graph**
 - 🔍 **Query agents and Ask Your Graph**: Deep semantic search across your entire graph
 - 📝 **Live Outliner**: AI-assisted outlining and content updated/generation
@@ -70,7 +71,36 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 #### **Supported LLM Providers:**
 OpenAI (GPT-4.1, GPT-5.1), Anthropic (Claude), Google (Gemini), xAI (Grok), DeepSeek, Ollama (local models), and more!
 
-Made made with joy and perseverance by Fabrice Gallet. Do you want to support my work ? Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a cofee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social)`;
+#### **How to support my work ?**
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) @fbgallet`;
+
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.25 🎉
+
+**Released: November 25th, 2025**
+
+#### **🎬 Better Multimodal Support**
+
+**New Features:**
+- **Audio & Video Analysis** 🎥 with Gemini models - Analyze YouTube videos or audio files, with timestamp support
+- **Audio Transcription** 🎙️ with OpenAI or Gemini models - Convert audio to text with speaker detection
+
+**Updates:**
+- **New Models Support**: Gemini 3 Pro, Nano banana Pro, Claude Opus 4.5
+- **Drag & Drop** 📦 blocks to Chat panel to add them to context
+- **Multimodal Chat**: PDF, image, audio, video and web search now supported in Chat panel
+- **Direct Image Editing** 🎨 with Nano banana - Edit images directly in child blocks or in chat
+- **Hide Thinking Process** 🧠 - New option to hide reasoning models' thinking process display
+
+**Fixed:**
+- Chat context: Page content no longer truncated unless exceeding context window
+- More reliable block and page mentions in LLM responses - click on page to open it, click on block to copy to clipboard
+- Chat agent can now instantly use content added via addToContext tool
+- Tool preferences now properly persist (addToContext no longer always enabled by default)
+
+📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
+
+#### **How to support my work ?**
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) @fbgallet`;
 
 // Tips specific to Live AI (context menu, inline commands)
 export const LIVE_AI_TIPS = [

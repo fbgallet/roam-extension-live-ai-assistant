@@ -1,4 +1,4 @@
-## v.25 (November 24th, 2025) Better multimodal support
+## v.25 (November 25th, 2025) Better multimodal support
 
 **New features**
 
@@ -11,6 +11,7 @@
 - Drag & drop block(s) to Chat panel to add them to the context
 - Pdf, image, audio, video and web search supported in Chat panel
 - Direct image edition (with Nano banana) in child block or in chat
+- Added an option to hide thinking process of reasoning models
 
 **Fixed**
 

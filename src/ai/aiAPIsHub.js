@@ -26,6 +26,7 @@ import {
   openAiCustomModels,
   customOpenaiLibrary,
   reasoningEffort,
+  isThinkingProcessToDisplay,
 } from "..";
 import {
   insertInstantButtons,
@@ -440,7 +441,7 @@ export async function claudeCompletion({
           });
         const streamElt = insertParagraphForStream(targetUid);
         let thinkingToasterStream;
-        if (thinking) {
+        if (thinking && isThinkingProcessToDisplay) {
           thinkingToasterStream = displayThinkingToast(
             "Sonnet 4 Extended Thinking process:"
           );
@@ -749,10 +750,11 @@ export async function openaiCompletion({
       const streamElt = insertParagraphForStream(targetUid);
       let thinkingToasterStream;
       if (
-        model === "deepseek-reasoner" ||
-        model.includes("grok-3-mini") ||
-        model === "grok-4" ||
-        model === "grok-4-1-fast-reasoning"
+        isThinkingProcessToDisplay &&
+        (model === "deepseek-reasoner" ||
+          model.includes("grok-3-mini") ||
+          model === "grok-4" ||
+          model === "grok-4-1-fast-reasoning")
       ) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
@@ -781,7 +783,8 @@ export async function openaiCompletion({
             (model === "deepseek-reasoner" ||
               model.includes("grok-3-mini") ||
               model === "grok-4" ||
-              model === "grok-4-1-fast-reasoning")
+              model === "grok-4-1-fast-reasoning") &&
+            thinkingToasterStream
           )
             thinkingToasterStream.innerText +=
               streamData?.delta?.reasoning_content;
@@ -1368,7 +1371,7 @@ export async function googleCompletion({
         });
       const streamElt = insertParagraphForStream(targetUid);
       let thinkingToasterStream;
-      if (model.includes("gemini-3")) {
+      if (model.includes("gemini-3") && isThinkingProcessToDisplay) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
 
@@ -1384,7 +1387,10 @@ export async function googleCompletion({
             if (!part.text) {
               continue;
             } else if (part.thought) {
-              thinkingToasterStream.innerText += part.text;
+              if (thinkingToasterStream) {
+                thinkingToasterStream.innerText += part.text;
+              }
+              // Skip adding thought to main response regardless of display setting
             } else {
               const chunkText = part.text || "";
               respStr += chunkText;
