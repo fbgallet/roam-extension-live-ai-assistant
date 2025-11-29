@@ -9,6 +9,14 @@
       "category": "roam-core"
     },
     {
+      "id": "roam-tips",
+      "topic": "Roam Research Tips",
+      "author": "Roam community",
+      "url": "https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/roam-help/roam-tips.md",
+      "shortDescription": "tips to make the most of Roam’s features, including little-known, undocumented, or hidden commands",
+      "category": "roam-core"
+    },
+    {
       "id": "smartblocks-commands",
       "topic": "SmartBlocks Command Reference",
       "author": "RoamJS",
