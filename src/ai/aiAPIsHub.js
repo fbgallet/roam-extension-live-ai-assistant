@@ -105,6 +105,7 @@ export function initializeAnthropicAPI(ANTHROPIC_API_KEY) {
 export function initializeGoogleAPI(apiKey) {
   try {
     const gemini = new GoogleGenAI({ apiKey });
+    gemini.apiKey = apiKey;
     return gemini;
   } catch (error) {
     console.log("Error at initialization stage");
@@ -257,7 +258,6 @@ export function modelAccordingToProvider(model) {
   }
   // console.log("Used LLM id :>> ", llm.id);
   isAPIKeyNeeded(llm);
-
   return llm;
 }
 
@@ -666,14 +666,17 @@ export async function openaiCompletion({
       options.stream = model === "o3-pro" ? false : streamResponse;
     } else {
       options.messages = messages;
-      options["response_format"] =
-        // Fixing current issue with LM studio not supporting "text" response_format...
-        (aiClient.baseURL === "http://127.0.0.1:1234/v1" ||
-          aiClient.baseURL === "http://localhost:1234/v1") &&
-        responseFormat === "text"
-          ? undefined
-          : { type: responseFormat };
-      isToStream && (options["stream_options"] = { include_usage: true });
+      if (!model.includes("deepseek"))
+        options["response_format"] =
+          // Fixing current issue with LM studio not supporting "text" response_format...
+          (aiClient.baseURL === "http://127.0.0.1:1234/v1" ||
+            aiClient.baseURL === "http://localhost:1234/v1") &&
+          responseFormat === "text"
+            ? undefined
+            : { type: responseFormat };
+      isToStream &&
+        !model.includes("deepseek") &&
+        (options["stream_options"] = { include_usage: true });
     }
     console.log("model :>> ", model);
 

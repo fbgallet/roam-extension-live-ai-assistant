@@ -18,6 +18,6 @@
 - native Roam tag styles available (see [help graph here](https://roamresearch.com/#/app/help/page/Nt3syyeHc) for the first 3):
   - `#.rm-E` displays children blocks horizontaly
   - `#.rm-g` hides the block when children are expanded
-  - `#.rm-hide` hides the block
+  - `#.rm-hide` hides the block when collapsed, replaced by a clickable bar to open it (useful to make some info availabl without cluttering things up)
   - `#.rm-hide-for-readers` hides the block and it's descendants for people who only have read access to that block.
   - `#.rm-grid` display children as a grid with multiple blocks on the same row (adapt to screen size)

@@ -597,7 +597,68 @@ const ModelsMenu = ({
       ) : (
         <MenuDivider className="menu-hint" title="No Anthropic API key" />
       )}
-      {openRouterOnly
+      {openRouterOnly ? null : googleLibrary ? (
+        <>
+          {(openaiLibrary || anthropicLibrary || deepseekLibrary) && (
+            <MenuDivider />
+          )}
+          <MenuItem
+            icon={defaultModel === "gemini-3-pro-preview" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-3-pro-preview"
+            labelElement="1000k"
+          />
+          <MenuItem
+            icon={defaultModel === "gemini-2.5-pro" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-2.5-pro"
+            labelElement="2000k"
+          />
+          <MenuItem
+            icon={defaultModel === "gemini-2.5-flash" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-2.5-flash"
+            labelElement="1000k"
+          />
+          <MenuItem
+            icon={defaultModel === "gemini-2.5-flash-lite" && "pin"}
+            onClick={(e) => {
+              handleClickOnModel(e);
+            }}
+            onKeyDown={(e) => {
+              handleKeyDownOnModel(e);
+            }}
+            onContextMenu={(e) => handleContextMenu(e)}
+            tabindex="0"
+            text="gemini-2.5-flash-lite"
+            labelElement="1000k"
+          />
+        </>
+      ) : (
+        <MenuDivider className="menu-hint" title="No Google API key" />
+      )}
+      {/* {openRouterOnly
         ? null
         : deepseekLibrary &&
           !isWebSearch && (
@@ -630,7 +691,7 @@ const ModelsMenu = ({
                 labelElement="128k"
               />
             </>
-          )}
+          )} */}
       {openRouterOnly
         ? null
         : grokLibrary && (
@@ -760,67 +821,7 @@ const ModelsMenu = ({
               )}
             </>
           )}
-      {openRouterOnly ? null : googleLibrary ? (
-        <>
-          {(openaiLibrary || anthropicLibrary || deepseekLibrary) && (
-            <MenuDivider />
-          )}
-          <MenuItem
-            icon={defaultModel === "gemini-3-pro-preview" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-3-pro-preview"
-            labelElement="1000k"
-          />
-          <MenuItem
-            icon={defaultModel === "gemini-2.5-pro" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-2.5-pro"
-            labelElement="2000k"
-          />
-          <MenuItem
-            icon={defaultModel === "gemini-2.5-flash" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-2.5-flash"
-            labelElement="1000k"
-          />
-          <MenuItem
-            icon={defaultModel === "gemini-2.5-flash-lite" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-2.5-flash-lite"
-            labelElement="1000k"
-          />
-        </>
-      ) : (
-        <MenuDivider className="menu-hint" title="No Google API key" />
-      )}
+
       {openRouterModels.length && !isWebSearch ? (
         <>
           {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}

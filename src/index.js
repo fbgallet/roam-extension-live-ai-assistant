@@ -356,6 +356,33 @@ function getPanelConfig() {
         },
       },
       {
+        id: "googleapi",
+        name: "Google API Key",
+        description: (
+          <>
+            <span>Copy here your Google Gemini API key</span>
+            <br></br>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+            <br></br>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(() => {
+              GOOGLE_API_KEY = evt.target.value;
+              googleLibrary = initializeGoogleAPI(GOOGLE_API_KEY);
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
         id: "deepseekapi",
         name: "DeepSeek API Key",
         description: (
@@ -407,36 +434,6 @@ function getPanelConfig() {
               grokLibrary = initializeOpenAIAPI(
                 GROK_API_KEY,
                 "https://api.x.ai/v1"
-              );
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "googleapi",
-        name: "Google API Key",
-        description: (
-          <>
-            <span>Copy here your Google Gemini API key</span>
-            <br></br>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-            <br></br>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(() => {
-              GOOGLE_API_KEY = evt.target.value;
-              googleLibrary = initializeOpenAIAPI(
-                GOOGLE_API_KEY,
-                "https://generativelanguage.googleapis.com/v1beta/openai/"
               );
             }, 200);
             setTimeout(() => {
@@ -1305,7 +1302,7 @@ export default {
       await extensionAPI.settings.set("prompt", "");
     whisperPrompt = extensionAPI.settings.get("prompt");
     if (extensionAPI.settings.get("translateIcon") === null)
-      await extensionAPI.settings.set("translateIcon", true);
+      await extensionAPI.settings.set("translateIcon", false);
     isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
     if (extensionAPI.settings.get("ttsVoice") === null)
       await extensionAPI.settings.set("ttsVoice", "Ash");
@@ -1499,7 +1496,10 @@ export default {
     if (DEEPSEEK_API_KEY)
       deepseekLibrary = initializeOpenAIAPI(
         DEEPSEEK_API_KEY,
-        "https://api.deepseek.com"
+        // `${
+        //   roamAlphaAPI.constants.corsAnywhereProxyUrl
+        // }/${"https://api.deepseek.com/v1"}`
+        "https://api.deepseek.com/v1"
       );
     if (GROK_API_KEY)
       grokLibrary = initializeOpenAIAPI(GROK_API_KEY, "https://api.x.ai/v1");

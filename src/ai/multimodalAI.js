@@ -60,7 +60,7 @@ export async function transcribeAudio(filename) {
         : await openaiLibrary.audio.transcriptions.create(options);
     // console.log(transcript);
 
-    return transcript.text;
+    return transcript ? transcript.trim() : "";
 
     // streaming doesn't work as expected (await for the whole audio transcription before streaming...)
     // let transcribedText = "";
