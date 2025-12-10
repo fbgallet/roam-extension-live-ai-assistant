@@ -1,3 +1,12 @@
+## v.26 (December 10th, 2025) Fixes
+
+**Fixes**
+- Voice transcription was broken in the previous version!
+- Just after updating Google API Key, Gemini models were not accessible
+
+**Limitation**
+- DeepSeek endpoint CORS policy has changed and doesn't work anymore from frontend like other OpenAI compatible models. So i've temporarily made DeepSeek model unavailable from the models menu. DeepSeek models can still be used via OpenRouter.
+
 ## v.25 (November 25th, 2025) Better multimodal support
 
 **New features**
@@ -407,3 +416,4 @@
 - Reference to focused block to append transcription or use as context was not working
 - Block selection was not taken into account if made after start of recording
 - Default settings were not visible on installation
+
