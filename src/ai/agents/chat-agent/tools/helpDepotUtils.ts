@@ -155,7 +155,7 @@ export function getEnabledTopicIds(): string[] {
   }
 
   // First time: enable all built-in topics by default
-  const defaultIds = BUILTIN_LIVEAI_TOPICS.map((t) => t.id);
+  const defaultIds = BUILTIN_LIVEAI_TOPICS.map((t) => t.id).concat("roam-tips");
   setEnabledTopicIds(defaultIds);
   return defaultIds;
 }

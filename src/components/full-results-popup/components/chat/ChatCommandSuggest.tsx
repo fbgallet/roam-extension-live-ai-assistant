@@ -203,11 +203,18 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     );
   }, [slashModeFilteredItems, initialQuery]);
 
-  // Reset active index when filtered items change
+  // Reset active index when query changes or filtered items change
   React.useEffect(() => {
     if (!isSlashMode) return;
-    if (activeIndex >= slashModeFlatItems.length) {
-      setActiveIndex(Math.max(0, slashModeFlatItems.length - 1));
+    // Reset to 0 when query changes to start from top of filtered list
+    setActiveIndex(0);
+  }, [initialQuery, isSlashMode]);
+
+  // Also adjust if current index is out of bounds
+  React.useEffect(() => {
+    if (!isSlashMode) return;
+    if (activeIndex >= slashModeFlatItems.length && slashModeFlatItems.length > 0) {
+      setActiveIndex(slashModeFlatItems.length - 1);
     }
   }, [slashModeFlatItems.length, activeIndex, isSlashMode]);
 

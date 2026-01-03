@@ -83,6 +83,7 @@ export async function handleImageGenerationCommand(
     chatSessionId // Enable multi-turn image editing in chat sessions
   );
 
+  console.log("imageModel :>> ", imageModel);
   // Check if this is a nano banana model that supports multi-turn editing
   const isNanoBanana =
     imageModel === "gemini-2.5-flash-image" ||

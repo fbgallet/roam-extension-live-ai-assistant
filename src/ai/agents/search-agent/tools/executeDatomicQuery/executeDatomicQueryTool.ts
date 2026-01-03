@@ -154,7 +154,7 @@ const generateDatomicQueryImpl = async (
               raw: pullData,
               keys: Object.keys(pullData),
               children: pullData[":block/children"] || pullData["children"],
-              refs: pullData[":block/_refs"] || pullData["_refs"]
+              refs: pullData[":block/_refs"] || pullData["_refs"],
             });
           }
 
@@ -169,7 +169,10 @@ const generateDatomicQueryImpl = async (
           return [uid, title, childCount, refCount];
         });
 
-        console.log("Processed results sample (first 5):", processedResults.slice(0, 5));
+        console.log(
+          "Processed results sample (first 5):",
+          processedResults.slice(0, 5)
+        );
 
         // Filter results: exclude pages with no children AND no refs, or pages with no children AND only 1 ref
         const filteredResults = processedResults.filter((row) => {
@@ -686,7 +689,7 @@ export const executeDatomicQueryTool = tool(
 
       // SPECIAL CASE: If generateDatomicQueryImpl already returned a JSON string
       // (e.g., for GET_ALL_PAGES_METADATA_ONLY), return it directly without re-wrapping
-      if (typeof queryResult === 'string') {
+      if (typeof queryResult === "string") {
         return queryResult; // Already properly formatted JSON string
       }
 
@@ -724,6 +727,7 @@ export const executeDatomicQueryTool = tool(
                 "blockuid",
                 "uid",
                 "block",
+                "b",
                 "entity",
                 "e",
               ],

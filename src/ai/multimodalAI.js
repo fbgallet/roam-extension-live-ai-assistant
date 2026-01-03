@@ -394,6 +394,27 @@ export function clearImageGenerationChat(conversationUid, model = null) {
   }
 }
 
+// Replace Buffer.from(arrayBuffer).toString('base64')
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+// Replace Buffer.from(base64, 'base64')
+function base64ToBlob(base64, mimeType = "image/png") {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
 export async function imageGeneration(
   prompt,
   quality = "auto",
@@ -546,7 +567,7 @@ export async function imageGeneration(
 
           const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
           const imageArrayBuffer = await imageBlob.arrayBuffer();
-          const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
+          const imageBase64 = arrayBufferToBase64(imageArrayBuffer);
           const mimeType = imageBlob.type || "image/png";
 
           imageDataArray.push({
@@ -627,8 +648,7 @@ export async function imageGeneration(
             // }
             if (part.inlineData) {
               const imageData = part.inlineData.data;
-              const buffer = Buffer.from(imageData, "base64");
-              const blob = new Blob([buffer], { type: "image/png" });
+              const blob = base64ToBlob(imageData);
               const firebaseUrl = await roamAlphaAPI.file.upload({
                 file: blob,
               });
@@ -743,8 +763,8 @@ export async function imageGeneration(
               //   }
               if (part.inlineData) {
                 const imageData = part.inlineData.data;
-                const buffer = Buffer.from(imageData, "base64");
-                const blob = new Blob([buffer], { type: "image/png" });
+
+                const blob = base64ToBlob(imageData);
                 const firebaseUrl = await roamAlphaAPI.file.upload({
                   file: blob,
                 });
@@ -787,8 +807,7 @@ export async function imageGeneration(
           // Process the first generated image
           if (result.generatedImages && result.generatedImages.length > 0) {
             const imgBytes = result.generatedImages[0].image.imageBytes;
-            const buffer = Buffer.from(imgBytes, "base64");
-            const blob = new Blob([buffer], { type: "image/png" });
+            const blob = base64ToBlob(imgBytes);
             const firebaseUrl = await roamAlphaAPI.file.upload({
               file: blob,
             });
@@ -1119,7 +1138,7 @@ export const addImagesToGeminiMessage = async (messageParts, content) => {
       }
 
       const imageArrayBuffer = await imageResponse.arrayBuffer();
-      const imageBase64 = Buffer.from(imageArrayBuffer).toString("base64");
+      const imageBase64 = arrayBufferToBase64(imageArrayBuffer);
 
       // Detect MIME type from URL or response headers
       const contentType =
@@ -1267,7 +1286,7 @@ export const addVideosToGeminiMessage = async (messageParts, content) => {
           messageParts.push(videoPart);
         } else {
           const videoArrayBuffer = await videoBlob.arrayBuffer();
-          const videoBase64 = Buffer.from(videoArrayBuffer).toString("base64");
+          const videoBase64 = arrayBufferToBase64(videoArrayBuffer);
           const mimeType = videoBlob.type || "video/mp4";
 
           const videoPart = {
@@ -1540,7 +1559,7 @@ export const addAudioToGeminiMessage = async (messageParts, content) => {
       } else {
         // Inline base64 for small files (<20MB)
         const audioArrayBuffer = await audioBlob.arrayBuffer();
-        const audioBase64 = Buffer.from(audioArrayBuffer).toString("base64");
+        const audioBase64 = arrayBufferToBase64(audioArrayBuffer);
 
         const audioPart = {
           inlineData: {

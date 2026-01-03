@@ -84,6 +84,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
   const [slashCommandMode, setSlashCommandMode] = useState(false);
+  const [slashStartIndex, setSlashStartIndex] = useState(-1); // Track where slash command started
+  const [slashQuery, setSlashQuery] = useState(""); // Track the current slash query
+  const [textLengthAtSlashTrigger, setTextLengthAtSlashTrigger] = useState(0); // Track text length when / was typed
   const [isPageAutocompleteOpen, setIsPageAutocompleteOpen] = useState(false);
   const [pageAutocompleteQuery, setPageAutocompleteQuery] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -118,6 +121,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     onCommandSelect(command, fromSlash, instantModel);
     setIsCommandSuggestOpen(false);
     setSlashCommandMode(false);
+    setSlashStartIndex(-1);
+    setSlashQuery("");
+    setTextLengthAtSlashTrigger(0);
   };
 
   const handlePageSelect = (pageTitle: string) => {
@@ -149,55 +155,100 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     // Update parent state first
     onChatInputChange(value);
 
-    // Find the last "/" in the input
-    const lastSlashIndex = value.lastIndexOf("/");
-    const hasSlash = lastSlashIndex !== -1;
-
-    if (hasSlash) {
-      // Extract the part before the last "/"
-      const beforeSlash = value.substring(0, lastSlashIndex);
-      // Extract the part after the last "/"
-      const afterSlash = value.substring(lastSlashIndex + 1);
-
-      // Check if this is likely a URL (has :// or multiple / characters suggesting a path)
-      const isLikelyUrl =
-        beforeSlash.includes("://") || // http://, https://, etc.
-        (beforeSlash.includes("/") && lastSlashIndex > 0); // Multiple slashes suggest path/URL
-
-      // Check if there's text before the slash without proper spacing
-      // A slash command should either be at the start or have at least 2 spaces before it
-      const textBeforeSlash = beforeSlash.trimEnd();
-      const spacesBeforeSlash = beforeSlash.length - textBeforeSlash.length;
-      const hasProperSpacingBefore =
-        lastSlashIndex === 0 || // At start of input
-        spacesBeforeSlash >= 2; // At least 2 spaces before the slash
-
-      // Check if there's a space after the slash (or 2+ spaces to be more lenient)
-      const hasSpaceAfterSlash = afterSlash.includes(" ");
-
-      // Only open command suggest if:
-      // 1. Not a URL
-      // 2. Has proper spacing before (start of input or 2+ spaces)
-      // 3. No space after the slash yet
-      if (!isLikelyUrl && hasProperSpacingBefore && !hasSpaceAfterSlash && !isCommandSuggestOpen) {
-        // Open command suggest in slash mode
-        setSlashCommandMode(true);
-        setIsCommandSuggestOpen(true);
-      } else if (slashCommandMode && (isLikelyUrl || !hasProperSpacingBefore || hasSpaceAfterSlash)) {
-        // Close if it's a URL, improper spacing, or user added space after slash
+    // If already in slash mode, track changes relative to the slash start position
+    if (slashCommandMode && slashStartIndex !== -1) {
+      // Check if the slash is still there
+      if (value.charAt(slashStartIndex) !== "/") {
+        // Slash was deleted, close the menu and maintain focus
         setSlashCommandMode(false);
         setIsCommandSuggestOpen(false);
+        setSlashStartIndex(-1);
+        setSlashQuery("");
+        setTextLengthAtSlashTrigger(0);
         // Maintain focus on the textarea
         setTimeout(() => {
           if (chatInputRef.current) {
             chatInputRef.current.focus();
           }
         }, 0);
+        return;
       }
-    } else if (slashCommandMode && !hasSlash) {
-      // Close if slash was removed
-      setSlashCommandMode(false);
-      setIsCommandSuggestOpen(false);
+
+      // Calculate how many new characters were typed after the slash
+      // by comparing current length to the length when slash was triggered
+      const newCharsCount = value.length - textLengthAtSlashTrigger;
+
+      // The query is only the NEW characters typed after the slash (not pre-existing text)
+      const queryText = value.substring(slashStartIndex + 1, slashStartIndex + 1 + newCharsCount);
+
+      // Check if a space was typed in the query
+      if (queryText.includes(" ")) {
+        setSlashCommandMode(false);
+        setIsCommandSuggestOpen(false);
+        setSlashStartIndex(-1);
+        setSlashQuery("");
+        setTextLengthAtSlashTrigger(0);
+        // Maintain focus on the textarea
+        setTimeout(() => {
+          if (chatInputRef.current) {
+            chatInputRef.current.focus();
+          }
+        }, 0);
+        return;
+      }
+
+      // Update the query for filtering
+      setSlashQuery(queryText);
+      return;
+    }
+
+    // Not in slash mode - detect new slash trigger
+    // Only trigger when user just typed a "/"
+    const lastSlashIndex = value.lastIndexOf("/");
+    const hasSlash = lastSlashIndex !== -1;
+
+    if (hasSlash) {
+      // Extract the part before the last "/"
+      const beforeSlash = value.substring(0, lastSlashIndex);
+      // Extract the part after the last "/" up to the next space (this is the potential command query)
+      const afterSlash = value.substring(lastSlashIndex + 1);
+      const nextSpaceIndex = afterSlash.indexOf(" ");
+      // The query is only the text between "/" and the next space (or end of string)
+      const slashQueryText =
+        nextSpaceIndex !== -1
+          ? afterSlash.substring(0, nextSpaceIndex)
+          : afterSlash;
+
+      // Check if this is likely a URL (has :// before it)
+      const isLikelyUrl = beforeSlash.includes("://");
+
+      // Check if the character before slash is alphanumeric (part of a word)
+      const charBeforeSlash =
+        lastSlashIndex > 0 ? beforeSlash.charAt(beforeSlash.length - 1) : "";
+      const isPartOfWord = /[a-zA-Z0-9]/.test(charBeforeSlash);
+
+      // Check if there's a space immediately after the slash (user typed "/ ")
+      const hasSpaceImmediatelyAfterSlash = afterSlash.startsWith(" ");
+
+      // Only trigger slash mode if:
+      // 1. Not a URL
+      // 2. Not part of a word (slash at start or after whitespace/punctuation)
+      // 3. No space immediately after the slash
+      // 4. Query is short enough to be a fresh slash command (not pasted long text)
+      const isLikelyFreshSlash = slashQueryText.length <= 20;
+
+      if (
+        !isLikelyUrl &&
+        !isPartOfWord &&
+        !hasSpaceImmediatelyAfterSlash &&
+        isLikelyFreshSlash
+      ) {
+        setSlashCommandMode(true);
+        setIsCommandSuggestOpen(true);
+        setSlashStartIndex(lastSlashIndex);
+        setSlashQuery(""); // Start with empty query - user just typed "/"
+        setTextLengthAtSlashTrigger(value.length); // Remember length at trigger time
+      }
     }
 
     // Detect [[ for page autocomplete
@@ -233,15 +284,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     }
   };
 
-  // Get slash query (text after the last "/")
+  // Get slash query (now uses state for real-time tracking)
   const getSlashQuery = () => {
-    if (slashCommandMode) {
-      const lastSlashIndex = chatInput.lastIndexOf("/");
-      if (lastSlashIndex !== -1) {
-        return chatInput.substring(lastSlashIndex + 1); // Text after the last "/"
-      }
-    }
-    return "";
+    return slashQuery;
   };
 
   // Find first matching command for slash mode
@@ -637,13 +682,17 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                   const matchingCommand = findMatchingCommand(query);
 
                   if (matchingCommand) {
-                    // Clear the slash command from input
-                    onChatInputChange("");
+                    // Clear the slash command from input (remove from slash position onwards)
+                    const beforeSlash = chatInput.substring(0, slashStartIndex);
+                    onChatInputChange(beforeSlash.trimEnd());
                     handleCommandSelect(matchingCommand, true); // true = from slash command
                   } else {
                     // No matching command, close slash mode and treat as normal input
                     setSlashCommandMode(false);
                     setIsCommandSuggestOpen(false);
+                    setSlashStartIndex(-1);
+                    setSlashQuery("");
+                    setTextLengthAtSlashTrigger(0);
                   }
                 } else {
                   // Normal submit
@@ -654,6 +703,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                 e.preventDefault();
                 setSlashCommandMode(false);
                 setIsCommandSuggestOpen(false);
+                setSlashStartIndex(-1);
+                setSlashQuery("");
+                setTextLengthAtSlashTrigger(0);
               }
             }}
             disabled={isTyping}
