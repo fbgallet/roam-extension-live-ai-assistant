@@ -19,6 +19,7 @@ export interface ChatMessage {
   tokensOut?: number;
   commandName?: string;
   commandPrompt?: string;
+  model?: string; // Model used for this assistant message (for proper role prefix when re-inserting)
   isHelpMessage?: boolean;
   helpType?: "chat" | "liveai" | "tip" | "whatsnew";
   toolUsage?: Array<{

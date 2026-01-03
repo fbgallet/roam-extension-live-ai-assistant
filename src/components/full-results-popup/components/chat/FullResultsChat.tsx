@@ -1343,17 +1343,28 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             })
             .join("\n");
 
-          const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${chatRoles.assistant}" and ending with "#liveai/chat". Be concise and specific and write in the same language as the one used in the conversation.\n\nConversation:\n${conversationSummary}`;
+          // Use model-specific assistant role for the title
+          const assistantRoleForTitle = getInstantAssistantRole(selectedModel);
+          const titlePrompt = `Based on this conversation summary, generate a very short (max 15 words) descriptive title starting with "Chat with ${assistantRoleForTitle}" and ending with "#liveai/chat". Be concise and specific and write in the same language as the one used in the conversation.\n\nConversation:\n${conversationSummary}`;
 
           // Generate title using insertCompletion
           // Type assertion needed because insertCompletion has many optional parameters
-          await (insertCompletion as any)({
-            instantModel: selectedModel,
-            prompt: titlePrompt,
-            targetUid: targetRef.current,
-            target: "replace",
-            isButtonToInsert: false,
-          });
+          try {
+            await (insertCompletion as any)({
+              instantModel: selectedModel,
+              prompt: titlePrompt,
+              targetUid: targetRef.current,
+              target: "replace",
+              isButtonToInsert: false,
+            });
+          } catch (titleError) {
+            console.error("Failed to generate title:", titleError);
+            // Fallback to a simple title if generation fails
+            updateBlock({
+              blockUid: targetRef.current,
+              newContent: `Chat with ${assistantRoleForTitle} #liveai/chat`,
+            });
+          }
         }
 
         // After title generation, get the actual title and set both UID and title
@@ -1367,9 +1378,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // For each message: create role block, then parse content as children
       let currentTargetUid = targetRef.current;
       let isFirstMessage = true;
-      const assistantRole = getInstantAssistantRole(selectedModel);
 
       for (const msg of newMessages) {
+        // Use the model stored in the message, or fall back to selectedModel
+        const messageModel = msg.role === "assistant" && msg.model ? msg.model : selectedModel;
+        const assistantRole = getInstantAssistantRole(messageModel);
         const rolePrefix = msg.role === "user" ? chatRoles.user : assistantRole;
 
         // Build the full content including command name if present
@@ -1430,9 +1443,24 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Update the count to reflect that these messages are now in Roam
       // This prevents re-inserting the same messages if the button is clicked again
       setInsertedMessagesCount(chatMessages.length);
+
+      // Show success message with count
+      const insertedCount = newMessages.length;
+      const messageType = isFirstInsertion ? "created" : "appended";
+      AppToaster.show({
+        message: `${insertedCount} message${insertedCount > 1 ? "s" : ""} ${messageType} ${
+          isFirstInsertion ? "in" : "to"
+        } Roam chat`,
+        intent: "success",
+        timeout: 3000,
+      });
     } catch (error) {
       console.error("Failed to insert conversation in Roam:", error);
-      alert("❌ Failed to insert conversation. Check console for details.");
+      AppToaster.show({
+        message: "Failed to insert conversation. Check console for details.",
+        intent: "danger",
+        timeout: 5000,
+      });
     }
   };
 
@@ -2175,6 +2203,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         timestamp: new Date(),
         tokensIn: agentResult.tokensUsage?.input_tokens,
         tokensOut: agentResult.tokensUsage?.output_tokens,
+        model: selectedModel, // Store the model used for this response
         // Use ref to get the current tool usage (avoids stale closure)
         toolUsage:
           toolUsageHistoryRef.current.length > 0

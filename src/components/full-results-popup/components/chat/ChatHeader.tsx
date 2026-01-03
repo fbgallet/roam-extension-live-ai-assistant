@@ -151,14 +151,23 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {
                 <Tooltip
                   openOnTargetFocus={false}
-                  content="Insert conversation in Roam at focused block or append to current page/daily note"
+                  content={
+                    insertedMessagesCount >= chatMessages.length
+                      ? "All messages already inserted in Roam"
+                      : "Insert conversation in Roam at focused block or append to current page/daily note"
+                  }
                 >
                   <Button
                     icon="insert"
                     onClick={onInsertConversation}
                     minimal
                     small
-                    intent="success"
+                    intent={
+                      insertedMessagesCount >= chatMessages.length
+                        ? undefined
+                        : "success"
+                    }
+                    disabled={insertedMessagesCount >= chatMessages.length}
                   />
                 </Tooltip>
               }
