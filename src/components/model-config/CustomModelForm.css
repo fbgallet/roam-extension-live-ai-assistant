@@ -1,0 +1,138 @@
+/* ===== COMPACT CUSTOM MODEL FORM ===== */
+.custom-model-form-compact {
+  background: #f7f9fa;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.custom-model-form-compact .form-row {
+  margin-bottom: 10px;
+}
+
+.custom-model-form-compact .form-row:last-of-type {
+  margin-bottom: 0;
+}
+
+.custom-model-form-compact .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custom-model-form-compact label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #5c7080;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.custom-model-form-compact label .required {
+  color: #db3737;
+}
+
+.custom-model-form-compact label .optional {
+  font-weight: 400;
+  text-transform: none;
+  color: #8a9ba8;
+}
+
+.custom-model-form-compact .input-with-button {
+  display: flex;
+  gap: 4px;
+}
+
+.custom-model-form-compact .input-with-button .bp5-input-group,
+.custom-model-form-compact .input-with-button .bp3-input-group {
+  flex: 1;
+}
+
+/* Metadata row - 3 columns */
+.custom-model-form-compact .metadata-row {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-model-form-compact .context-field {
+  flex: 2;
+}
+
+.custom-model-form-compact .price-field {
+  flex: 1;
+  min-width: 70px;
+}
+
+/* Messages */
+.custom-model-form-compact .form-message {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.custom-model-form-compact .form-message.success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.custom-model-form-compact .form-message.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.custom-model-form-compact .form-message.danger {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Actions */
+.custom-model-form-compact .form-actions-compact {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e1e8ed;
+}
+
+/* Dark mode support */
+.bp5-dark .custom-model-form-compact,
+.bp3-dark .custom-model-form-compact {
+  background: #30404d;
+  border-color: #5c7080;
+}
+
+.bp5-dark .custom-model-form-compact label,
+.bp3-dark .custom-model-form-compact label {
+  color: #a7b6c2;
+}
+
+.bp5-dark .custom-model-form-compact label .optional,
+.bp3-dark .custom-model-form-compact label .optional {
+  color: #738694;
+}
+
+.bp5-dark .custom-model-form-compact .form-actions-compact,
+.bp3-dark .custom-model-form-compact .form-actions-compact {
+  border-top-color: #5c7080;
+}
+
+.bp5-dark .custom-model-form-compact .form-message.success,
+.bp3-dark .custom-model-form-compact .form-message.success {
+  background: #1d4428;
+  color: #a3d9a5;
+}
+
+.bp5-dark .custom-model-form-compact .form-message.warning,
+.bp3-dark .custom-model-form-compact .form-message.warning {
+  background: #5c4813;
+  color: #ffd966;
+}
+
+.bp5-dark .custom-model-form-compact .form-message.danger,
+.bp3-dark .custom-model-form-compact .form-message.danger {
+  background: #5c1a1a;
+  color: #f5a5a5;
+}

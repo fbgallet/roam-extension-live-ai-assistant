@@ -1,9 +1,11 @@
+import React from "react";
 import {
   Menu,
   MenuItem,
   MenuDivider,
   Tooltip,
   Divider,
+  Tag,
 } from "@blueprintjs/core";
 import {
   anthropicLibrary,
@@ -24,6 +26,18 @@ import {
 } from "..";
 import { normalizeClaudeModel, tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "./Toaster";
+import {
+  getModelConfig,
+  saveModelConfig,
+  getProviderModels,
+  isModelVisible,
+  isModelFavorited,
+  getFavoriteModels,
+  getModelMetadata,
+  formatContextLength,
+  getOrderedProviders,
+} from "../utils/modelConfigHelpers";
+import { displayModelConfigDialog } from "../utils/domElts";
 
 const ModelsMenu = ({
   callback,
@@ -33,9 +47,15 @@ const ModelsMenu = ({
   roleStructure = "menuitem",
   isConversationToContinue,
 }) => {
+  const modelConfig = getModelConfig();
+  // Read defaultModel from storage to get the current value (not stale import)
+  const currentDefaultModel =
+    extensionStorage.get("defaultModel") || defaultModel;
+
   let isWebSearch, isImageGeneration;
   if (command?.name === "Web search") isWebSearch = true;
   if (command?.name.includes("Image generation")) isImageGeneration = true;
+
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
     await callback({ e, command, prompt, model, isConversationToContinue });
@@ -78,21 +98,162 @@ const ModelsMenu = ({
     }
     if (prefix === "openRouter/") {
       model = modelId;
-      // const modelInfo = openRouterModelsInfo.find(
-      //   (item) => item.name === model
-      // );
-      // model = modelInfo.id;
     }
     if (prefix) model = prefix + model;
-    // if (typeof instantModel !== undefined) instantModel.current = model;
     return model;
+  };
+
+  // Helper to get provider prefix for model ID
+  const getPrefix = (provider) => {
+    switch (provider) {
+      case "OpenRouter":
+        return "openRouter/";
+      case "Groq":
+        return "groq/";
+      case "Ollama":
+        return "ollama/";
+      default:
+        return "";
+    }
+  };
+
+  // Render individual model menu item
+  const renderModelItem = (modelId, modelName, provider = "") => {
+    const prefix = getPrefix(provider);
+    const metadata = getModelMetadata(modelId);
+
+    return (
+      <MenuItem
+        key={modelId}
+        icon={currentDefaultModel === prefix + modelId && "pin"}
+        onClick={(e) => handleClickOnModel(e, prefix, modelId)}
+        onKeyDown={(e) => handleKeyDownOnModel(e, prefix, modelId)}
+        onContextMenu={(e) => handleContextMenu(e, prefix, modelId)}
+        tabIndex="0"
+        text={modelName}
+        labelElement={
+          metadata?.contextLength ? (
+            <Tag minimal>{formatContextLength(metadata.contextLength)}</Tag>
+          ) : null
+        }
+      />
+    );
+  };
+
+  // Get API library for a provider
+  const getApiLibrary = (provider) => {
+    switch (provider) {
+      case "OpenAI":
+        return openaiLibrary;
+      case "Anthropic":
+        return anthropicLibrary;
+      case "Google":
+        return googleLibrary;
+      case "DeepSeek":
+        return deepseekLibrary;
+      case "Grok":
+        return grokLibrary;
+      case "OpenRouter":
+        return { apiKey: openRouterModels.length > 0 };
+      case "Groq":
+        return { apiKey: groqModels.length > 0 };
+      case "Ollama":
+        return { apiKey: ollamaModels.length > 0 };
+      default:
+        return null;
+    }
+  };
+
+  // Render models for a provider
+  const renderProviderModels = (provider, apiLibrary) => {
+    // Check API key (except for dynamic providers)
+    if (
+      !apiLibrary?.apiKey &&
+      !["OpenRouter", "Groq", "Ollama"].includes(provider)
+    ) {
+      return (
+        <MenuDivider className="menu-hint" title={`No ${provider} API key`} />
+      );
+    }
+
+    // Get models for this provider
+    const models = getProviderModels(provider);
+
+    // Filter by visibility AND exclude favorited models (they appear in favorites section)
+    const visibleModels = models.filter(
+      (m) => isModelVisible(m.id) && !isModelFavorited(m.id)
+    );
+
+    if (visibleModels.length === 0) return null;
+
+    return (
+      <>
+        <MenuDivider title={provider} />
+        {visibleModels.map((model) =>
+          renderModelItem(model.id, model.name, provider)
+        )}
+      </>
+    );
+  };
+
+  // Render favorites section
+  const renderFavorites = () => {
+    const favorites = getFavoriteModels();
+    if (favorites.length === 0) return null;
+
+    // Get full model info for each favorite
+    const allProviders = [
+      "OpenAI",
+      "Anthropic",
+      "Google",
+      "DeepSeek",
+      "Grok",
+      "OpenRouter",
+      "Groq",
+      "Ollama",
+    ];
+    const favoriteModels = favorites
+      .map((modelId) => {
+        for (const provider of allProviders) {
+          const providerModels = getProviderModels(provider);
+          const model = providerModels.find((m) => m.id === modelId);
+          if (model) return { ...model, provider };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    // Only show visible favorites
+    const visibleFavorites = favoriteModels.filter((m) => isModelVisible(m.id));
+
+    if (visibleFavorites.length === 0) return null;
+
+    return (
+      <>
+        <MenuDivider title="⭐ Favorites" />
+        {visibleFavorites.map((model) =>
+          renderModelItem(model.id, model.name, model.provider)
+        )}
+        <MenuDivider />
+      </>
+    );
+  };
+
+  const handleConfigSave = async (newConfig) => {
+    await saveModelConfig(newConfig);
+    // Force re-render by triggering parent update if needed
+    AppToaster.show({
+      message: "Model configuration saved! Refresh to see changes.",
+      intent: "success",
+      timeout: 3000,
+    });
   };
 
   const openAiWebSearchModels = () => {
     return (
       <>
         <MenuItem
-          icon={defaultModel === "gpt-5-search-api" && "pin"}
+          icon={currentDefaultModel === "gpt-5-search-api" && "pin"}
           onClick={(e) => {
             handleClickOnModel(e);
           }}
@@ -105,7 +266,7 @@ const ModelsMenu = ({
           labelElement="128k"
         />
         <MenuItem
-          icon={defaultModel === "gpt-4o-search" && "pin"}
+          icon={currentDefaultModel === "gpt-4o-search" && "pin"}
           onClick={(e) => {
             handleClickOnModel(e);
           }}
@@ -118,7 +279,7 @@ const ModelsMenu = ({
           labelElement="128k"
         />
         <MenuItem
-          icon={defaultModel === "gpt-4o-mini-search" && "pin"}
+          icon={currentDefaultModel === "gpt-4o-mini-search" && "pin"}
           onClick={(e) => {
             handleClickOnModel(e);
           }}
@@ -212,7 +373,7 @@ const ModelsMenu = ({
     const customModelsMap = () => {
       return openAiCustomModels.map((model) => (
         <MenuItem
-          icon={defaultModel === model && "pin"}
+          icon={currentDefaultModel === model && "pin"}
           onClick={(e) => {
             handleClickOnModel(
               e,
@@ -250,692 +411,39 @@ const ModelsMenu = ({
   };
 
   if (isImageGeneration) return openAiImageModels();
+  if (isWebSearch) return openAiWebSearchModels();
 
   return (
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
       {!isWebSearch && (
-        <MenuDivider
-          className="menu-hint"
-          title="ℹ︎ Right click on model to set as default"
-        />
+        <>
+          <MenuDivider
+            icon="cog"
+            className="menu-hint"
+            title="ℹ︎ Right click on model to set as default"
+            onClick={() => console.log("Coucou")}
+          />
+          <MenuItem
+            icon="cog"
+            text="Customize Models..."
+            onClick={() =>
+              displayModelConfigDialog({ onSave: handleConfigSave })
+            }
+          />
+        </>
       )}
-      {
-        openRouterOnly ? null : openaiLibrary?.apiKey ? (
-          !isWebSearch ? (
-            <>
-              <MenuItem
-                icon={defaultModel === "gpt-5.1" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="gpt-5.1"
-                labelElement="400k"
-              />
-              <MenuItem
-                icon={defaultModel === "gpt-4.1" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="gpt-4.1"
-                labelElement="1000k"
-              />
 
-              <MenuItem text="'Reasoning' GPT-5 & o models">
-                <MenuItem
-                  icon={defaultModel === "gpt-5.1 reasoning" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="gpt-5.1 reasoning"
-                  labelElement="400k"
-                />
-                <MenuItem
-                  icon={defaultModel === "gpt-5" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="gpt-5"
-                  labelElement="400k"
-                />
+      {/* Favorites Section */}
+      {renderFavorites()}
 
-                <MenuItem
-                  icon={defaultModel === "gpt-5-mini" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="gpt-5-mini"
-                  labelElement="400k"
-                />
-                <MenuItem
-                  icon={defaultModel === "gpt-5-nano" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="gpt-5-nano"
-                  labelElement="400k"
-                />
-                <MenuItem
-                  icon={defaultModel === "o4-mini" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="o4-mini"
-                  labelElement="200k"
-                />
-                <MenuItem
-                  icon={defaultModel === "o3" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="o3"
-                  labelElement="200k"
-                />
-                <MenuItem
-                  icon={defaultModel === "o3-pro" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="o3-pro"
-                  labelElement="200k"
-                />
-                <MenuDivider
-                  className="menu-hint"
-                  title={
-                    <p>
-                      ⚠️ Use with caution,
-                      <br />
-                      o3-pro is an expensive model
-                      <br />
-                      (o4-mini is almost 15x cheaper)
-                      <br />
-                      See{" "}
-                      <a href="https://openai.com/api/pricing/" target="_blank">
-                        pricing
-                      </a>{" "}
-                      &{" "}
-                      <a
-                        href="https://openai.com/index/learning-to-reason-with-llms/"
-                        target="_blank"
-                      >
-                        purpose
-                      </a>
-                    </p>
-                  }
-                />
-              </MenuItem>
-              <MenuItem text="Web Search models">
-                {openAiWebSearchModels()}
-              </MenuItem>
-              <MenuItem text="gpt-4 models (legacy)">
-                <MenuItem
-                  icon={defaultModel === "gpt-4.1-mini" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="gpt-4.1-mini"
-                  labelElement="1000k"
-                />
-                <MenuItem
-                  icon={defaultModel === "gpt-4o-mini" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="GPT 4o mini"
-                  labelElement="128k"
-                />
-                <MenuItem
-                  icon={defaultModel === "gpt-4o" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="GPT 4o"
-                  labelElement="128k"
-                />
-              </MenuItem>
-              {customOpenAIModelsMenu()}
-            </>
-          ) : (
-            openAiWebSearchModels()
-          )
-        ) : (
-          <>
-            {customOpenAIModelsMenu(false)}
-            <MenuDivider className="menu-hint" title="No OpenAI API key" />
-          </>
+      {/* Provider Sections - Ordered by user preference */}
+      {getOrderedProviders()
+        .filter((provider) =>
+          openRouterOnly ? provider === "OpenRouter" : true
         )
-        // <MenuDivider />
-      }
-      {openRouterOnly ? null : anthropicLibrary ? (
-        <>
-          {openaiLibrary && <MenuDivider />}
-          <MenuItem
-            icon={defaultModel === "Claude Haiku 4.5" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="Claude Haiku 4.5"
-            labelElement="200k"
-          />
-          <MenuItem
-            icon={defaultModel === "Claude Sonnet 4.5" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="Claude Sonnet 4.5"
-            labelElement="200k"
-          >
-            <MenuItem
-              icon={defaultModel === "Claude Sonnet 4.5 Thinking" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="Claude Sonnet 4.5 Thinking"
-              labelElement="200k"
-            />
-          </MenuItem>
-          <MenuItem
-            icon={defaultModel === "Claude Opus 4.5" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="Claude Opus 4.5"
-            labelElement="200k"
-          >
-            <MenuItem
-              icon={defaultModel === "Claude Opus 4.5 Thinking" && "pin"}
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="Claude Opus 4.5 Thinking"
-              labelElement="200k"
-            />
-          </MenuItem>
-          {!isWebSearch && (
-            <>
-              <MenuItem text="Claude older models">
-                <MenuItem
-                  icon={defaultModel === "Claude Haiku 3.5" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Claude Haiku 3.5"
-                  labelElement="200k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Claude Sonnet 3.7" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Claude Sonnet 3.7"
-                  labelElement="200k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Claude Sonnet 4" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Claude Sonnet 4"
-                  labelElement="200k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Claude Opus 4.1" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Claude Opus 4.1"
-                  labelElement="200k"
-                />
-              </MenuItem>
-            </>
-          )}
-        </>
-      ) : (
-        <MenuDivider className="menu-hint" title="No Anthropic API key" />
-      )}
-      {openRouterOnly ? null : googleLibrary ? (
-        <>
-          {(openaiLibrary || anthropicLibrary || deepseekLibrary) && (
-            <MenuDivider />
-          )}
-          <MenuItem
-            icon={defaultModel === "gemini-3-pro-preview" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-3-pro-preview"
-            labelElement="1000k"
-          />
-          <MenuItem
-            icon={defaultModel === "gemini-2.5-pro" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-2.5-pro"
-            labelElement="2000k"
-          />
-          <MenuItem
-            icon={defaultModel === "gemini-2.5-flash" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-2.5-flash"
-            labelElement="1000k"
-          />
-          <MenuItem
-            icon={defaultModel === "gemini-2.5-flash-lite" && "pin"}
-            onClick={(e) => {
-              handleClickOnModel(e);
-            }}
-            onKeyDown={(e) => {
-              handleKeyDownOnModel(e);
-            }}
-            onContextMenu={(e) => handleContextMenu(e)}
-            tabindex="0"
-            text="gemini-2.5-flash-lite"
-            labelElement="1000k"
-          />
-        </>
-      ) : (
-        <MenuDivider className="menu-hint" title="No Google API key" />
-      )}
-      {/* {openRouterOnly
-        ? null
-        : deepseekLibrary &&
-          !isWebSearch && (
-            <>
-              {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
-              <MenuItem
-                icon={defaultModel === "DeepSeek-V3.2" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="DeepSeek-V3.2"
-                labelElement="128k"
-              />
-              <MenuItem
-                icon={defaultModel === "DeepSeek-V3.2 Thinking" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="DeepSeek-V3.2 Thinking"
-                labelElement="128k"
-              />
-            </>
-          )} */}
-      {openRouterOnly
-        ? null
-        : grokLibrary && (
-            <>
-              {(openaiLibrary || anthropicLibrary) && <MenuDivider />}
-              <MenuItem
-                icon={defaultModel === "Grok-4" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="Grok-4"
-                labelElement="128k"
-              >
-                <MenuItem
-                  icon={defaultModel === "Grok-4-1-fast-non-reasoning" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-4-1-fast-non-reasoning"
-                  labelElement="2000k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Grok-4-1-fast-reasoning" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-4-1-fast-reasoning"
-                  labelElement="2000k"
-                />
-              </MenuItem>
-              <MenuItem
-                icon={defaultModel === "Grok-3" && "pin"}
-                onClick={(e) => {
-                  handleClickOnModel(e);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e);
-                }}
-                onContextMenu={(e) => handleContextMenu(e)}
-                tabindex="0"
-                text="Grok-3"
-                labelElement="128k"
-              >
-                <MenuItem
-                  icon={defaultModel === "Grok-3-fast" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-3-fast"
-                  labelElement="128k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Grok-3-mini" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-3-mini"
-                  labelElement="128k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Grok-3-mini-fast" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-3-mini-fast"
-                  labelElement="128k"
-                />
-                <MenuItem
-                  icon={defaultModel === "Grok-3-mini-high" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-3-mini-high"
-                  labelElement="128k"
-                />
-              </MenuItem>
-
-              {!isWebSearch && (
-                <MenuItem
-                  icon={defaultModel === "Grok-2 Vision" && "pin"}
-                  onClick={(e) => {
-                    handleClickOnModel(e);
-                  }}
-                  onKeyDown={(e) => {
-                    handleKeyDownOnModel(e);
-                  }}
-                  onContextMenu={(e) => handleContextMenu(e)}
-                  tabindex="0"
-                  text="Grok-2 Vision"
-                  labelElement="32k"
-                />
-              )}
-            </>
-          )}
-
-      {openRouterModels.length && !isWebSearch ? (
-        <>
-          {openRouterOnly ? null : <MenuDivider title="Through OpenRouter" />}
-          {openRouterModelsInfo.length ? (
-            openRouterModelsInfo.map((model) => (
-              <MenuItem
-                icon={
-                  ((defaultModel.includes("OpenRouter") &&
-                    openRouterModels.length &&
-                    openRouterModels[0] === model) ||
-                    defaultModel === `openRouter/${model.id}`) &&
-                  "pin"
-                }
-                onClick={(e) => {
-                  handleClickOnModel(e, "openRouter/", model.id);
-                }}
-                onKeyDown={(e) => {
-                  handleKeyDownOnModel(e, "openRouter/", model.id);
-                }}
-                onContextMenu={(e) =>
-                  handleContextMenu(e, "openRouter/", model.id)
-                }
-                tabindex="0"
-                text={
-                  <Tooltip
-                    matchTargetWidth={true}
-                    hoverOpenDelay={1500}
-                    hoverCloseDelay={6000}
-                    content={
-                      <>
-                        <div style={{ maxWidth: "350px" }}>
-                          {model.description}
-                        </div>
-                        <br></br>
-                        Pricing:
-                        <ul>
-                          <li>
-                            prompt: {model.promptPricing.toFixed(3)}$ / M tokens
-                          </li>
-                          <li>
-                            completion: {model.completionPricing.toFixed(3)}$ /
-                            M tokens
-                          </li>
-                          {model.imagePricing ? (
-                            <li>
-                              image: {model.imagePricing.toFixed(2)}$ / k tokens
-                            </li>
-                          ) : null}
-                        </ul>
-                      </>
-                    }
-                  >
-                    {model.name.split("(")[0].trim()}
-                  </Tooltip>
-                }
-                labelElement={model.contextLength + "k"}
-              />
-            ))
-          ) : (
-            <div>OpenRouter works only online</div>
-          )}
-        </>
-      ) : null}
-      {groqModels.length && !isWebSearch ? (
-        <>
-          <MenuDivider title="Through Groq" />
-          {groqModels.map((model) => (
-            <MenuItem
-              icon={
-                ((defaultModel.includes("Groq") &&
-                  groqModels.length &&
-                  groqModels[0] === model) ||
-                  defaultModel === `groq/${model}`) &&
-                "pin"
-              }
-              onClick={(e) => {
-                handleClickOnModel(e, "groq/");
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e, "groq/");
-              }}
-              onContextMenu={(e) => handleContextMenu(e, "groq/")}
-              tabindex="0"
-              text={model}
-            />
-          ))}
-        </>
-      ) : null}
-      {ollamaModels.length && !isWebSearch ? (
-        <>
-          <MenuDivider title="Ollama local models" />
-          {ollamaModels.map((model) => (
-            <MenuItem
-              icon={
-                ((defaultModel.includes("Ollama") &&
-                  ollamaModels.length &&
-                  ollamaModels[0] === model) ||
-                  defaultModel === `ollama/${model}`) &&
-                "pin"
-              }
-              onClick={(e) => {
-                handleClickOnModel(e, "ollama/");
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e, "ollama/");
-              }}
-              onContextMenu={(e) => handleContextMenu(e, "ollama/")}
-              tabindex="0"
-              text={model}
-              labelElement="8k"
-            />
-          ))}
-        </>
-      ) : null}
+        .map((provider) =>
+          renderProviderModels(provider, getApiLibrary(provider))
+        )}
     </Menu>
   );
 };

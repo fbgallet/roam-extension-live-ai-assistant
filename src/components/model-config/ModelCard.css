@@ -1,0 +1,126 @@
+/* ===== MODEL CARD ===== */
+.model-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 3px 0;
+  border: 1px solid #e1e8ed;
+  border-radius: 4px;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.model-card:hover {
+  background: #f7f9fa;
+  border-color: #c5d1d8;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.model-card.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.model-card.drag-over {
+  border-top: 2px solid #137cbd;
+  background: #ebf5ff;
+}
+
+.model-card .drag-handle {
+  cursor: grab;
+  color: #a7b6c2;
+  transition: color 0.2s;
+  font-size: 12px;
+}
+
+.model-card:hover .drag-handle {
+  color: #5c7080;
+}
+
+.model-card .bp5-control,
+.model-card .bp3-control {
+  margin: 0;
+}
+
+.model-card .model-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-card .model-name {
+  margin: 0 0 2px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1c2127;
+}
+
+.model-card .model-metadata {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.model-card .model-metadata .bp5-tag,
+.model-card .model-metadata .bp3-tag {
+  font-size: 11px;
+}
+
+.model-card .model-metadata .pricing-tag.price-in {
+  color: #0d8050;
+  border-color: #0d8050;
+}
+
+.model-card .model-metadata .pricing-tag.price-out {
+  color: #bf7326;
+  border-color: #bf7326;
+}
+
+.model-card .new-badge {
+  margin-left: 8px;
+  animation: pulse-new 2s infinite;
+}
+
+.model-card .capability-badge {
+  margin-left: 4px;
+  padding: 2px 4px !important;
+  font-size: 10px !important;
+  min-height: auto !important;
+  line-height: 1 !important;
+}
+
+@keyframes pulse-new {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Dark mode support */
+.bp5-dark .model-card,
+.bp3-dark .model-card {
+  background: #30404d;
+  border-color: #5c7080;
+}
+
+.bp5-dark .model-card:hover,
+.bp3-dark .model-card:hover {
+  background: #394b59;
+  border-color: #738694;
+}
+
+.bp5-dark .model-card.drag-over,
+.bp3-dark .model-card.drag-over {
+  background: #1c2e3f;
+  border-top-color: #48aff0;
+}
+
+.bp5-dark .model-card .model-name,
+.bp3-dark .model-card .model-name {
+  color: #f5f8fa;
+}

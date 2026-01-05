@@ -30,6 +30,14 @@ import {
   updateTokenCounter,
   webSearchModels,
 } from "./ai/modelsInfo";
+import {
+  migrateModelConfig,
+  getModelConfig,
+  saveModelConfig,
+  checkModelUpdates,
+  applyModelMigrations,
+} from "./utils/modelConfigHelpers";
+import { displayModelMigrationDialog } from "./utils/domElts";
 import { BUILTIN_STYLES } from "./ai/styleConstants";
 import {
   cleanupContextMenu,
@@ -49,6 +57,7 @@ import { mcpManager } from "./ai/agents/mcp-agent/mcpManager";
 import React from "react";
 import "./components/full-results-popup/index.tsx"; // Register window.LiveAI.openFullResultsPopup
 import { initializeHelpDepot } from "./ai/agents/chat-agent/tools/helpDepotUtils";
+import { AppToaster } from "./components/Toaster";
 import { cleanupAllWindowStorage } from "./components/full-results-popup/utils/windowStorage";
 
 export let OPENAI_API_KEY = "";
@@ -493,6 +502,12 @@ function getPanelConfig() {
             menuModifierKey = evt;
           },
         },
+      },
+      {
+        id: "modelMenuCustomization",
+        name: "Customize Model Menu",
+        description:
+          "Hide/show models, pin favorites, reorder models, and manage custom models. Click the ⚙️ 'Customize Models...' option in any AI model selection menu to configure.",
       },
 
       {
@@ -1091,9 +1106,14 @@ function getPanelConfig() {
       },
       {
         id: "customBaseUrl",
-        name: "Custom OpenAI baseURL",
-        description:
-          "Provide the baseURL of an OpenAI API compatible server (eventually local):",
+        name: "Custom OpenAI baseURL (Deprecated)",
+        description: (
+          <>
+            <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to configure endpoints.</span>
+            <br />
+            <span>Provide the baseURL of an OpenAI API compatible server (eventually local):</span>
+          </>
+        ),
         action: {
           type: "input",
           onChange: (evt) => {
@@ -1115,9 +1135,14 @@ function getPanelConfig() {
       },
       {
         id: "customOpenAIOnly",
-        name: "Custom OpenAI server only",
-        description:
-          "Use the custom baseURL as the only server for OpenAI API (both is disabled):",
+        name: "Custom OpenAI server only (Deprecated)",
+        description: (
+          <>
+            <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog to configure endpoints.</span>
+            <br />
+            <span>Use the custom baseURL as the only server for OpenAI API (both is disabled):</span>
+          </>
+        ),
         action: {
           type: "switch",
           onChange: (evt) => {
@@ -1194,9 +1219,14 @@ function getPanelConfig() {
       },
       {
         id: "ollamaServer",
-        name: "Ollama server",
-        description:
-          "You can customize your server's local address here. Default (blank input) is http://localhost:11434",
+        name: "Ollama server (Deprecated)",
+        description: (
+          <>
+            <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog to configure Ollama endpoint.</span>
+            <br />
+            <span>You can customize your server's local address here. Default (blank input) is http://localhost:11434</span>
+          </>
+        ),
         action: {
           type: "input",
           onChange: (evt) => {
@@ -1339,24 +1369,61 @@ export default {
     if (extensionAPI.settings.get("customOpenAIOnly") === null)
       await extensionAPI.settings.set("customOpenAIOnly", true);
     customOpenAIOnly = extensionAPI.settings.get("customOpenAIOnly");
+    // Migrate to new model configuration system (now includes V2 migration)
+    await migrateModelConfig();
+
+    // Get model config for reading new V2 settings
+    const modelConfig = getModelConfig();
+
+    // Read endpoint configurations from V2 config (with fallback to settings panel for backward compat)
+    const openaiEndpoint = modelConfig.providerEndpoints?.openai;
+    if (openaiEndpoint && openaiEndpoint.baseURL) {
+      customBaseURL = openaiEndpoint.baseURL;
+      customOpenAIOnly = openaiEndpoint.enabled;
+    }
+
+    const ollamaEndpoint = modelConfig.providerEndpoints?.ollama;
+    if (ollamaEndpoint && ollamaEndpoint.baseURL) {
+      ollamaServer = ollamaEndpoint.baseURL;
+    }
+
+    // Check for model updates (deprecated models, new models)
+    const updateInfo = checkModelUpdates();
+    if (updateInfo.deprecatedInUse.length > 0) {
+      // Show migration dialog after a short delay to let the UI settle
+      setTimeout(() => {
+        displayModelMigrationDialog(
+          updateInfo.deprecatedInUse,
+          async (migrations) => {
+            await applyModelMigrations(migrations);
+          }
+        );
+      }, 2000);
+    }
+
+    // Update model lists from new config for backward compatibility (using modelConfig from above)
+    openAiCustomModels = modelConfig.customModels?.openai?.map(m => m.id) ||
+      getArrayFromList(
+        extensionAPI.settings.get("customModel") || "",
+        ",",
+        customOpenAIOnly ? "" : "custom/"
+      );
+    openRouterModels = modelConfig.customModels?.openrouter?.map(m => m.id) ||
+      getArrayFromList(extensionAPI.settings.get("openRouterModels") || "");
+    groqModels = modelConfig.customModels?.groq?.map(m => m.id) ||
+      getArrayFromList(extensionAPI.settings.get("groqModels") || "");
+    ollamaModels = modelConfig.customModels?.ollama?.map(m => m.id) ||
+      getArrayFromList(extensionAPI.settings.get("ollamaModels") || "");
+
+    // Keep old settings for backward compatibility (can be removed in future versions)
     if (extensionAPI.settings.get("customModel") === null)
       await extensionAPI.settings.set("customModel", "");
-    openAiCustomModels = getArrayFromList(
-      extensionAPI.settings.get("customModel"),
-      ",",
-      customOpenAIOnly ? "" : "custom/"
-    );
     if (extensionAPI.settings.get("openRouterModels") === null)
       await extensionAPI.settings.set("openRouterModels", "");
-    openRouterModels = getArrayFromList(
-      extensionAPI.settings.get("openRouterModels")
-    );
     if (extensionAPI.settings.get("groqModels") === null)
       await extensionAPI.settings.set("groqModels", "");
-    groqModels = getArrayFromList(extensionAPI.settings.get("groqModels"));
     if (extensionAPI.settings.get("ollamaModels") === null)
       await extensionAPI.settings.set("ollamaModels", "");
-    ollamaModels = getArrayFromList(extensionAPI.settings.get("ollamaModels"));
     if (extensionAPI.settings.get("ollamaServer") === null)
       await extensionAPI.settings.set("ollamaServer", "");
     ollamaServer = extensionAPI.settings.get("ollamaServer");

@@ -17,6 +17,8 @@ import ScopeSelectionDialog from "../components/ScopeSelectionDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
 import { chatWithLinkedRefs } from "../components/full-results-popup";
+import ModelConfigDialog from "../components/model-config/ModelConfigDialog";
+import ModelMigrationDialog from "../components/model-config/ModelMigrationDialog";
 
 export function mountComponent(
   position,
@@ -633,3 +635,78 @@ function insertAskLinkedReferencesButton() {
   // Insert button before the mentions search
   flexContainer.insertBefore(button, mentionsSearch);
 }
+
+export const displayModelConfigDialog = (dialogData = {}) => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".model-config-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("model-config-dialog-container");
+  targetElt.appendChild(container);
+
+  function unmountModelConfigDialog() {
+    const node = document.querySelector(".model-config-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+
+  ReactDOM.render(
+    <ModelConfigDialog
+      isOpen={true}
+      onClose={unmountModelConfigDialog}
+      onSave={async (newConfig) => {
+        // Close dialog first
+        unmountModelConfigDialog();
+        // Then call the save callback if provided
+        if (dialogData.onSave) {
+          await dialogData.onSave(newConfig);
+        }
+      }}
+    />,
+    container
+  );
+};
+
+export const displayModelMigrationDialog = (deprecatedModels = [], onMigrate) => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".model-migration-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("model-migration-dialog-container");
+  targetElt.appendChild(container);
+
+  function unmountMigrationDialog() {
+    const node = document.querySelector(".model-migration-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+
+  ReactDOM.render(
+    <ModelMigrationDialog
+      isOpen={true}
+      onClose={unmountMigrationDialog}
+      deprecatedModels={deprecatedModels}
+      onMigrate={async (migrations) => {
+        unmountMigrationDialog();
+        if (onMigrate) {
+          await onMigrate(migrations);
+        }
+      }}
+    />,
+    container
+  );
+};

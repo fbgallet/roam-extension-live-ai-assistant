@@ -1,0 +1,184 @@
+/* ===== OPENROUTER BROWSER ===== */
+.openrouter-browser {
+  padding: 8px 0;
+}
+
+.openrouter-browser-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 16px;
+  color: #5c7080;
+}
+
+.openrouter-browser .browser-info {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* ===== CONTROLS ===== */
+.openrouter-browser .browser-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.openrouter-browser .browser-search {
+  width: 100%;
+}
+
+.openrouter-browser .browser-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.openrouter-browser .browser-filters select {
+  flex: 1;
+  font-size: 12px;
+}
+
+.openrouter-browser .browser-results-count {
+  font-size: 11px;
+  color: #5c7080;
+  margin-bottom: 8px;
+}
+
+/* ===== MODELS LIST ===== */
+.openrouter-browser .browser-models-list {
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #e1e8ed;
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* ===== MODEL ITEM ===== */
+.openrouter-browser .or-model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8e8e8;
+  gap: 10px;
+}
+
+.openrouter-browser .or-model-item:last-child {
+  border-bottom: none;
+}
+
+.openrouter-browser .or-model-item:hover {
+  background: #f5f8fa;
+}
+
+.openrouter-browser .or-model-item.already-added {
+  opacity: 0.6;
+  background: #f9f9f9;
+}
+
+.openrouter-browser .or-model-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.openrouter-browser .or-model-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1c2127;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.openrouter-browser .or-model-name .added-tag {
+  font-size: 9px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+}
+
+.openrouter-browser .or-model-id {
+  font-size: 10px;
+  color: #8a9ba8;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.openrouter-browser .or-model-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #5c7080;
+}
+
+.openrouter-browser .or-model-meta .meta-item {
+  background: #f0f0f0;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.openrouter-browser .or-model-meta .price-in {
+  color: #0d8050;
+}
+
+.openrouter-browser .or-model-meta .price-out {
+  color: #bf7326;
+}
+
+/* ===== DARK MODE ===== */
+.bp5-dark .openrouter-browser-loading,
+.bp3-dark .openrouter-browser-loading {
+  color: #a7b6c2;
+}
+
+.bp5-dark .openrouter-browser .browser-results-count,
+.bp3-dark .openrouter-browser .browser-results-count {
+  color: #a7b6c2;
+}
+
+.bp5-dark .openrouter-browser .browser-models-list,
+.bp3-dark .openrouter-browser .browser-models-list {
+  background: #30404d;
+  border-color: #5c7080;
+}
+
+.bp5-dark .openrouter-browser .or-model-item,
+.bp3-dark .openrouter-browser .or-model-item {
+  border-bottom-color: #5c7080;
+}
+
+.bp5-dark .openrouter-browser .or-model-item:hover,
+.bp3-dark .openrouter-browser .or-model-item:hover {
+  background: #394b59;
+}
+
+.bp5-dark .openrouter-browser .or-model-item.already-added,
+.bp3-dark .openrouter-browser .or-model-item.already-added {
+  background: #293742;
+}
+
+.bp5-dark .openrouter-browser .or-model-name,
+.bp3-dark .openrouter-browser .or-model-name {
+  color: #f5f8fa;
+}
+
+.bp5-dark .openrouter-browser .or-model-id,
+.bp3-dark .openrouter-browser .or-model-id {
+  color: #a7b6c2;
+}
+
+.bp5-dark .openrouter-browser .or-model-meta .meta-item,
+.bp3-dark .openrouter-browser .or-model-meta .meta-item {
+  background: #394b59;
+}

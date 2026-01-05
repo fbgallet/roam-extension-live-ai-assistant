@@ -1,0 +1,54 @@
+/* Provider Endpoint Configuration */
+.provider-endpoint-config {
+  background: #f5f8fa;
+  border: 1px solid #d8e1e8;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.provider-endpoint-config .endpoint-field {
+  margin-bottom: 8px;
+}
+
+.provider-endpoint-config .endpoint-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5c7080;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.provider-endpoint-config .endpoint-input {
+  width: 100%;
+}
+
+.provider-endpoint-config .endpoint-switch {
+  margin-bottom: 8px;
+}
+
+.provider-endpoint-config .endpoint-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 8px;
+}
+
+/* Dark mode support */
+.bp5-dark .provider-endpoint-config,
+.bp3-dark .provider-endpoint-config {
+  background: #293742;
+  border-color: #5c7080;
+}
+
+.bp5-dark .provider-endpoint-config .endpoint-label,
+.bp3-dark .provider-endpoint-config .endpoint-label {
+  color: #a7b6c2;
+}
+
+.bp5-dark .provider-endpoint-config .endpoint-hint,
+.bp3-dark .provider-endpoint-config .endpoint-hint {
+  background-color: #252a31;
+  border-color: #394b59;
+}

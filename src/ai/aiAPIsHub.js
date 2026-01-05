@@ -41,6 +41,7 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
+import { getProviderEndpoint } from "../utils/modelConfigHelpers";
 import {
   pdfLinkRegex,
   roamImageRegex,
@@ -128,7 +129,32 @@ export function modelAccordingToProvider(model) {
   model = model && model.toLowerCase();
 
   let prefix = model.split("/")[0];
-  if (model.includes("openrouter")) {
+  // Check for custom provider models first (e.g., anthropic/custom/model-name)
+  if (model.startsWith("anthropic/custom/")) {
+    llm.provider = "Anthropic";
+    llm.prefix = "anthropic/custom/";
+    llm.id = model.replace("anthropic/custom/", "");
+    llm.name = llm.id;
+    llm.library = anthropicLibrary;
+  } else if (model.startsWith("google/custom/")) {
+    llm.provider = "Google";
+    llm.prefix = "google/custom/";
+    llm.id = model.replace("google/custom/", "");
+    llm.name = llm.id;
+    llm.library = googleLibrary;
+  } else if (model.startsWith("deepseek/custom/")) {
+    llm.provider = "DeepSeek";
+    llm.prefix = "deepseek/custom/";
+    llm.id = model.replace("deepseek/custom/", "");
+    llm.name = llm.id;
+    llm.library = deepseekLibrary;
+  } else if (model.startsWith("grok/custom/")) {
+    llm.provider = "Grok";
+    llm.prefix = "grok/custom/";
+    llm.id = model.replace("grok/custom/", "");
+    llm.name = llm.id;
+    llm.library = grokLibrary;
+  } else if (model.includes("openrouter")) {
     llm.provider = "openRouter";
     llm.prefix = "openRouter/";
     llm.id =
@@ -170,7 +196,15 @@ export function modelAccordingToProvider(model) {
         : openAiCustomModels.length
         ? openAiCustomModels[0]
         : undefined;
-    llm.library = customOpenaiLibrary;
+
+    // Use endpoint from V2 config if available
+    const openaiEndpoint = getProviderEndpoint('openai');
+    if (openaiEndpoint?.enabled && openaiEndpoint?.baseURL) {
+      // Initialize library with custom endpoint from config
+      llm.library = customOpenaiLibrary; // This will be initialized with the endpoint
+    } else {
+      llm.library = customOpenaiLibrary;
+    }
   } else if (model.slice(0, 6) === "claude") {
     llm.provider = "Anthropic";
     llm.id = normalizeClaudeModel(model);

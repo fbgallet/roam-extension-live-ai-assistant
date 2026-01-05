@@ -15,13 +15,14 @@ import {
 } from "../ai/modelsInfo";
 import { useState } from "react";
 
-const TokensDialog = ({ isOpen, onClose }) => {
+// Reusable content component for tokens usage display
+export const TokensUsageContent = ({ showResetButton = true }) => {
   const [isCurrentOpen, setIsCurrentOpen] = useState(true);
   const [isLastOpen, setIsLastOpen] = useState(false);
   const [isTotalOpen, setIsTotalOpen] = useState(false);
   const [isResetToConfirm, setIsResetToConfirm] = useState(false);
   const [tokensCounter, setTokensCounter] = useState(
-    extensionStorage.get("tokensCounter")
+    extensionStorage.get("tokensCounter") || { total: {} }
   );
 
   const calculateCost = (tokens, pricePerM) => {
@@ -122,79 +123,108 @@ const TokensDialog = ({ isOpen, onClose }) => {
   };
 
   return (
-    <Dialog
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Live AI - Tokens usage and cost"
-      className="tokens-dialog"
-    >
-      <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
-        <p>
-          See current reference pricing used in these calculations{" "}
-          <a
-            href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            here in Live AI docs
-          </a>
-        </p>
-        <p>
-          For a complete and up-to-date comparison of pricing and performance,
-          see{" "}
-          <a
-            href="https://artificialanalysis.ai/models#pricing"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            https://artificialanalysis.ai
-          </a>
-        </p>
-        <p></p>
-        {tokensCounter.lastRequest && (
-          <div className="last-request">
-            <h4>Last request</h4>
-            <div className="last-request-content">
-              <table className={Classes.HTML_TABLE}>
-                <thead>
-                  <tr>
-                    <th>Model</th>
-                    <th>Input Tokens</th>
-                    <th>Output Tokens</th>
-                    <th>Input Cost</th>
-                    <th>Output Cost</th>
-                    <th>Total Cost</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="even-row">
-                    <td>
-                      {normalizeModelId(tokensCounter.lastRequest.model, false)}
-                    </td>
-                    <td>{tokensCounter.lastRequest.input}</td>
-                    <td>{tokensCounter.lastRequest.output}</td>
-                    <td>
-                      {formatCost(
-                        calculateCost(
-                          tokensCounter.lastRequest.input,
-                          modelsPricing[
+    <div className="tokens-usage-content">
+      <p>
+        See current reference pricing used in these calculations{" "}
+        <a
+          href="https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          here in Live AI docs
+        </a>
+      </p>
+      <p>
+        For a complete and up-to-date comparison of pricing and performance,
+        see{" "}
+        <a
+          href="https://artificialanalysis.ai/models#pricing"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          https://artificialanalysis.ai
+        </a>
+      </p>
+      {tokensCounter.lastRequest && (
+        <div className="last-request">
+          <h4>Last request</h4>
+          <div className="last-request-content">
+            <table className={Classes.HTML_TABLE}>
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Input Tokens</th>
+                  <th>Output Tokens</th>
+                  <th>Input Cost</th>
+                  <th>Output Cost</th>
+                  <th>Total Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="even-row">
+                  <td>
+                    {normalizeModelId(tokensCounter.lastRequest.model, false)}
+                  </td>
+                  <td>{tokensCounter.lastRequest.input}</td>
+                  <td>{tokensCounter.lastRequest.output}</td>
+                  <td>
+                    {formatCost(
+                      calculateCost(
+                        tokensCounter.lastRequest.input,
+                        modelsPricing[
+                          normalizeModelId(
+                            tokensCounter.lastRequest.model,
+                            false
+                          )
+                        ]?.input ||
+                          openRouterModelPricing(
                             normalizeModelId(
                               tokensCounter.lastRequest.model,
                               false
-                            )
-                          ]?.input ||
-                            openRouterModelPricing(
-                              normalizeModelId(
-                                tokensCounter.lastRequest.model,
-                                false
-                              ),
-                              "input"
-                            )
-                        )
-                      )}
-                    </td>
-                    <td>
-                      {formatCost(
+                            ),
+                            "input"
+                          )
+                      )
+                    )}
+                  </td>
+                  <td>
+                    {formatCost(
+                      calculateCost(
+                        tokensCounter.lastRequest.output,
+                        modelsPricing[
+                          normalizeModelId(
+                            tokensCounter.lastRequest.model,
+                            false
+                          )
+                        ]?.output ||
+                          openRouterModelPricing(
+                            normalizeModelId(
+                              tokensCounter.lastRequest.model,
+                              false
+                            ),
+                            "output"
+                          )
+                      )
+                    )}
+                  </td>
+                  <td>
+                    {formatCost(
+                      calculateCost(
+                        tokensCounter.lastRequest.input,
+                        modelsPricing[
+                          normalizeModelId(
+                            tokensCounter.lastRequest.model,
+                            false
+                          )
+                        ]?.input ||
+                          openRouterModelPricing(
+                            normalizeModelId(
+                              tokensCounter.lastRequest.model,
+                              false
+                            ),
+                            "input"
+                          )
+                      ) +
                         calculateCost(
                           tokensCounter.lastRequest.output,
                           modelsPricing[
@@ -211,102 +241,82 @@ const TokensDialog = ({ isOpen, onClose }) => {
                               "output"
                             )
                         )
-                      )}
-                    </td>
-                    <td>
-                      {formatCost(
-                        calculateCost(
-                          tokensCounter.lastRequest.input,
-                          modelsPricing[
-                            normalizeModelId(
-                              tokensCounter.lastRequest.model,
-                              false
-                            )
-                          ]?.input ||
-                            openRouterModelPricing(
-                              normalizeModelId(
-                                tokensCounter.lastRequest.model,
-                                false
-                              ),
-                              "input"
-                            )
-                        ) +
-                          calculateCost(
-                            tokensCounter.lastRequest.output,
-                            modelsPricing[
-                              normalizeModelId(
-                                tokensCounter.lastRequest.model,
-                                false
-                              )
-                            ]?.output ||
-                              openRouterModelPricing(
-                                normalizeModelId(
-                                  tokensCounter.lastRequest.model,
-                                  false
-                                ),
-                                "output"
-                              )
-                          )
-                      )}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        )}
-        <Divider />
-        <h3 onClick={() => setIsCurrentOpen((prev) => !prev)}>
-          <Icon icon={isCurrentOpen ? "chevron-down" : "chevron-right"} />
-          Current month
-        </h3>
-        <Collapse isOpen={isCurrentOpen}>
-          {generateTable(tokensCounter.monthly)}
-        </Collapse>
-        {Object.keys(tokensCounter.lastMonth || {}).length > 0 && (
-          <>
-            <Divider />
-            <h3 onClick={() => setIsLastOpen((prev) => !prev)}>
-              <Icon icon={isLastOpen ? "chevron-down" : "chevron-right"} />
-              Last month
-            </h3>
-            <Collapse isOpen={isLastOpen}>
-              {generateTable(tokensCounter.lastMonth)}
-            </Collapse>
-          </>
-        )}
-        <Divider />
+        </div>
+      )}
+      <Divider />
+      <h3 onClick={() => setIsCurrentOpen((prev) => !prev)} style={{ cursor: 'pointer' }}>
+        <Icon icon={isCurrentOpen ? "chevron-down" : "chevron-right"} />
+        Current month
+      </h3>
+      <Collapse isOpen={isCurrentOpen}>
+        {generateTable(tokensCounter.monthly)}
+      </Collapse>
+      {Object.keys(tokensCounter.lastMonth || {}).length > 0 && (
+        <>
+          <Divider />
+          <h3 onClick={() => setIsLastOpen((prev) => !prev)} style={{ cursor: 'pointer' }}>
+            <Icon icon={isLastOpen ? "chevron-down" : "chevron-right"} />
+            Last month
+          </h3>
+          <Collapse isOpen={isLastOpen}>
+            {generateTable(tokensCounter.lastMonth)}
+          </Collapse>
+        </>
+      )}
+      <Divider />
+      <h3 onClick={() => setIsTotalOpen((prev) => !prev)} style={{ cursor: 'pointer' }}>
+        <Icon icon={isTotalOpen ? "chevron-down" : "chevron-right"} />
+        Total
+      </h3>
+      <Collapse isOpen={isTotalOpen}>
+        {generateTable(tokensCounter.total)}
+      </Collapse>
+      {showResetButton && (
+        <div className="tokens-reset-section" style={{ marginTop: '20px' }}>
+          {!isResetToConfirm ? (
+            <Button
+              text="Reset all"
+              intent="danger"
+              onClick={() => setIsResetToConfirm(true)}
+            />
+          ) : (
+            <Button
+              text="Click to confirm RESET ALL"
+              intent="danger"
+              onClick={() => {
+                extensionStorage.set("tokensCounter", { total: {} });
+                setTokensCounter({ total: {} });
+                setIsResetToConfirm(false);
+              }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
-        <h3 onClick={() => setIsTotalOpen((prev) => !prev)}>
-          <Icon icon={isTotalOpen ? "chevron-down" : "chevron-right"} />
-          Total
-        </h3>
-        <Collapse isOpen={isTotalOpen}>
-          {generateTable(tokensCounter.total)}
-        </Collapse>
-      </div>
-      <div className={Classes.DIALOG_FOOTER}>
-        {!isResetToConfirm ? (
-          <Button
-            text="Reset all"
-            intent="danger"
-            onClick={() => {
-              setIsResetToConfirm(true);
-            }}
-          />
-        ) : (
-          <Button
-            text="Click to confirm RESET ALL"
-            intent="danger"
-            onClick={() => {
-              extensionStorage.set("tokensCounter", { total: {} });
-              setTokensCounter({ total: {} });
-              setIsResetToConfirm(false);
-            }}
-          />
-        )}
+// Legacy dialog wrapper - kept for backwards compatibility
+// New code should use ModelConfigDialog with initialTab="usage-tokens"
+const TokensDialog = ({ isOpen, onClose }) => {
+  return (
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Live AI - Tokens usage and cost"
+      className="tokens-dialog"
+    >
+      <div className={Classes.DIALOG_BODY} useOverflowScrollContainer={true}>
+        <TokensUsageContent showResetButton={true} />
       </div>
     </Dialog>
   );
 };
+
 export default TokensDialog;
