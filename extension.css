@@ -548,6 +548,12 @@
   overflow-y: scroll;
 }
 
+.suggested-aicommands
+  .str-aicommands-menu
+  .bp3-popover:has(.str-aimodels-menu) {
+  transform: translateY(-40px);
+}
+
 .str-aimodels-menu .bp3-menu-item > div {
   margin-right: 15px;
 }

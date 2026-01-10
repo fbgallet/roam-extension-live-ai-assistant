@@ -214,8 +214,12 @@ export function getProviderModels(provider) {
     pricing: modelsPricing[id]
   }));
 
+  // Filter out custom models that are already in base models (to prevent duplicates)
+  const baseModelIdsSet = new Set(baseModelIds);
+  const uniqueCustomModels = customModels.filter(m => !baseModelIdsSet.has(m.id));
+
   // Combine base and custom models
-  const allModels = [...baseModels, ...customModels];
+  const allModels = [...baseModels, ...uniqueCustomModels];
 
   // Apply custom ordering if defined
   const order = modelConfig.modelOrder?.[provider];
@@ -632,4 +636,19 @@ export function getProviderLabel(provider) {
  */
 export function supportsCustomEndpoint(provider) {
   return provider === 'openai' || provider === 'ollama';
+}
+
+/**
+ * Check if a model is a custom model (user-added, not built-in)
+ * @param {string} modelId - Model ID to check
+ * @param {string} provider - Provider name (e.g., "OpenAI", "Anthropic")
+ * @returns {boolean} True if model is custom
+ */
+export function isCustomModel(modelId, provider) {
+  const modelConfig = getModelConfig();
+  const providerKey = provider.toLowerCase();
+  const customModels = modelConfig.customModels?.[providerKey] || [];
+
+  // Check if this model exists in the custom models list
+  return customModels.some(m => m.id === modelId);
 }

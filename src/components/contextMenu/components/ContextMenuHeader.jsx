@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Icon, Tooltip, MenuDivider } from "@blueprintjs/core";
-import { displayTokensDialog } from "../../../utils/domElts";
+import { displayModelConfigDialog } from "../../../utils/domElts";
 import { MCPDiagnostics } from "../../../ai/agents/mcp-agent/mcpDiagnostics";
 import AskGraphModeIndicator from "../../AskGraphModeIndicator";
 import AskGraphFirstTimeDialog from "../../AskGraphFirstTimeDialog";
@@ -84,7 +84,7 @@ const ContextMenuHeader = ({
               size={12}
               onClick={(e) => {
                 e.stopPropagation();
-                displayTokensDialog();
+                displayModelConfigDialog({}, "usage-tokens");
                 setIsOpen(false);
               }}
             />

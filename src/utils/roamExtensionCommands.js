@@ -14,7 +14,7 @@ import {
 } from "../ai/responseInsertion";
 import { specificContentPromptBeforeTemplate } from "../ai/prompts";
 import {
-  displayTokensDialog,
+  displayModelConfigDialog,
   setAsOutline,
   simulateClick,
   simulateClickOnRecordingButton,
@@ -156,7 +156,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     label: "Live AI: Tokens usage and cost overview",
     callback: () => {
       setTimeout(() => {
-        displayTokensDialog();
+        displayModelConfigDialog({}, "usage-tokens");
       }, 100);
     },
   });
@@ -313,13 +313,14 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         // If target is {chat}, open chat popup with auto-execution
         if (shouldOpenChat) {
           await openChatPopup({
-            conversationHistory: [
-              { role: "user", content: stringifiedPrompt }
-            ],
+            conversationHistory: [{ role: "user", content: stringifiedPrompt }],
             model: instantModel || model,
             rootUid: sbContext.currentUid,
             roamContext: roamContext,
-            viewMode: roamContext && Object.keys(roamContext).length > 0 ? "both" : "chat-only",
+            viewMode:
+              roamContext && Object.keys(roamContext).length > 0
+                ? "both"
+                : "chat-only",
             commandPrompt: "prompt", // Use "prompt" to trigger auto-execution without additional command processing
           });
           return [toAppend];

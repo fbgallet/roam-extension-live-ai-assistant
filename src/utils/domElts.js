@@ -166,7 +166,10 @@ export const displaySpinner = async (targetUid) => {
 
     // If block doesn't exist in DOM (e.g., chat-agent-tool, query-composer), skip spinner
     if (!targetBlockElt) {
-      console.warn("⚠️ displaySpinner: Block not found in DOM for UID:", targetUid);
+      console.warn(
+        "⚠️ displaySpinner: Block not found in DOM for UID:",
+        targetUid
+      );
       return;
     }
 
@@ -208,11 +211,15 @@ export const insertParagraphForStream = (targetUid) => {
   // Check if this is a chat UI streaming request
   if (targetUid === "chatResponse") {
     // Look for the chat streaming container in the Full Results Chat panel
-    targetBlockElt = document.querySelector(".full-results-chat-streaming-container");
+    targetBlockElt = document.querySelector(
+      ".full-results-chat-streaming-container"
+    );
 
     // If not found, create it in the chat messages area
     if (!targetBlockElt) {
-      const chatMessagesArea = document.querySelector(".full-results-chat-messages");
+      const chatMessagesArea = document.querySelector(
+        ".full-results-chat-messages"
+      );
       if (chatMessagesArea) {
         targetBlockElt = document.createElement("div");
         targetBlockElt.classList.add("full-results-chat-streaming-container");
@@ -280,16 +287,16 @@ export const insertInstantButtons = async (props) => {
     container.classList.add(selector.slice(1));
 
     // Add data attribute to parent .rm-block for CSS performance (replacing :has() selector)
-    const blockElement = elt.closest('.rm-block');
+    const blockElement = elt.closest(".rm-block");
     if (blockElement) {
-      const hasRefCount = blockElement.querySelector('.rm-block__ref-count');
+      const hasRefCount = blockElement.querySelector(".rm-block__ref-count");
       if (hasRefCount) {
-        blockElement.dataset.hasRefCount = 'true';
+        blockElement.dataset.hasRefCount = "true";
       }
       if (props.isOutlinerAgent) {
-        blockElement.dataset.hasInstantBtnOutliner = 'true';
+        blockElement.dataset.hasInstantBtnOutliner = "true";
       } else {
-        blockElement.dataset.hasInstantBtn = 'true';
+        blockElement.dataset.hasInstantBtn = "true";
       }
     }
 
@@ -636,7 +643,7 @@ function insertAskLinkedReferencesButton() {
   flexContainer.insertBefore(button, mentionsSearch);
 }
 
-export const displayModelConfigDialog = (dialogData = {}) => {
+export const displayModelConfigDialog = (dialogData = {}, initialTab) => {
   const targetElt = document.querySelector(".roam-body");
   const previousContainer =
     targetElt &&
@@ -669,12 +676,16 @@ export const displayModelConfigDialog = (dialogData = {}) => {
           await dialogData.onSave(newConfig);
         }
       }}
+      initialTab={initialTab}
     />,
     container
   );
 };
 
-export const displayModelMigrationDialog = (deprecatedModels = [], onMigrate) => {
+export const displayModelMigrationDialog = (
+  deprecatedModels = [],
+  onMigrate
+) => {
   const targetElt = document.querySelector(".roam-body");
   const previousContainer =
     targetElt &&

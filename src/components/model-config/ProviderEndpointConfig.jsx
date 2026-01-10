@@ -66,7 +66,7 @@ export const ProviderEndpointConfig = ({ provider, endpoint, onChange }) => {
         small
         className="endpoint-switch"
       />
-      <Callout intent="primary" className="endpoint-hint">
+      <Callout intent="primary" className="endpoint-hint" icon={null}>
         {getEndpointHint(provider)}
       </Callout>
     </div>

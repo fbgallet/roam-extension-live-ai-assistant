@@ -20,7 +20,6 @@ import { extensionStorage, setDefaultModel } from "../..";
 import {
   getModelConfig,
   saveModelConfig,
-  getProviderModels,
   isModelVisible,
   isModelFavorited,
   getAllProviders,
@@ -33,6 +32,7 @@ import {
   clearNewModelBadges,
   getProviderLabel,
   supportsCustomEndpoint,
+  isCustomModel,
 } from "../../utils/modelConfigHelpers";
 import { getAvailableModels } from "../../ai/modelsInfo";
 import "./ModelConfigDialog.css";
@@ -81,6 +81,54 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
+  /**
+   * Get provider models from working config (includes unsaved custom models)
+   * This is similar to getProviderModels() but uses workingConfig instead of saved config
+   */
+  const getProviderModelsFromWorkingConfig = (provider) => {
+    // Get base models from modelsInfo.js
+    const baseModelIds = getAvailableModels(provider) || [];
+
+    // Get custom models for this provider from working config
+    const providerKey = provider.toLowerCase();
+    const customModels = workingConfig?.customModels?.[providerKey] || [];
+
+    // Convert base model IDs to objects
+    const baseModels = baseModelIds.map(id => ({
+      id,
+      name: id,
+      contextLength: getModelMetadata(id).contextLength,
+      pricing: getModelMetadata(id).pricing,
+    }));
+
+    // Filter out custom models that are already in base models (to prevent duplicates)
+    const baseModelIdsSet = new Set(baseModelIds);
+    const uniqueCustomModels = customModels.filter(m => !baseModelIdsSet.has(m.id));
+
+    // Combine base and custom models
+    const allModels = [...baseModels, ...uniqueCustomModels];
+
+    // Apply custom ordering if defined
+    const order = workingConfig?.modelOrder?.[provider];
+    if (order && Array.isArray(order)) {
+      const ordered = [];
+      const unordered = [];
+
+      allModels.forEach(model => {
+        const index = order.indexOf(model.id);
+        if (index !== -1) {
+          ordered[index] = model;
+        } else {
+          unordered.push(model);
+        }
+      });
+
+      return ordered.filter(Boolean).concat(unordered);
+    }
+
+    return allModels;
+  };
 
   if (!workingConfig) {
     return null;
@@ -236,7 +284,10 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     });
 
     // Hide the form after adding
-    setShowAddForm({ ...showAddForm, [provider]: false });
+    // Check if this is a native provider (added via native-apis section)
+    const nativeProviders = ['openai', 'anthropic', 'google', 'deepseek', 'grok'];
+    const formKey = nativeProviders.includes(provider) ? 'native-apis' : provider;
+    setShowAddForm({ ...showAddForm, [formKey]: false });
 
     AppToaster.show({
       message: `Added "${model.name}" to ${provider} models`,
@@ -425,7 +476,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
   // Toggle all models for a provider
   const handleToggleAllProvider = (provider, makeVisible) => {
-    const models = getProviderModels(provider);
+    const models = getProviderModelsFromWorkingConfig(provider);
     const newHiddenModels = [...(workingConfig.hiddenModels || [])];
 
     models.forEach((model) => {
@@ -461,7 +512,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
   // Render provider section for visibility tab
   const renderProviderSection = (provider) => {
-    const models = getProviderModels(provider);
+    const models = getProviderModelsFromWorkingConfig(provider);
     // Auto-expand if searching
     const isExpanded = searchQuery ? true : expandedProviders.has(provider);
 
@@ -557,6 +608,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
           <div style={{ padding: "8px 0" }}>
             {filteredModels.map((model) => {
               const metadata = getModelMetadata(model.id);
+              const isCustom = isCustomModel(model.id, provider);
               const modelWithMetadata = {
                 ...model,
                 contextLength: metadata.contextLength,
@@ -571,6 +623,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   isFavorite={workingConfig.favoriteModels?.includes(model.id)}
                   isDraggable={true}
                   isNew={isModelNew(model.id)}
+                  isCustom={isCustom}
                   onToggleVisibility={handleToggleVisibility}
                   onToggleFavorite={handleToggleFavorite}
                   onDragStart={(e, modelId) =>
@@ -596,7 +649,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     if (currentDefault) {
       const allProviders = getAllProviders();
       for (const provider of allProviders) {
-        const providerModels = getProviderModels(provider);
+        const providerModels = getProviderModelsFromWorkingConfig(provider);
         const prefix = getPrefix(provider);
         const modelId = currentDefault.replace(prefix, "");
         const model = providerModels.find(
@@ -706,7 +759,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     const providersToRender = searchQuery
       ? providers
           .map((provider) => {
-            const models = getProviderModels(provider);
+            const models = getProviderModelsFromWorkingConfig(provider);
             const hasMatches = models.some(
               (m) =>
                 m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -854,8 +907,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                                 </Tag>
                               )}
                               {model.pricing && model.pricing.input > 0 && (
-                                <Tag minimal small intent="success">
-                                  ${model.pricing.input.toFixed(2)}
+                                <Tag minimal small className="pricing-tag price-in">
+                                  In: ${model.pricing.input.toFixed(2)}
+                                </Tag>
+                              )}
+                              {model.pricing && model.pricing.output > 0 && (
+                                <Tag minimal small className="pricing-tag price-out">
+                                  Out: ${model.pricing.output.toFixed(2)}
                                 </Tag>
                               )}
                             </div>
@@ -1002,8 +1060,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                           </Tag>
                         )}
                         {model.pricing && model.pricing.input > 0 && (
-                          <Tag minimal small intent="success">
-                            ${model.pricing.input.toFixed(2)}
+                          <Tag minimal small className="pricing-tag price-in">
+                            In: ${model.pricing.input.toFixed(2)}
+                          </Tag>
+                        )}
+                        {model.pricing && model.pricing.output > 0 && (
+                          <Tag minimal small className="pricing-tag price-out">
+                            Out: ${model.pricing.output.toFixed(2)}
                           </Tag>
                         )}
                       </div>

@@ -1,6 +1,7 @@
 /* ===== OPENROUTER BROWSER ===== */
 .openrouter-browser {
   padding: 8px 0;
+  cursor: auto;
 }
 
 .openrouter-browser-loading {
@@ -49,7 +50,7 @@
 
 /* ===== MODELS LIST ===== */
 .openrouter-browser .browser-models-list {
-  max-height: 320px;
+  max-height: 440px;
   overflow-y: auto;
   overflow-x: hidden;
   border: 1px solid #e1e8ed;
@@ -104,6 +105,17 @@
   flex-shrink: 0;
 }
 
+.openrouter-browser .or-model-info-icon {
+  color: #5c7080;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.openrouter-browser .or-model-info-icon:hover {
+  color: #106ba3;
+}
+
 .openrouter-browser .or-model-id {
   font-size: 10px;
   color: #8a9ba8;
@@ -134,6 +146,41 @@
 
 .openrouter-browser .or-model-meta .price-out {
   color: #bf7326;
+}
+
+.openrouter-browser .or-model-meta .meta-date {
+  color: #738091;
+  font-weight: 500;
+}
+
+/* ===== MODEL DETAILS POPOVER ===== */
+.or-model-details-popover {
+  padding: 12px;
+  max-width: 300px;
+}
+
+.or-model-details-popover .popover-section {
+  margin-bottom: 12px;
+}
+
+.or-model-details-popover .popover-section:last-child {
+  margin-bottom: 0;
+}
+
+.or-model-details-popover strong {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #5c7080;
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
+}
+
+.or-model-details-popover p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1c2127;
 }
 
 /* ===== DARK MODE ===== */
@@ -181,4 +228,24 @@
 .bp5-dark .openrouter-browser .or-model-meta .meta-item,
 .bp3-dark .openrouter-browser .or-model-meta .meta-item {
   background: #394b59;
+}
+
+.bp5-dark .openrouter-browser .or-model-info-icon,
+.bp3-dark .openrouter-browser .or-model-info-icon {
+  color: #a7b6c2;
+}
+
+.bp5-dark .openrouter-browser .or-model-info-icon:hover,
+.bp3-dark .openrouter-browser .or-model-info-icon:hover {
+  color: #48aff0;
+}
+
+.bp5-dark .or-model-details-popover strong,
+.bp3-dark .or-model-details-popover strong {
+  color: #a7b6c2;
+}
+
+.bp5-dark .or-model-details-popover p,
+.bp3-dark .or-model-details-popover p {
+  color: #f5f8fa;
 }

@@ -16,6 +16,7 @@ import "./ModelCard.css";
  * @param {boolean} props.isFavorite - Whether model is favorited
  * @param {boolean} props.isDraggable - Whether drag-drop is enabled
  * @param {boolean} props.isNew - Whether model has "NEW" badge
+ * @param {boolean} props.isCustom - Whether model is a custom (user-added) model
  * @param {Function} props.onToggleVisibility - Callback when visibility toggled
  * @param {Function} props.onToggleFavorite - Callback when favorite toggled
  * @param {Function} props.onDragStart - Drag start handler
@@ -29,6 +30,7 @@ export const ModelCard = ({
   isFavorite,
   isDraggable = true,
   isNew = false,
+  isCustom = false,
   onToggleVisibility,
   onToggleFavorite,
   onDragStart,
@@ -147,6 +149,11 @@ export const ModelCard = ({
           {isNew && (
             <Tag intent="success" minimal className="new-badge">
               NEW
+            </Tag>
+          )}
+          {isCustom && (
+            <Tag intent="primary" minimal className="custom-badge">
+              CUSTOM
             </Tag>
           )}
           {capabilities.map(renderCapabilityBadge)}

@@ -7,6 +7,8 @@ import {
   NonIdealState,
   HTMLSelect,
   Callout,
+  Icon,
+  Popover,
 } from "@blueprintjs/core";
 import axios from "axios";
 import { AppToaster } from "../Toaster";
@@ -151,6 +153,23 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
     return `$${pricePerMillion.toFixed(2)}`;
   };
 
+  const formatDate = (timestamp) => {
+    if (!timestamp) return null;
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatInputModalities = (modalities) => {
+    if (!modalities || !Array.isArray(modalities) || modalities.length === 0) {
+      return "Not specified";
+    }
+    return modalities.join(", ");
+  };
+
   if (isLoading) {
     return (
       <div className="openrouter-browser-loading">
@@ -257,9 +276,42 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
                         Added
                       </Tag>
                     )}
+                    <Popover
+                      interactionKind="click"
+                      placement="right"
+                      content={
+                        <div className="or-model-details-popover">
+                          <div className="popover-section">
+                            <strong>Description:</strong>
+                            <p>
+                              {model.description || "No description available"}
+                            </p>
+                          </div>
+                          <div className="popover-section">
+                            <strong>Input Modalities:</strong>
+                            <p>
+                              {formatInputModalities(
+                                model.architecture?.input_modalities
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      }
+                    >
+                      <Icon
+                        icon="info-sign"
+                        size={12}
+                        className="or-model-info-icon"
+                      />
+                    </Popover>
                   </div>
                   <div className="or-model-id">{model.id}</div>
                   <div className="or-model-meta">
+                    {model.created && (
+                      <span className="meta-item meta-date">
+                        {formatDate(model.created)}
+                      </span>
+                    )}
                     {model.context_length && (
                       <span className="meta-item">
                         {formatContextLength(model.context_length)}

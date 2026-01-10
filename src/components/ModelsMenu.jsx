@@ -417,18 +417,20 @@ const ModelsMenu = ({
     <Menu className="str-aimodels-menu" roleStructure={roleStructure}>
       {!isWebSearch && (
         <>
-          <MenuDivider
+          {/* <MenuDivider
             icon="cog"
             className="menu-hint"
-            title="ℹ︎ Right click on model to set as default"
-            onClick={() => console.log("Coucou")}
-          />
+            title="ℹ︎ Right click on model to set as default"            
+          /> */}
+
           <MenuItem
             icon="cog"
-            text="Customize Models..."
+            text="Customize Menu & Models..."
             onClick={() =>
               displayModelConfigDialog({ onSave: handleConfigSave })
             }
+            className="menu-hint"
+            title="Or Right click on a model to set it as default"
           />
         </>
       )}

@@ -1070,6 +1070,23 @@ function getPanelConfig() {
             unmountComponent(position);
             openRouterModels = getArrayFromList(evt.target.value);
             openRouterModelsInfo = await getModelsInfo();
+
+            // Sync to new modelConfig to prevent duplication
+            const modelConfig = getModelConfig();
+            const parsed = getArrayFromList(evt.target.value).map(id => ({
+              id,
+              name: id,
+              contextLength: null,
+              pricing: null
+            }));
+            await saveModelConfig({
+              ...modelConfig,
+              customModels: {
+                ...modelConfig.customModels,
+                openrouter: parsed
+              }
+            });
+
             setTimeout(() => {
               mountComponent(position);
             }, 200);
@@ -1098,9 +1115,25 @@ function getPanelConfig() {
           "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
         action: {
           type: "input",
-          onChange: (evt) => {
+          onChange: async (evt) => {
             openAiCustomModels = getArrayFromList(evt.target.value);
             updateAvailableModels();
+
+            // Sync to new modelConfig to prevent duplication
+            const modelConfig = getModelConfig();
+            const parsed = getArrayFromList(evt.target.value).map(id => ({
+              id,
+              name: id,
+              contextLength: null,
+              pricing: null
+            }));
+            await saveModelConfig({
+              ...modelConfig,
+              customModels: {
+                ...modelConfig.customModels,
+                openai: parsed
+              }
+            });
           },
         },
       },
@@ -1211,6 +1244,23 @@ function getPanelConfig() {
           onChange: async (evt) => {
             unmountComponent(position);
             groqModels = getArrayFromList(evt.target.value);
+
+            // Sync to new modelConfig to prevent duplication
+            const modelConfig = getModelConfig();
+            const parsed = getArrayFromList(evt.target.value).map(id => ({
+              id,
+              name: id,
+              contextLength: null,
+              pricing: null
+            }));
+            await saveModelConfig({
+              ...modelConfig,
+              customModels: {
+                ...modelConfig.customModels,
+                groq: parsed
+              }
+            });
+
             setTimeout(() => {
               mountComponent(position);
             }, 200);
@@ -1245,9 +1295,26 @@ function getPanelConfig() {
           "Models on local server, separated by a comma. E.g: llama2,llama3",
         action: {
           type: "input",
-          onChange: (evt) => {
+          onChange: async (evt) => {
             unmountComponent(position);
             ollamaModels = getArrayFromList(evt.target.value);
+
+            // Sync to new modelConfig to prevent duplication
+            const modelConfig = getModelConfig();
+            const parsed = getArrayFromList(evt.target.value).map(id => ({
+              id,
+              name: id,
+              contextLength: null,
+              pricing: null
+            }));
+            await saveModelConfig({
+              ...modelConfig,
+              customModels: {
+                ...modelConfig.customModels,
+                ollama: parsed
+              }
+            });
+
             setTimeout(() => {
               mountComponent(position);
             }, 200);
