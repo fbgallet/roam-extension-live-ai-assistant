@@ -1,18 +1,16 @@
 import {
   Dialog,
-  DialogBody,
   Classes,
   Collapse,
   Divider,
   Icon,
   Button,
 } from "@blueprintjs/core";
-import { extensionStorage, openRouterModelsInfo } from "..";
+import { extensionStorage } from "..";
 import {
-  modelsPricing,
   normalizeModelId,
-  openRouterModelPricing,
 } from "../ai/modelsInfo";
+import { getModelMetadata } from "../utils/modelConfigHelpers";
 import { useState } from "react";
 
 // Reusable content component for tokens usage display
@@ -47,15 +45,16 @@ export const TokensUsageContent = ({ showResetButton = true }) => {
     const tableData = Object.entries(data)
       .filter(([model]) => model !== "month")
       .map(([model, counts]) => {
+        const modelId = normalizeModelId(model, false);
+        const metadata = getModelMetadata(modelId);
+
         const inputCost = calculateCost(
           counts.input,
-          modelsPricing[normalizeModelId(model, false)]?.input ||
-            openRouterModelPricing(normalizeModelId(model, false), "input")
+          metadata.pricing?.input
         );
         const outputCost = calculateCost(
           counts.output,
-          modelsPricing[normalizeModelId(model, false)]?.output ||
-            openRouterModelPricing(normalizeModelId(model, false), "output")
+          metadata.pricing?.output
         );
         const totalCost =
           isNaN(inputCost) || isNaN(outputCost) ? NaN : inputCost + outputCost;
@@ -161,89 +160,29 @@ export const TokensUsageContent = ({ showResetButton = true }) => {
                 </tr>
               </thead>
               <tbody>
-                <tr className="even-row">
-                  <td>
-                    {normalizeModelId(tokensCounter.lastRequest.model, false)}
-                  </td>
-                  <td>{tokensCounter.lastRequest.input}</td>
-                  <td>{tokensCounter.lastRequest.output}</td>
-                  <td>
-                    {formatCost(
-                      calculateCost(
-                        tokensCounter.lastRequest.input,
-                        modelsPricing[
-                          normalizeModelId(
-                            tokensCounter.lastRequest.model,
-                            false
-                          )
-                        ]?.input ||
-                          openRouterModelPricing(
-                            normalizeModelId(
-                              tokensCounter.lastRequest.model,
-                              false
-                            ),
-                            "input"
-                          )
-                      )
-                    )}
-                  </td>
-                  <td>
-                    {formatCost(
-                      calculateCost(
-                        tokensCounter.lastRequest.output,
-                        modelsPricing[
-                          normalizeModelId(
-                            tokensCounter.lastRequest.model,
-                            false
-                          )
-                        ]?.output ||
-                          openRouterModelPricing(
-                            normalizeModelId(
-                              tokensCounter.lastRequest.model,
-                              false
-                            ),
-                            "output"
-                          )
-                      )
-                    )}
-                  </td>
-                  <td>
-                    {formatCost(
-                      calculateCost(
-                        tokensCounter.lastRequest.input,
-                        modelsPricing[
-                          normalizeModelId(
-                            tokensCounter.lastRequest.model,
-                            false
-                          )
-                        ]?.input ||
-                          openRouterModelPricing(
-                            normalizeModelId(
-                              tokensCounter.lastRequest.model,
-                              false
-                            ),
-                            "input"
-                          )
-                      ) +
-                        calculateCost(
-                          tokensCounter.lastRequest.output,
-                          modelsPricing[
-                            normalizeModelId(
-                              tokensCounter.lastRequest.model,
-                              false
-                            )
-                          ]?.output ||
-                            openRouterModelPricing(
-                              normalizeModelId(
-                                tokensCounter.lastRequest.model,
-                                false
-                              ),
-                              "output"
-                            )
-                        )
-                    )}
-                  </td>
-                </tr>
+                {(() => {
+                  const lastModelId = normalizeModelId(tokensCounter.lastRequest.model, false);
+                  const lastMetadata = getModelMetadata(lastModelId);
+                  const lastInputCost = calculateCost(
+                    tokensCounter.lastRequest.input,
+                    lastMetadata.pricing?.input
+                  );
+                  const lastOutputCost = calculateCost(
+                    tokensCounter.lastRequest.output,
+                    lastMetadata.pricing?.output
+                  );
+
+                  return (
+                    <tr className="even-row">
+                      <td>{lastModelId}</td>
+                      <td>{tokensCounter.lastRequest.input}</td>
+                      <td>{tokensCounter.lastRequest.output}</td>
+                      <td>{formatCost(lastInputCost)}</td>
+                      <td>{formatCost(lastOutputCost)}</td>
+                      <td>{formatCost(lastInputCost + lastOutputCost)}</td>
+                    </tr>
+                  );
+                })()}
               </tbody>
             </table>
           </div>

@@ -41,7 +41,7 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
-import { getProviderEndpoint } from "../utils/modelConfigHelpers";
+import { getModelByIdentifier } from "./modelRegistry";
 import {
   pdfLinkRegex,
   roamImageRegex,
@@ -117,6 +117,13 @@ export function initializeGoogleAPI(apiKey) {
   }
 }
 
+/**
+ * Get model information based on model identifier
+ * Uses MODEL_REGISTRY for pre-defined models, handles dynamic providers separately
+ *
+ * @param {string} model - Model identifier (name, ID, or prefixed ID)
+ * @returns {Object|null} LLM configuration object
+ */
 export function modelAccordingToProvider(model) {
   const llm = {
     provider: "",
@@ -126,40 +133,55 @@ export function modelAccordingToProvider(model) {
     library: undefined,
     tokensLimit: 128000,
   };
-  model = model && model.toLowerCase();
 
-  let prefix = model.split("/")[0];
-  // Check for custom provider models first (e.g., anthropic/custom/model-name)
-  if (model.startsWith("anthropic/custom/")) {
+  if (!model) {
+    llm.provider = "OpenAI";
+    llm.id = "gpt-4.1-mini";
+    llm.name = "gpt-4.1-mini";
+    llm.library = openaiLibrary;
+    isAPIKeyNeeded(llm);
+    return llm;
+  }
+
+  const modelLower = model.toLowerCase();
+  const prefix = modelLower.split("/")[0];
+
+  // ==================== HANDLE PREFIXED/DYNAMIC PROVIDERS ====================
+  // These need special handling as they're not in the static registry
+
+  // Custom provider models (e.g., anthropic/custom/model-name)
+  if (modelLower.startsWith("anthropic/custom/")) {
     llm.provider = "Anthropic";
     llm.prefix = "anthropic/custom/";
-    llm.id = model.replace("anthropic/custom/", "");
+    llm.id = model.replace(/^anthropic\/custom\//i, "");
     llm.name = llm.id;
     llm.library = anthropicLibrary;
-  } else if (model.startsWith("google/custom/")) {
+  } else if (modelLower.startsWith("google/custom/")) {
     llm.provider = "Google";
     llm.prefix = "google/custom/";
-    llm.id = model.replace("google/custom/", "");
+    llm.id = model.replace(/^google\/custom\//i, "");
     llm.name = llm.id;
     llm.library = googleLibrary;
-  } else if (model.startsWith("deepseek/custom/")) {
+  } else if (modelLower.startsWith("deepseek/custom/")) {
     llm.provider = "DeepSeek";
     llm.prefix = "deepseek/custom/";
-    llm.id = model.replace("deepseek/custom/", "");
+    llm.id = model.replace(/^deepseek\/custom\//i, "");
     llm.name = llm.id;
     llm.library = deepseekLibrary;
-  } else if (model.startsWith("grok/custom/")) {
+  } else if (modelLower.startsWith("grok/custom/")) {
     llm.provider = "Grok";
     llm.prefix = "grok/custom/";
-    llm.id = model.replace("grok/custom/", "");
+    llm.id = model.replace(/^grok\/custom\//i, "");
     llm.name = llm.id;
     llm.library = grokLibrary;
-  } else if (model.includes("openrouter")) {
+  }
+  // OpenRouter models
+  else if (modelLower.includes("openrouter")) {
     llm.provider = "openRouter";
     llm.prefix = "openRouter/";
     llm.id =
       prefix === "openrouter"
-        ? model.replace("openrouter/", "")
+        ? modelLower.replace("openrouter/", "")
         : openRouterModels.length
         ? openRouterModels[0]
         : undefined;
@@ -167,122 +189,198 @@ export function modelAccordingToProvider(model) {
     llm.tokensLimit = openRouterInfos?.contextLength * 1024 || 128000;
     llm.name = llm.id && openRouterInfos ? openRouterInfos.name : llm.id;
     llm.library = openrouterLibrary;
-  } else if (model.includes("ollama")) {
+  }
+  // Ollama models
+  else if (modelLower.includes("ollama")) {
     llm.provider = "ollama";
     llm.prefix = "ollama/";
     llm.id =
       prefix === "ollama"
-        ? model.replace("ollama/", "")
+        ? modelLower.replace("ollama/", "")
         : ollamaModels.length
         ? ollamaModels[0]
         : undefined;
     llm.library = "ollama";
-  } else if (model.includes("groq")) {
+  }
+  // Groq models
+  else if (modelLower.includes("groq")) {
     llm.provider = "groq";
     llm.prefix = "groq/";
     llm.id =
       prefix === "groq"
-        ? model.replace("groq/", "")
+        ? modelLower.replace("groq/", "")
         : groqModels.length
         ? groqModels[0]
         : undefined;
     llm.library = groqLibrary;
-  } else if (model.includes("custom")) {
+  }
+  // Custom OpenAI-compatible models
+  else if (modelLower.includes("custom")) {
     llm.provider = "custom";
     llm.prefix = "custom/";
     llm.id =
       prefix === "custom"
-        ? model.replace("custom/", "")
+        ? modelLower.replace("custom/", "")
         : openAiCustomModels.length
         ? openAiCustomModels[0]
         : undefined;
+    llm.library = customOpenaiLibrary;
+  }
+  // ==================== HANDLE REGISTRY-BASED MODELS ====================
+  else {
+    // Check for thinking mode suffix
+    const hasThinking =
+      modelLower.includes("+thinking") || modelLower.includes(" thinking");
+    const baseModelName = modelLower
+      .replace("+thinking", "")
+      .replace(" thinking", "")
+      .trim();
 
-    // Use endpoint from V2 config if available
-    const openaiEndpoint = getProviderEndpoint('openai');
-    if (openaiEndpoint?.enabled && openaiEndpoint?.baseURL) {
-      // Initialize library with custom endpoint from config
-      llm.library = customOpenaiLibrary; // This will be initialized with the endpoint
-    } else {
-      llm.library = customOpenaiLibrary;
-    }
-  } else if (model.slice(0, 6) === "claude") {
-    llm.provider = "Anthropic";
-    llm.id = normalizeClaudeModel(model);
-    llm.name = normalizeClaudeModel(model, true);
-    llm.library = anthropicLibrary;
-    if (model.includes("thinking")) {
-      llm.thinking = true;
-    }
-  } else if (model.includes("deepseek")) {
-    llm.provider = "DeepSeek";
-    model = model.replace("v3.1", "v3.2");
-    if (model === "deepseek-v3.2 thinking" || model === "deepseek-reasoner") {
-      llm.id = "deepseek-reasoner";
-      llm.name = "DeepSeek-V3.2 Thinking";
-      llm.thinking = true;
-    } else {
-      llm.id = "deepseek-chat";
-      llm.name = "DeepSeek-V3.2";
-    }
-    llm.library = deepseekLibrary;
-  } else if (model.includes("grok")) {
-    llm.provider = "Grok";
-    if (
-      model === "grok-2-vision" ||
-      model === "grok-2 vision" ||
-      model === "grok-2-vision-1212"
-    ) {
-      llm.id = "grok-2-vision-1212";
-      llm.name = "Grok-2-vision";
-    } else {
-      llm.id = model;
-      llm.web = true;
-      llm.name = model.charAt(0).toUpperCase() + model.slice(1);
-      if (
-        model.includes("grok-3-mini") ||
-        model === "grok-4" ||
-        model === "grok-4-1-fast-reasoning"
-      ) {
+    // Try to find model in registry
+    const registryEntry = getModelByIdentifier(baseModelName);
+
+    if (registryEntry) {
+      llm.provider = registryEntry.provider;
+      llm.id = registryEntry.id;
+      llm.name = registryEntry.name;
+      llm.tokensLimit = registryEntry.contextLength || 128000;
+
+      // Set thinking mode if requested and model supports it
+      if (hasThinking && registryEntry.capabilities?.thinking) {
         llm.thinking = true;
       }
-    }
-    llm.library = grokLibrary;
-  } else if (model.includes("gemini")) {
-    llm.provider = "Google";
-    llm.id = model;
-    llm.name = model;
-    llm.library = googleLibrary;
-    if (model.includes("gemini-3")) llm.thinking = true;
-  } else {
-    llm.provider = "OpenAI";
-    if (
-      model.startsWith("o") ||
-      (model.includes("gpt-5") &&
-        !model.includes("chat") &&
-        !model.includes("search") &&
-        model !== "gpt-5.1")
-    ) {
-      llm.thinking = true;
-    }
-    if (model.includes("search")) {
-      llm.web = true;
-      llm.id = model;
-      llm.name = model;
-      if (model.includes("-preview")) {
-        llm.name = model.replace("-preview", "");
-      } else if (!model.includes("gpt-5")) {
-        llm.id = model + "-preview";
+
+      // Set web search capability
+      if (registryEntry.capabilities?.webSearch) {
+        llm.web = true;
       }
-    } else if (model === "gpt-5.1 reasoning") {
-      llm.id = "gpt-5.1";
-      llm.name = "gpt-5.1 reasoning";
-    } else llm.id = model || "gpt-4.1-mini";
-    llm.library = openaiLibrary;
+
+      // Set library based on provider
+      switch (registryEntry.provider) {
+        case "OpenAI":
+          llm.library = openaiLibrary;
+          break;
+        case "Anthropic":
+          llm.library = anthropicLibrary;
+          // For Claude, use normalized ID
+          llm.id = normalizeClaudeModel(model);
+          llm.name = normalizeClaudeModel(model, true);
+          break;
+        case "Google":
+          llm.library = googleLibrary;
+          break;
+        case "DeepSeek":
+          llm.library = deepseekLibrary;
+          break;
+        case "Grok":
+          llm.library = grokLibrary;
+          break;
+      }
+    }
+    // ==================== FALLBACK LOGIC FOR UNREGISTERED MODELS ====================
+    else {
+      // Claude models
+      if (modelLower.startsWith("claude")) {
+        llm.provider = "Anthropic";
+        llm.id = normalizeClaudeModel(model);
+        llm.name = normalizeClaudeModel(model, true);
+        llm.library = anthropicLibrary;
+        if (hasThinking) {
+          llm.thinking = true;
+        }
+      }
+      // DeepSeek models
+      else if (modelLower.includes("deepseek")) {
+        llm.provider = "DeepSeek";
+        const normalizedModel = modelLower.replace("v3.1", "v3.2");
+        if (
+          normalizedModel === "deepseek-v3.2 thinking" ||
+          normalizedModel === "deepseek-reasoner"
+        ) {
+          llm.id = "deepseek-reasoner";
+          llm.name = "DeepSeek-V3.2 Thinking";
+          llm.thinking = true;
+        } else {
+          llm.id = "deepseek-chat";
+          llm.name = "DeepSeek-V3.2";
+        }
+        llm.library = deepseekLibrary;
+      }
+      // Grok models
+      else if (modelLower.includes("grok")) {
+        llm.provider = "Grok";
+        if (
+          modelLower === "grok-2-vision" ||
+          modelLower === "grok-2 vision" ||
+          modelLower === "grok-2-vision-1212"
+        ) {
+          llm.id = "grok-2-vision-1212";
+          llm.name = "Grok-2-vision";
+        } else {
+          llm.id = modelLower;
+          llm.web = true;
+          llm.name = model.charAt(0).toUpperCase() + model.slice(1);
+          if (
+            modelLower.includes("grok-3-mini") ||
+            modelLower === "grok-4" ||
+            modelLower === "grok-4-1-fast-reasoning"
+          ) {
+            llm.thinking = true;
+          }
+        }
+        llm.library = grokLibrary;
+      }
+      // Gemini models
+      else if (modelLower.includes("gemini")) {
+        llm.provider = "Google";
+        llm.id = modelLower;
+        llm.name = modelLower;
+        llm.library = googleLibrary;
+        if (modelLower.includes("gemini-3")) llm.thinking = true;
+      }
+      // Default to OpenAI
+      else {
+        llm.provider = "OpenAI";
+        llm.library = openaiLibrary;
+
+        // Handle reasoning models
+        if (
+          modelLower.startsWith("o") ||
+          (modelLower.includes("gpt-5") &&
+            !modelLower.includes("chat") &&
+            !modelLower.includes("search") &&
+            modelLower !== "gpt-5.1")
+        ) {
+          llm.thinking = true;
+        }
+
+        // Handle search models
+        if (modelLower.includes("search")) {
+          llm.web = true;
+          llm.id = modelLower;
+          llm.name = modelLower;
+          if (modelLower.includes("-preview")) {
+            llm.name = modelLower.replace("-preview", "");
+          } else if (!modelLower.includes("gpt-5")) {
+            llm.id = modelLower + "-preview";
+          }
+        } else if (modelLower === "gpt-5.1 reasoning") {
+          llm.id = "gpt-5.1";
+          llm.name = "gpt-5.1 reasoning";
+          llm.thinking = true;
+        } else {
+          llm.id = modelLower || "gpt-4.1-mini";
+        }
+      }
+    }
   }
+
+  // Finalize LLM object
   if (!llm.name) llm.name = llm.id;
-  if (llm.provider !== "openRouter") {
-    if (tokensLimit[llm.id]) llm.tokensLimit = tokensLimit[llm.id];
+  if (llm.provider !== "openRouter" && tokensLimit[llm.id]) {
+    llm.tokensLimit = tokensLimit[llm.id];
   }
+
   if (!llm.id) {
     AppToaster.show({
       message: `No model available in the settings for the current provider: ${llm.provider}.`,
@@ -290,7 +388,7 @@ export function modelAccordingToProvider(model) {
     });
     return null;
   }
-  // console.log("Used LLM id :>> ", llm.id);
+
   isAPIKeyNeeded(llm);
   return llm;
 }

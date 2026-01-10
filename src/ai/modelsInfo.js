@@ -6,355 +6,111 @@ import {
   websearchContext,
 } from "..";
 import axios from "axios";
+import {
+  MODEL_REGISTRY,
+  getModelsByProvider,
+  getModelByIdentifier,
+  getContextLength,
+  getPricing,
+} from "./modelRegistry";
+
+// ==================== AVAILABLE MODELS ====================
+// Derived from MODEL_REGISTRY - maintains backward compatibility
 
 export const getAvailableModels = (provider) => {
-  switch (provider) {
-    case "OpenAI":
-      return [
-        "gpt-5.1",
-        "gpt-5.1 reasoning",
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-5-search-api",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-4o-mini-search",
-        "gpt-4o-search",
-        "o4-mini",
-        "o3",
-        "o3-pro",
-      ].concat(openAiCustomModels);
-    case "Anthropic":
-      return [
-        "Claude Haiku 4.5",
-        "Claude Haiku 3.5",
-        "Claude Haiku",
-        "Claude Sonnet 4.5",
-        "Claude Sonnet 4.5 Thinking",
-        "Claude Sonnet 4",
-        "Claude Sonnet 3.7",
-        "Claude Opus 4.1",
-        "Claude Opus 4.5",
-      ];
-    case "DeepSeek":
-      return ["DeepSeek-V3.2", "DeepSeek-V3.2 Thinking"];
-    case "Grok":
-      return [
-        "Grok-4",
-        "Grok-4-1-fast-reasoning",
-        "Grok-4-1-fast-non-reasoning",
-        "Grok-3",
-        "Grok-3-mini",
-        "Grok-3-mini-fast",
-        "Grok-3-mini-high",
-        "Grok-3-fast",
-        "Grok-2 Vision",
-      ];
-    case "Google":
-      return [
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-2.5-pro",
-        "gemini-3-pro-preview",
-      ];
+  const registryModels = getModelsByProvider(provider)
+    .filter((m) => m.visibleByDefault !== false)
+    .map((m) => m.name);
+
+  // Add custom models for OpenAI
+  if (provider === "OpenAI" && openAiCustomModels?.length) {
+    return registryModels.concat(openAiCustomModels);
   }
+
+  return registryModels;
 };
 
-export const imageGenerationModels = [
-  "gpt-image-1-mini",
-  "gpt-image-1",
-  "gemini-2.5-flash-image",
-  "gemini-3-pro-image-preview",
-  "imagen-4.0-generate-001",
-];
+// ==================== CAPABILITY ARRAYS ====================
+// Derived from MODEL_REGISTRY capabilities
 
-export const webSearchModels = [
-  "gpt-4o-mini-search-preview",
-  "gpt-4o-search-preview",
-  "claude-haiku-4-5-20251001",
-  "claude-sonnet-4-5-20250929",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
-  "gemini-3-pro-preview",
-];
+export const imageGenerationModels = Object.entries(MODEL_REGISTRY)
+  .filter(([_, m]) => m.capabilities?.imageOutput === true)
+  .map(([_, m]) => m.id);
 
-export const tokensLimit = {
-  "gpt-5": 400000,
-  "gpt-5.1": 400000,
-  "gpt-5-chat-latest": 400000,
-  "gpt-5.1-chat-latest": 400000,
-  "gpt-5-mini": 400000,
-  "gpt-5-nano": 400000,
-  "gpt-5-search-api": 128000,
-  "gpt-4.1-nano": 1047576,
-  "gpt-4.1-mini": 1047576,
-  "gpt-4.1": 1047576,
-  "gpt-4o-mini": 131073,
-  "gpt-4o": 131073,
-  "gpt-4o-mini-search-preview": 128000,
-  "gpt-4o-search-preview": 128000,
-  "o4-mini": 200000,
-  o3: 200000,
-  "o3-pro": 200000,
-  "o3-mini": 200000,
-  "claude-3-haiku-20240307": 200000,
-  "claude-3-5-haiku-20241022": 200000,
-  "claude-haiku-4-5-20251001": 200000,
-  "claude-3-5-sonnet-20241022": 200000,
-  "claude-3-7-sonnet-20250219": 200000,
-  // "Claude Sonnet 3.7 Thinking": 200000,
-  "claude-sonnet-4-20250514": 200000,
-  "claude-sonnet-4-5-20250929": 200000,
-  "claude-sonnet-4-5-20250929+thinking": 200000,
-  "claude-opus-4-1-20250805": 200000,
-  "claude-opus-4-5-20251101": 200000,
-  "deepseek-chat": 128000,
-  "deepseek-reasoner": 128000,
-  "grok-2-vision-1212": 32768,
-  "grok-2-1212": 131072,
-  "grok-3-mini": 131072,
-  "grok-3-mini-fast": 131072,
-  "grok-3-mini-high": 131072,
-  "grok-3": 131072,
-  "grok-3-fast": 131072,
-  "grok-4": 256000,
-  "grok-4-1-fast-reasoning": 2000000,
-  "grok-4-1-fast-non-reasoning": 2000000,
-  "gemini-2.5-flash-lite": 1048576,
-  "gemini-2.5-flash": 1048576,
-  "gemini-2.5-pro": 1048576,
-  "gemini-3-pro-preview": 1048576,
-  custom: undefined,
+export const webSearchModels = Object.entries(MODEL_REGISTRY)
+  .filter(([_, m]) => m.capabilities?.webSearch === true)
+  .map(([_, m]) => m.id);
+
+// ==================== TOKEN LIMITS ====================
+// Proxy object that reads from MODEL_REGISTRY
+
+const tokensLimitHandler = {
+  get(target, prop) {
+    // Handle special cases
+    if (prop === "custom") return undefined;
+
+    // Try to get from registry
+    const contextLength = getContextLength(prop);
+    if (contextLength) return contextLength;
+
+    // Fallback to static values for aliases not in registry
+    const staticFallbacks = {
+      "gpt-5-chat-latest": 400000,
+      "gpt-5.1-chat-latest": 400000,
+    };
+    return staticFallbacks[prop] || undefined;
+  },
+  has(target, prop) {
+    return getModelByIdentifier(prop) !== null;
+  },
+  ownKeys() {
+    return Object.keys(MODEL_REGISTRY);
+  },
+  getOwnPropertyDescriptor(target, prop) {
+    if (getModelByIdentifier(prop)) {
+      return { enumerable: true, configurable: true };
+    }
+    return undefined;
+  },
 };
 
-// pricing for 1M tokens
-export const modelsPricing = {
-  "gpt-5-nano": {
-    input: 0.05,
-    output: 0.4,
+export const tokensLimit = new Proxy({}, tokensLimitHandler);
+
+// ==================== PRICING ====================
+// Proxy object that reads from MODEL_REGISTRY
+
+const modelsPricingHandler = {
+  get(target, prop) {
+    const pricing = getPricing(prop);
+    if (pricing) {
+      // Convert from registry format to legacy format
+      const result = {
+        input: pricing.input,
+        output: pricing.output,
+      };
+      if (pricing.inputImage) result.input_image = pricing.inputImage;
+      if (pricing.outputImage1k) result.output_image_1k = pricing.outputImage1k;
+      if (pricing.outputImage2k) result.output_image_2k = pricing.outputImage2k;
+      if (pricing.outputImage4k) result.output_image_4k = pricing.outputImage4k;
+      return result;
+    }
+    return undefined;
   },
-  "gpt-5-mini": {
-    input: 0.25,
-    output: 2,
+  has(target, prop) {
+    return getPricing(prop) !== null;
   },
-  "gpt-5.1-mini": {
-    input: 0.25,
-    output: 2,
+  ownKeys() {
+    return Object.keys(MODEL_REGISTRY);
   },
-  "gpt-5": {
-    input: 1.25,
-    output: 10,
-  },
-  "gpt-5.1": {
-    input: 1.25,
-    output: 10,
-  },
-  "gpt-5-chat-latest": {
-    input: 1.25,
-    output: 10,
-  },
-  "gpt-5-search-api": {
-    input: 1.25,
-    output: 10,
-  },
-  "gpt-4.1-nano": {
-    input: 0.1,
-    output: 0.4,
-  },
-  "gpt-4.1-mini": {
-    input: 0.4,
-    output: 1.6,
-  },
-  "gpt-4.1": {
-    input: 2,
-    output: 8,
-  },
-  "gpt-4o-mini": {
-    input: 0.15,
-    output: 0.6,
-  },
-  "gpt-4o": {
-    input: 2.5,
-    output: 10,
-  },
-  "gpt-4o-mini-search-preview": {
-    input: 0.15,
-    output: 0.6,
-  },
-  "gpt-4o-search-preview": {
-    input: 2.5,
-    output: 10,
-  },
-  "o4-mini": {
-    input: 1.1,
-    output: 4.4,
-  },
-  "o3-mini": {
-    input: 1.1,
-    output: 4.4,
-  },
-  o1: {
-    input: 15,
-    output: 60,
-  },
-  o3: {
-    input: 2,
-    output: 8,
-  },
-  "o3-pro": {
-    input: 20,
-    output: 80,
-  },
-  "gpt-image-1-mini": {
-    input: 2,
-    input_image: 2.5,
-    output: 8,
-  },
-  "gpt-image-1": {
-    input: 5,
-    input_image: 10,
-    output: 40,
-  },
-  "claude-3-haiku-20240307": {
-    input: 0.25,
-    output: 1.25,
-  },
-  "claude-3-5-haiku-20241022": {
-    input: 0.8,
-    output: 4,
-  },
-  "claude-haiku-4-5-20251001": {
-    input: 1,
-    output: 5,
-  },
-  "claude-3-5-sonnet-20241022": {
-    input: 3,
-    output: 15,
-  },
-  "claude-3-7-sonnet-20250219": {
-    input: 3,
-    output: 15,
-  },
-  "claude-sonnet-4-20250514": {
-    input: 3,
-    output: 15,
-  },
-  "claude-opus-4-20250514": {
-    input: 15,
-    output: 75,
-  },
-  "claude-sonnet-4-5-20250929": {
-    input: 3,
-    output: 15,
-  },
-  "claude-opus-4-5-20251101": {
-    input: 5,
-    output: 25,
-  },
-  "claude-opus-4-1-20250805": {
-    input: 15,
-    output: 75,
-  },
-  "deepseek-chat": {
-    input: 0.28,
-    output: 0.42,
-  },
-  "deepseek-chat": {
-    input: 0.28,
-    output: 0.42,
-  },
-  "grok-2-1212": {
-    input: 2,
-    output: 10,
-  },
-  "grok-2-vision-1212": {
-    input: 2,
-    output: 10,
-  },
-  "grok-3-mini": {
-    input: 0.3,
-    output: 0.5,
-  },
-  "grok-3-mini-fast": {
-    input: 0.6,
-    output: 4,
-  },
-  "grok-3-mini-high": {
-    input: 0.3,
-    output: 0.5,
-  },
-  "grok-3": {
-    input: 3,
-    output: 15,
-  },
-  "grok-3-fast": {
-    input: 5,
-    output: 25,
-  },
-  "grok-4-1-fast-reasoning": {
-    input: 0.2,
-    output: 0.5,
-  },
-  "grok-4-1-fast-non-reasoning": {
-    input: 0.2,
-    output: 0.5,
-  },
-  "grok-4": {
-    input: 3,
-    output: 15,
-  },
-  "gemini-2.5-flash-lite": {
-    input: 0.1,
-    output: 0.4,
-  },
-  "gemini-2.5-flash": {
-    input: 0.3,
-    output: 2.5,
-  },
-  "gemini-2.5-pro": {
-    input: 1.25,
-    output: 10,
-  },
-  "gemini-3-pro-preview": {
-    input: 2,
-    output: 12,
-  },
-  "gemini-3-pro-image-preview": {
-    // COMPLEX PRICING - see ai/utils/imageTokensCalculator.js for actual calculation
-    // Input: $2.00/1M tokens (text), $0.0011 per input image
-    // Output: $12.00/1M tokens (text/thinking), $0.134 per 1K/2K image OR $0.24 per 4K image
-    input: 2.0,
-    input_image: 1.1, // $0.0011 per image = $1.1 per 1000 "images as tokens"
-    output: 12.0, // For text/thinking tokens only
-    output_image_1k: 134.0, // $0.134 per image = $134 per 1000 images
-    output_image_2k: 134.0,
-    output_image_4k: 240.0, // $0.24 per image = $240 per 1000 images
-  },
-  "gemini-2.5-flash-image": {
-    // Input: $0.30/1M tokens (text/image)
-    // Output: $0.039 per image (fixed)
-    input: 0.3,
-    input_image: 0.3,
-    output: 39.0, // $0.039 per image = $39 per 1000 images
-  },
-  "imagen-4.0-fast-generate-001": {
-    input: 0,
-    output: 20000, // $0.02 per image = $20 per 1000 images
-  },
-  "imagen-4.0-generate-001": {
-    input: 0,
-    output: 40000, // $0.04 per image = $40 per 1000 images
-  },
-  "imagen-4.0-ultra-generate-001": {
-    input: 0,
-    output: 60000, // $0.06 per image = $60 per 1000 images
+  getOwnPropertyDescriptor(target, prop) {
+    if (getPricing(prop)) {
+      return { enumerable: true, configurable: true };
+    }
+    return undefined;
   },
 };
+
+export const modelsPricing = new Proxy({}, modelsPricingHandler);
 
 // Deprecated for now on OpenAI API
 // export const additionalPricingPerRequest = {
@@ -407,86 +163,44 @@ export async function getModelsInfo() {
   }
 }
 
+/**
+ * Normalize Claude model name to API ID or display name
+ * Uses MODEL_REGISTRY aliases for matching
+ *
+ * Note: Thinking mode (+thinking suffix) is preserved as-is when present.
+ * Future: Thinking mode will be controlled by a separate toggle in the UI.
+ *
+ * @param {string} model - Input model name/ID
+ * @param {boolean} getShortName - Return display name instead of API ID
+ * @returns {string} Normalized model name
+ */
 export function normalizeClaudeModel(model, getShortName) {
-  switch (model.toLowerCase()) {
-    case "claude-opus-4-5-20251101":
-    case "claude-4.5-opus":
-    case "claude opus":
-    case "claude opus 4.5":
-      model = getShortName ? "Claude Opus 4.5" : "claude-opus-4-5-20251101";
-      break;
-    case "claude-opus-4-5-20251101+thinking":
-    case "claude-4.5-opus+thinking":
-    case "claude opus thinking":
-    case "claude opus 4.5 thinking":
-      model = getShortName
-        ? "Claude Opus 4.5 Thinking"
-        : "claude-opus-4-5-20251101+thinking";
-      break;
-    case "claude-4.1-opus":
-    case "claude-opus-4-1-20250805":
-    case "claude opus 4.1":
-      model = getShortName ? "Claude Opus 4.1" : "claude-opus-4-1-20250805";
-      break;
-    case "claude-sonnet":
-    case "claude-sonnet-4.5":
-    case "claude-sonnet-4-5":
-    case "claude-sonnet-4-5-20250929":
-    case "claude sonnet 4.5":
-      model = getShortName ? "Claude Sonnet 4.5" : "claude-sonnet-4-5-20250929";
-      break;
-    case "claude-sonnet-4-5-20250929+thinking":
-    case "claude-sonnet-4.5+thinking":
-    case "claude sonnet 4.5 thinking":
-    case "claude sonnet 4 thinking":
-      model = getShortName
-        ? "Claude Sonnet 4.5 Thinking"
-        : "claude-sonnet-4-5-20250929+thinking";
-      break;
-    case "claude-sonnet-4":
-    case "claude-sonnet-4-20250514":
-    case "claude sonnet 4":
-      model = getShortName ? "Claude Sonnet 4" : "claude-sonnet-4-20250514";
-      break;
-    // claude-3-7-sonnet-latest
-    case "claude-sonnet-3.5":
-    case "claude-3-5-sonnet-20241022":
-    case "claude sonnet 3.5":
-      model = getShortName ? "Claude Sonnet 3.5" : "claude-3-5-sonnet-20241022";
-      // model = "claude-3-5-sonnet-20240620"; previous version
-      // model = "claude-3-sonnet-20240229"; previous version
-      break;
-    case "claude-sonnet-3.7":
-    case "claude-3-7-sonnet-20250219":
-    case "claude sonnet 3.7":
-      model = getShortName ? "Claude Sonnet 3.7" : "claude-3-7-sonnet-20250219";
-      break;
-    // claude-3-7-sonnet-latest
-    case "claude-3-7-sonnet-20250219+thinking":
-    case "claude sonnet 3.7 thinking":
-      model = getShortName
-        ? "Claude Sonnet 3.7 Thinking"
-        : "claude-3-7-sonnet-20250219+thinking";
-      break;
-    case "claude-haiku-4-5-20251001":
-    case "claude haiku 4.5":
-    case "claude-haiku-4.5":
-      model = getShortName ? "Claude Haiku 4.5" : "claude-haiku-4-5-20251001";
-      break;
-    case "claude-haiku-3.5":
-    case "claude-3-5-haiku-20241022":
-    case "claude haiku 3.5":
-      model = getShortName ? "Claude Haiku 3.5" : "claude-3-5-haiku-20241022";
-      break;
-    case "claude-haiku":
-    case "claude-3-haiku-20240307":
-    case "claude haiku":
-      model = getShortName ? "Claude Haiku" : "claude-3-haiku-20240307";
-      break;
-    default:
-      model = getShortName ? "Claude Haiku 3.5" : "claude-3-5-haiku-20241022";
+  if (!model) {
+    return getShortName ? "Claude Haiku 3.5" : "claude-3-5-haiku-20241022";
   }
-  return model;
+
+  // Check if thinking mode is requested (preserve the suffix)
+  const hasThinking =
+    model.toLowerCase().includes("+thinking") ||
+    model.toLowerCase().includes(" thinking");
+  const baseModel = model
+    .toLowerCase()
+    .replace("+thinking", "")
+    .replace(" thinking", "")
+    .trim();
+
+  // Try to find the model in registry
+  const entry = getModelByIdentifier(baseModel);
+
+  if (entry && entry.provider === "Anthropic") {
+    if (getShortName) {
+      return hasThinking ? entry.name + " Thinking" : entry.name;
+    }
+    return hasThinking ? entry.id + "+thinking" : entry.id;
+  }
+
+  // Default fallback to Claude Haiku 3.5
+  return getShortName ? "Claude Haiku 3.5" : "claude-3-5-haiku-20241022";
 }
 
 export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {

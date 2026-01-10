@@ -16,6 +16,7 @@ import {
 
 import { updateTokenCounter } from "./modelsInfo";
 import { createImageUsageObject } from "./utils/imageTokensCalculator";
+import { hasCapability } from "./modelRegistry";
 
 // Storage for active image generation chat instances
 // Key: conversation parent UID, Value: chat instance
@@ -998,24 +999,22 @@ export const addImagesUrlToMessages = async (
 };
 
 export const isModelSupportingImage = (model) => {
-  model = model.toLowerCase();
+  if (!model) return false;
 
-  if (
-    model.includes("gpt-4") ||
-    model.includes("gpt-5") ||
-    model.includes("vision") ||
-    model === "o4-mini" ||
-    model === "o3"
-  )
+  // First, check the registry for capability
+  if (hasCapability(model, "imageInput")) {
     return true;
-  if (model.includes("claude")) return true;
+  }
+
+  // Fallback for dynamic models (OpenRouter) not in registry
+  const modelLower = model.toLowerCase();
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find(
-      (m) => m.id.toLowerCase() === model
+      (m) => m.id.toLowerCase() === modelLower
     );
-    // console.log("ormodel :>> ", ormodel);
     if (ormodel) return ormodel.imagePricing ? true : false;
   }
+
   return false;
 };
 

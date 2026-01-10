@@ -1,6 +1,7 @@
 import { extensionStorage } from "..";
 import { getAvailableModels, webSearchModels, imageGenerationModels, normalizeClaudeModel } from "../ai/modelsInfo";
 import { tokensLimit, modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
+import { hasCapability } from "../ai/modelRegistry";
 import {
   getNewModelIds,
   getDeprecatedModels,
@@ -375,9 +376,11 @@ export function getPricingTooltip(pricing) {
  * @returns {boolean} True if model supports web search
  */
 export function isWebSearchModel(modelId) {
-  // Check against known web search models array
+  // Check registry capability first
+  if (hasCapability(modelId, "webSearch")) return true;
+  // Fallback: check against known web search models array
   if (webSearchModels.includes(modelId)) return true;
-  // Also check for search-related names
+  // Also check for search-related names (for custom/dynamic models)
   const lower = modelId.toLowerCase();
   return lower.includes("search") || lower.includes("web");
 }
@@ -388,9 +391,11 @@ export function isWebSearchModel(modelId) {
  * @returns {boolean} True if model is for image generation
  */
 export function isImageGenModel(modelId) {
-  // Check against known image generation models array
+  // Check registry capability first
+  if (hasCapability(modelId, "imageOutput")) return true;
+  // Fallback: check against known image generation models array
   if (imageGenerationModels.includes(modelId)) return true;
-  // Also check for image-related names
+  // Also check for image-related names (for custom/dynamic models)
   const lower = modelId.toLowerCase();
   return lower.includes("image") || lower.includes("imagen") || lower.includes("dall");
 }
@@ -401,6 +406,9 @@ export function isImageGenModel(modelId) {
  * @returns {boolean} True if model is reasoning/thinking model
  */
 export function isReasoningModel(modelId) {
+  // Check registry capability first
+  if (hasCapability(modelId, "thinking")) return true;
+  // Fallback: string-based detection for custom/dynamic models
   const lower = modelId.toLowerCase();
   return (
     lower.includes("thinking") ||
