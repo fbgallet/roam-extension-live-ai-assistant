@@ -39,6 +39,7 @@ import {
   getCustomStyles,
 } from "../../../../ai/dataExtraction";
 import { loadResultsFromRoamContext } from "../../utils/roamContextLoader";
+import { hasThinkingDefault } from "../../../../ai/modelRegistry";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -1105,6 +1106,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       128000
   );
 
+  // Thinking mode state (session-based, resets on model change)
+  const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
+    return hasThinkingDefault(selectedModel);
+  });
+
   // Track enabled/disabled state for each tool
   const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
     // Load from storage (initialized in index.js on first install)
@@ -1223,6 +1229,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setModelTokensLimit(
       modelAccordingToProvider(selectedModel).tokensLimit || 32000
     );
+    // Reset thinking state based on new model's default
+    setThinkingEnabled(hasThinkingDefault(selectedModel));
   }, [selectedModel]);
 
   // Persist chat-specific state whenever it changes
@@ -1990,7 +1998,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Invoke the chat agent
       const agentResult = await invokeChatAgent({
-        model: modelAccordingToProvider(commandModelFromCall || selectedModel),
+        model: modelAccordingToProvider(commandModelFromCall || selectedModel, thinkingEnabled),
         userMessage: message,
 
         // Chat session ID for multi-turn image editing
@@ -2383,6 +2391,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         customStyleTitles={customStyleTitles}
         isPinnedStyle={isPinnedStyle}
         onPinnedStyleChange={handlePinnedStyleChange}
+        thinkingEnabled={thinkingEnabled}
+        onThinkingChange={setThinkingEnabled}
       />
     </div>
   );

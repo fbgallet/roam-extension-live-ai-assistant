@@ -4,8 +4,10 @@ import {
   defaultStyle,
   includeChildrenByDefault,
   logPagesNbDefault,
+  defaultModel,
 } from "../../..";
 import { BUILTIN_COMMANDS } from "../../../ai/prebuildCommands";
+import { isThinkingModel, hasThinkingDefault } from "../../../ai/modelRegistry";
 
 const voidRoamContext = {
   linkedRefs: false,
@@ -51,6 +53,14 @@ export const useContextMenuState = () => {
   const [model, setModel] = useState(null);
   const [includePdfInContext, setIncludePdfInContext] = useState(false);
 
+  // Thinking Mode State
+  const [thinkingEnabled, setThinkingEnabled] = useState(() =>
+    hasThinkingDefault(defaultModel)
+  );
+  const [reasoningEffort, setReasoningEffort] = useState(
+    extensionStorage.get("reasoningEffort") || "low"
+  );
+
   // Mode State
   const [isOutlinerAgent, setIsOutlinerAgent] = useState(false);
   const [isCompletionOnly, setIsCompletionOnly] = useState(false);
@@ -87,6 +97,7 @@ export const useContextMenuState = () => {
   const roamContextRef = useRef(roamContext);
   const styleRef = useRef(style);
   const targetBlockRef = useRef(targetBlock);
+  const thinkingEnabledRef = useRef(thinkingEnabled);
 
   // Update roamContextRef when roamContext changes
   useEffect(() => {
@@ -102,6 +113,11 @@ export const useContextMenuState = () => {
   useEffect(() => {
     styleRef.current = style;
   }, [style]);
+
+  // Update thinkingEnabledRef when thinkingEnabled changes
+  useEffect(() => {
+    thinkingEnabledRef.current = thinkingEnabled;
+  }, [thinkingEnabled]);
 
   // Handle close functionality
   const handleClose = (shouldResetContext = true) => {
@@ -124,6 +140,8 @@ export const useContextMenuState = () => {
 
     setIsChildrenTreeToInclude(includeChildrenByDefault);
     setIncludePdfInContext(false);
+    // Reset thinking to default model's setting
+    setThinkingEnabled(hasThinkingDefault(defaultModel));
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;
@@ -180,6 +198,13 @@ export const useContextMenuState = () => {
     setModel,
     includePdfInContext,
     setIncludePdfInContext,
+
+    // Thinking Mode State
+    thinkingEnabled,
+    setThinkingEnabled,
+    reasoningEffort,
+    setReasoningEffort,
+    thinkingEnabledRef,
 
     // Mode State
     isOutlinerAgent,

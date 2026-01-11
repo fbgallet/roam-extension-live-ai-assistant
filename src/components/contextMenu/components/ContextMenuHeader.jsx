@@ -9,6 +9,7 @@ import {
   setSessionAskGraphMode,
 } from "../../../ai/agents/search-agent/ask-your-graph";
 import { modelAccordingToProvider } from "../../../ai/aiAPIsHub";
+import ThinkingControls from "./ThinkingControls";
 
 const ContextMenuHeader = ({
   defaultModel,
@@ -21,6 +22,10 @@ const ContextMenuHeader = ({
   updateTemplates,
   handleClose,
   inputRef,
+  thinkingEnabled,
+  setThinkingEnabled,
+  reasoningEffort,
+  setReasoningEffort,
 }) => {
   const [currentMode, setCurrentMode] = useState(() =>
     getCurrentAskGraphMode()
@@ -150,16 +155,26 @@ const ContextMenuHeader = ({
       <MenuDivider
         className="menu-hint"
         title={
-          <div>
-            Default model:{" "}
-            <b>
-              {
-                modelAccordingToProvider(defaultModel).name
-                /* {defaultModel
-                .replace("openRouter/", "")
-                .replace("groq/", "")} */
-              }
-            </b>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+            }}
+          >
+            <span>
+              Default model:{" "}
+              <b>{modelAccordingToProvider(defaultModel).name}</b>
+            </span>
+            <ThinkingControls
+              defaultModel={defaultModel}
+              thinkingEnabled={thinkingEnabled}
+              setThinkingEnabled={setThinkingEnabled}
+              reasoningEffort={reasoningEffort}
+              setReasoningEffort={setReasoningEffort}
+              inputRef={inputRef}
+            />
           </div>
         }
       />

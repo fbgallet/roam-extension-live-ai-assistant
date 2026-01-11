@@ -23,8 +23,13 @@ import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
 import ChatPageAutocomplete from "./ChatPageAutocomplete";
 import { ChatToolsMenu } from "./ChatToolsMenu";
+import { ThinkingToggle } from "../../../ThinkingToggle";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 import { BUILTIN_STYLES } from "../../../../ai/styleConstants";
+import {
+  isThinkingModel,
+  hasThinkingDefault,
+} from "../../../../ai/modelRegistry";
 
 interface ChatInputAreaProps {
   chatInput: string;
@@ -54,6 +59,8 @@ interface ChatInputAreaProps {
   customStyleTitles?: string[];
   isPinnedStyle?: boolean;
   onPinnedStyleChange?: (isPinned: boolean) => void;
+  thinkingEnabled?: boolean;
+  onThinkingChange?: (enabled: boolean) => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -80,6 +87,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   customStyleTitles = [],
   isPinnedStyle = false,
   onPinnedStyleChange,
+  thinkingEnabled = false,
+  onThinkingChange,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
@@ -584,6 +593,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             </Popover>
           </div>
         </Tooltip>
+        <ThinkingToggle
+          modelId={selectedModel}
+          supportsThinking={isThinkingModel(selectedModel)}
+          thinkingDefault={hasThinkingDefault(selectedModel)}
+          thinkingEnabled={thinkingEnabled}
+          onThinkingChange={onThinkingChange || (() => {})}
+        />
       </div>
 
       {/* Future evolution: Chat Mode vs Deep Analysis - currently hidden

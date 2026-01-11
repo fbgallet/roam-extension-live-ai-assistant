@@ -14,7 +14,8 @@
  * - capabilities: { thinking, imageInput, imageOutput, webSearch, fileInput, videoInput, audioInput }
  * - visibleByDefault: Show in menu by default
  * - aliases: Alternative identifiers for matching
- * - thinkingVariant: Flag for thinking mode activation
+ * - thinkingDefault: If true, thinking mode is enabled by default
+ * - thinkingIdSuffix: For models with separate IDs for reasoning/non-reasoning (e.g., Grok)
  * - modelType: Special type like "image-generation"
  */
 
@@ -30,7 +31,7 @@ export const MODEL_REGISTRY = {
     maxOutput: 32000,
     pricing: { input: 1.75, output: 14 },
     capabilities: {
-      thinking: false,
+      thinking: true,
       imageInput: true,
       fileInput: true,
     },
@@ -52,22 +53,6 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     aliases: ["gpt5.1", "gpt-5-1", "gpt-5.1-chat-latest"],
-  },
-
-  "gpt-5.1 reasoning": {
-    id: "gpt-5.1",
-    name: "gpt-5.1 reasoning",
-    provider: "OpenAI",
-    contextLength: 400000,
-    maxOutput: 32000,
-    pricing: { input: 1.25, output: 10 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: [],
   },
 
   "gpt-5": {
@@ -244,6 +229,7 @@ export const MODEL_REGISTRY = {
       imageInput: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: true,
     aliases: [],
   },
@@ -259,6 +245,7 @@ export const MODEL_REGISTRY = {
       imageInput: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: false,
     aliases: [],
   },
@@ -274,6 +261,7 @@ export const MODEL_REGISTRY = {
       imageInput: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: false,
     aliases: [],
   },
@@ -289,6 +277,7 @@ export const MODEL_REGISTRY = {
       imageInput: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: false,
     aliases: [],
   },
@@ -304,6 +293,7 @@ export const MODEL_REGISTRY = {
       imageInput: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: false,
     aliases: [],
   },
@@ -494,9 +484,10 @@ export const MODEL_REGISTRY = {
   // ==================== Google Models ====================
   "gemini-3-pro-preview": {
     id: "gemini-3-pro-preview",
-    name: "gemini-3-pro-preview",
+    name: "Gemini 3 Pro",
     provider: "Google",
     contextLength: 1048576,
+    maxOutput: 65536,
     pricing: { input: 2, output: 12 },
     capabilities: {
       thinking: true,
@@ -506,8 +497,29 @@ export const MODEL_REGISTRY = {
       videoInput: true,
       audioInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: true,
     aliases: ["gemini-3-pro"],
+  },
+
+  "gemini-3-flash-preview": {
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash",
+    provider: "Google",
+    contextLength: 1048576,
+    maxOutput: 65536,
+    pricing: { input: 0.5, output: 3 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+      videoInput: true,
+      audioInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["gemini-3-flash"],
   },
 
   "gemini-2.5-pro": {
@@ -523,7 +535,8 @@ export const MODEL_REGISTRY = {
       videoInput: true,
       audioInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
+    thinkingDefault: true,
     aliases: [],
   },
 
@@ -662,9 +675,9 @@ export const MODEL_REGISTRY = {
       imageInput: false,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: true,
     aliases: ["deepseek-v3.2 thinking", "deepseek v3.2 thinking"],
-    thinkingVariant: true,
   },
 
   // ==================== Grok Models ====================
@@ -680,13 +693,14 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: true,
     aliases: [],
   },
 
-  "grok-4-1-fast-reasoning": {
-    id: "grok-4-1-fast-reasoning",
-    name: "Grok-4-1-fast-reasoning",
+  "grok-4-1-fast": {
+    id: "grok-4-1-fast",
+    name: "Grok-4-1-fast",
     provider: "Grok",
     contextLength: 2000000,
     pricing: { input: 0.2, output: 0.5 },
@@ -696,21 +710,7 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  "grok-4-1-fast-non-reasoning": {
-    id: "grok-4-1-fast-non-reasoning",
-    name: "Grok-4-1-fast-non-reasoning",
-    provider: "Grok",
-    contextLength: 2000000,
-    pricing: { input: 0.2, output: 0.5 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
+    thinkingIdSuffix: { on: "-reasoning", off: "-non-reasoning" },
     visibleByDefault: true,
     aliases: [],
   },
@@ -875,13 +875,24 @@ export function getModelsByProvider(provider) {
 }
 
 /**
- * Get API model ID (handles thinking variants)
+ * Get API model ID (handles thinking variants and ID suffixes)
  * @param {string} identifier - Model identifier
+ * @param {boolean} thinkingEnabled - Whether thinking mode is enabled
  * @returns {string} API model ID
  */
-export function getApiModelId(identifier) {
+export function getApiModelId(identifier, thinkingEnabled = false) {
   const model = getModelByIdentifier(identifier);
-  return model?.id || identifier;
+  if (!model) return identifier;
+
+  // Handle models with thinking ID suffixes (e.g., Grok)
+  if (model.thinkingIdSuffix) {
+    const suffix = thinkingEnabled
+      ? model.thinkingIdSuffix.on
+      : model.thinkingIdSuffix.off;
+    return model.id + suffix;
+  }
+
+  return model.id;
 }
 
 /**
@@ -953,9 +964,17 @@ export function getProvider(identifier) {
  */
 export function isThinkingModel(identifier) {
   const model = getModelByIdentifier(identifier);
-  return (
-    model?.capabilities?.thinking === true || model?.thinkingVariant === true
-  );
+  return model?.capabilities?.thinking === true;
+}
+
+/**
+ * Check if model has thinking enabled by default
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function hasThinkingDefault(identifier) {
+  const model = getModelByIdentifier(identifier);
+  return model?.thinkingDefault === true;
 }
 
 /**

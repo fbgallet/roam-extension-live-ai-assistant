@@ -108,6 +108,13 @@ export const StandaloneContextMenu = () => {
     includePdfInContext,
     setIncludePdfInContext,
 
+    // Thinking Mode State
+    thinkingEnabled,
+    setThinkingEnabled,
+    reasoningEffort,
+    setReasoningEffort,
+    thinkingEnabledRef,
+
     // Mode State
     isOutlinerAgent,
     setIsOutlinerAgent,
@@ -599,6 +606,7 @@ export const StandaloneContextMenu = () => {
       isInConversation,
       commands,
       includePdfInContext,
+      thinkingEnabled: thinkingEnabledRef.current,
       // Setters
       setDefaultLgg,
       setRootUid,
@@ -1338,6 +1346,10 @@ export const StandaloneContextMenu = () => {
               updateTemplates={updateTemplates}
               handleClose={handleClose}
               inputRef={inputRef}
+              thinkingEnabled={thinkingEnabled}
+              setThinkingEnabled={setThinkingEnabled}
+              reasoningEffort={reasoningEffort}
+              setReasoningEffort={setReasoningEffort}
             />
             <ContextSelectionPanel
               selectedBlocks={selectedBlocks}

@@ -87,18 +87,22 @@ const ModelsMenu = ({
   };
 
   const getModelFromMenu = (e, prefix, modelId) => {
-    let model = e.target.innerText.split("\n")[0];
-    switch (model) {
-      case "GPT 4o mini":
-        model = "gpt-4o-mini";
-        break;
-      case "GPT 4o":
-        model = "gpt-4o";
-        break;
+    // Use modelId when provided (registry models and custom models)
+    // Fall back to innerText for legacy menu items without modelId
+    let model = modelId || e.target.innerText.split("\n")[0];
+
+    // Handle display name to API ID mapping for legacy items
+    if (!modelId) {
+      switch (model) {
+        case "GPT 4o mini":
+          model = "gpt-4o-mini";
+          break;
+        case "GPT 4o":
+          model = "gpt-4o";
+          break;
+      }
     }
-    if (prefix === "openRouter/") {
-      model = modelId;
-    }
+
     if (prefix) model = prefix + model;
     return model;
   };

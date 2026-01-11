@@ -84,8 +84,11 @@ export function modelViaLanggraph(
     llmInfos.provider === "groq" ||
     llmInfos.provider === "Grok"
   ) {
-    if (llmInfos.id.includes("gpt-5") && llmInfos.thinking) {
-      options["reasoning"] = { effort: reasoningEffort, summary: "auto" };
+    if (llmInfos.thinking) {
+      // GPT-5 and Grok models use reasoning parameter
+      if (llmInfos.id.includes("gpt-5") || llmInfos.provider === "Grok") {
+        options["reasoning"] = { effort: reasoningEffort, summary: "auto" };
+      }
     }
     // if (llmInfos.provider === "OpenAI") options["useResponsesApi"] = true;
     // console.log("options :>> ", options);
@@ -125,12 +128,21 @@ export function modelViaLanggraph(
         ? 32000
         : 8192;
     options.streaming = true;
-    if (llmInfos.id.includes("+thinking")) {
-      options.thinking = { type: "enabled", budget_tokens: 1024 };
+    if (llmInfos.thinking) {
+      const effortMapping = {
+        minimal: 1024,
+        low: 2500,
+        medium: 4096,
+        high: 8000,
+      };
+      options.thinking = {
+        type: "enabled",
+        budget_tokens: effortMapping[reasoningEffort] || 2500,
+      };
     }
 
     llm = new ChatAnthropic({
-      model: llmInfos.id.replace("+thinking", ""),
+      model: llmInfos.id,
       ...options,
       invocationKwargs: {
         top_p: undefined,
@@ -141,6 +153,8 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "DeepSeek") {
+    // DeepSeek reasoner models don't need special thinking parameters
+    // The model itself handles reasoning internally
     llm = new ChatDeepSeek({
       model: llmInfos.id,
       ...options,
@@ -149,9 +163,13 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "Google") {
-    if (llmInfos.id.includes("gemini-3")) {
-      options["thinkingLevel"] =
-        reasoningEffort === "minimal" ? "low" : reasoningEffort;
+    if (llmInfos.thinking && llmInfos.id.includes("gemini-3")) {
+      options["thinkingLevel"] = reasoningEffort;
+      if (
+        llmInfos.id === "gemini-3-pro-preview" &&
+        (reasoningEffort === "minimal" || reasoningEffort === "medium")
+      )
+        options["thinkingLevel"] = "low";
       options["includeThoughts"] = true;
     }
     llm = new ChatGoogleGenerativeAI({

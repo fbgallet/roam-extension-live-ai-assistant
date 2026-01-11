@@ -78,6 +78,7 @@ export const handleClickOnCommand = async ({
   isChildrenTreeToInclude,
   commands,
   includePdfInContext,
+  thinkingEnabled,
   // Setters
   setDefaultLgg,
   setRootUid,
@@ -666,6 +667,7 @@ ${rawTranscription}`,
         : null,
       forceNotInConversation: isInConversation && command.id === 1,
       includePdfInContext,
+      thinkingEnabled,
     });
   } else {
     if (command.id === 20)

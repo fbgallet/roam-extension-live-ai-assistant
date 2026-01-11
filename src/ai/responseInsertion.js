@@ -96,11 +96,13 @@ export async function aiCompletion({
   target = "",
   isButtonToInsert = true,
   includePdfInContext = false,
+  thinkingEnabled = undefined,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;
 
-  const llm = modelAccordingToProvider(model);
+  // Pass thinkingEnabled to modelAccordingToProvider so it can update model ID for thinking variants
+  const llm = modelAccordingToProvider(model, thinkingEnabled);
   if (!llm) return "";
   if (isAPIKeyNeeded(llm)) return "";
 
@@ -119,6 +121,9 @@ export async function aiCompletion({
     systemPrompt += "\n" + roamKanbanFormat;
   }
 
+  // Use the thinking flag from the llm object (already computed by modelAccordingToProvider)
+  const effectiveThinking = llm.thinking;
+
   let completionOptions = {
     aiClient: llm.library,
     model: llm.id,
@@ -130,7 +135,7 @@ export async function aiCompletion({
     responseFormat,
     targetUid,
     isButtonToInsert,
-    thinking: llm.thinking,
+    thinking: effectiveThinking,
     includePdfInContext,
   };
 
@@ -200,6 +205,7 @@ export const aiCompletionRunner = async ({
   isButtonToInsert = true,
   forceNotInConversation = false,
   includePdfInContext = false,
+  thinkingEnabled = undefined,
 }) => {
   let withAssistantRole = target === "new" ? true : false;
 
@@ -296,6 +302,7 @@ export const aiCompletionRunner = async ({
     roamContext,
     isButtonToInsert,
     includePdfInContext,
+    thinkingEnabled,
   });
 };
 
@@ -319,6 +326,7 @@ export const insertCompletion = async ({
   isButtonToInsert = true,
   retryInstruction,
   includePdfInContext = false,
+  thinkingEnabled = undefined,
 }) => {
   lastCompletion.prompt = prompt;
   lastCompletion.systemPrompt = systemPrompt;
@@ -480,6 +488,7 @@ export const insertCompletion = async ({
           target,
           isButtonToInsert,
           includePdfInContext,
+          thinkingEnabled,
         });
   console.log("AI Model response :>> ", aiResponse);
 

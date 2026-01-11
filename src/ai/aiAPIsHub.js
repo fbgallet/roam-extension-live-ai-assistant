@@ -122,9 +122,10 @@ export function initializeGoogleAPI(apiKey) {
  * Uses MODEL_REGISTRY for pre-defined models, handles dynamic providers separately
  *
  * @param {string} model - Model identifier (name, ID, or prefixed ID)
+ * @param {boolean} thinkingEnabled - Whether thinking mode is enabled (optional)
  * @returns {Object|null} LLM configuration object
  */
-export function modelAccordingToProvider(model) {
+export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
   const llm = {
     provider: "",
     prefix: "",
@@ -387,6 +388,23 @@ export function modelAccordingToProvider(model) {
       timeout: 15000,
     });
     return null;
+  }
+
+  // Handle thinking mode if explicitly set
+  if (thinkingEnabled !== undefined) {
+    const { getApiModelId, hasThinkingDefault } = require("./modelRegistry");
+
+    // Get the model's thinking default
+    const modelThinkingDefault = hasThinkingDefault(model);
+
+    // For models with thinkingDefault=true, thinking is always on
+    const finalThinkingEnabled = modelThinkingDefault || thinkingEnabled;
+
+    // Update the ID if the model has thinking ID suffix (e.g., Grok)
+    llm.id = getApiModelId(model, finalThinkingEnabled);
+
+    // Set the thinking flag in the llm object
+    llm.thinking = finalThinkingEnabled;
   }
 
   isAPIKeyNeeded(llm);
