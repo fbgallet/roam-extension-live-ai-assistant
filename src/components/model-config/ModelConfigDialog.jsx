@@ -33,8 +33,10 @@ import {
   getProviderLabel,
   supportsCustomEndpoint,
   isCustomModel,
+  isImageGenModel,
 } from "../../utils/modelConfigHelpers";
 import { getAvailableModels } from "../../ai/modelsInfo";
+import { getModelsByProvider, MODEL_REGISTRY } from "../../ai/modelRegistry";
 import "./ModelConfigDialog.css";
 
 /**
@@ -85,10 +87,18 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   /**
    * Get provider models from working config (includes unsaved custom models)
    * This is similar to getProviderModels() but uses workingConfig instead of saved config
+   *
+   * IMPORTANT: This returns ALL models regardless of visibleByDefault setting.
+   * The visibleByDefault property only affects the initial visibility state in hiddenModels,
+   * not whether the model appears in this configuration dialog.
    */
   const getProviderModelsFromWorkingConfig = (provider) => {
-    // Get base models from modelsInfo.js
-    const baseModelIds = getAvailableModels(provider) || [];
+    // Get ALL base models from MODEL_REGISTRY, regardless of visibleByDefault
+    // getModelsByProvider returns all models for the provider (not filtered by visibleByDefault)
+    const registryModels = getModelsByProvider(provider);
+
+    // Convert registry models to the format we need
+    const baseModelIds = registryModels.map(m => m.name);
 
     // Get custom models for this provider from working config
     const providerKey = provider.toLowerCase();
@@ -404,16 +414,22 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   const handleReset = () => {
     if (
       window.confirm(
-        "Reset all model configurations to defaults? This will clear all hidden models, favorites, custom ordering, and custom models."
+        "Reset model visibility, favorites, and ordering to defaults? Custom models and endpoints will be preserved."
       )
     ) {
+      // Build hiddenModels list from models with visibleByDefault: false
+      const defaultHiddenModels = Object.values(MODEL_REGISTRY)
+        .filter(m => m.visibleByDefault === false)
+        .map(m => m.name);
+
       setWorkingConfig({
-        hiddenModels: [],
+        hiddenModels: defaultHiddenModels,
         favoriteModels: [],
         defaultModel: null,
         modelOrder: null,
         providerOrder: null,
-        customModels: {
+        // Preserve custom models - they are user additions, not preferences
+        customModels: workingConfig.customModels || {
           openai: [],
           anthropic: [],
           google: [],
@@ -423,7 +439,8 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
           groq: [],
           ollama: [],
         },
-        providerEndpoints: {
+        // Preserve endpoint configurations
+        providerEndpoints: workingConfig.providerEndpoints || {
           openai: { baseURL: "", enabled: false },
           ollama: { baseURL: "http://localhost:11434", enabled: false }
         },
@@ -522,14 +539,15 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     const baseModels = getAvailableModels(provider) || [];
     const hasApiKey = isCustomProvider || baseModels.length > 0;
 
-    // Apply search filter
+    // Apply search filter and exclude image generation models
     const filteredModels = searchQuery
       ? models.filter(
           (m) =>
-            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            m.id.toLowerCase().includes(searchQuery.toLowerCase())
+            !isImageGenModel(m.id) &&
+            (m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.id.toLowerCase().includes(searchQuery.toLowerCase()))
         )
-      : models;
+      : models.filter((m) => !isImageGenModel(m.id));
 
     // Hide providers with 0 models (unless searching)
     if (filteredModels.length === 0) {
@@ -762,8 +780,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
             const models = getProviderModelsFromWorkingConfig(provider);
             const hasMatches = models.some(
               (m) =>
-                m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.id.toLowerCase().includes(searchQuery.toLowerCase())
+                !isImageGenModel(m.id) &&
+                (m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                m.id.toLowerCase().includes(searchQuery.toLowerCase()))
             );
             return hasMatches ? provider : null;
           })

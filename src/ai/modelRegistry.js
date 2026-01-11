@@ -146,20 +146,6 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  "gpt-4.1-nano": {
-    id: "gpt-4.1-nano",
-    name: "gpt-4.1-nano",
-    provider: "OpenAI",
-    contextLength: 1047576,
-    pricing: { input: 0.1, output: 0.4 },
-    capabilities: {
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: [],
-  },
-
   "gpt-4o": {
     id: "gpt-4o",
     name: "gpt-4o",
@@ -172,20 +158,6 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: false,
     aliases: ["gpt-4o-2024-08-06"],
-  },
-
-  "gpt-4o-mini": {
-    id: "gpt-4o-mini",
-    name: "gpt-4o-mini",
-    provider: "OpenAI",
-    contextLength: 131073,
-    pricing: { input: 0.15, output: 0.6 },
-    capabilities: {
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["gpt-4o-mini-2024-07-18"],
   },
 
   "gpt-4o-mini-search": {
@@ -230,7 +202,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
@@ -256,38 +228,6 @@ export const MODEL_REGISTRY = {
     provider: "OpenAI",
     contextLength: 200000,
     pricing: { input: 20, output: 80 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-    aliases: [],
-  },
-
-  "o3-mini": {
-    id: "o3-mini",
-    name: "o3-mini",
-    provider: "OpenAI",
-    contextLength: 200000,
-    pricing: { input: 1.1, output: 4.4 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-    aliases: [],
-  },
-
-  o1: {
-    id: "o1",
-    name: "o1",
-    provider: "OpenAI",
-    contextLength: 200000,
-    pricing: { input: 15, output: 60 },
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -350,22 +290,6 @@ export const MODEL_REGISTRY = {
     ],
   },
 
-  "claude-opus-4-1-20250805": {
-    id: "claude-opus-4-1-20250805",
-    name: "Claude Opus 4.1",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 32000,
-    pricing: { input: 15, output: 75 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["claude-4.1-opus", "claude opus 4.1"],
-  },
-
   "claude-sonnet-4-5-20250929": {
     id: "claude-sonnet-4-5-20250929",
     name: "Claude Sonnet 4.5",
@@ -388,53 +312,6 @@ export const MODEL_REGISTRY = {
     ],
   },
 
-  "claude-sonnet-4-20250514": {
-    id: "claude-sonnet-4-20250514",
-    name: "Claude Sonnet 4",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 64000,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["claude-sonnet-4", "claude sonnet 4"],
-  },
-
-  "claude-3-7-sonnet-20250219": {
-    id: "claude-3-7-sonnet-20250219",
-    name: "Claude Sonnet 3.7",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 64000,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["claude-sonnet-3.7", "claude sonnet 3.7"],
-  },
-
-  "claude-3-5-sonnet-20241022": {
-    id: "claude-3-5-sonnet-20241022",
-    name: "Claude Sonnet 3.5",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 8192,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["claude-sonnet-3.5", "claude sonnet 3.5"],
-  },
-
   "claude-haiku-4-5-20251001": {
     id: "claude-haiku-4-5-20251001",
     name: "Claude Haiku 4.5",
@@ -449,36 +326,6 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     aliases: ["claude-haiku-4.5", "claude haiku 4.5"],
-  },
-
-  "claude-3-5-haiku-20241022": {
-    id: "claude-3-5-haiku-20241022",
-    name: "Claude Haiku 3.5",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 8192,
-    pricing: { input: 0.8, output: 4 },
-    capabilities: {
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["claude-haiku-3.5", "claude haiku 3.5"],
-  },
-
-  "claude-3-haiku-20240307": {
-    id: "claude-3-haiku-20240307",
-    name: "Claude Haiku",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 4096,
-    pricing: { input: 0.25, output: 1.25 },
-    capabilities: {
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["claude-haiku", "claude haiku"],
   },
 
   // ==================== Google Models ====================
@@ -524,7 +371,7 @@ export const MODEL_REGISTRY = {
 
   "gemini-2.5-pro": {
     id: "gemini-2.5-pro",
-    name: "gemini-2.5-pro",
+    name: "Gemini 2.5 Pro",
     provider: "Google",
     contextLength: 1048576,
     pricing: { input: 1.25, output: 10 },
@@ -542,7 +389,7 @@ export const MODEL_REGISTRY = {
 
   "gemini-2.5-flash": {
     id: "gemini-2.5-flash",
-    name: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
     provider: "Google",
     contextLength: 1048576,
     pricing: { input: 0.3, output: 2.5 },
@@ -553,13 +400,13 @@ export const MODEL_REGISTRY = {
       videoInput: true,
       audioInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
   "gemini-2.5-flash-lite": {
     id: "gemini-2.5-flash-lite",
-    name: "gemini-2.5-flash-lite",
+    name: "gemini 2.5 Flash lite",
     provider: "Google",
     contextLength: 1048576,
     pricing: { input: 0.1, output: 0.4 },
@@ -577,7 +424,7 @@ export const MODEL_REGISTRY = {
   // Google Image Generation Models
   "gemini-2.5-flash-image": {
     id: "gemini-2.5-flash-image",
-    name: "gemini-2.5-flash-image",
+    name: "Nano Banana",
     provider: "Google",
     pricing: { input: 0.3, inputImage: 0.3, output: 39 },
     capabilities: {
@@ -591,7 +438,7 @@ export const MODEL_REGISTRY = {
 
   "gemini-3-pro-image-preview": {
     id: "gemini-3-pro-image-preview",
-    name: "gemini-3-pro-image-preview",
+    name: "Nano Banana Pro",
     provider: "Google",
     pricing: {
       input: 2.0,
@@ -612,7 +459,7 @@ export const MODEL_REGISTRY = {
 
   "imagen-4.0-generate-001": {
     id: "imagen-4.0-generate-001",
-    name: "imagen-4.0-generate-001",
+    name: "imagen-4.0",
     provider: "Google",
     pricing: { input: 0, output: 40000 },
     capabilities: {
@@ -625,7 +472,7 @@ export const MODEL_REGISTRY = {
 
   "imagen-4.0-fast-generate-001": {
     id: "imagen-4.0-fast-generate-001",
-    name: "imagen-4.0-fast-generate-001",
+    name: "imagen-4.0 Fast",
     provider: "Google",
     pricing: { input: 0, output: 20000 },
     capabilities: {
@@ -638,7 +485,7 @@ export const MODEL_REGISTRY = {
 
   "imagen-4.0-ultra-generate-001": {
     id: "imagen-4.0-ultra-generate-001",
-    name: "imagen-4.0-ultra-generate-001",
+    name: "imagen-4.0 Ultra",
     provider: "Google",
     pricing: { input: 0, output: 60000 },
     capabilities: {
@@ -660,7 +507,7 @@ export const MODEL_REGISTRY = {
       imageInput: false,
       fileInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["deepseek-v3.2", "deepseek v3.2", "deepseek-v3"],
   },
 
@@ -676,7 +523,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["deepseek-v3.2 thinking", "deepseek v3.2 thinking"],
   },
 
@@ -715,21 +562,6 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  "grok-3": {
-    id: "grok-3",
-    name: "Grok-3",
-    provider: "Grok",
-    contextLength: 131072,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
   "grok-3-mini": {
     id: "grok-3-mini",
     name: "Grok-3-mini",
@@ -742,83 +574,8 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  "grok-3-mini-fast": {
-    id: "grok-3-mini-fast",
-    name: "Grok-3-mini-fast",
-    provider: "Grok",
-    contextLength: 131072,
-    pricing: { input: 0.6, output: 4 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  "grok-3-mini-high": {
-    id: "grok-3-mini-high",
-    name: "Grok-3-mini-high",
-    provider: "Grok",
-    contextLength: 131072,
-    pricing: { input: 0.3, output: 0.5 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  "grok-3-fast": {
-    id: "grok-3-fast",
-    name: "Grok-3-fast",
-    provider: "Grok",
-    contextLength: 131072,
-    pricing: { input: 5, output: 25 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  "grok-2-vision-1212": {
-    id: "grok-2-vision-1212",
-    name: "Grok-2 Vision",
-    provider: "Grok",
-    contextLength: 32768,
-    pricing: { input: 2, output: 10 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-    },
-    visibleByDefault: true,
-    aliases: ["grok-2-vision", "grok-2 vision"],
-  },
-
-  "grok-2-1212": {
-    id: "grok-2-1212",
-    name: "Grok-2",
-    provider: "Grok",
-    contextLength: 131072,
-    pricing: { input: 2, output: 10 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-    },
     visibleByDefault: false,
-    aliases: ["grok-2"],
+    aliases: [],
   },
 };
 

@@ -414,6 +414,29 @@
   color: unset;
 }
 
+/* Default model & thinking controls */
+.aicommands-div > .str-aicommands-menu > .bp3-menu-header.menu-hint {
+  margin: 8px 0 5px 0;
+  padding-left: 0;
+}
+.aicommands-div
+  > .str-aicommands-menu
+  > .bp3-menu-header.menu-hint
+  > .bp3-heading {
+  padding-right: 0;
+}
+
+/* BlueprintJS HTML Selects */
+.str-aicommands-menu .bp3-html-select select {
+  padding-right: 20px;
+  padding-left: 5px;
+  text-align: right;
+}
+.str-aicommands-menu .bp3-html-select .bp3-icon {
+  padding-right: 0;
+  right: 2px;
+}
+
 .aicommands-topbar {
   display: flex;
   align-items: center;

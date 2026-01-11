@@ -36,6 +36,7 @@ import {
   getModelMetadata,
   formatContextLength,
   getOrderedProviders,
+  getModelCapabilities,
 } from "../utils/modelConfigHelpers";
 import { displayModelConfigDialog } from "../utils/domElts";
 
@@ -184,8 +185,9 @@ const ModelsMenu = ({
     const models = getProviderModels(provider);
 
     // Filter by visibility AND exclude favorited models (they appear in favorites section)
+    // Also exclude image generation models (they only appear in image generation submenu)
     const visibleModels = models.filter(
-      (m) => isModelVisible(m.id) && !isModelFavorited(m.id)
+      (m) => isModelVisible(m.id) && !isModelFavorited(m.id) && !getModelCapabilities(m.id).includes("image")
     );
 
     if (visibleModels.length === 0) return null;
@@ -227,8 +229,10 @@ const ModelsMenu = ({
       })
       .filter(Boolean);
 
-    // Only show visible favorites
-    const visibleFavorites = favoriteModels.filter((m) => isModelVisible(m.id));
+    // Only show visible favorites, excluding image generation models
+    const visibleFavorites = favoriteModels.filter((m) =>
+      isModelVisible(m.id) && !getModelCapabilities(m.id).includes("image")
+    );
 
     if (visibleFavorites.length === 0) return null;
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Tooltip } from "@blueprintjs/core";
+import { Button, HTMLSelect, Tooltip } from "@blueprintjs/core";
 import { extensionStorage } from "../../..";
 import { isThinkingModel, hasThinkingDefault } from "../../../ai/modelRegistry";
 import { AppToaster } from "../../Toaster";
@@ -43,9 +43,9 @@ const ThinkingControls = ({
     inputRef?.current?.focus();
   };
 
-  const handleEffortChange = async (e) => {
-    e.stopPropagation();
-    const effort = e.target.value;
+  const handleEffortChange = async (value) => {
+    // e.stopPropagation();
+    const effort = value;
     setReasoningEffort(effort);
     await extensionStorage.set("reasoningEffort", effort);
     inputRef?.current?.focus();
@@ -57,7 +57,7 @@ const ThinkingControls = ({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        marginLeft: "8px",
+        marginLeft: "5px",
         opacity: defaultModelSupportsThinking ? 1 : 0.5,
       }}
       onClick={(e) => e.stopPropagation()}
@@ -77,28 +77,16 @@ const ThinkingControls = ({
           icon="predictive-analysis"
           intent={thinkingEnabled ? "primary" : "none"}
           onClick={handleThinkingToggle}
-          style={{ marginRight: "4px" }}
         />
       </Tooltip>
       {thinkingEnabled && (
-        <select
+        <HTMLSelect
+          options={["minimal", "low", "medium", "high"]}
           value={reasoningEffort}
-          onChange={handleEffortChange}
+          minimal={true}
+          onChange={(e) => handleEffortChange(e.currentTarget.value)}
           onClick={(e) => e.stopPropagation()}
-          style={{
-            fontSize: "11px",
-            padding: "2px 4px",
-            border: "1px solid #ccc",
-            borderRadius: "3px",
-            background: "white",
-            cursor: "pointer",
-          }}
-        >
-          <option value="minimal">Minimal</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
+        />
       )}
     </div>
   );
