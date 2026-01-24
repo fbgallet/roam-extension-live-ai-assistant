@@ -17,6 +17,7 @@ import "./ModelCard.css";
  * @param {boolean} props.isDraggable - Whether drag-drop is enabled
  * @param {boolean} props.isNew - Whether model has "NEW" badge
  * @param {boolean} props.isCustom - Whether model is a custom (user-added) model
+ * @param {boolean} props.isRemote - Whether model was loaded from remote updates
  * @param {Function} props.onToggleVisibility - Callback when visibility toggled
  * @param {Function} props.onToggleFavorite - Callback when favorite toggled
  * @param {Function} props.onDragStart - Drag start handler
@@ -31,6 +32,7 @@ export const ModelCard = ({
   isDraggable = true,
   isNew = false,
   isCustom = false,
+  isRemote = false,
   onToggleVisibility,
   onToggleFavorite,
   onDragStart,
@@ -111,7 +113,11 @@ export const ModelCard = ({
         );
       case "reasoning":
         return (
-          <Tooltip key="reasoning" content="Reasoning/thinking model" position="top">
+          <Tooltip
+            key="reasoning"
+            content="Reasoning/thinking model"
+            position="top"
+          >
             <Tag minimal intent="success" className="capability-badge">
               🧠
             </Tag>
@@ -156,6 +162,16 @@ export const ModelCard = ({
               CUSTOM
             </Tag>
           )}
+          {isRemote && (
+            <Tooltip
+              content="New model loaded from remote model-updates.json, will be included in next extension update."
+              position="top"
+            >
+              <Tag intent="none" minimal className="remote-badge">
+                REMOTE
+              </Tag>
+            </Tooltip>
+          )}
           {capabilities.map(renderCapabilityBadge)}
         </h5>
         <div className="model-metadata">
@@ -164,16 +180,18 @@ export const ModelCard = ({
               {formatContextLength(model.contextLength)}
             </Tag>
           )}
-          {model.pricing && model.pricing.input > 0 && model.pricing.output > 0 && (
-            <>
-              <Tag minimal className="pricing-tag price-in">
-                In: ${model.pricing.input.toFixed(2)}
-              </Tag>
-              <Tag minimal className="pricing-tag price-out">
-                Out: ${model.pricing.output.toFixed(2)}
-              </Tag>
-            </>
-          )}
+          {model.pricing &&
+            model.pricing.input > 0 &&
+            model.pricing.output > 0 && (
+              <>
+                <Tag minimal className="pricing-tag price-in">
+                  In: ${model.pricing.input.toFixed(2)}
+                </Tag>
+                <Tag minimal className="pricing-tag price-out">
+                  Out: ${model.pricing.output.toFixed(2)}
+                </Tag>
+              </>
+            )}
         </div>
       </div>
 

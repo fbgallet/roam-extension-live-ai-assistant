@@ -12,20 +12,20 @@
 
 export const MODEL_UPDATES = {
   // Version when these updates were added
-  version: "1.28.0",
+  version: "26",
 
   // Last updated timestamp (for cache invalidation)
-  lastUpdated: "2025-01-04",
+  lastUpdated: "2026-01-24",
 
   updates: [
-    // Example: New model announcement
-    // {
-    //   type: "new",
-    //   modelId: "gpt-5",
-    //   provider: "OpenAI",
-    //   addedDate: "2025-01-15",
-    //   description: "Latest GPT model with improved reasoning"
-    // },
+    {
+      type: "new",
+      modelId: "gpt-5.2",
+      provider: "OpenAI",
+      addedDate: "2026-01-24",
+      description:
+        "Latest OpenAI model, better but 60% more expansive than gpt-5.1",
+    },
 
     // Example: Deprecated model with replacement
     // {
@@ -47,7 +47,7 @@ export const MODEL_UPDATES = {
     //   reason: "Claude 3 Opus has been upgraded to Claude Opus 4",
     //   autoMigrate: true
     // }
-  ]
+  ],
 };
 
 /**
@@ -56,8 +56,8 @@ export const MODEL_UPDATES = {
  */
 export function getNewModelIds() {
   return MODEL_UPDATES.updates
-    .filter(u => u.type === "new")
-    .map(u => u.modelId);
+    .filter((u) => u.type === "new")
+    .map((u) => u.modelId);
 }
 
 /**
@@ -66,7 +66,7 @@ export function getNewModelIds() {
  */
 export function getDeprecatedModels() {
   return MODEL_UPDATES.updates.filter(
-    u => u.type === "deprecated" || u.type === "renamed"
+    (u) => u.type === "deprecated" || u.type === "renamed"
   );
 }
 
@@ -76,9 +76,13 @@ export function getDeprecatedModels() {
  * @returns {Object|null} Deprecation info or null if not deprecated
  */
 export function getModelDeprecationInfo(modelId) {
-  return MODEL_UPDATES.updates.find(
-    u => (u.type === "deprecated" || u.type === "renamed") && u.oldModelId === modelId
-  ) || null;
+  return (
+    MODEL_UPDATES.updates.find(
+      (u) =>
+        (u.type === "deprecated" || u.type === "renamed") &&
+        u.oldModelId === modelId
+    ) || null
+  );
 }
 
 /**
@@ -88,7 +92,7 @@ export function getModelDeprecationInfo(modelId) {
  */
 export function isModelNew(modelId) {
   return MODEL_UPDATES.updates.some(
-    u => u.type === "new" && u.modelId === modelId
+    (u) => u.type === "new" && u.modelId === modelId
   );
 }
 
@@ -99,7 +103,9 @@ export function isModelNew(modelId) {
  */
 export function getReplacementModel(oldModelId) {
   const update = MODEL_UPDATES.updates.find(
-    u => (u.type === "deprecated" || u.type === "renamed") && u.oldModelId === oldModelId
+    (u) =>
+      (u.type === "deprecated" || u.type === "renamed") &&
+      u.oldModelId === oldModelId
   );
   return update?.newModelId || null;
 }

@@ -92,6 +92,18 @@
   line-height: 1.2 !important;
 }
 
+.model-card .remote-badge {
+  margin-left: 6px;
+  background-color: #8a9ba8 !important;
+  color: white !important;
+  font-weight: 600;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  min-height: auto !important;
+  line-height: 1.2 !important;
+  border: 1px solid #5c7080 !important;
+}
+
 .model-card .capability-badge {
   margin-left: 4px;
   padding: 2px 4px !important;

@@ -30,6 +30,7 @@ import {
   updateTokenCounter,
   webSearchModels,
 } from "./ai/modelsInfo";
+import { loadRemoteModelUpdates } from "./ai/modelRegistry";
 import {
   migrateModelConfig,
   getModelConfig,
@@ -1657,6 +1658,9 @@ export default {
     chatRoles = getRolesFromString(chatRolesStr, defaultModel);
 
     customStyles = getCustomStyles();
+
+    // Load remote model updates from GitHub
+    await loadRemoteModelUpdates();
 
     updateAvailableModels();
     // console.log("availableModels :>> ", availableModels);

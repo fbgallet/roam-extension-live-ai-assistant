@@ -119,13 +119,31 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     // Combine base and custom models
     const allModels = [...baseModels, ...uniqueCustomModels];
 
+    // Separate remote models from regular models
+    const remoteModels = [];
+    const regularModels = [];
+
+    allModels.forEach(model => {
+      // Check if model is remote by looking in MODEL_REGISTRY
+      const registryKey = Object.keys(MODEL_REGISTRY).find(
+        key => MODEL_REGISTRY[key].id === model.id || MODEL_REGISTRY[key].name === model.id
+      );
+      if (registryKey && MODEL_REGISTRY[registryKey]?.isRemote) {
+        remoteModels.push(model);
+      } else {
+        regularModels.push(model);
+      }
+    });
+
     // Apply custom ordering if defined
     const order = workingConfig?.modelOrder?.[provider];
     if (order && Array.isArray(order)) {
       const ordered = [];
       const unordered = [];
 
-      allModels.forEach(model => {
+      // Put remote models first, then ordered, then unordered
+      const allSorted = [...remoteModels, ...regularModels];
+      allSorted.forEach(model => {
         const index = order.indexOf(model.id);
         if (index !== -1) {
           ordered[index] = model;
@@ -137,7 +155,16 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
       return ordered.filter(Boolean).concat(unordered);
     }
 
-    return allModels;
+    // Return remote models first, then regular models
+    return [...remoteModels, ...regularModels];
+  };
+
+  // Check if a model is loaded from remote updates
+  const isRemoteModel = (modelId) => {
+    const registryKey = Object.keys(MODEL_REGISTRY).find(
+      key => MODEL_REGISTRY[key].id === modelId || MODEL_REGISTRY[key].name === modelId
+    );
+    return registryKey && MODEL_REGISTRY[registryKey]?.isRemote === true;
   };
 
   if (!workingConfig) {
@@ -642,6 +669,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   isDraggable={true}
                   isNew={isModelNew(model.id)}
                   isCustom={isCustom}
+                  isRemote={isRemoteModel(model.id)}
                   onToggleVisibility={handleToggleVisibility}
                   onToggleFavorite={handleToggleFavorite}
                   onDragStart={(e, modelId) =>

@@ -45,7 +45,7 @@ export const ChatHistorySelect: React.FC<ChatHistorySelectProps> = ({
     return (
       <MenuItem
         key={chat.uid}
-        text={chat.title}
+        text={chat.title.replace(/Chat with.*: /, "")}
         onClick={handleClick}
         active={modifiers.active}
       />

@@ -18,7 +18,7 @@ export const streamClaudeThinkingModel = async (
 
   let streamedResponse = "";
   let thinkingToasterStream: any = isThinkingProcessToDisplay
-    ? displayThinkingToast("Claude Sonnet 3.7 Extended Thinking process:")
+    ? displayThinkingToast("Extended Thinking process:")
     : null;
 
   turnTokensUsage = {
