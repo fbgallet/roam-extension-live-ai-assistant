@@ -19,6 +19,8 @@ import { AppToaster } from "../components/Toaster";
 import { chatWithLinkedRefs } from "../components/full-results-popup";
 import ModelConfigDialog from "../components/model-config/ModelConfigDialog";
 import ModelMigrationDialog from "../components/model-config/ModelMigrationDialog";
+import MCPConfigComponent from "../components/MCPConfigComponent";
+import { Dialog } from "@blueprintjs/core";
 
 export function mountComponent(
   position,
@@ -678,6 +680,41 @@ export const displayModelConfigDialog = (dialogData = {}, initialTab) => {
       }}
       initialTab={initialTab}
     />,
+    container
+  );
+};
+
+export const displayMCPConfigDialog = () => {
+  const targetElt = document.querySelector(".roam-body");
+  const previousContainer =
+    targetElt &&
+    targetElt.parentElement.querySelector(".mcp-config-dialog-container");
+  let container;
+  if (previousContainer) {
+    ReactDOM.unmountComponentAtNode(previousContainer);
+  }
+  container = document.createElement("div");
+  container.classList.add("mcp-config-dialog-container");
+  targetElt.appendChild(container);
+
+  function unmountMCPConfigDialog() {
+    const node = document.querySelector(".mcp-config-dialog-container");
+    if (node) {
+      ReactDOM.unmountComponentAtNode(node);
+      node.remove();
+    }
+  }
+
+  ReactDOM.render(
+    <Dialog
+      isOpen={true}
+      onClose={unmountMCPConfigDialog}
+      title="MCP Servers Configuration"
+      canOutsideClickClose={true}
+      canEscapeKeyClose={true}
+    >
+      <MCPConfigComponent extensionStorage={extensionStorage} />
+    </Dialog>,
     container
   );
 };

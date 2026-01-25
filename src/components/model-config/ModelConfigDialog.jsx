@@ -16,7 +16,7 @@ import OpenRouterBrowser from "./OpenRouterBrowser";
 import ProviderEndpointConfig from "./ProviderEndpointConfig";
 import { TokensUsageContent } from "../TokensDisplay";
 import { AppToaster } from "../Toaster";
-import { extensionStorage, setDefaultModel } from "../..";
+import { extensionStorage, setDefaultModel, updateAvailableModels } from "../..";
 import {
   getModelConfig,
   saveModelConfig,
@@ -58,9 +58,12 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   const [draggedCustomModel, setDraggedCustomModel] = useState(null); // For custom models drag-drop
   const [isDraggingOverDefault, setIsDraggingOverDefault] = useState(false); // For default model drop zone
 
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
   // Load config when dialog opens
   useEffect(() => {
     if (isOpen) {
+      setIsInitialLoad(true);
       const config = getModelConfig();
       const configCopy = JSON.parse(JSON.stringify(config)); // Deep copy
 
@@ -80,9 +83,41 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
         clearNewModelBadges();
       }, 3000);
 
-      return () => clearTimeout(timer);
+      // Mark initial load as complete after config is set
+      const initTimer = setTimeout(() => {
+        setIsInitialLoad(false);
+      }, 100);
+
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(initTimer);
+      };
     }
   }, [isOpen]);
+
+  // Auto-save config whenever it changes (skip initial load)
+  useEffect(() => {
+    if (!isOpen || isInitialLoad || !workingConfig) return;
+
+    const saveConfig = async () => {
+      try {
+        await saveModelConfig(workingConfig);
+        // Sync defaultModel to extensionStorage
+        if (workingConfig.defaultModel) {
+          setDefaultModel(workingConfig.defaultModel);
+        }
+      } catch (error) {
+        console.error("Failed to auto-save model config:", error);
+        AppToaster.show({
+          message: "Failed to save configuration",
+          intent: "danger",
+          timeout: 2000,
+        });
+      }
+    };
+
+    saveConfig();
+  }, [workingConfig, isOpen, isInitialLoad]);
 
   /**
    * Get provider models from working config (includes unsaved custom models)
@@ -406,12 +441,6 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
       ...workingConfig,
       defaultModel: modelId,
     });
-
-    AppToaster.show({
-      message: `Default model set to: ${modelId}`,
-      intent: "success",
-      timeout: 2000,
-    });
   };
 
   const handleDefaultModelDrop = (e) => {
@@ -485,36 +514,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     }
   };
 
-  const handleSave = async () => {
-    try {
-      // Save model config first
-      await saveModelConfig(workingConfig);
+  const handleClose = () => {
+    // Update availableModels to reflect any changes made during the session
+    updateAvailableModels();
 
-      // Sync defaultModel to extensionStorage and update the global variable
-      if (workingConfig.defaultModel) {
-        setDefaultModel(workingConfig.defaultModel);
-      }
-
-      if (onSave) {
-        onSave(workingConfig);
-      }
-      AppToaster.show({
-        message: "Model configuration saved successfully!",
-        intent: "success",
-        timeout: 3000,
-      });
-      onClose();
-    } catch (error) {
-      console.error("Failed to save model config:", error);
-      AppToaster.show({
-        message: "Failed to save configuration",
-        intent: "danger",
-        timeout: 3000,
-      });
+    if (onSave) {
+      onSave(workingConfig);
     }
-  };
-
-  const handleCancel = () => {
     onClose();
   };
 
@@ -1292,10 +1298,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={handleCancel}
+      onClose={handleClose}
       title="Customize Model Menu"
       className="model-config-dialog"
-      canOutsideClickClose={false}
     >
       <div className={Classes.DIALOG_BODY}>
         {/* Sticky header section */}
@@ -1344,12 +1349,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
       <div className={Classes.DIALOG_FOOTER}>
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-          <Button onClick={handleReset} icon="reset">
-            Reset to Defaults
-          </Button>
-          <Button onClick={handleCancel}>Cancel</Button>
-          <Button onClick={handleSave} intent="primary" icon="saved">
-            Save
+          {activeTab === "visibility" && (
+            <Button onClick={handleReset} icon="reset">
+              Reset to Defaults
+            </Button>
+          )}
+          <Button onClick={handleClose} intent="primary">
+            Close
           </Button>
         </div>
       </div>

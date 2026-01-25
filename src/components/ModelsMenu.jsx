@@ -28,7 +28,6 @@ import { normalizeClaudeModel, tokensLimit } from "../ai/modelsInfo";
 import { AppToaster } from "./Toaster";
 import {
   getModelConfig,
-  saveModelConfig,
   getProviderModels,
   isModelVisible,
   isModelFavorited,
@@ -187,7 +186,10 @@ const ModelsMenu = ({
     // Filter by visibility AND exclude favorited models (they appear in favorites section)
     // Also exclude image generation models (they only appear in image generation submenu)
     const visibleModels = models.filter(
-      (m) => isModelVisible(m.id) && !isModelFavorited(m.id) && !getModelCapabilities(m.id).includes("image")
+      (m) =>
+        isModelVisible(m.id) &&
+        !isModelFavorited(m.id) &&
+        !getModelCapabilities(m.id).includes("image")
     );
 
     if (visibleModels.length === 0) return null;
@@ -230,8 +232,9 @@ const ModelsMenu = ({
       .filter(Boolean);
 
     // Only show visible favorites, excluding image generation models
-    const visibleFavorites = favoriteModels.filter((m) =>
-      isModelVisible(m.id) && !getModelCapabilities(m.id).includes("image")
+    const visibleFavorites = favoriteModels.filter(
+      (m) =>
+        isModelVisible(m.id) && !getModelCapabilities(m.id).includes("image")
     );
 
     if (visibleFavorites.length === 0) return null;
@@ -247,15 +250,8 @@ const ModelsMenu = ({
     );
   };
 
-  const handleConfigSave = async (newConfig) => {
-    await saveModelConfig(newConfig);
-    // Force re-render by triggering parent update if needed
-    AppToaster.show({
-      message: "Model configuration saved! Refresh to see changes.",
-      intent: "success",
-      timeout: 3000,
-    });
-  };
+  // Config is now auto-saved in the dialog, this callback is kept for compatibility
+  const handleConfigSave = () => {};
 
   const openAiWebSearchModels = () => {
     return (

@@ -42,6 +42,7 @@ import {
   estimateContextTokens,
   modelAccordingToProvider,
 } from "../../ai/aiAPIsHub";
+import { getModelCapabilities } from "../../utils/modelConfigHelpers";
 import { mcpManager } from "../../ai/agents/mcp-agent/mcpManager";
 import { roamAudioRegex } from "../../utils/regex";
 import ContextMenuHeader from "./components/ContextMenuHeader";
@@ -415,12 +416,25 @@ export const StandaloneContextMenu = () => {
 
     const modelItems = availableModels.map((model, index) => {
       const llm = modelAccordingToProvider(model);
+      const modelId = llm?.id || model;
+      const capabilities = getModelCapabilities(modelId);
+
+      // Build keywords from capabilities
+      const keywordParts = [];
+      if (llm?.thinking) keywordParts.push("reasoning, thinking");
+      if (capabilities.includes("image"))
+        keywordParts.push("image, image generation, dall-e, imagen");
+      if (capabilities.includes("search"))
+        keywordParts.push("search, web search, browse");
+
       return {
         id: 9000 + index,
         name: llm?.name || defaultModel,
         model: llm?.prefix + llm?.id || defaultModel,
         category: "AI MODEL",
-        keyWords: llm?.thinking ? "reasoning, thinking" : "",
+        keyWords: keywordParts.join(", "),
+        isImageGeneration: capabilities.includes("image"),
+        isWebSearch: capabilities.includes("search"),
         _contextGeneration: contextHash,
       };
     });

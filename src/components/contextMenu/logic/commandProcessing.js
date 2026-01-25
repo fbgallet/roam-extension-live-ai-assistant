@@ -423,9 +423,23 @@ ${rawTranscription}`,
 
   if (command.category === "AI MODEL") {
     model = command.model;
-    if (isOutlinerAgent && rootUid) command = commands.find((c) => c.id === 21);
-    else if (isInConversation) command = commands.find((c) => c.id === 10);
-    else command = commands.find((c) => c.id === 1);
+
+    // Check if this is an image generation model
+    if (command.isImageGeneration) {
+      // Route to image generation command (medium quality by default)
+      command = commands.find((c) => c.id === 1461); // Image generation (medium)
+      if (!command) {
+        // Fallback to low quality if medium not found
+        command = commands.find((c) => c.id === 1460);
+      }
+    } else if (isOutlinerAgent && rootUid) {
+      command = commands.find((c) => c.id === 21);
+    } else if (isInConversation) {
+      command = commands.find((c) => c.id === 10);
+    } else {
+      command = commands.find((c) => c.id === 1);
+    }
+
     if (model.includes("-search")) command.includeUids = false;
   }
 

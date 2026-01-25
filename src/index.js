@@ -19,14 +19,13 @@ import {
   addPageNavigationListeners,
   removePageNavigationListeners,
   onPageLoad,
+  displayModelConfigDialog,
+  displayMCPConfigDialog,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
-  getAvailableModels,
-  getImageGenerationModels,
   getModelsInfo,
   imageGenerationModels,
-  normalizeModelId,
   updateTokenCounter,
   webSearchModels,
 } from "./ai/modelsInfo";
@@ -37,6 +36,9 @@ import {
   saveModelConfig,
   checkModelUpdates,
   applyModelMigrations,
+  getProviderModels,
+  isModelVisible,
+  getOrderedProviders,
 } from "./utils/modelConfigHelpers";
 import { displayModelMigrationDialog } from "./utils/domElts";
 import { BUILTIN_STYLES } from "./ai/styleConstants";
@@ -80,7 +82,8 @@ export let defaultModel;
 export let reasoningEffort;
 export let availableModels = [];
 export let customBaseURL;
-export let customOpenAIOnly;
+export let customEndpointEnabled; // Whether custom OpenAI endpoint is enabled for custom models
+export let customOpenAIOnly; // Whether to use custom endpoint EXCLUSIVELY for all OpenAI API calls
 export let modelTemperature;
 export let openRouterOnly;
 export let ollamaModels = [];
@@ -151,20 +154,61 @@ export function setDefaultModel(str = "gpt-4.1-mini") {
 
 export function updateAvailableModels() {
   availableModels = [];
-  if (OPENAI_API_KEY) availableModels.push(...getAvailableModels("OpenAI"));
-  if (ANTHROPIC_API_KEY)
-    availableModels.push(...getAvailableModels("Anthropic"));
-  if (DEEPSEEK_API_KEY) availableModels.push(...getAvailableModels("DeepSeek"));
-  if (GOOGLE_API_KEY) availableModels.push(...getAvailableModels("Google"));
-  if (GROK_API_KEY) availableModels.push(...getAvailableModels("Grok"));
-  if (OPENROUTER_API_KEY)
-    availableModels.push(
-      ...openRouterModels.map((model) => "openRouter/" + model)
-    );
-  if (GROQ_API_KEY)
-    availableModels.push(...groqModels.map((model) => "groq/" + model));
-  if (ollamaModels.length)
-    availableModels.push(...ollamaModels.map((model) => "ollama/" + model));
+
+  // Helper to get prefix for provider
+  const getPrefix = (provider) => {
+    switch (provider) {
+      case "OpenRouter":
+        return "openRouter/";
+      case "Groq":
+        return "groq/";
+      case "Ollama":
+        return "ollama/";
+      default:
+        return "";
+    }
+  };
+
+  // Helper to check if provider has API key
+  const hasApiKey = (provider) => {
+    switch (provider) {
+      case "OpenAI":
+        return !!OPENAI_API_KEY;
+      case "Anthropic":
+        return !!ANTHROPIC_API_KEY;
+      case "DeepSeek":
+        return !!DEEPSEEK_API_KEY;
+      case "Google":
+        return !!GOOGLE_API_KEY;
+      case "Grok":
+        return !!GROK_API_KEY;
+      case "OpenRouter":
+        return !!OPENROUTER_API_KEY || openRouterModels.length > 0;
+      case "Groq":
+        return !!GROQ_API_KEY || groqModels.length > 0;
+      case "Ollama":
+        return ollamaModels.length > 0;
+      default:
+        return false;
+    }
+  };
+
+  // Use ordered providers and respect visibility settings like ModelsMenu
+  const providers = getOrderedProviders();
+
+  for (const provider of providers) {
+    if (!hasApiKey(provider)) continue;
+
+    const models = getProviderModels(provider);
+    const prefix = getPrefix(provider);
+
+    // Filter by visibility (respects user settings from ModelConfigDialog)
+    // Note: We don't filter out image generation models here - that's for display purposes only
+    const visibleModels = models.filter((m) => isModelVisible(m.id));
+
+    availableModels.push(...visibleModels.map((m) => prefix + m.id));
+  }
+
   if (!availableModels.length) {
     setDefaultModel();
     return;
@@ -226,8 +270,8 @@ function getRolesFromString(str, model) {
             .trimStart()
             .replace("<model>", model?.name || "default model")
         : str && str.trim()
-        ? "AI assistant: "
-        : "",
+          ? "AI assistant: "
+          : "",
     genericAssistantRegex:
       splittedStr.length > 1 && splittedStr[1]
         ? getAssistantRoleRegex(splittedStr[1].trim())
@@ -328,6 +372,7 @@ function getPanelConfig() {
               openaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY);
               if (extensionStorage.get("whisper") === true)
                 isUsingWhisper = true;
+              updateAvailableModels();
             }, 200);
             setTimeout(() => {
               mountComponent(position);
@@ -358,6 +403,7 @@ function getPanelConfig() {
             setTimeout(() => {
               ANTHROPIC_API_KEY = evt.target.value;
               anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);
+              updateAvailableModels();
             }, 200);
             setTimeout(() => {
               mountComponent(position);
@@ -385,6 +431,7 @@ function getPanelConfig() {
             setTimeout(() => {
               GOOGLE_API_KEY = evt.target.value;
               googleLibrary = initializeGoogleAPI(GOOGLE_API_KEY);
+              updateAvailableModels();
             }, 200);
             setTimeout(() => {
               mountComponent(position);
@@ -415,6 +462,7 @@ function getPanelConfig() {
                 DEEPSEEK_API_KEY,
                 "https://api.deepseek.com"
               );
+              updateAvailableModels();
             }, 200);
             setTimeout(() => {
               mountComponent(position);
@@ -445,11 +493,86 @@ function getPanelConfig() {
                 GROK_API_KEY,
                 "https://api.x.ai/v1"
               );
+              updateAvailableModels();
             }, 200);
             setTimeout(() => {
               mountComponent(position);
             }, 200);
           },
+        },
+      },
+      {
+        id: "openrouterapi",
+        name: "OpenRouter API Key",
+        description: (
+          <>
+            <span>Copy here your OpenRouter API key</span>
+            <br></br>
+            <a href="https://openrouter.ai/keys" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(async () => {
+              OPENROUTER_API_KEY = evt.target.value;
+              openrouterLibrary = initializeOpenAIAPI(
+                OPENROUTER_API_KEY,
+                "https://openrouter.ai/api/v1"
+              );
+              openRouterModelsInfo = await getModelsInfo();
+              updateAvailableModels();
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "groqapi",
+        name: "Groq API Key",
+        description: (
+          <>
+            <span>Copy here your Groq API key:</span>
+            <br></br>
+            <a href="https://console.groq.com/keys" target="_blank">
+              (Follow this link to generate a new one)
+            </a>
+          </>
+        ),
+        action: {
+          type: "input",
+          onChange: async (evt) => {
+            unmountComponent(position);
+            setTimeout(() => {
+              GROQ_API_KEY = evt.target.value;
+              groqLibrary = initializeOpenAIAPI(
+                GROQ_API_KEY,
+                "https://api.groq.com/openai/v1"
+              );
+              updateAvailableModels();
+            }, 200);
+            setTimeout(() => {
+              mountComponent(position);
+            }, 200);
+          },
+        },
+      },
+      {
+        id: "modelMenuCustomization",
+        name: "Customize Models",
+        description:
+          "Hide/show/reorder models in menu, pin favorites, set default, and manage custom models & endpoints.",
+        action: {
+          type: "button",
+          onClick: () => {
+            displayModelConfigDialog();
+          },
+          content: "Customize Models...",
         },
       },
       {
@@ -501,26 +624,6 @@ function getPanelConfig() {
           items: ["Meta", "Control", "Shift", "Alt", "disabled"],
           onChange: (evt) => {
             menuModifierKey = evt;
-          },
-        },
-      },
-      {
-        id: "modelMenuCustomization",
-        name: "Customize Model Menu",
-        description:
-          "Hide/show models, pin favorites, reorder models, and manage custom models. Click the ⚙️ 'Customize Models...' option in any AI model selection menu to configure.",
-      },
-
-      {
-        id: "defaultModel",
-        name: "Default AI model",
-        description:
-          "Choose the default model for AI completion with simple click or hotkeys:",
-        action: {
-          type: "select",
-          items: availableModels,
-          onChange: (evt) => {
-            setDefaultModel(evt);
           },
         },
       },
@@ -1013,315 +1116,287 @@ function getPanelConfig() {
         id: "mcpServers",
         name: "MCP Servers",
         description:
-          "Configure MCP servers for external tools and capabilities directly from Context Menu (button on top right)",
-      },
-      {
-        id: "localProviders",
-        name: "Alternative or Local LLM providers",
-      },
-      {
-        id: "openrouterapi",
-        name: "OpenRouter API Key",
-        description: (
-          <>
-            <span>Copy here your OpenRouter API key</span>
-            <br></br>
-            <a href="https://openrouter.ai/keys" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-          </>
-        ),
+          "Configure MCP servers for external tools and capabilities.",
         action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(async () => {
-              OPENROUTER_API_KEY = evt.target.value;
-              openrouterLibrary = initializeOpenAIAPI(
-                OPENROUTER_API_KEY,
-                "https://openrouter.ai/api/v1"
-              );
-              openRouterModelsInfo = await getModelsInfo();
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
+          type: "button",
+          onClick: () => {
+            displayMCPConfigDialog();
           },
+          content: "Configure MCP Servers...",
         },
       },
-      {
-        id: "openRouterModels",
-        name: "Models via OpenRouter",
-        className: "liveai-settings-largeinput",
-        description: (
-          <>
-            <span>
-              List of models ID to query through OpenRouter, separated by a
-              comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
-            </span>
-            <br></br>
-            <a href="https://openrouter.ai/docs#models" target="_blank">
-              List of supported models here
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            openRouterModels = getArrayFromList(evt.target.value);
-            openRouterModelsInfo = await getModelsInfo();
 
-            // Sync to new modelConfig to prevent duplication
-            const modelConfig = getModelConfig();
-            const parsed = getArrayFromList(evt.target.value).map(id => ({
-              id,
-              name: id,
-              contextLength: null,
-              pricing: null
-            }));
-            await saveModelConfig({
-              ...modelConfig,
-              customModels: {
-                ...modelConfig.customModels,
-                openrouter: parsed
-              }
-            });
+      // {
+      //   id: "openRouterModels",
+      //   name: "Models via OpenRouter (Deprecated)",
+      //   className: "liveai-settings-largeinput",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to add custom models.</span>
+      //       <br />
+      //       <span>
+      //         List of models ID to query through OpenRouter, separated by a
+      //         comma. E.g: google/gemini-pro,mistralai/mistral-7b-instruct
+      //       </span>
+      //       <br></br>
+      //       <a href="https://openrouter.ai/docs#models" target="_blank">
+      //         List of supported models here
+      //       </a>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "input",
+      //     disabled: true,
+      //     onChange: async (evt) => {
+      //       unmountComponent(position);
+      //       openRouterModels = getArrayFromList(evt.target.value);
+      //       openRouterModelsInfo = await getModelsInfo();
 
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "openrouterOnly",
-        name: "OpenRouter Only",
-        description:
-          "Display only models provided by OpenRouter in context menu (OpenAI API Key is still needed for Whisper):",
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            openRouterOnly = !openRouterOnly;
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "customModel",
-        name: "Custom OpenAI models",
-        className: "liveai-settings-largeinput",
-        description:
-          "List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):",
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            openAiCustomModels = getArrayFromList(evt.target.value);
-            updateAvailableModels();
+      //       // Sync to new modelConfig to prevent duplication
+      //       const modelConfig = getModelConfig();
+      //       const parsed = getArrayFromList(evt.target.value).map(id => ({
+      //         id,
+      //         name: id,
+      //         contextLength: null,
+      //         pricing: null
+      //       }));
+      //       await saveModelConfig({
+      //         ...modelConfig,
+      //         customModels: {
+      //           ...modelConfig.customModels,
+      //           openrouter: parsed
+      //         }
+      //       });
 
-            // Sync to new modelConfig to prevent duplication
-            const modelConfig = getModelConfig();
-            const parsed = getArrayFromList(evt.target.value).map(id => ({
-              id,
-              name: id,
-              contextLength: null,
-              pricing: null
-            }));
-            await saveModelConfig({
-              ...modelConfig,
-              customModels: {
-                ...modelConfig.customModels,
-                openai: parsed
-              }
-            });
-          },
-        },
-      },
-      {
-        id: "customBaseUrl",
-        name: "Custom OpenAI baseURL (Deprecated)",
-        description: (
-          <>
-            <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to configure endpoints.</span>
-            <br />
-            <span>Provide the baseURL of an OpenAI API compatible server (eventually local):</span>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            customBaseURL = evt.target.value;
-            if (customOpenAIOnly)
-              openaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            else
-              customOpenaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "customOpenAIOnly",
-        name: "Custom OpenAI server only (Deprecated)",
-        description: (
-          <>
-            <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog to configure endpoints.</span>
-            <br />
-            <span>Use the custom baseURL as the only server for OpenAI API (both is disabled):</span>
-          </>
-        ),
-        action: {
-          type: "switch",
-          onChange: (evt) => {
-            customOpenAIOnly = !customOpenAIOnly;
-            if (!customOpenAIOnly)
-              customOpenaiLibrary = initializeOpenAIAPI(
-                OPENAI_API_KEY,
-                customBaseURL
-              );
-            openAiCustomModels = getArrayFromList(
-              extensionStorage.get("customModel"),
-              ",",
-              customOpenAIOnly ? "" : "custom/"
-            );
-            unmountComponent(position);
-            mountComponent(position);
-          },
-        },
-      },
-      {
-        id: "groqapi",
-        name: "Groq API Key",
-        description: (
-          <>
-            <span>Copy here your Groq API key:</span>
-            <br></br>
-            <a href="https://console.groq.com/keys" target="_blank">
-              (Follow this link to generate a new one)
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            setTimeout(() => {
-              GROQ_API_KEY = evt.target.value;
-              groqLibrary = initializeOpenAIAPI(
-                GROQ_API_KEY,
-                "https://api.groq.com/openai/v1"
-              );
-            }, 200);
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "groqModels",
-        name: "Models via Groq API",
-        className: "liveai-settings-largeinput",
-        description: (
-          <>
-            <span>
-              List of models ID to query through Groq API, separated by a comma.
-            </span>
-            <br></br>
-            <a href="https://console.groq.com/docs/models" target="_blank">
-              List of supported models here
-            </a>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            groqModels = getArrayFromList(evt.target.value);
+      //       setTimeout(() => {
+      //         mountComponent(position);
+      //       }, 200);
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "openrouterOnly",
+      //   name: "OpenRouter Only (Deprecated)",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to show/hide models from different providers.</span>
+      //       <br />
+      //       <span>Your preference has been automatically migrated to the new visibility system.</span>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "switch",
+      //     disabled: true,
+      //     onChange: (evt) => {
+      //       openRouterOnly = !openRouterOnly;
+      //       unmountComponent(position);
+      //       mountComponent(position);
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "customModel",
+      //   name: "Custom OpenAI models (Deprecated)",
+      //   className: "liveai-settings-largeinput",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to add custom models.</span>
+      //       <br />
+      //       <span>List of models, separated by a comma (e.g.: gpt-5,gpt-5-mini):</span>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "input",
+      //     disabled: true,
+      //     onChange: async (evt) => {
+      //       openAiCustomModels = getArrayFromList(evt.target.value);
+      //       updateAvailableModels();
 
-            // Sync to new modelConfig to prevent duplication
-            const modelConfig = getModelConfig();
-            const parsed = getArrayFromList(evt.target.value).map(id => ({
-              id,
-              name: id,
-              contextLength: null,
-              pricing: null
-            }));
-            await saveModelConfig({
-              ...modelConfig,
-              customModels: {
-                ...modelConfig.customModels,
-                groq: parsed
-              }
-            });
+      //       // Sync to new modelConfig to prevent duplication
+      //       const modelConfig = getModelConfig();
+      //       const parsed = getArrayFromList(evt.target.value).map(id => ({
+      //         id,
+      //         name: id,
+      //         contextLength: null,
+      //         pricing: null
+      //       }));
+      //       await saveModelConfig({
+      //         ...modelConfig,
+      //         customModels: {
+      //           ...modelConfig.customModels,
+      //           openai: parsed
+      //         }
+      //       });
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "customBaseUrl",
+      //   name: "Custom OpenAI baseURL (Deprecated)",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to configure endpoints.</span>
+      //       <br />
+      //       <span>Provide the baseURL of an OpenAI API compatible server (eventually local):</span>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "input",
+      //     disabled: true,
+      //     onChange: (evt) => {
+      //       customBaseURL = evt.target.value;
+      //       if (customOpenAIOnly)
+      //         openaiLibrary = initializeOpenAIAPI(
+      //           OPENAI_API_KEY,
+      //           customBaseURL
+      //         );
+      //       else
+      //         customOpenaiLibrary = initializeOpenAIAPI(
+      //           OPENAI_API_KEY,
+      //           customBaseURL
+      //         );
+      //       unmountComponent(position);
+      //       mountComponent(position);
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "customOpenAIOnly",
+      //   name: "Custom OpenAI server only (Deprecated)",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog to configure endpoints.</span>
+      //       <br />
+      //       <span>Use the custom baseURL as the only server for OpenAI API (both is disabled):</span>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "switch",
+      //     disabled: true,
+      //     onChange: (evt) => {
+      //       customOpenAIOnly = !customOpenAIOnly;
+      //       if (!customOpenAIOnly)
+      //         customOpenaiLibrary = initializeOpenAIAPI(
+      //           OPENAI_API_KEY,
+      //           customBaseURL
+      //         );
+      //       openAiCustomModels = getArrayFromList(
+      //         extensionStorage.get("customModel"),
+      //         ",",
+      //         customOpenAIOnly ? "" : "custom/"
+      //       );
+      //       unmountComponent(position);
+      //       mountComponent(position);
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "groqModels",
+      //   name: "Models via Groq API (Deprecated)",
+      //   className: "liveai-settings-largeinput",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to add custom models.</span>
+      //       <br />
+      //       <span>
+      //         List of models ID to query through Groq API, separated by a comma.
+      //       </span>
+      //       <br></br>
+      //       <a href="https://console.groq.com/docs/models" target="_blank">
+      //         List of supported models here
+      //       </a>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "input",
+      //     disabled: true,
+      //     onChange: async (evt) => {
+      //       unmountComponent(position);
+      //       groqModels = getArrayFromList(evt.target.value);
 
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
-      {
-        id: "ollamaServer",
-        name: "Ollama server (Deprecated)",
-        description: (
-          <>
-            <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog to configure Ollama endpoint.</span>
-            <br />
-            <span>You can customize your server's local address here. Default (blank input) is http://localhost:11434</span>
-          </>
-        ),
-        action: {
-          type: "input",
-          onChange: (evt) => {
-            ollamaServer =
-              evt.target.value.at(-1) === "/"
-                ? evt.target.value.slice(0, -1)
-                : evt.target.value;
-          },
-        },
-      },
-      {
-        id: "ollamaModels",
-        name: "Ollama local models",
-        className: "liveai-settings-largeinput",
-        description:
-          "Models on local server, separated by a comma. E.g: llama2,llama3",
-        action: {
-          type: "input",
-          onChange: async (evt) => {
-            unmountComponent(position);
-            ollamaModels = getArrayFromList(evt.target.value);
+      //       // Sync to new modelConfig to prevent duplication
+      //       const modelConfig = getModelConfig();
+      //       const parsed = getArrayFromList(evt.target.value).map(id => ({
+      //         id,
+      //         name: id,
+      //         contextLength: null,
+      //         pricing: null
+      //       }));
+      //       await saveModelConfig({
+      //         ...modelConfig,
+      //         customModels: {
+      //           ...modelConfig.customModels,
+      //           groq: parsed
+      //         }
+      //       });
 
-            // Sync to new modelConfig to prevent duplication
-            const modelConfig = getModelConfig();
-            const parsed = getArrayFromList(evt.target.value).map(id => ({
-              id,
-              name: id,
-              contextLength: null,
-              pricing: null
-            }));
-            await saveModelConfig({
-              ...modelConfig,
-              customModels: {
-                ...modelConfig.customModels,
-                ollama: parsed
-              }
-            });
+      //       setTimeout(() => {
+      //         mountComponent(position);
+      //       }, 200);
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "ollamaServer",
+      //   name: "Ollama server (Deprecated)",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog to configure Ollama endpoint.</span>
+      //       <br />
+      //       <span>You can customize your server's local address here. Default (blank input) is http://localhost:11434</span>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "input",
+      //     disabled: true,
+      //     onChange: (evt) => {
+      //       ollamaServer =
+      //         evt.target.value.at(-1) === "/"
+      //           ? evt.target.value.slice(0, -1)
+      //           : evt.target.value;
+      //     },
+      //   },
+      // },
+      // {
+      //   id: "ollamaModels",
+      //   name: "Ollama local models (Deprecated)",
+      //   className: "liveai-settings-largeinput",
+      //   description: (
+      //     <>
+      //       <span style={{ color: "#d9822b" }}>⚠️ Deprecated: Use the Model Config Dialog (Customize Models button) to add custom models.</span>
+      //       <br />
+      //       <span>Models on local server, separated by a comma. E.g: llama2,llama3</span>
+      //     </>
+      //   ),
+      //   action: {
+      //     type: "input",
+      //     disabled: true,
+      //     onChange: async (evt) => {
+      //       unmountComponent(position);
+      //       ollamaModels = getArrayFromList(evt.target.value);
 
-            setTimeout(() => {
-              mountComponent(position);
-            }, 200);
-          },
-        },
-      },
+      //       // Sync to new modelConfig to prevent duplication
+      //       const modelConfig = getModelConfig();
+      //       const parsed = getArrayFromList(evt.target.value).map(id => ({
+      //         id,
+      //         name: id,
+      //         contextLength: null,
+      //         pricing: null
+      //       }));
+      //       await saveModelConfig({
+      //         ...modelConfig,
+      //         customModels: {
+      //           ...modelConfig.customModels,
+      //           ollama: parsed
+      //         }
+      //       });
+
+      //       setTimeout(() => {
+      //         mountComponent(position);
+      //       }, 200);
+      //     },
+      //   },
+      // },
     ],
   };
   return panelConfig;
@@ -1437,6 +1512,9 @@ export default {
     if (extensionAPI.settings.get("customOpenAIOnly") === null)
       await extensionAPI.settings.set("customOpenAIOnly", true);
     customOpenAIOnly = extensionAPI.settings.get("customOpenAIOnly");
+    // Initialize customEndpointEnabled based on legacy settings (customBaseURL + customOpenAIOnly)
+    // This will be overridden by model config if available
+    customEndpointEnabled = !!customBaseURL;
     // Migrate to new model configuration system (now includes V2 migration)
     await migrateModelConfig();
 
@@ -1447,7 +1525,10 @@ export default {
     const openaiEndpoint = modelConfig.providerEndpoints?.openai;
     if (openaiEndpoint && openaiEndpoint.baseURL) {
       customBaseURL = openaiEndpoint.baseURL;
-      customOpenAIOnly = openaiEndpoint.enabled;
+      // enabled: makes custom endpoint available for custom models
+      // exclusive: route ALL OpenAI-compatible calls through custom endpoint (replaces official API)
+      customEndpointEnabled = openaiEndpoint.enabled ?? false;
+      customOpenAIOnly = openaiEndpoint.exclusive ?? false;
     }
 
     const ollamaEndpoint = modelConfig.providerEndpoints?.ollama;
@@ -1470,17 +1551,21 @@ export default {
     }
 
     // Update model lists from new config for backward compatibility (using modelConfig from above)
-    openAiCustomModels = modelConfig.customModels?.openai?.map(m => m.id) ||
+    openAiCustomModels =
+      modelConfig.customModels?.openai?.map((m) => m.id) ||
       getArrayFromList(
         extensionAPI.settings.get("customModel") || "",
         ",",
         customOpenAIOnly ? "" : "custom/"
       );
-    openRouterModels = modelConfig.customModels?.openrouter?.map(m => m.id) ||
+    openRouterModels =
+      modelConfig.customModels?.openrouter?.map((m) => m.id) ||
       getArrayFromList(extensionAPI.settings.get("openRouterModels") || "");
-    groqModels = modelConfig.customModels?.groq?.map(m => m.id) ||
+    groqModels =
+      modelConfig.customModels?.groq?.map((m) => m.id) ||
       getArrayFromList(extensionAPI.settings.get("groqModels") || "");
-    ollamaModels = modelConfig.customModels?.ollama?.map(m => m.id) ||
+    ollamaModels =
+      modelConfig.customModels?.ollama?.map((m) => m.id) ||
       getArrayFromList(extensionAPI.settings.get("ollamaModels") || "");
 
     // Keep old settings for backward compatibility (can be removed in future versions)
@@ -1576,9 +1661,8 @@ export default {
     askGraphMode = extensionAPI.settings.get("askGraphMode");
 
     // Initialize Ask your graph session
-    const { initializeAskGraphSession } = await import(
-      "./ai/agents/search-agent/ask-your-graph"
-    );
+    const { initializeAskGraphSession } =
+      await import("./ai/agents/search-agent/ask-your-graph");
     initializeAskGraphSession();
 
     // Check if first time using Ask your graph
@@ -1619,12 +1703,17 @@ export default {
 
     createContainer();
 
+    // Initialize OpenAI library:
+    // - If exclusive mode: all OpenAI API calls use custom endpoint
+    // - Otherwise: use official OpenAI API
     if (OPENAI_API_KEY || (customBaseURL && customOpenAIOnly))
       openaiLibrary = initializeOpenAIAPI(
         OPENAI_API_KEY,
         customOpenAIOnly ? customBaseURL : null
       );
-    if (customBaseURL && !customOpenAIOnly)
+    // Initialize custom OpenAI library for custom models (only if enabled and NOT exclusive)
+    // When exclusive is true, all calls already go through custom endpoint via openaiLibrary
+    if (customBaseURL && customEndpointEnabled && !customOpenAIOnly)
       customOpenaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
     if (ANTHROPIC_API_KEY)
       anthropicLibrary = initializeAnthropicAPI(ANTHROPIC_API_KEY);

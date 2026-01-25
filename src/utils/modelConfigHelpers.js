@@ -35,7 +35,10 @@ export function getModelConfig() {
       },
       providerEndpoints: {
         // Only OpenAI-compatible and Ollama support custom endpoints
-        openai: { baseURL: "", enabled: false },
+        // For OpenAI:
+        //   - enabled: makes custom endpoint available for custom models
+        //   - exclusive: routes ALL OpenAI-compatible calls through custom endpoint (replaces official API)
+        openai: { baseURL: "", enabled: false, exclusive: false },
         ollama: { baseURL: "http://localhost:11434", enabled: false }
       },
       modelOptions: {},
@@ -90,6 +93,8 @@ export async function migrateModelConfig() {
 
   // Already on V2
   if (existing && existing.version === 2) {
+    // Still run openRouterOnly migration if not yet done
+    await migrateOpenRouterOnlySetting();
     return;
   }
 
@@ -99,6 +104,8 @@ export async function migrateModelConfig() {
   if (existing && existing.version === 1) {
     console.log("[Model Config] Migrating from V1 to V2...");
     await migrateToV2(existing);
+    // Run openRouterOnly migration after V2 upgrade
+    await migrateOpenRouterOnlySetting();
     return;
   }
 
@@ -135,7 +142,10 @@ export async function migrateModelConfig() {
     providerEndpoints: {
       openai: {
         baseURL: customBaseURL,
-        enabled: !!customOpenAIOnly
+        // If customBaseURL exists, enable the endpoint
+        // exclusive maps to the old customOpenAIOnly behavior
+        enabled: !!customBaseURL,
+        exclusive: !!customOpenAIOnly
       },
       ollama: {
         baseURL: ollamaServer || "http://localhost:11434",
@@ -150,6 +160,9 @@ export async function migrateModelConfig() {
 
   await extensionStorage.set("modelConfig", modelConfig);
   console.log("[Model Config] Migration to V2 complete:", modelConfig);
+
+  // Run openRouterOnly migration after initial setup
+  await migrateOpenRouterOnlySetting();
 }
 
 /**
@@ -178,7 +191,10 @@ async function migrateToV2(v1Config) {
     providerEndpoints: {
       openai: {
         baseURL: customBaseURL,
-        enabled: !!customOpenAIOnly
+        // If customBaseURL exists, enable the endpoint
+        // exclusive maps to the old customOpenAIOnly behavior
+        enabled: !!customBaseURL,
+        exclusive: !!customOpenAIOnly
       },
       ollama: {
         baseURL: ollamaServer || "http://localhost:11434",
@@ -190,6 +206,53 @@ async function migrateToV2(v1Config) {
 
   await extensionStorage.set("modelConfig", v2Config);
   console.log("[Model Config] Migration from V1 to V2 complete");
+}
+
+/**
+ * Migrate openRouterOnly setting to new visibility system
+ * This is a one-time migration that converts the old "OpenRouter Only" toggle
+ * to the new granular visibility system in ModelConfigDialog
+ */
+export async function migrateOpenRouterOnlySetting() {
+  const config = getModelConfig();
+
+  // Check if migration already done
+  if (config.openRouterOnlyMigrated) {
+    return;
+  }
+
+  console.log("[Model Config] Migrating openRouterOnly setting...");
+
+  // Check old setting from extensionStorage
+  const openRouterOnly = extensionStorage.get("openRouterOnly");
+
+  if (openRouterOnly === true) {
+    console.log("[Model Config] openRouterOnly was enabled - hiding non-OpenRouter models");
+
+    // Hide all non-OpenRouter providers' models
+    const hiddenModels = [...(config.hiddenModels || [])];
+    const allProviders = getAllProviders();
+
+    allProviders.forEach(provider => {
+      if (provider !== "OpenRouter") {
+        const models = getProviderModels(provider);
+        models.forEach(model => {
+          if (!hiddenModels.includes(model.id)) {
+            hiddenModels.push(model.id);
+          }
+        });
+      }
+    });
+
+    config.hiddenModels = hiddenModels;
+    console.log(`[Model Config] Hidden ${hiddenModels.length} non-OpenRouter models`);
+  }
+
+  // Mark migration as complete
+  config.openRouterOnlyMigrated = true;
+  await saveModelConfig(config);
+
+  console.log("[Model Config] openRouterOnly migration complete");
 }
 
 /**
