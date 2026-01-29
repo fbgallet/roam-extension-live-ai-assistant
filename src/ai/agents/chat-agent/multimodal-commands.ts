@@ -21,7 +21,9 @@ import {
 } from "./multimodal-context-builder";
 import { TokensUsage } from "../langraphModelsLoader";
 import { imageGenerationModels, webSearchModels } from "../../modelsInfo";
-import { defaultImageModel, extensionStorage, googleLibrary } from "../../..";
+import { defaultImageModel, extensionStorage, googleLibrary, defaultModel } from "../../..";
+import { getDefaultWebSearchModel } from "../../modelRegistry";
+import { isModelVisible, getModelConfig, getOrderedProviders } from "../../../utils/modelConfigHelpers";
 import {
   roamAudioRegex,
   roamVideoRegex,
@@ -60,9 +62,13 @@ export async function handleImageGenerationCommand(
   // Extract quality from command prompt (e.g., "Image generation (high)" -> "high")
   const quality = commandPrompt?.split("(")[1]?.split(")")[0] || "auto";
 
+  // Get default image model from config or fallback to global setting
+  const modelConfig = getModelConfig();
+  const configDefaultImageModel = modelConfig?.defaultImageModel || defaultImageModel;
+
   const imageModel = imageGenerationModels.includes(modelId)
     ? modelId
-    : defaultImageModel;
+    : configDefaultImageModel;
 
   // Build complete prompt including images and text from resultsContext (first turn only)
   const completePrompt = buildImageGenerationPrompt(
@@ -827,8 +833,27 @@ export async function handleWebSearchRequest(
       contextString = buildResultsContext(resultsContext);
     }
 
-    if (!webSearchModels.includes(instantModel))
-      instantModel = await extensionStorage.get("webModel");
+    // Determine default web search model if not provided or not a web search model
+    if (!instantModel || !webSearchModels.includes(instantModel)) {
+      const modelConfig = getModelConfig();
+      const currentDefaultModel = await extensionStorage.get("defaultModel") || defaultModel;
+      const orderedProviders = getOrderedProviders();
+
+      instantModel = getDefaultWebSearchModel(
+        currentDefaultModel,
+        isModelVisible,
+        orderedProviders,
+        modelConfig.modelOrder,
+        modelConfig.defaultWebSearchModel
+      );
+
+      // If no web search model is available, throw error
+      if (!instantModel) {
+        throw new Error("No web search capable model is currently enabled. Please enable at least one web search model in the Model Configuration.");
+      }
+    }
+
+    console.log("Web search model :>> ", instantModel);
 
     // Call aiCompletion with Web search command
     // The aiCompletion function will handle the web search via the appropriate provider

@@ -243,7 +243,7 @@
 }
 .rm-topbar:has(.rm-open-left-sidebar-btn):not(:has(#todayTomorrow)):not(
     :has(#workspaces)
-  )
+  ):not(:has(.rm-topbar__arrow-button))
   > .speech-to-roam.speech-to-roam-container-top {
   position: absolute;
   left: 40px;
@@ -1589,15 +1589,21 @@ h3.full-results-title.bp3-heading {
 /* Smooth halo animation for highlighted results - Orange theme */
 @keyframes haloOrange {
   0% {
-    box-shadow: 0 0 8px rgba(245, 124, 0, 0.3), 0 0 16px rgba(245, 124, 0, 0.2),
+    box-shadow:
+      0 0 8px rgba(245, 124, 0, 0.3),
+      0 0 16px rgba(245, 124, 0, 0.2),
       0 0 24px rgba(245, 124, 0, 0.1);
   }
   50% {
-    box-shadow: 0 0 16px rgba(245, 124, 0, 0.5), 0 0 32px rgba(245, 124, 0, 0.3),
+    box-shadow:
+      0 0 16px rgba(245, 124, 0, 0.5),
+      0 0 32px rgba(245, 124, 0, 0.3),
       0 0 48px rgba(245, 124, 0, 0.15);
   }
   100% {
-    box-shadow: 0 0 8px rgba(245, 124, 0, 0.3), 0 0 16px rgba(245, 124, 0, 0.2),
+    box-shadow:
+      0 0 8px rgba(245, 124, 0, 0.3),
+      0 0 16px rgba(245, 124, 0, 0.2),
       0 0 24px rgba(245, 124, 0, 0.1);
   }
 }
@@ -1605,16 +1611,22 @@ h3.full-results-title.bp3-heading {
 /* Keep the old blue animation for backward compatibility */
 @keyframes haloBlue {
   0% {
-    box-shadow: 0 0 8px rgba(25, 118, 210, 0.3),
-      0 0 16px rgba(25, 118, 210, 0.2), 0 0 24px rgba(25, 118, 210, 0.1);
+    box-shadow:
+      0 0 8px rgba(25, 118, 210, 0.3),
+      0 0 16px rgba(25, 118, 210, 0.2),
+      0 0 24px rgba(25, 118, 210, 0.1);
   }
   50% {
-    box-shadow: 0 0 16px rgba(25, 118, 210, 0.5),
-      0 0 32px rgba(25, 118, 210, 0.3), 0 0 48px rgba(25, 118, 210, 0.15);
+    box-shadow:
+      0 0 16px rgba(25, 118, 210, 0.5),
+      0 0 32px rgba(25, 118, 210, 0.3),
+      0 0 48px rgba(25, 118, 210, 0.15);
   }
   100% {
-    box-shadow: 0 0 8px rgba(25, 118, 210, 0.3),
-      0 0 16px rgba(25, 118, 210, 0.2), 0 0 24px rgba(25, 118, 210, 0.1);
+    box-shadow:
+      0 0 8px rgba(25, 118, 210, 0.3),
+      0 0 16px rgba(25, 118, 210, 0.2),
+      0 0 24px rgba(25, 118, 210, 0.1);
   }
 }
 
@@ -1788,9 +1800,9 @@ h3.full-results-title.bp3-heading {
   font-size: 14px;
   color: inherit;
   line-height: 1.28571;
-  font-family: -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Open Sans", "Helvetica Neue", "Icons16",
-    sans-serif;
+  font-family:
+    -apple-system, "BlinkMacSystemFont", "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Open Sans", "Helvetica Neue", "Icons16", sans-serif;
   transition: background-color 0.1s cubic-bezier(0.4, 1, 0.75, 0.9);
 }
 
@@ -2001,7 +2013,9 @@ h3.full-results-title.bp3-heading {
 /* Clickable Metadata Styles */
 .clickable {
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
   border-radius: 3px;
   padding: 2px 4px;
 }
@@ -2054,7 +2068,8 @@ h3.full-results-title.bp3-heading {
 /* Roam-Style References Filter */
 .roam-references-filter {
   margin-bottom: 16px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .references-search {
@@ -2215,7 +2230,8 @@ h3.full-results-title.bp3-heading {
   max-height: 450px;
   padding: 12px;
   overflow-y: auto;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
 }
 
@@ -2699,7 +2715,9 @@ h3.full-results-title.bp3-heading {
 
 .full-results-chat-header-controls .bp3-button {
   opacity: 0.6;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .full-results-chat-header-controls .bp3-button:hover {
@@ -3311,15 +3329,19 @@ textarea.bp3-input.full-results-chat-input::placeholder {
 
 textarea.bp3-input.full-results-chat-input:hover {
   border-color: rgba(102, 126, 234, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.08),
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    0 2px 4px rgba(0, 0, 0, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 textarea.bp3-input.full-results-chat-input:focus {
   border-color: #667eea;
   /* background: #ffffff; */
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15),
-    0 2px 6px rgba(102, 126, 234, 0.1), 0 0 0 4px rgba(102, 126, 234, 0.08);
+  box-shadow:
+    0 6px 20px rgba(102, 126, 234, 0.15),
+    0 2px 6px rgba(102, 126, 234, 0.1),
+    0 0 0 4px rgba(102, 126, 234, 0.08);
   outline: none;
 }
 
@@ -3373,7 +3395,9 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.3);
   transform: translate(-50%, -50%);
-  transition: width 0.3s ease, height 0.3s ease;
+  transition:
+    width 0.3s ease,
+    height 0.3s ease;
 }
 
 .full-results-chat-send:hover::before {
@@ -3973,7 +3997,9 @@ body.has-fullscreen-side-panel #app {
   margin: 0 !important;
   border-radius: 0 !important;
   pointer-events: auto; /* Re-enable clicks on the panel itself */
-  transition: width 0.1s ease, height 0.1s ease;
+  transition:
+    width 0.1s ease,
+    height 0.1s ease;
 }
 
 /* Right panel styling */
@@ -4675,7 +4701,10 @@ body.has-no-side-panel #app {
 
 /* Collapsible tool descriptions */
 .chat-tool-description {
-  transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+  transition:
+    max-height 0.2s ease,
+    opacity 0.2s ease,
+    margin-top 0.2s ease;
   overflow: hidden;
 }
 

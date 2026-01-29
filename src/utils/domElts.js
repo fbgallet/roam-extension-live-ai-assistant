@@ -137,7 +137,10 @@ export function createContainer(position) {
   const todayTomorrowExtension = document.querySelector("#todayTomorrow");
   if (todayTomorrowExtension && position === "top")
     todayTomorrowExtension.insertAdjacentElement("afterend", newElt);
-  else
+  else if (window.roamAlphaAPI.platform.isDesktop && position === "top") {
+    const rightArrow = document.querySelector(".rm-electron-nav-forward-btn");
+    rightArrow.insertAdjacentElement("afterend", newElt);
+  } else
     rootPosition.insertBefore(
       newElt,
       position === "top"

@@ -17,6 +17,7 @@ import {
 import { updateTokenCounter } from "./modelsInfo";
 import { createImageUsageObject } from "./utils/imageTokensCalculator";
 import { hasCapability } from "./modelRegistry";
+import { getModelConfig } from "../utils/modelConfigHelpers";
 
 // Storage for active image generation chat instances
 // Key: conversation parent UID, Value: chat instance
@@ -425,7 +426,9 @@ export async function imageGeneration(
 ) {
   // Use default image model if no model specified
   if (!model) {
-    model = defaultImageModel;
+    // Check for custom defaultImageModel in config first
+    const modelConfig = getModelConfig();
+    model = modelConfig?.defaultImageModel || defaultImageModel;
   }
 
   // Check if selected model requires Google API and fallback if not available
@@ -917,7 +920,8 @@ export async function imageGeneration(
 export const addImagesUrlToMessages = async (
   messages,
   content,
-  isAnthropicModel
+  isAnthropicModel,
+  useResponseApi = false
 ) => {
   let nbCountdown = maxImagesNb;
 
@@ -929,7 +933,7 @@ export const addImagesUrlToMessages = async (
     if (matchingImagesInPrompt.length) {
       messages[i].content = [
         {
-          type: "text",
+          type: useResponseApi ? "input_text" : "text",
           text: messages[i].content,
         },
       ];
@@ -939,15 +943,7 @@ export const addImagesUrlToMessages = async (
         .replace(matchingImagesInPrompt[j][0], `[Image ${i + 1}]`)
         .trim();
       if (nbCountdown > 0) {
-        if (!isAnthropicModel)
-          messages[i].content.push({
-            type: "image_url",
-            image_url: {
-              url: matchingImagesInPrompt[j][2],
-              detail: resImages,
-            },
-          });
-        else if (isAnthropicModel)
+        if (isAnthropicModel) {
           messages[i].content.push({
             type: "image",
             source: {
@@ -955,6 +951,22 @@ export const addImagesUrlToMessages = async (
               url: matchingImagesInPrompt[j][2],
             },
           });
+        } else if (useResponseApi) {
+          // OpenAI Response API format
+          messages[i].content.push({
+            type: "input_image",
+            image_url: matchingImagesInPrompt[j][2],
+          });
+        } else {
+          // Legacy OpenAI Chat API format
+          messages[i].content.push({
+            type: "image_url",
+            image_url: {
+              url: matchingImagesInPrompt[j][2],
+              detail: resImages,
+            },
+          });
+        }
       }
       nbCountdown--;
     }
@@ -971,23 +983,33 @@ export const addImagesUrlToMessages = async (
           messages.splice(1, 0, {
             role: "user",
             content: [
-              { type: "text", text: "Image(s) provided in the context:" },
+              {
+                type: useResponseApi ? "input_text" : "text",
+                text: "Image(s) provided in the context:",
+              },
             ],
           });
-        if (!isAnthropicModel) {
-          messages[1].content.push({
-            type: "image_url",
-            image_url: {
-              url: matchingImagesInContext[i][2],
-              detail: resImages,
-            },
-          });
-        } else if (isAnthropicModel) {
+        if (isAnthropicModel) {
           messages[1].content.push({
             type: "image",
             source: {
               type: "url",
               url: matchingImagesInContext[i][2],
+            },
+          });
+        } else if (useResponseApi) {
+          // OpenAI Response API format
+          messages[1].content.push({
+            type: "input_image",
+            image_url: matchingImagesInContext[i][2],
+          });
+        } else {
+          // Legacy OpenAI Chat API format
+          messages[1].content.push({
+            type: "image_url",
+            image_url: {
+              url: matchingImagesInContext[i][2],
+              detail: resImages,
             },
           });
         }
@@ -1018,7 +1040,15 @@ export const isModelSupportingImage = (model) => {
   return false;
 };
 
-export const addPdfUrlToMessages = async (messages, content, provider) => {
+export const addPdfUrlToMessages = async (
+  messages,
+  content,
+  provider,
+  useResponseApi = false
+) => {
+  // Determine if we should use Response API format
+  const isResponseApi = provider === "OpenAI" && useResponseApi;
+
   for (let i = 1; i < messages.length; i++) {
     pdfLinkRegex.lastIndex = 0;
     const matchingPdfInPrompt = Array.from(
@@ -1030,7 +1060,7 @@ export const addPdfUrlToMessages = async (messages, content, provider) => {
     if (matchingPdfInPrompt.length) {
       messages[i].content = [
         {
-          type: provider !== "OpenAI" ? "text" : "input_text",
+          type: isResponseApi ? "input_text" : "text",
           text: messages[i].content,
         },
       ];
@@ -1044,7 +1074,8 @@ export const addPdfUrlToMessages = async (messages, content, provider) => {
       const pdfRole = await getFormatedPdfRole(
         matchingPdfInPrompt[j][1],
         matchingPdfInPrompt[j][2],
-        provider
+        provider,
+        useResponseApi
       );
 
       messages[i].content.push(pdfRole);
@@ -1061,7 +1092,7 @@ export const addPdfUrlToMessages = async (messages, content, provider) => {
           role: "user",
           content: [
             {
-              type: provider !== "OpenAI" ? "text" : "input_text",
+              type: isResponseApi ? "input_text" : "text",
               text: "Pdf(s) provided in the context:",
             },
           ],
@@ -1069,7 +1100,8 @@ export const addPdfUrlToMessages = async (messages, content, provider) => {
       const pdfRole = await getFormatedPdfRole(
         matchingPdfInContext[i][1],
         matchingPdfInContext[i][2],
-        provider
+        provider,
+        useResponseApi
       );
       messages[1].content.push(pdfRole);
     }

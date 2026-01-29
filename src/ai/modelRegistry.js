@@ -33,6 +33,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       thinking: true,
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: true,
@@ -49,6 +50,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       thinking: false,
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: true,
@@ -81,6 +83,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       thinking: true,
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: true,
@@ -97,26 +100,28 @@ export const MODEL_REGISTRY = {
     capabilities: {
       thinking: true,
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: false,
     aliases: [],
   },
 
-  "gpt-5-search-api": {
-    id: "gpt-5-search-api",
-    name: "gpt-5-search-api",
-    provider: "OpenAI",
-    contextLength: 128000,
-    pricing: { input: 1.25, output: 10 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: ["gpt-5-search"],
-  },
+  // "gpt-5-search-api": {
+  //   id: "gpt-5-search-api",
+  //   name: "gpt-5-search-api",
+  //   provider: "OpenAI",
+  //   contextLength: 128000,
+  //   pricing: { input: 1.25, output: 10 },
+  //   capabilities: {
+  //     imageInput: true,
+  //     webSearch: true,
+  //     fileInput: true,
+  //   },
+  //   useCompletionApi: true,
+  //   visibleByDefault: true,
+  //   aliases: ["gpt-5-search"],
+  // },
 
   "gpt-4.1": {
     id: "gpt-4.1",
@@ -126,6 +131,7 @@ export const MODEL_REGISTRY = {
     pricing: { input: 2, output: 8 },
     capabilities: {
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: true,
@@ -140,6 +146,7 @@ export const MODEL_REGISTRY = {
     pricing: { input: 0.4, output: 1.6 },
     capabilities: {
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: false,
@@ -154,41 +161,60 @@ export const MODEL_REGISTRY = {
     pricing: { input: 2.5, output: 10 },
     capabilities: {
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     visibleByDefault: false,
     aliases: ["gpt-4o-2024-08-06"],
   },
 
-  "gpt-4o-mini-search": {
-    id: "gpt-4o-mini-search-preview",
-    name: "gpt-4o-mini-search",
-    provider: "OpenAI",
-    contextLength: 128000,
-    pricing: { input: 0.15, output: 0.6 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: ["gpt-4o-mini-search-preview"],
-  },
+  // "gpt-4o-mini-search": {
+  //   id: "gpt-4o-mini-search-preview",
+  //   name: "gpt-4o-mini-search",
+  //   provider: "OpenAI",
+  //   contextLength: 128000,
+  //   pricing: { input: 0.15, output: 0.6 },
+  //   capabilities: {
+  //     imageInput: true,
+  //     webSearch: true,
+  //     fileInput: true,
+  //   },
+  //   visibleByDefault: true,
+  //   aliases: ["gpt-4o-mini-search-preview"],
+  // },
 
-  "gpt-4o-search": {
-    id: "gpt-4o-search-preview",
-    name: "gpt-4o-search",
-    provider: "OpenAI",
-    contextLength: 128000,
-    pricing: { input: 2.5, output: 10 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["gpt-4o-search-preview"],
-  },
+  // "gpt-4o-search": {
+  //   id: "gpt-4o-search-preview",
+  //   name: "gpt-4o-search",
+  //   provider: "OpenAI",
+  //   contextLength: 128000,
+  //   pricing: { input: 2.5, output: 10 },
+  //   capabilities: {
+  //     imageInput: true,
+  //     webSearch: true,
+  //     fileInput: true,
+  //   },
+  //   visibleByDefault: false,
+  //   aliases: ["gpt-4o-search-preview"],
+  // },
+
+  // o1: {
+  //   id: "o1",
+  //   name: "o1",
+  //   provider: "OpenAI",
+  //   contextLength: 200000,
+  //   pricing: { input: 15, output: 60 },
+  //   capabilities: {
+  //     thinking: true,
+  //     imageInput: true,
+  //     fileInput: true,
+  //   },
+  //   thinkingDefault: true,
+  //   visibleByDefault: false,
+  //   noStreaming: true,
+  //   systemRole: "user",
+  //   aliases: ["o1-preview"],
+  // },
 
   "o4-mini": {
     id: "o4-mini",
@@ -199,10 +225,12 @@ export const MODEL_REGISTRY = {
     capabilities: {
       thinking: true,
       imageInput: true,
+      webSearch: true,
       fileInput: true,
     },
     thinkingDefault: true,
     visibleByDefault: false,
+    systemRole: "user",
     aliases: [],
   },
 
@@ -219,6 +247,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: false,
+    systemRole: "user",
     aliases: [],
   },
 
@@ -235,15 +264,17 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: false,
+    noStreaming: true,
+    systemRole: "developer",
     aliases: [],
   },
 
   // OpenAI Image Generation Models
-  "gpt-image-1-mini": {
-    id: "gpt-image-1-mini",
-    name: "gpt-image-1-mini",
+  "gpt-image-1.5": {
+    id: "gpt-image-1.5",
+    name: "gpt-image-1.5",
     provider: "OpenAI",
-    pricing: { input: 2, inputImage: 2.5, output: 8 },
+    pricing: { input: 5, inputImage: 8, output: 32 },
     capabilities: {
       imageInput: true,
       imageOutput: true,
@@ -258,6 +289,20 @@ export const MODEL_REGISTRY = {
     name: "gpt-image-1",
     provider: "OpenAI",
     pricing: { input: 5, inputImage: 10, output: 40 },
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: [],
+  },
+
+  "gpt-image-1-mini": {
+    id: "gpt-image-1-mini",
+    name: "gpt-image-1-mini",
+    provider: "OpenAI",
+    pricing: { input: 2, inputImage: 2.5, output: 8 },
     capabilities: {
       imageInput: true,
       imageOutput: true,
@@ -562,21 +607,21 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  "grok-3-mini": {
-    id: "grok-3-mini",
-    name: "Grok-3-mini",
-    provider: "Grok",
-    contextLength: 131072,
-    pricing: { input: 0.3, output: 0.5 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: [],
-  },
+  // "grok-3-mini": {
+  //   id: "grok-3-mini",
+  //   name: "Grok-3-mini",
+  //   provider: "Grok",
+  //   contextLength: 131072,
+  //   pricing: { input: 0.3, output: 0.5 },
+  //   capabilities: {
+  //     thinking: true,
+  //     imageInput: true,
+  //     webSearch: true,
+  //     fileInput: true,
+  //   },
+  //   visibleByDefault: false,
+  //   aliases: [],
+  // },
 };
 
 // ==================== PROVIDER LIBRARIES ====================
@@ -755,6 +800,196 @@ export function getWebSearchModels() {
 }
 
 /**
+ * Get the default web search model based on the following logic:
+ * 1. If a custom defaultWebSearchModel is set, use it
+ * 2. If the default model supports web search, use it
+ * 3. Otherwise, find the first visible web search model from the same provider
+ * 4. Otherwise, find the first visible web search model from any provider
+ * 5. Return null if no web search models are available
+ *
+ * @param {string|null} defaultModel - The current default model ID
+ * @param {Function} isModelVisible - Function to check if a model is visible
+ * @param {Array} orderedProviders - Array of providers in user's preferred order
+ * @param {Object} modelOrder - Object with provider-specific model ordering
+ * @param {string|null} defaultWebSearchModel - The custom default web search model (optional)
+ * @returns {string|null} The ID of the default web search model, or null if none available
+ */
+export function getDefaultWebSearchModel(
+  defaultModel,
+  isModelVisible,
+  orderedProviders,
+  modelOrder,
+  defaultWebSearchModel = null
+) {
+  // Get all web search models
+  const webSearchModels = getWebSearchModels();
+
+  // 1. Check if a custom defaultWebSearchModel is set
+  if (defaultWebSearchModel) {
+    const customModel = getModelByIdentifier(defaultWebSearchModel);
+    if (customModel?.capabilities?.webSearch === true) {
+      return defaultWebSearchModel;
+    }
+  }
+
+  // 2. Check if the default model supports web search
+  if (defaultModel) {
+    const defaultModelEntry = getModelByIdentifier(defaultModel);
+    if (defaultModelEntry?.capabilities?.webSearch === true) {
+      return defaultModel;
+    }
+
+    // 3. Find first visible web search model from the same provider
+    const defaultProvider = defaultModelEntry?.provider;
+    if (defaultProvider) {
+      const sameProviderModels = webSearchModels.filter(
+        (m) => m.provider === defaultProvider && isModelVisible(m.name)
+      );
+
+      if (sameProviderModels.length > 0) {
+        // Sort by custom order if available
+        const providerModelOrder = modelOrder?.[defaultProvider];
+        if (providerModelOrder && Array.isArray(providerModelOrder)) {
+          sameProviderModels.sort((a, b) => {
+            const indexA = providerModelOrder.indexOf(a.name);
+            const indexB = providerModelOrder.indexOf(b.name);
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return a.name.localeCompare(b.name);
+          });
+        }
+        return sameProviderModels[0].id;
+      }
+    }
+  }
+
+  // 4. Find first visible web search model from any provider (in user's provider order)
+  for (const provider of orderedProviders) {
+    const providerWebSearchModels = webSearchModels.filter(
+      (m) => m.provider === provider && isModelVisible(m.name)
+    );
+
+    if (providerWebSearchModels.length > 0) {
+      // Sort by custom order if available
+      const providerModelOrder = modelOrder?.[provider];
+      if (providerModelOrder && Array.isArray(providerModelOrder)) {
+        providerWebSearchModels.sort((a, b) => {
+          const indexA = providerModelOrder.indexOf(a.name);
+          const indexB = providerModelOrder.indexOf(b.name);
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          return a.name.localeCompare(b.name);
+        });
+      }
+      return providerWebSearchModels[0].id;
+    }
+  }
+
+  // 5. No visible web search models available
+  return null;
+}
+
+// ==================== COMPLETION FUNCTION HELPERS ====================
+
+/**
+ * Get maximum output tokens for a model
+ * @param {string} identifier - Model identifier
+ * @returns {number} Max output tokens (default: 8192)
+ */
+export function getMaxOutput(identifier) {
+  const model = getModelByIdentifier(identifier);
+  return model?.maxOutput || 8192;
+}
+
+/**
+ * Check if model supports streaming
+ * @param {string} identifier - Model identifier
+ * @returns {boolean} True if streaming is supported (default: true)
+ */
+export function supportsStreaming(identifier) {
+  const model = getModelByIdentifier(identifier);
+  return model?.noStreaming !== true;
+}
+
+/**
+ * Get system message role for a model
+ * Some models (o1, o3, o4) require "user" role, o3-pro requires "developer"
+ * @param {string} identifier - Model identifier
+ * @returns {string} Role: "system" | "user" | "developer"
+ */
+export function getSystemRole(identifier) {
+  const model = getModelByIdentifier(identifier);
+  return model?.systemRole || "system";
+}
+
+/**
+ * Check if model should use legacy Completion API instead of Response API
+ * @param {string} identifier - Model identifier
+ * @returns {boolean} True if should use Completion API (default: false, use Response API)
+ */
+export function useCompletionApi(identifier) {
+  const model = getModelByIdentifier(identifier);
+  return model?.useCompletionApi === true;
+}
+
+/**
+ * Get temperature configuration for a model based on provider
+ * OpenAI uses 2.0 scale with 1.3 max, others use 1.0 scale with 2.0 max
+ * @param {string} identifier - Model identifier
+ * @returns {Object} { scale: number, max: number }
+ */
+export function getTemperatureConfig(identifier) {
+  const model = getModelByIdentifier(identifier);
+  if (model?.provider === "OpenAI") {
+    return { scale: 2.0, max: 1.3 };
+  }
+  return { scale: 1.0, max: 2.0 };
+}
+
+/**
+ * Check if model supports web search via Response API built-in tool
+ * Most OpenAI models support this, except:
+ * - gpt-4.1-nano
+ * - gpt-5 with minimal reasoning (handled at runtime)
+ * Note: Web search context is limited to 128k even for larger context models
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function supportsResponseApiWebSearch(identifier) {
+  const model = getModelByIdentifier(identifier);
+  if (!model || model.provider !== "OpenAI") return false;
+
+  // Exclusion list - models that don't support Response API web search
+  const excludedModels = ["gpt-4.1-nano"];
+  if (excludedModels.includes(model.id)) return false;
+
+  // Image generation models don't support web search
+  if (model.modelType === "image-generation") return false;
+
+  return true;
+}
+
+/**
+ * Get all OpenAI models that support web search via Response API
+ * Returns models that can use web_search_preview tool
+ * @param {boolean} excludeDedicatedSearch - If true, excludes models with dedicated webSearch capability
+ * @returns {Object[]} Array of model entries with registry keys
+ */
+export function getResponseApiWebSearchModels(excludeDedicatedSearch = true) {
+  return Object.entries(MODEL_REGISTRY)
+    .filter(([_, m]) => {
+      if (m.provider !== "OpenAI") return false;
+      if (m.modelType === "image-generation") return false;
+      if (excludeDedicatedSearch && m.capabilities?.webSearch) return false;
+      if (["gpt-4.1-nano"].includes(m.id)) return false;
+      return true;
+    })
+    .map(([key, m]) => ({ ...m, registryKey: key }));
+}
+
+/**
  * Get provider prefix for routing
  * @param {string} provider - Provider name
  * @returns {string} Prefix for model ID
@@ -792,6 +1027,7 @@ export function registerOpenRouterModels(modelsInfo) {
         },
         capabilities: {
           imageInput: model.imagePricing > 0,
+          webSearch: true, // All OpenRouter models support web search via :online suffix
         },
         visibleByDefault: false,
         isDynamic: true,

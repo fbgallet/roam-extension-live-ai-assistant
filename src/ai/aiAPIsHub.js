@@ -41,7 +41,15 @@ import {
   tokensLimit,
   updateTokenCounter,
 } from "./modelsInfo";
-import { getModelByIdentifier } from "./modelRegistry";
+import {
+  getModelByIdentifier,
+  getMaxOutput,
+  supportsStreaming,
+  getSystemRole,
+  useCompletionApi,
+  getTemperatureConfig,
+  isThinkingModel,
+} from "./modelRegistry";
 import {
   pdfLinkRegex,
   roamImageRegex,
@@ -184,8 +192,8 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
       prefix === "openrouter"
         ? modelLower.replace("openrouter/", "")
         : openRouterModels.length
-        ? openRouterModels[0]
-        : undefined;
+          ? openRouterModels[0]
+          : undefined;
     const openRouterInfos = openRouterModelsInfo.find((m) => m.id === llm.id);
     llm.tokensLimit = openRouterInfos?.contextLength * 1024 || 128000;
     llm.name = llm.id && openRouterInfos ? openRouterInfos.name : llm.id;
@@ -199,8 +207,8 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
       prefix === "ollama"
         ? modelLower.replace("ollama/", "")
         : ollamaModels.length
-        ? ollamaModels[0]
-        : undefined;
+          ? ollamaModels[0]
+          : undefined;
     llm.library = "ollama";
   }
   // Groq models
@@ -211,8 +219,8 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
       prefix === "groq"
         ? modelLower.replace("groq/", "")
         : groqModels.length
-        ? groqModels[0]
-        : undefined;
+          ? groqModels[0]
+          : undefined;
     llm.library = groqLibrary;
   }
   // Custom OpenAI-compatible models
@@ -223,8 +231,8 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
       prefix === "custom"
         ? modelLower.replace("custom/", "")
         : openAiCustomModels.length
-        ? openAiCustomModels[0]
-        : undefined;
+          ? openAiCustomModels[0]
+          : undefined;
     llm.library = customOpenaiLibrary;
   }
   // ==================== HANDLE REGISTRY-BASED MODELS ====================
@@ -474,14 +482,7 @@ export async function claudeCompletion({
         "anthropic-dangerous-direct-browser-access": "true",
       };
       const options = {
-        max_tokens:
-          model.includes("sonnet") ||
-          model.includes("4-5") ||
-          model.includes("4.5")
-            ? 64000
-            : model.includes("opus-4-1")
-            ? 32000
-            : 8192,
+        max_tokens: getMaxOutput(model),
         model: thinking ? model.replace("+thinking", "") : model,
         messages,
       };
@@ -529,10 +530,10 @@ export async function claudeCompletion({
             reasoningEffort === "minimal"
               ? 1024
               : reasoningEffort === "low"
-              ? 2500
-              : reasoningEffort === "medium"
-              ? 4096
-              : 8000,
+                ? 2500
+                : reasoningEffort === "medium"
+                  ? 4096
+                  : 8000,
         };
       }
       const usage = {
@@ -755,7 +756,12 @@ export async function claudeCompletion({
   }
 }
 
-export async function openaiCompletion({
+/**
+ * Legacy OpenAI Chat Completions API
+ * Kept for backward compatibility with models that have useCompletionApi: true
+ * @deprecated Use openaiResponse for new implementations
+ */
+export async function openaiCompletionLegacy({
   aiClient,
   model,
   provider,
@@ -778,8 +784,8 @@ export async function openaiCompletion({
         model.startsWith("o1") || model === "o3" || model.startsWith("o4")
           ? "user"
           : model === "o3-pro"
-          ? "developer"
-          : "system",
+            ? "developer"
+            : "system",
       content: systemPrompt + (content ? "\n\n" + content : ""),
     },
   ].concat(prompt);
@@ -806,8 +812,14 @@ export async function openaiCompletion({
       : streamResponse && responseFormat === "text";
   try {
     let response;
+    // For OpenRouter models with web search, append :online suffix
+    const modelWithOnline =
+      provider === "openRouter" && command === "Web search"
+        ? model + ":online"
+        : model;
+
     const options = {
-      model: model,
+      model: modelWithOnline,
       stream: isToStream,
     };
     if (model === "o3-pro" || (withPdf && provider !== "openRouter")) {
@@ -828,7 +840,7 @@ export async function openaiCompletion({
         !model.includes("deepseek") &&
         (options["stream_options"] = { include_usage: true });
     }
-    console.log("model :>> ", model);
+    console.log("model :>> ", modelWithOnline);
 
     if (
       model.includes("o3") ||
@@ -853,10 +865,18 @@ export async function openaiCompletion({
     //   };
 
     if (model.includes("grok")) {
-      options["search_parameters"] = {
-        mode: command === "Web search" ? "on" : "auto",
-        return_citations: true,
-      };
+      // options["search_parameters"] = {
+      //   mode: command === "Web search" ? "on" : "auto",
+      //   return_citations: true,
+      // };
+      options["tools"] = [
+        {
+          type: "web_search",
+        },
+        {
+          type: "x_search",
+        },
+      ];
       if (model.includes("grok-3-mini") && !model.includes("high")) {
         options["reasoning_effort"] =
           reasoningEffort === "high" ? "high" : "low";
@@ -989,12 +1009,231 @@ export async function openaiCompletion({
     return model === "o3-pro" || (withPdf && !isToStream)
       ? response.output_text
       : isToStream
-      ? respStr
-      : response.choices[0].message.content;
+        ? respStr
+        : response.choices[0].message.content;
   } catch (error) {
     console.error(error);
     AppToaster.show({
       message: `OpenAI error msg: ${error.message}`,
+      timeout: 15000,
+    });
+    return respStr;
+  }
+}
+
+/**
+ * OpenAI Response API completion (new unified API)
+ * Uses the Response API which supports built-in tools, server-side state, and better reasoning
+ */
+export async function openaiResponse({
+  aiClient,
+  model,
+  provider,
+  systemPrompt,
+  prompt,
+  command,
+  content,
+  responseFormat = "text",
+  targetUid,
+  thinking,
+  isButtonToInsert,
+  includePdfInContext = false,
+  previousResponseId = null,
+  storeConversation = false,
+  vectorStoreIds = null,
+}) {
+  let respStr = "";
+  let usage = {};
+
+  // Build input array (Response API format)
+  const systemRole = getSystemRole(model);
+  let input = [
+    {
+      role: systemRole,
+      content: systemPrompt + (content ? "\n\n" + content : ""),
+    },
+  ].concat(prompt);
+
+  // Handle images and PDFs for Response API
+  if (isModelSupportingImage(model)) {
+    if (
+      pdfLinkRegex.test(JSON.stringify(prompt)) ||
+      (includePdfInContext && pdfLinkRegex.test(content))
+    ) {
+      input = await addPdfUrlToMessages(
+        input,
+        includePdfInContext ? content : "",
+        provider,
+        true // useResponseApi
+      );
+    } else {
+      input = await addImagesUrlToMessages(
+        input,
+        content,
+        false, // isAnthropicModel
+        true // useResponseApi
+      );
+    }
+  }
+
+  try {
+    const options = {
+      model,
+      input,
+      ...(storeConversation && { store: true }),
+      ...(previousResponseId && { previous_response_id: previousResponseId }),
+    };
+
+    // Response format
+    if (responseFormat !== "text") {
+      options.text = { format: { type: responseFormat } };
+    }
+
+    // Add built-in tools
+    const tools = [];
+    if (command === "Web search" || model.includes("-search")) {
+      tools.push({ type: "web_search" });
+    }
+    if (vectorStoreIds?.length) {
+      tools.push({ type: "file_search", vector_store_ids: vectorStoreIds });
+    }
+    // Grok-specific tools
+    if (model.includes("grok")) {
+      tools.push({ type: "web_search" });
+      tools.push({ type: "x_search" });
+    }
+    if (tools.length) options.tools = tools;
+
+    // Handle reasoning for thinking models
+    if (
+      thinking ||
+      model.includes("o3") ||
+      model.includes("o4") ||
+      (model.includes("gpt-5") &&
+        !model.includes("search") &&
+        model !== "gpt-5.1")
+    ) {
+      options.reasoning = { effort: reasoningEffort };
+    }
+    // Grok-3-mini has special reasoning effort handling
+    if (model.includes("grok-3-mini") && !model.includes("high")) {
+      options.reasoning_effort = reasoningEffort === "high" ? "high" : "low";
+    }
+
+    // Temperature handling (provider-aware)
+    if (modelTemperature !== null) {
+      const tempConfig = getTemperatureConfig(model);
+      let temp = modelTemperature * tempConfig.scale;
+      if (temp > tempConfig.max) temp = tempConfig.max;
+      options.temperature = temp;
+    }
+
+    // Streaming support
+    const isToStream =
+      supportsStreaming(model) && streamResponse && responseFormat === "text";
+
+    if (isToStream) {
+      options.stream = true;
+    }
+
+    console.log("OpenAI Response API options :>> ", options);
+
+    const response = await aiClient.responses.create(options);
+
+    // Handle streaming
+    if (isToStream) {
+      if (isButtonToInsert)
+        insertInstantButtons({
+          model,
+          prompt,
+          content,
+          responseFormat,
+          targetUid,
+          isStreamStopped: false,
+        });
+      const streamElt = insertParagraphForStream(targetUid);
+      let thinkingToasterStream;
+      if (
+        isThinkingProcessToDisplay &&
+        (model.includes("o3") ||
+          model.includes("o4") ||
+          model.includes("gpt-5") ||
+          model.includes("grok-3-mini") ||
+          model === "grok-4" ||
+          model === "grok-4-1-fast-reasoning")
+      ) {
+        thinkingToasterStream = displayThinkingToast("Thinking process:");
+      }
+
+      try {
+        for await (const event of response) {
+          if (isCanceledStreamGlobal) {
+            streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+            break;
+          }
+
+          // Handle different event types from Response API
+          if (event.type === "response.output_text.delta") {
+            const chunkStr = event.delta || "";
+            respStr += chunkStr;
+            streamElt.innerHTML += DOMPurify.sanitize(chunkStr);
+          } else if (
+            event.type === "response.reasoning.delta" &&
+            thinkingToasterStream
+          ) {
+            thinkingToasterStream.innerText += event.delta || "";
+          } else if (
+            event.type === "response.completed" ||
+            event.type === "response.done"
+          ) {
+            if (event.response?.usage) {
+              usage = event.response.usage;
+            }
+          }
+        }
+      } catch (e) {
+        console.log("Error during OpenAI Response API stream: ", e);
+        return "";
+      } finally {
+        if (isCanceledStreamGlobal) {
+          console.log("OpenAI Response API stream interrupted.");
+        } else {
+          streamElt.remove();
+        }
+      }
+    } else {
+      // Non-streaming response
+      respStr = response.output_text || "";
+      if (response.usage) {
+        usage = response.usage;
+      }
+    }
+
+    // Add web sources annotations if present
+    if (response.annotations?.length && model.includes("-search")) {
+      let webSources = "\n\nWeb sources:";
+      response.annotations.forEach((annotation) => {
+        if (annotation.url_citation) {
+          webSources += `\n  - [${annotation.url_citation.title}](${annotation.url_citation.url})`;
+        }
+      });
+      respStr += webSources;
+    }
+
+    // Token usage tracking
+    console.log(`Tokens usage (${model}):>> `, usage);
+    if (usage.input_tokens || usage.output_tokens) {
+      updateTokenCounter(model, {
+        input_tokens: usage.input_tokens || usage.prompt_tokens,
+        output_tokens: usage.output_tokens || usage.completion_tokens,
+      });
+    }
+
+    return respStr;
+  } catch (error) {
+    console.error("OpenAI Response API error:", error);
+    AppToaster.show({
+      message: `OpenAI Response API error: ${error.message}`,
       timeout: 15000,
     });
     return respStr;
@@ -1399,13 +1638,13 @@ export async function googleCompletion({
     if (responseFormat === "json_object") {
       generationConfig.responseMimeType = "application/json";
     }
-    if (modelTemperature !== null && !model.includes("gemini-3")) {
+    // Skip temperature for thinking models (Google handles it internally)
+    const isGoogleThinkingModel = isThinkingModel(model);
+    if (modelTemperature !== null && !isGoogleThinkingModel) {
       generationConfig.temperature = modelTemperature;
     }
 
-    if (model.includes("gemini-3")) {
-      // generationConfig["thinking-level"] =
-
+    if (isGoogleThinkingModel) {
       generationConfig["thinkingConfig"] = {
         thinkingLevel: reasoningEffort === "minimal" ? "low" : reasoningEffort,
         includeThoughts: true,
@@ -1524,7 +1763,7 @@ export async function googleCompletion({
         });
       const streamElt = insertParagraphForStream(targetUid);
       let thinkingToasterStream;
-      if (model.includes("gemini-3") && isThinkingProcessToDisplay) {
+      if (isGoogleThinkingModel && isThinkingProcessToDisplay) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
 

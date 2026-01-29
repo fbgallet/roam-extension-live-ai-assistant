@@ -1248,7 +1248,8 @@ export const concatAdditionalPrompt = (prompt, additionalPrompt) => {
 export const getFormatedPdfRole = async (
   externalUrl,
   firebaseUrl,
-  provider
+  provider,
+  useResponseApi = false
 ) => {
   // pdf in encrypted graphs have to be decrypted and sent as file to API
   let file, pdfData64;
@@ -1282,7 +1283,20 @@ export const getFormatedPdfRole = async (
         file_data: file ? pdfData64 : externalUrl || firebaseUrl,
       },
     };
+  } else if (provider === "OpenAI" && useResponseApi) {
+    // OpenAI Response API format
+    pdfRole = file
+      ? {
+          type: "input_file",
+          filename: file.name,
+          file_data: pdfData64,
+        }
+      : {
+          type: "input_file",
+          file_url: externalUrl || firebaseUrl,
+        };
   } else {
+    // Legacy OpenAI Chat API format (or default)
     pdfRole = file
       ? {
           type: "input_file",

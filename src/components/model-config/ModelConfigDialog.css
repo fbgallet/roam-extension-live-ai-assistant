@@ -47,7 +47,10 @@
 .provider-section {
   margin-bottom: 12px;
   cursor: move;
-  transition: opacity 0.2s, filter 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    filter 0.2s,
+    transform 0.2s;
   position: relative;
 }
 
@@ -210,7 +213,9 @@
   border: 1px solid #e1e8ed;
   border-radius: 4px;
   cursor: move;
-  transition: opacity 0.2s, background 0.2s;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
 }
 
 .custom-model-row:hover {
@@ -291,7 +296,7 @@
 .default-model-section {
   position: relative;
   z-index: 1;
-  margin: 16px 0 12px 0;
+  margin: 16px 0 8px 0;
   padding: 10px 14px;
   background: #f0f7ff;
   border: 2px solid #3b82f6;
@@ -300,6 +305,11 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+}
+
+.default-model-section.default-websearch-section,
+.default-model-section.default-imagen-section {
+  margin: 8px 0 8px 0;
 }
 
 .default-model-section.drag-over {
@@ -375,6 +385,79 @@
 .default-model-empty .bp5-icon,
 .default-model-empty .bp3-icon {
   color: #93c5fd;
+}
+
+/* ===== SECONDARY DEFAULT MODELS (Web Search & Image Gen) ===== */
+.default-websearch-section,
+.default-imagegen-section {
+  flex: 1;
+  min-height: 38px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 12px;
+  opacity: 0.85;
+  transition: all 0.2s;
+}
+
+.default-websearch-section:hover,
+.default-imagegen-section:hover {
+  opacity: 1;
+  border-color: #9ca3af;
+}
+
+.default-websearch-section.drag-over {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.default-imagegen-section.drag-over {
+  background: #fce7f3;
+  border-color: #ec4899;
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.1);
+}
+
+.default-websearch-section .default-pin-icon {
+  color: #3b82f6;
+}
+
+.default-imagegen-section .default-pin-icon {
+  color: #ec4899;
+}
+
+.default-websearch-section .default-label {
+  color: #1e40af;
+  font-size: 11px;
+}
+
+.default-imagegen-section .default-label {
+  color: #be185d;
+  font-size: 11px;
+}
+
+/* Dark mode for secondary defaults */
+.bp5-dark .default-websearch-section,
+.bp3-dark .default-websearch-section,
+.bp5-dark .default-imagegen-section,
+.bp3-dark .default-imagegen-section {
+  background: #293742;
+  border-color: #5c7080;
+}
+
+.bp5-dark .default-websearch-section.drag-over,
+.bp3-dark .default-websearch-section.drag-over {
+  background: #2c4a70;
+  border-color: #60a5fa;
+}
+
+.bp5-dark .default-imagegen-section.drag-over,
+.bp3-dark .default-imagegen-section.drag-over {
+  background: #4a2447;
+  border-color: #f472b6;
 }
 
 /* ===== VISIBILITY PANEL ===== */

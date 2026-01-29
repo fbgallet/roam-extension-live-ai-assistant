@@ -24,7 +24,8 @@ import {
   openaiLibrary,
   setDefaultModel,
 } from "..";
-import { normalizeClaudeModel, tokensLimit } from "../ai/modelsInfo";
+import { tokensLimit } from "../ai/modelsInfo";
+import { getWebSearchModels, getImageGenerationModels } from "../ai/modelRegistry";
 import { AppToaster } from "./Toaster";
 import {
   getModelConfig,
@@ -71,17 +72,14 @@ const ModelsMenu = ({
   const handleContextMenu = (e, prefix, modelId) => {
     e.preventDefault();
     let model = getModelFromMenu(e, prefix, modelId);
-    if (!isWebSearch) {
-      console.log("default model :>> ", model);
-      setDefaultModel(model);
-      setModel(model);
-    } else {
-      extensionStorage.set("webModel", normalizeClaudeModel(model));
-    }
+    // Always set as main default model (web search will use it automatically if it supports web search)
+    console.log("default model :>> ", model);
+    setDefaultModel(model);
+    setModel(model);
     AppToaster.show({
-      message: `Default AI model ${
-        isWebSearch ? "for Web search" : ""
-      } set to: ${model}`,
+      message: `Default AI model set to: ${model}${
+        isWebSearch ? " (will be used for web search)" : ""
+      }`,
       timeout: 5000,
     });
   };
@@ -253,122 +251,145 @@ const ModelsMenu = ({
   // Config is now auto-saved in the dialog, this callback is kept for compatibility
   const handleConfigSave = () => {};
 
+  // Get all models that support web search (all providers)
   const openAiWebSearchModels = () => {
+    const webSearchModels = getWebSearchModels(); // Get all models with capabilities.webSearch = true
+
+    // Filter to only visible models (use model.name for visibility check, as that's what's stored in config)
+    const visibleModels = webSearchModels.filter((m) => isModelVisible(m.name));
+
+    // Group models by provider
+    const modelsByProvider = {};
+    visibleModels.forEach((model) => {
+      if (!modelsByProvider[model.provider]) {
+        modelsByProvider[model.provider] = [];
+      }
+      modelsByProvider[model.provider].push(model);
+    });
+
+    // Get ordered providers (respecting user's custom order)
+    const orderedProviders = getOrderedProviders().filter(
+      (p) => modelsByProvider[p] && modelsByProvider[p].length > 0
+    );
+
+    // Sort models within each provider according to user's custom order
+    orderedProviders.forEach((provider) => {
+      const providerModels = modelsByProvider[provider];
+
+      // Get the full provider models list to access the custom order
+      const allProviderModels = getProviderModels(provider);
+      const providerModelIds = allProviderModels.map(m => m.id);
+
+      // Sort according to the same order as in getProviderModels
+      providerModels.sort((a, b) => {
+        const indexA = providerModelIds.indexOf(a.name);
+        const indexB = providerModelIds.indexOf(b.name);
+
+        // If both found in the ordered list, use that order
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB;
+        }
+        // If only one found, it comes first
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        // Otherwise sort alphabetically by name
+        return a.name.localeCompare(b.name);
+      });
+    });
+
     return (
       <>
-        <MenuItem
-          icon={currentDefaultModel === "gpt-5-search-api" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e);
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-          tabindex="0"
-          text="gpt-5-search-api"
-          labelElement="128k"
-        />
-        <MenuItem
-          icon={currentDefaultModel === "gpt-4o-search" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e);
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-          tabindex="0"
-          text="gpt-4o-search"
-          labelElement="128k"
-        />
-        <MenuItem
-          icon={currentDefaultModel === "gpt-4o-mini-search" && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(e);
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e);
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-          tabindex="0"
-          text="gpt-4o-mini-search"
-          labelElement="128k"
-        />
+        {orderedProviders.map((provider) => (
+          <React.Fragment key={provider}>
+            <MenuDivider title={provider} />
+            {modelsByProvider[provider].map((model) => (
+              <MenuItem
+                key={model.id}
+                icon={currentDefaultModel === model.id && "pin"}
+                onClick={(e) => handleClickOnModel(e, "", model.id)}
+                onKeyDown={(e) => handleKeyDownOnModel(e, "", model.id)}
+                onContextMenu={(e) => handleContextMenu(e, "", model.id)}
+                tabIndex={0}
+                text={model.name}
+                labelElement={
+                  <Tag minimal>
+                    {formatContextLength(
+                      // Web search is limited to 128k context
+                      Math.min(model.contextLength || 128000, 128000)
+                    )}
+                  </Tag>
+                }
+              />
+            ))}
+          </React.Fragment>
+        ))}
       </>
     );
   };
 
-  const openAiImageModels = () => {
+  const imageGenerationModelsSubmenu = () => {
+    const imageModels = getImageGenerationModels();
+
+    // Filter to only visible models (use model.name for visibility check)
+    const visibleModels = imageModels.filter((m) => isModelVisible(m.name));
+
+    // Group models by provider
+    const modelsByProvider = {};
+    visibleModels.forEach((model) => {
+      if (!modelsByProvider[model.provider]) {
+        modelsByProvider[model.provider] = [];
+      }
+      modelsByProvider[model.provider].push(model);
+    });
+
+    // Get ordered providers (respecting user's custom order)
+    const orderedProviders = getOrderedProviders().filter(
+      (p) => modelsByProvider[p] && modelsByProvider[p].length > 0
+    );
+
+    // Sort models within each provider according to user's custom order
+    orderedProviders.forEach((provider) => {
+      const providerModels = modelsByProvider[provider];
+
+      // Get the full provider models list to access the custom order
+      const allProviderModels = getProviderModels(provider);
+      const providerModelIds = allProviderModels.map((m) => m.id);
+
+      // Sort according to the same order as in getProviderModels
+      providerModels.sort((a, b) => {
+        const indexA = providerModelIds.indexOf(a.name);
+        const indexB = providerModelIds.indexOf(b.name);
+
+        // If both found in the ordered list, use that order
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB;
+        }
+        // If only one found, it comes first
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        // Otherwise sort alphabetically by name
+        return a.name.localeCompare(b.name);
+      });
+    });
+
     return (
       <>
-        {openaiLibrary?.apiKey && (
-          <>
-            <MenuItem
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gpt-image-1-mini"
-            />
-            <MenuItem
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gpt-image-1"
-            />
-          </>
-        )}
-        {googleLibrary?.apiKey && (
-          <>
-            {openaiLibrary?.apiKey && <MenuDivider />}
-
-            <MenuItem
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gemini-2.5-flash-image"
-              labelElement="nano 🍌"
-            />
-            <MenuItem
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="gemini-3-pro-image-preview"
-              labelElement="nano 🍌 pro"
-            />
-            <MenuItem
-              onClick={(e) => {
-                handleClickOnModel(e);
-              }}
-              onKeyDown={(e) => {
-                handleKeyDownOnModel(e);
-              }}
-              onContextMenu={(e) => handleContextMenu(e)}
-              tabindex="0"
-              text="imagen-4.0-generate-001"
-            />
-          </>
-        )}
+        {orderedProviders.map((provider) => (
+          <React.Fragment key={provider}>
+            <MenuDivider title={provider} />
+            {modelsByProvider[provider].map((model) => (
+              <MenuItem
+                key={model.id}
+                icon={currentDefaultModel === model.id && "pin"}
+                onClick={(e) => handleClickOnModel(e, "", model.id)}
+                onKeyDown={(e) => handleKeyDownOnModel(e, "", model.id)}
+                onContextMenu={(e) => handleContextMenu(e, "", model.id)}
+                tabIndex={0}
+                text={model.name}
+              />
+            ))}
+          </React.Fragment>
+        ))}
       </>
     );
   };
@@ -414,7 +435,7 @@ const ModelsMenu = ({
     ) : null;
   };
 
-  if (isImageGeneration) return openAiImageModels();
+  if (isImageGeneration) return imageGenerationModelsSubmenu();
   if (isWebSearch) return openAiWebSearchModels();
 
   return (

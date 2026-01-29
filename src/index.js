@@ -27,9 +27,8 @@ import {
   getModelsInfo,
   imageGenerationModels,
   updateTokenCounter,
-  webSearchModels,
 } from "./ai/modelsInfo";
-import { loadRemoteModelUpdates } from "./ai/modelRegistry";
+import { loadRemoteModelUpdates, registerOpenRouterModels } from "./ai/modelRegistry";
 import {
   migrateModelConfig,
   getModelConfig,
@@ -524,6 +523,7 @@ function getPanelConfig() {
                 "https://openrouter.ai/api/v1"
               );
               openRouterModelsInfo = await getModelsInfo();
+              registerOpenRouterModels(openRouterModelsInfo);
               updateAvailableModels();
             }, 200);
             setTimeout(() => {
@@ -709,23 +709,14 @@ function getPanelConfig() {
           },
         },
       },
-      {
-        id: "webModel",
-        name: "Web search model",
-        description: "Define the default model to run a 'Web search':",
-        action: {
-          type: "select",
-          items: webSearchModels,
-          onChange: async (evt) => {
-            await extensionStorage.set("webModel", evt);
-          },
-        },
-      },
+      // Removed: Web search model is now automatically determined based on:
+      // 1. If default model supports web search, use it
+      // 2. Otherwise, use first visible web search model from same provider
+      // 3. Otherwise, use first visible web search model from any provider
       {
         id: "transcriptionModel",
         name: "Voice transcription model",
-        description:
-          "Choose which OpenAI hrefvoice transcription model to use: ",
+        description: "Choose which OpenAI voice transcription model to use: ",
         action: {
           type: "select",
           items: ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
@@ -1651,8 +1642,7 @@ export default {
         "gemini-3-pro-image-preview"
       );
     defaultImageModel = extensionAPI.settings.get("defaultImageModel");
-    if (extensionAPI.settings.get("webModel") === null)
-      await extensionAPI.settings.set("webModel", "gpt-4o-mini-search-preview");
+    // Removed: webModel is now automatically determined based on default model and configuration
     // if (extensionAPI.settings.get("webContext") === null)
     //   await extensionAPI.settings.set("webContext", "medium");
     // websearchContext = extensionAPI.settings.get("webContext");
@@ -1737,6 +1727,7 @@ export default {
         "https://openrouter.ai/api/v1"
       );
       openRouterModelsInfo = await getModelsInfo();
+      registerOpenRouterModels(openRouterModelsInfo);
     }
     if (GROQ_API_KEY) {
       groqLibrary = initializeOpenAIAPI(

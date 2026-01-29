@@ -13,6 +13,9 @@ import {
   isTitleToAdd,
   ANTHROPIC_API_KEY,
 } from "..";
+import { getDefaultWebSearchModel } from "./modelRegistry";
+import { isModelVisible, getModelConfig } from "../utils/modelConfigHelpers";
+import { getOrderedProviders } from "../utils/modelConfigHelpers";
 import {
   addContentToBlock,
   createChildBlock,
@@ -55,8 +58,10 @@ import {
   isAPIKeyNeeded,
   modelAccordingToProvider,
   ollamaCompletion,
-  openaiCompletion,
+  openaiCompletionLegacy,
+  openaiResponse,
 } from "./aiAPIsHub";
+import { useCompletionApi } from "./modelRegistry";
 import {
   concatAdditionalPrompt,
   getConversationArray,
@@ -141,15 +146,21 @@ export async function aiCompletion({
 
   if (llm.provider === "Google") {
     aiResponse = await googleCompletion(completionOptions);
+  } else if (llm.provider === "OpenAI" || llm.provider === "Grok") {
+    // Use Response API by default for OpenAI and Grok, unless model has useCompletionApi flag
+    if (useCompletionApi(llm.id)) {
+      aiResponse = await openaiCompletionLegacy(completionOptions);
+    } else {
+      aiResponse = await openaiResponse(completionOptions);
+    }
   } else if (
-    llm.provider === "OpenAI" ||
     llm.provider === "openRouter" ||
     llm.provider === "groq" ||
     llm.provider === "DeepSeek" ||
-    llm.provider === "Grok" ||
     llm.provider === "custom"
   ) {
-    aiResponse = await openaiCompletion(completionOptions);
+    // Other OpenAI-compatible providers use legacy Completion API
+    aiResponse = await openaiCompletionLegacy(completionOptions);
   } else if (llm.provider === "ollama") {
     aiResponse = await ollamaCompletion(completionOptions);
   } else {
@@ -216,7 +227,30 @@ export const aiCompletionRunner = async ({
 
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
-    if (!instantModel) instantModel = extensionStorage.get("webModel");
+    if (!instantModel) {
+      // Determine default web search model based on user's default model and configuration
+      const modelConfig = getModelConfig();
+      const currentDefaultModel = extensionStorage.get("defaultModel") || defaultModel;
+      const orderedProviders = getOrderedProviders();
+
+      instantModel = getDefaultWebSearchModel(
+        currentDefaultModel,
+        isModelVisible,
+        orderedProviders,
+        modelConfig.modelOrder,
+        modelConfig.defaultWebSearchModel
+      );
+
+      // If no web search model is available, show error and return
+      if (!instantModel) {
+        AppToaster.show({
+          message: `No web search capable model is currently enabled. Please enable at least one web search model in the Model Configuration.`,
+          timeout: 8000,
+          intent: "warning",
+        });
+        return;
+      }
+    }
     command = "Web search";
     prompt = "";
   }
@@ -344,9 +378,9 @@ export const insertCompletion = async ({
   if (model === "first OpenRouter model") {
     model = openRouterModels.length
       ? "openRouter/" + openRouterModels[0]
-      : "gpt-4o-mini";
+      : "gpt-5-mini";
   } else if (model === "first Ollama local model") {
-    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-4o-mini";
+    model = ollamaModels.length ? "ollama/" + ollamaModels[0] : "gpt-5-mini";
   }
   const responseFormat =
     typeOfCompletion === "SelectionOutline" ? "json_object" : "text";

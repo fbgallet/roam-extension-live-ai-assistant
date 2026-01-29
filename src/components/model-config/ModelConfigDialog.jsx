@@ -57,6 +57,8 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   const [showAddForm, setShowAddForm] = useState({}); // { provider: boolean } - tracks which provider forms are visible
   const [draggedCustomModel, setDraggedCustomModel] = useState(null); // For custom models drag-drop
   const [isDraggingOverDefault, setIsDraggingOverDefault] = useState(false); // For default model drop zone
+  const [isDraggingOverWebSearch, setIsDraggingOverWebSearch] = useState(false); // For web search model drop zone
+  const [isDraggingOverImageGen, setIsDraggingOverImageGen] = useState(false); // For image gen model drop zone
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -443,6 +445,20 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     });
   };
 
+  const handleSetDefaultWebSearchModel = (modelId) => {
+    setWorkingConfig({
+      ...workingConfig,
+      defaultWebSearchModel: modelId,
+    });
+  };
+
+  const handleSetDefaultImageModel = (modelId) => {
+    setWorkingConfig({
+      ...workingConfig,
+      defaultImageModel: modelId,
+    });
+  };
+
   const handleDefaultModelDrop = (e) => {
     e.preventDefault();
     setIsDraggingOverDefault(false);
@@ -453,6 +469,30 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     const modelId = prefix + draggedModel.id;
 
     handleSetDefaultModel(modelId);
+  };
+
+  const handleWebSearchModelDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingOverWebSearch(false);
+
+    if (!draggedModel) return;
+
+    const prefix = getPrefix(draggedModel.provider);
+    const modelId = prefix + draggedModel.id;
+
+    handleSetDefaultWebSearchModel(modelId);
+  };
+
+  const handleImageGenModelDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingOverImageGen(false);
+
+    if (!draggedModel) return;
+
+    const prefix = getPrefix(draggedModel.provider);
+    const modelId = prefix + draggedModel.id;
+
+    handleSetDefaultImageModel(modelId);
   };
 
   const handleEndpointChange = (provider, endpoint) => {
@@ -692,6 +732,25 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     );
   };
 
+  // Helper to get initial default image model
+  const getInitialDefaultImageModel = () => {
+    const availableModels = getAvailableModels();
+    // Check if Google API is available (has Gemini models)
+    const hasGoogle = availableModels.some(m => m.toLowerCase().includes('gemini'));
+
+    if (hasGoogle) {
+      return 'gemini-3-pro-image-preview'; // Nano banana pro
+    }
+
+    // Check if OpenAI API is available
+    const hasOpenAI = availableModels.some(m => m.toLowerCase().includes('gpt'));
+    if (hasOpenAI) {
+      return 'gpt-image-1-mini';
+    }
+
+    return null;
+  };
+
   // Render default model section
   const renderDefaultModelSection = () => {
     const currentDefault = workingConfig.defaultModel;
@@ -777,6 +836,173 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
           <div className="default-model-empty">
             <Icon icon="drag-handle-vertical" size={14} />
             <span>Drop here to set as default</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render default web search model section
+  const renderDefaultWebSearchModelSection = () => {
+    const currentDefault = workingConfig.defaultWebSearchModel;
+    const isDragging = !!draggedModel;
+
+    // Find the model details
+    let defaultModelInfo = null;
+    if (currentDefault) {
+      const allProviders = getAllProviders();
+      for (const provider of allProviders) {
+        const providerModels = getProviderModelsFromWorkingConfig(provider);
+        const prefix = getPrefix(provider);
+        const modelId = currentDefault.replace(prefix, "");
+        const model = providerModels.find(
+          (m) => m.id === modelId || prefix + m.id === currentDefault
+        );
+        if (model) {
+          const metadata = getModelMetadata(model.id);
+          defaultModelInfo = {
+            ...model,
+            provider,
+            fullId: currentDefault,
+            contextLength: metadata.contextLength,
+            pricing: metadata.pricing,
+          };
+          break;
+        }
+      }
+    }
+
+    return (
+      <div
+        className={`default-model-section default-websearch-section ${
+          isDraggingOverWebSearch ? "drag-over" : ""
+        } ${isDragging ? "dragging-active" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDraggingOverWebSearch(true);
+        }}
+        onDragLeave={() => setIsDraggingOverWebSearch(false)}
+        onDrop={handleWebSearchModelDrop}
+      >
+        {!isDragging ? (
+          defaultModelInfo ? (
+            <div className="default-model-compact">
+              <Icon icon="search" className="default-pin-icon" size={12} />
+              <span className="default-label">Web Search:</span>
+              <span className="default-model-name">
+                {defaultModelInfo.name}
+              </span>
+              {defaultModelInfo.pricing && defaultModelInfo.pricing.input > 0 && (
+                <Tag minimal small className="default-tag price-in">
+                  In: ${defaultModelInfo.pricing.input.toFixed(2)}
+                </Tag>
+              )}
+              <Button
+                icon="cross"
+                minimal
+                small
+                onClick={() => handleSetDefaultWebSearchModel(null)}
+                title="Clear web search default model"
+                className="default-clear-btn"
+              />
+            </div>
+          ) : (
+            <div className="default-model-empty">
+              <Icon icon="search" size={12} />
+              <span style={{ fontSize: "12px", color: "#5c7080" }}>
+                Web Search: same as text generation default model
+              </span>
+            </div>
+          )
+        ) : (
+          <div className="default-model-empty">
+            <Icon icon="search" size={12} />
+            <span style={{ fontSize: "12px" }}>Drop here for web search default</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render default image generation model section
+  const renderDefaultImageModelSection = () => {
+    const currentDefault = workingConfig.defaultImageModel;
+    const isDragging = !!draggedModel;
+
+    // Find the model details
+    let defaultModelInfo = null;
+    if (currentDefault) {
+      const allProviders = getAllProviders();
+      for (const provider of allProviders) {
+        const providerModels = getProviderModelsFromWorkingConfig(provider);
+        const prefix = getPrefix(provider);
+        const modelId = currentDefault.replace(prefix, "");
+        const model = providerModels.find(
+          (m) => m.id === modelId || prefix + m.id === currentDefault
+        );
+        if (model) {
+          const metadata = getModelMetadata(model.id);
+          defaultModelInfo = {
+            ...model,
+            provider,
+            fullId: currentDefault,
+            contextLength: metadata.contextLength,
+            pricing: metadata.pricing,
+          };
+          break;
+        }
+      }
+    }
+
+    // Get initial default if not set
+    const initialDefault = !currentDefault ? getInitialDefaultImageModel() : null;
+
+    return (
+      <div
+        className={`default-model-section default-imagegen-section ${
+          isDraggingOverImageGen ? "drag-over" : ""
+        } ${isDragging ? "dragging-active" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDraggingOverImageGen(true);
+        }}
+        onDragLeave={() => setIsDraggingOverImageGen(false)}
+        onDrop={handleImageGenModelDrop}
+      >
+        {!isDragging ? (
+          defaultModelInfo ? (
+            <div className="default-model-compact">
+              <Icon icon="media" className="default-pin-icon" size={12} />
+              <span className="default-label">Image Gen:</span>
+              <span className="default-model-name">
+                {defaultModelInfo.name}
+              </span>
+              {defaultModelInfo.pricing && defaultModelInfo.pricing.output > 0 && (
+                <Tag minimal small className="default-tag price-out">
+                  Out: ${defaultModelInfo.pricing.output.toFixed(2)}
+                </Tag>
+              )}
+              <Button
+                icon="cross"
+                minimal
+                small
+                onClick={() => handleSetDefaultImageModel(null)}
+                title="Clear image generation default model"
+                className="default-clear-btn"
+              />
+            </div>
+          ) : (
+            <div className="default-model-empty">
+              <Icon icon="media" size={12} />
+              <span style={{ fontSize: "12px", color: "#5c7080" }}>
+                Image Gen: {initialDefault || 'gpt-image-1-mini or Nano Banana Pro'}
+              </span>
+            </div>
+          )
+        ) : (
+          <div className="default-model-empty">
+            <Icon icon="media" size={12} />
+            <span style={{ fontSize: "12px" }}>Drop here for image generation default</span>
           </div>
         )}
       </div>
@@ -1319,6 +1545,10 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
           {activeTab === "visibility" && (
             <>
               {renderDefaultModelSection()}
+              <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                {renderDefaultWebSearchModelSection()}
+                {renderDefaultImageModelSection()}
+              </div>
               <InputGroup
                 leftIcon="search"
                 placeholder="Search models..."
