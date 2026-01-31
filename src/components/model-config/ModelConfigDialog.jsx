@@ -9,6 +9,7 @@ import {
   Collapse,
   Tag,
   Icon,
+  Tooltip,
 } from "@blueprintjs/core";
 import ModelCard from "./ModelCard";
 import CustomModelForm from "./CustomModelForm";
@@ -16,7 +17,18 @@ import OpenRouterBrowser from "./OpenRouterBrowser";
 import ProviderEndpointConfig from "./ProviderEndpointConfig";
 import { TokensUsageContent } from "../TokensDisplay";
 import { AppToaster } from "../Toaster";
-import { extensionStorage, setDefaultModel, updateAvailableModels } from "../..";
+import {
+  extensionStorage,
+  setDefaultModel,
+  updateAvailableModels,
+  OPENAI_API_KEY,
+  ANTHROPIC_API_KEY,
+  GOOGLE_API_KEY,
+  DEEPSEEK_API_KEY,
+  GROK_API_KEY,
+  OPENROUTER_API_KEY,
+  GROQ_API_KEY,
+} from "../..";
 import {
   getModelConfig,
   saveModelConfig,
@@ -47,7 +59,12 @@ import "./ModelConfigDialog.css";
  * @param {Function} props.onSave - Callback when configuration is saved
  * @param {string} props.initialTab - Optional initial tab to display ("visibility", "custom", "usage-tokens")
  */
-export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visibility" }) => {
+export const ModelConfigDialog = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialTab = "visibility",
+}) => {
   const [workingConfig, setWorkingConfig] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -135,14 +152,14 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     const registryModels = getModelsByProvider(provider);
 
     // Convert registry models to the format we need
-    const baseModelIds = registryModels.map(m => m.name);
+    const baseModelIds = registryModels.map((m) => m.name);
 
     // Get custom models for this provider from working config
     const providerKey = provider.toLowerCase();
     const customModels = workingConfig?.customModels?.[providerKey] || [];
 
     // Convert base model IDs to objects
-    const baseModels = baseModelIds.map(id => ({
+    const baseModels = baseModelIds.map((id) => ({
       id,
       name: id,
       contextLength: getModelMetadata(id).contextLength,
@@ -151,7 +168,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
     // Filter out custom models that are already in base models (to prevent duplicates)
     const baseModelIdsSet = new Set(baseModelIds);
-    const uniqueCustomModels = customModels.filter(m => !baseModelIdsSet.has(m.id));
+    const uniqueCustomModels = customModels.filter(
+      (m) => !baseModelIdsSet.has(m.id)
+    );
 
     // Combine base and custom models
     const allModels = [...baseModels, ...uniqueCustomModels];
@@ -160,10 +179,12 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     const remoteModels = [];
     const regularModels = [];
 
-    allModels.forEach(model => {
+    allModels.forEach((model) => {
       // Check if model is remote by looking in MODEL_REGISTRY
       const registryKey = Object.keys(MODEL_REGISTRY).find(
-        key => MODEL_REGISTRY[key].id === model.id || MODEL_REGISTRY[key].name === model.id
+        (key) =>
+          MODEL_REGISTRY[key].id === model.id ||
+          MODEL_REGISTRY[key].name === model.id
       );
       if (registryKey && MODEL_REGISTRY[registryKey]?.isRemote) {
         remoteModels.push(model);
@@ -180,7 +201,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
       // Put remote models first, then ordered, then unordered
       const allSorted = [...remoteModels, ...regularModels];
-      allSorted.forEach(model => {
+      allSorted.forEach((model) => {
         const index = order.indexOf(model.id);
         if (index !== -1) {
           ordered[index] = model;
@@ -199,7 +220,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   // Check if a model is loaded from remote updates
   const isRemoteModel = (modelId) => {
     const registryKey = Object.keys(MODEL_REGISTRY).find(
-      key => MODEL_REGISTRY[key].id === modelId || MODEL_REGISTRY[key].name === modelId
+      (key) =>
+        MODEL_REGISTRY[key].id === modelId ||
+        MODEL_REGISTRY[key].name === modelId
     );
     return registryKey && MODEL_REGISTRY[registryKey]?.isRemote === true;
   };
@@ -257,7 +280,8 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   };
 
   const handleDragStart = (e, modelId, provider) => {
-    setDraggedModel({ id: modelId, provider });
+    const isImageGen = isImageGenModel(modelId);
+    setDraggedModel({ id: modelId, provider, isImageGen });
   };
 
   const handleDrop = (e, targetModelId, provider) => {
@@ -359,8 +383,16 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
     // Hide the form after adding
     // Check if this is a native provider (added via native-apis section)
-    const nativeProviders = ['openai', 'anthropic', 'google', 'deepseek', 'grok'];
-    const formKey = nativeProviders.includes(provider) ? 'native-apis' : provider;
+    const nativeProviders = [
+      "openai",
+      "anthropic",
+      "google",
+      "deepseek",
+      "grok",
+    ];
+    const formKey = nativeProviders.includes(provider)
+      ? "native-apis"
+      : provider;
     setShowAddForm({ ...showAddForm, [formKey]: false });
 
     AppToaster.show({
@@ -465,6 +497,17 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
     if (!draggedModel) return;
 
+    // Prevent image gen models from being set as default chat model
+    if (draggedModel.isImageGen) {
+      AppToaster.show({
+        message:
+          "Image generation models can only be set as default for Image Gen",
+        intent: "warning",
+        timeout: 3000,
+      });
+      return;
+    }
+
     const prefix = getPrefix(draggedModel.provider);
     const modelId = prefix + draggedModel.id;
 
@@ -476,6 +519,17 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     setIsDraggingOverWebSearch(false);
 
     if (!draggedModel) return;
+
+    // Prevent image gen models from being set as web search model
+    if (draggedModel.isImageGen) {
+      AppToaster.show({
+        message:
+          "Image generation models can only be set as default for Image Gen",
+        intent: "warning",
+        timeout: 3000,
+      });
+      return;
+    }
 
     const prefix = getPrefix(draggedModel.provider);
     const modelId = prefix + draggedModel.id;
@@ -489,6 +543,17 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
     if (!draggedModel) return;
 
+    // Only allow image gen models to be set as default image gen model
+    if (!draggedModel.isImageGen) {
+      AppToaster.show({
+        message:
+          "Only image generation models can be set as default for Image Gen",
+        intent: "warning",
+        timeout: 3000,
+      });
+      return;
+    }
+
     const prefix = getPrefix(draggedModel.provider);
     const modelId = prefix + draggedModel.id;
 
@@ -498,12 +563,12 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   const handleEndpointChange = (provider, endpoint) => {
     const providerEndpoints = {
       ...(workingConfig.providerEndpoints || {}),
-      [provider]: endpoint
+      [provider]: endpoint,
     };
 
     setWorkingConfig({
       ...workingConfig,
-      providerEndpoints
+      providerEndpoints,
     });
   };
 
@@ -515,8 +580,8 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     ) {
       // Build hiddenModels list from models with visibleByDefault: false
       const defaultHiddenModels = Object.values(MODEL_REGISTRY)
-        .filter(m => m.visibleByDefault === false)
-        .map(m => m.name);
+        .filter((m) => m.visibleByDefault === false)
+        .map((m) => m.name);
 
       setWorkingConfig({
         hiddenModels: defaultHiddenModels,
@@ -538,7 +603,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
         // Preserve endpoint configurations
         providerEndpoints: workingConfig.providerEndpoints || {
           openai: { baseURL: "", enabled: false },
-          ollama: { baseURL: "http://localhost:11434", enabled: false }
+          ollama: { baseURL: "http://localhost:11434", enabled: false },
         },
         modelOptions: {},
         newModels: [],
@@ -606,21 +671,53 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     // Auto-expand if searching
     const isExpanded = searchQuery ? true : expandedProviders.has(provider);
 
-    // Check if provider has API key (based on whether it has models from modelsInfo)
+    // Check if provider has API key
     const customProviders = ["OpenRouter", "Groq", "Ollama"];
     const isCustomProvider = customProviders.includes(provider);
-    const baseModels = getAvailableModels(provider) || [];
-    const hasApiKey = isCustomProvider || baseModels.length > 0;
 
-    // Apply search filter and exclude image generation models
+    // Check for actual API keys for each provider
+    let hasApiKey = false;
+    switch (provider) {
+      case "OpenAI":
+        hasApiKey = !!OPENAI_API_KEY;
+        break;
+      case "Anthropic":
+        hasApiKey = !!ANTHROPIC_API_KEY;
+        break;
+      case "Google":
+        hasApiKey = !!GOOGLE_API_KEY;
+        break;
+      case "DeepSeek":
+        hasApiKey = !!DEEPSEEK_API_KEY;
+        break;
+      case "Grok":
+        hasApiKey = !!GROK_API_KEY;
+        break;
+      case "OpenRouter":
+        hasApiKey = !!OPENROUTER_API_KEY || models.length > 0;
+        break;
+      case "Groq":
+        hasApiKey = !!GROQ_API_KEY || models.length > 0;
+        break;
+      case "Ollama":
+        hasApiKey = models.length > 0;
+        break;
+      default:
+        hasApiKey = false;
+    }
+
+    // Apply search filter (KEEP image generation models now)
     const filteredModels = searchQuery
       ? models.filter(
           (m) =>
-            !isImageGenModel(m.id) &&
-            (m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            m.id.toLowerCase().includes(searchQuery.toLowerCase()))
+            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.id.toLowerCase().includes(searchQuery.toLowerCase())
         )
-      : models.filter((m) => !isImageGenModel(m.id));
+      : models;
+
+    // Separate regular models from image gen models
+    const regularModels = filteredModels.filter((m) => !isImageGenModel(m.id));
+    const imageGenModels = filteredModels.filter((m) => isImageGenModel(m.id));
 
     // Hide providers with 0 models (unless searching)
     if (filteredModels.length === 0) {
@@ -697,7 +794,8 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
         <Collapse isOpen={isExpanded}>
           <div style={{ padding: "8px 0" }}>
-            {filteredModels.map((model) => {
+            {/* Regular models section */}
+            {regularModels.map((model) => {
               const metadata = getModelMetadata(model.id);
               const isCustom = isCustomModel(model.id, provider);
               const modelWithMetadata = {
@@ -726,6 +824,62 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                 />
               );
             })}
+
+            {/* Image generation models section - visually separated */}
+            {imageGenModels.length > 0 && (
+              <div className="image-gen-models-section">
+                <div className="image-gen-section-header">
+                  <Icon icon="media" size={12} style={{ marginRight: "6px" }} />
+                  <span className="image-gen-section-title">
+                    Image Generation Models
+                  </span>
+                  <Tooltip
+                    content="These models only appear in the Image Generation submenu, not in the main model menu"
+                    position="top"
+                  >
+                    <Icon
+                      icon="info-sign"
+                      size={12}
+                      style={{ marginLeft: "6px", color: "#5c7080" }}
+                    />
+                  </Tooltip>
+                </div>
+                {imageGenModels.map((model) => {
+                  const metadata = getModelMetadata(model.id);
+                  const isCustom = isCustomModel(model.id, provider);
+                  const modelWithMetadata = {
+                    ...model,
+                    contextLength: metadata.contextLength,
+                    pricing: metadata.pricing,
+                  };
+
+                  return (
+                    <ModelCard
+                      key={model.id}
+                      model={modelWithMetadata}
+                      isVisible={
+                        !workingConfig.hiddenModels?.includes(model.id)
+                      }
+                      isFavorite={workingConfig.favoriteModels?.includes(
+                        model.id
+                      )}
+                      isDraggable={true}
+                      isNew={isModelNew(model.id)}
+                      isCustom={isCustom}
+                      isRemote={isRemoteModel(model.id)}
+                      isImageGen={true}
+                      onToggleVisibility={handleToggleVisibility}
+                      onToggleFavorite={handleToggleFavorite}
+                      onDragStart={(e, modelId) =>
+                        handleDragStart(e, modelId, provider)
+                      }
+                      onDrop={(e, modelId) => handleDrop(e, modelId, provider)}
+                      onDragEnd={handleDragEnd}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         </Collapse>
       </div>
@@ -736,16 +890,20 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
   const getInitialDefaultImageModel = () => {
     const availableModels = getAvailableModels();
     // Check if Google API is available (has Gemini models)
-    const hasGoogle = availableModels.some(m => m.toLowerCase().includes('gemini'));
+    const hasGoogle = availableModels.some((m) =>
+      m.toLowerCase().includes("gemini")
+    );
 
     if (hasGoogle) {
-      return 'gemini-3-pro-image-preview'; // Nano banana pro
+      return "gemini-3-pro-image-preview"; // Nano banana pro
     }
 
     // Check if OpenAI API is available
-    const hasOpenAI = availableModels.some(m => m.toLowerCase().includes('gpt'));
+    const hasOpenAI = availableModels.some((m) =>
+      m.toLowerCase().includes("gpt")
+    );
     if (hasOpenAI) {
-      return 'gpt-image-1-mini';
+      return "gpt-image-1-mini";
     }
 
     return null;
@@ -807,16 +965,18 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   {formatContextLength(defaultModelInfo.contextLength)}
                 </Tag>
               )}
-              {defaultModelInfo.pricing && defaultModelInfo.pricing.input > 0 && defaultModelInfo.pricing.output > 0 && (
-                <>
-                  <Tag minimal small className="default-tag price-in">
-                    In: ${defaultModelInfo.pricing.input.toFixed(2)}
-                  </Tag>
-                  <Tag minimal small className="default-tag price-out">
-                    Out: ${defaultModelInfo.pricing.output.toFixed(2)}
-                  </Tag>
-                </>
-              )}
+              {defaultModelInfo.pricing &&
+                defaultModelInfo.pricing.input > 0 &&
+                defaultModelInfo.pricing.output > 0 && (
+                  <>
+                    <Tag minimal small className="default-tag price-in">
+                      In: ${defaultModelInfo.pricing.input.toFixed(2)}
+                    </Tag>
+                    <Tag minimal small className="default-tag price-out">
+                      Out: ${defaultModelInfo.pricing.output.toFixed(2)}
+                    </Tag>
+                  </>
+                )}
               <Button
                 icon="cross"
                 minimal
@@ -892,11 +1052,12 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               <span className="default-model-name">
                 {defaultModelInfo.name}
               </span>
-              {defaultModelInfo.pricing && defaultModelInfo.pricing.input > 0 && (
-                <Tag minimal small className="default-tag price-in">
-                  In: ${defaultModelInfo.pricing.input.toFixed(2)}
-                </Tag>
-              )}
+              {defaultModelInfo.pricing &&
+                defaultModelInfo.pricing.input > 0 && (
+                  <Tag minimal small className="default-tag price-in">
+                    In: ${defaultModelInfo.pricing.input.toFixed(2)}
+                  </Tag>
+                )}
               <Button
                 icon="cross"
                 minimal
@@ -917,7 +1078,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
         ) : (
           <div className="default-model-empty">
             <Icon icon="search" size={12} />
-            <span style={{ fontSize: "12px" }}>Drop here for web search default</span>
+            <span style={{ fontSize: "12px" }}>
+              Drop here for web search default
+            </span>
           </div>
         )}
       </div>
@@ -955,7 +1118,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     }
 
     // Get initial default if not set
-    const initialDefault = !currentDefault ? getInitialDefaultImageModel() : null;
+    const initialDefault = !currentDefault
+      ? getInitialDefaultImageModel()
+      : null;
 
     return (
       <div
@@ -977,11 +1142,12 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               <span className="default-model-name">
                 {defaultModelInfo.name}
               </span>
-              {defaultModelInfo.pricing && defaultModelInfo.pricing.output > 0 && (
-                <Tag minimal small className="default-tag price-out">
-                  Out: ${defaultModelInfo.pricing.output.toFixed(2)}
-                </Tag>
-              )}
+              {defaultModelInfo.pricing &&
+                defaultModelInfo.pricing.output > 0 && (
+                  <Tag minimal small className="default-tag price-out">
+                    Out: ${defaultModelInfo.pricing.output.toFixed(2)}
+                  </Tag>
+                )}
               <Button
                 icon="cross"
                 minimal
@@ -995,14 +1161,17 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
             <div className="default-model-empty">
               <Icon icon="media" size={12} />
               <span style={{ fontSize: "12px", color: "#5c7080" }}>
-                Image Gen: {initialDefault || 'gpt-image-1-mini or Nano Banana Pro'}
+                Image Gen:{" "}
+                {initialDefault || "gpt-image-1-mini or Nano Banana Pro"}
               </span>
             </div>
           )
         ) : (
           <div className="default-model-empty">
             <Icon icon="media" size={12} />
-            <span style={{ fontSize: "12px" }}>Drop here for image generation default</span>
+            <span style={{ fontSize: "12px" }}>
+              Drop here for image generation default
+            </span>
           </div>
         )}
       </div>
@@ -1042,7 +1211,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               (m) =>
                 !isImageGenModel(m.id) &&
                 (m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.id.toLowerCase().includes(searchQuery.toLowerCase()))
+                  m.id.toLowerCase().includes(searchQuery.toLowerCase()))
             );
             return hasMatches ? provider : null;
           })
@@ -1072,19 +1241,25 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     };
 
     // Native providers that use official APIs
-    const nativeProviders = ['openai', 'anthropic', 'google', 'deepseek', 'grok'];
+    const nativeProviders = [
+      "openai",
+      "anthropic",
+      "google",
+      "deepseek",
+      "grok",
+    ];
     const openaiEndpoint = workingConfig.providerEndpoints?.openai;
 
     // Add openai-custom option if custom endpoint is enabled
-    const availableProviders = nativeProviders.map(p => ({
+    const availableProviders = nativeProviders.map((p) => ({
       value: p,
-      label: getProviderLabel(p)
+      label: getProviderLabel(p),
     }));
 
     if (openaiEndpoint?.enabled) {
       availableProviders.push({
-        value: 'openai-custom',
-        label: 'OpenAI-compatible (custom endpoint)'
+        value: "openai-custom",
+        label: "OpenAI-compatible (custom endpoint)",
       });
     }
 
@@ -1099,7 +1274,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
             <ProviderEndpointConfig
               provider="openai"
               endpoint={openaiEndpoint}
-              onChange={(newEndpoint) => handleEndpointChange('openai', newEndpoint)}
+              onChange={(newEndpoint) =>
+                handleEndpointChange("openai", newEndpoint)
+              }
             />
           </div>
         </div>
@@ -1108,14 +1285,14 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
 
     // Render Native Provider APIs unified section
     const renderNativeProvidersSection = () => {
-      const isFormVisible = showAddForm['native-apis'];
-      const isExpanded = expandedProviders.has('native-apis');
+      const isFormVisible = showAddForm["native-apis"];
+      const isExpanded = expandedProviders.has("native-apis");
 
       // Collect all native provider models
       const allNativeModels = [];
-      nativeProviders.forEach(provider => {
+      nativeProviders.forEach((provider) => {
         const models = workingConfig.customModels?.[provider] || [];
-        models.forEach(model => {
+        models.forEach((model) => {
           allNativeModels.push({ ...model, provider });
         });
       });
@@ -1124,11 +1301,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
         <div className="provider-section native-apis-section">
           <div
             className="provider-section-header"
-            onClick={() => handleToggleProvider('native-apis')}
+            onClick={() => handleToggleProvider("native-apis")}
           >
-            <h4>
-              {isExpanded ? "▼" : "▶"} Native Provider APIs
-            </h4>
+            <h4>{isExpanded ? "▼" : "▶"} Native Provider APIs</h4>
             <span className="provider-badge">
               {allNativeModels.length} models
             </span>
@@ -1139,8 +1314,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               {/* Existing models list - grouped by provider */}
               {allNativeModels.length > 0 ? (
                 <div className="custom-models-list">
-                  {nativeProviders.map(provider => {
-                    const providerModels = workingConfig.customModels?.[provider] || [];
+                  {nativeProviders.map((provider) => {
+                    const providerModels =
+                      workingConfig.customModels?.[provider] || [];
                     if (providerModels.length === 0) return null;
 
                     return (
@@ -1177,7 +1353,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                               <span className="custom-model-name">
                                 {model.name}
                               </span>
-                              <span className="custom-model-id">{model.id}</span>
+                              <span className="custom-model-id">
+                                {model.id}
+                              </span>
                             </div>
                             <div className="custom-model-meta">
                               {model.contextLength && (
@@ -1186,12 +1364,20 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                                 </Tag>
                               )}
                               {model.pricing && model.pricing.input > 0 && (
-                                <Tag minimal small className="pricing-tag price-in">
+                                <Tag
+                                  minimal
+                                  small
+                                  className="pricing-tag price-in"
+                                >
                                   In: ${model.pricing.input.toFixed(2)}
                                 </Tag>
                               )}
                               {model.pricing && model.pricing.output > 0 && (
-                                <Tag minimal small className="pricing-tag price-out">
+                                <Tag
+                                  minimal
+                                  small
+                                  className="pricing-tag price-out"
+                                >
                                   Out: ${model.pricing.output.toFixed(2)}
                                 </Tag>
                               )}
@@ -1223,8 +1409,10 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   availableProviders={availableProviders}
                   defaultProvider="openai"
                   allCustomModels={workingConfig.customModels}
-                  onAdd={(provider, model) => handleAddCustomModel(provider, model)}
-                  onCancel={() => toggleAddForm('native-apis')}
+                  onAdd={(provider, model) =>
+                    handleAddCustomModel(provider, model)
+                  }
+                  onCancel={() => toggleAddForm("native-apis")}
                 />
               ) : (
                 <Button
@@ -1233,7 +1421,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   minimal
                   intent="primary"
                   className="add-model-button"
-                  onClick={() => toggleAddForm('native-apis')}
+                  onClick={() => toggleAddForm("native-apis")}
                 >
                   Add custom model
                 </Button>
@@ -1247,20 +1435,16 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     // Render OpenRouter section with integrated browser
     const renderOpenRouterSection = () => {
       const customModels = workingConfig.customModels?.openrouter || [];
-      const isExpanded = expandedProviders.has('openrouter');
+      const isExpanded = expandedProviders.has("openrouter");
 
       return (
         <div className="provider-section openrouter-section">
           <div
             className="provider-section-header"
-            onClick={() => handleToggleProvider('openrouter')}
+            onClick={() => handleToggleProvider("openrouter")}
           >
-            <h4>
-              {isExpanded ? "▼" : "▶"} OpenRouter
-            </h4>
-            <span className="provider-badge">
-              {customModels.length} models
-            </span>
+            <h4>{isExpanded ? "▼" : "▶"} OpenRouter</h4>
+            <span className="provider-badge">{customModels.length} models</span>
           </div>
 
           <Collapse isOpen={isExpanded}>
@@ -1268,7 +1452,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               {/* Integrated OpenRouter Browser */}
               <OpenRouterBrowser
                 existingModels={customModels}
-                onAddModel={(model) => handleAddCustomModel('openrouter', model)}
+                onAddModel={(model) =>
+                  handleAddCustomModel("openrouter", model)
+                }
               />
             </div>
           </Collapse>
@@ -1279,21 +1465,17 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     // Render Groq section
     const renderGroqSection = () => {
       const customModels = workingConfig.customModels?.groq || [];
-      const isExpanded = expandedProviders.has('groq');
-      const isFormVisible = showAddForm['groq'];
+      const isExpanded = expandedProviders.has("groq");
+      const isFormVisible = showAddForm["groq"];
 
       return (
         <div className="provider-section groq-section">
           <div
             className="provider-section-header"
-            onClick={() => handleToggleProvider('groq')}
+            onClick={() => handleToggleProvider("groq")}
           >
-            <h4>
-              {isExpanded ? "▼" : "▶"} Groq
-            </h4>
-            <span className="provider-badge">
-              {customModels.length} models
-            </span>
+            <h4>{isExpanded ? "▼" : "▶"} Groq</h4>
+            <span className="provider-badge">{customModels.length} models</span>
           </div>
 
           <Collapse isOpen={isExpanded}>
@@ -1311,15 +1493,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                       }`}
                       draggable={true}
                       onDragStart={(e) =>
-                        handleCustomModelDragStart(e, 'groq', model.id)
+                        handleCustomModelDragStart(e, "groq", model.id)
                       }
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
                       }}
-                      onDrop={(e) =>
-                        handleCustomModelDrop(e, 'groq', model.id)
-                      }
+                      onDrop={(e) => handleCustomModelDrop(e, "groq", model.id)}
                       onDragEnd={() => setDraggedCustomModel(null)}
                     >
                       <Icon
@@ -1327,9 +1507,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                         className="drag-handle"
                       />
                       <div className="custom-model-info">
-                        <span className="custom-model-name">
-                          {model.name}
-                        </span>
+                        <span className="custom-model-name">{model.name}</span>
                         <span className="custom-model-id">{model.id}</span>
                       </div>
                       <div className="custom-model-meta">
@@ -1355,7 +1533,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                         minimal
                         small
                         onClick={() =>
-                          handleDeleteCustomModel('groq', model.id)
+                          handleDeleteCustomModel("groq", model.id)
                         }
                       />
                     </div>
@@ -1370,11 +1548,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               {/* Add button or Form */}
               {isFormVisible ? (
                 <CustomModelForm
-                  availableProviders={[{ value: 'groq', label: 'Groq' }]}
+                  availableProviders={[{ value: "groq", label: "Groq" }]}
                   defaultProvider="groq"
                   allCustomModels={workingConfig.customModels}
-                  onAdd={(provider, model) => handleAddCustomModel(provider, model)}
-                  onCancel={() => toggleAddForm('groq')}
+                  onAdd={(provider, model) =>
+                    handleAddCustomModel(provider, model)
+                  }
+                  onCancel={() => toggleAddForm("groq")}
                 />
               ) : (
                 <Button
@@ -1383,7 +1563,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   minimal
                   intent="primary"
                   className="add-model-button"
-                  onClick={() => toggleAddForm('groq')}
+                  onClick={() => toggleAddForm("groq")}
                 >
                   Add custom model
                 </Button>
@@ -1397,22 +1577,18 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
     // Render Ollama section with endpoint config
     const renderOllamaSection = () => {
       const customModels = workingConfig.customModels?.ollama || [];
-      const isExpanded = expandedProviders.has('ollama');
-      const isFormVisible = showAddForm['ollama'];
+      const isExpanded = expandedProviders.has("ollama");
+      const isFormVisible = showAddForm["ollama"];
       const endpoint = workingConfig.providerEndpoints?.ollama;
 
       return (
         <div className="provider-section ollama-section">
           <div
             className="provider-section-header"
-            onClick={() => handleToggleProvider('ollama')}
+            onClick={() => handleToggleProvider("ollama")}
           >
-            <h4>
-              {isExpanded ? "▼" : "▶"} Ollama
-            </h4>
-            <span className="provider-badge">
-              {customModels.length} models
-            </span>
+            <h4>{isExpanded ? "▼" : "▶"} Ollama</h4>
+            <span className="provider-badge">{customModels.length} models</span>
           </div>
 
           <Collapse isOpen={isExpanded}>
@@ -1421,7 +1597,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               <ProviderEndpointConfig
                 provider="ollama"
                 endpoint={endpoint}
-                onChange={(newEndpoint) => handleEndpointChange('ollama', newEndpoint)}
+                onChange={(newEndpoint) =>
+                  handleEndpointChange("ollama", newEndpoint)
+                }
               />
 
               {/* Existing models list */}
@@ -1437,14 +1615,14 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                       }`}
                       draggable={true}
                       onDragStart={(e) =>
-                        handleCustomModelDragStart(e, 'ollama', model.id)
+                        handleCustomModelDragStart(e, "ollama", model.id)
                       }
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
                       }}
                       onDrop={(e) =>
-                        handleCustomModelDrop(e, 'ollama', model.id)
+                        handleCustomModelDrop(e, "ollama", model.id)
                       }
                       onDragEnd={() => setDraggedCustomModel(null)}
                     >
@@ -1453,9 +1631,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                         className="drag-handle"
                       />
                       <div className="custom-model-info">
-                        <span className="custom-model-name">
-                          {model.name}
-                        </span>
+                        <span className="custom-model-name">{model.name}</span>
                         <span className="custom-model-id">{model.id}</span>
                       </div>
                       <div className="custom-model-meta">
@@ -1471,7 +1647,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                         minimal
                         small
                         onClick={() =>
-                          handleDeleteCustomModel('ollama', model.id)
+                          handleDeleteCustomModel("ollama", model.id)
                         }
                       />
                     </div>
@@ -1486,11 +1662,13 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
               {/* Add button or Form */}
               {isFormVisible ? (
                 <CustomModelForm
-                  availableProviders={[{ value: 'ollama', label: 'Ollama' }]}
+                  availableProviders={[{ value: "ollama", label: "Ollama" }]}
                   defaultProvider="ollama"
                   allCustomModels={workingConfig.customModels}
-                  onAdd={(provider, model) => handleAddCustomModel(provider, model)}
-                  onCancel={() => toggleAddForm('ollama')}
+                  onAdd={(provider, model) =>
+                    handleAddCustomModel(provider, model)
+                  }
+                  onCancel={() => toggleAddForm("ollama")}
                 />
               ) : (
                 <Button
@@ -1499,7 +1677,7 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
                   minimal
                   intent="primary"
                   className="add-model-button"
-                  onClick={() => toggleAddForm('ollama')}
+                  onClick={() => toggleAddForm("ollama")}
                 >
                   Add custom model
                 </Button>
@@ -1573,7 +1751,9 @@ export const ModelConfigDialog = ({ isOpen, onClose, onSave, initialTab = "visib
         <div className="dialog-scrollable-content">
           {activeTab === "visibility" && renderVisibilityPanel()}
           {activeTab === "custom" && renderCustomModelsPanel()}
-          {activeTab === "usage-tokens" && <TokensUsageContent showResetButton={true} />}
+          {activeTab === "usage-tokens" && (
+            <TokensUsageContent showResetButton={true} />
+          )}
         </div>
       </div>
 

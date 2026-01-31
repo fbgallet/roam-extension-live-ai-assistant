@@ -18,6 +18,7 @@ import "./ModelCard.css";
  * @param {boolean} props.isNew - Whether model has "NEW" badge
  * @param {boolean} props.isCustom - Whether model is a custom (user-added) model
  * @param {boolean} props.isRemote - Whether model was loaded from remote updates
+ * @param {boolean} props.isImageGen - Whether model is an image generation model
  * @param {Function} props.onToggleVisibility - Callback when visibility toggled
  * @param {Function} props.onToggleFavorite - Callback when favorite toggled
  * @param {Function} props.onDragStart - Drag start handler
@@ -33,6 +34,7 @@ export const ModelCard = ({
   isNew = false,
   isCustom = false,
   isRemote = false,
+  isImageGen = false,
   onToggleVisibility,
   onToggleFavorite,
   onDragStart,
@@ -88,6 +90,7 @@ export const ModelCard = ({
     "model-card",
     isDragging && "dragging",
     isDragOver && "drag-over",
+    isImageGen && "image-gen-model",
   ]
     .filter(Boolean)
     .join(" ");

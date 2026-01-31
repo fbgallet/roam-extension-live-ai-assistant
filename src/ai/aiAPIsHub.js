@@ -709,6 +709,39 @@ export async function claudeCompletion({
                 "\n" +
                 fetchedData.content.content.source.data;
           } else return "No data to fetch from url";
+        } else if (command === "Web search") {
+          // Extract search results
+          const searchResults = data.content.filter(
+            (block) => block.type === "web_search_tool_result"
+          );
+
+          // Build response from text blocks and citations
+          const textBlocks = data.content.filter(
+            (block) => block.type === "text"
+          );
+
+          respStr = textBlocks.map(block => block.text).join("");
+
+          // Add search sources at the end
+          if (searchResults.length > 0) {
+            respStr += "\n\nWeb search sources:\n";
+            const uniqueUrls = new Set();
+
+            searchResults.forEach((result) => {
+              if (result.content && Array.isArray(result.content)) {
+                result.content.forEach((item) => {
+                  if (item.type === "web_search_result" && item.url && !uniqueUrls.has(item.url)) {
+                    uniqueUrls.add(item.url);
+                    respStr += `  - [${item.title}](${item.url})`;
+                    if (item.page_age) {
+                      respStr += ` (${item.page_age})`;
+                    }
+                    respStr += "\n";
+                  }
+                });
+              }
+            });
+          }
         } else respStr = data.content[0].text;
         if (data.usage) {
           usage["input_tokens"] = data.usage["input_tokens"];

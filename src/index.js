@@ -28,7 +28,10 @@ import {
   imageGenerationModels,
   updateTokenCounter,
 } from "./ai/modelsInfo";
-import { loadRemoteModelUpdates, registerOpenRouterModels } from "./ai/modelRegistry";
+import {
+  loadRemoteModelUpdates,
+  registerOpenRouterModels,
+} from "./ai/modelRegistry";
 import {
   migrateModelConfig,
   getModelConfig,
@@ -1710,9 +1713,6 @@ export default {
     if (DEEPSEEK_API_KEY)
       deepseekLibrary = initializeOpenAIAPI(
         DEEPSEEK_API_KEY,
-        // `${
-        //   roamAlphaAPI.constants.corsAnywhereProxyUrl
-        // }/${"https://api.deepseek.com/v1"}`
         "https://api.deepseek.com/v1"
       );
     if (GROK_API_KEY)

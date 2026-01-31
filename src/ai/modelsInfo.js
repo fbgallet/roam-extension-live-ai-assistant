@@ -205,6 +205,10 @@ export function normalizeClaudeModel(model, getShortName) {
 
 export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
   if (!model) return;
+  // Keep original model ID for pricing lookups (registry uses original IDs)
+  const originalModel = model.includes("+thinking")
+    ? model.replace("+thinking", "")
+    : model;
   model = normalizeModelId(model);
   let tokensCounter = extensionStorage.get("tokensCounter");
   if (!tokensCounter) {
@@ -239,27 +243,28 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
   }
 
   // addtional cost for Web search OpenAI models per request (converted in input tokens)
-  if (model.includes("-search") && typeof input_tokens === "number") {
+  if (originalModel.includes("-search") && typeof input_tokens === "number") {
     // const additionalCost = getAdditionalPricingPerRequest(
     //   model,
     //   websearchContext
     // );
 
     const additionalTokens = Math.ceil(
-      0.01 / (modelsPricing[model].input / 1000000)
+      0.01 / (modelsPricing[originalModel].input / 1000000)
     );
     input_tokens += additionalTokens || 0;
   }
 
   // specific count for gpt-image-1
-  if (model.includes("gpt-image-1")) {
+  if (originalModel.includes("gpt-image-1")) {
     //console.log("input_tokens :>> ", input_tokens);
     const detailled_input_tokens = input_tokens;
     input_tokens = 0;
     input_tokens =
       detailled_input_tokens["text_tokens"] +
       detailled_input_tokens["image_tokens"] *
-        (modelsPricing[model]["input_image"] / modelsPricing[model]["input"]);
+        (modelsPricing[originalModel]["input_image"] /
+          modelsPricing[originalModel]["input"]);
   }
   // console.log("input_tokens :>> ", input_tokens);
 

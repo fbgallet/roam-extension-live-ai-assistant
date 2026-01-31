@@ -4,6 +4,7 @@ import {
   whisperPrompt,
   resImages,
   groqLibrary,
+  grokLibrary,
   isUsingGroqWhisper,
   maxImagesNb,
   openRouterModelsInfo,
@@ -19,7 +20,7 @@ import { createImageUsageObject } from "./utils/imageTokensCalculator";
 import { hasCapability } from "./modelRegistry";
 import { getModelConfig } from "../utils/modelConfigHelpers";
 
-// Storage for active image generation chat instances
+// Storage for active image generation chat instances (Gemini)
 // Key: conversation parent UID, Value: chat instance
 export const imageGenerationChats = new Map();
 import {
@@ -249,6 +250,70 @@ function parseNanoBananaParams(prompt) {
 }
 
 /**
+ * Parse OpenAI image generation parameters from user prompt
+ * Extracts: size (portrait/landscape/square), quality (low/medium/high),
+ * format (png/webp/jpeg), compression (0-100), background (transparent/opaque)
+ */
+function parseOpenAIImageParams(prompt) {
+  const config = {};
+  let cleanedPrompt = prompt;
+
+  // Extract size: portrait, landscape, square
+  const sizeRegex = /\b(portrait|landscape|square)\b/i;
+  const sizeMatch = prompt.match(sizeRegex);
+  if (sizeMatch) {
+    config.size = sizeMatch[1].toLowerCase();
+    cleanedPrompt = cleanedPrompt.replace(sizeMatch[0], "").trim();
+  }
+
+  // Extract quality: low, medium, high
+  const qualityRegex = /\bquality[:\s]*(low|medium|high)\b/i;
+  const qualityMatch = prompt.match(qualityRegex);
+  if (qualityMatch) {
+    config.quality = qualityMatch[1].toLowerCase();
+    cleanedPrompt = cleanedPrompt.replace(qualityMatch[0], "").trim();
+  }
+
+  // Extract format: png, webp, jpeg
+  const formatRegex = /\bformat[:\s]*(png|webp|jpeg|jpg)\b/i;
+  const formatMatch = prompt.match(formatRegex);
+  if (formatMatch) {
+    config.format =
+      formatMatch[1].toLowerCase() === "jpg"
+        ? "jpeg"
+        : formatMatch[1].toLowerCase();
+    cleanedPrompt = cleanedPrompt.replace(formatMatch[0], "").trim();
+  }
+
+  // Extract compression: 0-100 (for jpeg/webp)
+  const compressionRegex = /\bcompression[:\s]*(\d{1,3})%?\b/i;
+  const compressionMatch = prompt.match(compressionRegex);
+  if (compressionMatch) {
+    const compressionValue = parseInt(compressionMatch[1], 10);
+    if (compressionValue >= 0 && compressionValue <= 100) {
+      config.compression = compressionValue;
+    }
+    cleanedPrompt = cleanedPrompt.replace(compressionMatch[0], "").trim();
+  }
+
+  // Extract background: transparent, opaque
+  const backgroundRegex =
+    /\b(transparent|opaque)\s*background\b|\bbackground[:\s]*(transparent|opaque)\b/i;
+  const backgroundMatch = prompt.match(backgroundRegex);
+  if (backgroundMatch) {
+    config.background = (
+      backgroundMatch[1] || backgroundMatch[2]
+    ).toLowerCase();
+    cleanedPrompt = cleanedPrompt.replace(backgroundMatch[0], "").trim();
+  }
+
+  // Clean up extra whitespace
+  cleanedPrompt = cleanedPrompt.replace(/\s+/g, " ").trim();
+
+  return { prompt: cleanedPrompt, config };
+}
+
+/**
  * Format image URL with model attribution
  * @param {string} imageUrl - The Firebase image URL
  * @param {string} model - The model name
@@ -448,6 +513,26 @@ export async function imageGeneration(
     model = "gpt-image-1-mini";
   }
 
+  // Normalize prompt to string if it's an array or object
+  // This handles cases where prompt comes from chat message format
+  if (Array.isArray(prompt)) {
+    // Extract text content from array of message parts
+    prompt = prompt
+      .map((p) => {
+        if (typeof p === "string") return p;
+        if (p && typeof p === "object") {
+          // Handle message content objects like {type: "text", text: "..."} or {content: "..."}
+          return p.text || p.content || "";
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ");
+  } else if (prompt && typeof prompt === "object") {
+    // Handle single message object
+    prompt = prompt.text || prompt.content || String(prompt);
+  }
+
   // Validate prompt - prevent generating random images with empty prompts
   if (!prompt || (typeof prompt === "string" && prompt.trim() === "")) {
     const errorMessage =
@@ -506,6 +591,8 @@ export async function imageGeneration(
 
   const isNanoBananaPro = model === "gemini-3-pro-image-preview";
 
+  const isGrokImagine = model === "grok-imagine-image";
+
   // Check required libraries
   if (isGoogleImagen && !googleLibrary) {
     AppToaster.show({
@@ -515,7 +602,15 @@ export async function imageGeneration(
     return;
   }
 
-  if (!isGoogleImagen && !openaiLibrary) {
+  if (isGrokImagine && !grokLibrary) {
+    AppToaster.show({
+      message: `Grok API Key is needed for Grok Imagine image generation`,
+      timeout: 10000,
+    });
+    return;
+  }
+
+  if (!isGoogleImagen && !isGrokImagine && !openaiLibrary) {
     AppToaster.show({
       message: `OpenAI API Key is needed for image generation`,
       timeout: 10000,
@@ -834,31 +929,167 @@ export async function imageGeneration(
       }
     }
 
-    // OpenAI image generation (existing logic)
-    if (!model || model !== "gpt-image-1") {
-      model = "gpt-image-1-mini";
+    // Grok Imagine image generation
+    if (isGrokImagine) {
+      // Check if there are images in the prompt (for editing)
+      roamImageRegex.lastIndex = 0;
+      const matchingImagesInPrompt = Array.from(
+        prompt.matchAll(roamImageRegex)
+      );
+
+      if (matchingImagesInPrompt.length) {
+        // Image editing mode
+        // Remove image markdown from prompt
+        let textPrompt = prompt;
+        for (const match of matchingImagesInPrompt) {
+          textPrompt = textPrompt.replace(
+            match[0],
+            match[1] ? `[${match[1]}]` : ""
+          );
+        }
+
+        // Fetch the first image as a File object (Grok API expects array of file-like objects)
+        const imageUrl = matchingImagesInPrompt[0][2];
+        const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
+        const mimeType = imageBlob.type || "image/jpeg";
+        // Determine file extension from MIME type
+        const extension =
+          mimeType === "image/png"
+            ? "png"
+            : mimeType === "image/webp"
+              ? "webp"
+              : "jpg";
+        // Convert Blob to File object for Grok API compatibility
+        const imageFile = new File([imageBlob], `image.${extension}`, {
+          type: mimeType,
+        });
+
+        // Debug logging for Grok image edit
+        // console.log("Grok Imagine Edit - Image details:", {
+        //   originalUrl: imageUrl,
+        //   blobType: imageBlob.type,
+        //   blobSize: imageBlob.size,
+        //   mimeType: mimeType,
+        //   fileName: imageFile.name,
+        //   fileType: imageFile.type,
+        //   fileSize: imageFile.size,
+        //   prompt: textPrompt.trim(),
+        // });
+
+        // Use OpenAI SDK compatible edit endpoint - image must be an array
+        result = await grokLibrary.images.edit({
+          model: "grok-imagine-image",
+          image: imageFile,
+          prompt: textPrompt.trim(),
+        });
+      } else {
+        // Generation mode
+        result = await grokLibrary.images.generate({
+          model: "grok-imagine-image",
+          prompt: prompt,
+          response_format: "b64_json",
+          n: 1,
+        });
+      }
+
+      // Process result
+      if (result && result.data && result.data[0]) {
+        let firebaseUrl;
+
+        if (result.data[0].b64_json) {
+          // Handle base64 response (from generate)
+          const image_base64 = result.data[0].b64_json;
+          const byteCharacters = atob(image_base64);
+          const byteNumbers = Array.from(byteCharacters).map((c) =>
+            c.charCodeAt(0)
+          );
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: "image/png" });
+          firebaseUrl = await roamAlphaAPI.file.upload({
+            file: blob,
+          });
+        } else if (result.data[0].url) {
+          // Handle URL response (from edit) - fetch and upload to Firebase
+          const imageResponse = await fetch(result.data[0].url);
+          const blob = await imageResponse.blob();
+          firebaseUrl = await roamAlphaAPI.file.upload({
+            file: blob,
+          });
+        } else {
+          throw new Error("No image data in Grok Imagine response");
+        }
+
+        // Update token counter (Grok Imagine pricing TBD)
+        const usage = createImageUsageObject(model, 0, 0, 1);
+        if (tokensCallback) {
+          tokensCallback(usage);
+        }
+        updateTokenCounter(model, usage);
+
+        return formatImageWithAttribution(firebaseUrl, model);
+      } else {
+        throw new Error("No image generated from Grok Imagine");
+      }
     }
 
-    let mode = "generate";
-    let options = {
+    // Parse image generation options from prompt
+    // Supported: size (portrait/landscape/square), quality (low/medium/high),
+    // format (png/webp/jpeg), compression (0-100), background (transparent/opaque)
+    const { prompt: cleanedPrompt, config: imageConfig } =
+      parseOpenAIImageParams(prompt);
+
+    // Map quality parameter to OpenAI format
+    let openaiQuality = quality;
+    if (imageConfig.quality) {
+      openaiQuality = imageConfig.quality;
+    }
+
+    // Map size parameter
+    let size = "auto";
+    if (imageConfig.size === "portrait") {
+      size = "1024x1536";
+    } else if (imageConfig.size === "landscape") {
+      size = "1536x1024";
+    } else if (imageConfig.size === "square") {
+      size = "1024x1024";
+    }
+
+    // Build base options
+    const options = {
       model,
-      prompt,
-      quality,
-      size: "auto",
-      background: "auto",
+      prompt: cleanedPrompt,
+      quality: openaiQuality,
+      size,
+      background: imageConfig.background || "auto",
       moderation: "low",
     };
 
-    // extract images from prompt
+    // Add output format options if specified
+    if (imageConfig.format) {
+      options.output_format = imageConfig.format;
+    }
+    if (imageConfig.compression !== undefined) {
+      options.output_compression = imageConfig.compression;
+    }
+
+    // Check if there are images in the prompt (for editing)
     roamImageRegex.lastIndex = 0;
-    const matchingImagesInPrompt = Array.from(prompt.matchAll(roamImageRegex));
+    const matchingImagesInPrompt = Array.from(
+      cleanedPrompt.matchAll(roamImageRegex)
+    );
+
+    let mode = "generate";
+
     if (matchingImagesInPrompt.length) {
+      mode = "edit";
       const imageURLs = [];
       let maskIndex = null;
+      let textPrompt = cleanedPrompt;
+
       for (let i = 0; i < matchingImagesInPrompt.length; i++) {
         imageURLs.push(matchingImagesInPrompt[i][2]);
         if (matchingImagesInPrompt[i][1] === "mask") maskIndex = i;
-        prompt = prompt.replace(
+        textPrompt = textPrompt.replace(
           matchingImagesInPrompt[i][0],
           matchingImagesInPrompt[i][1]
             ? i === maskIndex
@@ -866,9 +1097,12 @@ export async function imageGeneration(
               : `Title of image n°${i + 1}: ${matchingImagesInPrompt[i][1]}`
             : ""
         );
-        //console.log(imageURLs);
       }
-      mode = "edit";
+
+      // Update prompt without image markdown
+      options.prompt = textPrompt.trim();
+
+      // Fetch images from URLs
       const images = await Promise.all(
         imageURLs.map(async (url) => await roamAlphaAPI.file.get({ url }))
       );
@@ -879,26 +1113,40 @@ export async function imageGeneration(
       } else {
         options.image = images;
       }
+
+      // Add input_fidelity for editing
+      if (model === "gpt-image-1.5") options.input_fidelity = "high";
     }
-    if (mode === "generate")
+
+    console.log("OpenAI Images API options :>> ", options);
+
+    // Call appropriate API endpoint
+    if (mode === "generate") {
       result = await openaiLibrary.images.generate(options);
-    else if (mode === "edit") result = await openaiLibrary.images.edit(options);
-    // console.log("result :>> ", result);
+    } else {
+      result = await openaiLibrary.images.edit(options);
+    }
+
+    console.log("OpenAI Images API result :>> ", result);
+
+    // Handle usage tracking
     if (result.usage) {
       const usage = {
         input_tokens: {},
         output_tokens: 0,
       };
-
       usage["input_tokens"] = result.usage["input_tokens_details"];
       usage["output_tokens"] = result.usage["output_tokens"];
-      if (tokensCallback)
+      if (tokensCallback) {
         tokensCallback({
           input_tokens: result.usage["input_tokens"],
           output_tokens: usage["output_tokens"],
         });
+      }
       updateTokenCounter(model, usage);
     }
+
+    // Decode base64 image and upload to Firebase
     const image_base64 = result.data[0].b64_json;
     const byteCharacters = atob(image_base64);
     const byteNumbers = Array.from(byteCharacters).map((c) => c.charCodeAt(0));
@@ -907,6 +1155,7 @@ export async function imageGeneration(
     const firebaseUrl = await roamAlphaAPI.file.upload({
       file: blob,
     });
+
     return formatImageWithAttribution(firebaseUrl, model);
   } catch (error) {
     console.error(error);

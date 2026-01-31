@@ -1,7 +1,7 @@
 import { extensionStorage } from "..";
-import { getAvailableModels, webSearchModels, imageGenerationModels, normalizeClaudeModel } from "../ai/modelsInfo";
+import { webSearchModels, imageGenerationModels, normalizeClaudeModel } from "../ai/modelsInfo";
 import { tokensLimit, modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
-import { hasCapability } from "../ai/modelRegistry";
+import { hasCapability, getModelsByProvider } from "../ai/modelRegistry";
 import {
   getNewModelIds,
   getDeprecatedModels,
@@ -263,8 +263,11 @@ export async function migrateOpenRouterOnlySetting() {
 export function getProviderModels(provider) {
   const modelConfig = getModelConfig();
 
-  // Get base models from modelsInfo.js
-  const baseModelIds = getAvailableModels(provider) || [];
+  // Get ALL base models from MODEL_REGISTRY (not filtered by visibleByDefault)
+  // This ensures models like DeepSeek that have visibleByDefault: false can still be shown
+  // when the user explicitly makes them visible in the config
+  const registryModels = getModelsByProvider(provider);
+  const baseModelIds = registryModels.map((m) => m.name);
 
   // Get custom models for this provider
   const providerKey = provider.toLowerCase();

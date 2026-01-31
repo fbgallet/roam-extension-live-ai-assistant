@@ -153,7 +153,28 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   const resultsContext = state.resultsContext
     ? buildResultsContext(state.resultsContext, state.resultsDescription)
     : undefined;
-  let lastMessage = state.messages?.at(-1)?.content?.toString() || "";
+
+  // Extract text content from the last message
+  // LangChain messages can have content as string or array of content parts (for multimodal)
+  const lastMessageContent = state.messages?.at(-1)?.content;
+  let lastMessage = "";
+  if (typeof lastMessageContent === "string") {
+    lastMessage = lastMessageContent;
+  } else if (Array.isArray(lastMessageContent)) {
+    // For multimodal messages, extract text parts and preserve image markdown
+    lastMessage = lastMessageContent
+      .map((part: any) => {
+        if (typeof part === "string") return part;
+        if (part.type === "text") return part.text;
+        // For image parts, try to reconstruct markdown if URL is available
+        if (part.type === "image_url" && part.image_url?.url) {
+          return `![](${part.image_url.url})`;
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
 
   // Store original message for history tracking before modification
   originalUserMessageForHistory = lastMessage;

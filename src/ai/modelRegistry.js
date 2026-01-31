@@ -25,7 +25,7 @@ export const MODEL_REGISTRY = {
   // ==================== OpenAI Models ====================
   "gpt-5.2": {
     id: "gpt-5.2",
-    name: "gpt-5.2",
+    name: "GPT-5.2",
     provider: "OpenAI",
     contextLength: 400000,
     maxOutput: 32000,
@@ -42,7 +42,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-5.1": {
     id: "gpt-5.1",
-    name: "gpt-5.1",
+    name: "GPT-5.1",
     provider: "OpenAI",
     contextLength: 400000,
     maxOutput: 32000,
@@ -59,7 +59,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-5": {
     id: "gpt-5",
-    name: "gpt-5",
+    name: "GPT-5",
     provider: "OpenAI",
     contextLength: 400000,
     maxOutput: 32000,
@@ -75,7 +75,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-5-mini": {
     id: "gpt-5-mini",
-    name: "gpt-5-mini",
+    name: "GPT-5 mini",
     provider: "OpenAI",
     contextLength: 400000,
     maxOutput: 32000,
@@ -92,7 +92,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-5-nano": {
     id: "gpt-5-nano",
-    name: "gpt-5-nano",
+    name: "GPT-5-nano",
     provider: "OpenAI",
     contextLength: 400000,
     maxOutput: 32000,
@@ -125,7 +125,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-4.1": {
     id: "gpt-4.1",
-    name: "gpt-4.1",
+    name: "GPT-4.1",
     provider: "OpenAI",
     contextLength: 1047576,
     pricing: { input: 2, output: 8 },
@@ -140,7 +140,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-4.1-mini": {
     id: "gpt-4.1-mini",
-    name: "gpt-4.1-mini",
+    name: "GPT-4.1 mini",
     provider: "OpenAI",
     contextLength: 1047576,
     pricing: { input: 0.4, output: 1.6 },
@@ -153,20 +153,20 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  "gpt-4o": {
-    id: "gpt-4o",
-    name: "gpt-4o",
-    provider: "OpenAI",
-    contextLength: 131073,
-    pricing: { input: 2.5, output: 10 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["gpt-4o-2024-08-06"],
-  },
+  // "gpt-4o": {
+  //   id: "gpt-4o",
+  //   name: "GPT-4o",
+  //   provider: "OpenAI",
+  //   contextLength: 131073,
+  //   pricing: { input: 2.5, output: 10 },
+  //   capabilities: {
+  //     imageInput: true,
+  //     webSearch: true,
+  //     fileInput: true,
+  //   },
+  //   visibleByDefault: false,
+  //   aliases: ["gpt-4o-2024-08-06"],
+  // },
 
   // "gpt-4o-mini-search": {
   //   id: "gpt-4o-mini-search-preview",
@@ -218,10 +218,29 @@ export const MODEL_REGISTRY = {
 
   "o4-mini": {
     id: "o4-mini",
-    name: "o4-mini",
+    name: "o4 mini",
     provider: "OpenAI",
     contextLength: 200000,
     pricing: { input: 1.1, output: 4.4 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: false,
+    systemRole: "user",
+    aliases: [],
+  },
+
+  "o4-mini-deep-research": {
+    id: "o4-mini-deep-research",
+    name: "o4 mini Deep Research",
+    provider: "OpenAI",
+    contextLength: 200000,
+    maxOutput: 100000,
+    pricing: { input: 2, output: 8 },
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -253,7 +272,7 @@ export const MODEL_REGISTRY = {
 
   "o3-pro": {
     id: "o3-pro",
-    name: "o3-pro",
+    name: "o3 pro",
     provider: "OpenAI",
     contextLength: 200000,
     pricing: { input: 20, output: 80 },
@@ -272,7 +291,7 @@ export const MODEL_REGISTRY = {
   // OpenAI Image Generation Models
   "gpt-image-1.5": {
     id: "gpt-image-1.5",
-    name: "gpt-image-1.5",
+    name: "GPT Image 1.5",
     provider: "OpenAI",
     pricing: { input: 5, inputImage: 8, output: 32 },
     capabilities: {
@@ -286,7 +305,7 @@ export const MODEL_REGISTRY = {
 
   "gpt-image-1": {
     id: "gpt-image-1",
-    name: "gpt-image-1",
+    name: "GPT Image 1",
     provider: "OpenAI",
     pricing: { input: 5, inputImage: 10, output: 40 },
     capabilities: {
@@ -294,13 +313,13 @@ export const MODEL_REGISTRY = {
       imageOutput: true,
     },
     modelType: "image-generation",
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
   "gpt-image-1-mini": {
     id: "gpt-image-1-mini",
-    name: "gpt-image-1-mini",
+    name: "GPT Image 1 mini",
     provider: "OpenAI",
     pricing: { input: 2, inputImage: 2.5, output: 8 },
     capabilities: {
@@ -394,25 +413,25 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3-pro"],
   },
 
-  // "gemini-3-flash-preview": {
-  //   id: "gemini-3-flash-preview",
-  //   name: "Gemini 3 Flash",
-  //   provider: "Google",
-  //   contextLength: 1048576,
-  //   maxOutput: 65536,
-  //   pricing: { input: 0.5, output: 3 },
-  //   capabilities: {
-  //     thinking: true,
-  //     imageInput: true,
-  //     webSearch: true,
-  //     fileInput: true,
-  //     videoInput: true,
-  //     audioInput: true,
-  //   },
-  //   thinkingDefault: true,
-  //   visibleByDefault: true,
-  //   aliases: ["gemini-3-flash"],
-  // },
+  "gemini-3-flash-preview": {
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash",
+    provider: "Google",
+    contextLength: 1048576,
+    maxOutput: 65536,
+    pricing: { input: 0.5, output: 3 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+      videoInput: true,
+      audioInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["gemini-3-flash"],
+  },
 
   "gemini-2.5-pro": {
     id: "gemini-2.5-pro",
@@ -451,7 +470,7 @@ export const MODEL_REGISTRY = {
 
   "gemini-2.5-flash-lite": {
     id: "gemini-2.5-flash-lite",
-    name: "gemini 2.5 Flash lite",
+    name: "Gemini 2.5 Flash lite",
     provider: "Google",
     contextLength: 1048576,
     pricing: { input: 0.1, output: 0.4 },
@@ -502,44 +521,44 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  "imagen-4.0-generate-001": {
-    id: "imagen-4.0-generate-001",
-    name: "imagen-4.0",
-    provider: "Google",
-    pricing: { input: 0, output: 40000 },
-    capabilities: {
-      imageOutput: true,
-    },
-    modelType: "image-generation",
-    visibleByDefault: true,
-    aliases: [],
-  },
+  // "imagen-4.0-generate-001": {
+  //   id: "imagen-4.0-generate-001",
+  //   name: "imagen-4.0",
+  //   provider: "Google",
+  //   pricing: { input: 0, output: 40000 },
+  //   capabilities: {
+  //     imageOutput: true,
+  //   },
+  //   modelType: "image-generation",
+  //   visibleByDefault: true,
+  //   aliases: [],
+  // },
 
-  "imagen-4.0-fast-generate-001": {
-    id: "imagen-4.0-fast-generate-001",
-    name: "imagen-4.0 Fast",
-    provider: "Google",
-    pricing: { input: 0, output: 20000 },
-    capabilities: {
-      imageOutput: true,
-    },
-    modelType: "image-generation",
-    visibleByDefault: false,
-    aliases: [],
-  },
+  // "imagen-4.0-fast-generate-001": {
+  //   id: "imagen-4.0-fast-generate-001",
+  //   name: "imagen-4.0 Fast",
+  //   provider: "Google",
+  //   pricing: { input: 0, output: 20000 },
+  //   capabilities: {
+  //     imageOutput: true,
+  //   },
+  //   modelType: "image-generation",
+  //   visibleByDefault: false,
+  //   aliases: [],
+  // },
 
-  "imagen-4.0-ultra-generate-001": {
-    id: "imagen-4.0-ultra-generate-001",
-    name: "imagen-4.0 Ultra",
-    provider: "Google",
-    pricing: { input: 0, output: 60000 },
-    capabilities: {
-      imageOutput: true,
-    },
-    modelType: "image-generation",
-    visibleByDefault: false,
-    aliases: [],
-  },
+  // "imagen-4.0-ultra-generate-001": {
+  //   id: "imagen-4.0-ultra-generate-001",
+  //   name: "imagen-4.0 Ultra",
+  //   provider: "Google",
+  //   pricing: { input: 0, output: 60000 },
+  //   capabilities: {
+  //     imageOutput: true,
+  //   },
+  //   modelType: "image-generation",
+  //   visibleByDefault: false,
+  //   aliases: [],
+  // },
 
   // ==================== DeepSeek Models ====================
   "deepseek-chat": {
@@ -552,7 +571,7 @@ export const MODEL_REGISTRY = {
       imageInput: false,
       fileInput: true,
     },
-    visibleByDefault: false,
+    visibleByDefault: true,
     aliases: ["deepseek-v3.2", "deepseek v3.2", "deepseek-v3"],
   },
 
@@ -568,7 +587,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: false,
+    visibleByDefault: true,
     aliases: ["deepseek-v3.2 thinking", "deepseek v3.2 thinking"],
   },
 
@@ -622,6 +641,21 @@ export const MODEL_REGISTRY = {
   //   visibleByDefault: false,
   //   aliases: [],
   // },
+
+  // Grok Image Generation Model
+  "grok-imagine-image": {
+    id: "grok-imagine-image",
+    name: "Grok Imagine",
+    provider: "Grok",
+    pricing: { inputImage: 2, output: 20 }, // $0.002 per input image, $0.02 per output image
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: [],
+  },
 };
 
 // ==================== PROVIDER LIBRARIES ====================

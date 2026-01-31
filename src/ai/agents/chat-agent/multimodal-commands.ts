@@ -26,6 +26,7 @@ import { getDefaultWebSearchModel } from "../../modelRegistry";
 import { isModelVisible, getModelConfig, getOrderedProviders } from "../../../utils/modelConfigHelpers";
 import {
   roamAudioRegex,
+  roamImageRegex,
   roamVideoRegex,
   youtubeRegex,
   pdfLinkRegex,
@@ -70,13 +71,39 @@ export async function handleImageGenerationCommand(
     ? modelId
     : configDefaultImageModel;
 
-  // Build complete prompt including images and text from resultsContext (first turn only)
+  // Check if this is a Gemini model that supports multi-turn editing
+  // Note: OpenAI Images API doesn't support multi-turn conversation
+  const isNanoBanana =
+    imageModel === "gemini-2.5-flash-image" ||
+    imageModel === "gemini-3-pro-image-preview";
+
+  // Check if this is an explicit image generation command (not an edit in existing chat)
+  const isExplicitImageGeneration =
+    commandPrompt?.slice(0, 16) === "Image generation";
+
+  // Check if this is the first turn (BEFORE creating the chat)
+  // Only applicable for Gemini models that support multi-turn
+  const isFirstTurn =
+    chatSessionId &&
+    isNanoBanana &&
+    !imageGenerationChats.has(`${chatSessionId}_${imageModel}`);
+
+  // Check if this is an OpenAI image model (doesn't support multi-turn)
+  const isOpenAIImageModel = imageModel.startsWith('gpt-image');
+
+  // Build complete prompt including images and text from resultsContext
+  // For OpenAI: always include images (no multi-turn support)
+  // For Gemini: only on first turn (images persist in chat history)
   const completePrompt = buildImageGenerationPrompt(
     originalUserPrompt,
     resultsContext,
     chatSessionId,
-    imageGenerationChats
+    imageGenerationChats,
+    imageModel
   );
+
+  console.log("Image generation - resultsContext:", resultsContext);
+  console.log("Image generation - completePrompt:", completePrompt);
 
   // Generate image
   const imageLink = await imageGeneration(
@@ -90,26 +117,22 @@ export async function handleImageGenerationCommand(
   );
 
   console.log("imageModel :>> ", imageModel);
-  // Check if this is a nano banana model that supports multi-turn editing
-  const isNanoBanana =
-    imageModel === "gemini-2.5-flash-image" ||
-    imageModel === "gemini-3-pro-image-preview";
 
-  // Check if this is an explicit image generation command (not an edit in existing chat)
-  const isExplicitImageGeneration =
-    commandPrompt?.slice(0, 16) === "Image generation";
+  // Detect if this was an image edit operation (images were in the prompt)
+  roamImageRegex.lastIndex = 0;
+  const hadImagesInPrompt = roamImageRegex.test(completePrompt);
 
-  // Check if this is the first turn (chat session just created)
-  const isFirstTurn =
-    chatSessionId &&
-    !imageGenerationChats.has(`${chatSessionId}_${imageModel}`);
-
-  // Add helpful message ONLY for first-time generation (not for edits)
-  // Show when: nano banana model + explicit image generation command + first turn
+  // Add helpful message based on model type and operation
   let responseMessage = imageLink;
+
   if (isNanoBanana && isExplicitImageGeneration && isFirstTurn) {
+    // Gemini multi-turn: explain that follow-up edits are supported
     responseMessage +=
       "\n\n*You can now continue editing this image by sending follow-up messages in this chat. Each new message will refine the image based on your instructions.*";
+  } else if (isOpenAIImageModel && hadImagesInPrompt && isExplicitImageGeneration) {
+    // OpenAI image edit: confirm the edit was applied
+    responseMessage +=
+      "\n\n*Image edited based on your instructions. To make further edits, include the new image in your next message.*";
   }
 
   return {
@@ -132,13 +155,19 @@ export function isImageGenerationRequest(
   // Check if this is an explicit image generation command
   const isImageGeneration = commandPrompt?.slice(0, 16) === "Image generation";
 
-  // Check if we're in an active image editing session (chat exists for this session)
-  const hasImageChat =
-    chatSessionId &&
-    (imageGenerationChats.has(`${chatSessionId}_gemini-2.5-flash-image`) ||
-      imageGenerationChats.has(`${chatSessionId}_gemini-3-pro-image-preview`));
+  // Check if we're in an active Gemini image editing session
+  // Note: OpenAI Images API doesn't support multi-turn, only Gemini does
+  if (chatSessionId) {
+    const hasGeminiChat =
+      imageGenerationChats.has(`${chatSessionId}_gemini-2.5-flash-image`) ||
+      imageGenerationChats.has(`${chatSessionId}_gemini-3-pro-image-preview`);
 
-  return isImageGeneration || hasImageChat;
+    if (hasGeminiChat) {
+      return true;
+    }
+  }
+
+  return isImageGeneration;
 }
 
 /**

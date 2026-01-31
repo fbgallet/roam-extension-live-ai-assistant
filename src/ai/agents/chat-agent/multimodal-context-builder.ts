@@ -29,41 +29,50 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
   const audioFiles: string[] = [];
   const textContent: string[] = [];
 
-  resultsContext.forEach((result: any, index: number) => {
-    // Extract images and audio from content field
-    if (result.content) {
-      // Reset lastIndex for global regex
-      roamImageRegex.lastIndex = 0;
-      const imageMatches = Array.from(result.content.matchAll(roamImageRegex));
+  // Helper function to extract media from a content string
+  const extractFromContent = (content: string) => {
+    if (!content || typeof content !== 'string') return;
 
-      if (imageMatches.length > 0) {
-        imageMatches.forEach(match => {
-          images.push(match[0]); // Full match: ![alt](url)
-        });
-      }
+    // Reset lastIndex for global regex
+    roamImageRegex.lastIndex = 0;
+    const imageMatches = Array.from(content.matchAll(roamImageRegex));
+    imageMatches.forEach(match => {
+      images.push(match[0]); // Full match: ![alt](url)
+    });
 
-      // Extract audio files
-      roamAudioRegex.lastIndex = 0;
-      const audioMatches = Array.from(result.content.matchAll(roamAudioRegex));
+    // Extract audio files
+    roamAudioRegex.lastIndex = 0;
+    const audioMatches = Array.from(content.matchAll(roamAudioRegex));
+    audioMatches.forEach(match => {
+      const audioUrl = match[1] || match[0];
+      audioFiles.push(audioUrl);
+    });
 
-      if (audioMatches.length > 0) {
-        audioMatches.forEach(match => {
-          // Extract URL from either {{[[audio]]: url}} or direct URL
-          const audioUrl = match[1] || match[0];
-          audioFiles.push(audioUrl);
-        });
-      }
+    // Extract text content (remove images and audio)
+    roamImageRegex.lastIndex = 0;
+    roamAudioRegex.lastIndex = 0;
+    let textOnly = content
+      .replace(roamImageRegex, '')
+      .replace(roamAudioRegex, '')
+      .trim();
+    if (textOnly) {
+      textContent.push(textOnly);
+    }
+  };
 
-      // Extract text content (remove images and audio)
-      roamImageRegex.lastIndex = 0;
-      roamAudioRegex.lastIndex = 0;
-      let textOnly = result.content
-        .replace(roamImageRegex, '')
-        .replace(roamAudioRegex, '')
-        .trim();
-      if (textOnly) {
-        textContent.push(textOnly);
-      }
+  resultsContext.forEach((result: any) => {
+    // Get content from various possible locations in result object
+    // Results can have content in: result.content, result.expandedBlock?.original, result.text
+    const contentSources = [
+      result.content,
+      result.expandedBlock?.original,
+      result.expandedBlock?.childrenOutline,
+      result.text,
+    ];
+
+    // Process each content source
+    for (const content of contentSources) {
+      extractFromContent(content);
     }
 
     // Check for direct image URL properties
@@ -71,41 +80,7 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
       images.push(`![](${result.imageUrl})`);
     }
 
-    // Check for images and audio in text field
-    if (result.text) {
-      roamImageRegex.lastIndex = 0;
-      const imageMatches = Array.from(result.text.matchAll(roamImageRegex));
-
-      if (imageMatches.length > 0) {
-        imageMatches.forEach(match => {
-          images.push(match[0]);
-        });
-      }
-
-      // Extract audio files
-      roamAudioRegex.lastIndex = 0;
-      const audioMatches = Array.from(result.text.matchAll(roamAudioRegex));
-
-      if (audioMatches.length > 0) {
-        audioMatches.forEach(match => {
-          const audioUrl = match[1] || match[0];
-          audioFiles.push(audioUrl);
-        });
-      }
-
-      // Extract text content (remove images and audio)
-      roamImageRegex.lastIndex = 0;
-      roamAudioRegex.lastIndex = 0;
-      let textOnly = result.text
-        .replace(roamImageRegex, '')
-        .replace(roamAudioRegex, '')
-        .trim();
-      if (textOnly) {
-        textContent.push(textOnly);
-      }
-    }
-
-    // Include plain text or content fields that don't have images or audio
+    // Include plain text if no other content
     if (result.plainText && !result.content && !result.text) {
       textContent.push(result.plainText);
     }
@@ -125,7 +100,7 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
 
 /**
  * Build a complete prompt for image generation including:
- * - Images from resultsContext (only if chat is new/first turn)
+ * - Images from resultsContext (only if chat is new/first turn for Gemini, always for OpenAI)
  * - Text content from resultsContext as additional context
  * - User's text prompt (prominently)
  *
@@ -133,22 +108,31 @@ export function extractMultimodalContext(resultsContext: any[]): ExtractedContex
  * @param resultsContext - Results context from chat state
  * @param chatSessionId - Chat session ID (to check if it's first turn)
  * @param imageGenerationChats - Map of existing image generation chats
+ * @param imageModel - The image generation model being used
  * @returns Complete prompt with images and context
  */
 export function buildImageGenerationPrompt(
   userPrompt: string,
   resultsContext: any[] | undefined,
   chatSessionId: string | undefined,
-  imageGenerationChats: Map<string, any>
+  imageGenerationChats: Map<string, any>,
+  imageModel?: string
 ): string {
-  // Only add context on first turn (when no existing chat session for this model)
+  // Determine if this is an OpenAI image model
+  // OpenAI models don't support multi-turn, so we always include images from context
+  const isOpenAIImageModel = imageModel?.startsWith('gpt-image') || false;
+
+  // For Gemini: only add context on first turn (when no existing chat session for this model)
   // On subsequent turns, the images are already in the chat history
-  const isFirstTurn = !chatSessionId || (
+  // For OpenAI: always add context since it doesn't support multi-turn
+  const isGeminiFirstTurn = !chatSessionId || (
     !imageGenerationChats.has(`${chatSessionId}_gemini-2.5-flash-image`) &&
     !imageGenerationChats.has(`${chatSessionId}_gemini-3-pro-image-preview`)
   );
 
-  if (!isFirstTurn || !resultsContext || resultsContext.length === 0) {
+  const shouldAddContext = isOpenAIImageModel || isGeminiFirstTurn;
+
+  if (!shouldAddContext || !resultsContext || resultsContext.length === 0) {
     return userPrompt;
   }
 

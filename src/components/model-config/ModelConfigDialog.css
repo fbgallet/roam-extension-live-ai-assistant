@@ -308,7 +308,7 @@
 }
 
 .default-model-section.default-websearch-section,
-.default-model-section.default-imagen-section {
+.default-model-section.default-imagegen-section {
   margin: 8px 0 8px 0;
 }
 
@@ -458,6 +458,69 @@
 .bp3-dark .default-imagegen-section.drag-over {
   background: #4a2447;
   border-color: #f472b6;
+}
+
+/* ===== IMAGE GENERATION MODELS SECTION ===== */
+.image-gen-models-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 2px solid #fce7f3;
+  background: linear-gradient(to bottom, #fdf2f8 0%, transparent 100%);
+  border-radius: 4px;
+  padding: 12px 8px 4px 8px;
+}
+
+.image-gen-section-header {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #be185d;
+  margin-bottom: 8px;
+  padding: 0 8px;
+}
+
+.image-gen-section-title {
+  font-weight: 600;
+}
+
+.image-gen-model .model-card {
+  background: #fef3f9;
+  border-left: 3px solid #ec4899;
+}
+
+.image-gen-model.model-card {
+  background: #fef3f9;
+  border-left: 3px solid #ec4899;
+}
+
+.image-gen-model.model-card:hover {
+  background: #fce7f3;
+}
+
+/* Dark mode for image gen section */
+.bp5-dark .image-gen-models-section,
+.bp3-dark .image-gen-models-section {
+  border-top-color: #701a43;
+  background: linear-gradient(to bottom, #3d1f33 0%, transparent 100%);
+}
+
+.bp5-dark .image-gen-section-header,
+.bp3-dark .image-gen-section-header {
+  color: #f472b6;
+}
+
+.bp5-dark .image-gen-model .model-card,
+.bp3-dark .image-gen-model .model-card,
+.bp5-dark .image-gen-model.model-card,
+.bp3-dark .image-gen-model.model-card {
+  background: #3d1f33;
+  border-left-color: #f472b6;
+}
+
+.bp5-dark .image-gen-model.model-card:hover,
+.bp3-dark .image-gen-model.model-card:hover {
+  background: #4a2447;
 }
 
 /* ===== VISIBILITY PANEL ===== */
