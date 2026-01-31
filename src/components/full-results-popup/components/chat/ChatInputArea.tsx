@@ -30,6 +30,14 @@ import {
   isThinkingModel,
   hasThinkingDefault,
 } from "../../../../ai/modelRegistry";
+import {
+  getProviderModels,
+  isModelVisible,
+  isModelFavorited,
+  getOrderedProviders,
+  getModelMetadata,
+  getModelCapabilities,
+} from "../../../../utils/modelConfigHelpers";
 
 interface ChatInputAreaProps {
   chatInput: string;
@@ -188,7 +196,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       const newCharsCount = value.length - textLengthAtSlashTrigger;
 
       // The query is only the NEW characters typed after the slash (not pre-existing text)
-      const queryText = value.substring(slashStartIndex + 1, slashStartIndex + 1 + newCharsCount);
+      const queryText = value.substring(
+        slashStartIndex + 1,
+        slashStartIndex + 1 + newCharsCount
+      );
 
       // Check if a space was typed in the query
       if (queryText.includes(" ")) {
@@ -298,6 +309,72 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     return slashQuery;
   };
 
+  // Generate model commands for slash mode matching
+  const getModelCommands = () => {
+    const commands: any[] = [];
+    const orderedProviders = getOrderedProviders();
+    const allProviders = [
+      "OpenAI",
+      "Anthropic",
+      "Google",
+      "DeepSeek",
+      "Grok",
+      "OpenRouter",
+      "Groq",
+      "Ollama",
+    ];
+
+    const getPrefix = (provider: string) => {
+      switch (provider) {
+        case "OpenRouter":
+          return "openRouter/";
+        case "Groq":
+          return "groq/";
+        case "Ollama":
+          return "ollama/";
+        default:
+          return "";
+      }
+    };
+
+    const providersToProcess = [...orderedProviders];
+    allProviders.forEach((p) => {
+      if (!providersToProcess.includes(p)) {
+        providersToProcess.push(p);
+      }
+    });
+
+    let modelIndex = 0;
+    providersToProcess.forEach((provider) => {
+      const models = getProviderModels(provider);
+      models.forEach((model) => {
+        if (!isModelVisible(model.id)) return;
+        const capabilities = getModelCapabilities(model.id);
+        if (capabilities.includes("image")) return;
+
+        const prefix = getPrefix(provider);
+        const fullModelId = prefix + model.id;
+        const metadata = getModelMetadata(model.id);
+
+        commands.push({
+          id: 9000 + modelIndex,
+          name: model.name || model.id,
+          prompt: fullModelId,
+          category: "SWITCH MODEL",
+          icon: "cog",
+          keyWords: `${provider.toLowerCase()} ${model.id} model switch`,
+          isModelCommand: true,
+          modelProvider: provider,
+          modelContextLength: metadata?.contextLength,
+          isFavorite: isModelFavorited(model.id),
+        });
+        modelIndex++;
+      });
+    });
+
+    return commands;
+  };
+
   // Find first matching command for slash mode
   const findMatchingCommand = (query: string) => {
     if (!query) return null;
@@ -319,8 +396,20 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       return true;
     });
 
-    // Find first matching command
-    return compatibleCommands.find((cmd) => {
+    // Find first matching builtin command
+    const builtinMatch = compatibleCommands.find((cmd) => {
+      const nameMatch = cmd.name.toLowerCase().includes(normalizedQuery);
+      const keywordsMatch = cmd.keyWords
+        ?.toLowerCase()
+        .includes(normalizedQuery);
+      return nameMatch || keywordsMatch;
+    });
+
+    if (builtinMatch) return builtinMatch;
+
+    // Also search model commands
+    const modelCommands = getModelCommands();
+    return modelCommands.find((cmd) => {
       const nameMatch = cmd.name.toLowerCase().includes(normalizedQuery);
       const keywordsMatch = cmd.keyWords
         ?.toLowerCase()
@@ -541,10 +630,57 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                   onClose={() => {
                     setIsCommandSuggestOpen(false);
                     setSlashCommandMode(false);
+                    setSlashStartIndex(-1);
+                    setSlashQuery("");
+                    setTextLengthAtSlashTrigger(0);
+                    // Refocus the input
+                    setTimeout(() => {
+                      if (chatInputRef.current) {
+                        chatInputRef.current.focus();
+                      }
+                    }, 0);
                   }}
                   initialQuery={getSlashQuery()}
                   isSlashMode={slashCommandMode}
                   currentPrompt={chatInput}
+                  selectedModel={selectedModel}
+                  onModelSwitch={(model: string) => {
+                    // Clear only the slash command from input, preserve the rest
+                    if (slashCommandMode && slashStartIndex !== -1) {
+                      const beforeSlash = chatInput.substring(
+                        0,
+                        slashStartIndex
+                      );
+                      // Find the end of the slash command (first space after slash, or end of string)
+                      const afterSlash = chatInput.substring(slashStartIndex + 1);
+                      const spaceIndex = afterSlash.indexOf(" ");
+                      const slashCommandEnd =
+                        slashStartIndex + 1 + (spaceIndex === -1 ? afterSlash.length : spaceIndex);
+                      const afterSlashCommand =
+                        chatInput.substring(slashCommandEnd);
+                      // Combine before and after, trimming any extra space at the junction
+                      const newInput = (
+                        beforeSlash.trimEnd() +
+                        " " +
+                        afterSlashCommand.trimStart()
+                      ).trim();
+                      onChatInputChange(newInput);
+                    }
+                    // Switch the model
+                    onModelSelect(model);
+                    // Close slash mode
+                    setSlashCommandMode(false);
+                    setIsCommandSuggestOpen(false);
+                    setSlashStartIndex(-1);
+                    setSlashQuery("");
+                    setTextLengthAtSlashTrigger(0);
+                    // Refocus the input
+                    setTimeout(() => {
+                      if (chatInputRef.current) {
+                        chatInputRef.current.focus();
+                      }
+                    }, 0);
+                  }}
                 />
               }
               placement="top"
@@ -698,10 +834,37 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                   const matchingCommand = findMatchingCommand(query);
 
                   if (matchingCommand) {
-                    // Clear the slash command from input (remove from slash position onwards)
+                    // Clear only the slash command from input, preserve the rest
                     const beforeSlash = chatInput.substring(0, slashStartIndex);
-                    onChatInputChange(beforeSlash.trimEnd());
-                    handleCommandSelect(matchingCommand, true); // true = from slash command
+                    // Find the end of the slash command (first space after slash, or end of string)
+                    const afterSlash = chatInput.substring(slashStartIndex + 1);
+                    const spaceIndex = afterSlash.indexOf(" ");
+                    const slashCommandEnd =
+                      slashStartIndex + 1 + (spaceIndex === -1 ? afterSlash.length : spaceIndex);
+                    const afterSlashCommand =
+                      chatInput.substring(slashCommandEnd);
+                    const newInput = (
+                      beforeSlash.trimEnd() +
+                      " " +
+                      afterSlashCommand.trimStart()
+                    ).trim();
+                    onChatInputChange(newInput);
+
+                    // Handle model commands specially - just switch model, don't run command
+                    if (
+                      matchingCommand.isModelCommand &&
+                      matchingCommand.prompt
+                    ) {
+                      onModelSelect(matchingCommand.prompt);
+                      // Close slash mode
+                      setSlashCommandMode(false);
+                      setIsCommandSuggestOpen(false);
+                      setSlashStartIndex(-1);
+                      setSlashQuery("");
+                      setTextLengthAtSlashTrigger(0);
+                    } else {
+                      handleCommandSelect(matchingCommand, true); // true = from slash command
+                    }
                   } else {
                     // No matching command, close slash mode and treat as normal input
                     setSlashCommandMode(false);

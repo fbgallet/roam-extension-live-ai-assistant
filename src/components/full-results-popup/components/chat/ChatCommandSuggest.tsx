@@ -13,11 +13,21 @@ import {
   Menu,
   MenuDivider,
   InputGroup,
+  Tag,
 } from "@blueprintjs/core";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 import { CATEGORY_ICON } from "../../../../ai/prebuildCommands";
 import { getOrderedCustomPromptBlocks } from "../../../../ai/dataExtraction";
 import ModelsMenu from "../../../ModelsMenu";
+import {
+  getProviderModels,
+  isModelVisible,
+  isModelFavorited,
+  getOrderedProviders,
+  formatContextLength,
+  getModelMetadata,
+  getModelCapabilities,
+} from "../../../../utils/modelConfigHelpers";
 
 interface Command {
   id: number;
@@ -37,6 +47,11 @@ interface Command {
   };
   callback?: Function;
   showOnlyIfAudioInBlock?: boolean;
+  // Model command properties
+  isModelCommand?: boolean;
+  modelProvider?: string;
+  modelContextLength?: number;
+  isFavorite?: boolean;
 }
 
 interface ChatCommandSuggestProps {
@@ -50,6 +65,8 @@ interface ChatCommandSuggestProps {
   initialQuery?: string; // For slash command mode
   isSlashMode?: boolean; // Whether opened via slash command
   currentPrompt?: string; // Current chat input for audio detection
+  selectedModel?: string; // Currently selected model (for visual indicator)
+  onModelSwitch?: (model: string) => void; // Callback for model switching
 }
 
 const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
@@ -59,6 +76,8 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   initialQuery = "",
   isSlashMode = false,
   currentPrompt = "",
+  selectedModel = "",
+  onModelSwitch,
 }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -71,7 +90,77 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     return roamAudioRegex.test(currentPrompt);
   }, [currentPrompt]);
 
-  // Get all commands including custom prompts
+  // Generate model commands from visible models
+  const modelCommands = React.useMemo(() => {
+    const commands: Command[] = [];
+    const orderedProviders = getOrderedProviders();
+    const allProviders = [
+      "OpenAI",
+      "Anthropic",
+      "Google",
+      "DeepSeek",
+      "Grok",
+      "OpenRouter",
+      "Groq",
+      "Ollama",
+    ];
+
+    // Helper to get prefix for model ID
+    const getPrefix = (provider: string) => {
+      switch (provider) {
+        case "OpenRouter":
+          return "openRouter/";
+        case "Groq":
+          return "groq/";
+        case "Ollama":
+          return "ollama/";
+        default:
+          return "";
+      }
+    };
+
+    // Use ordered providers, then add any missing ones
+    const providersToProcess = [...orderedProviders];
+    allProviders.forEach((p) => {
+      if (!providersToProcess.includes(p)) {
+        providersToProcess.push(p);
+      }
+    });
+
+    let modelIndex = 0;
+    providersToProcess.forEach((provider) => {
+      const models = getProviderModels(provider);
+
+      models.forEach((model) => {
+        // Skip hidden models and image generation models
+        if (!isModelVisible(model.id)) return;
+        const capabilities = getModelCapabilities(model.id);
+        if (capabilities.includes("image")) return;
+
+        const prefix = getPrefix(provider);
+        const fullModelId = prefix + model.id;
+        const metadata = getModelMetadata(model.id);
+
+        commands.push({
+          id: 9000 + modelIndex,
+          name: model.name || model.id,
+          prompt: fullModelId, // Store full model ID for switching
+          category: "SWITCH MODEL",
+          icon: "cycle", // contrast
+          keyWords: `${provider.toLowerCase()} ${model.id} model switch`,
+          isModelCommand: true,
+          modelProvider: provider,
+          modelContextLength: metadata?.contextLength,
+          isFavorite: isModelFavorited(model.id),
+        } as Command);
+        modelIndex++;
+      });
+    });
+
+    return commands;
+  }, []);
+
+  // Get all commands including custom prompts and model commands
   const allCommands = React.useMemo(() => {
     const customPrompts = getOrderedCustomPromptBlocks("liveai/prompt");
     const customCommands = customPrompts.map((custom, index) => ({
@@ -82,8 +171,8 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
       icon: "user",
     }));
 
-    return [...BUILTIN_COMMANDS, ...customCommands];
-  }, []);
+    return [...BUILTIN_COMMANDS, ...customCommands, ...modelCommands];
+  }, [modelCommands]);
 
   // Filter commands to exclude chat-incompatible ones
   const chatCompatibleCommands = React.useMemo(() => {
@@ -172,7 +261,8 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
               );
             })}
           </>
-        ) : item.name.includes("Image generation") || item.name === "Web search" ? (
+        ) : item.name.includes("Image generation") ||
+          item.name === "Web search" ? (
           <>
             <ModelsMenu
               callback={({ command, model }) => {
@@ -213,7 +303,10 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   // Also adjust if current index is out of bounds
   React.useEffect(() => {
     if (!isSlashMode) return;
-    if (activeIndex >= slashModeFlatItems.length && slashModeFlatItems.length > 0) {
+    if (
+      activeIndex >= slashModeFlatItems.length &&
+      slashModeFlatItems.length > 0
+    ) {
       setActiveIndex(slashModeFlatItems.length - 1);
     }
   }, [slashModeFlatItems.length, activeIndex, isSlashMode]);
@@ -237,11 +330,21 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         e.preventDefault();
         e.stopPropagation();
         const selectedCommand = slashModeFlatItems[activeIndex];
-        // Close menu first, then select command in next tick
-        onClose();
-        setTimeout(() => {
-          onCommandSelect(selectedCommand, true);
-        }, 0);
+        // Handle model commands specially - just switch model, don't run command
+        // Note: onModelSwitch callback handles closing and clearing slash state
+        if (
+          selectedCommand.isModelCommand &&
+          onModelSwitch &&
+          selectedCommand.prompt
+        ) {
+          onModelSwitch(selectedCommand.prompt!);
+        } else {
+          // Close menu first, then select command in next tick
+          onClose();
+          setTimeout(() => {
+            onCommandSelect(selectedCommand, true);
+          }, 0);
+        }
       }
     };
 
@@ -342,6 +445,34 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         item.submenu && item.submenu.length > 0 && !initialQuery;
       const itemIndex = flatItems.indexOf(item);
       const isActive = itemIndex === activeIndex && !hasSubmenu;
+
+      // Handle model commands specially
+      if (item.isModelCommand) {
+        const isCurrentModel = selectedModel === item.prompt;
+        return (
+          <MenuItem
+            key={item.id}
+            text={item.name}
+            active={isActive}
+            icon={
+              isCurrentModel ? "tick" : item.isFavorite ? "star" : undefined
+            }
+            onClick={() => {
+              // Note: onModelSwitch callback handles closing and clearing slash state
+              if (onModelSwitch && item.prompt) {
+                onModelSwitch(item.prompt!);
+              }
+            }}
+            labelElement={
+              item.modelContextLength ? (
+                <Tag minimal>
+                  {formatContextLength(item.modelContextLength)}
+                </Tag>
+              ) : null
+            }
+          />
+        );
+      }
 
       return (
         <MenuItem
