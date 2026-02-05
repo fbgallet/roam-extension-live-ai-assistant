@@ -11,4 +11,6 @@ export interface RoamContext {
   logPagesArgument?: number; // Number of previous daily notes to include
   block?: boolean;
   blockArgument?: string[]; // Array of block UIDs
+  query?: boolean; // Query results context
+  queryBlockUid?: string; // UID of the query block to load results from
 }

@@ -27,6 +27,15 @@ import {
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
 
 /**
+ * Truncate text to a maximum length, adding ellipsis if needed.
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+}
+
+/**
  * Normalize a new_order value from LLM input.
  * LLMs sometimes send "" for optional fields; treat as "last".
  */
@@ -374,7 +383,9 @@ async function executeBatchUpdate(
 
   let output = `Batch update results (${operations.length} operations):\n`;
   for (const r of results) {
-    output += `  ${r.index + 1}. ((${r.uid})) - ${r.status}\n`;
+    const content = getBlockContentByUid(r.uid);
+    const contentPreview = content ? `"${truncateText(content, 40)}" ` : "";
+    output += `  ${r.index + 1}. ${contentPreview}((${r.uid})) - ${r.status}\n`;
   }
   for (const s of skipped) {
     output += `  ${s.index + 1}. ((${s.uid})) - SKIPPED: ${s.reason}\n`;
@@ -479,7 +490,8 @@ export const updateBlockTool = tool(
         }
         const content = getBlockContentByUid(block_uid);
         const hasChildren = hasBlockChildren(block_uid);
-        return `📄 Block ((${block_uid})) found.\nContent: ${content || "(empty)"}\nHas children: ${hasChildren ? "yes" : "no"}\n\nYou can now call update_block with mode "apply", block_uid, and the fields you want to change. To update multiple blocks at once, use batch_operations.`;
+        const contentPreview = truncateText(content || "(empty)", 100);
+        return `📄 Block "${contentPreview}" ((${block_uid}))\nHas children: ${hasChildren ? "yes" : "no"}\n\nYou can now call update_block with mode "apply", block_uid, and the fields you want to change. To update multiple blocks at once, use batch_operations.`;
       }
 
       // Return container outline for browsing
@@ -647,17 +659,26 @@ export const updateBlockTool = tool(
           order: finalOrder,
         });
 
-        let moveDesc = `((${finalDestUid}))`;
+        let moveDesc: string;
         if (effectiveNewParentPageTitle && finalDestUid === destUid) {
           moveDesc = `[[${effectiveNewParentPageTitle}]]`;
+        } else {
+          // Show parent block content for context
+          const destContent = getBlockContentByUid(finalDestUid);
+          moveDesc = destContent
+            ? `"${truncateText(destContent, 50)}" ((${finalDestUid}))`
+            : `((${finalDestUid}))`;
         }
         if (smart_move && finalDestUid !== destUid) {
-          moveDesc += " (smart move found optimal location)";
+          moveDesc += " (smart move)";
         }
         results.push(`Moved to ${moveDesc} at position ${finalOrder}`);
       }
 
-      return `✅ Block ((${block_uid})) updated successfully.\n${results.join("\n")}`;
+      // Get updated content for feedback
+      const updatedContent = getBlockContentByUid(block_uid);
+      const contentPreview = truncateText(updatedContent || "(empty)", 60);
+      return `✅ Block "${contentPreview}" ((${block_uid})) updated successfully.\n${results.join("\n")}`;
     } catch (error) {
       console.error("Error updating block:", error);
       return `Error: Failed to update block. ${

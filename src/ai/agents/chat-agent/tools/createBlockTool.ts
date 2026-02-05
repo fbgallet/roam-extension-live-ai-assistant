@@ -19,6 +19,28 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
+import { getBlockContentByUid } from "../../../../utils/roamAPI";
+
+/**
+ * Truncate text to a maximum length, adding ellipsis if needed.
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+}
+
+/**
+ * Format a block reference with its content for display.
+ * Returns: "block content..." ((uid))
+ */
+function formatBlockReference(uid: string, maxContentLength: number = 60): string {
+  const content = getBlockContentByUid(uid);
+  if (content) {
+    return `"${truncateText(content, maxContentLength)}" ((${uid}))`;
+  }
+  return `((${uid}))`;
+}
 
 export const createBlockTool = tool(
   async (
@@ -75,7 +97,7 @@ export const createBlockTool = tool(
       });
 
       if (!result || !result.outlineContent) {
-        return `📄 ${targetDescription} is empty. Ready for insertion with target UID: ${targetUid}`;
+        return `📄 Analyzed ${targetDescription} (empty). Target UID: ((${targetUid})) - ready for content insertion.`;
       }
 
       const truncatedOutline =
@@ -83,6 +105,7 @@ export const createBlockTool = tool(
           ? result.outlineContent.substring(0, 3000) + "\n... (truncated)"
           : result.outlineContent;
 
+      // The response includes the outline for the LLM, but UI will filter it to show only the first line
       return `📄 Analyzed ${targetDescription}. Target UID: ((${targetUid}))\n\n${truncatedOutline}`;
     }
 
@@ -98,12 +121,19 @@ export const createBlockTool = tool(
       // Generate a unique tool call ID for this confirmation
       const toolCallId = `create_block_${Date.now()}`;
 
+      // Build rich target description for UI display
+      const targetDisplay = resolved.pageName
+        ? `[[${resolved.pageName}]]`
+        : formatBlockReference(targetUid, 80);
+
       // Request confirmation from the user
       const confirmationResult = await toolConfirmationCallback({
         toolName: "create_block",
         toolCallId,
         args: {
-          target: page_title || date || parent_uid,
+          target: targetDisplay,
+          target_uid: targetUid,
+          target_description: targetDescription,
           markdown_content,
           smart_insertion,
         },
@@ -189,13 +219,18 @@ export const createBlockTool = tool(
         }
       }
 
-      // Build location description
-      let locationDesc = `((${finalParentUid}))`;
+      // Build location description with content context
+      let locationDesc: string;
       if (page_title && finalParentUid === targetUid) {
         locationDesc = `[[${page_title}]]`;
+      } else if (resolved.pageName && finalParentUid === targetUid) {
+        locationDesc = `[[${resolved.pageName}]]`;
+      } else {
+        // Show block content for context
+        locationDesc = formatBlockReference(finalParentUid, 60);
       }
       if (smart_insertion && finalParentUid !== targetUid) {
-        locationDesc += " (smart insertion found optimal location)";
+        locationDesc += " (smart insertion)";
       }
 
       // If we couldn't get UIDs but the API didn't throw, assume success

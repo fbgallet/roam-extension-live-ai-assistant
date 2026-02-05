@@ -21,6 +21,8 @@ import {
   onPageLoad,
   displayModelConfigDialog,
   displayMCPConfigDialog,
+  connectQueryObserver,
+  disconnectQueryObserver,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
@@ -1764,6 +1766,9 @@ export default {
     // Initial call to insert button on current page
     onPageLoad();
 
+    // Connect query observer for Ask Query buttons
+    connectQueryObserver();
+
     await extensionAPI.settings.panel.create(getPanelConfig());
 
     console.log("Extension loaded.");
@@ -1776,6 +1781,9 @@ export default {
 
     // Remove navigation listeners
     removePageNavigationListeners();
+
+    // Disconnect query observer
+    disconnectQueryObserver();
 
     // Disconnect all MCP servers (close WebSocket/SSE connections)
     await mcpManager.disconnectAll();

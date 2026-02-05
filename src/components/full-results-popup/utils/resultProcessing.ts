@@ -137,11 +137,11 @@ export const filterAndSortResults = async (
         break;
       case "relevance":
       default:
-        // For relevance, maintain original order but can be enhanced with scoring
+        // For relevance, maintain original order (ignore sortOrder)
         const indexA = results.indexOf(a);
         const indexB = results.indexOf(b);
-        comparison = indexA - indexB;
-        break;
+        // Return directly without sortOrder reversal - relevance preserves original order
+        return indexA - indexB;
     }
 
     return sortOrder === "desc" ? -comparison : comparison;

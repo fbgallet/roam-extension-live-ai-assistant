@@ -5135,3 +5135,12 @@ body.has-no-side-panel #app {
   border-color: #48aff0;
   color: #48aff0;
 }
+
+/* Ask Query Button (for Roam query blocks) */
+.ask-query-button {
+  transition: opacity 0.2s ease;
+  margin-left: 4px;
+}
+.ask-query-button:hover {
+  opacity: 1;
+}

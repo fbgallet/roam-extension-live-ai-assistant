@@ -598,6 +598,57 @@ export const chatWithLinkedRefs = async ({
   }
 };
 
+/**
+ * Opens FullResultsPopup with query results from a Roam query block.
+ * Similar to chatWithLinkedRefs but for query results.
+ *
+ * @param options - Configuration options
+ * @param options.queryBlockUid - UID of the query block
+ * @param options.model - AI model to use for chat
+ */
+export const chatWithQuery = async ({
+  queryBlockUid,
+  model,
+}: {
+  queryBlockUid: string;
+  model?: string;
+}) => {
+  try {
+    if (!queryBlockUid) {
+      throw new Error("No query block UID provided");
+    }
+
+    // Create RoamContext for query results
+    const roamContext: RoamContext = {
+      query: true,
+      queryBlockUid,
+    };
+
+    console.log(
+      `🚀 [chatWithQuery] Opening popup with query results for: ${queryBlockUid}`
+    );
+
+    await openFullResultsPopup({
+      roamContext,
+      rootUid: queryBlockUid,
+      targetUid: queryBlockUid,
+      viewMode: "chat-only",
+      initialChatModel: model,
+    });
+
+    return {
+      userQuery: `Query results from ((${queryBlockUid}))`,
+      searchStrategy: "direct" as const,
+      confidence: 1.0,
+      forceOpenChat: true,
+      directToolExecution: true,
+    };
+  } catch (error) {
+    console.error("Error in chatWithQuery:", error);
+    throw error;
+  }
+};
+
 // Make it globally accessible for command palette
 if (typeof window !== "undefined") {
   if (!(window as any).LiveAI) (window as any).LiveAI = {};
@@ -606,5 +657,6 @@ if (typeof window !== "undefined") {
   (window as any).LiveAI.prepareFullResultsOrChatOpening =
     prepareFullResultsOrChatOpening;
   (window as any).LiveAI.chatWithLinkedRefs = chatWithLinkedRefs;
+  (window as any).LiveAI.chatWithQuery = chatWithQuery;
   console.log("✅ Full Results Popup functions registered on window.LiveAI");
 }

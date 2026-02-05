@@ -210,6 +210,34 @@ export const loadResultsFromRoamContext = async ({
       }
     }
 
+    // 4e. Handle query results
+    if (roamContext.query && roamContext.queryBlockUid) {
+      try {
+        // Use Roam's dedicated query API to get results
+        // Returns {total: number, results: Array} where results use pull pattern
+        // Default pull pattern: [:block/string :node/title :block/uid]
+        // Pass limit: null to get all results (default is 20)
+        const queryResponse = await (window as any).roamAlphaAPI.data.roamQuery({
+          uid: roamContext.queryBlockUid,
+          limit: null,
+        });
+
+        // Extract results array from the response
+        const queryResults = queryResponse?.results;
+        if (queryResults && Array.isArray(queryResults)) {
+          // Each result has :block/uid from the pull pattern
+          for (const result of queryResults) {
+            const resultUid = result?.[":block/uid"];
+            if (resultUid && !blockUids.includes(resultUid)) {
+              blockUids.push(resultUid);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to load query results for ${roamContext.queryBlockUid}:`, error);
+      }
+    }
+
     // Now we have 3 arrays: blockUids, pageUids, linkedRefPageUids
     const allResults: RoamContextResult[] = [];
 
@@ -337,6 +365,9 @@ export const loadResultsFromRoamContext = async ({
     }
 
     // Add specific context mentions
+    if (roamContext.query) {
+      parts.push("query results");
+    }
     if (roamContext.sidebar) {
       parts.push("sidebar");
     }

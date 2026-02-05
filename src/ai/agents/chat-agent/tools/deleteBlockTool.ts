@@ -22,6 +22,15 @@ import {
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
 
 /**
+ * Truncate text to a maximum length, adding ellipsis if needed.
+ */
+function truncateText(text: string, maxLength: number): string {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+}
+
+/**
  * Counts the total number of descendant blocks in a tree.
  */
 function countDescendants(tree: any): number {
@@ -192,7 +201,10 @@ async function executeBatchDelete(
 
   let output = `Batch delete results (${blockUids.length} operations):\n`;
   for (const r of results) {
-    output += `  ${r.index + 1}. ((${r.uid})) - ${r.status}\n`;
+    // Include content from blockPreviews (captured before deletion)
+    const preview = blockPreviews.find((b) => b.block_uid === r.uid);
+    const contentPreview = preview?.content ? `"${truncateText(preview.content, 40)}" ` : "";
+    output += `  ${r.index + 1}. ${contentPreview}((${r.uid})) - ${r.status}\n`;
   }
   for (const s of skipped) {
     output += `  ${s.index + 1}. ((${s.uid})) - SKIPPED: ${s.reason}\n`;
@@ -315,9 +327,12 @@ export const deleteBlockTool = tool(
     }
 
     try {
+      // Capture content before deletion for feedback
+      const contentPreview = truncateText(preview.content, 60);
+
       await deleteBlock(block_uid);
 
-      let result = `✅ Block ((${block_uid})) has been deleted.`;
+      let result = `✅ Block "${contentPreview}" ((${block_uid})) has been deleted.`;
       if (preview.descendant_count > 0) {
         result += ` (${preview.descendant_count} descendant block(s) were also removed)`;
       }

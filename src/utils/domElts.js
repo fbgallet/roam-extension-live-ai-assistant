@@ -16,11 +16,11 @@ import AskGraphFirstTimeDialog from "../components/AskGraphFirstTimeDialog";
 import ScopeSelectionDialog from "../components/ScopeSelectionDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
-import { chatWithLinkedRefs } from "../components/full-results-popup";
+import { chatWithLinkedRefs, chatWithQuery } from "../components/full-results-popup";
 import ModelConfigDialog from "../components/model-config/ModelConfigDialog";
 import ModelMigrationDialog from "../components/model-config/ModelMigrationDialog";
 import MCPConfigComponent from "../components/MCPConfigComponent";
-import { Dialog } from "@blueprintjs/core";
+import { Dialog, Tooltip } from "@blueprintjs/core";
 
 export function mountComponent(
   position,
@@ -761,3 +761,147 @@ export const displayModelMigrationDialog = (
     container
   );
 };
+
+// Query Observer for "Ask Query" button
+let queryObserver = null;
+let queryObserverDebounceTimer = null;
+
+/**
+ * Extract query block UID from a query title element by traversing up to find .rm-block
+ */
+function getQueryBlockUidFromTitleElement(titleElement) {
+  const blockElement = titleElement.closest(".rm-block");
+  if (blockElement) {
+    return blockElement.getAttribute("data-block-uid");
+  }
+  return null;
+}
+
+/**
+ * Insert a chat button after a query title element
+ */
+function insertQueryChatButton(titleElement) {
+  // Check if button already exists
+  if (
+    titleElement.nextElementSibling?.classList?.contains(
+      "ask-query-button-container"
+    )
+  ) {
+    return;
+  }
+
+  const queryBlockUid = getQueryBlockUidFromTitleElement(titleElement);
+  if (!queryBlockUid) {
+    return;
+  }
+
+  // Create a container for the React component
+  const container = document.createElement("span");
+  container.className = "ask-query-button-container";
+
+  // Insert container after title element
+  titleElement.insertAdjacentElement("afterend", container);
+
+  // Render React component with Tooltip
+  const QueryChatButton = () => {
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleMouseUp = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleClick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        await chatWithQuery({ queryBlockUid });
+      } catch (error) {
+        console.error("Error invoking query chat:", error);
+        AppToaster.show({
+          message: `Failed to chat with query results: ${error.message}`,
+          intent: "warning",
+          timeout: 5000,
+        });
+      }
+    };
+
+    return (
+      <Tooltip content="Live AI: Chat with query results" hoverOpenDelay={300}>
+        <button
+          className="bp3-button bp3-minimal bp3-small ask-query-button"
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onClick={handleClick}
+        >
+          <span className="bp3-icon bp3-icon-chat"></span>
+        </button>
+      </Tooltip>
+    );
+  };
+
+  ReactDOM.render(<QueryChatButton />, container);
+}
+
+/**
+ * Scan DOM and insert buttons for all query titles
+ */
+function processQueryTitles() {
+  const queryTitles = document.querySelectorAll(".rm-query-title-text");
+  queryTitles.forEach((titleElement) => {
+    insertQueryChatButton(titleElement);
+  });
+}
+
+/**
+ * Connect the MutationObserver for query titles
+ */
+export function connectQueryObserver() {
+  // Disconnect any existing observer
+  disconnectQueryObserver();
+
+  const targetNode = document.querySelector(".roam-app");
+  if (!targetNode) {
+    console.warn("⚠️ connectQueryObserver: .roam-app not found");
+    return;
+  }
+
+  // Process any existing query titles
+  processQueryTitles();
+
+  // Create observer to watch for new query titles
+  queryObserver = new MutationObserver((mutations) => {
+    // Debounce to avoid excessive processing
+    if (queryObserverDebounceTimer) {
+      clearTimeout(queryObserverDebounceTimer);
+    }
+    queryObserverDebounceTimer = setTimeout(() => {
+      processQueryTitles();
+    }, 50);
+  });
+
+  queryObserver.observe(targetNode, {
+    childList: true,
+    subtree: true,
+  });
+
+  console.log("✅ Query observer connected");
+}
+
+/**
+ * Disconnect the query observer
+ */
+export function disconnectQueryObserver() {
+  if (queryObserver) {
+    queryObserver.disconnect();
+    queryObserver = null;
+  }
+  if (queryObserverDebounceTimer) {
+    clearTimeout(queryObserverDebounceTimer);
+    queryObserverDebounceTimer = null;
+  }
+}

@@ -34,6 +34,7 @@ export const customTagRegex = {
 };
 export const builtInPromptRegex = /<built-in:([^>:]+)(?::([^>:]+))?>/i;
 export const suggestionsComponentRegex = /\{\{or:\s?([^|]*)\|.*\}\}/;
+export const roamQueryRegex = /\{\{\s*(\[\[query\]\]|query)\s*:/i;
 
 export const getConjunctiveRegex = (allRegex) => {
   let totalRegexControl = "^";

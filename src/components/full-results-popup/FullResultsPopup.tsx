@@ -12,6 +12,7 @@ import {
 } from "@blueprintjs/core";
 
 import { createChildBlock, filterTopLevelBlocks } from "../../utils/roamAPI.js";
+import { roamQueryRegex } from "../../utils/regex.js";
 import { FullResultsPopupProps, Result } from "./types/types.js";
 import { FullResultsChat } from "./components/chat/FullResultsChat";
 import {
@@ -113,6 +114,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
   // Drag and drop state
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isDraggingQuery, setIsDraggingQuery] = useState(false);
   const dragLeaveTimeoutRef = useRef<number | null>(null);
 
   // Layout mode state: "split" (A), "results-only" (B), "chat-only" (C)
@@ -987,6 +989,27 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       dragLeaveTimeoutRef.current = null;
     }
 
+    // Detect if any dragged block is a query by checking block content
+    // Roam adds .block-highlight-grey to blocks being dragged
+    const draggingBlocks = document.querySelectorAll('.block-highlight-grey[data-block-uid]');
+    let hasQueryBlock = false;
+
+    for (const block of draggingBlocks) {
+      const blockUid = block.getAttribute('data-block-uid');
+      if (blockUid) {
+        const blockData = window.roamAlphaAPI.pull(
+          '[:block/string]',
+          [':block/uid', blockUid]
+        );
+        const content = blockData?.[':block/string'] || '';
+        if (roamQueryRegex.test(content)) {
+          hasQueryBlock = true;
+          break;
+        }
+      }
+    }
+    setIsDraggingQuery(hasQueryBlock);
+
     setIsDraggingOver(true);
   };
 
@@ -1004,8 +1027,60 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
       // Use a small delay to avoid flickering when moving between child elements
       dragLeaveTimeoutRef.current = window.setTimeout(() => {
         setIsDraggingOver(false);
+        setIsDraggingQuery(false);
         dragLeaveTimeoutRef.current = null;
       }, 100);
+    }
+  };
+
+  // Helper to detect if block content is a Roam query
+  const isQueryBlock = (content: string): boolean => {
+    if (!content) return false;
+    return roamQueryRegex.test(content);
+  };
+
+  // Helper to load query results from a query block UID
+  const loadQueryResults = async (queryBlockUid: string): Promise<Result[]> => {
+    try {
+      const queryResponse = await (window as any).roamAlphaAPI.data.roamQuery({
+        uid: queryBlockUid,
+        limit: null, // Get all results
+      });
+
+      const queryResults = queryResponse?.results;
+      if (!queryResults || !Array.isArray(queryResults)) {
+        return [];
+      }
+
+      const results: Result[] = [];
+      for (const result of queryResults) {
+        const resultUid = result?.[":block/uid"];
+        if (!resultUid) continue;
+
+        // Fetch full block data for each result
+        const blockData = window.roamAlphaAPI.pull(
+          "[:block/uid :block/string :block/page {:block/page [:block/uid :node/title]}]",
+          [":block/uid", resultUid]
+        );
+
+        if (blockData) {
+          const pageInfo = blockData[":block/page"];
+          results.push({
+            uid: resultUid,
+            blockUid: resultUid,
+            content: blockData[":block/string"] || "",
+            text: blockData[":block/string"] || "",
+            pageUid: pageInfo?.[":block/uid"] || "",
+            pageTitle: pageInfo?.[":node/title"] || "",
+            isPage: false,
+          });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.warn(`Failed to load query results for ${queryBlockUid}:`, error);
+      return [];
     }
   };
 
@@ -1020,6 +1095,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     }
 
     setIsDraggingOver(false);
+    setIsDraggingQuery(false);
 
     // Get UIDs from the drag data - try Roam-specific types first
     const sourceUid = e.dataTransfer.getData("roam/block-uid-list")
@@ -1043,6 +1119,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     try {
       // Fetch block data for each UID and add to results
       const newResults: Result[] = [];
+      let queryResultsCount = 0;
 
       for (const uid of uids) {
         const trimmedUid = uid.trim();
@@ -1055,17 +1132,33 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
         );
 
         if (blockData) {
-          const pageInfo = blockData[":block/page"];
-          const result: Result = {
-            uid: trimmedUid,
-            blockUid: trimmedUid,
-            content: blockData[":block/string"] || "",
-            text: blockData[":block/string"] || "",
-            pageUid: pageInfo?.[":block/uid"] || "",
-            pageTitle: pageInfo?.[":node/title"] || "",
-            isPage: false,
-          };
-          newResults.push(result);
+          const blockContent = blockData[":block/string"] || "";
+
+          // Check if this is a query block
+          if (isQueryBlock(blockContent)) {
+            // Load query results instead of the query block itself
+            const queryResults = await loadQueryResults(trimmedUid);
+            if (queryResults.length > 0) {
+              newResults.push(...queryResults);
+              queryResultsCount += queryResults.length;
+            } else {
+              // If no query results, show a message
+              showTempMessage("ℹ️ Query has no results", 2000);
+            }
+          } else {
+            // Regular block - add as-is
+            const pageInfo = blockData[":block/page"];
+            const result: Result = {
+              uid: trimmedUid,
+              blockUid: trimmedUid,
+              content: blockContent,
+              text: blockContent,
+              pageUid: pageInfo?.[":block/uid"] || "",
+              pageTitle: pageInfo?.[":node/title"] || "",
+              isPage: false,
+            };
+            newResults.push(result);
+          }
         }
       }
 
@@ -1086,13 +1179,19 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
         if (uniqueNewResults.length > 0) {
           setCurrentResults([...currentResults, ...uniqueNewResults]);
-          showTempMessage(
-            `✅ Added ${uniqueNewResults.length} block(s) to context${
-              newResults.length !== uniqueNewResults.length
-                ? ` (${newResults.length - uniqueNewResults.length} duplicate(s) filtered)`
-                : ""
-            }`
-          );
+          // Show appropriate message based on whether query results were added
+          const message = queryResultsCount > 0
+            ? `✅ Added ${uniqueNewResults.length} block(s) from query results${
+                newResults.length !== uniqueNewResults.length
+                  ? ` (${newResults.length - uniqueNewResults.length} duplicate(s) filtered)`
+                  : ""
+              }`
+            : `✅ Added ${uniqueNewResults.length} block(s) to context${
+                newResults.length !== uniqueNewResults.length
+                  ? ` (${newResults.length - uniqueNewResults.length} duplicate(s) filtered)`
+                  : ""
+              }`;
+          showTempMessage(message);
         } else {
           showTempMessage(
             `ℹ️ All ${newResults.length} block(s) were already in context`,
@@ -1747,8 +1846,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
           {isDraggingOver && (
             <div className="full-results-drag-overlay">
               <div className="full-results-drag-message">
-                <Icon icon="add" size={32} />
-                <p>Add to context</p>
+                <Icon icon={isDraggingQuery ? "search" : "add"} size={32} />
+                <p>{isDraggingQuery ? "Add query results to context" : "Add to context"}</p>
               </div>
             </div>
           )}

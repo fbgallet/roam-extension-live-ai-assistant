@@ -2116,17 +2116,18 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           ) {
             // Special formatting for create_block/create_page tools
             const args = toolInfo.args || {};
+            // Use enriched target from tool (includes content), fallback to basic values
             const target =
-              args.page_title || args.date || args.parent_uid || "unknown";
+              args.target || args.page_title || args.date || args.parent_uid || "main view";
             const hasContent = args.markdown_content?.trim();
 
             if (hasContent) {
-              // Insertion mode - show target and scrollable content
+              // Insertion mode - show parent block with content context
               // Normalize list markers: replace • with - for consistent display
               const normalizedContent = args.markdown_content.replace(/^(\s*)•\s/gm, "$1- ");
-              details = `**Target:** ${target}\n\n**Content to insert:**\n<div class="tool-markdown-content">${normalizedContent}</div>`;
+              details = `**Parent block:** ${target}\n\n**Content to insert:**\n<div class="tool-markdown-content">${normalizedContent}</div>`;
             } else {
-              // Analysis mode - just show target
+              // Analysis mode - show what's being analyzed
               details = `Analyzing: ${target}`;
             }
           } else if (
@@ -2150,7 +2151,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             }
 
             const mode = args.mode || (args.batch_operations?.length > 0 || args.batch_block_uids?.length > 0 ? "batch" : "single");
-            const target = args.page_title || args.parent_uid || args.block_uid || "unknown";
+            const target = args.page_title || args.parent_uid || args.block_uid || "main view";
 
             if (mode === "browse") {
               details = `Browsing: ${target}`;
