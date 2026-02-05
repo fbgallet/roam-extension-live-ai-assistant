@@ -4,7 +4,7 @@
  * Renders the chat message list including welcome state, message history, and streaming indicator
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
   Icon,
@@ -128,6 +128,43 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
   return <div ref={containerRef} className={className} />;
 };
 
+// Helper component for expandable content in confirmation preview
+const ExpandableContent: React.FC<{
+  content: string;
+  truncateAt?: number;
+  className?: string;
+}> = ({ content, truncateAt = 80, className }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const needsTruncation = content.length > truncateAt;
+
+  if (!needsTruncation) {
+    return <span className={className}>{content || "(empty)"}</span>;
+  }
+
+  return (
+    <span className={className}>
+      {isExpanded ? content : content.substring(0, truncateAt) + "..."}
+      <button
+        className="tool-confirmation-expand-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsExpanded(!isExpanded);
+        }}
+        title={isExpanded ? "Show less" : "Show full content"}
+      >
+        {isExpanded ? "▲" : "▼"}
+      </button>
+    </span>
+  );
+};
+
+interface PendingToolConfirmation {
+  toolName: string;
+  toolCallId: string;
+  args: Record<string, any>;
+  timestamp: number;
+}
+
 interface ChatMessagesDisplayProps {
   chatMessages: ChatMessage[];
   isTyping: boolean;
@@ -152,6 +189,15 @@ interface ChatMessagesDisplayProps {
     promptOrContent: string
   ) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement>;
+  // Tool confirmation props
+  pendingToolConfirmation: PendingToolConfirmation | null;
+  onToolConfirmationResponse: (
+    approved: boolean,
+    alwaysApprove?: boolean,
+    declineReason?: string
+  ) => void;
+  declineReasonInput: string;
+  setDeclineReasonInput: (value: string) => void;
 }
 
 export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
@@ -170,6 +216,10 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onSuggestionClick,
   onHelpButtonClick,
   messagesContainerRef,
+  pendingToolConfirmation,
+  onToolConfirmationResponse,
+  declineReasonInput,
+  setDeclineReasonInput,
 }) => {
   // Memoize the initial random tip so it doesn't change on every render
   const [initialTip] = React.useState(() => getRandomTip("chat"));
@@ -453,9 +503,12 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                         <div className="full-results-chat-tool-name">
                           <Icon icon="wrench" size={12} /> {toolUsage.toolName}
                         </div>
-                        <div className="full-results-chat-tool-details">
-                          {toolUsage.details}
-                        </div>
+                        <div
+                          className="full-results-chat-tool-details"
+                          dangerouslySetInnerHTML={{
+                            __html: renderMarkdown(toolUsage.details),
+                          }}
+                        />
                         {/* Display tool response/feedback if available */}
                         {toolUsage.response && (
                           <div
@@ -597,9 +650,12 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     <div className="full-results-chat-tool-name">
                       <Icon icon="wrench" size={12} /> {toolUsage.toolName}
                     </div>
-                    <div className="full-results-chat-tool-details">
-                      {toolUsage.details}
-                    </div>
+                    <div
+                      className="full-results-chat-tool-details"
+                      dangerouslySetInnerHTML={{
+                        __html: renderMarkdown(toolUsage.details),
+                      }}
+                    />
                   </div>
                 ))}
               </div>
@@ -614,6 +670,171 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
             ) : (isTyping || isStreaming) && toolUsageHistory.length === 0 ? (
               <div className="full-results-chat-typing">Thinking...</div>
             ) : null}
+
+            {/* Tool confirmation UI */}
+            {pendingToolConfirmation && (
+              <div className="full-results-chat-tool-confirmation">
+                <div className="tool-confirmation-header">
+                  <Icon icon="warning-sign" size={14} intent="warning" />
+                  <span>
+                    Confirm{" "}
+                    {(() => {
+                      const opCount = pendingToolConfirmation.args?.operation_count;
+                      const label = {
+                        create_block: "block insertion",
+                        create_page: "page creation",
+                        update_block: "block update",
+                        delete_block: "block deletion",
+                      }[pendingToolConfirmation.toolName] || "operation";
+                      return opCount > 1
+                        ? `batch ${label} (${opCount} blocks)`
+                        : label;
+                    })()}
+                    ?
+                  </span>
+                </div>
+
+                {/* Preview for update_block */}
+                {pendingToolConfirmation.toolName === "update_block" &&
+                  pendingToolConfirmation.args?.operations && (
+                    <div className="tool-confirmation-preview">
+                      {pendingToolConfirmation.args.operations.map(
+                        (op: any, i: number) => (
+                          <div key={i} className="tool-confirmation-diff-item">
+                            <div className="tool-confirmation-diff-block-header">
+                              Block (({op.block_uid}))
+                              {op.current_content && (
+                                <span className="tool-confirmation-diff-context">
+                                  : {op.current_content.substring(0, 60)}
+                                  {op.current_content.length > 60 ? "..." : ""}
+                                </span>
+                              )}
+                            </div>
+                            {op.new_content !== undefined && (
+                              <div className="tool-confirmation-diff-row">
+                                <span className="tool-confirmation-diff-label">Content:</span>
+                                <ExpandableContent
+                                  content={op.current_content || "(empty)"}
+                                  className="tool-confirmation-diff-old"
+                                />
+                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <ExpandableContent
+                                  content={op.new_content}
+                                  className="tool-confirmation-diff-new"
+                                />
+                              </div>
+                            )}
+                            {op.new_heading !== undefined && (
+                              <div className="tool-confirmation-diff-row">
+                                <span className="tool-confirmation-diff-label">Heading:</span>
+                                <span className="tool-confirmation-diff-old">
+                                  {op.current_heading === 0 ? "none" : `H${op.current_heading}`}
+                                </span>
+                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-new">
+                                  {op.new_heading === 0 ? "none" : `H${op.new_heading}`}
+                                </span>
+                              </div>
+                            )}
+                            {op.new_open !== undefined && (
+                              <div className="tool-confirmation-diff-row">
+                                <span className="tool-confirmation-diff-label">State:</span>
+                                <span className="tool-confirmation-diff-old">
+                                  {op.current_open ? "expanded" : "collapsed"}
+                                </span>
+                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-new">
+                                  {op.new_open ? "expanded" : "collapsed"}
+                                </span>
+                              </div>
+                            )}
+                            {op.move_to && (
+                              <div className="tool-confirmation-diff-row">
+                                <span className="tool-confirmation-diff-label">Position:</span>
+                                <span className="tool-confirmation-diff-old">
+                                  {op.move_from || "current"}
+                                </span>
+                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-new">
+                                  {op.move_to}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+
+                {/* Preview for delete_block */}
+                {pendingToolConfirmation.toolName === "delete_block" &&
+                  pendingToolConfirmation.args?.blocks && (
+                    <div className="tool-confirmation-preview">
+                      {pendingToolConfirmation.args.blocks.map(
+                        (block: any, i: number) => (
+                          <div key={i} className="tool-confirmation-diff-item tool-confirmation-diff-delete">
+                            <div className="tool-confirmation-diff-block-header">
+                              Block (({block.block_uid})):
+                              <ExpandableContent
+                                content={block.content || "(empty)"}
+                                className="tool-confirmation-diff-context"
+                              />
+                            </div>
+                            {block.descendant_count > 0 && (
+                              <div className="tool-confirmation-diff-row tool-confirmation-diff-warning">
+                                + {block.descendant_count} descendant block(s) will also be deleted
+                              </div>
+                            )}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+
+                <div className="tool-confirmation-buttons">
+                  <Button
+                    intent="success"
+                    icon="tick"
+                    small
+                    onClick={() => onToolConfirmationResponse(true, false)}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    intent="primary"
+                    icon="tick-circle"
+                    small
+                    onClick={() => onToolConfirmationResponse(true, true)}
+                  >
+                    Always accept
+                  </Button>
+                  <Button
+                    intent="danger"
+                    icon="cross"
+                    small
+                    onClick={() =>
+                      onToolConfirmationResponse(false, false, declineReasonInput)
+                    }
+                  >
+                    Decline
+                  </Button>
+                </div>
+                <div className="tool-confirmation-feedback">
+                  <input
+                    type="text"
+                    placeholder="Optional: explain why you're declining..."
+                    value={declineReasonInput}
+                    onChange={(e) => setDeclineReasonInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        onToolConfirmationResponse(false, false, declineReasonInput);
+                      }
+                    }}
+                    className="tool-confirmation-input"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

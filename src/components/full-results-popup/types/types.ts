@@ -71,3 +71,21 @@ export type SelectionFilter = "all" | "selected-only";
  * View mode for FullResultsPopup - determines what panels are shown
  */
 export type PopupViewMode = "both" | "results-only" | "chat-only";
+
+/**
+ * Pending tool confirmation for sensitive operations like block/page creation
+ */
+export interface PendingToolConfirmation {
+  toolName: string;
+  toolCallId: string;
+  args: Record<string, any>;
+  timestamp: number;
+  // Resolve function to continue tool execution
+  resolve: (result: ToolConfirmationResult) => void;
+}
+
+export interface ToolConfirmationResult {
+  approved: boolean;
+  alwaysApprove?: boolean; // "Always accept in this session"
+  declineReason?: string; // User's explanation for declining
+}

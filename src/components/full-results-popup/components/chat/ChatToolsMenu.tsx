@@ -19,7 +19,10 @@ import {
   Tag,
 } from "@blueprintjs/core";
 import { MultiSelect, ItemRenderer } from "@blueprintjs/select";
-import { CHAT_TOOLS } from "../../../../ai/agents/chat-agent/tools/chatToolsRegistry";
+import {
+  CHAT_TOOLS,
+  EDIT_SECTION_KEY,
+} from "../../../../ai/agents/chat-agent/tools/chatToolsRegistry";
 import {
   extractAllSkills,
   SkillInfo,
@@ -32,7 +35,6 @@ import {
   type HelpTopic,
 } from "../../../../ai/agents/chat-agent/tools/helpDepotUtils";
 import "../../style/chatToolsMenu.css";
-import { MINIMAL } from "@blueprintjs/core/lib/esm/common/classes";
 
 interface ChatToolsMenuProps {
   enabledTools: Set<string>;
@@ -58,6 +60,10 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   const [selectedHelpTopics, setSelectedHelpTopics] = useState<HelpTopic[]>([]);
   const [isHelpSectionExpanded, setIsHelpSectionExpanded] = useState(false);
   const [isRefreshingDepot, setIsRefreshingDepot] = useState(false);
+
+  // Section expansion state
+  const [isEditSectionExpanded, setIsEditSectionExpanded] = useState(false);
+  const [isSkillsSectionExpanded, setIsSkillsSectionExpanded] = useState(false);
 
   // Load skills when menu opens and auto-enable new ones
   useEffect(() => {
@@ -161,6 +167,24 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     return false;
   });
 
+  // Categorize tools
+  const contextTools = availableTools.filter(
+    ([, info]) => info.category === "context"
+  );
+  const editTools = availableTools.filter(
+    ([, info]) => info.category === "edit"
+  );
+  const skillsToolEntry = availableTools.find(
+    ([, info]) => info.category === "skills"
+  );
+
+  // Edit section master switch - uses a special key in enabledTools
+  // This acts as a gate - when off, no edit tools work even if individually enabled
+  const isEditSectionEnabled = enabledTools.has(EDIT_SECTION_KEY);
+
+  // Check if skills section is enabled
+  const isSkillsSectionEnabled = enabledTools.has("live_ai_skills");
+
   // Check if all tools are enabled
   const allToolsEnabled =
     availableTools.every(([name]) => enabledTools.has(name)) &&
@@ -182,6 +206,117 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     iconIntent = "success";
   }
 
+  // Render a tool item
+  const renderToolItem = (
+    toolName: string,
+    toolInfo: (typeof CHAT_TOOLS)[string],
+    disabled = false
+  ) => {
+    const isExpanded = expandedDescriptions.has(toolName);
+    const isGetHelpTool = toolName === "get_help";
+    const isAskYourGraph = toolName === "ask_your_graph";
+
+    return (
+      <React.Fragment key={toolName}>
+        <MenuItem
+          text={
+            <div
+              className="chat-tool-item"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleDescription(toolName);
+              }}
+              style={{ cursor: "pointer", opacity: disabled ? 0.5 : 1 }}
+            >
+              <div className="chat-tool-name">
+                <Icon
+                  icon={isExpanded ? "chevron-down" : "chevron-right"}
+                  size={12}
+                />
+                <span style={{ marginLeft: "6px" }}>
+                  {formatToolName(toolName)}
+                </span>
+                {isAskYourGraph && (
+                  <Tooltip
+                    content="Heavy operation: May take several seconds and use significant tokens"
+                    hoverOpenDelay={300}
+                  >
+                    <Tag
+                      minimal
+                      intent="warning"
+                      style={{ marginLeft: "8px", fontSize: "10px" }}
+                    >
+                      Heavy
+                    </Tag>
+                  </Tooltip>
+                )}
+              </div>
+              <div
+                className={`chat-tool-description ${
+                  isExpanded ? "expanded" : "collapsed"
+                }`}
+              >
+                {toolInfo.description}
+              </div>
+            </div>
+          }
+          labelElement={
+            <Switch
+              checked={enabledTools.has(toolName)}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleTool(toolName);
+              }}
+              style={{ marginBottom: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              disabled={disabled}
+            />
+          }
+          shouldDismissPopover={false}
+          disabled={disabled}
+        />
+
+        {/* Help Topics Configuration (only for get_help tool) */}
+        {isGetHelpTool && enabledTools.has("get_help") && (
+          <div className="help-topics-section">
+            <div
+              className="help-topics-header"
+              onClick={() => setIsHelpSectionExpanded(!isHelpSectionExpanded)}
+            >
+              <div className="help-topics-header-left">
+                <Icon
+                  icon={
+                    isHelpSectionExpanded ? "chevron-down" : "chevron-right"
+                  }
+                  size={12}
+                />
+                <span>Help Topics</span>
+              </div>
+              <span className="help-topics-count">
+                {selectedHelpTopics.length}/{MAX_ENABLED_TOPICS} enabled
+              </span>
+            </div>
+
+            <Collapse isOpen={isHelpSectionExpanded}>
+              <div className="help-topics-collapsed">
+                <HelpTopicsMultiSelect
+                  topics={helpTopics}
+                  selectedTopics={selectedHelpTopics}
+                  onSelect={handleHelpTopicSelect}
+                  onDeselect={handleHelpTopicDeselect}
+                  maxSelections={MAX_ENABLED_TOPICS}
+                  isRefreshing={isRefreshingDepot}
+                  onRefresh={refreshHelpDepot}
+                  onClearAll={handleClearHelpTopics}
+                />
+              </div>
+            </Collapse>
+          </div>
+        )}
+      </React.Fragment>
+    );
+  };
+
   const menu = (
     <Menu className="chat-tools-menu">
       <div className="chat-tools-menu-header">
@@ -195,175 +330,170 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
       </div>
       <Divider />
 
-      {/* Regular Tools */}
-      {availableTools.map(([toolName, toolInfo]) => {
-        const isExpanded = expandedDescriptions.has(toolName);
-        const isGetHelpTool = toolName === "get_help";
-        const isAskYourGraph = toolName === "ask_your_graph";
+      {/* Context Section */}
+      <div className="chat-tools-section">
+        <div className="chat-tools-section-header">
+          <Icon icon="search-around" size={14} />
+          <span>Context</span>
+        </div>
+        {contextTools.map(([toolName, toolInfo]) =>
+          renderToolItem(toolName, toolInfo)
+        )}
+      </div>
 
-        return (
-          <React.Fragment key={toolName}>
-            <MenuItem
-              text={
-                <div
-                  className="chat-tool-item"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleDescription(toolName);
-                  }}
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="chat-tool-name">
-                    <Icon
-                      icon={isExpanded ? "chevron-down" : "chevron-right"}
-                      size={12}
-                    />
-                    <span style={{ marginLeft: "6px" }}>
-                      {formatToolName(toolName)}
-                    </span>
-                    {isAskYourGraph && (
-                      <Tooltip
-                        content="Heavy operation: May take several seconds and use significant tokens"
-                        hoverOpenDelay={300}
-                      >
-                        <Tag
-                          minimal
-                          intent="warning"
-                          style={{ marginLeft: "8px", fontSize: "10px" }}
-                        >
-                          ⚡ Heavy
-                        </Tag>
-                      </Tooltip>
-                    )}
-                  </div>
-                  <div
-                    className={`chat-tool-description ${
-                      isExpanded ? "expanded" : "collapsed"
-                    }`}
-                  >
-                    {toolInfo.description}
-                  </div>
-                </div>
-              }
-              labelElement={
-                <Switch
-                  checked={enabledTools.has(toolName)}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    onToggleTool(toolName);
-                  }}
-                  style={{ marginBottom: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              }
-              shouldDismissPopover={false}
+      <Divider />
+
+      {/* Edit or Add Content Section */}
+      <div
+        className={`chat-tools-section chat-tools-section-edit ${
+          isEditSectionEnabled ? "enabled" : "disabled"
+        }`}
+      >
+        <div
+          className="chat-tools-section-header chat-tools-section-header-clickable"
+          onClick={() => setIsEditSectionExpanded(!isEditSectionExpanded)}
+        >
+          <div className="chat-tools-section-header-left">
+            <Icon
+              icon={isEditSectionExpanded ? "chevron-down" : "chevron-right"}
+              size={12}
             />
-
-            {/* Help Topics Configuration (only for get_help tool) */}
-            {isGetHelpTool && enabledTools.has("get_help") && (
-              <div className="help-topics-section">
-                <div
-                  className="help-topics-header"
-                  onClick={() =>
-                    setIsHelpSectionExpanded(!isHelpSectionExpanded)
-                  }
-                >
-                  <div className="help-topics-header-left">
-                    <Icon
-                      icon={
-                        isHelpSectionExpanded ? "chevron-down" : "chevron-right"
-                      }
-                      size={12}
-                    />
-                    <span>Help Topics</span>
-                  </div>
-                  <span className="help-topics-count">
-                    {selectedHelpTopics.length}/{MAX_ENABLED_TOPICS} enabled
-                  </span>
-                </div>
-
-                <Collapse isOpen={isHelpSectionExpanded}>
-                  <div className="help-topics-collapsed">
-                    <HelpTopicsMultiSelect
-                      topics={helpTopics}
-                      selectedTopics={selectedHelpTopics}
-                      onSelect={handleHelpTopicSelect}
-                      onDeselect={handleHelpTopicDeselect}
-                      maxSelections={MAX_ENABLED_TOPICS}
-                      isRefreshing={isRefreshingDepot}
-                      onRefresh={refreshHelpDepot}
-                      onClearAll={handleClearHelpTopics}
-                    />
-                  </div>
-                </Collapse>
-              </div>
+            <Icon icon="warning-sign" size={14} intent="warning" />
+            <span>Edit or add content</span>
+          </div>
+          <Tooltip
+            content={
+              isEditSectionEnabled
+                ? "Disable edit section"
+                : "Enable edit section (allows AI to modify your graph)"
+            }
+            position="top"
+          >
+            <Switch
+              checked={isEditSectionEnabled}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleTool(EDIT_SECTION_KEY);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ marginBottom: 0 }}
+            />
+          </Tooltip>
+        </div>
+        <Collapse isOpen={isEditSectionExpanded}>
+          <div className="chat-tools-section-content">
+            {editTools.map(([toolName, toolInfo]) =>
+              renderToolItem(toolName, toolInfo, !isEditSectionEnabled)
             )}
-          </React.Fragment>
-        );
-      })}
+          </div>
+        </Collapse>
+      </div>
+
+      <Divider />
 
       {/* Skills Section */}
-      {skills.length > 0 && (
-        <>
-          <Divider />
-          <div className="chat-tools-menu-section-header">
-            <strong>Skills</strong>
+      <div
+        className={`chat-tools-section chat-tools-section-skills ${
+          isSkillsSectionEnabled ? "enabled" : "disabled"
+        }`}
+      >
+        <div
+          className="chat-tools-section-header chat-tools-section-header-clickable"
+          onClick={() => setIsSkillsSectionExpanded(!isSkillsSectionExpanded)}
+        >
+          <div className="chat-tools-section-header-left">
+            <Icon
+              icon={isSkillsSectionExpanded ? "chevron-down" : "chevron-right"}
+              size={12}
+            />
+            <Icon icon="lightbulb" size={14} />
+            <span>Skills</span>
           </div>
-          {skills.map((skill) => {
-            const skillKey = `skill:${skill.name}`;
-            const isExpanded = expandedDescriptions.has(skillKey);
-            const isLiveaiSkillsEnabled = enabledTools.has("live_ai_skills");
-
-            return (
-              <MenuItem
-                key={skillKey}
-                text={
-                  <div
-                    className="chat-tool-item"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleDescription(skillKey);
-                    }}
-                    style={{
-                      cursor: "pointer",
-                      opacity: isLiveaiSkillsEnabled ? 1 : 0.5,
-                    }}
-                  >
-                    <div className="chat-tool-name">
-                      <Icon
-                        icon={isExpanded ? "chevron-down" : "chevron-right"}
-                        size={12}
-                      />
-                      <span style={{ marginLeft: "6px" }}>{skill.name}</span>
-                    </div>
-                    <div
-                      className={`chat-tool-description ${
-                        isExpanded ? "expanded" : "collapsed"
-                      }`}
-                    >
-                      {skill.description}
-                    </div>
-                  </div>
-                }
-                labelElement={
-                  <Switch
-                    checked={enabledTools.has(skillKey)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      onToggleTool(skillKey);
-                    }}
-                    style={{ marginBottom: 0 }}
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={!isLiveaiSkillsEnabled}
-                  />
-                }
-                shouldDismissPopover={false}
-                disabled={!isLiveaiSkillsEnabled}
+          {skillsToolEntry && (
+            <Tooltip
+              content={
+                isSkillsSectionEnabled
+                  ? "Disable skills tool"
+                  : "Enable skills tool"
+              }
+              position="top"
+            >
+              <Switch
+                checked={isSkillsSectionEnabled}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onToggleTool("live_ai_skills");
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{ marginBottom: 0 }}
               />
-            );
-          })}
-        </>
-      )}
+            </Tooltip>
+          )}
+        </div>
+        <Collapse isOpen={isSkillsSectionExpanded}>
+          <div className="chat-tools-section-content">
+            {skills.length > 0 ? (
+              skills.map((skill) => {
+                const skillKey = `skill:${skill.name}`;
+                const isExpanded = expandedDescriptions.has(skillKey);
+
+                return (
+                  <MenuItem
+                    key={skillKey}
+                    text={
+                      <div
+                        className="chat-tool-item"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDescription(skillKey);
+                        }}
+                        style={{
+                          cursor: "pointer",
+                          opacity: isSkillsSectionEnabled ? 1 : 0.5,
+                        }}
+                      >
+                        <div className="chat-tool-name">
+                          <Icon
+                            icon={isExpanded ? "chevron-down" : "chevron-right"}
+                            size={12}
+                          />
+                          <span style={{ marginLeft: "6px" }}>{skill.name}</span>
+                        </div>
+                        <div
+                          className={`chat-tool-description ${
+                            isExpanded ? "expanded" : "collapsed"
+                          }`}
+                        >
+                          {skill.description}
+                        </div>
+                      </div>
+                    }
+                    labelElement={
+                      <Switch
+                        checked={enabledTools.has(skillKey)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onToggleTool(skillKey);
+                        }}
+                        style={{ marginBottom: 0 }}
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={!isSkillsSectionEnabled}
+                      />
+                    }
+                    shouldDismissPopover={false}
+                    disabled={!isSkillsSectionEnabled}
+                  />
+                );
+              })
+            ) : (
+              <div className="chat-tools-no-skills">
+                No skills found. Add skills with{" "}
+                <code>#liveai/skill</code> tag in your graph.
+              </div>
+            )}
+          </div>
+        </Collapse>
+      </div>
     </Menu>
   );
 

@@ -13,6 +13,8 @@ import {
   CHAT_TOOLS,
   getChatToolsFromRegistry,
   listChatToolNames,
+  EDIT_TOOL_NAMES,
+  EDIT_SECTION_KEY,
 } from "./tools/chatToolsRegistry";
 
 /**
@@ -32,10 +34,19 @@ export const getChatTools = (
 
   // If enabledTools is provided, filter to only those tools
   if (enabledTools && enabledTools.size > 0) {
+    // Check if edit section is enabled
+    const isEditSectionEnabled = enabledTools.has(EDIT_SECTION_KEY);
+
     return chatTools.filter((tool) => {
+      if (!tool || !tool.name) return false;
+
+      // If this is an edit tool and the section is disabled, exclude it
+      if (EDIT_TOOL_NAMES.includes(tool.name) && !isEditSectionEnabled) {
+        return false;
+      }
+
       // Check if this tool's name is in the enabledTools set
-      // Use the tool's name property instead of comparing instances
-      return tool && tool.name && enabledTools.has(tool.name);
+      return enabledTools.has(tool.name);
     });
   }
 

@@ -475,7 +475,8 @@ export function convertTreeToLinearArray(
   maxUid = 99,
   withDash = false,
   uidsToExclude = "",
-  initialLeftShift
+  initialLeftShift,
+  forceUids = false
 ) {
   let linearArray = [];
   let allBlocksUids = [];
@@ -489,7 +490,7 @@ export function convertTreeToLinearArray(
       let toExcludeWithChildren = false;
       let content = element.string || "";
       let uidString =
-        (maxUid && level > maxUid) || !maxUid || !uidsInPrompt
+        (maxUid && level > maxUid) || !maxUid || (!uidsInPrompt && !forceUids)
           ? ""
           : "((" + element.uid + ")) ";
       toExcludeWithChildren = exclusionStrings.some((str) =>
@@ -691,6 +692,7 @@ export const getFlattenedContentFromTree = ({
   isParentToIgnore = false,
   tree = undefined,
   initialLeftShift = "",
+  forceUids = false,
 }) => {
   let flattenedBlocks = "";
   if (parentUid || tree) {
@@ -702,7 +704,8 @@ export const getFlattenedContentFromTree = ({
         maxUid,
         withDash,
         "",
-        initialLeftShift
+        initialLeftShift,
+        forceUids
       );
       let content = linearArray.join("\n");
       if (content.length > 0 && content.replace("\n", "").trim())

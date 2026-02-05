@@ -97,6 +97,21 @@ const ChatAgentState = Annotation.Root({
   toolResponseCallback: Annotation<
     ((toolInfo: { toolName: string; response: string }) => void) | undefined
   >,
+  // Tool confirmation callback for sensitive operations
+  toolConfirmationCallback: Annotation<
+    | ((confirmationRequest: {
+        toolName: string;
+        toolCallId: string;
+        args: Record<string, any>;
+      }) => Promise<{
+        approved: boolean;
+        alwaysApprove?: boolean;
+        declineReason?: string;
+      }>)
+    | undefined
+  >,
+  // Set of tools that have been "always approved" for this session
+  alwaysApprovedTools: Annotation<Set<string> | undefined>,
   needsExpansion: Annotation<boolean>,
   // Timing
   startTime: Annotation<number>,
@@ -723,6 +738,9 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       llm: llm, // Pass the initialized LLM instance directly
       toolResultsCache: state.toolResultsCache || {}, // Pass cache for tool result deduplication
       permissions: state.permissions, // Pass privacy mode so sub-agents can inherit it
+      // Tool confirmation for sensitive operations
+      toolConfirmationCallback: state.toolConfirmationCallback,
+      alwaysApprovedTools: state.alwaysApprovedTools,
     },
   };
 

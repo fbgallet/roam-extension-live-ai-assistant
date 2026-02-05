@@ -177,6 +177,28 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }>
   >([]);
 
+  // Tool confirmation state for sensitive operations (block/page creation)
+  const [pendingToolConfirmation, setPendingToolConfirmation] = useState<{
+    toolName: string;
+    toolCallId: string;
+    args: Record<string, any>;
+    timestamp: number;
+  } | null>(null);
+  const [declineReasonInput, setDeclineReasonInput] = useState("");
+  const [alwaysApprovedTools, setAlwaysApprovedTools] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Ref to store the resolve function for pending confirmation Promise
+  const pendingConfirmationResolveRef = useRef<
+    | ((result: {
+        approved: boolean;
+        alwaysApprove?: boolean;
+        declineReason?: string;
+      }) => void)
+    | null
+  >(null);
+
   const targetRef = useRef<string | undefined>(targetUid);
 
   // Generate a unique chat session ID for multi-turn image editing
@@ -205,6 +227,36 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const customStyleTitles = useMemo(() => {
     return getCustomStyles().map((custom: any) => custom.title);
   }, []);
+
+  // Handler for tool confirmation response
+  const handleToolConfirmationResponse = (
+    approved: boolean,
+    alwaysApprove?: boolean,
+    declineReason?: string
+  ) => {
+    if (pendingConfirmationResolveRef.current) {
+      // If "always approve" was selected, add the tool to the always-approved set
+      if (approved && alwaysApprove && pendingToolConfirmation) {
+        setAlwaysApprovedTools((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(pendingToolConfirmation.toolName);
+          return newSet;
+        });
+      }
+
+      // Resolve the pending Promise
+      pendingConfirmationResolveRef.current({
+        approved,
+        alwaysApprove,
+        declineReason: declineReason || undefined,
+      });
+
+      // Clear the pending confirmation state
+      setPendingToolConfirmation(null);
+      pendingConfirmationResolveRef.current = null;
+      setDeclineReasonInput("");
+    }
+  };
 
   // Track command context for auto-execution
   const [commandContext, setCommandContext] = useState<{
@@ -2058,6 +2110,67 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             } else {
               details = `Loading skill: "${skillName}"`;
             }
+          } else if (
+            toolInfo.toolName === "create_block" ||
+            toolInfo.toolName === "create_page"
+          ) {
+            // Special formatting for create_block/create_page tools
+            const args = toolInfo.args || {};
+            const target =
+              args.page_title || args.date || args.parent_uid || "unknown";
+            const hasContent = args.markdown_content?.trim();
+
+            if (hasContent) {
+              // Insertion mode - show target and scrollable content
+              // Normalize list markers: replace • with - for consistent display
+              const normalizedContent = args.markdown_content.replace(/^(\s*)•\s/gm, "$1- ");
+              details = `**Target:** ${target}\n\n**Content to insert:**\n<div class="tool-markdown-content">${normalizedContent}</div>`;
+            } else {
+              // Analysis mode - just show target
+              details = `Analyzing: ${target}`;
+            }
+          } else if (
+            toolInfo.toolName === "update_block" ||
+            toolInfo.toolName === "delete_block"
+          ) {
+            // Special formatting for update_block/delete_block tools
+            // Filter out empty/null/undefined values and empty arrays
+            const args = toolInfo.args || {};
+            const filteredArgs: Record<string, any> = {};
+            for (const [key, value] of Object.entries(args)) {
+              // Skip empty values
+              if (value === null || value === undefined || value === "") continue;
+              // Skip empty arrays
+              if (Array.isArray(value) && value.length === 0) continue;
+              // Skip default values that LLMs send
+              if (key === "heading" && value === 0) continue;
+              if (key === "open" && value === true) continue;
+              if (key === "smart_move" && value === false) continue;
+              filteredArgs[key] = value;
+            }
+
+            const mode = args.mode || (args.batch_operations?.length > 0 || args.batch_block_uids?.length > 0 ? "batch" : "single");
+            const target = args.page_title || args.parent_uid || args.block_uid || "unknown";
+
+            if (mode === "browse") {
+              details = `Browsing: ${target}`;
+            } else if (args.batch_operations?.length > 0) {
+              details = `Batch update: ${args.batch_operations.length} block(s)`;
+            } else if (args.batch_block_uids?.length > 0) {
+              details = `Batch delete: ${args.batch_block_uids.length} block(s)`;
+            } else {
+              // Single block mode - show filtered args
+              const argsSummary = Object.entries(filteredArgs)
+                .filter(([key]) => key !== "mode") // mode already shown in context
+                .map(([key, value]) => {
+                  const displayValue = typeof value === "string" && value.length > 60
+                    ? value.substring(0, 60) + "..."
+                    : JSON.stringify(value);
+                  return `${key}: ${displayValue}`;
+                })
+                .join(", ");
+              details = argsSummary || "No changes";
+            }
           } else {
             // For other tools, show arguments only (tool name is already in the title)
             if (toolInfo.args) {
@@ -2094,6 +2207,26 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           toolName: string;
           response: string;
         }) => {
+          // Filter response for analysis/browse mode (hide outline from user)
+          let displayResponse = toolInfo.response;
+          if (
+            (toolInfo.toolName === "create_block" ||
+              toolInfo.toolName === "create_page") &&
+            toolInfo.response.startsWith("📄 Analyzed")
+          ) {
+            // Extract just the first line (summary) for display
+            const firstLine = toolInfo.response.split("\n")[0];
+            displayResponse = firstLine + " *(outline sent to assistant)*";
+          } else if (
+            (toolInfo.toolName === "update_block" ||
+              toolInfo.toolName === "delete_block") &&
+            toolInfo.response.startsWith("📄 ")
+          ) {
+            // Browse mode response - hide outline from user, just show summary
+            const firstLine = toolInfo.response.split("\n")[0];
+            displayResponse = firstLine + " *(outline sent to assistant)*";
+          }
+
           // Find the most recent tool usage for this tool and update it with the response
           setToolUsageHistory((prev) => {
             const updatedHistory = [...prev];
@@ -2105,7 +2238,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               ) {
                 updatedHistory[i] = {
                   ...updatedHistory[i],
-                  response: toolInfo.response,
+                  response: displayResponse,
                 };
                 break;
               }
@@ -2115,6 +2248,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             return updatedHistory;
           });
         },
+
+        // Tool confirmation callback for sensitive operations
+        toolConfirmationCallback: async (confirmationRequest: {
+          toolName: string;
+          toolCallId: string;
+          args: Record<string, any>;
+        }) => {
+          // Create a Promise that will be resolved when user responds
+          return new Promise((resolve) => {
+            // Store the resolve function in the ref
+            pendingConfirmationResolveRef.current = resolve;
+
+            // Set the pending confirmation state to show UI
+            setPendingToolConfirmation({
+              toolName: confirmationRequest.toolName,
+              toolCallId: confirmationRequest.toolCallId,
+              args: confirmationRequest.args,
+              timestamp: Date.now(),
+            });
+          });
+        },
+
+        // Pass the set of always-approved tools
+        alwaysApprovedTools: alwaysApprovedTools,
 
         // Agent callbacks
         // Track tool-added results during this agent invocation
@@ -2365,6 +2522,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onSuggestionClick={setChatInput}
         onHelpButtonClick={handleHelpButtonClick}
         messagesContainerRef={messagesContainerRef}
+        pendingToolConfirmation={pendingToolConfirmation}
+        onToolConfirmationResponse={handleToolConfirmationResponse}
+        declineReasonInput={declineReasonInput}
+        setDeclineReasonInput={setDeclineReasonInput}
       />
 
       <ChatInputArea

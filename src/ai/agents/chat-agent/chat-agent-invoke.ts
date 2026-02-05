@@ -55,6 +55,20 @@ export interface ChatAgentOptions {
     response: string;
   }) => void;
 
+  // Tool confirmation callback for sensitive operations (returns Promise that resolves when user confirms/declines)
+  toolConfirmationCallback?: (confirmationRequest: {
+    toolName: string;
+    toolCallId: string;
+    args: Record<string, any>;
+  }) => Promise<{
+    approved: boolean;
+    alwaysApprove?: boolean;
+    declineReason?: string;
+  }>;
+
+  // Set of tools that have been "always approved" for this session
+  alwaysApprovedTools?: Set<string>;
+
   // Agent callbacks
   addResultsCallback?: (results: any[]) => void;
   selectResultsCallback?: (uids: string[]) => void;
@@ -158,6 +172,10 @@ export async function invokeChatAgent(
 
     // Tool response callback
     toolResponseCallback: options.toolResponseCallback,
+
+    // Tool confirmation callback
+    toolConfirmationCallback: options.toolConfirmationCallback,
+    alwaysApprovedTools: options.alwaysApprovedTools,
 
     // Agent callbacks
     addResultsCallback: options.addResultsCallback,

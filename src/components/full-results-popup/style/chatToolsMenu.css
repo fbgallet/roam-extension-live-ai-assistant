@@ -1,5 +1,73 @@
 /* Chat Tools Menu Styles */
 
+/* Section Styles */
+.chat-tools-section {
+  padding: 4px 0;
+}
+
+.chat-tools-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #5c7080;
+}
+
+.chat-tools-section-header-clickable {
+  cursor: pointer;
+  justify-content: space-between;
+}
+
+.chat-tools-section-header-clickable:hover {
+  background-color: rgba(167, 182, 194, 0.15);
+}
+
+.chat-tools-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-tools-section-content {
+  padding-left: 4px;
+}
+
+/* Edit Section Warning Style */
+.chat-tools-section-edit.disabled .chat-tools-section-header {
+  opacity: 0.7;
+}
+
+.chat-tools-section-edit.enabled {
+  background-color: rgba(217, 130, 43, 0.05);
+  border-left: 3px solid #d9822b;
+}
+
+/* Skills Section Style */
+.chat-tools-section-skills.disabled .chat-tools-section-header {
+  opacity: 0.7;
+}
+
+.chat-tools-section-skills.enabled {
+  background-color: rgba(15, 153, 96, 0.05);
+  border-left: 3px solid #0f9960;
+}
+
+.chat-tools-no-skills {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #5c7080;
+  font-style: italic;
+}
+
+.chat-tools-no-skills code {
+  background-color: rgba(167, 182, 194, 0.2);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
 /* Help Topics Section */
 .help-topics-section {
   padding: 8px;

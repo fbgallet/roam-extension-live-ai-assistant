@@ -3198,8 +3198,179 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   line-height: 1.4;
 }
 
+/* Scrollable markdown content box for create_block/create_page tools */
+.full-results-chat-tool-details .tool-markdown-content {
+  font-style: normal;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 4px;
+  max-height: 30vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 11px;
+}
+
 .full-results-chat-tool-response {
   font-size: 12px;
+}
+
+/* Tool confirmation UI */
+.full-results-chat-tool-confirmation {
+  background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.tool-confirmation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #856404;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.tool-confirmation-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tool-confirmation-buttons .bp3-button {
+  font-size: 12px;
+}
+
+.tool-confirmation-feedback {
+  margin-top: 8px;
+}
+
+.tool-confirmation-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+}
+
+.tool-confirmation-input:focus {
+  outline: none;
+  border-color: #ffc107;
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
+}
+
+.tool-confirmation-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+/* Tool confirmation preview/diff */
+.tool-confirmation-preview {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+}
+
+.tool-confirmation-diff-item {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.tool-confirmation-diff-item:last-child {
+  border-bottom: none;
+}
+
+.tool-confirmation-diff-block-header {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.tool-confirmation-diff-context {
+  font-weight: 400;
+  color: #666;
+  font-family: inherit;
+}
+
+.tool-confirmation-diff-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 0 1px 12px;
+  flex-wrap: wrap;
+  line-height: 1.4;
+}
+
+.tool-confirmation-diff-label {
+  color: #666;
+  font-size: 11px;
+  min-width: 55px;
+  flex-shrink: 0;
+}
+
+.tool-confirmation-diff-old {
+  background: rgba(255, 0, 0, 0.08);
+  color: #8b0000;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-decoration: line-through;
+  word-break: break-word;
+}
+
+.tool-confirmation-diff-new {
+  background: rgba(0, 128, 0, 0.08);
+  color: #006400;
+  padding: 1px 4px;
+  border-radius: 2px;
+  word-break: break-word;
+}
+
+.tool-confirmation-diff-arrow {
+  color: #999;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.tool-confirmation-diff-delete .tool-confirmation-diff-block-header {
+  color: #8b0000;
+}
+
+.tool-confirmation-diff-warning {
+  color: #856404;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.tool-confirmation-expand-btn {
+  background: none;
+  border: none;
+  color: #5c7080;
+  cursor: pointer;
+  font-size: 9px;
+  padding: 0 4px;
+  margin-left: 2px;
+  vertical-align: middle;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.tool-confirmation-expand-btn:hover {
+  opacity: 1;
+  color: #137cbd;
 }
 
 /* Removed - using consolidated definition below */
