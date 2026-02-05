@@ -29,6 +29,8 @@ export interface ChatMessage {
     timestamp: number;
     intermediateMessage?: string;
   }>;
+  roamBlockUid?: string; // UID of this message's block in Roam (if saved)
+  isTemporaryBlock?: boolean; // True if block was created just for editing
 }
 
 export interface FullResultsPopupProps {

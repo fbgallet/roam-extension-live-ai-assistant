@@ -332,6 +332,24 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Anthropic Models ====================
+  "claude-opus-4-6": {
+    id: "claude-opus-4-6",
+    name: "Claude Opus 4.6",
+    provider: "Anthropic",
+    contextLength: 200000,
+    maxOutput: 64000,
+    pricing: { input: 5, output: 25 },
+    capabilities: {
+      thinking: true, // Supports thinking mode (toggled via UI)
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["claude-4.6-opus", "claude opus", "claude opus 4.6"],
+  },
+
   "claude-opus-4-5-20251101": {
     id: "claude-opus-4-5-20251101",
     name: "Claude Opus 4.5",
@@ -345,13 +363,8 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
-    aliases: [
-      "claude-4.5-opus",
-      "claude opus",
-      "claude opus 4.5",
-      "claude-opus-4-5",
-    ],
+    visibleByDefault: false,
+    aliases: ["claude-4.5-opus", "claude opus 4.5", "claude-opus-4-5"],
   },
 
   "claude-sonnet-4-5-20250929": {
@@ -814,6 +827,35 @@ export function hasThinkingDefault(identifier) {
 }
 
 /**
+ * Check if model uses adaptive thinking (type: "adaptive" + effort parameter)
+ * instead of legacy thinking (type: "enabled" + budget_tokens).
+ * Currently only Claude Opus 4.6+ uses adaptive thinking.
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function usesAdaptiveThinking(identifier) {
+  if (!identifier) return false;
+  // Strip +thinking suffix used by Claude models
+  const cleanId = identifier.replace(/\+thinking/i, "").trim();
+  const model = getModelByIdentifier(cleanId);
+  return model?.id === "claude-opus-4-6";
+}
+
+/**
+ * Get the effort options for a model's thinking mode.
+ * Adaptive thinking models use: low, medium, high, max
+ * Legacy thinking models use: minimal, low, medium, high
+ * @param {string} identifier - Model identifier
+ * @returns {string[]} Array of effort level strings
+ */
+export function getThinkingEffortOptions(identifier) {
+  if (usesAdaptiveThinking(identifier)) {
+    return ["low", "medium", "high", "max"];
+  }
+  return ["minimal", "low", "medium", "high"];
+}
+
+/**
  * Get all image generation models
  * @returns {Object[]}
  */
@@ -853,7 +895,7 @@ export function getDefaultWebSearchModel(
   isModelVisible,
   orderedProviders,
   modelOrder,
-  defaultWebSearchModel = null
+  defaultWebSearchModel = null,
 ) {
   // Get all web search models
   const webSearchModels = getWebSearchModels();
@@ -877,7 +919,7 @@ export function getDefaultWebSearchModel(
     const defaultProvider = defaultModelEntry?.provider;
     if (defaultProvider) {
       const sameProviderModels = webSearchModels.filter(
-        (m) => m.provider === defaultProvider && isModelVisible(m.name)
+        (m) => m.provider === defaultProvider && isModelVisible(m.name),
       );
 
       if (sameProviderModels.length > 0) {
@@ -901,7 +943,7 @@ export function getDefaultWebSearchModel(
   // 4. Find first visible web search model from any provider (in user's provider order)
   for (const provider of orderedProviders) {
     const providerWebSearchModels = webSearchModels.filter(
-      (m) => m.provider === provider && isModelVisible(m.name)
+      (m) => m.provider === provider && isModelVisible(m.name),
     );
 
     if (providerWebSearchModels.length > 0) {

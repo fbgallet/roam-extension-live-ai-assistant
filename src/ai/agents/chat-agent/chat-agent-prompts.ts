@@ -117,6 +117,11 @@ ${conversationContext}
         enabledTools.has("ask_your_graph"));
     const isHelpToolEnabled =
       toolsEnabled && enabledTools.has("live_ai_skills");
+    const isEditToolsEnabled =
+      toolsEnabled &&
+      (enabledTools.has("create_block") ||
+        enabledTools.has("create_page") ||
+        enabledTools.has("update_block"));
 
     // Get available skills if the tool is enabled
     const skillsList = isSkillsToolEnabled ? getFormattedSkillsList() : null;
@@ -136,7 +141,7 @@ You are operating in AGENTIC mode with access to tools. Follow the ReAct methodo
 - Some tools cache results to avoid redundancy - check before re-calling
 ${
   isContextToolsEnabled
-    ? `- If and only if the user explicitly requests or refers to data in their Roam database (specifically using 'page', or 'block', 'tag' or 'attribute' keywords or corresponding Roam syntax '[[page]]', #tag...) and their content is requested to provide a relevant response, first verify if it's already available in the 'Available Context' section, otherwise load the requested data from its database using available tools. But if their request is more general than something that could be find on a personal knowledge graph, proceed it as a normal request relying on your own knowledge base.`
+    ? `- If and only if the user explicitly requests or refers to data in their Roam database (specifically using 'page', or 'block', 'tag' or 'attribute' keywords or corresponding Roam syntax '[[page]]', #tag...) and their content is requested to provide a relevant response, first verify if it's already available in the 'Available Context' section, otherwise load the requested data from its database using available tools (unless it's mentioned as target for some content update or addition, in this case the corresponding tools will load themselves the corresponding content). But if their request is more general than something that could be find on a personal knowledge graph, proceed it as a normal request relying on your own knowledge base.`
     : ""
 }
 ${
@@ -145,6 +150,22 @@ ${
 - Documentations are often very verbose, so make an effort to be concise and get straight to the point.
 - Don't just repeat the resource, tailor your response to the user's specific request and provide a practical answer as possible, with clear steps if user action is needed.
 - IMPORTANT: Provide images or urls in your response if some are available in the relevant section, in markdown format '![image](url)', '[link](url)'.`
+    : ""
+}
+${
+  isEditToolsEnabled
+    ? `\n**Roam Research formatting rules for content written with edit tools (create_block, create_page, update_block):**
+The content you provide to these tools is in markdown format, automatically converted to Roam blocks. However, some Roam-specific syntax elements are NOT standard markdown and must be used as-is:
+- **Page references**: use \`[[page title]]\` syntax (double brackets), not markdown links
+- **Block references**: use \`((block-uid))\` syntax (double parentheses)
+- **Tags**: use \`#tag\` or \`#[[multi word tag]]\` syntax
+- **Attributes**: use \`Attribute Name::\` syntax (double colon) for Roam attributes
+- **Block embeds**: use \`{{[[embed]]: ((block-uid))}}\` syntax
+- **TODO/DONE**: use \`{{[[TODO]]}}\` or \`{{[[DONE]]}}\` for task markers
+- **Dates**: use Roam date format \`[[Month Dth, Year]]\` (e.g. \`[[January 5th, 2025]]\`) for date page references
+- **Highlights**: use \`^^\` to surround highlighted text (e.g. \`^^important^^)\`
+- Standard markdown (bold, italic, headings, lists, code blocks, links) is supported and will be converted automatically.
+- Do NOT wrap Roam-specific syntax in markdown link format.`
     : ""
 }`;
 
@@ -254,7 +275,7 @@ When the user provides PDF files (either directly in their message or in the con
 export const buildCompleteCommandPrompt = (
   commandPrompt: string | undefined,
   content: string | undefined,
-  hasContext: boolean
+  hasContext: boolean,
 ): string => {
   let commandInstructions = "";
   if (
@@ -276,7 +297,7 @@ export const buildCompleteCommandPrompt = (
         content ||
           (hasContext
             ? "Apply these instructions to the content of '## Available Context' section above"
-            : "")
+            : ""),
       );
     else {
       if (content)
@@ -286,7 +307,7 @@ export const buildCompleteCommandPrompt = (
     if (splittedCommand.length > 1)
       commandInstructions = commandInstructions.replace(
         "<language>",
-        splittedCommand[1]
+        splittedCommand[1],
       );
   }
   // else if (command.category === "CUSTOM PROMPTS") {
@@ -305,7 +326,7 @@ export const buildCompleteCommandPrompt = (
 // Build conversation context string
 export const buildConversationContext = (
   conversationHistory: string[] | undefined,
-  conversationSummary: string | undefined
+  conversationSummary: string | undefined,
 ): string | undefined => {
   if (!conversationHistory && !conversationSummary) {
     return undefined;
@@ -327,7 +348,7 @@ export const buildConversationContext = (
 // Build results context string - matches FullResultsChat format exactly
 export const buildResultsContext = (
   results: any[],
-  contextDescription?: string
+  contextDescription?: string,
 ): string => {
   if (!results || results.length === 0) {
     return "";
@@ -354,7 +375,7 @@ export const buildResultsContext = (
         // Parent info (only for blocks that have parent context)
         if (result.expandedBlock?.parent) {
           parts.push(
-            `Parent: ${resolveReferences(result.expandedBlock.parent)}`
+            `Parent: ${resolveReferences(result.expandedBlock.parent)}`,
           );
         }
       } else
@@ -363,7 +384,7 @@ export const buildResultsContext = (
             result.pageTitle || result.title
               ? `[[${result.pageTitle || result.title}]]`
               : "no title found"
-          }`
+          }`,
         );
 
       // Timestamps - show only date, not time
@@ -393,7 +414,7 @@ export const buildResultsContext = (
         parts.push(
           `${isPage ? "Content:\n" : "Children:\n"}${
             result.expandedBlock.childrenOutline
-          }`
+          }`,
         );
       }
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Button, Popover, Menu, MenuItem, Switch, MenuDivider } from "@blueprintjs/core";
 import { extensionStorage } from "..";
+import { getThinkingEffortOptions, usesAdaptiveThinking } from "../ai/modelRegistry";
 
 /**
  * ThinkingToggle Component
@@ -46,12 +47,22 @@ export const ThinkingToggle = ({
     await extensionStorage.set("reasoningEffort", effort);
   };
 
-  const effortOptions = [
-    { value: "minimal", label: "Minimal", icon: "small-tick" },
-    { value: "low", label: "Low (default)", icon: "tick" },
-    { value: "medium", label: "Medium", icon: "double-chevron-up" },
-    { value: "high", label: "High", icon: "double-chevron-up" },
-  ];
+  const isAdaptive = usesAdaptiveThinking(modelId);
+  const effortLevels = getThinkingEffortOptions(modelId);
+
+  const effortLabels = {
+    minimal: "Minimal",
+    low: isAdaptive ? "Low" : "Low (default)",
+    medium: "Medium",
+    high: isAdaptive ? "High (default)" : "High",
+    max: "Max",
+  };
+
+  const effortOptions = effortLevels.map((level) => ({
+    value: level,
+    label: effortLabels[level] || level,
+    icon: level === "max" ? "flame" : level === "high" ? "double-chevron-up" : level === "medium" ? "double-chevron-up" : level === "low" ? "tick" : "small-tick",
+  }));
 
   // If model always has thinking (thinkingDefault), show indicator but no toggle
   const alwaysOn = thinkingDefault;

@@ -19,7 +19,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
-import { getBlockContentByUid } from "../../../../utils/roamAPI";
+import { getBlockContentByUid, getOrderedDirectChildren, getParentBlock } from "../../../../utils/roamAPI";
 
 /**
  * Truncate text to a maximum length, adding ellipsis if needed.
@@ -40,6 +40,102 @@ function formatBlockReference(uid: string, maxContentLength: number = 60): strin
     return `"${truncateText(content, maxContentLength)}" ((${uid}))`;
   }
   return `((${uid}))`;
+}
+
+/**
+ * Get insertion context: parent content and surrounding siblings.
+ * Returns context info for the UI to display where content will be inserted.
+ * Includes an outline preview showing existing content around the insertion point.
+ */
+function getInsertionContext(parentUid: string, order: "first" | "last" | number, isPage: boolean = false): {
+  parent_content: string;
+  parent_uid: string;
+  sibling_above?: string;
+  sibling_below?: string;
+  insertion_position: string;
+  outline_preview: string;
+} {
+  const parentContent = getBlockContentByUid(parentUid) || "";
+  const children = getOrderedDirectChildren(parentUid);
+
+  let siblingAbove: string | undefined;
+  let siblingBelow: string | undefined;
+  let insertionPosition: string;
+  let outlinePreview = "";
+
+  // Helper to create marker line with special formatting tag
+  const markerLine = (position: string) => `{{MARKER}}➤ New content here (${position}){{/MARKER}}`;
+
+  // For page-level insertion, don't show "- " prefix since pages don't have block content
+  const parentLine = isPage && !parentContent
+    ? "" // No parent line for pages
+    : `- ${truncateText(parentContent, 80)}\n`;
+
+  if (!children || children.length === 0) {
+    insertionPosition = "first child (no existing children)";
+    // Parent block with no children yet - marker goes right after parent
+    if (isPage && !parentContent) {
+      // Page with no children - just show marker at top level
+      outlinePreview = markerLine(insertionPosition);
+    } else {
+      outlinePreview = `${parentLine}    ${markerLine(insertionPosition)}`;
+    }
+  } else if (order === "first") {
+    insertionPosition = "first child";
+    siblingBelow = children[0]?.string ? truncateText(children[0].string, 50) : undefined;
+    // Marker goes before first child
+    if (isPage && !parentContent) {
+      outlinePreview = `${markerLine(insertionPosition)}${siblingBelow ? `\n- ${siblingBelow}` : ""}`;
+    } else {
+      outlinePreview = `${parentLine}    ${markerLine(insertionPosition)}${siblingBelow ? `\n    - ${siblingBelow}` : ""}`;
+    }
+  } else if (order === "last") {
+    insertionPosition = "last child";
+    const lastChild = children[children.length - 1];
+    siblingAbove = lastChild?.string ? truncateText(lastChild.string, 50) : undefined;
+    // Show parent with ellipsis and last child, then marker at the end
+    const ellipsis = children.length > 1 ? "\n    ..." : "";
+    if (isPage && !parentContent) {
+      const topEllipsis = children.length > 1 ? "...\n" : "";
+      outlinePreview = `${topEllipsis}${siblingAbove ? `- ${siblingAbove}\n` : ""}${markerLine(insertionPosition)}`;
+    } else {
+      outlinePreview = `${parentLine.trimEnd()}${ellipsis}${siblingAbove ? `\n    - ${siblingAbove}` : ""}\n    ${markerLine(insertionPosition)}`;
+    }
+  } else if (typeof order === "number") {
+    insertionPosition = `position ${order}`;
+    if (order > 0 && children[order - 1]) {
+      siblingAbove = children[order - 1].string ? truncateText(children[order - 1].string, 50) : undefined;
+    }
+    if (children[order]) {
+      siblingBelow = children[order].string ? truncateText(children[order].string, 50) : undefined;
+    }
+    // Show parent with context around insertion position, marker between siblings
+    const beforeEllipsis = order > 1 ? "\n    ..." : "";
+    const afterEllipsis = order < children.length - 1 ? "\n    ..." : "";
+    if (isPage && !parentContent) {
+      const topEllipsis = order > 1 ? "...\n" : "";
+      const bottomEllipsis = order < children.length - 1 ? "\n..." : "";
+      outlinePreview = `${topEllipsis}${siblingAbove ? `- ${siblingAbove}\n` : ""}${markerLine(insertionPosition)}${siblingBelow ? `\n- ${siblingBelow}` : ""}${bottomEllipsis}`;
+    } else {
+      outlinePreview = `${parentLine.trimEnd()}${beforeEllipsis}${siblingAbove ? `\n    - ${siblingAbove}` : ""}\n    ${markerLine(insertionPosition)}${siblingBelow ? `\n    - ${siblingBelow}` : ""}${afterEllipsis}`;
+    }
+  } else {
+    insertionPosition = "last child";
+    if (isPage && !parentContent) {
+      outlinePreview = markerLine(insertionPosition);
+    } else {
+      outlinePreview = `${parentLine}    ${markerLine(insertionPosition)}`;
+    }
+  }
+
+  return {
+    parent_content: truncateText(parentContent, 80),
+    parent_uid: parentUid,
+    sibling_above: siblingAbove,
+    sibling_below: siblingBelow,
+    insertion_position: insertionPosition,
+    outline_preview: outlinePreview,
+  };
 }
 
 export const createBlockTool = tool(
@@ -121,19 +217,20 @@ export const createBlockTool = tool(
       // Generate a unique tool call ID for this confirmation
       const toolCallId = `create_block_${Date.now()}`;
 
-      // Build rich target description for UI display
-      const targetDisplay = resolved.pageName
-        ? `[[${resolved.pageName}]]`
-        : formatBlockReference(targetUid, 80);
+      // Get insertion context for UI display
+      const insertionContext = getInsertionContext(targetUid, order, resolved.isPage);
 
-      // Request confirmation from the user
+      // Request confirmation from the user with rich context
       const confirmationResult = await toolConfirmationCallback({
         toolName: "create_block",
         toolCallId,
         args: {
-          target: targetDisplay,
-          target_uid: targetUid,
-          target_description: targetDescription,
+          // For page targets, show page name; for blocks, show content + uid
+          is_page: resolved.isPage,
+          page_name: resolved.pageName,
+          // Insertion context
+          ...insertionContext,
+          // Content to insert
           markdown_content,
           smart_insertion,
         },
@@ -297,7 +394,7 @@ smart_insertion: Set true to auto-find best location within the outline.`,
         .string()
         .optional()
         .describe(
-          "A date to insert content into the corresponding Daily Notes Page (DNP). Will be converted to Roam's DNP format. Accepts ISO format (2024-01-15) or standard date formats (January 15, 2024). Use this instead of page_title for date-based pages.",
+          "ISO date format (YYYY-MM-DD) to target a Daily Notes Page. Example: '2024-01-15' targets the DNP for January 15th, 2024. Use this instead of page_title for date-based pages.",
         ),
       use_main_view: z
         .boolean()

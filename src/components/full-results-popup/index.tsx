@@ -55,7 +55,11 @@ export * from "./types/types";
  */
 export const extractConversationFromLiveAIChat = (
   rootUid: string
-): Array<{ role: "user" | "assistant"; content: string }> | null => {
+): Array<{
+  role: "user" | "assistant";
+  content: string;
+  roamBlockUid?: string;
+}> | null => {
   if (!rootUid) return null;
 
   // Function to check if a block has [[liveai/chat]] reference
@@ -97,8 +101,11 @@ export const extractConversationFromLiveAIChat = (
   }
 
   // Extract conversation from children blocks
-  const conversation: Array<{ role: "user" | "assistant"; content: string }> =
-    [];
+  const conversation: Array<{
+    role: "user" | "assistant";
+    content: string;
+    roamBlockUid?: string;
+  }> = [];
   const children = tree[0].children.sort(
     (a: any, b: any) => (a.order || 0) - (b.order || 0)
   );
@@ -155,7 +162,11 @@ export const extractConversationFromLiveAIChat = (
     // This ensures the chat displays properly with markdown formatting
     const markdownContent = convertRoamToMarkdownFormat(content);
 
-    conversation.push({ role, content: markdownContent });
+    conversation.push({
+      role,
+      content: markdownContent,
+      roamBlockUid: child.uid, // Include the block UID for in-place editing
+    });
   }
 
   return conversation.length > 0 ? conversation : null;
@@ -325,7 +336,11 @@ export const openFullResultsPopup = async (
  * Options for opening chat popup
  */
 export interface OpenChatPopupOptions {
-  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+  conversationHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+    roamBlockUid?: string;
+  }>;
   model?: string;
   rootUid?: string;
   roamContext?: RoamContext;
@@ -442,6 +457,7 @@ export const openChatPopup = async ({
               role: msg.role,
               content: msg.content,
               timestamp: new Date(),
+              roamBlockUid: msg.roamBlockUid, // Preserve block UID for in-place editing
             }));
         }
       } else {
@@ -453,6 +469,7 @@ export const openChatPopup = async ({
             role: msg.role,
             content: msg.content,
             timestamp: new Date(),
+            roamBlockUid: msg.roamBlockUid, // Preserve block UID for in-place editing
           }));
       }
     }

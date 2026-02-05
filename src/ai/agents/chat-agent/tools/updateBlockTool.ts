@@ -733,7 +733,7 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
         .string()
         .optional()
         .describe(
-          "Date for Daily Notes Page lookup in browse mode.",
+          "ISO date format (YYYY-MM-DD) to target a Daily Notes Page in browse mode. Example: '2024-01-15'.",
         ),
       use_main_view: z
         .boolean()

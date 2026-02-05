@@ -43,7 +43,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
     const hasRoamElements =
       containsKaTeX(content) ||
       /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/i.test(
-        content
+        content,
       );
 
     if (hasRoamElements) {
@@ -55,7 +55,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
       const walker = document.createTreeWalker(
         containerRef.current,
         NodeFilter.SHOW_TEXT,
-        null
+        null,
       );
 
       let node: Node | null;
@@ -78,7 +78,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
 
         // Split by KaTeX formulas and media embeds
         const parts = text.split(
-          /(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\})/is
+          /(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\})/is,
         );
         const fragment = document.createDocumentFragment();
 
@@ -126,6 +126,82 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
   }, [content]);
 
   return <div ref={containerRef} className={className} />;
+};
+
+// Helper component for editing a message using Roam's native block editor
+const EditableMessage: React.FC<{
+  blockUid: string;
+  onSave: () => void;
+  onCancel: () => void;
+}> = ({ blockUid, onSave, onCancel }) => {
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!editorContainerRef.current || !blockUid) return;
+
+    // Clear any existing content
+    editorContainerRef.current.innerHTML = "";
+
+    // Use Roam's renderBlock API to render the editable block
+    try {
+      window.roamAlphaAPI.ui.components.renderBlock({
+        uid: blockUid,
+        el: editorContainerRef.current,
+        "zoom-path?": true,
+      });
+    } catch (error) {
+      console.error("Failed to render block for editing:", error);
+      editorContainerRef.current.innerHTML =
+        '<div class="chat-message-edit-error">Failed to load editor</div>';
+    }
+
+    return () => {
+      // Cleanup on unmount
+      if (editorContainerRef.current) {
+        editorContainerRef.current.innerHTML = "";
+      }
+    };
+  }, [blockUid]);
+
+  // Handle Escape key to cancel editing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className="chat-message-edit-wrapper">
+      <div ref={editorContainerRef} className="chat-message-edit-container" />
+      <div className="chat-message-edit-actions">
+        <Button
+          icon="tick"
+          intent="success"
+          small
+          onClick={onSave}
+          title="Save changes"
+        >
+          Save
+        </Button>
+        <Button
+          icon="cross"
+          minimal
+          small
+          onClick={onCancel}
+          title="Cancel (Esc)"
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
 };
 
 // Helper component for expandable content in confirmation preview
@@ -186,7 +262,7 @@ interface ChatMessagesDisplayProps {
   onSuggestionClick: (suggestion: string) => void;
   onHelpButtonClick: (
     type: "chat" | "liveai" | "tip" | "helpabout" | "whatsnew",
-    promptOrContent: string
+    promptOrContent: string,
   ) => void;
   messagesContainerRef: React.RefObject<HTMLDivElement>;
   // Tool confirmation props
@@ -194,10 +270,15 @@ interface ChatMessagesDisplayProps {
   onToolConfirmationResponse: (
     approved: boolean,
     alwaysApprove?: boolean,
-    declineReason?: string
+    declineReason?: string,
   ) => void;
   declineReasonInput: string;
   setDeclineReasonInput: (value: string) => void;
+  // Edit message props
+  editingMessageIndex: number | null;
+  onEditMessage: (index: number) => void;
+  onSaveEdit: (index: number) => void;
+  onCancelEdit: (index: number) => void;
 }
 
 export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
@@ -220,12 +301,39 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onToolConfirmationResponse,
   declineReasonInput,
   setDeclineReasonInput,
+  editingMessageIndex,
+  onEditMessage,
+  onSaveEdit,
+  onCancelEdit,
 }) => {
   // Memoize the initial random tip so it doesn't change on every render
   const [initialTip] = React.useState(() => getRandomTip("chat"));
 
+  // Keyboard shortcuts for tool confirmation (Enter = Accept, Escape = Decline)
+  useEffect(() => {
+    if (!pendingToolConfirmation) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in the decline reason input
+      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onToolConfirmationResponse(true, false);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onToolConfirmationResponse(false, false, declineReasonInput);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pendingToolConfirmation, onToolConfirmationResponse, declineReasonInput]);
+
   // Function to render help buttons based on help type
-  const renderHelpButtons = (helpType?: "chat" | "liveai" | "tip" | "whatsnew") => {
+  const renderHelpButtons = (
+    helpType?: "chat" | "liveai" | "tip" | "whatsnew",
+  ) => {
     const showHelpAbout = helpType === "chat" || helpType === "liveai";
 
     return (
@@ -273,7 +381,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               onClick={() =>
                 onHelpButtonClick(
                   "helpabout",
-                  "Help me about By using the help tool, help me understand and use the following feature in a simple and guided way:"
+                  "Help me about By using the help tool, help me understand and use the following feature in a simple and guided way:",
                 )
               }
               disabled={isTyping}
@@ -348,7 +456,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   <button
                     onClick={() =>
                       onSuggestionClick(
-                        "Give me a short, clear summary of these results highlighting the most important points"
+                        "Give me a short, clear summary of these results highlighting the most important points",
                       )
                     }
                   >
@@ -357,7 +465,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   <button
                     onClick={() =>
                       onSuggestionClick(
-                        "What are the key insights and takeaways from these results?"
+                        "What are the key insights and takeaways from these results?",
                       )
                     }
                   >
@@ -366,7 +474,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   <button
                     onClick={() =>
                       onSuggestionClick(
-                        "What connections exist between these items? Look for page references, tags, block references, and thematic links"
+                        "What connections exist between these items? Look for page references, tags, block references, and thematic links",
                       )
                     }
                   >
@@ -375,7 +483,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   <button
                     onClick={() =>
                       onSuggestionClick(
-                        "Help me find specific information about [topic] that might be buried in these results"
+                        "Help me find specific information about [topic] that might be buried in these results",
                       )
                     }
                   >
@@ -384,7 +492,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   <button
                     onClick={() =>
                       onSuggestionClick(
-                        "What patterns or recurring themes can you extract from these results?"
+                        "What patterns or recurring themes can you extract from these results?",
                       )
                     }
                   >
@@ -414,14 +522,14 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   mode:{" "}
                   {chatAccessMode === "Balanced"
                     ? `2 children levels maximum in blocks, 4 levels in pages, and context limited to ${Math.floor(
-                        (modelTokensLimit * 0.5) / 1000
+                        (modelTokensLimit * 0.5) / 1000,
                       )}k tokens (50% of model context window, approx. ${Math.floor(
-                        (modelTokensLimit * 2) / 1000 / 6
+                        (modelTokensLimit * 2) / 1000 / 6,
                       )}k words)`
                     : `up to 4 children levels in blocks, full content of pages and broader context up to ${Math.floor(
-                        (modelTokensLimit * 0.9) / 1000
+                        (modelTokensLimit * 0.9) / 1000,
                       )}k tokens (90% of model context window, approx. ${Math.floor(
-                        (modelTokensLimit * 3.8) / 1000 / 6
+                        (modelTokensLimit * 3.8) / 1000 / 6,
                       )}k words)`}{" "}
                   {/* TODO: Future evolution - Deep Analysis mode
                   {chatMode === "agent" ? (
@@ -459,10 +567,13 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
           const isHelpMsg = message.isHelpMessage;
           const isTipMessage = message.content.startsWith("💡");
 
+          // Check if this message is being edited
+          const isEditing = editingMessageIndex === index;
+
           return (
             <div
               key={index}
-              className={`full-results-chat-message ${message.role}`}
+              className={`full-results-chat-message ${message.role}${isEditing ? " editing" : ""}`}
             >
               {/* Use help avatar for help messages */}
               <div
@@ -495,7 +606,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                             className="full-results-chat-intermediate-message"
                             dangerouslySetInnerHTML={{
                               __html: renderMarkdown(
-                                toolUsage.intermediateMessage
+                                toolUsage.intermediateMessage,
                               ),
                             }}
                           />
@@ -523,7 +634,14 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   </div>
                 )}
 
-                {isHelpMsg ? (
+                {isEditing && message.roamBlockUid ? (
+                  // Editing mode - use Roam's block editor
+                  <EditableMessage
+                    blockUid={message.roamBlockUid}
+                    onSave={() => onSaveEdit(index)}
+                    onCancel={() => onCancelEdit(index)}
+                  />
+                ) : isHelpMsg ? (
                   // Help message with special styling and buttons inside
                   <div className="full-results-chat-assistant-message chat-help">
                     {isTipMessage ? (
@@ -543,7 +661,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           style={{ flex: 1 }}
                           dangerouslySetInnerHTML={{
                             __html: renderMarkdown(
-                              displayContent.replace(/^💡\s*/, "")
+                              displayContent.replace(/^💡\s*/, ""),
                             ),
                           }}
                         />
@@ -565,7 +683,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   />
                 )}
                 <div className="full-results-chat-message-footer">
-                  {message.role === "assistant" && (
+                  {message.role === "assistant" && !isEditing && (
                     <>
                       <span className="full-results-chat-timestamp">
                         {message.timestamp.toLocaleTimeString()}
@@ -584,6 +702,14 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           content={
                             <Menu>
                               <MenuItem
+                                icon="edit"
+                                text="Edit message"
+                                onClick={() => onEditMessage(index)}
+                                disabled={
+                                  isTyping || editingMessageIndex !== null
+                                }
+                              />
+                              <MenuItem
                                 icon="clipboard"
                                 text="Copy to clipboard"
                                 onClick={() => onCopyMessage(message.content)}
@@ -600,7 +726,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                                 onClick={async () => {
                                   await textToSpeech(
                                     message.content,
-                                    undefined
+                                    undefined,
                                   );
                                 }}
                               />
@@ -618,6 +744,32 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                         </Popover>
                       </span>
                     </>
+                  )}
+                  {message.role === "user" && !isEditing && !isHelpMsg && (
+                    <span className="full-results-chat-user-actions">
+                      <Popover
+                        content={
+                          <Menu>
+                            <MenuItem
+                              icon="edit"
+                              text="Edit message"
+                              onClick={() => onEditMessage(index)}
+                              disabled={
+                                isTyping || editingMessageIndex !== null
+                              }
+                            />
+                            <MenuItem
+                              icon="clipboard"
+                              text="Copy to clipboard"
+                              onClick={() => onCopyMessage(message.content)}
+                            />
+                          </Menu>
+                        }
+                        position={Position.BOTTOM_RIGHT}
+                      >
+                        <Button icon="more" minimal small />
+                      </Popover>
+                    </span>
                   )}
                 </div>
               </div>
@@ -679,13 +831,15 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   <span>
                     Confirm{" "}
                     {(() => {
-                      const opCount = pendingToolConfirmation.args?.operation_count;
-                      const label = {
-                        create_block: "block insertion",
-                        create_page: "page creation",
-                        update_block: "block update",
-                        delete_block: "block deletion",
-                      }[pendingToolConfirmation.toolName] || "operation";
+                      const opCount =
+                        pendingToolConfirmation.args?.operation_count;
+                      const label =
+                        {
+                          create_block: "block insertion",
+                          create_page: "page creation",
+                          update_block: "block update",
+                          delete_block: "block deletion",
+                        }[pendingToolConfirmation.toolName] || "operation";
                       return opCount > 1
                         ? `batch ${label} (${opCount} blocks)`
                         : label;
@@ -712,12 +866,16 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                             </div>
                             {op.new_content !== undefined && (
                               <div className="tool-confirmation-diff-row">
-                                <span className="tool-confirmation-diff-label">Content:</span>
+                                <span className="tool-confirmation-diff-label">
+                                  Content:
+                                </span>
                                 <ExpandableContent
                                   content={op.current_content || "(empty)"}
                                   className="tool-confirmation-diff-old"
                                 />
-                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-arrow">
+                                  &rarr;
+                                </span>
                                 <ExpandableContent
                                   content={op.new_content}
                                   className="tool-confirmation-diff-new"
@@ -726,23 +884,35 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                             )}
                             {op.new_heading !== undefined && (
                               <div className="tool-confirmation-diff-row">
-                                <span className="tool-confirmation-diff-label">Heading:</span>
-                                <span className="tool-confirmation-diff-old">
-                                  {op.current_heading === 0 ? "none" : `H${op.current_heading}`}
+                                <span className="tool-confirmation-diff-label">
+                                  Heading:
                                 </span>
-                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-old">
+                                  {op.current_heading === 0
+                                    ? "none"
+                                    : `H${op.current_heading}`}
+                                </span>
+                                <span className="tool-confirmation-diff-arrow">
+                                  &rarr;
+                                </span>
                                 <span className="tool-confirmation-diff-new">
-                                  {op.new_heading === 0 ? "none" : `H${op.new_heading}`}
+                                  {op.new_heading === 0
+                                    ? "none"
+                                    : `H${op.new_heading}`}
                                 </span>
                               </div>
                             )}
                             {op.new_open !== undefined && (
                               <div className="tool-confirmation-diff-row">
-                                <span className="tool-confirmation-diff-label">State:</span>
+                                <span className="tool-confirmation-diff-label">
+                                  State:
+                                </span>
                                 <span className="tool-confirmation-diff-old">
                                   {op.current_open ? "expanded" : "collapsed"}
                                 </span>
-                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-arrow">
+                                  &rarr;
+                                </span>
                                 <span className="tool-confirmation-diff-new">
                                   {op.new_open ? "expanded" : "collapsed"}
                                 </span>
@@ -750,11 +920,15 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                             )}
                             {op.move_to && (
                               <div className="tool-confirmation-diff-row">
-                                <span className="tool-confirmation-diff-label">Position:</span>
+                                <span className="tool-confirmation-diff-label">
+                                  Position:
+                                </span>
                                 <span className="tool-confirmation-diff-old">
                                   {op.move_from || "current"}
                                 </span>
-                                <span className="tool-confirmation-diff-arrow">&rarr;</span>
+                                <span className="tool-confirmation-diff-arrow">
+                                  &rarr;
+                                </span>
                                 <span className="tool-confirmation-diff-new">
                                   {op.move_to}
                                 </span>
@@ -772,7 +946,10 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     <div className="tool-confirmation-preview">
                       {pendingToolConfirmation.args.blocks.map(
                         (block: any, i: number) => (
-                          <div key={i} className="tool-confirmation-diff-item tool-confirmation-diff-delete">
+                          <div
+                            key={i}
+                            className="tool-confirmation-diff-item tool-confirmation-diff-delete"
+                          >
                             <div className="tool-confirmation-diff-block-header">
                               Block (({block.block_uid})):
                               <ExpandableContent
@@ -782,12 +959,48 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                             </div>
                             {block.descendant_count > 0 && (
                               <div className="tool-confirmation-diff-row tool-confirmation-diff-warning">
-                                + {block.descendant_count} descendant block(s) will also be deleted
+                                + {block.descendant_count} descendant block(s)
+                                will also be deleted
                               </div>
                             )}
                           </div>
                         ),
                       )}
+                    </div>
+                  )}
+
+                {/* Preview for create_block */}
+                {(pendingToolConfirmation.toolName === "create_block" ||
+                  pendingToolConfirmation.toolName === "create_page") &&
+                  pendingToolConfirmation.args?.markdown_content && (
+                    <div className="tool-confirmation-preview">
+                      {/* Parent and insertion context with integrated marker */}
+                      {pendingToolConfirmation.args.outline_preview && (
+                        <div className="tool-confirmation-insertion-context">
+                          <div className="tool-confirmation-section-label">
+                            Insertion location:
+                          </div>
+                          <pre
+                            className="tool-confirmation-outline-preview"
+                            dangerouslySetInnerHTML={{
+                              __html:
+                                pendingToolConfirmation.args.outline_preview.replace(
+                                  /{{MARKER}}(.*?){{\/MARKER}}/g,
+                                  '<span style="color: #28a745; font-weight: 600;">$1</span>',
+                                ),
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Content to insert */}
+                      {/* <div className="tool-confirmation-content-to-insert">
+                        <div className="tool-confirmation-section-label">Content to insert:</div>
+                        <ExpandableContent
+                          content={pendingToolConfirmation.args.markdown_content}
+                          className="tool-confirmation-diff-new"
+                        />
+                      </div> */}
                     </div>
                   )}
 
@@ -806,14 +1019,18 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     small
                     onClick={() => onToolConfirmationResponse(true, true)}
                   >
-                    Always accept
+                    Always in this chat
                   </Button>
                   <Button
                     intent="danger"
                     icon="cross"
                     small
                     onClick={() =>
-                      onToolConfirmationResponse(false, false, declineReasonInput)
+                      onToolConfirmationResponse(
+                        false,
+                        false,
+                        declineReasonInput,
+                      )
                     }
                   >
                     Decline
@@ -827,7 +1044,11 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     onChange={(e) => setDeclineReasonInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        onToolConfirmationResponse(false, false, declineReasonInput);
+                        onToolConfirmationResponse(
+                          false,
+                          false,
+                          declineReasonInput,
+                        );
                       }
                     }}
                     className="tool-confirmation-input"

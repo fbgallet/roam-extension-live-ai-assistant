@@ -6,6 +6,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { updateTokenCounter } from "../modelsInfo";
 import { modelTemperature, reasoningEffort } from "../..";
+import { usesAdaptiveThinking } from "../modelRegistry";
 
 export interface LlmInfos {
   provider: string;
@@ -129,16 +130,25 @@ export function modelViaLanggraph(
         : 8192;
     options.streaming = true;
     if (llmInfos.thinking) {
-      const effortMapping = {
-        minimal: 1024,
-        low: 2500,
-        medium: 4096,
-        high: 8000,
-      };
-      options.thinking = {
-        type: "enabled",
-        budget_tokens: effortMapping[reasoningEffort] || 2500,
-      };
+      if (usesAdaptiveThinking(llmInfos.id)) {
+        // Opus 4.6+: adaptive thinking with effort parameter
+        options.thinking = { type: "adaptive" };
+        options["output_config"] = {
+          effort: reasoningEffort === "minimal" ? "low" : reasoningEffort,
+        };
+      } else {
+        // Legacy Claude models: enabled thinking with budget_tokens
+        const effortMapping = {
+          minimal: 1024,
+          low: 2500,
+          medium: 4096,
+          high: 8000,
+        };
+        options.thinking = {
+          type: "enabled",
+          budget_tokens: effortMapping[reasoningEffort] || 2500,
+        };
+      }
     }
 
     llm = new ChatAnthropic({

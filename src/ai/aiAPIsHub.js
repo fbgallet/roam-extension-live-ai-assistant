@@ -49,6 +49,7 @@ import {
   useCompletionApi,
   getTemperatureConfig,
   isThinkingModel,
+  usesAdaptiveThinking,
 } from "./modelRegistry";
 import {
   pdfLinkRegex,
@@ -524,17 +525,26 @@ export async function claudeCompletion({
       }
 
       if (thinking) {
-        options.thinking = {
-          type: "enabled",
-          budget_tokens:
-            reasoningEffort === "minimal"
-              ? 1024
-              : reasoningEffort === "low"
-                ? 2500
-                : reasoningEffort === "medium"
-                  ? 4096
-                  : 8000,
-        };
+        if (usesAdaptiveThinking(model)) {
+          // Opus 4.6+: adaptive thinking with effort parameter
+          options.thinking = { type: "adaptive" };
+          options.output_config = {
+            effort: reasoningEffort === "minimal" ? "low" : reasoningEffort,
+          };
+        } else {
+          // Legacy Claude models: enabled thinking with budget_tokens
+          options.thinking = {
+            type: "enabled",
+            budget_tokens:
+              reasoningEffort === "minimal"
+                ? 1024
+                : reasoningEffort === "low"
+                  ? 2500
+                  : reasoningEffort === "medium"
+                    ? 4096
+                    : 8000,
+          };
+        }
       }
       const usage = {
         input_tokens: 0,

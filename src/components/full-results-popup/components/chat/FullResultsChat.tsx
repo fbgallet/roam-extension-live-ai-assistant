@@ -40,6 +40,12 @@ import {
 } from "../../../../ai/dataExtraction";
 import { loadResultsFromRoamContext } from "../../utils/roamContextLoader";
 import { hasThinkingDefault } from "../../../../ai/modelRegistry";
+import {
+  createTemporaryEditBlock,
+  extractContentFromBlock,
+  cleanupTemporaryBlock,
+  getFirstChildBlockUid,
+} from "../../utils/chatEditUtils";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -222,6 +228,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       intermediateMessage?: string;
     }>
   >([]);
+
+  // Edit mode state for inline message editing
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
+    null
+  );
+  const [editingOriginalContent, setEditingOriginalContent] =
+    useState<string>("");
+  const editTempBlockUidRef = useRef<string | null>(null);
 
   // Get custom style titles
   const customStyleTitles = useMemo(() => {
@@ -1326,6 +1340,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsStreaming(false);
     // Clear streaming content
     setStreamingContent("");
+    // Clear chat-scoped auto-approval settings
+    setAlwaysApprovedTools(new Set());
     // Clear persisted chat-specific state from window object
     delete (window as any).lastLoadedChatUid;
     delete (window as any).lastLoadedChatTitle;
@@ -1439,7 +1455,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       let currentTargetUid = targetRef.current;
       let isFirstMessage = true;
 
-      for (const msg of newMessages) {
+      // Track the UIDs created for each message (for later updating chatMessages)
+      const insertedMessageUids: Array<{
+        originalIndex: number;
+        roleBlockUid: string;
+      }> = [];
+
+      for (let i = 0; i < newMessages.length; i++) {
+        const msg = newMessages[i];
+        // Calculate the original index in chatMessages
+        const originalIndex = currentInsertedCount + i;
+
         // Use the model stored in the message, or fall back to selectedModel
         const messageModel = msg.role === "assistant" && msg.model ? msg.model : selectedModel;
         const assistantRole = getInstantAssistantRole(messageModel);
@@ -1490,6 +1516,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           );
         }
 
+        // Track the UID for this message
+        insertedMessageUids.push({ originalIndex, roleBlockUid });
+
         // Parse and insert the message content as children of the role block
         // parseAndCreateBlocks will handle markdown structure (lists, headers, etc.)
         if (fullContent.trim()) {
@@ -1499,6 +1528,21 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // Update target for next message
         currentTargetUid = roleBlockUid;
       }
+
+      // Update chatMessages with their roamBlockUid so they can be edited in place
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        for (const { originalIndex, roleBlockUid } of insertedMessageUids) {
+          if (updated[originalIndex]) {
+            updated[originalIndex] = {
+              ...updated[originalIndex],
+              roamBlockUid: roleBlockUid,
+              isTemporaryBlock: false,
+            };
+          }
+        }
+        return updated;
+      });
 
       // Update the count to reflect that these messages are now in Roam
       // This prevents re-inserting the same messages if the button is clicked again
@@ -1629,6 +1673,167 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setStreamingContent("");
   };
 
+  /**
+   * Start editing a message - creates a temporary block if needed
+   */
+  const handleEditMessage = async (messageIndex: number) => {
+    if (isTyping || editingMessageIndex !== null) {
+      return; // Don't allow editing while typing or already editing
+    }
+
+    const message = chatMessages[messageIndex];
+    if (!message) return;
+
+    // Store original content for cancel
+    setEditingOriginalContent(message.content);
+    setEditingMessageIndex(messageIndex);
+
+    // Check if message already has a Roam block UID (saved to Roam)
+    if (message.roamBlockUid && isExistingBlock(message.roamBlockUid)) {
+      // Use existing block for editing - no temp block needed
+      editTempBlockUidRef.current = null;
+    } else {
+      // Create temporary block for editing with role prefix
+      try {
+        // Get the appropriate role prefix based on message role
+        const rolePrefix =
+          message.role === "user"
+            ? chatRoles.user
+            : getInstantAssistantRole(message.model || selectedModel);
+
+        const tempBlockUid = await createTemporaryEditBlock(
+          message.content,
+          rolePrefix
+        );
+        editTempBlockUidRef.current = tempBlockUid;
+
+        // Update the message to point to the temp block
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          updated[messageIndex] = {
+            ...updated[messageIndex],
+            roamBlockUid: tempBlockUid,
+            isTemporaryBlock: true,
+          };
+          return updated;
+        });
+      } catch (error) {
+        console.error("Failed to create temporary edit block:", error);
+        setEditingMessageIndex(null);
+        setEditingOriginalContent("");
+        AppToaster.show({
+          message: "Failed to start editing. Please try again.",
+          intent: "danger",
+          timeout: 3000,
+        });
+      }
+    }
+  };
+
+  /**
+   * Save the edited message - extracts content from block and updates state
+   */
+  const handleSaveEdit = async (messageIndex: number) => {
+    if (editingMessageIndex !== messageIndex) return;
+
+    const message = chatMessages[messageIndex];
+    if (!message?.roamBlockUid) {
+      handleCancelEdit(messageIndex);
+      return;
+    }
+
+    try {
+      // Extract content from the block
+      const newContent = extractContentFromBlock(message.roamBlockUid);
+
+      // Update the message with new content
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        updated[messageIndex] = {
+          ...updated[messageIndex],
+          content: newContent,
+          // Keep roamBlockUid if it's a real block, clear if temp
+          roamBlockUid: message.isTemporaryBlock
+            ? undefined
+            : message.roamBlockUid,
+          isTemporaryBlock: false,
+        };
+        return updated;
+      });
+
+      // IMPORTANT: Invalidate cached conversation history so the edited content
+      // will be used in subsequent AI interactions
+      // Clear the conversationHistory from chatAgentData so it rebuilds from chatMessages
+      if (chatAgentData?.conversationHistory) {
+        setChatAgentData({
+          ...chatAgentData,
+          conversationHistory: null, // Force rebuild from chatMessages on next send
+        });
+      }
+
+      // Cleanup temporary block if it exists
+      if (message.isTemporaryBlock && editTempBlockUidRef.current) {
+        await cleanupTemporaryBlock(editTempBlockUidRef.current);
+      }
+
+      AppToaster.show({
+        message: "Message updated",
+        intent: "success",
+        timeout: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to save edit:", error);
+      AppToaster.show({
+        message: "Failed to save edit. Please try again.",
+        intent: "danger",
+        timeout: 3000,
+      });
+    } finally {
+      setEditingMessageIndex(null);
+      setEditingOriginalContent("");
+      editTempBlockUidRef.current = null;
+    }
+  };
+
+  /**
+   * Cancel editing - restores original content and cleans up temp block
+   */
+  const handleCancelEdit = async (messageIndex: number) => {
+    if (editingMessageIndex !== messageIndex) return;
+
+    const message = chatMessages[messageIndex];
+
+    // Restore original content if we have it
+    if (editingOriginalContent) {
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        updated[messageIndex] = {
+          ...updated[messageIndex],
+          content: editingOriginalContent,
+          // Clear temp block reference
+          roamBlockUid: message?.isTemporaryBlock
+            ? undefined
+            : message?.roamBlockUid,
+          isTemporaryBlock: false,
+        };
+        return updated;
+      });
+    }
+
+    // Cleanup temporary block if it exists
+    if (editTempBlockUidRef.current) {
+      try {
+        await cleanupTemporaryBlock(editTempBlockUidRef.current);
+      } catch (error) {
+        console.error("Failed to cleanup temp block:", error);
+      }
+    }
+
+    setEditingMessageIndex(null);
+    setEditingOriginalContent("");
+    editTempBlockUidRef.current = null;
+  };
+
   const copyFullConversation = async () => {
     const assistantRole = getInstantAssistantRole(selectedModel);
     const conversationText = chatMessages
@@ -1743,6 +1948,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           role: msg.role,
           content: msg.content,
           timestamp: new Date(),
+          roamBlockUid: msg.roamBlockUid, // Preserve block UID for in-place editing
         }));
 
         setChatMessages(previousMessages);
@@ -1753,6 +1959,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           role: msg.role,
           content: msg.content,
           timestamp: new Date(),
+          roamBlockUid: msg.roamBlockUid, // Preserve block UID for in-place editing
         }));
 
         setChatMessages(allMessages);
@@ -2116,18 +2323,92 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           ) {
             // Special formatting for create_block/create_page tools
             const args = toolInfo.args || {};
-            // Use enriched target from tool (includes content), fallback to basic values
-            const target =
-              args.target || args.page_title || args.date || args.parent_uid || "main view";
             const hasContent = args.markdown_content?.trim();
 
             if (hasContent) {
-              // Insertion mode - show parent block with content context
-              // Normalize list markers: replace • with - for consistent display
-              const normalizedContent = args.markdown_content.replace(/^(\s*)•\s/gm, "$1- ");
-              details = `**Parent block:** ${target}\n\n**Content to insert:**\n<div class="tool-markdown-content">${normalizedContent}</div>`;
+              // Insertion mode - show rich context with parent, siblings, and content
+
+              // Build parent block display with clickable reference
+              let parentDisplay: string;
+              if (args.is_page && args.page_name) {
+                parentDisplay = `[[${args.page_name}]]`;
+              } else if (args.parent_content) {
+                parentDisplay = `"${args.parent_content}" <span class="roam-block-ref-chat" data-block-uid="${args.parent_uid}">((${args.parent_uid}))</span>`;
+              } else if (args.parent_uid) {
+                parentDisplay = `<span class="roam-block-ref-chat" data-block-uid="${args.parent_uid}">((${args.parent_uid}))</span>`;
+              } else {
+                parentDisplay = args.target || args.page_title || args.date || "main view";
+              }
+
+              // Build insertion location context showing outline preview with existing content + new content
+              let locationContext = "";
+              if (args.outline_preview) {
+                // New unified outline preview showing existing content + insertion point
+                locationContext = `\n<div class="tool-insertion-context">\n<div class="tool-outline-preview">\n<div class="existing-content">${args.outline_preview}</div>\n<div class="tool-insertion-marker">➤ <em>New content here</em> (${args.insertion_position || "last"})</div>\n</div>\n</div>`;
+              } else if (args.sibling_above || args.sibling_below) {
+                // Fallback to old format if outline_preview not available
+                locationContext = `\n<div class="tool-insertion-context">`;
+                if (args.sibling_above) {
+                  locationContext += `<div class="tool-sibling above">↑ "${args.sibling_above}"</div>`;
+                }
+                locationContext += `<div class="tool-insertion-marker">➤ <em>New content here</em> (${args.insertion_position || "last"})</div>`;
+                if (args.sibling_below) {
+                  locationContext += `<div class="tool-sibling below">↓ "${args.sibling_below}"</div>`;
+                }
+                locationContext += `</div>`;
+              } else if (args.insertion_position) {
+                locationContext = ` *(${args.insertion_position})*`;
+              }
+
+              // Normalize list markers and indentation for display
+              let normalizedContent = args.markdown_content.replace(/^(\s*)•\s/gm, "$1- ");
+
+              // Find lines that start with list markers (-, *, or numbered)
+              const lines = normalizedContent.split('\n');
+              const listLineIndents = lines
+                .filter((line: string) => /^\s*[-*]\s/.test(line) || /^\s*\d+\.\s/.test(line))
+                .map((line: string) => {
+                  const match = line.match(/^(\s*)/);
+                  return match ? match[1].length : 0;
+                });
+
+              // If we have list items and the minimum indent is > 0, normalize
+              if (listLineIndents.length > 0) {
+                const minIndent = Math.min(...listLineIndents);
+                if (minIndent > 0) {
+                  const indentRegex = new RegExp(`^\\s{${minIndent}}`, 'gm');
+                  normalizedContent = normalizedContent.replace(indentRegex, '');
+                }
+              }
+
+              details = `**Parent:** ${parentDisplay}${locationContext}\n\n**Content to insert:**\n<div class="tool-markdown-content">\n${normalizedContent}\n</div>`;
             } else {
-              // Analysis mode - show what's being analyzed
+              // Analysis mode - just show brief "Analyzing" message (content will show only on insertion call)
+              // Try to extract target from tool response if available (contains formatted DNP title)
+              let target = "main view";
+              const response = (toolInfo as any).response;
+              if (response && typeof response === 'string') {
+                // Extract from response like "📄 Analyzed page [[February 5th, 2026]]" or "📄 Analyzed block ((uid))"
+                const pageMatch = response.match(/Analyzed page \[\[([^\]]+)\]\]/);
+                const blockMatch = response.match(/Analyzed block \(\(([^)]+)\)\)/);
+                if (pageMatch) {
+                  target = `[[${pageMatch[1]}]]`;
+                } else if (blockMatch) {
+                  target = `((${blockMatch[1]}))`;
+                } else {
+                  // Fallback to args
+                  target = args.page_name ? `[[${args.page_name}]]` :
+                           args.page_title ? `[[${args.page_title}]]` :
+                           args.parent_uid ? `((${args.parent_uid}))` :
+                           "main view";
+                }
+              } else {
+                // No response yet, use args
+                target = args.page_name ? `[[${args.page_name}]]` :
+                         args.page_title ? `[[${args.page_title}]]` :
+                         args.parent_uid ? `((${args.parent_uid}))` :
+                         "main view";
+              }
               details = `Analyzing: ${target}`;
             }
           } else if (
@@ -2527,6 +2808,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onToolConfirmationResponse={handleToolConfirmationResponse}
         declineReasonInput={declineReasonInput}
         setDeclineReasonInput={setDeclineReasonInput}
+        editingMessageIndex={editingMessageIndex}
+        onEditMessage={handleEditMessage}
+        onSaveEdit={handleSaveEdit}
+        onCancelEdit={handleCancelEdit}
       />
 
       <ChatInputArea

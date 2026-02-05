@@ -3157,6 +3157,82 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   flex-direction: row-reverse;
 }
 
+/* User message action menu */
+.full-results-chat-user-actions {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.full-results-chat-message.user:hover .full-results-chat-user-actions {
+  opacity: 0.7;
+}
+
+.full-results-chat-user-actions:hover {
+  opacity: 1 !important;
+}
+
+/* Edit mode styles */
+.full-results-chat-message.editing {
+  background: rgba(253, 126, 20, 0.05);
+  border-radius: 12px;
+  padding: 8px;
+  margin: -8px;
+}
+
+.chat-message-edit-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.chat-message-edit-container {
+  background: var(--bc-main, white);
+  border: 2px solid #fd7e14;
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 60px;
+  box-shadow: 0 2px 8px rgba(253, 126, 20, 0.2);
+}
+
+/* Style the Roam block editor inside the edit container */
+.chat-message-edit-container .rm-block-main,
+.chat-message-edit-container .rm-block-input {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.chat-message-edit-container .rm-zoom {
+  padding: 0;
+  margin: 0;
+}
+
+.chat-message-edit-container .rm-zoom-item {
+  padding-left: 0;
+}
+
+.chat-message-edit-container .rm-block-children {
+  margin-left: 16px;
+}
+
+.chat-message-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.chat-message-edit-actions .bp3-button {
+  min-width: 70px;
+}
+
+.chat-message-edit-error {
+  color: #dc3545;
+  padding: 12px;
+  text-align: center;
+  font-style: italic;
+}
+
 .full-results-chat-typing {
   background: #f8f9fa;
   padding: 8px 12px;
@@ -3208,9 +3284,64 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   margin-top: 4px;
   max-height: 30vh;
   overflow-y: auto;
-  white-space: pre-wrap;
+  /* white-space: pre-wrap; */
   font-family: monospace;
   font-size: 11px;
+}
+
+.full-results-chat-tool-details .tool-markdown-content ul {
+  margin-bottom: 0;
+}
+
+/* Insertion context showing where content will be placed */
+.full-results-chat-tool-details .tool-insertion-context {
+  background: #f8f9fa;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 6px 0;
+  font-size: 11px;
+}
+
+.full-results-chat-tool-details .tool-sibling {
+  color: #6c757d;
+  font-style: italic;
+  padding: 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.full-results-chat-tool-details .tool-sibling.above {
+  border-bottom: 1px dotted #ddd;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.full-results-chat-tool-details .tool-sibling.below {
+  border-top: 1px dotted #ddd;
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+.full-results-chat-tool-details .tool-insertion-marker {
+  color: #28a745;
+  font-weight: 500;
+  padding: 3px 0;
+}
+
+/* Outline preview showing existing content + insertion point */
+.full-results-chat-tool-details .tool-outline-preview {
+  font-style: normal;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.full-results-chat-tool-details .tool-outline-preview .existing-content {
+  color: #6c757d;
+  opacity: 0.8;
 }
 
 .full-results-chat-tool-response {
@@ -3371,6 +3502,51 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
 .tool-confirmation-expand-btn:hover {
   opacity: 1;
   color: #137cbd;
+}
+
+/* Insertion context for create_block confirmation */
+/* .tool-confirmation-insertion-context {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+} */
+
+.tool-confirmation-section-label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 11px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-confirmation-outline-preview {
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #6c757d;
+  background: rgba(0, 0, 0, 0.02);
+  padding: 8px 10px;
+  border-radius: 3px;
+  margin: 4px 0;
+  white-space: pre-wrap;
+  opacity: 0.85;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.tool-confirmation-insertion-marker {
+  color: #28a745;
+  font-weight: 600;
+  font-size: 11px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba(40, 167, 69, 0.1);
+  border-radius: 3px;
+  border-left: 3px solid #28a745;
+}
+
+.tool-confirmation-content-to-insert {
+  margin-top: 8px;
 }
 
 /* Removed - using consolidated definition below */

@@ -152,12 +152,12 @@ export async function resolveContainerUid(params: {
   let targetUid: string | null = parent_uid || null;
   let resolvedPageTitle = page_title;
 
-  // If date is provided, convert to DNP title
+  // If date is provided, convert to DNP title (expects ISO format YYYY-MM-DD)
   if (!targetUid && date) {
     const dateObj = new Date(date);
     if (isNaN(dateObj.getTime())) {
       return {
-        error: `Invalid date format: "${date}". Please provide a valid date (e.g., "2024-01-15", "January 15, 2024").`,
+        error: `Invalid date format: "${date}". Please provide an ISO date (YYYY-MM-DD format, e.g., "2024-01-15").`,
       };
     }
     resolvedPageTitle = getDNPTitleFromDate(dateObj);

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, HTMLSelect, Tooltip } from "@blueprintjs/core";
 import { extensionStorage } from "../../..";
-import { isThinkingModel, hasThinkingDefault } from "../../../ai/modelRegistry";
+import { isThinkingModel, hasThinkingDefault, getThinkingEffortOptions } from "../../../ai/modelRegistry";
 import { AppToaster } from "../../Toaster";
 
 /**
@@ -81,7 +81,7 @@ const ThinkingControls = ({
       </Tooltip>
       {thinkingEnabled && (
         <HTMLSelect
-          options={["minimal", "low", "medium", "high"]}
+          options={getThinkingEffortOptions(defaultModel)}
           value={reasoningEffort}
           minimal={true}
           onChange={(e) => handleEffortChange(e.currentTarget.value)}
