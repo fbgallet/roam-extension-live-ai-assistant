@@ -102,6 +102,32 @@ export const BUILTIN_COMMANDS = [
       chat: true,
     },
   },
+  {
+    id: 192,
+    name: "Export to PDF — clean document (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to PDF",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+    submenu: [1920],
+  },
+  {
+    id: 1920,
+    name: "Export to PDF — outline (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to PDF outline",
+    includeUids: false,
+    isSub: true,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+  },
   // OUTLINER AGENT COMMANDS
   {
     id: 2,

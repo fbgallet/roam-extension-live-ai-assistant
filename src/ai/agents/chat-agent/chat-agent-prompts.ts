@@ -191,7 +191,8 @@ ${activeSkillInstructions}
 - DO NOT call live_ai_skills again for this same skill/resource - it's wasteful
 - These instructions contain specialized knowledge that supersedes your general knowledge
 - Follow them exactly to complete the user's task
-- Only call live_ai_skills again if you need a DIFFERENT skill or a DEEPER resource not already present here`;
+- If records are listed with UIDs, use create_block/update_block with those UIDs to add or edit records
+- Only call live_ai_skills again if you need a DIFFERENT skill or a DEEPER resource/records not already present here`;
       }
     }
   }

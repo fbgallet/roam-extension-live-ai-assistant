@@ -366,7 +366,10 @@ ${rawTranscription}`,
   if (!prompt && command.category !== "CUSTOM PROMPTS") {
     prompt = command.prompt
       ? completionCommands[command.prompt]
-      : command.id !== 19 && command.id !== 191
+      : command.id !== 19 &&
+        command.id !== 191 &&
+        command.id !== 192 &&
+        command.id !== 1920
       ? ""
       : command.prompt;
     if (command.customPrompt)
@@ -399,7 +402,13 @@ ${rawTranscription}`,
     prompt = prompt.replace("<language>", selectedLgg);
   }
 
-  if (command.id === 19 || command.id === 191) prompt = command.prompt;
+  if (
+    command.id === 19 ||
+    command.id === 191 ||
+    command.id === 192 ||
+    command.id === 1920
+  )
+    prompt = command.prompt;
 
   let conversationStyle;
   if (command.name === "Continue the conversation") {
@@ -634,6 +643,8 @@ ${rawTranscription}`,
     command.id === 100 ||
     command.name === "Web search" ||
     command.id === 191 || // Fetch url
+    command.id === 192 || // Export to PDF (clean)
+    command.id === 1920 || // Export to PDF (outline)
     isCompletionOnly ||
     (!rootUid && command.id !== 20 && command.id !== 21) ||
     (rootUid &&

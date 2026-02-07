@@ -941,6 +941,53 @@ Rules format each task:
 Please ensure each action item is specific enough to be executed without needing additional clarification.
 ${outputConditions.replace("<ACTION>", "extract actionable from")}`,
 
+  // PDF EXPORT
+
+  pdfCleanDocument: `Convert the following Roam Research content into a well-formatted, clean PDF document.
+
+CONTENT TRANSFORMATION RULES:
+- Replace [[page references]] with bold text (the page name in bold, without brackets)
+- Remove #hashtags or convert them to subtle italic annotations if they add meaning
+- Replace ((block references)) with the referenced text if visible in context, otherwise remove them
+- Convert Roam {{[[TODO]]}} / {{[[DONE]]}} to proper checkbox symbols
+- Remove any Roam-specific syntax that wouldn't make sense in a conventional document
+
+STRUCTURE & FORMATTING:
+- Do NOT reproduce the original bullet-point/outline structure verbatim
+- Transform the hierarchical outline into flowing prose with proper paragraphs
+- Use headings (H1, H2, H3) for top-level structural elements when appropriate
+- Group related bullet points into coherent paragraphs
+- Use tables when the content naturally lends itself to tabular presentation
+- Use numbered or bulleted lists only when the content is genuinely a list of items
+- Add proper spacing between sections
+
+DOCUMENT QUALITY:
+- Produce a clean, professional, publication-ready document
+- Use appropriate typography and readable layout
+- Ensure logical flow between sections
+- The result should read as a polished document, not as exported notes`,
+
+  pdfOutline: `Convert the following Roam Research content into a well-formatted PDF document that preserves the original outline/hierarchical structure.
+
+CONTENT TRANSFORMATION RULES:
+- Replace [[page references]] with bold text (the page name in bold, without brackets)
+- Convert #hashtags to italic text if meaningful, otherwise remove them
+- Replace ((block references)) with the referenced text if visible in context, otherwise remove them
+- Convert Roam {{[[TODO]]}} / {{[[DONE]]}} to proper checkbox symbols
+- Remove any Roam-specific syntax that wouldn't make sense in a printed document
+
+STRUCTURE & FORMATTING:
+- Preserve the hierarchical bullet-point/outline structure with proper indentation
+- Use headings (H1, H2, H3) for top-level items to create clear visual sections
+- Maintain the parent-child relationships between items
+- Use indentation and visual hierarchy to reflect the original nesting levels
+- Keep the faithful structure of the original content without merging or rewriting bullets
+
+DOCUMENT QUALITY:
+- Produce a clean, readable document with consistent formatting
+- Use appropriate typography and spacing
+- The result should look like a well-formatted outline or structured notes document`,
+
   extractHighlights: `As a text extraction assistant, your task is to process input text and extract only the highlighted portions (text between double ^^ markers). Follow these exact rules:
 
 1. Extraction rules:

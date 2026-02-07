@@ -12,6 +12,7 @@ import {
   extractAllSkills,
   extractSkillInstructions,
   extractSkillResource,
+  extractSkillRecords,
   getFormattedSkillsList,
 } from "./skillsUtils";
 
@@ -20,10 +21,11 @@ export const liveaiSkillsTool = tool(
     input: {
       skill_name: string;
       resource_title?: string;
+      records_title?: string;
     },
     config
   ) => {
-    const { skill_name, resource_title } = input;
+    const { skill_name, resource_title, records_title } = input;
 
     // Get all available skills
     const availableSkills = extractAllSkills();
@@ -81,6 +83,52 @@ ${resourceContent.content}
 You have loaded deeper instructions for "${resourceContent.title}". Use these detailed instructions to complete the specific task at hand. If you need more resources, call this tool again with a different resource_title.`;
     }
 
+    // If records_title is provided, extract that specific records outline
+    if (records_title) {
+      const recordsContent = extractSkillRecords(skill.uid, records_title);
+
+      if (!recordsContent) {
+        const instructions = extractSkillInstructions(skill.uid);
+        const availableRecords = instructions?.records
+          .map((r) => r.title)
+          .join(", ");
+
+        return `Records "${records_title}" not found in skill "${skill_name}".${
+          availableRecords
+            ? ` Available records: ${availableRecords}`
+            : " No records available in this skill."
+        }`;
+      }
+
+      const targetLocation = recordsContent.targetPageName
+        ? `page [[${recordsContent.targetPageName}]]`
+        : "children of this records block";
+
+      return `[DISPLAY]Loaded records "${recordsContent.title}" from skill "${skill.name}"[/DISPLAY]
+
+# Skill: ${skill.name}
+
+## Records: ${recordsContent.title}
+
+**Description:** ${recordsContent.description}
+
+**Target location:** ${targetLocation} (UID: \`${recordsContent.recordsUid}\`)
+
+**Current content:**
+${recordsContent.content}
+
+---
+
+These are EDITABLE RECORDS. You can:
+- Use **create_block** with parent_uid="${recordsContent.recordsUid}" to add new entries on ${targetLocation}
+- Use **update_block** to modify existing records within this outline
+- Use **delete_block** to remove records from this outline
+
+**IMPORTANT:** Always write records to the target location above (UID: \`${recordsContent.recordsUid}\`), NOT as children of the skill definition block.
+
+Follow any conditions or format described above when adding or editing records.`;
+    }
+
     // Extract core instructions (without resources)
     const instructions = extractSkillInstructions(skill.uid);
 
@@ -88,11 +136,13 @@ You have loaded deeper instructions for "${resourceContent.title}". Use these de
       return `Error loading skill "${skill_name}". The skill may be malformed.`;
     }
 
-    // Build response with core instructions and available resources
+    // Build response with core instructions and available resources/records
+    const totalExtras =
+      instructions.resources.length + instructions.records.length;
     let response = `[DISPLAY]Loaded skill "${instructions.name}"${
-      instructions.resources.length > 0
-        ? ` (${instructions.resources.length} resource${
-            instructions.resources.length === 1 ? "" : "s"
+      totalExtras > 0
+        ? ` (${totalExtras} resource${totalExtras === 1 ? "" : "s"}/record${
+            totalExtras === 1 ? "" : "s"
           } available)`
         : ""
     }[/DISPLAY]
@@ -105,18 +155,32 @@ ${instructions.description}
 ## Core Instructions
 ${instructions.instructions}`;
 
-    // Add information about available deeper resources
-    if (instructions.resources.length > 0) {
-      response += `
+    // Add information about available deeper resources and records
+    if (instructions.resources.length > 0 || instructions.records.length > 0) {
+      response += `\n\n---`;
 
----
+      if (instructions.resources.length > 0) {
+        response += `\n\n**Deeper resources available:**
+${instructions.resources.map((r) => `- "${r.title}"`).join("\n")}`;
+      }
 
-**Deeper resources available:**
-${instructions.resources.map((r) => `- "${r.title}"`).join("\n")}
+      if (instructions.records.length > 0) {
+        response += `\n\n**Editable records available:**
+${instructions.records
+  .map(
+    (r) =>
+      `- "${r.title}" (${
+        r.isEmbed ? "target: external page, " : ""
+      }records UID: \`${r.recordsUid}\`)${
+        r.isEmbed ? " [records on external page]" : ""
+      }`
+  )
+  .join("\n")}`;
+      }
 
-**Next action:** If any resource would help complete the user's task, IMMEDIATELY call this tool again with skill_name="${
+      response += `\n\n**Next action:** If any resource or records would help complete the user's task, IMMEDIATELY call this tool again with skill_name="${
         instructions.name
-      }" and resource_title="<exact name>" (don't ask user first - be autonomous and thorough).`;
+      }" and the appropriate parameter: resource_title or records_title (don't ask user first - be autonomous and thorough).`;
     }
 
     return response;
@@ -131,8 +195,10 @@ When the user's request matches ANY available skill (even partially), call this 
 
 Usage:
 1. Call with skill_name to load core instructions
-2. If the response lists deeper resources and they're relevant, call again with skill_name + resource_title
-3. You can load multiple resources in sequence (same turn)
+2. If the response lists deeper resources, call again with skill_name + resource_title
+3. If the response lists editable records, call again with skill_name + records_title to see current content and get the records UID for writing
+4. Use create_block/update_block with records UIDs to add or edit records
+5. You can load multiple resources/records in sequence (same turn)
 
 Note: If "## Active Skill Instructions" section in your prompt already contains the exact skill/resource you need, use it directly without calling again.`,
     schema: z.object({
@@ -147,15 +213,21 @@ Note: If "## Active Skill Instructions" section in your prompt already contains 
         .describe(
           "Optional: The title of a specific deeper resource to load from within the skill. Only use this after loading the core skill instructions first and identifying that you need more detailed information on a specific topic."
         ),
+      records_title: z
+        .string()
+        .optional()
+        .describe(
+          "Optional: The title of a specific editable records outline to load. Returns the records' current content and the UID needed to add or edit records using create_block or update_block."
+        ),
     }),
   }
 );
 
 // **Progressive loading workflow (IMPORTANT - be autonomous):**
 // 1. First call: Use skill_name only to get core instructions
-// 2. Review the response: If it mentions "[Deeper resource available]", you SHOULD immediately:
-//    - Evaluate if the deeper resource would help complete the user's task
-//    - If YES: Call again with skill_name + resource_title (WITHOUT asking the user first)
+// 2. Review the response: If it mentions "[Deeper resource available]" or "[Editable records available]", you SHOULD immediately:
+//    - Evaluate if the deeper resource/records would help complete the user's task
+//    - If YES: Call again with skill_name + resource_title or records_title (WITHOUT asking the user first)
 //    - If NO: Proceed with core instructions only
-// 3. Multiple resources: You can load multiple resources sequentially if needed
+// 3. Multiple resources/records: You can load multiple sequentially if needed
 // 4. Follow ALL skill instructions - they supersede your general knowledge

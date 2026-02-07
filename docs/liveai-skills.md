@@ -1,26 +1,21 @@
 # Live AI Skills
 
-The LiveAI Skills system provides a powerful way to give your chat agent specialized knowledge and instructions stored directly in your Roam Research graph. Skills use progressive loading to avoid context overload while providing deep, detailed guidance when needed.
+Live AI Skills, inspired by Anthropic Claude Skills, are advanced but easy-to-use automated workflows stored in your Roam graph that combine three elements:
 
-## Overview
+- **Instructions** — step-by-step guidance the agent follows
+- **Resources** — reference content or detailed instructions the agent reads on demand (documentation, specific procedures, examples)
+- **Records** — outlines the agent can read _and write to_ (logs, trackers, drafts, databases)
 
-**Skills** are sets of instructions and resources stored as blocks in your Roam graph that the chat agent can access when needed. They work similarly to Anthropic's Claude Skills but are stored in Roam blocks and pages rather than markdown files.
+By combining these, a skill can go beyond answering questions: it can follow a complete workflow — reading context from resources, applying instructions, and producing structured output into records. This enables repeatable processes like meeting note-taking, content pipelines, research logging, review checklists, or any routine where the agent both reads and writes in your graph.
 
-### Key Benefits
-
-- **Context-efficient**: Core instructions load first; deeper resources only when needed
-- **Roam-native**: Stored in your graph, editable like any other block
-- **Flexible**: Can reference pages, blocks, and use all Roam formatting
-- **Progressive**: Load broad instructions first, dive deeper on specific topics as required
-- **Specialized**: Provide domain-specific knowledge, workflows, or best practices
+Skills load progressively: core instructions first, then resources and records only when needed, keeping context lean.
 
 ## How Skills Work
 
-1. **Discovery**: Agent scans available skills and their descriptions
-2. **Selection**: Agent chooses relevant skill based on user's task
-3. **Core Loading**: Agent loads basic instructions and sees available resources
-4. **Progressive Loading**: Agent loads specific resources only when detailed info is needed
-5. **Application**: Agent follows skill instructions to complete the task
+1. **Discovery**: Agent matches the user's request to available skills
+2. **Core Loading**: Agent loads instructions and sees available resources/records
+3. **Deep Loading**: Agent loads specific resources or records on demand
+4. **Execution**: Agent follows instructions, reads resources, writes to records
 
 ## Creating a Skill
 
@@ -29,315 +24,174 @@ The LiveAI Skills system provides a powerful way to give your chat agent special
 ```
 - Skill Name #liveai/skill
   - Description: Brief description of what this skill helps accomplish
-  - Instructions:
-    - Core instruction 1
-    - Core instruction 2
-      - Sub-instruction
-    - Core instruction 3
+    - Optional additional description details (children are included)
+  - Core instruction 1
+  - Core instruction 2
+    - Sub-instruction
 ```
 
-### With Deeper Resources
+The **first child** block starting with `Description:` (case-insensitive) is the skill's description. Its children are included in the description text.
+
+### Skill Elements
+
+Skills support three types of special blocks. Each can be identified either by a **tag** or a **prefix** (case-insensitive):
+
+| Element  | Tag                      | Prefix alternative | Purpose                                          |
+| -------- | ------------------------ | ------------------ | ------------------------------------------------ |
+| Resource | `#liveai/skill-resource` | `Resource:`        | Read-only reference content, loaded on demand    |
+| Records  | `#liveai/skill-records`  | `Records:`         | Editable outline the agent can read and write to |
+
+Both resources and records follow the same pattern: the block text (after tag/prefix) is the title, and children are the content loaded on demand.
+
+### Resources
+
+Resources provide deeper reference content that the agent loads only when needed. Children of resource blocks are **not** included in core instructions — the agent must explicitly request them.
+
+Two equivalent ways to declare a resource:
 
 ```
-- Skill Name #liveai/skill
-  - Description: Brief description of what this skill helps accomplish
-  - Instructions:
-    - Core instruction 1
-    - Core instruction 2
-    - How to handle special cases #liveai/skill-resource
-      - Detailed instruction for special cases
-      - More details...
-        - Even deeper details
-    - Core instruction 3
-    - Advanced techniques #liveai/skill-resource
-      - Advanced technique 1
-      - Advanced technique 2
+- Using tag:
+  - SEO techniques #liveai/skill-resource
+    - Keyword placement guidelines
+    - Meta description best practices
+
+- Using prefix:
+  - Resource: SEO techniques
+    - Keyword placement guidelines
+    - Meta description best practices
 ```
 
-### With Page References in Resources
-
-You can reference entire pages or blocks directly in a resource title using Roam's `[[page]]` or `((block-ref))` syntax. The content of the referenced pages/blocks will automatically be loaded as part of the resource content:
+You can reference existing pages or blocks in a resource title using `[[page]]` or `((block-ref))` syntax. Their content is automatically included when the resource is loaded:
 
 ```
-- Data Analysis Workflow #liveai/skill
-  - Description: Complete workflow for analyzing and visualizing data
-  - Instructions:
-    - Collect and clean data
-    - Perform statistical analysis
-    - Statistical methods from [[Statistical Analysis Guide]] #liveai/skill-resource
-      - Additional context-specific instructions here (optional)
-    - Create visualizations
-    - Visualization best practices from [[Data Visualization]] #liveai/skill-resource
+- Security standards from [[OWASP Top 10]] #liveai/skill-resource
+  - Additional context-specific notes here
 ```
 
-When the agent loads these resources, the entire content of the referenced pages will be included, making it easy to reuse existing documentation or knowledge pages as skill resources.
+### Records
 
-## Example Skills
-
-### Example 1: Content Writing Workflow
+Records define **editable outlines** where the agent can add, update, or remove content using `create_block`, `update_block`, and `delete_block` tools. The agent receives the records' UID and current content.
 
 ```
-- Blog Post Writing #liveai/skill
-  - Description: Complete workflow for creating engaging blog posts with proper structure and SEO optimization
-  - Instructions:
-    - Start with audience research and topic validation
-    - Create compelling headline (use proven formulas)
-    - Write introduction that hooks the reader
-    - Structure body with clear sections and subheadings
-    - SEO optimization techniques #liveai/skill-resource
-      - Keyword research and placement
-      - Meta description best practices
-      - Internal linking strategy
-      - Image alt text optimization
-    - Conclude with clear call-to-action
-    - Editing checklist #liveai/skill-resource
-      - Grammar and clarity check
-      - Remove redundant phrases
-      - Verify all links work
-      - Check mobile readability
+- Using tag:
+  - Meeting notes #liveai/skill-records
+    - {{[[embed]]: ((block-uid))}}
+
+- Using prefix:
+  - Records: Meeting notes
+    - {{[[embed]]: ((block-uid))}}
 ```
 
-### Example 2: Code Review Process
+**Target resolution**: The agent determines where to write records using this priority:
+
+1. **Embed child** (explicit): If the first child of a records block is an embed (`{{[[embed]]: ((uid))}}`), the agent writes to the embedded outline. This lets you point a skill at any existing outline in your graph.
+2. **Page reference in title** (shorthand): If the records title contains a `[[page]]` reference (e.g., `Records: Tweet drafts — prepend new entries on [[my tweet drafts]]`), the agent writes to that page. This is a convenient shorthand — no embed child needed.
+3. **Records block itself** (default): If neither of the above is present, the records block itself is the writable container, records will be written as children of this block.
 
 ```
-- Code Review Best Practices #liveai/skill
-  - Description: Systematic approach to conducting thorough and constructive code reviews
-  - Instructions:
-    - Review PR description and linked issues first
-    - Check overall architecture and design patterns
-    - Look for security vulnerabilities
-    - Security review checklist #liveai/skill-resource
-      - Input validation and sanitization
-      - Authentication and authorization checks
-      - SQL injection prevention
-      - XSS prevention
-      - Sensitive data handling
-    - Review test coverage
-    - Check code style and consistency
-    - Provide constructive feedback
-    - Constructive feedback guidelines #liveai/skill-resource
-      - Use "we" instead of "you"
-      - Explain the "why" behind suggestions
-      - Offer specific examples
-      - Balance criticism with praise
-      - Ask questions instead of making demands
+- Explicit embed (option 1):
+  - Records: Meeting notes
+    - {{[[embed]]: ((block-uid))}}
+
+- Page reference shorthand (option 2):
+  - Records: Tweet drafts — prepend new entries on [[my tweet drafts]]
+
+- Default (option 3):
+  - Records: Action items
 ```
 
-### Example 3: Research Methodology
+#### Describing how records should be written
+
+The records block title (the text after `Records:` or the tag) serves as a description for the agent. You should use it — or the skill's core instructions — to communicate how the agent should interact with these records. Here are some aspects you may want to describe, in whatever way feels natural:
+
+- **When to add records**: e.g., "only after user confirms", "for each identified issue", "when new data is available"
+- **Format and structure**: e.g., "each record is a bullet with date prefix", "use H2 headings for categories", "follow the template: `**Name** - description - status`"
+- **Positioning**: e.g., "add new entries at the top", "append at the end", "use smart insertion to find the right section"
+- **What to update vs. create**: e.g., "update existing entries if a match is found, otherwise create new ones"
+- **Templates or examples**: you can put a template as a child of the records block (alongside the embed if any) to show the expected format
+
+These are just examples — there's no mandatory structure. Describe your expectations however makes sense. The key principle is that **conditions and format should be described in the records title or in the skill's core instructions**, not inside the records outline itself, since the agent reads the description before loading the records content.
+
+## Complete Example
 
 ```
-- Academic Research Workflow #liveai/skill
-  - Description: Structured approach to conducting and documenting academic research
-  - Instructions:
-    - Define research question and hypothesis
-    - Conduct literature review
-    - Literature search strategies #liveai/skill-resource
-      - Database selection (PubMed, Google Scholar, JSTOR)
-      - Boolean operators and advanced search
-      - Citation chaining techniques
-      - Managing search results
-    - Design methodology
-    - Collect and organize data
-    - Analyze results
-    - Statistical analysis guidelines #liveai/skill-resource
-      - Choosing appropriate tests
-      - Sample size considerations
-      - P-value interpretation
-      - Common statistical mistakes to avoid
-    - Write and format paper
-    - Citation and formatting styles #liveai/skill-resource
-      - APA 7th edition guidelines
-      - Chicago style guidelines
-      - IEEE format guidelines
-```
-
-### Example 4: Using Page References
-
-This example shows how to reference existing pages in your graph:
-
-```
-- Company Onboarding Process #liveai/skill
-  - Description: Complete onboarding workflow for new team members
-  - Instructions:
-    - Send welcome email with access credentials
-    - Schedule orientation meetings
-    - Setup workstation and tools
-    - Technical setup guide from [[IT Setup Procedures]] #liveai/skill-resource
-    - Review company policies
-    - Company policies from [[Employee Handbook]] #liveai/skill-resource
-      - Additional note: Focus on sections 1-3 for first week
-    - Assign initial tasks and projects
-    - Project templates from [[Standard Project Templates]] #liveai/skill-resource
+- Content Production #liveai/skill
+  - Description: Workflow for producing and publishing blog content
+    - Covers research, writing, editing, and SEO
+  - Research the topic thoroughly before writing
+  - Structure with clear headings and short paragraphs
+  - Resource: SEO optimization checklist
+    - Keyword density: 1-2% for primary keyword
+    - Include meta description (155 chars max)
+    - Add internal links to related posts
+  - Style guide from [[Company Style Guide]] #liveai/skill-resource
+  - Review and edit before publishing
+  - Records: Published articles — append new entries with date, title, and URL #liveai/skill-records
+    - {{[[embed]]: ((articles-list-uid))}}
 ```
 
 In this example:
-- The `[[IT Setup Procedures]]` page content will be loaded when this resource is accessed
-- The `[[Employee Handbook]]` page content plus the additional note will be included
-- The `[[Standard Project Templates]]` page content will be available when needed
 
-## Usage Patterns
-
-### Pattern 1: Simple Task (No Resources Needed)
-
-**User request**: "Help me write a blog post about AI"
-
-**Agent behavior**:
-
-1. Loads "Blog Post Writing" skill core instructions
-2. Has enough guidance from core instructions
-3. Proceeds with task following the workflow
-
-### Pattern 2: Complex Task (Resources Needed)
-
-**User request**: "Review this code for security issues"
-
-**Agent behavior**:
-
-1. Loads "Code Review Best Practices" skill
-2. Sees "Security review checklist" resource available
-3. Loads security checklist resource for detailed guidance
-4. Applies comprehensive security review
-
-### Pattern 3: Multi-Resource Task
-
-**User request**: "Write a research paper on climate change"
-
-**Agent behavior**:
-
-1. Loads "Academic Research Workflow" skill
-2. During literature review phase, loads "Literature search strategies" resource
-3. During analysis phase, loads "Statistical analysis guidelines" resource
-4. For final formatting, loads "Citation and formatting styles" resource
+- **Description** includes children ("Covers research, writing...")
+- **"SEO optimization checklist"** is a resource using `Resource:` prefix
+- **"Style guide..."** is a resource using `#liveai/skill-resource` tag with a page reference
+- **"Published articles..."** is an editable records outline; the description itself tells the agent to append entries with date/title/URL format
 
 ## Best Practices
 
-### Creating Effective Skills
-
-1. **Clear Descriptions**: Write concise, searchable descriptions
-2. **Progressive Depth**: Put essential info in core, details in resources
-3. **Focused Resources**: Each resource should cover one specific topic
-4. **Actionable Instructions**: Use clear, step-by-step guidance
-5. **Leverage Existing Pages**: Use `[[page]]` references in resource titles to reuse existing documentation, guides, or knowledge pages
-6. **Combine References with Instructions**: You can reference pages and add additional context-specific instructions as children of the resource block
+1. **Clear Descriptions**: Write concise, searchable descriptions; add detail as children
+2. **Progressive Depth**: Essential info in core instructions, details in resources
+3. **Focused Resources**: Each resource covers one specific topic
+4. **Leverage Existing Pages**: Use `[[page]]` references to reuse documentation
+5. **Use Records for Output**: When the skill should produce or maintain structured content, define records with clear expectations about format and conditions
 
 ### Naming Conventions
 
-- **Skill Names**: Clear, descriptive, task-oriented
-
-  - ✅ "Blog Post Writing"
-  - ✅ "Code Review Best Practices"
-  - ❌ "Writing Stuff"
-  - ❌ "My Process"
-
-- **Resource Names**: Specific aspect or subtopic
-  - ✅ "SEO optimization techniques"
-  - ✅ "Security review checklist"
-  - ❌ "More Info"
-  - ❌ "Details"
+- **Skill Names**: Task-oriented (e.g., "Blog Post Writing", "Code Review")
+- **Resource/Records Names**: Specific (e.g., "SEO checklist", "Meeting notes")
 
 ### Structure Guidelines
 
-1. **First Child = Description**: Always start with clear description block
-2. **Second Child = Instructions**: Main instruction block or tree
-3. **Logical Hierarchy**: Group related instructions together
-4. **Resource Placement**: Place #liveai/skill-resource tags on parent blocks that contain detailed subtopic information
+1. **First Child = Description** starting with `Description:`
+2. **Remaining Children = Instructions**, resources, and records in logical order
+3. **Resource/Records Placement**: Place them inline where they're most relevant in the workflow
 
 ## Technical Details
 
-### Tags Used
+### Tags and Prefixes
 
-- `#liveai/skill`: Marks the root block of a skill
-- `#liveai/skill-resource`: Marks blocks containing deeper resources (children are loaded on demand)
+| Tag                      | Prefix      | Purpose                                     |
+| ------------------------ | ----------- | ------------------------------------------- |
+| `#liveai/skill`          | —           | Marks the root block of a skill             |
+| `#liveai/skill-resource` | `Resource:` | Deeper resource (children loaded on demand) |
+| `#liveai/skill-records`  | `Records:`  | Editable outline (agent can read and write) |
 
-### Query Behavior
+All prefix matching is **case-insensitive** and supports both single colon (`Records:`) and double colon (`Records::`) Roam attribute syntax.
 
-1. Extension indexes all `#liveai/skill` blocks at startup
-2. Chat agent sees list of available skills in tool description
-3. When skill is requested, core instructions load (excluding resource children)
-4. When resource is requested, only that resource's children load
-5. If a resource title contains `[[page]]` or `((block-ref))` references, the content of those pages/blocks is automatically fetched and included in the resource content
+Plural forms of tags are also supported (`#liveai/skills`, `#liveai/skill-resources`, `#liveai/skill-records`) but the **singular form is recommended** for skill and resource tags, and the **plural form is recommended** for records.
+
+### Progressive Loading Flow
+
+1. Agent calls `live_ai_skills` with `skill_name` → gets core instructions + list of resources/records
+2. Agent calls with `resource_title` → gets resource content
+3. Agent calls with `records_title` → gets records' current content + writable UID
+4. Agent uses `create_block`/`update_block` with the records UID to add or edit content
 
 ### Context Optimization
 
-- Core instructions typically 100-300 tokens
-- Resources typically 100-500 tokens each
-- Agent only loads what it needs, when it needs it
-- Prevents context bloat from loading entire skill trees upfront
-
-## Tips and Tricks
-
-### Reusing Existing Documentation
-
-Instead of duplicating content, reference your existing pages:
-
-```
-- Project Management #liveai/skill
-  - Description: Manage projects using our team's methodologies
-  - Instructions:
-    - Review project requirements
-    - Follow our methodology from [[Project Management Framework]] #liveai/skill-resource
-    - Create project timeline
-    - Use templates from [[Project Templates]] #liveai/skill-resource
-```
-
-This approach:
-- Keeps your skills DRY (Don't Repeat Yourself)
-- Ensures skills stay up-to-date when referenced pages are updated
-- Reduces maintenance burden
-
-### Combining Multiple Pages
-
-You can reference multiple pages in a single resource:
-
-```
-- Security Review #liveai/skill
-  - Description: Comprehensive security review workflow
-  - Instructions:
-    - Review [[OWASP Top 10]] and [[Company Security Standards]] #liveai/skill-resource
-      - Pay special attention to authentication flows
-```
-
-Both pages' content will be loaded together with the additional instruction.
+- Core instructions: typically 100-300 tokens
+- Resources/records: loaded only when needed
+- Agent is autonomous: loads resources/records without asking the user
 
 ## Troubleshooting
 
-### Skill Not Found
+**Skill not found**: Verify the block has `#liveai/skill` tag. Skill name matching is case-insensitive.
 
-**Problem**: Agent says skill doesn't exist
-**Solutions**:
+**Resource not loading**: Check it has `#liveai/skill-resource` tag or starts with `Resource:`, and is within the skill's block hierarchy.
 
-- Verify block has `#liveai/skill` tag
-- Check skill name matches exactly (case-insensitive)
-- Reload extension to re-index skills
+**Records not resolving embed**: Ensure the embed syntax is correct (`{{[[embed]]: ((uid))}}`) and the referenced block exists.
 
-### Resource Not Loading
-
-**Problem**: Agent can't access a resource
-**Solutions**:
-
-- Verify resource has `#liveai/skill-resource` tag
-- Check resource name matches exactly
-- Ensure resource is within the correct skill block hierarchy
-
-### Skill Not Being Used
-
-**Problem**: Agent doesn't use relevant skill
-**Solutions**:
-
-- Improve skill description to be more discoverable
-- Make description match likely user requests
-- Explicitly mention the skill name in your request
-
-## Future Enhancements
-
-Potential additions to the skills system:
-
-- Skill templates for common use cases
-- Skill versioning and change tracking
-- Skill sharing and import/export
-- Analytics on skill usage
-- Skill composition (skills that reference other skills)
-- Conditional instructions based on context
+**Skill not being used**: Improve the description to match likely user requests, or mention the skill name explicitly.
 
 ## Related Documentation
 

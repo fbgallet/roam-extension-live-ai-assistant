@@ -70,6 +70,7 @@ import {
   addAudioToGeminiMessage,
   isModelSupportingImage,
 } from "./multimodalAI";
+import { completionCommands } from "./prompts";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -468,12 +469,30 @@ export async function claudeCompletion({
                   (content ? "\n\nContext:\n" + content : ""),
               },
             ]
-          : [
-              {
-                role: "user",
-                content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
-              },
-            ].concat(prompt);
+          : command === "Export to PDF" || command === "Export to PDF outline"
+            ? [
+                {
+                  role: "user",
+                  content:
+                    (command === "Export to PDF outline"
+                      ? completionCommands.pdfOutline
+                      : completionCommands.pdfCleanDocument) +
+                    // User-specific instructions from focused block (formatting, margins, etc.)
+                    (prompt.length && prompt[0]?.content
+                      ? "\n\nADDITIONAL USER INSTRUCTIONS:\n" +
+                        prompt[0].content
+                      : "") +
+                    // Content to export (from context: page, linkedRefs, sidebar, etc.)
+                    (content ? "\n\nCONTENT TO EXPORT:\n" + content : ""),
+                },
+              ]
+            : [
+                {
+                  role: "user",
+                  content:
+                    (systemPrompt ? systemPrompt + "\n\n" : "") + content,
+                },
+              ].concat(prompt);
       let thinkingToaster;
       const headers = {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -522,6 +541,19 @@ export async function claudeCompletion({
         headers["anthropic-beta"] = "web-fetch-2025-09-10";
       } else if (command === "MCP Agent") {
         options.tools = tools;
+      } else if (
+        command === "Export to PDF" ||
+        command === "Export to PDF outline"
+      ) {
+        options.stream = false;
+        options.tools = [
+          { type: "code_execution_20250825", name: "code_execution" },
+        ];
+        options.container = {
+          skills: [{ type: "anthropic", skill_id: "pdf", version: "latest" }],
+        };
+        headers["anthropic-beta"] =
+          "code-execution-2025-08-25,skills-2025-10-02,files-api-2025-04-14";
       }
 
       if (thinking) {
@@ -566,13 +598,13 @@ export async function claudeCompletion({
           options.messages = await addPdfUrlToMessages(
             messages,
             includePdfInContext ? content : "",
-            provider
+            provider,
           );
         } else
           options.messages = await addImagesUrlToMessages(
             messages,
             content,
-            true
+            true,
           );
       }
       console.log("options :>> ", options);
@@ -604,7 +636,7 @@ export async function claudeCompletion({
         let thinkingToasterStream;
         if (thinking && isThinkingProcessToDisplay) {
           thinkingToasterStream = displayThinkingToast(
-            "Claude 4.5 Extended Thinking process:"
+            "Claude 4.5 Extended Thinking process:",
           );
         }
 
@@ -615,7 +647,7 @@ export async function claudeCompletion({
           while (true) {
             if (isCanceledStreamGlobal) {
               streamElt.innerHTML += DOMPurify.sanitize(
-                "(⚠️ stream interrupted by user)"
+                "(⚠️ stream interrupted by user)",
               );
               respStr = "";
               break;
@@ -641,7 +673,7 @@ export async function claudeCompletion({
                     if (data.delta?.citation) {
                       if (
                         !citations.find(
-                          (cit) => cit.url === data.delta.citation.url
+                          (cit) => cit.url === data.delta.citation.url,
                         )
                       ) {
                         citations.push(data.delta.citation);
@@ -703,7 +735,7 @@ export async function claudeCompletion({
         // console.log("data :>> ", data);
         if (command === "Fetch url") {
           let fetchedData = data.content.find(
-            (res) => res.type === "web_fetch_tool_result"
+            (res) => res.type === "web_fetch_tool_result",
           );
           if (fetchedData) {
             if (fetchedData.content.error_code) {
@@ -722,15 +754,15 @@ export async function claudeCompletion({
         } else if (command === "Web search") {
           // Extract search results
           const searchResults = data.content.filter(
-            (block) => block.type === "web_search_tool_result"
+            (block) => block.type === "web_search_tool_result",
           );
 
           // Build response from text blocks and citations
           const textBlocks = data.content.filter(
-            (block) => block.type === "text"
+            (block) => block.type === "text",
           );
 
-          respStr = textBlocks.map(block => block.text).join("");
+          respStr = textBlocks.map((block) => block.text).join("");
 
           // Add search sources at the end
           if (searchResults.length > 0) {
@@ -740,7 +772,11 @@ export async function claudeCompletion({
             searchResults.forEach((result) => {
               if (result.content && Array.isArray(result.content)) {
                 result.content.forEach((item) => {
-                  if (item.type === "web_search_result" && item.url && !uniqueUrls.has(item.url)) {
+                  if (
+                    item.type === "web_search_result" &&
+                    item.url &&
+                    !uniqueUrls.has(item.url)
+                  ) {
                     uniqueUrls.add(item.url);
                     respStr += `  - [${item.title}](${item.url})`;
                     if (item.page_age) {
@@ -751,6 +787,204 @@ export async function claudeCompletion({
                 });
               }
             });
+          }
+        } else if (
+          command === "Export to PDF" ||
+          command === "Export to PDF outline"
+        ) {
+          AppToaster.show({
+            message: "Generating PDF... This may take 30 seconds or more.",
+            timeout: 60000,
+            intent: "primary",
+            icon: "document",
+          });
+
+          // Handle pause_turn: loop until stop_reason !== "pause_turn"
+          let currentData = data;
+          let currentMessages = [...options.messages];
+          let containerId = currentData.container?.id;
+
+          while (currentData.stop_reason === "pause_turn") {
+            currentMessages.push({
+              role: "assistant",
+              content: currentData.content,
+            });
+            const continueResponse = await fetch(
+              "https://api.anthropic.com/v1/messages",
+              {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                  ...options,
+                  messages: currentMessages,
+                  container: {
+                    id: containerId,
+                    skills: [
+                      {
+                        type: "anthropic",
+                        skill_id: "pdf",
+                        version: "latest",
+                      },
+                    ],
+                  },
+                }),
+              },
+            );
+            currentData = await continueResponse.json();
+            if (currentData.container?.id)
+              containerId = currentData.container.id;
+          }
+
+          // Extract file info and text from response
+          let pdfGenerated = false;
+          let pdfFilename = "export.pdf";
+          let textContent = "";
+          for (const item of currentData.content) {
+            if (item.type === "bash_code_execution_tool_result") {
+              const result = item.content;
+              if (
+                result.type === "bash_code_execution_result" &&
+                result.content
+              ) {
+                for (const file of result.content) {
+                  if (file.file_id) {
+                    pdfGenerated = true;
+                    if (file.filename) pdfFilename = file.filename;
+                  }
+                }
+              }
+            } else if (item.type === "text") {
+              textContent += item.text;
+            }
+          }
+
+          if (pdfGenerated) {
+            AppToaster.show({
+              message: "PDF generated! Retrieving file...",
+              timeout: 30000,
+              intent: "primary",
+              icon: "document",
+            });
+            // Files API is not accessible from browser (CORS).
+            // Send a follow-up message in the same container to get base64-encoded PDF.
+            const followUpMessages = [...currentMessages];
+            followUpMessages.push({
+              role: "assistant",
+              content: currentData.content,
+            });
+            followUpMessages.push({
+              role: "user",
+              content:
+                "Read the PDF file you just created and output ONLY its base64-encoded content. " +
+                "Use Python:\nimport base64\nwith open('" +
+                pdfFilename +
+                "', 'rb') as f:\n    print(base64.b64encode(f.read()).decode())\n" +
+                "Output ONLY the raw base64 string, no explanation, no markdown.",
+            });
+
+            let b64Response = await fetch(
+              "https://api.anthropic.com/v1/messages",
+              {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                  ...options,
+                  messages: followUpMessages,
+                  container: {
+                    id: containerId,
+                    skills: [
+                      {
+                        type: "anthropic",
+                        skill_id: "pdf",
+                        version: "latest",
+                      },
+                    ],
+                  },
+                }),
+              },
+            );
+            let b64Data = await b64Response.json();
+
+            // Handle pause_turn for the follow-up too
+            let b64Messages = [...followUpMessages];
+            while (b64Data.stop_reason === "pause_turn") {
+              b64Messages.push({
+                role: "assistant",
+                content: b64Data.content,
+              });
+              b64Response = await fetch(
+                "https://api.anthropic.com/v1/messages",
+                {
+                  method: "POST",
+                  headers,
+                  body: JSON.stringify({
+                    ...options,
+                    messages: b64Messages,
+                    container: {
+                      id: containerId,
+                      skills: [
+                        {
+                          type: "anthropic",
+                          skill_id: "pdf",
+                          version: "latest",
+                        },
+                      ],
+                    },
+                  }),
+                },
+              );
+              b64Data = await b64Response.json();
+            }
+
+            // Extract base64 from stdout or text content
+            let base64Content = "";
+            for (const item of b64Data.content) {
+              if (item.type === "bash_code_execution_tool_result") {
+                const result = item.content;
+                if (result?.stdout) {
+                  base64Content = result.stdout.trim();
+                }
+              } else if (item.type === "text" && !base64Content) {
+                // Fallback: look for base64 string in text
+                const cleaned = item.text.replace(/[\s\n`]/g, "");
+                if (
+                  /^[A-Za-z0-9+/]+=*$/.test(cleaned) &&
+                  cleaned.length > 100
+                ) {
+                  base64Content = cleaned;
+                }
+              }
+            }
+
+            AppToaster.clear();
+            if (base64Content) {
+              // Decode base64 and upload to Roam
+              const binaryString = atob(base64Content);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: "application/pdf" });
+              const firebaseUrl = await roamAlphaAPI.file.upload({
+                file: blob,
+              });
+
+              respStr =
+                (textContent ? textContent + "\n" : "") + `${firebaseUrl}`;
+            } else {
+              console.warn("PDF base64 extraction failed", b64Data);
+              respStr =
+                textContent || "PDF was generated but could not be retrieved";
+            }
+          } else {
+            AppToaster.clear();
+            respStr =
+              textContent || "PDF generation failed - no file was created";
+          }
+
+          if (currentData.usage) {
+            usage["input_tokens"] = currentData.usage["input_tokens"];
+            usage["output_tokens"] = currentData.usage["output_tokens"];
           }
         } else respStr = data.content[0].text;
         if (data.usage) {
@@ -842,7 +1076,7 @@ export async function openaiCompletionLegacy({
       messages = await addPdfUrlToMessages(
         messages,
         includePdfInContext ? content : "",
-        provider
+        provider,
       );
     } else messages = await addImagesUrlToMessages(messages, content);
   }
@@ -933,8 +1167,8 @@ export async function openaiCompletionLegacy({
         setTimeout(() => {
           reject(
             new Error(
-              "Timeout error on client side: OpenAI response time exceeded (90 seconds)"
-            )
+              "Timeout error on client side: OpenAI response time exceeded (90 seconds)",
+            ),
           );
         }, 90000);
       });
@@ -1107,14 +1341,14 @@ export async function openaiResponse({
         input,
         includePdfInContext ? content : "",
         provider,
-        true // useResponseApi
+        true, // useResponseApi
       );
     } else {
       input = await addImagesUrlToMessages(
         input,
         content,
         false, // isAnthropicModel
-        true // useResponseApi
+        true, // useResponseApi
       );
     }
   }
@@ -1374,19 +1608,19 @@ function addGroundingCitations(response) {
       citationsByBoundary.set(boundary, new Set());
     }
     citationNumbers.forEach((num) =>
-      citationsByBoundary.get(boundary).add(num)
+      citationsByBoundary.get(boundary).add(num),
     );
   }
 
   // Sort boundaries in descending order to avoid shifting issues when inserting
   const sortedBoundaries = Array.from(citationsByBoundary.keys()).sort(
-    (a, b) => b - a
+    (a, b) => b - a,
   );
 
   // Insert citations at boundaries
   for (const boundary of sortedBoundaries) {
     const citationNumbers = Array.from(citationsByBoundary.get(boundary)).sort(
-      (a, b) => a - b
+      (a, b) => a - b,
     );
 
     // Format as numbered citations
@@ -1418,7 +1652,7 @@ function addGroundingCitations(response) {
   ) {
     console.log(
       "🔍 Google Search queries used:",
-      groundingMetadata.webSearchQueries
+      groundingMetadata.webSearchQueries,
     );
   }
 
@@ -1509,7 +1743,7 @@ export async function googleCompletion({
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
             const pdfResult = await addPdfToGeminiMessage(
               currentMessageParts,
-              msg.content
+              msg.content,
             );
             currentMessageParts = pdfResult.messageParts;
 
@@ -1517,7 +1751,7 @@ export async function googleCompletion({
             // For Firebase PDFs, remove from text (already uploaded to Files API)
             pdfLinkRegex.lastIndex = 0;
             const allPdfMatches = Array.from(
-              msg.content.matchAll(pdfLinkRegex)
+              msg.content.matchAll(pdfLinkRegex),
             );
             let cleanedText = currentMessageParts[0].text;
 
@@ -1536,7 +1770,7 @@ export async function googleCompletion({
           if (hasImageInPrompt && roamImageRegex.test(msg.content)) {
             currentMessageParts = await addImagesToGeminiMessage(
               currentMessageParts,
-              msg.content
+              msg.content,
             );
             // Remove image markdown from the text
             roamImageRegex.lastIndex = 0;
@@ -1549,7 +1783,7 @@ export async function googleCompletion({
           if (hasVideoInPrompt) {
             currentMessageParts = await addVideosToGeminiMessage(
               currentMessageParts,
-              msg.content
+              msg.content,
             );
             // Remove video markdown from the text
             roamVideoRegex.lastIndex = 0;
@@ -1562,7 +1796,7 @@ export async function googleCompletion({
           if (hasAudioInPrompt) {
             currentMessageParts = await addAudioToGeminiMessage(
               currentMessageParts,
-              msg.content
+              msg.content,
             );
             // Remove audio markdown from the text
             roamAudioRegex.lastIndex = 0;
@@ -1577,7 +1811,7 @@ export async function googleCompletion({
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
             const pdfResult = await addPdfToGeminiMessage(
               userParts,
-              msg.content
+              msg.content,
             );
             userParts = pdfResult.messageParts;
 
@@ -1585,7 +1819,7 @@ export async function googleCompletion({
             // For Firebase PDFs, remove from text (already uploaded to Files API)
             pdfLinkRegex.lastIndex = 0;
             const allPdfMatches = Array.from(
-              msg.content.matchAll(pdfLinkRegex)
+              msg.content.matchAll(pdfLinkRegex),
             );
             let cleanedText = userParts[0].text;
 
@@ -1642,7 +1876,7 @@ export async function googleCompletion({
     if (hasPdfInContent) {
       const pdfResult = await addPdfToGeminiMessage(
         currentMessageParts,
-        content
+        content,
       );
       currentMessageParts = pdfResult.messageParts;
       // Note: external PDF URLs from context are already in the systemInstruction (content)
@@ -1653,7 +1887,7 @@ export async function googleCompletion({
     if (hasImageInContent) {
       currentMessageParts = await addImagesToGeminiMessage(
         currentMessageParts,
-        content
+        content,
       );
     }
 
@@ -1661,7 +1895,7 @@ export async function googleCompletion({
     if (hasVideoInContent) {
       currentMessageParts = await addVideosToGeminiMessage(
         currentMessageParts,
-        content
+        content,
       );
     }
 
@@ -1669,7 +1903,7 @@ export async function googleCompletion({
     if (hasAudioInContent) {
       currentMessageParts = await addAudioToGeminiMessage(
         currentMessageParts,
-        content
+        content,
       );
     }
 
@@ -1944,7 +2178,7 @@ export async function ollamaCompletion({
         headers: {
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     console.log("Ollama chat completion response :>>", response);
