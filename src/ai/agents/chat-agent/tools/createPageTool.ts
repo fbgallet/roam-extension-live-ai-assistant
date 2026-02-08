@@ -67,6 +67,7 @@ export const createPageTool = tool(
         toolName: "create_page",
         toolCallId,
         args: {
+          is_new_page: true,
           page_title: finalTitle,
           markdown_content,
         },

@@ -18,6 +18,7 @@ import {
   deleteBlock,
   getTreeByUid,
   getParentBlock,
+  getPageNameByPageUid,
 } from "../../../../utils/roamAPI";
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
 
@@ -74,14 +75,41 @@ function getBlockDeletePreview(uid: string): {
   block_uid: string;
   content: string;
   descendant_count: number;
+  page_name?: string;
+  position_context?: string;
 } {
   const content = getBlockContentByUid(uid);
   const tree = getTreeByUid(uid);
   const descendantCount = countDescendants(tree);
+
+  // Determine page context
+  let pageName: string | undefined;
+  let positionContext: string | undefined;
+  const parentUid = getParentBlock(uid);
+  if (parentUid) {
+    const parentPageName = getPageNameByPageUid(parentUid);
+    if (parentPageName) {
+      positionContext = `top-level on [[${parentPageName}]]`;
+      pageName = parentPageName;
+    } else {
+      const parentContent = getBlockContentByUid(parentUid);
+      // Walk up to find the containing page
+      let current: string | null = parentUid;
+      while (current) {
+        const pName = getPageNameByPageUid(current);
+        if (pName) { pageName = pName; break; }
+        current = getParentBlock(current);
+      }
+      positionContext = `under "${truncateText(parentContent || "", 50)}"${pageName ? ` on [[${pageName}]]` : ""}`;
+    }
+  }
+
   return {
     block_uid: uid,
     content: content?.substring(0, 100) || "(empty)",
     descendant_count: descendantCount,
+    page_name: pageName,
+    position_context: positionContext,
   };
 }
 

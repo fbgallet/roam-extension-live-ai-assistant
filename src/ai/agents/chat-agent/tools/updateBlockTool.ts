@@ -23,6 +23,7 @@ import {
   getParentBlock,
   getOrderedDirectChildren,
   getTreeByUid,
+  getPageNameByPageUid,
 } from "../../../../utils/roamAPI";
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
 
@@ -75,7 +76,8 @@ function getBlockPreviewState(blockUid: string): {
   // Get position context: parent + surrounding siblings
   const parentUid = getParentBlock(blockUid);
   if (parentUid) {
-    const parentContent = getBlockContentByUid(parentUid);
+    const parentPageName = getPageNameByPageUid(parentUid);
+    const parentContent = parentPageName ? null : getBlockContentByUid(parentUid);
     const siblings = getOrderedDirectChildren(parentUid);
     if (siblings) {
       const idx = siblings.findIndex(
@@ -89,7 +91,9 @@ function getBlockPreviewState(blockUid: string): {
         idx < siblings.length - 1
           ? siblings[idx + 1].string?.substring(0, 40)
           : null;
-      let ctx = `under "${parentContent?.substring(0, 50) || "(empty)"}"`;
+      let ctx = parentPageName
+        ? `top-level on [[${parentPageName}]]`
+        : `under "${parentContent?.substring(0, 50) || "(empty)"}"`;
       if (prev || next) {
         ctx += ` (between ${prev ? `"${prev}"` : "start"} | ${next ? `"${next}"` : "end"})`;
       }
@@ -120,6 +124,10 @@ function buildOperationPreview(
     block_uid: blockUid,
     current_content: state.current_content,
   };
+
+  if (state.position_context) {
+    preview.position_context = state.position_context;
+  }
 
   if (op.new_content !== undefined && op.new_content !== state.current_content) {
     preview.new_content = op.new_content;

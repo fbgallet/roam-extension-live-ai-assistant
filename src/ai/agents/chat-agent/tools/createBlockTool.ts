@@ -19,7 +19,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
-import { getBlockContentByUid, getOrderedDirectChildren, getParentBlock } from "../../../../utils/roamAPI";
+import { getBlockContentByUid, getOrderedDirectChildren, getParentBlock, getPageNameByPageUid } from "../../../../utils/roamAPI";
 
 /**
  * Truncate text to a maximum length, adding ellipsis if needed.
@@ -72,7 +72,7 @@ function getInsertionContext(parentUid: string, order: "first" | "last" | number
     : `- ${truncateText(parentContent, 80)}\n`;
 
   if (!children || children.length === 0) {
-    insertionPosition = "first child (no existing children)";
+    insertionPosition = isPage ? "top-level (no existing content)" : "first child (no existing children)";
     // Parent block with no children yet - marker goes right after parent
     if (isPage && !parentContent) {
       // Page with no children - just show marker at top level
@@ -81,7 +81,7 @@ function getInsertionContext(parentUid: string, order: "first" | "last" | number
       outlinePreview = `${parentLine}    ${markerLine(insertionPosition)}`;
     }
   } else if (order === "first") {
-    insertionPosition = "first child";
+    insertionPosition = isPage ? "top-level (first)" : "first child";
     siblingBelow = children[0]?.string ? truncateText(children[0].string, 50) : undefined;
     // Marker goes before first child
     if (isPage && !parentContent) {
@@ -90,7 +90,7 @@ function getInsertionContext(parentUid: string, order: "first" | "last" | number
       outlinePreview = `${parentLine}    ${markerLine(insertionPosition)}${siblingBelow ? `\n    - ${siblingBelow}` : ""}`;
     }
   } else if (order === "last") {
-    insertionPosition = "last child";
+    insertionPosition = isPage ? "top-level (last)" : "last child";
     const lastChild = children[children.length - 1];
     siblingAbove = lastChild?.string ? truncateText(lastChild.string, 50) : undefined;
     // Show parent with ellipsis and last child, then marker at the end
@@ -102,7 +102,7 @@ function getInsertionContext(parentUid: string, order: "first" | "last" | number
       outlinePreview = `${parentLine.trimEnd()}${ellipsis}${siblingAbove ? `\n    - ${siblingAbove}` : ""}\n    ${markerLine(insertionPosition)}`;
     }
   } else if (typeof order === "number") {
-    insertionPosition = `position ${order}`;
+    insertionPosition = isPage ? `top-level (position ${order})` : `position ${order}`;
     if (order > 0 && children[order - 1]) {
       siblingAbove = children[order - 1].string ? truncateText(children[order - 1].string, 50) : undefined;
     }
@@ -120,7 +120,7 @@ function getInsertionContext(parentUid: string, order: "first" | "last" | number
       outlinePreview = `${parentLine.trimEnd()}${beforeEllipsis}${siblingAbove ? `\n    - ${siblingAbove}` : ""}\n    ${markerLine(insertionPosition)}${siblingBelow ? `\n    - ${siblingBelow}` : ""}${afterEllipsis}`;
     }
   } else {
-    insertionPosition = "last child";
+    insertionPosition = isPage ? "top-level (last)" : "last child";
     if (isPage && !parentContent) {
       outlinePreview = markerLine(insertionPosition);
     } else {
@@ -220,6 +220,17 @@ export const createBlockTool = tool(
       // Get insertion context for UI display
       const insertionContext = getInsertionContext(targetUid, order, resolved.isPage);
 
+      // Determine the containing page for any target (walk up if needed)
+      let containingPageName = resolved.pageName;
+      if (!containingPageName && !resolved.isPage) {
+        let current: string | null = targetUid;
+        while (current) {
+          const pName = getPageNameByPageUid(current);
+          if (pName) { containingPageName = pName; break; }
+          current = getParentBlock(current);
+        }
+      }
+
       // Request confirmation from the user with rich context
       const confirmationResult = await toolConfirmationCallback({
         toolName: "create_block",
@@ -228,6 +239,7 @@ export const createBlockTool = tool(
           // For page targets, show page name; for blocks, show content + uid
           is_page: resolved.isPage,
           page_name: resolved.pageName,
+          containing_page_name: containingPageName,
           // Insertion context
           ...insertionContext,
           // Content to insert

@@ -1254,6 +1254,11 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                                 </span>
                               )}
                             </div>
+                            {!op.move_to && op.position_context && (
+                              <div className="tool-confirmation-diff-row tool-confirmation-diff-location">
+                                Location: {op.position_context}
+                              </div>
+                            )}
                             {op.new_content !== undefined && (
                               <div className="tool-confirmation-diff-row">
                                 <span className="tool-confirmation-diff-label">
@@ -1347,6 +1352,11 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                                 className="tool-confirmation-diff-context"
                               />
                             </div>
+                            {block.position_context && (
+                              <div className="tool-confirmation-diff-row tool-confirmation-diff-location">
+                                Location: {block.position_context}
+                              </div>
+                            )}
                             {block.descendant_count > 0 && (
                               <div className="tool-confirmation-diff-row tool-confirmation-diff-warning">
                                 + {block.descendant_count} descendant block(s)
@@ -1359,11 +1369,45 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     </div>
                   )}
 
-                {/* Preview for create_block */}
+                {/* Preview for create_block / create_page */}
                 {(pendingToolConfirmation.toolName === "create_block" ||
                   pendingToolConfirmation.toolName === "create_page") &&
                   pendingToolConfirmation.args?.markdown_content && (
                     <div className="tool-confirmation-preview">
+                      {/* Page context banner */}
+                      {pendingToolConfirmation.toolName === "create_page" &&
+                        pendingToolConfirmation.args?.page_title && (
+                          <div className="tool-confirmation-page-context">
+                            Creating new page{" "}
+                            <strong>
+                              [[{pendingToolConfirmation.args.page_title}]]
+                            </strong>
+                          </div>
+                        )}
+                      {pendingToolConfirmation.toolName === "create_block" &&
+                        (pendingToolConfirmation.args?.page_name ||
+                          pendingToolConfirmation.args
+                            ?.containing_page_name) && (
+                          <div className="tool-confirmation-page-context">
+                            {pendingToolConfirmation.args.is_page
+                              ? `Inserting ${
+                                  pendingToolConfirmation.args.insertion_position?.includes(
+                                    "top-level",
+                                  )
+                                    ? "at top-level of"
+                                    : "into"
+                                } page `
+                              : "On page "}
+                            <strong>
+                              [[
+                              {pendingToolConfirmation.args.page_name ||
+                                pendingToolConfirmation.args
+                                  .containing_page_name}
+                              ]]
+                            </strong>
+                          </div>
+                        )}
+
                       {/* Parent and insertion context with integrated marker */}
                       {pendingToolConfirmation.args.outline_preview && (
                         <div className="tool-confirmation-insertion-context">
