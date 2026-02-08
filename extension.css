@@ -2758,6 +2758,10 @@ h3.full-results-title.bp3-heading {
   flex: 1;
 }
 
+.full-results-chat-text.chat-query-content .rm-query.rm-full-width {
+  max-width: 100%;
+}
+
 /* Help message styling */
 .full-results-chat-help-avatar {
   font-size: 32px;

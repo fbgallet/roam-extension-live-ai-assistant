@@ -102,44 +102,7 @@ export const BUILTIN_COMMANDS = [
       chat: true,
     },
   },
-  {
-    id: 193,
-    name: "Export to PDF (with Claude)",
-    icon: "document",
-    category: "CREATION",
-    prompt: "Export to PDF",
-    includeUids: false,
-    isIncompatibleWith: {
-      outliner: true,
-      completion: true,
-    },
-  },
-  {
-    id: 192,
-    name: "Export to PDF — clean document (with Claude)",
-    icon: "document",
-    category: "CREATION",
-    prompt: "Export to PDF",
-    includeUids: false,
-    isIncompatibleWith: {
-      outliner: true,
-      chat: true,
-    },
-    submenu: [1920],
-  },
-  {
-    id: 1920,
-    name: "Export to PDF — outline (with Claude)",
-    icon: "document",
-    category: "CREATION",
-    prompt: "Export to PDF outline",
-    includeUids: false,
-    isSub: true,
-    isIncompatibleWith: {
-      outliner: true,
-      chat: true,
-    },
-  },
+
   // OUTLINER AGENT COMMANDS
   {
     id: 2,
@@ -582,6 +545,45 @@ export const BUILTIN_COMMANDS = [
     },
     target: "new w/o",
     isSub: true,
+  },
+
+  {
+    id: 192,
+    name: "Export to PDF — clean document (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to PDF",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+    submenu: [1920],
+  },
+  {
+    id: 1920,
+    name: "Export to PDF — outline (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to PDF outline",
+    includeUids: false,
+    isSub: true,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+  },
+  {
+    id: 193,
+    name: "Export to PDF (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to PDF",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      completion: true,
+    },
   },
 
   // REPHRASING

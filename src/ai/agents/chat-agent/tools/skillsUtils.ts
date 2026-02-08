@@ -16,9 +16,9 @@ import {
 import { embedRegex, strictPageRegex } from "../../../../utils/regex";
 import { getFlattenedContentFromTree } from "../../../dataExtraction";
 
-const DESCRIPTION_PREFIX_REGEX = /^Description::?\s*/i;
-const RESOURCE_PREFIX_REGEX = /^Resource::?\s*/i;
-const RECORDS_PREFIX_REGEX = /^Records?::?\s*/i;
+const DESCRIPTION_PREFIX_REGEX = /^\*{0,2}Description\*{0,2}::?\s*/i;
+const RESOURCE_PREFIX_REGEX = /^\*{0,2}Resources?\*{0,2}::?\s*/i;
+const RECORDS_PREFIX_REGEX = /^\*{0,2}Records?\*{0,2}::?\s*/i;
 
 export interface SkillInfo {
   name: string;

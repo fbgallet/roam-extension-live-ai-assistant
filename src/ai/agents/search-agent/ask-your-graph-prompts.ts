@@ -1310,12 +1310,14 @@ export const buildFinalResponseSystemPrompt = (
     isConversationMode?: boolean;
     conversationHistory?: any[];
     conversationSummary?: string;
-    permissions?: { contentAccess: boolean };
+    permissions?: { contentAccess: boolean; noTruncation?: boolean };
     privateMode?: boolean;
     isPopupExecution?: boolean;
   },
   securityMode: "private" | "balanced" | "full"
 ): string => {
+  const noTruncation = state.permissions?.noTruncation || false;
+
   // Direct chat mode - simple conversational prompt without complex result processing
   if (state.isDirectChat) {
     // Extract external context results if available
@@ -1324,7 +1326,8 @@ export const buildFinalResponseSystemPrompt = (
         ? `\n\nAVAILABLE SEARCH RESULTS:\n${extractResultDataForPrompt(
             state.resultStore,
             securityMode,
-            state.isPopupExecution
+            state.isPopupExecution,
+            noTruncation
           )}\n`
         : "";
 
@@ -1384,7 +1387,8 @@ STYLE: Natural dialogue - feel free to use phrases like "I can see in your resul
   const resultDataForPrompt = extractResultDataForPrompt(
     state.resultStore || {},
     securityMode,
-    state.isPopupExecution
+    state.isPopupExecution,
+    noTruncation
   );
 
   // Chat-friendly conversation context
@@ -1578,6 +1582,7 @@ export const buildCacheSystemPrompt = (
     resultStore?: Record<string, any>;
     isDirectChat?: boolean;
     isPopupExecution?: boolean;
+    permissions?: { contentAccess: boolean; noTruncation?: boolean };
   },
   cacheProcessorResponse: string,
   securityMode: "private" | "balanced" | "full"
@@ -1591,7 +1596,8 @@ AVAILABLE RESULT DATA:
 ${extractResultDataForPrompt(
   state.resultStore || {},
   securityMode,
-  state.isPopupExecution
+  state.isPopupExecution,
+  state.permissions?.noTruncation || false
 )}
 
 INSTRUCTIONS:
@@ -1611,7 +1617,8 @@ ${getFormattingInstructions(state.isDirectChat)}`;
 export const extractResultDataForPrompt = (
   resultStore: Record<string, any>,
   securityMode: "private" | "balanced" | "full",
-  isPopupExecution?: boolean
+  isPopupExecution?: boolean,
+  noTruncation: boolean = false
 ): string => {
   if (!resultStore || Object.keys(resultStore).length === 0) {
     return "No result data available.";
@@ -1853,7 +1860,13 @@ export const extractResultDataForPrompt = (
 
       case "full":
         // Complete data access for full analysis
-        if (data.length > 150) {
+        if (noTruncation) {
+          // No truncation: include all results without any limits
+          console.log(
+            `🎯 [ExtractResultData] Full mode + noTruncation: Including all ${data.length} results without truncation`
+          );
+          limitedData = data;
+        } else if (data.length > 150) {
           // Apply linear content truncation to stay under 200k chars
           console.log(
             `🎯 [ExtractResultData] Full mode: High result count (${data.length}), applying linear truncation (200k char limit)`

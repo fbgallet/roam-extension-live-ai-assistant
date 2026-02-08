@@ -42,6 +42,7 @@ export interface AskYourGraphParams {
   forcePrivacyMode?: "Private" | "Balanced" | "Full Access"; // For command menu forcing
   forceExpansionMode?: "always_fuzzy" | "always_synonyms" | "always_all"; // For command menu forcing
   forcePopupOnly?: boolean; // For command menu forcing popup-only results
+  noTruncation?: boolean; // Skip all adaptive truncation of context
 }
 
 // Main Ask your graph function with three-tier privacy system
@@ -58,6 +59,7 @@ export async function askYourGraph(params: AskYourGraphParams) {
     forcePrivacyMode, // For command menu forcing
     forceExpansionMode, // For command menu forcing
     forcePopupOnly = false, // For command menu forcing popup-only results
+    noTruncation = false, // Skip all adaptive truncation of context
   } = params;
 
   // If forcePrivacyMode is specified, use it as requestedMode
@@ -115,7 +117,7 @@ export async function askYourGraph(params: AskYourGraphParams) {
       // Full access: all tools available
       return await invokeSearchAgentFull({
         ...searchParams,
-        permissions: { contentAccess: true },
+        permissions: { contentAccess: true, noTruncation },
       });
 
     default:

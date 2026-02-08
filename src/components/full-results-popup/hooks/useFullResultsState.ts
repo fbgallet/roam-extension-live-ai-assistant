@@ -160,6 +160,9 @@ export const useFullResultsState = (
       ? "Balanced"
       : (defaultMode as "Balanced" | "Full Access");
   });
+  const [noTruncation, setNoTruncation] = useState<boolean>(() => {
+    return (window as any).lastNoTruncation || false;
+  });
   const [chatAgentData, setChatAgentData] = useState<any>(() => {
     return (window as any).lastChatAgentData || null;
   });
@@ -588,6 +591,7 @@ export const useFullResultsState = (
       (window as any).lastChatMessages = chatMessages;
       (window as any).lastChatAgentData = chatAgentData;
       (window as any).lastChatAccessMode = chatAccessMode;
+      (window as any).lastNoTruncation = noTruncation;
       // Note: Additional chat state (loadedChatUid, insertedMessagesCount, selectedModel)
       // is managed at the FullResultsChat level and should be persisted there
     } else {
@@ -1021,6 +1025,7 @@ export const useFullResultsState = (
     showChat,
     chatMessages,
     chatAccessMode,
+    noTruncation,
     chatAgentData,
     chatExpandedResults,
     contextTokenEstimate,
@@ -1062,6 +1067,7 @@ export const useFullResultsState = (
     setShowChat,
     setChatMessages,
     setChatAccessMode,
+    setNoTruncation,
     setChatAgentData,
     setChatExpandedResults,
     setContextTokenEstimate,

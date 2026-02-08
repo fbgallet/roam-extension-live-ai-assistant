@@ -10,6 +10,7 @@ import {
   Popover,
   Tooltip,
   Menu,
+  MenuDivider,
   MenuItem,
   Switch,
 } from "@blueprintjs/core";
@@ -46,6 +47,8 @@ interface ChatInputAreaProps {
   isTyping: boolean;
   chatAccessMode: "Balanced" | "Full Access";
   onAccessModeChange: (mode: "Balanced" | "Full Access") => void;
+  noTruncation?: boolean;
+  onNoTruncationChange?: (value: boolean) => void;
   chatMode: ChatMode;
   onChatModeChange: (mode: ChatMode) => void;
   selectedModel: string;
@@ -54,7 +57,7 @@ interface ChatInputAreaProps {
   onCommandSelect: (
     command: any,
     isFromSlashCommand?: boolean,
-    instantModel?: string
+    instantModel?: string,
   ) => void;
   availablePages: string[];
   isLoadingPages: boolean;
@@ -78,6 +81,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   isTyping,
   chatAccessMode,
   onAccessModeChange,
+  noTruncation = false,
+  onNoTruncationChange,
   chatMode,
   onChatModeChange,
   selectedModel,
@@ -133,7 +138,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const handleCommandSelect = (
     command: any,
     fromSlash: boolean = false,
-    instantModel: string = ""
+    instantModel: string = "",
   ) => {
     onCommandSelect(command, fromSlash, instantModel);
     setIsCommandSuggestOpen(false);
@@ -198,7 +203,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       // The query is only the NEW characters typed after the slash (not pre-existing text)
       const queryText = value.substring(
         slashStartIndex + 1,
-        slashStartIndex + 1 + newCharsCount
+        slashStartIndex + 1 + newCharsCount,
       );
 
       // Check if a space was typed in the query
@@ -471,7 +476,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   // Handle microphone button click - trigger VoiceRecorder
   const handleMicClick = () => {
     const recordButton = document.querySelector(
-      ".speech-record-button"
+      ".speech-record-button",
     ) as HTMLElement;
     if (recordButton) {
       recordButton.click();
@@ -481,7 +486,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   // Handle transcribe click during recording
   const handleTranscribeClick = () => {
     const transcribeButton = document.querySelector(
-      ".speech-transcribe"
+      ".speech-transcribe",
     ) as HTMLElement;
     if (transcribeButton) {
       // Mark that we're in chat mode for VoiceRecorder to detect
@@ -522,6 +527,54 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                       setIsAccessModeMenuOpen(false);
                     }}
                   />
+                  {onNoTruncationChange && (
+                    <>
+                      <MenuDivider />
+                      <Tooltip
+                        content={
+                          <span style={{ maxWidth: 220, display: "block" }}>
+                            {chatAccessMode === "Balanced" ? (
+                              "No truncation is only available in Full Access mode."
+                            ) : (
+                              <>
+                                By default, context is adaptively truncated to
+                                manage costs, depending on the model's context
+                                window and context length.
+                                <br />
+                                <br />
+                                Enable to send full context without any
+                                truncation.
+                              </>
+                            )}
+                          </span>
+                        }
+                        placement="left"
+                        openOnTargetFocus={false}
+                      >
+                        <div>
+                          <MenuItem
+                            disabled={chatAccessMode === "Balanced"}
+                            text={
+                              <Switch
+                                checked={
+                                  chatAccessMode === "Full Access" &&
+                                  noTruncation
+                                }
+                                disabled={chatAccessMode === "Balanced"}
+                                label="No truncation"
+                                onChange={() =>
+                                  onNoTruncationChange(!noTruncation)
+                                }
+                                alignIndicator="right"
+                                style={{ marginBottom: 0, fontSize: "12px" }}
+                              />
+                            }
+                            shouldDismissPopover={false}
+                          />
+                        </div>
+                      </Tooltip>
+                    </>
+                  )}
                 </Menu>
               }
               placement="top"
@@ -529,7 +582,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               <Button
                 minimal
                 small
-                text={chatAccessMode === "Balanced" ? "🛡️" : "🔓"}
+                text={
+                  chatAccessMode === "Balanced"
+                    ? "🛡️"
+                    : noTruncation
+                      ? "🔓∞"
+                      : "🔓"
+                }
               />
             </Popover>
           </div>
@@ -649,13 +708,17 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     if (slashCommandMode && slashStartIndex !== -1) {
                       const beforeSlash = chatInput.substring(
                         0,
-                        slashStartIndex
+                        slashStartIndex,
                       );
                       // Find the end of the slash command (first space after slash, or end of string)
-                      const afterSlash = chatInput.substring(slashStartIndex + 1);
+                      const afterSlash = chatInput.substring(
+                        slashStartIndex + 1,
+                      );
                       const spaceIndex = afterSlash.indexOf(" ");
                       const slashCommandEnd =
-                        slashStartIndex + 1 + (spaceIndex === -1 ? afterSlash.length : spaceIndex);
+                        slashStartIndex +
+                        1 +
+                        (spaceIndex === -1 ? afterSlash.length : spaceIndex);
                       const afterSlashCommand =
                         chatInput.substring(slashCommandEnd);
                       // Combine before and after, trimming any extra space at the junction
@@ -840,7 +903,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     const afterSlash = chatInput.substring(slashStartIndex + 1);
                     const spaceIndex = afterSlash.indexOf(" ");
                     const slashCommandEnd =
-                      slashStartIndex + 1 + (spaceIndex === -1 ? afterSlash.length : spaceIndex);
+                      slashStartIndex +
+                      1 +
+                      (spaceIndex === -1 ? afterSlash.length : spaceIndex);
                     const afterSlashCommand =
                       chatInput.substring(slashCommandEnd);
                     const newInput = (

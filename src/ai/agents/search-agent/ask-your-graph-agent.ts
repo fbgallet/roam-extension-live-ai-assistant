@@ -93,7 +93,7 @@ const ReactSearchAgentState = Annotation.Root({
   isDirectChat: Annotation<boolean>,
   chatSystemPrompt: Annotation<string | undefined>,
   // Permissions
-  permissions: Annotation<{ contentAccess: boolean }>,
+  permissions: Annotation<{ contentAccess: boolean; noTruncation?: boolean }>,
   privateMode: Annotation<boolean>, // Strict Private mode - only UIDs, no content processing
   // Results tracking and caching (following MCP agent pattern)
   toolResults: Annotation<Record<string, any>>,
@@ -1461,10 +1461,12 @@ ${
             parsed.data.length > 0
           ) {
             // Apply intermediate content truncation for full mode
+            const noTruncation = state.permissions?.noTruncation || false;
             const truncatedData = applyIntermediateContentTruncation(
               parsed.data,
               50000,
-            ); // 50k char limit for intermediate processing
+              noTruncation,
+            ); // 50k char limit for intermediate processing (skipped if noTruncation)
             const truncatedContent = JSON.stringify({
               ...parsed,
               data: truncatedData,
@@ -2308,13 +2310,16 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     ? (modelAccordingToProvider(state.model.id) as any).tokensLimit || 32000
     : 32000;
 
-  const expansionBudget =
-    accessMode === "Full Access"
+  const noTruncation = state.permissions?.noTruncation || false;
+
+  const expansionBudget = noTruncation
+    ? Number.MAX_SAFE_INTEGER
+    : accessMode === "Full Access"
       ? modelTokensLimit * 3.8
       : modelTokensLimit * 2; //  ~90% context window vs ~50% context window
 
   console.log(
-    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}, mode: ${mode}, accessMode: ${accessMode}`,
+    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}, mode: ${mode}, accessMode: ${accessMode}, noTruncation: ${noTruncation}`,
   );
   console.log(
     `🌳 [ContextExpansion] About to expand ${resultCount} results (${
@@ -2328,6 +2333,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     expansionBudget,
     currentContentLength,
     accessMode,
+    noTruncation,
   );
 
   console.log(

@@ -9,8 +9,16 @@
  */
 export const applyLinearContentTruncation = (
   data: any[],
-  targetCharLimit: number
+  targetCharLimit: number,
+  noTruncation: boolean = false
 ): any[] => {
+  if (noTruncation) {
+    console.log(
+      `🎯 [LinearTruncation] noTruncation enabled, skipping truncation for ${data.length} results`
+    );
+    return data;
+  }
+
   console.log(
     `🎯 [LinearTruncation] Starting with ${data.length} results, target limit: ${targetCharLimit} chars`
   );
@@ -88,8 +96,16 @@ export const applyLinearContentTruncation = (
  */
 export const applyIntermediateContentTruncation = (
   data: any[],
-  targetCharLimit: number = 50000 // Default 50k chars for intermediate processing
+  targetCharLimit: number = 50000, // Default 50k chars for intermediate processing
+  noTruncation: boolean = false
 ): any[] => {
+  if (noTruncation) {
+    console.log(
+      `🎯 [IntermediateTruncation] noTruncation enabled, skipping truncation for ${data.length} results`
+    );
+    return data;
+  }
+
   console.log(
     `🎯 [IntermediateTruncation] Starting with ${data.length} results, target limit: ${targetCharLimit} chars`
   );

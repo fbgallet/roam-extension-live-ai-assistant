@@ -31,6 +31,10 @@ export interface ChatMessage {
   }>;
   roamBlockUid?: string; // UID of this message's block in Roam (if saved)
   isTemporaryBlock?: boolean; // True if block was created just for editing
+  // Query-specific fields (for NL query command results)
+  queryContent?: string; // The generated query string ({{query:...}} or :q [...])
+  queryType?: "roam" | "datomic"; // Type of query
+  queryResultCount?: number; // Number of results from executing the query
 }
 
 export interface FullResultsPopupProps {

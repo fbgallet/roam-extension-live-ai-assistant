@@ -273,6 +273,47 @@ builder
 // Compile graph
 export const NLDatomicQueryInterpreter = builder.compile();
 
+// Chat-mode graph: same pipeline but WITHOUT insertQuery (returns query string only)
+const chatBuilder = new StateGraph(QueryAgentState);
+chatBuilder
+  .addNode("loadModel", loadModel)
+  .addNode("interpreter", interpreter)
+  .addNode("checker", formatChecker)
+  .addEdge(START, "loadModel")
+  .addEdge("loadModel", "interpreter")
+  .addEdge("interpreter", "checker")
+  .addEdge("checker", "__end__");
+
+export const NLDatomicQueryInterpreterChatMode = chatBuilder.compile();
+
+// Chat-friendly invocation: returns query string without writing to blocks
+export const generateNLDatomicQuery = async ({
+  model = defaultModel,
+  prompt,
+  rootUid,
+  previousResponse,
+}: {
+  model: string;
+  prompt: string;
+  rootUid?: string;
+  previousResponse?: string;
+}): Promise<{ datomicQuery: string } | null> => {
+  const llmModel: LlmInfos = modelAccordingToProvider(model || defaultModel);
+  // Add restriction for chat mode: the query will be executed programmatically,
+  // so Roam-specific variables and rules are not available
+  const chatPrompt = `${prompt}\n\nIMPORTANT: Don't use Roam-specific database variables (current/*, ms/*, dnp/*) or Roam-specific rules (refs-page, created-by, edited-by, created-between, etc.). Use only pure standard Datomic syntax with direct attribute comparisons.`;
+  const response = await NLDatomicQueryInterpreterChatMode.invoke({
+    model: llmModel,
+    rootUid: rootUid || "",
+    userNLQuery: chatPrompt,
+    datomicQuery: previousResponse || "",
+  });
+  if (response?.datomicQuery) {
+    return { datomicQuery: response.datomicQuery };
+  }
+  return null;
+};
+
 interface AgentInvoker {
   model: string;
   rootUid: string;

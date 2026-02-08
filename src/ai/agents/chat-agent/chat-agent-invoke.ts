@@ -38,7 +38,7 @@ export interface ChatAgentOptions {
   isAgentMode?: boolean;
 
   // Permissions
-  permissions?: { contentAccess: boolean };
+  permissions?: { contentAccess: boolean; noTruncation?: boolean };
 
   // Streaming
   streamingCallback?: (content: string) => void;

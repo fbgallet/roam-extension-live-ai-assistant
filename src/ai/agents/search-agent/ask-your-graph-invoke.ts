@@ -35,7 +35,7 @@ interface SearchAgentInvoker {
   target?: string;
   prompt: string;
   // Search permissions
-  permissions?: { contentAccess: boolean };
+  permissions?: { contentAccess: boolean; noTruncation?: boolean };
   privateMode?: boolean; // Strict Private mode - only UIDs, no content processing
   // Conversation state for continuing conversations
   agentData?: {
@@ -1210,7 +1210,7 @@ interface AgentInvoker {
   previousAgentState?: any;
   onlySearch?: boolean;
   options?: any;
-  permissions?: { contentAccess: boolean };
+  permissions?: { contentAccess: boolean; noTruncation?: boolean };
   privateMode?: boolean;
   isDirectChat?: boolean; // For chat mode to bypass RequestAnalyzer
   isPopupExecution?: boolean; // For popup execution mode

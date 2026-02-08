@@ -27,7 +27,8 @@ export async function performAdaptiveExpansion(
   results: any[],
   charLimit: number,
   currentContentLength: number,
-  accessMode?: string
+  accessMode?: string,
+  noTruncation: boolean = false
 ): Promise<any[]> {
   if (!results || results.length === 0) return [];
 
@@ -52,11 +53,14 @@ export async function performAdaptiveExpansion(
   const availableBudget = Math.max(0, charLimit - currentContentLength);
 
   // Use smaller budget between available and access mode limit
-  const modeBudget =
-    accessMode === "Full Access"
+  const modeBudget = noTruncation
+    ? Number.MAX_SAFE_INTEGER
+    : accessMode === "Full Access"
       ? EXPANSION_BUDGETS.full
       : EXPANSION_BUDGETS.balanced;
-  const expansionBudget = Math.min(availableBudget, modeBudget);
+  const expansionBudget = noTruncation
+    ? Number.MAX_SAFE_INTEGER
+    : Math.min(availableBudget, modeBudget);
 
   console.log(`🌳 [AdaptiveExpansion] Budget calculation:`, {
     charLimit,
@@ -101,7 +105,8 @@ export async function performAdaptiveExpansion(
       [...blocks],
       hierarchyData,
       expansionBudget,
-      accessMode
+      accessMode,
+      noTruncation
     );
     expandedResults.push(...expandedBlocks);
   }
@@ -119,7 +124,8 @@ export async function performAdaptiveExpansion(
   // Apply intelligent truncation based on budget
   const finalExpandedBlocks = applyIntelligentTruncation(
     expandedResults,
-    expansionBudget
+    expansionBudget,
+    noTruncation
   );
 
   console.log(
@@ -213,7 +219,8 @@ async function createExpandedBlocks(
   originalResults: any[],
   hierarchyData: any[],
   budget: number,
-  accessMode?: string
+  accessMode?: string,
+  noTruncation: boolean = false
 ): Promise<any[]> {
   const expandedBlocks: any[] = [];
 
@@ -332,14 +339,19 @@ async function createExpandedBlocks(
               result.uid,
               availableBudgetForChildren,
               maxDepth,
-              resultCount // Pass result count for degressive content limits
+              resultCount, // Pass result count for degressive content limits
+              1, // currentLevel
+              "  ", // indent
+              false, // isPageExpansion
+              noTruncation
             )
           : ""; // No children expansion for >150 results
 
       // Stringify the expanded block
       const stringifiedBlock = stringifyExpandedBlock(
         expandedBlock,
-        budgetPerResult
+        budgetPerResult,
+        noTruncation
       );
 
       expandedBlocks.push({
@@ -489,7 +501,8 @@ async function buildRecursiveChildrenOutline(
   resultCount: number = 50, // Total result count for degressive limits
   currentLevel: number = 1,
   indent: string = "  ",
-  isPageExpansion: boolean = false // If true, use full content limits for pages
+  isPageExpansion: boolean = false, // If true, use full content limits for pages
+  noTruncation: boolean = false
 ): Promise<string> {
   if (currentLevel > maxDepth) return ""; // Only check depth, not budget yet
 
@@ -547,7 +560,8 @@ async function buildRecursiveChildrenOutline(
           resultCount,
           currentLevel + 1,
           indent + "  ", // Increase indentation
-          isPageExpansion
+          isPageExpansion,
+          noTruncation
         );
 
         if (nestedOutline) {
@@ -561,7 +575,7 @@ async function buildRecursiveChildrenOutline(
     // NOW check if we need to truncate based on budget
     // For pages: no truncation unless budget is explicitly exceeded
     // For blocks: truncate if we exceed budget
-    if (!isPageExpansion && fullContent.length > budget && budget > 0) {
+    if (!noTruncation && !isPageExpansion && fullContent.length > budget && budget > 0) {
       // Need to truncate - apply intelligent truncation
       const truncatedContent = fullContent.substring(0, budget) + "\n    ...[content truncated to fit budget]";
       console.log(
@@ -582,7 +596,8 @@ async function buildRecursiveChildrenOutline(
  */
 function stringifyExpandedBlock(
   expandedBlock: any,
-  budgetLimit: number
+  budgetLimit: number,
+  noTruncation: boolean = false
 ): string {
   const parts: string[] = [];
 
@@ -592,6 +607,17 @@ function stringifyExpandedBlock(
   }
 
   // Page title is already shown by extraction function as "(in [[PageTitle]])", so skip it to avoid duplication
+
+  if (noTruncation) {
+    // No truncation: include parent and children as-is
+    if (expandedBlock.parent) {
+      parts.push(`Parent: ${expandedBlock.parent}`);
+    }
+    if (expandedBlock.childrenOutline) {
+      parts.push(`Children:\n${expandedBlock.childrenOutline}`);
+    }
+    return parts.join("\n");
+  }
 
   // Calculate remaining budget after original content + fixed elements
   const fixedContentLength = expandedBlock.original.length + 30; // +30 for labels (no UID or page title in output now)
@@ -636,8 +662,16 @@ function stringifyExpandedBlock(
  */
 function applyIntelligentTruncation(
   expandedBlocks: any[],
-  totalBudget: number
+  totalBudget: number,
+  noTruncation: boolean = false
 ): any[] {
+  if (noTruncation) {
+    console.log(
+      `🌳 [IntelligentTruncation] noTruncation enabled, skipping truncation for ${expandedBlocks.length} blocks`
+    );
+    return expandedBlocks;
+  }
+
   // Separate pages from blocks
   const pages = expandedBlocks.filter((item) => item.isPage === true || item.metadata?.isPage === true);
   const blocks = expandedBlocks.filter((item) => !(item.isPage === true || item.metadata?.isPage === true));

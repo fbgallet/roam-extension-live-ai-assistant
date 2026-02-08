@@ -271,6 +271,48 @@ builder
 // Compile graph
 export const NLQueryInterpreter = builder.compile();
 
+// Chat-mode graph: same pipeline but WITHOUT insertQuery (returns query string only)
+const chatBuilder = new StateGraph(QueryAgentState);
+chatBuilder
+  .addNode("loadModel", loadModel)
+  .addNode("interpreter", interpreter)
+  .addNode("checker", formatChecker)
+  .addNode("periodFormater", periodFormater)
+  .addEdge(START, "loadModel")
+  .addEdge("loadModel", "interpreter")
+  .addEdge("interpreter", "checker")
+  .addConditionalEdges("checker", (state: typeof QueryAgentState.State) =>
+    state.period ? "periodFormater" : "__end__"
+  )
+  .addEdge("periodFormater", "__end__");
+
+export const NLQueryInterpreterChatMode = chatBuilder.compile();
+
+// Chat-friendly invocation: returns query string without writing to blocks
+export const generateNLQuery = async ({
+  model = defaultModel,
+  prompt,
+  rootUid,
+  previousResponse,
+}: {
+  model: string;
+  prompt: string;
+  rootUid?: string;
+  previousResponse?: string;
+}): Promise<{ roamQuery: string } | null> => {
+  const llmInfos: LlmInfos = modelAccordingToProvider(model);
+  const response = await NLQueryInterpreterChatMode.invoke({
+    model: llmInfos,
+    rootUid: rootUid || "",
+    userNLQuery: prompt,
+    roamQuery: previousResponse || "",
+  });
+  if (response?.roamQuery) {
+    return { roamQuery: response.roamQuery };
+  }
+  return null;
+};
+
 interface AgentInvoker {
   model: string;
   rootUid: string;

@@ -28,6 +28,13 @@ const containsKaTeX = (content: string): boolean => {
   return /\$\$.+?\$\$/s.test(content);
 };
 
+// Helper function to detect if content contains Roam queries
+const containsRoamQuery = (content: string): boolean => {
+  return (
+    /\{\{\s*(\[\[query\]\]|query)\s*:/i.test(content) || /^:q\s/m.test(content.trim())
+  );
+};
+
 // Helper component to render message content with KaTeX formulas
 // Renders markdown structure normally, but uses Roam API for KaTeX formulas
 const MessageContent: React.FC<{ content: string; className?: string }> = ({
@@ -42,11 +49,54 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
     // Check if content has special Roam elements that need renderString
     const hasRoamElements =
       containsKaTeX(content) ||
+      containsRoamQuery(content) ||
       /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/i.test(
         content,
       );
 
     if (hasRoamElements) {
+      // If the entire content is a query, render appropriately
+      if (containsRoamQuery(content)) {
+        const trimmed = content.trim();
+        if (
+          trimmed.startsWith("{{query:") ||
+          trimmed.startsWith("{{[[query]]")
+        ) {
+          // Native Roam queries: render with renderString for live display
+          containerRef.current.innerHTML = "";
+          try {
+            (window as any).roamAlphaAPI?.ui.components.renderString({
+              el: containerRef.current,
+              string: content,
+            });
+          } catch (error) {
+            // Fallback to code block if renderString fails synchronously
+            const pre = document.createElement("pre");
+            pre.style.margin = "0";
+            pre.style.whiteSpace = "pre-wrap";
+            pre.style.wordBreak = "break-word";
+            const code = document.createElement("code");
+            code.textContent = content;
+            pre.appendChild(code);
+            containerRef.current.innerHTML = "";
+            containerRef.current.appendChild(pre);
+          }
+          return;
+        } else if (trimmed.startsWith(":q ")) {
+          // Datomic :q queries: render as formatted code block
+          // (renderString cannot handle :q queries and causes internal Roam errors)
+          const pre = document.createElement("pre");
+          pre.style.margin = "0";
+          pre.style.whiteSpace = "pre-wrap";
+          pre.style.wordBreak = "break-word";
+          const code = document.createElement("code");
+          code.textContent = content;
+          pre.appendChild(code);
+          containerRef.current.innerHTML = "";
+          containerRef.current.appendChild(pre);
+          return;
+        }
+      }
       // First, render the markdown structure normally
       containerRef.current.innerHTML = renderMarkdown(content);
 
@@ -989,6 +1039,31 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                       />
                     )}
                     {renderHelpButtons(message.helpType)}
+                  </div>
+                ) : message.queryContent ? (
+                  // Query result message with badge
+                  <div className="chat-query-result-wrapper">
+                    <div className="chat-query-badge">
+                      <Icon icon="search" size={12} />
+                      <span>
+                        {message.queryType === "roam"
+                          ? "Roam Query"
+                          : "Datomic Query"}
+                      </span>
+                      {message.queryResultCount !== undefined && (
+                        <span className="chat-query-result-count">
+                          {message.queryResultCount} result
+                          {message.queryResultCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <pre className="chat-query-code-block"><code>{displayContent}</code></pre>
+                    {message.queryType === "roam" && (
+                      <MessageContent
+                        content={displayContent}
+                        className="full-results-chat-text chat-query-content"
+                      />
+                    )}
                   </div>
                 ) : (
                   // Regular message

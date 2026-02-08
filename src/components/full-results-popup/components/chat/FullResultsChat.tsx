@@ -12,6 +12,7 @@ import {
 import {
   getBlockContentByUid,
   getPageUidByPageName,
+  getPageNameByPageUid,
   insertBlockInCurrentView,
   createChildBlock,
   createSiblingBlock,
@@ -46,6 +47,8 @@ import {
   cleanupTemporaryBlock,
   getFirstChildBlockUid,
 } from "../../utils/chatEditUtils";
+import { generateNLQuery } from "../../../../ai/agents/nl-query";
+import { generateNLDatomicQuery } from "../../../../ai/agents/nl-datomic-query";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -62,6 +65,8 @@ interface FullResultsChatProps {
   ) => void;
   chatAccessMode: "Balanced" | "Full Access";
   setChatAccessMode: (mode: "Balanced" | "Full Access") => void;
+  noTruncation: boolean;
+  setNoTruncation: (value: boolean) => void;
   chatAgentData: any;
   setChatAgentData: (data: any) => void;
   chatExpandedResults: Result[] | null;
@@ -117,6 +122,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   setChatMessages,
   chatAccessMode,
   setChatAccessMode,
+  noTruncation,
+  setNoTruncation,
   chatAgentData,
   setChatAgentData,
   chatExpandedResults,
@@ -2108,16 +2115,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Execute the command immediately
     try {
-      const contextResults = getSelectedResultsForChat();
+      // Special handling for NL Query commands (id 80, 81)
+      // These use dedicated NL interpreters instead of the chat agent
+      if (command.id === 80 || command.id === 81) {
+        await processNLQueryCommand(
+          contentToProcess,
+          command.id === 80 ? "roam" : "datomic",
+        );
+      } else {
+        const contextResults = getSelectedResultsForChat();
 
-      await processChatMessageWithCommand(
-        contentToProcess, // The actual user input content (or empty if analyzing results)
-        contextResults,
-        command.prompt, // The command prompt key (e.g., "summarize")
-        command.name,
-        instantModel,
-        selectedStyle, // Pass the selected style
-      );
+        await processChatMessageWithCommand(
+          contentToProcess, // The actual user input content (or empty if analyzing results)
+          contextResults,
+          command.prompt, // The command prompt key (e.g., "summarize")
+          command.name,
+          instantModel,
+          selectedStyle, // Pass the selected style
+        );
+      }
     } catch (error) {
       console.error("Error executing command:", error);
       const errorMessage: ChatMessage = {
@@ -2217,6 +2233,297 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Otherwise, append the new message
       return [...prev, assistantMessage];
     });
+  };
+
+  /**
+   * Process a Natural Language Query command in chat.
+   * 1. Calls the NL interpreter to generate a query from the user's natural language
+   * 2. Displays the generated query as an assistant message (rendered with renderString)
+   * 3. Executes the query to get results
+   * 4. Adds results to the chat context for follow-up questions
+   */
+  const processNLQueryCommand = async (
+    userInput: string,
+    queryType: "roam" | "datomic",
+  ) => {
+    if (!userInput.trim()) {
+      const errorMessage: ChatMessage = {
+        role: "assistant",
+        content:
+          "Please provide a natural language description of what you want to query.",
+        timestamp: new Date(),
+      };
+      setChatMessages((prev) => [...prev, errorMessage]);
+      return;
+    }
+
+    try {
+      // Phase 1: Generate the query using the NL interpreter
+      let queryString: string | null = null;
+
+      if (queryType === "roam") {
+        const result = await generateNLQuery({
+          model: selectedModel,
+          prompt: userInput,
+        });
+        if (result) {
+          queryString = result.roamQuery;
+        }
+      } else {
+        const result = await generateNLDatomicQuery({
+          model: selectedModel,
+          prompt: userInput,
+        });
+        if (result && result.datomicQuery) {
+          // Extract just the Datomic query part (the LLM might include description)
+          let query = result.datomicQuery.trim();
+
+          // Remove :q prefix if present to clean the text
+          if (query.startsWith(":q")) {
+            query = query.substring(2).trim();
+          }
+
+          // Extract the actual query (starts with [:find)
+          const queryMatch = query.match(/(\[:find[\s\S]*\])/);
+          if (queryMatch) {
+            query = queryMatch[1];
+          }
+
+          // Add :q prefix for display
+          queryString = `:q ${query}`;
+        }
+      }
+
+      if (!queryString) {
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "Failed to generate a query from your description. Please try rephrasing.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+        return;
+      }
+
+      // Phase 2: Execute the query and load results
+      let queryResults: Result[] = [];
+
+      try {
+        if (queryType === "roam") {
+          queryResults = await executeRoamNativeQuery(queryString);
+        } else {
+          queryResults = await executeChatDatomicQuery(queryString);
+        }
+      } catch (executionError: any) {
+        console.error("Query execution error:", executionError);
+
+        // Still show the query that was generated
+        const assistantMessage: ChatMessage = {
+          role: "assistant",
+          content: queryString,
+          timestamp: new Date(),
+          queryContent: queryString,
+          queryType: queryType,
+          queryResultCount: 0,
+        };
+        setChatMessages((prev) => [...prev, assistantMessage]);
+
+        // Show error message
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content: `❌ **Query execution failed:** ${executionError.message || "Unknown error"}\n\nPlease try rephrasing your query or check the generated query syntax.`,
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+        return;
+      }
+
+      // Phase 3: Create assistant message with query content
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: queryString,
+        timestamp: new Date(),
+        queryContent: queryString,
+        queryType: queryType,
+        queryResultCount: queryResults.length,
+      };
+      setChatMessages((prev) => [...prev, assistantMessage]);
+
+      // Phase 4: Add results to context
+      if (queryResults.length > 0) {
+        console.log(`📊 [NLQuery] Adding ${queryResults.length} results to context:`, queryResults.slice(0, 3));
+        onAddResults(queryResults);
+
+        const contextMessage: ChatMessage = {
+          role: "assistant",
+          content: `Found **${queryResults.length} result${queryResults.length !== 1 ? "s" : ""}**. The results have been loaded into the chat context. You can now ask follow-up questions about them.`,
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, contextMessage]);
+      } else {
+        const noResultsMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "The query returned no results. Try modifying your query description.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, noResultsMessage]);
+      }
+    } catch (error) {
+      console.error(`Error in NL ${queryType} query:`, error);
+      throw error;
+    }
+  };
+
+  /**
+   * Execute a native Roam query using the roamQuery API with the query property directly.
+   * Extracts the query content from {{[[query]]: ...}} wrapper and passes it to the API.
+   */
+  const executeRoamNativeQuery = async (
+    queryString: string,
+  ): Promise<Result[]> => {
+    // Extract the query content from {{[[query]]: ...}} or {{query: ...}} wrapper
+    let queryContent = queryString.trim();
+    const match = queryContent.match(
+      /\{\{\s*(?:\[\[query\]\]|query)\s*:\s*([\s\S]*)\}\}$/,
+    );
+    if (match) {
+      queryContent = match[1].trim();
+    }
+
+    if (!queryContent) return [];
+
+    console.log("📊 [NLQuery] Executing with query property:", queryContent);
+
+    try {
+      const queryResponse = await (
+        window as any
+      ).roamAlphaAPI.data.roamQuery({
+        query: queryContent,
+        limit: null,
+      });
+
+      console.log("📊 [NLQuery] roamQuery response:", queryResponse);
+
+      const queryResults = queryResponse?.results;
+      if (!queryResults || !Array.isArray(queryResults) || queryResults.length === 0) {
+        console.warn("📊 [NLQuery] No results returned");
+        return [];
+      }
+
+      console.log(`📊 [NLQuery] Processing ${queryResults.length} raw results`);
+
+      const results: Result[] = [];
+      for (const result of queryResults) {
+        const resultUid = result?.[":block/uid"];
+        if (!resultUid) continue;
+
+        const blockData = (window as any).roamAlphaAPI.pull(
+          "[:block/uid :block/string :block/page {:block/page [:block/uid :node/title]}]",
+          [":block/uid", resultUid],
+        );
+        if (blockData) {
+          const pageInfo = blockData[":block/page"];
+          results.push({
+            uid: resultUid,
+            content: blockData[":block/string"] || "",
+            text: blockData[":block/string"] || "",
+            pageUid: pageInfo?.[":block/uid"] || "",
+            pageTitle: pageInfo?.[":node/title"] || "",
+          });
+        }
+      }
+      console.log(`📊 [NLQuery] Returning ${results.length} processed results`);
+      return results;
+    } catch (error) {
+      console.error("📊 [NLQuery] Query execution failed:", error);
+      throw error;
+    }
+  };
+
+  /**
+   * Execute a Datomic :q query directly using roamAlphaAPI.q()
+   * Extracts block UIDs from the query results.
+   */
+  const executeChatDatomicQuery = async (
+    queryString: string,
+  ): Promise<Result[]> => {
+    try {
+      // Strip the :q prefix if present
+      let cleanQuery = queryString?.trim() || "";
+      if (!cleanQuery) {
+        throw new Error("Empty query string");
+      }
+
+      if (cleanQuery.startsWith(":q")) {
+        cleanQuery = cleanQuery.substring(2).trim();
+      }
+
+      // Extract just the Datomic query part (starts with [:find)
+      // The LLM might include description text before the query
+      const queryMatch = cleanQuery.match(/(\[:find[\s\S]*\])/);
+      if (queryMatch) {
+        cleanQuery = queryMatch[1];
+      } else {
+        throw new Error("Could not find valid Datomic query pattern [:find ...]");
+      }
+
+      console.log("Executing Datomic query:", cleanQuery);
+
+      let rawResults;
+      try {
+        rawResults = (window as any).roamAlphaAPI.q(cleanQuery);
+      } catch (queryError) {
+        console.error("Datomic query execution error:", queryError);
+        throw new Error(`Query execution failed: ${queryError.message || "Unknown error"}`);
+      }
+
+      if (!rawResults || !Array.isArray(rawResults)) {
+        console.warn("Query returned no results or invalid format");
+        return [];
+      }
+
+      console.log(`Query returned ${rawResults.length} rows`);
+
+      if (rawResults.length === 0) {
+        return [];
+      }
+
+      const results: Result[] = [];
+      const seenUids = new Set<string>();
+
+      for (const row of rawResults) {
+        // Each row is an array; look for UIDs (9-character alphanumeric strings)
+        const cells = Array.isArray(row) ? row : [row];
+        for (const cell of cells) {
+          const uid =
+            typeof cell === "string" && /^[a-zA-Z0-9_-]{9}$/.test(cell)
+              ? cell
+              : null;
+          if (uid && !seenUids.has(uid)) {
+            seenUids.add(uid);
+            const blockData = (window as any).roamAlphaAPI.pull(
+              "[:block/uid :block/string :block/page {:block/page [:block/uid :node/title]}]",
+              [":block/uid", uid],
+            );
+            if (blockData) {
+              const pageInfo = blockData[":block/page"];
+              results.push({
+                uid,
+                content: blockData[":block/string"] || "",
+                text: blockData[":block/string"] || "",
+                pageUid: pageInfo?.[":block/uid"] || "",
+                pageTitle: pageInfo?.[":node/title"] || "",
+              });
+            }
+          }
+        }
+      }
+      return results;
+    } catch (error) {
+      console.warn("Failed to execute Datomic query:", error);
+      return [];
+    }
   };
 
   const processChatMessage = async (
@@ -2332,7 +2639,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isAgentMode: chatMode === "agent",
 
         // Permissions
-        permissions: { contentAccess: chatAccessMode === "Full Access" },
+        permissions: { contentAccess: chatAccessMode === "Full Access", noTruncation },
 
         // Conversation state from previous turns
         conversationHistory: currentConversationHistory,
@@ -2934,6 +3241,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isTyping={isTyping}
         chatAccessMode={chatAccessMode}
         onAccessModeChange={setChatAccessMode}
+        noTruncation={noTruncation}
+        onNoTruncationChange={setNoTruncation}
         chatMode={chatMode}
         onChatModeChange={setChatMode}
         selectedModel={selectedModel}

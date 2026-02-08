@@ -132,3 +132,70 @@
 .help-topics-tag {
   font-size: 11px;
 }
+
+/* Query Badge and Content Styles */
+.chat-query-result-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-query-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #5c7080;
+  font-weight: 500;
+  padding: 4px 0;
+}
+
+.chat-query-result-count {
+  margin-left: 8px;
+  background: #e1e8ed;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #5c7080;
+}
+
+.chat-query-code-block {
+  margin: 0;
+  padding: 8px 12px;
+  background: #f5f8fa;
+  border: 1px solid #d8e1e8;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #5c7080;
+}
+
+.chat-query-content {
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+/* Dark mode support for query content */
+.bp3-dark .chat-query-code-block {
+  background: #30404d;
+  border-color: #5c7080;
+  color: #abb3bf;
+}
+
+.bp3-dark .chat-query-content {
+  background: #30404d;
+  border-color: #5c7080;
+}
+
+.bp3-dark .chat-query-result-count {
+  background: #394b59;
+  color: #abb3bf;
+}
+
+.bp3-dark .chat-query-badge {
+  color: #abb3bf;
+}

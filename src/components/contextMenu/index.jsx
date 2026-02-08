@@ -215,13 +215,13 @@ export const StandaloneContextMenu = () => {
       positionInRoamWindow.current = position;
 
       setIsInConversation(
-        currentUid ? isPromptInConversation(currentUid, false) : false
+        currentUid ? isPromptInConversation(currentUid, false) : false,
       );
 
       const adaptToStatus = async () => {
         const { zoomOrMainPageUid, isZoomInMainPage, currentPageUid } =
           await getPageStatus(
-            focusedBlockUid.current || selectedBlocks.current?.[0]
+            focusedBlockUid.current || selectedBlocks.current?.[0],
           );
         mainViewUid.current = zoomOrMainPageUid;
         pageUid.current = currentPageUid;
@@ -366,7 +366,7 @@ export const StandaloneContextMenu = () => {
           id: 5800 + index,
           name: formatCommandName(
             resource.serverName,
-            resource.name || resource.uri
+            resource.name || resource.uri,
           ),
           category: "MCP RESOURCES",
           keyWords: `mcp resource ${resource.name || resource.uri} ${
@@ -386,7 +386,7 @@ export const StandaloneContextMenu = () => {
 
         setCommands((prev) => {
           const withoutMcp = prev.filter(
-            (cmd) => cmd.id < 5499 || cmd.id > 5999
+            (cmd) => cmd.id < 5499 || cmd.id > 5999,
           );
           return [...withoutMcp, ...allMcpCommands];
         });
@@ -514,7 +514,7 @@ export const StandaloneContextMenu = () => {
         y: y > 0 ? y : 10,
       });
       const isOutlineHighlighted = document.querySelector(
-        ".fixed-highlight-elt-blue"
+        ".fixed-highlight-elt-blue",
       )
         ? true
         : false;
@@ -586,7 +586,7 @@ export const StandaloneContextMenu = () => {
     (query, item) => {
       return filterCommandsInternal(query, item);
     },
-    [isOutlinerAgent, isCompletionOnly, additionalPrompt]
+    [isOutlinerAgent, isCompletionOnly, additionalPrompt],
   );
 
   // Wrapper function that calls the extracted command processing logic
@@ -667,6 +667,11 @@ export const StandaloneContextMenu = () => {
   const filterCommandsInternal = (query, item) => {
     if ((item.id === 0 || item.id === 2) && !additionalPrompt) return false;
 
+    if (
+      item.isIncompatibleWith?.outliner &&
+      item.isIncompatibleWith?.completion
+    )
+      return false;
     // Skip if command should be hidden based on current default privacy mode
     if (item.hideIfDefaultMode) {
       const {
@@ -804,6 +809,7 @@ export const StandaloneContextMenu = () => {
         command.name === "Web search" ||
         command.name.includes("Image generation")) &&
       command.name !== "Text to Speech";
+
     if (shouldShow) {
       if (!ModelsMenu) {
         console.error("❌ ModelsMenu is undefined!");
@@ -841,7 +847,7 @@ export const StandaloneContextMenu = () => {
                 "🎯 BLUEPRINT MCP CLICK:",
                 command.name,
                 "activeCommand:",
-                activeCommand
+                activeCommand,
               );
             }
             handleClick(e);
@@ -939,7 +945,7 @@ export const StandaloneContextMenu = () => {
       setDisplayModelsMenu,
       setActiveCommand,
       handleClickOnCommand,
-    ]
+    ],
   );
 
   const groupedItemRenderer = ({
@@ -969,7 +975,7 @@ export const StandaloneContextMenu = () => {
             cmd.id === 154 ||
             cmd.id === 1460 ||
             cmd.name === "Web search" ||
-            cmd.name === "Fetch URL (with Claude)"
+            cmd.name === "Fetch URL (with Claude)",
           // cmd.category === "QUERY AGENTS"
         );
         commandsToApplyToCustomPrompt.forEach((cmd) => {
@@ -1004,7 +1010,7 @@ export const StandaloneContextMenu = () => {
                 item.id !== usedCommands?.last &&
                 item.id !== 20 &&
                 item.id !== 21 &&
-                item.id !== 22
+                item.id !== 22,
             )
             .slice(0, 5)
             .map((item) => {
@@ -1067,7 +1073,7 @@ export const StandaloneContextMenu = () => {
                 <MenuDivider className="menu-hint" title={"Last used:"} />
                 {usedCommands?.last &&
                   renderItem(
-                    commands.find((cmd) => cmd.id === usedCommands?.last)
+                    commands.find((cmd) => cmd.id === usedCommands?.last),
                   )}
               </>
             </MenuItem>

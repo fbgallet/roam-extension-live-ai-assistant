@@ -526,6 +526,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     showChat,
     chatMessages,
     chatAccessMode,
+    noTruncation,
     chatAgentData,
     chatExpandedResults,
     contextTokenEstimate,
@@ -553,6 +554,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
     setExpanded,
     setChatMessages,
     setChatAccessMode,
+    setNoTruncation,
     setChatAgentData,
     setChatExpandedResults,
     setContextTokenEstimate,
@@ -2820,6 +2822,8 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 setChatMessages={setChatMessages}
                 chatAccessMode={chatAccessMode}
                 setChatAccessMode={setChatAccessMode}
+                noTruncation={noTruncation}
+                setNoTruncation={setNoTruncation}
                 chatAgentData={chatAgentData}
                 setChatAgentData={setChatAgentData}
                 chatExpandedResults={chatExpandedResults}

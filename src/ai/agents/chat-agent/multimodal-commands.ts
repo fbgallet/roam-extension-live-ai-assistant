@@ -21,9 +21,18 @@ import {
 } from "./multimodal-context-builder";
 import { TokensUsage } from "../langraphModelsLoader";
 import { imageGenerationModels, webSearchModels } from "../../modelsInfo";
-import { defaultImageModel, extensionStorage, googleLibrary, defaultModel } from "../../..";
+import {
+  defaultImageModel,
+  extensionStorage,
+  googleLibrary,
+  defaultModel,
+} from "../../..";
 import { getDefaultWebSearchModel } from "../../modelRegistry";
-import { isModelVisible, getModelConfig, getOrderedProviders } from "../../../utils/modelConfigHelpers";
+import {
+  isModelVisible,
+  getModelConfig,
+  getOrderedProviders,
+} from "../../../utils/modelConfigHelpers";
 import {
   roamAudioRegex,
   roamImageRegex,
@@ -56,7 +65,7 @@ export async function handleImageGenerationCommand(
   modelId: string,
   resultsContext: any[] | undefined,
   chatSessionId: string | undefined,
-  currentMessages: any[]
+  currentMessages: any[],
 ): Promise<MultimodalCommandResult> {
   let turnTokensUsage: TokensUsage | undefined;
 
@@ -65,7 +74,8 @@ export async function handleImageGenerationCommand(
 
   // Get default image model from config or fallback to global setting
   const modelConfig = getModelConfig();
-  const configDefaultImageModel = modelConfig?.defaultImageModel || defaultImageModel;
+  const configDefaultImageModel =
+    modelConfig?.defaultImageModel || defaultImageModel;
 
   const imageModel = imageGenerationModels.includes(modelId)
     ? modelId
@@ -89,7 +99,7 @@ export async function handleImageGenerationCommand(
     !imageGenerationChats.has(`${chatSessionId}_${imageModel}`);
 
   // Check if this is an OpenAI image model (doesn't support multi-turn)
-  const isOpenAIImageModel = imageModel.startsWith('gpt-image');
+  const isOpenAIImageModel = imageModel.startsWith("gpt-image");
 
   // Build complete prompt including images and text from resultsContext
   // For OpenAI: always include images (no multi-turn support)
@@ -99,7 +109,7 @@ export async function handleImageGenerationCommand(
     resultsContext,
     chatSessionId,
     imageGenerationChats,
-    imageModel
+    imageModel,
   );
 
   console.log("Image generation - resultsContext:", resultsContext);
@@ -113,7 +123,7 @@ export async function handleImageGenerationCommand(
     (t: any) => {
       turnTokensUsage = { ...t };
     },
-    chatSessionId // Enable multi-turn image editing in chat sessions
+    chatSessionId, // Enable multi-turn image editing in chat sessions
   );
 
   console.log("imageModel :>> ", imageModel);
@@ -129,7 +139,11 @@ export async function handleImageGenerationCommand(
     // Gemini multi-turn: explain that follow-up edits are supported
     responseMessage +=
       "\n\n*You can now continue editing this image by sending follow-up messages in this chat. Each new message will refine the image based on your instructions.*";
-  } else if (isOpenAIImageModel && hadImagesInPrompt && isExplicitImageGeneration) {
+  } else if (
+    isOpenAIImageModel &&
+    hadImagesInPrompt &&
+    isExplicitImageGeneration
+  ) {
     // OpenAI image edit: confirm the edit was applied
     responseMessage +=
       "\n\n*Image edited based on your instructions. To make further edits, include the new image in your next message.*";
@@ -150,7 +164,7 @@ export async function handleImageGenerationCommand(
  */
 export function isImageGenerationRequest(
   commandPrompt: string | undefined,
-  chatSessionId: string | undefined
+  chatSessionId: string | undefined,
 ): boolean {
   // Check if this is an explicit image generation command
   const isImageGeneration = commandPrompt?.slice(0, 16) === "Image generation";
@@ -179,7 +193,7 @@ export function isImageGenerationRequest(
  */
 export function hasAudioContent(
   userPrompt: string,
-  resultsContext: any[] | undefined
+  resultsContext: any[] | undefined,
 ): boolean {
   // Check if user prompt contains audio
   roamAudioRegex.lastIndex = 0;
@@ -190,7 +204,7 @@ export function hasAudioContent(
 
   // Check if user mentions "audio" in their prompt (suggesting they want to analyze audio in context)
   const mentionsAudio = /\b(audio|transcribe|transcription)\b/i.test(
-    userPrompt
+    userPrompt,
   );
 
   // Check if resultsContext contains audio files
@@ -213,7 +227,7 @@ export function hasAudioContent(
  */
 function extractAudioUrls(
   userPrompt: string,
-  resultsContext: any[] | undefined
+  resultsContext: any[] | undefined,
 ): string[] {
   const audioUrls: string[] = [];
 
@@ -227,7 +241,7 @@ function extractAudioUrls(
 
   // Extract from resultsContext if user mentions audio
   const mentionsAudio = /\b(audio|transcribe|transcription)\b/i.test(
-    userPrompt
+    userPrompt,
   );
   if (resultsContext && resultsContext.length > 0 && mentionsAudio) {
     const { audioFiles } = extractMultimodalContext(resultsContext);
@@ -252,7 +266,7 @@ function extractAudioUrls(
  * Check if LLM response contains fresh audio transcription request marker
  */
 export function isRequestingFreshAudioTranscription(
-  responseContent: string
+  responseContent: string,
 ): boolean {
   const FRESH_AUDIO_MARKER = "🔄 REQUEST_FRESH_AUDIO_TRANSCRIPTION";
   return responseContent.trim().startsWith(FRESH_AUDIO_MARKER);
@@ -276,7 +290,7 @@ export async function handleFreshAudioTranscriptionRequest(
   resultsContext: any[] | undefined,
   currentMessages: any[],
   llm: any,
-  sysMsg: any
+  sysMsg: any,
 ): Promise<{ messages: any[]; audioTranscriptionCache: Map<string, string> }> {
   console.log("🔄 LLM requested fresh audio transcription - re-analyzing...");
 
@@ -289,7 +303,7 @@ export async function handleFreshAudioTranscriptionRequest(
     modelId,
     resultsContext,
     currentMessages,
-    clearedCache // Empty cache forces fresh transcription
+    clearedCache, // Empty cache forces fresh transcription
   );
 
   if (audioResult.messages !== currentMessages) {
@@ -315,7 +329,7 @@ export async function handleAudioAnalysisRequest(
   modelId: string,
   resultsContext: any[] | undefined,
   currentMessages: any[],
-  audioTranscriptionCache: Map<string, string>
+  audioTranscriptionCache: Map<string, string>,
 ): Promise<
   MultimodalCommandResult & {
     audioTranscriptions?: Map<string, string>;
@@ -364,7 +378,7 @@ export async function handleAudioAnalysisRequest(
       const transcription = await transcribeAudioFromBlock(
         audioContent,
         isTranscriptionOnly ? "" : cleanedPrompt,
-        modelId // Pass model ID to support Gemini or OpenAI/Groq
+        modelId, // Pass model ID to support Gemini or OpenAI/Groq
       );
 
       if (transcription) {
@@ -385,7 +399,7 @@ export async function handleAudioAnalysisRequest(
         .map((t, i) =>
           transcriptions.length > 1
             ? `**Audio ${i + 1} transcription:**\n\n${t}`
-            : t
+            : t,
         )
         .join("\n\n---\n\n");
 
@@ -431,7 +445,7 @@ export async function handleAudioAnalysisRequest(
  */
 export function hasVideoContent(
   userPrompt: string,
-  resultsContext: any[] | undefined
+  resultsContext: any[] | undefined,
 ): boolean {
   // Check if user prompt contains video in Roam format: {{[[video]]: url}} or {{[[youtube]]: url}}
   roamVideoRegex.lastIndex = 0;
@@ -448,7 +462,7 @@ export function hasVideoContent(
 
   // Check if user mentions "video" or "youtube" in their prompt (suggesting they want to analyze video in context)
   const mentionsVideo = /\b(video|youtube|watch|analyze.*video)\b/i.test(
-    userPrompt
+    userPrompt,
   );
 
   // Check if resultsContext contains video files or YouTube URLs
@@ -481,7 +495,7 @@ export function hasVideoContent(
  */
 function extractVideoUrls(
   userPrompt: string,
-  resultsContext: any[] | undefined
+  resultsContext: any[] | undefined,
 ): string[] {
   const videoUrls: string[] = [];
 
@@ -495,7 +509,7 @@ function extractVideoUrls(
 
   // Extract standalone YouTube URLs from prompt
   const youtubeMatches = Array.from(
-    userPrompt.matchAll(new RegExp(youtubeRegex.source, "g"))
+    userPrompt.matchAll(new RegExp(youtubeRegex.source, "g")),
   );
   youtubeMatches.forEach((match) => {
     const youtubeUrl = match[0];
@@ -507,7 +521,7 @@ function extractVideoUrls(
 
   // Extract from resultsContext if user mentions video
   const mentionsVideo = /\b(video|youtube|watch|analyze.*video)\b/i.test(
-    userPrompt
+    userPrompt,
   );
   if (resultsContext && resultsContext.length > 0 && mentionsVideo) {
     for (const result of resultsContext) {
@@ -525,7 +539,7 @@ function extractVideoUrls(
 
       // Extract YouTube URLs
       const contextYoutubeMatches = Array.from(
-        content.matchAll(new RegExp(youtubeRegex.source, "g"))
+        content.matchAll(new RegExp(youtubeRegex.source, "g")),
       );
       contextYoutubeMatches.forEach((match) => {
         const youtubeUrl = match[0];
@@ -553,7 +567,7 @@ export async function handleVideoAnalysisRequest(
   originalUserPrompt: string,
   modelId: string,
   resultsContext: any[] | undefined,
-  currentMessages: any[]
+  currentMessages: any[],
 ): Promise<MultimodalCommandResult & { isAnalysisOnly?: boolean }> {
   // Check if Gemini model is being used (required for video)
   if (!modelId.toLowerCase().includes("gemini")) {
@@ -561,7 +575,7 @@ export async function handleVideoAnalysisRequest(
       messages: [
         ...currentMessages,
         new AIMessage(
-          "⚠️ Video analysis requires a Gemini model. Please switch to a Gemini model to analyze video content."
+          "⚠️ Video analysis requires a Gemini model. Please switch to a Gemini model to analyze video content.",
         ),
       ],
     };
@@ -573,7 +587,7 @@ export async function handleVideoAnalysisRequest(
       messages: [
         ...currentMessages,
         new AIMessage(
-          "⚠️ Video analysis requires Google API key. Please configure your Google API key in settings."
+          "⚠️ Video analysis requires Google API key. Please configure your Google API key in settings.",
         ),
       ],
     };
@@ -655,7 +669,7 @@ export async function handleVideoAnalysisRequest(
  */
 export function hasPdfContent(
   userPrompt: string,
-  resultsContext: any[] | undefined
+  resultsContext: any[] | undefined,
 ): boolean {
   // Check if user prompt contains PDF in Roam format: {{[[pdf]]: url}} or direct PDF URL
   pdfLinkRegex.lastIndex = 0;
@@ -692,7 +706,7 @@ export function hasPdfContent(
  */
 function extractPdfUrls(
   userPrompt: string,
-  resultsContext: any[] | undefined
+  resultsContext: any[] | undefined,
 ): string[] {
   const pdfUrls: string[] = [];
 
@@ -739,7 +753,7 @@ export async function handlePdfAnalysisRequest(
   originalUserPrompt: string,
   modelId: string,
   resultsContext: any[] | undefined,
-  currentMessages: any[]
+  currentMessages: any[],
 ): Promise<MultimodalCommandResult & { isAnalysisOnly?: boolean }> {
   // Check if Gemini model is being used (required for PDF)
   if (!modelId.toLowerCase().includes("gemini")) {
@@ -747,7 +761,7 @@ export async function handlePdfAnalysisRequest(
       messages: [
         ...currentMessages,
         new AIMessage(
-          "⚠️ PDF analysis requires a Gemini model. Please switch to a Gemini model to analyze PDF content."
+          "⚠️ PDF analysis requires a Gemini model. Please switch to a Gemini model to analyze PDF content.",
         ),
       ],
     };
@@ -759,7 +773,7 @@ export async function handlePdfAnalysisRequest(
       messages: [
         ...currentMessages,
         new AIMessage(
-          "⚠️ PDF analysis requires Google API key. Please configure your Google API key in settings."
+          "⚠️ PDF analysis requires Google API key. Please configure your Google API key in settings.",
         ),
       ],
     };
@@ -853,7 +867,7 @@ export async function handleWebSearchRequest(
   userPrompt: string,
   instantModel: string | undefined,
   resultsContext: any[] | undefined,
-  currentMessages: any[]
+  currentMessages: any[],
 ): Promise<MultimodalCommandResult> {
   try {
     // Build context string if results are provided
@@ -865,7 +879,8 @@ export async function handleWebSearchRequest(
     // Determine default web search model if not provided or not a web search model
     if (!instantModel || !webSearchModels.includes(instantModel)) {
       const modelConfig = getModelConfig();
-      const currentDefaultModel = await extensionStorage.get("defaultModel") || defaultModel;
+      const currentDefaultModel =
+        (await extensionStorage.get("defaultModel")) || defaultModel;
       const orderedProviders = getOrderedProviders();
 
       instantModel = getDefaultWebSearchModel(
@@ -873,12 +888,14 @@ export async function handleWebSearchRequest(
         isModelVisible,
         orderedProviders,
         modelConfig.modelOrder,
-        modelConfig.defaultWebSearchModel
+        modelConfig.defaultWebSearchModel,
       );
 
       // If no web search model is available, throw error
       if (!instantModel) {
-        throw new Error("No web search capable model is currently enabled. Please enable at least one web search model in the Model Configuration.");
+        throw new Error(
+          "No web search capable model is currently enabled. Please enable at least one web search model in the Model Configuration.",
+        );
       }
     }
 
@@ -911,7 +928,7 @@ export async function handleWebSearchRequest(
       messages: [
         ...currentMessages,
         new AIMessage(
-          `⚠️ Error performing web search: ${error.message || "Unknown error"}`
+          `⚠️ Error performing web search: ${error.message || "Unknown error"}`,
         ),
       ],
     };
@@ -945,9 +962,14 @@ export async function handlePdfExportCommand(
   conversationHistory: string[] | undefined,
   conversationSummary: string | undefined,
   userChoiceCallback:
-    | ((req: any) => Promise<{ selectedOptions: Record<string, string>; cancelled: boolean }>)
+    | ((
+        req: any,
+      ) => Promise<{
+        selectedOptions: Record<string, string>;
+        cancelled: boolean;
+      }>)
     | undefined,
-  currentMessages: any[]
+  currentMessages: any[],
 ): Promise<MultimodalCommandResult> {
   // Check if userChoiceCallback is available
   if (!userChoiceCallback) {
@@ -968,7 +990,7 @@ export async function handlePdfExportCommand(
       messages: [
         ...currentMessages,
         new AIMessage(
-          "⚠️ No content available for PDF export. Please add context blocks or start a conversation first."
+          "⚠️ No content available for PDF export. Please add context blocks or start a conversation first.",
         ),
       ],
     };
@@ -1055,7 +1077,7 @@ export async function handlePdfExportCommand(
 
   try {
     const response = await aiCompletion({
-      instantModel: "claude-sonnet-4-5-20250929",
+      instantModel: "claude-haiku-4-5-20251001", // "claude-sonnet-4-5-20250929",
       prompt: [{ role: "user", content: originalUserPrompt || "" }],
       command,
       content: contentToExport,
@@ -1077,7 +1099,7 @@ export async function handlePdfExportCommand(
       messages: [
         ...currentMessages,
         new AIMessage(
-          `⚠️ Error during PDF export: ${error.message || "Unknown error"}`
+          `⚠️ Error during PDF export: ${error.message || "Unknown error"}`,
         ),
       ],
     };
