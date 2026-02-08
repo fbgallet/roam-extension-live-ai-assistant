@@ -159,8 +159,9 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     });
   };
 
-  // Get available tools based on permissions
+  // Get available tools based on permissions (exclude interaction tools — always-on, not user-toggled)
   const availableTools = Object.entries(CHAT_TOOLS).filter(([, info]) => {
+    if (info.category === "interaction") return false;
     if (info.securityLevel === "secure") return true;
     if (info.securityLevel === "content" && permissions.contentAccess)
       return true;

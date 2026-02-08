@@ -66,6 +66,27 @@ export interface ChatAgentOptions {
     declineReason?: string;
   }>;
 
+  // User choice callback for inline choice forms (ask_user_choice tool + PDF export)
+  userChoiceCallback?: (choiceRequest: {
+    commandId: string;
+    title: string;
+    hintsEnabled?: boolean;
+    options: Array<{
+      id: string;
+      label: string;
+      type: "radio" | "checkbox" | "text" | "slider";
+      choices?: Array<{ value: string; label: string; hint?: string }>;
+      defaultValue?: string;
+      placeholder?: string;
+      min?: number;
+      max?: number;
+      step?: number;
+    }>;
+  }) => Promise<{
+    selectedOptions: Record<string, string>;
+    cancelled: boolean;
+  }>;
+
   // Set of tools that have been "always approved" for this session
   alwaysApprovedTools?: Set<string>;
 
@@ -176,6 +197,9 @@ export async function invokeChatAgent(
     // Tool confirmation callback
     toolConfirmationCallback: options.toolConfirmationCallback,
     alwaysApprovedTools: options.alwaysApprovedTools,
+
+    // User choice callback
+    userChoiceCallback: options.userChoiceCallback,
 
     // Agent callbacks
     addResultsCallback: options.addResultsCallback,

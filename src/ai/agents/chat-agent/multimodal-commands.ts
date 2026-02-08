@@ -917,3 +917,169 @@ export async function handleWebSearchRequest(
     };
   }
 }
+
+/**
+ * Check if the command is a PDF export request
+ *
+ * @param commandPrompt - The command prompt string
+ * @returns true if this is a PDF export request
+ */
+export function isPdfExportRequest(commandPrompt: string | undefined): boolean {
+  return commandPrompt === "Export to PDF";
+}
+
+/**
+ * Handle PDF export command via inline choice form + aiCompletion
+ *
+ * @param originalUserPrompt - The user's original text prompt
+ * @param resultsContext - Results context from chat state
+ * @param conversationHistory - Conversation history array
+ * @param conversationSummary - Conversation summary string
+ * @param userChoiceCallback - Callback to show inline choice form
+ * @param currentMessages - Current message history
+ * @returns Result with updated messages
+ */
+export async function handlePdfExportCommand(
+  originalUserPrompt: string,
+  resultsContext: any[] | undefined,
+  conversationHistory: string[] | undefined,
+  conversationSummary: string | undefined,
+  userChoiceCallback:
+    | ((req: any) => Promise<{ selectedOptions: Record<string, string>; cancelled: boolean }>)
+    | undefined,
+  currentMessages: any[]
+): Promise<MultimodalCommandResult> {
+  // Check if userChoiceCallback is available
+  if (!userChoiceCallback) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage("⚠️ PDF export is not available in this context."),
+      ],
+    };
+  }
+
+  // Determine available content sources
+  const hasContext = resultsContext && resultsContext.length > 0;
+  const hasConversation = conversationHistory && conversationHistory.length > 0;
+
+  if (!hasContext && !hasConversation) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          "⚠️ No content available for PDF export. Please add context blocks or start a conversation first."
+        ),
+      ],
+    };
+  }
+
+  // Build choice options
+  const options: Array<{
+    id: string;
+    label: string;
+    type: "radio";
+    choices: Array<{ value: string; label: string }>;
+    defaultValue?: string;
+  }> = [];
+
+  // Content source options (only if both are available)
+  if (hasContext && hasConversation) {
+    options.push({
+      id: "source",
+      label: "Content source",
+      type: "radio",
+      choices: [
+        { value: "context", label: "Context blocks" },
+        { value: "conversation", label: "Conversation history" },
+        { value: "both", label: "Both" },
+      ],
+      defaultValue: "context",
+    });
+  }
+
+  // Format options
+  options.push({
+    id: "format",
+    label: "Document format",
+    type: "radio",
+    choices: [
+      { value: "clean", label: "Clean document (prose)" },
+      { value: "outline", label: "Outline (hierarchical)" },
+    ],
+    defaultValue: "clean",
+  });
+
+  // Show the choice form
+  const choiceResult = await userChoiceCallback({
+    commandId: "pdf_export",
+    title: "PDF Export Options",
+    options,
+  });
+
+  if (choiceResult.cancelled) {
+    return {
+      messages: [...currentMessages, new AIMessage("PDF export cancelled.")],
+    };
+  }
+
+  const sel = choiceResult.selectedOptions;
+
+  // Determine content source
+  let source = sel.source;
+  if (!source) {
+    // If only one source is available, use it
+    source = hasContext ? "context" : "conversation";
+  }
+
+  // Build content string from selection
+  let contentToExport = "";
+
+  if (source === "context" || source === "both") {
+    contentToExport += buildResultsContext(resultsContext!);
+  }
+
+  if (source === "conversation" || source === "both") {
+    if (contentToExport) {
+      contentToExport += "\n\n---\n\n";
+    }
+    if (conversationSummary) {
+      contentToExport += `Summary of earlier conversation:\n${conversationSummary}\n\n`;
+    }
+    contentToExport += conversationHistory!.join("\n\n");
+  }
+
+  // Determine command based on format
+  const command =
+    sel.format === "outline" ? "Export to PDF outline" : "Export to PDF";
+
+  try {
+    const response = await aiCompletion({
+      instantModel: "claude-sonnet-4-5-20250929",
+      prompt: [{ role: "user", content: originalUserPrompt || "" }],
+      command,
+      content: contentToExport,
+      responseFormat: "text",
+      targetUid: "chatResponse",
+      isButtonToInsert: false,
+    });
+
+    if (!response) {
+      throw new Error("No response received from PDF export");
+    }
+
+    return {
+      messages: [...currentMessages, new AIMessage(response)],
+    };
+  } catch (error) {
+    console.error("Error during PDF export:", error);
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          `⚠️ Error during PDF export: ${error.message || "Unknown error"}`
+        ),
+      ],
+    };
+  }
+}

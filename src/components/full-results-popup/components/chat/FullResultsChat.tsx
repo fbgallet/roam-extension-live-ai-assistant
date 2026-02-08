@@ -58,7 +58,7 @@ interface FullResultsChatProps {
   // Chat state from parent
   chatMessages: ChatMessage[];
   setChatMessages: (
-    messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])
+    messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
   ) => void;
   chatAccessMode: "Balanced" | "Full Access";
   setChatAccessMode: (mode: "Balanced" | "Full Access") => void;
@@ -192,7 +192,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   } | null>(null);
   const [declineReasonInput, setDeclineReasonInput] = useState("");
   const [alwaysApprovedTools, setAlwaysApprovedTools] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // Ref to store the resolve function for pending confirmation Promise
@@ -205,13 +205,39 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     | null
   >(null);
 
+  // User choice state for inline choice forms (ask_user_choice tool + PDF export)
+  const [pendingUserChoice, setPendingUserChoice] = useState<{
+    commandId: string;
+    title: string;
+    hintsEnabled?: boolean;
+    options: Array<{
+      id: string;
+      label: string;
+      type: "radio" | "checkbox" | "text" | "slider";
+      choices?: Array<{ value: string; label: string; hint?: string }>;
+      defaultValue?: string;
+      placeholder?: string;
+      min?: number;
+      max?: number;
+      step?: number;
+    }>;
+    timestamp: number;
+  } | null>(null);
+  const pendingUserChoiceResolveRef = useRef<
+    | ((result: {
+        selectedOptions: Record<string, string>;
+        cancelled: boolean;
+      }) => void)
+    | null
+  >(null);
+
   const targetRef = useRef<string | undefined>(targetUid);
 
   // Generate a unique chat session ID for multi-turn image editing
   // Use loadedChatUid if available, otherwise generate a new ID
   const chatSessionIdRef = useRef<string>(
     loadedChatUid ||
-      `chat_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+      `chat_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
   );
 
   // Ref to track current context results for expansion callback
@@ -231,7 +257,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Edit mode state for inline message editing
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
-    null
+    null,
   );
   const [editingOriginalContent, setEditingOriginalContent] =
     useState<string>("");
@@ -246,7 +272,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const handleToolConfirmationResponse = (
     approved: boolean,
     alwaysApprove?: boolean,
-    declineReason?: string
+    declineReason?: string,
   ) => {
     if (pendingConfirmationResolveRef.current) {
       // If "always approve" was selected, add the tool to the always-approved set
@@ -272,6 +298,32 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
 
+  // Handlers for user choice response
+  const handleUserChoiceResponse = (
+    selectedOptions: Record<string, string>,
+  ) => {
+    //console.log("🔍 [UserChoice] handleUserChoiceResponse called with:", selectedOptions);
+    if (pendingUserChoiceResolveRef.current) {
+      pendingUserChoiceResolveRef.current({
+        selectedOptions,
+        cancelled: false,
+      });
+
+      setPendingUserChoice(null);
+      pendingUserChoiceResolveRef.current = null;
+    }
+  };
+  const handleUserChoiceCancelled = () => {
+    if (pendingUserChoiceResolveRef.current) {
+      pendingUserChoiceResolveRef.current({
+        selectedOptions: {},
+        cancelled: true,
+      });
+      setPendingUserChoice(null);
+      pendingUserChoiceResolveRef.current = null;
+    }
+  };
+
   // Track command context for auto-execution
   const [commandContext, setCommandContext] = useState<{
     commandPrompt?: string;
@@ -285,7 +337,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     () => {
       // Restore from persisted state if available
       return (window as any).lastInsertedMessagesCount || 0;
-    }
+    },
   );
   // Token estimation state is now managed by parent component and passed as props
   const [isExpandingForEstimate, setIsExpandingForEstimate] = useState(false);
@@ -328,7 +380,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Get command name from BUILTIN_COMMANDS if initialCommandId is provided
       if (initialCommandId) {
         const command = BUILTIN_COMMANDS.find(
-          (cmd) => cmd.id === initialCommandId
+          (cmd) => cmd.id === initialCommandId,
         );
         if (command) {
           commandName = command.name;
@@ -413,7 +465,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Match expanded results to current selection by UID
     const selectedUids = new Set(
-      resultsToEstimate.map((r) => r.uid || r.pageUid).filter(Boolean)
+      resultsToEstimate.map((r) => r.uid || r.pageUid).filter(Boolean),
     );
 
     // Filter expanded results to only include selected ones
@@ -421,7 +473,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     const resultsForCalculation =
       selectedResults.length > 0
         ? expandedResults.filter(
-            (r) => selectedUids.has(r.uid) || selectedUids.has(r.pageUid)
+            (r) => selectedUids.has(r.uid) || selectedUids.has(r.pageUid),
           )
         : expandedResults;
 
@@ -474,15 +526,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     if (chatExpandedResults && chatExpandedResults.length > 0) {
       // Check if the current selection is a subset of what we already expanded
       const contextUids = new Set(
-        contextResults.map((r) => r.uid || r.pageUid).filter(Boolean)
+        contextResults.map((r) => r.uid || r.pageUid).filter(Boolean),
       );
       const expandedUids = new Set(
-        chatExpandedResults.map((r) => r.uid || r.pageUid).filter(Boolean)
+        chatExpandedResults.map((r) => r.uid || r.pageUid).filter(Boolean),
       );
 
       // If all context UIDs are in expanded results, just recalculate
       const allInExpanded = Array.from(contextUids).every((uid) =>
-        expandedUids.has(uid)
+        expandedUids.has(uid),
       );
 
       if (allInExpanded) {
@@ -505,7 +557,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         contextResults.map((result) => ({ ...result })),
         expansionBudget,
         0,
-        chatAccessMode
+        chatAccessMode,
       );
 
       setChatExpandedResults(expandedResults);
@@ -580,7 +632,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             undefined,
             undefined,
             undefined,
-            selectedStyle
+            selectedStyle,
           );
         } else
           await processChatMessageWithCommand(
@@ -589,7 +641,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             commandContext?.commandPrompt,
             commandContext?.commandName,
             undefined,
-            selectedStyle
+            selectedStyle,
           );
       } catch (error) {
         console.error("Auto-execution error:", error);
@@ -876,7 +928,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           const allAvailableResults =
             selectedResults.length > 0 ? selectedResults : allResults;
           const pageExistsInResults = allAvailableResults.some(
-            (result) => result.pageTitle === pageTitle
+            (result) => result.pageTitle === pageTitle,
           );
 
           if (pageExistsInResults) {
@@ -903,7 +955,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           .then(() => {
             console.log(
               "[Chat Link Click] Copied to clipboard:",
-              clipboardText
+              clipboardText,
             );
           })
           .catch((err) => {
@@ -927,7 +979,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           const allAvailableResults =
             selectedResults.length > 0 ? selectedResults : allResults;
           const blockExistsInResults = allAvailableResults.some(
-            (result) => result.uid === blockUid
+            (result) => result.uid === blockUid,
           );
 
           if (blockExistsInResults) {
@@ -969,7 +1021,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             console.warn(
               "[Chat Link Click] Could not find page UID for:",
               pageTitle,
-              pageUid
+              pageUid,
             );
           }
         } else if (event.altKey || event.metaKey) {
@@ -991,7 +1043,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             console.warn(
               "[Chat Link Click] Could not find page UID for:",
               pageTitle,
-              pageUid
+              pageUid,
             );
           }
         }
@@ -1002,11 +1054,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     if (messagesContainerRef.current) {
       messagesContainerRef.current.addEventListener(
         "mouseover",
-        handleBlockRefHover
+        handleBlockRefHover,
       );
       messagesContainerRef.current.addEventListener(
         "click",
-        handleBlockRefClick
+        handleBlockRefClick,
       );
     }
 
@@ -1015,11 +1067,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       if (messagesContainerRef.current) {
         messagesContainerRef.current.removeEventListener(
           "mouseover",
-          handleBlockRefHover
+          handleBlockRefHover,
         );
         messagesContainerRef.current.removeEventListener(
           "click",
-          handleBlockRefClick
+          handleBlockRefClick,
         );
       }
     };
@@ -1040,7 +1092,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Always check if the block is actually visible in DOM first
     const blockAlreadyVisible = document.querySelector(
-      `.full-results-result-item[data-uid="${blockUid}"]`
+      `.full-results-result-item[data-uid="${blockUid}"]`,
     );
 
     if (blockAlreadyVisible) {
@@ -1055,7 +1107,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Helper function to highlight element on the current page
   const highlightElementOnCurrentPage = (blockUid: string) => {
     const targetElement = document.querySelector(
-      `.full-results-result-item[data-uid="${blockUid}"]`
+      `.full-results-result-item[data-uid="${blockUid}"]`,
     ) as HTMLElement;
 
     if (targetElement) {
@@ -1081,7 +1133,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }, 3000);
     } else {
       console.warn(
-        `❌ DOM element for block ${blockUid} not found on current page`
+        `❌ DOM element for block ${blockUid} not found on current page`,
       );
     }
   };
@@ -1112,7 +1164,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Check if the page is already visible in DOM
     const pageAlreadyVisible = document.querySelector(
-      `.full-results-result-item[data-uid="${resultUid}"]`
+      `.full-results-result-item[data-uid="${resultUid}"]`,
     );
 
     if (pageAlreadyVisible) {
@@ -1128,7 +1180,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Helper function to highlight page element on the current page (blue theme)
   const highlightPageElementOnCurrentPage = (pageUid: string) => {
     const targetElement = document.querySelector(
-      `.full-results-result-item[data-uid="${pageUid}"]`
+      `.full-results-result-item[data-uid="${pageUid}"]`,
     ) as HTMLElement;
 
     if (targetElement) {
@@ -1154,14 +1206,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }, 3000);
     } else {
       console.warn(
-        `❌ DOM element for page ${pageUid} not found on current page`
+        `❌ DOM element for page ${pageUid} not found on current page`,
       );
     }
   };
   const [chatMode, setChatMode] = useState<ChatMode>("simple");
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
-    []
+    [],
   ); // Track result selection changes
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     // Restore from persisted state if available, otherwise use initial or default
@@ -1169,7 +1221,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   });
   const [modelTokensLimit, setModelTokensLimit] = useState<number>(
     modelAccordingToProvider(initialChatModel || defaultModel).tokensLimit ||
-      128000
+      128000,
   );
 
   // Thinking mode state (session-based, resets on model change)
@@ -1212,7 +1264,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const allTools = new Set<string>();
       Object.keys(
         require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry")
-          .CHAT_TOOLS
+          .CHAT_TOOLS,
       ).forEach((toolName) => {
         allTools.add(toolName);
       });
@@ -1270,7 +1322,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Calculate total tokens used in the conversation
   const { totalIn, totalOut } = React.useMemo(
     () => calculateTotalTokens(chatMessages),
-    [chatMessages]
+    [chatMessages],
   );
 
   // Reset cache when chat is TRULY closed (not just hidden for view switch)
@@ -1293,7 +1345,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Update tokensLimit when model is changed
   useEffect(() => {
     setModelTokensLimit(
-      modelAccordingToProvider(selectedModel).tokensLimit || 32000
+      modelAccordingToProvider(selectedModel).tokensLimit || 32000,
     );
     // Reset thinking state based on new model's default
     setThinkingEnabled(hasThinkingDefault(selectedModel));
@@ -1406,7 +1458,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           // Set the title from the first message content (without the tag)
           setLoadedChatUid(targetRef.current);
           setLoadedChatTitle(
-            firstMsg?.content?.replace(/#liveai\/chat/g, "").trim() || ""
+            firstMsg?.content?.replace(/#liveai\/chat/g, "").trim() || "",
           );
         } else {
           // Create a summary of the conversation for the LLM (first 50 chars of each message)
@@ -1467,7 +1519,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const originalIndex = currentInsertedCount + i;
 
         // Use the model stored in the message, or fall back to selectedModel
-        const messageModel = msg.role === "assistant" && msg.model ? msg.model : selectedModel;
+        const messageModel =
+          msg.role === "assistant" && msg.model ? msg.model : selectedModel;
         const assistantRole = getInstantAssistantRole(messageModel);
         const rolePrefix = msg.role === "user" ? chatRoles.user : assistantRole;
 
@@ -1512,7 +1565,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           roleBlockUid = await createSiblingBlock(
             currentTargetUid,
             undefined,
-            rolePrefix
+            rolePrefix,
           );
         }
 
@@ -1586,8 +1639,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Delete both user and assistant messages
       setChatMessages((prev) =>
         prev.filter(
-          (_, idx) => idx !== userMessageIndex && idx !== messageIndex
-        )
+          (_, idx) => idx !== userMessageIndex && idx !== messageIndex,
+        ),
       );
     } else {
       // Just delete the assistant message if user message not found
@@ -1645,7 +1698,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           userMessage.commandPrompt,
           userMessage.commandName,
           undefined,
-          selectedStyle
+          selectedStyle,
         );
       } else {
         await processChatMessage(
@@ -1654,7 +1707,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           undefined,
           undefined,
           undefined,
-          selectedStyle
+          selectedStyle,
         );
       }
     } catch (error) {
@@ -1703,7 +1756,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         const tempBlockUid = await createTemporaryEditBlock(
           message.content,
-          rolePrefix
+          rolePrefix,
         );
         editTempBlockUidRef.current = tempBlockUid;
 
@@ -1995,7 +2048,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const handleCommandSelect = async (
     command: any,
     isFromSlashCommand: boolean = false,
-    instantModel: string = ""
+    instantModel: string = "",
   ) => {
     if (isTyping) {
       console.warn("⚠️ Cannot execute command while agent is responding");
@@ -2063,7 +2116,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         command.prompt, // The command prompt key (e.g., "summarize")
         command.name,
         instantModel,
-        selectedStyle // Pass the selected style
+        selectedStyle, // Pass the selected style
       );
     } catch (error) {
       console.error("Error executing command:", error);
@@ -2111,7 +2164,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         undefined,
         undefined,
         undefined,
-        selectedStyle
+        selectedStyle,
       );
     } catch (error) {
       console.error("Chat error:", error);
@@ -2133,7 +2186,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   // Handler for help buttons
   const handleHelpButtonClick = async (
     type: "chat" | "liveai" | "tip" | "helpabout",
-    promptOrContent: string
+    promptOrContent: string,
   ) => {
     if (isTyping) return;
 
@@ -2172,7 +2225,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     commandPromptFromCall?: string,
     commandNameFromCall?: string,
     commandModelFromCall?: string,
-    styleFromCall?: string
+    styleFromCall?: string,
   ) => {
     try {
       // Update the ref with current context results for expansion callback
@@ -2202,7 +2255,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           contextResults.map((result) => ({ ...result })), // Pass deep copies to prevent any mutation
           expansionBudget,
           0,
-          chatAccessMode // Pass access mode to influence depth strategy
+          chatAccessMode, // Pass access mode to influence depth strategy
         );
         setChatExpandedResults(expandedResults);
       } else {
@@ -2216,9 +2269,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         } expanded results with avg ${Math.round(
           expandedResults.reduce(
             (sum, r) => sum + (r.content?.length || 0),
-            0
-          ) / expandedResults.length
-        )} chars per result`
+            0,
+          ) / expandedResults.length,
+        )} chars per result`,
       );
 
       // Build results description for context
@@ -2257,7 +2310,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Invoke the chat agent
       const agentResult = await invokeChatAgent({
-        model: modelAccordingToProvider(commandModelFromCall || selectedModel, thinkingEnabled),
+        model: modelAccordingToProvider(
+          commandModelFromCall || selectedModel,
+          thinkingEnabled,
+        ),
         userMessage: message,
 
         // Chat session ID for multi-turn image editing
@@ -2337,7 +2393,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               } else if (args.parent_uid) {
                 parentDisplay = `<span class="roam-block-ref-chat" data-block-uid="${args.parent_uid}">((${args.parent_uid}))</span>`;
               } else {
-                parentDisplay = args.target || args.page_title || args.date || "main view";
+                parentDisplay =
+                  args.target || args.page_title || args.date || "main view";
               }
 
               // Build insertion location context showing outline preview with existing content + new content
@@ -2361,12 +2418,18 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               }
 
               // Normalize list markers and indentation for display
-              let normalizedContent = args.markdown_content.replace(/^(\s*)•\s/gm, "$1- ");
+              let normalizedContent = args.markdown_content.replace(
+                /^(\s*)•\s/gm,
+                "$1- ",
+              );
 
               // Find lines that start with list markers (-, *, or numbered)
-              const lines = normalizedContent.split('\n');
+              const lines = normalizedContent.split("\n");
               const listLineIndents = lines
-                .filter((line: string) => /^\s*[-*]\s/.test(line) || /^\s*\d+\.\s/.test(line))
+                .filter(
+                  (line: string) =>
+                    /^\s*[-*]\s/.test(line) || /^\s*\d+\.\s/.test(line),
+                )
                 .map((line: string) => {
                   const match = line.match(/^(\s*)/);
                   return match ? match[1].length : 0;
@@ -2376,8 +2439,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               if (listLineIndents.length > 0) {
                 const minIndent = Math.min(...listLineIndents);
                 if (minIndent > 0) {
-                  const indentRegex = new RegExp(`^\\s{${minIndent}}`, 'gm');
-                  normalizedContent = normalizedContent.replace(indentRegex, '');
+                  const indentRegex = new RegExp(`^\\s{${minIndent}}`, "gm");
+                  normalizedContent = normalizedContent.replace(
+                    indentRegex,
+                    "",
+                  );
                 }
               }
 
@@ -2387,27 +2453,37 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               // Try to extract target from tool response if available (contains formatted DNP title)
               let target = "main view";
               const response = (toolInfo as any).response;
-              if (response && typeof response === 'string') {
+              if (response && typeof response === "string") {
                 // Extract from response like "📄 Analyzed page [[February 5th, 2026]]" or "📄 Analyzed block ((uid))"
-                const pageMatch = response.match(/Analyzed page \[\[([^\]]+)\]\]/);
-                const blockMatch = response.match(/Analyzed block \(\(([^)]+)\)\)/);
+                const pageMatch = response.match(
+                  /Analyzed page \[\[([^\]]+)\]\]/,
+                );
+                const blockMatch = response.match(
+                  /Analyzed block \(\(([^)]+)\)\)/,
+                );
                 if (pageMatch) {
                   target = `[[${pageMatch[1]}]]`;
                 } else if (blockMatch) {
                   target = `((${blockMatch[1]}))`;
                 } else {
                   // Fallback to args
-                  target = args.page_name ? `[[${args.page_name}]]` :
-                           args.page_title ? `[[${args.page_title}]]` :
-                           args.parent_uid ? `((${args.parent_uid}))` :
-                           "main view";
+                  target = args.page_name
+                    ? `[[${args.page_name}]]`
+                    : args.page_title
+                      ? `[[${args.page_title}]]`
+                      : args.parent_uid
+                        ? `((${args.parent_uid}))`
+                        : "main view";
                 }
               } else {
                 // No response yet, use args
-                target = args.page_name ? `[[${args.page_name}]]` :
-                         args.page_title ? `[[${args.page_title}]]` :
-                         args.parent_uid ? `((${args.parent_uid}))` :
-                         "main view";
+                target = args.page_name
+                  ? `[[${args.page_name}]]`
+                  : args.page_title
+                    ? `[[${args.page_title}]]`
+                    : args.parent_uid
+                      ? `((${args.parent_uid}))`
+                      : "main view";
               }
               details = `Analyzing: ${target}`;
             }
@@ -2421,7 +2497,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             const filteredArgs: Record<string, any> = {};
             for (const [key, value] of Object.entries(args)) {
               // Skip empty values
-              if (value === null || value === undefined || value === "") continue;
+              if (value === null || value === undefined || value === "")
+                continue;
               // Skip empty arrays
               if (Array.isArray(value) && value.length === 0) continue;
               // Skip default values that LLMs send
@@ -2431,8 +2508,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               filteredArgs[key] = value;
             }
 
-            const mode = args.mode || (args.batch_operations?.length > 0 || args.batch_block_uids?.length > 0 ? "batch" : "single");
-            const target = args.page_title || args.parent_uid || args.block_uid || "main view";
+            const mode =
+              args.mode ||
+              (args.batch_operations?.length > 0 ||
+              args.batch_block_uids?.length > 0
+                ? "batch"
+                : "single");
+            const target =
+              args.page_title ||
+              args.parent_uid ||
+              args.block_uid ||
+              "main view";
 
             if (mode === "browse") {
               details = `Browsing: ${target}`;
@@ -2445,14 +2531,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               const argsSummary = Object.entries(filteredArgs)
                 .filter(([key]) => key !== "mode") // mode already shown in context
                 .map(([key, value]) => {
-                  const displayValue = typeof value === "string" && value.length > 60
-                    ? value.substring(0, 60) + "..."
-                    : JSON.stringify(value);
+                  const displayValue =
+                    typeof value === "string" && value.length > 60
+                      ? value.substring(0, 60) + "..."
+                      : JSON.stringify(value);
                   return `${key}: ${displayValue}`;
                 })
                 .join(", ");
               details = argsSummary || "No changes";
             }
+          } else if (toolInfo.toolName === "ask_user_choice") {
+            // Friendly summary for ask_user_choice — hide raw parameters
+            const args = toolInfo.args || {};
+            const optionGroups = args.options || [];
+            const groupSummaries = optionGroups.map((opt: any) => {
+              const type = opt.type || "radio";
+              const choiceCount = opt.choices?.length || 0;
+              if (type === "text") return `"${opt.label}" (free text)`;
+              if (type === "slider")
+                return `"${opt.label}" (slider ${opt.min ?? 0}–${opt.max ?? 10})`;
+              if (type === "checkbox")
+                return `"${opt.label}" (${choiceCount} choices, multiple)`;
+              return `"${opt.label}" (${choiceCount} choices)`;
+            });
+            details = `**${args.title || "Choice form"}** — ${groupSummaries.join(", ")}`;
           } else {
             // For other tools, show arguments only (tool name is already in the title)
             if (toolInfo.args) {
@@ -2552,6 +2654,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           });
         },
 
+        // User choice callback for ask_user_choice tool and PDF export
+        userChoiceCallback: async (choiceRequest: any) => {
+          return new Promise((resolve) => {
+            pendingUserChoiceResolveRef.current = resolve;
+            setPendingUserChoice({ ...choiceRequest, timestamp: Date.now() });
+          });
+        },
+
         // Pass the set of always-approved tools
         alwaysApprovedTools: alwaysApprovedTools,
 
@@ -2573,7 +2683,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           // Re-expand all results (including newly added ones) and return them
           // This happens synchronously during the agent's tool execution phase
           console.log(
-            "🔄 [Chat] Re-expanding context with newly added results"
+            "🔄 [Chat] Re-expanding context with newly added results",
           );
 
           // The ref has been accumulating tool-added results via addResultsCallback
@@ -2585,7 +2695,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               originalResults.length
             } original + ${
               allResults.length - originalResults.length
-            } tool-added)`
+            } tool-added)`,
           );
 
           // Perform expansion with the same budget as initial expansion
@@ -2598,14 +2708,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             allResults.map((result) => ({ ...result })),
             expansionBudget,
             0,
-            chatAccessMode
+            chatAccessMode,
           );
 
           // Update the cached expanded results
           setChatExpandedResults(newExpandedResults);
 
           console.log(
-            `📝 [Chat] Re-expanded ${newExpandedResults.length} results after tool additions`
+            `📝 [Chat] Re-expanded ${newExpandedResults.length} results after tool additions`,
           );
 
           return newExpandedResults;
@@ -2692,7 +2802,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     commandPromptKey?: string,
     commandName?: string,
     commandModel?: string,
-    styleKey?: string
+    styleKey?: string,
   ) => {
     try {
       let finalContextResults = contextResults;
@@ -2713,10 +2823,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             // Merge the additional results with existing context results
             // Deduplicate by UID
             const existingUids = new Set(
-              contextResults.map((r) => r.uid).filter(Boolean)
+              contextResults.map((r) => r.uid).filter(Boolean),
             );
             const uniqueAdditionalResults = additionalResults.filter(
-              (r: Result) => r.uid && !existingUids.has(r.uid)
+              (r: Result) => r.uid && !existingUids.has(r.uid),
             );
 
             finalContextResults = [
@@ -2743,7 +2853,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         commandPromptKey,
         commandName,
         commandModel,
-        styleKey
+        styleKey,
       );
     } catch (error) {
       console.error("Error processing command:", error);
@@ -2808,6 +2918,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onToolConfirmationResponse={handleToolConfirmationResponse}
         declineReasonInput={declineReasonInput}
         setDeclineReasonInput={setDeclineReasonInput}
+        pendingUserChoice={pendingUserChoice}
+        onUserChoiceResponse={handleUserChoiceResponse}
+        onUserChoiceCancelled={handleUserChoiceCancelled}
         editingMessageIndex={editingMessageIndex}
         onEditMessage={handleEditMessage}
         onSaveEdit={handleSaveEdit}

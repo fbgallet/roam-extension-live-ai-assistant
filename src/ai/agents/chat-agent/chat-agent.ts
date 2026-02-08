@@ -52,6 +52,8 @@ import {
   handlePdfAnalysisRequest,
   isWebSearchRequest,
   handleWebSearchRequest,
+  isPdfExportRequest,
+  handlePdfExportCommand,
 } from "./multimodal-commands";
 
 // Chat Agent State
@@ -110,6 +112,29 @@ const ChatAgentState = Annotation.Root({
       }>)
     | undefined
   >,
+  // User choice callback for inline choice forms
+  userChoiceCallback: Annotation<
+    | ((choiceRequest: {
+        commandId: string;
+        title: string;
+        hintsEnabled?: boolean;
+        options: Array<{
+          id: string;
+          label: string;
+          type: "radio" | "checkbox" | "text" | "slider";
+          choices?: Array<{ value: string; label: string; hint?: string }>;
+          defaultValue?: string;
+          placeholder?: string;
+          min?: number;
+          max?: number;
+          step?: number;
+        }>;
+      }) => Promise<{
+        selectedOptions: Record<string, string>;
+        cancelled: boolean;
+      }>)
+    | undefined
+  >,
   // Set of tools that have been "always approved" for this session
   alwaysApprovedTools: Annotation<Set<string> | undefined>,
   needsExpansion: Annotation<boolean>,
@@ -155,13 +180,13 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   const chatTools = getChatTools(
     state.toolsEnabled,
     state.permissions,
-    state.enabledTools
+    state.enabledTools,
   );
 
   // Build conversation context
   const conversationContext = buildConversationContext(
     state.conversationHistory,
-    state.conversationSummary
+    state.conversationSummary,
   );
 
   // Build results context
@@ -199,7 +224,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     let completedLastMessage = buildCompleteCommandPrompt(
       state.commandPrompt,
       lastMessage,
-      !!resultsContext
+      !!resultsContext,
     );
     state.messages.pop();
     state.messages.push(new HumanMessage(completedLastMessage));
@@ -256,7 +281,7 @@ const summarizeConversation = async (state: typeof ChatAgentState.State) => {
   const conversationText = state.conversationHistory?.join("\n\n") || "";
   const prompt = SUMMARIZATION_PROMPT.replace(
     "{conversation}",
-    conversationText
+    conversationText,
   );
 
   const response = await llm.invoke([new HumanMessage({ content: prompt })]);
@@ -274,6 +299,10 @@ const summarizeConversation = async (state: typeof ChatAgentState.State) => {
  * Assistant node - generates response with optional tool calls
  */
 const assistant = async (state: typeof ChatAgentState.State) => {
+  const msgTypes = state.messages.map(
+    (m: any) => m.getType?.() || m._getType?.() || "unknown",
+  );
+
   let messages = [sys_msg, ...state.messages];
   let gathered: any = undefined;
 
@@ -285,13 +314,26 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       originalUserMessageForHistory,
       state.model.id, // Pass model ID for web search
       state.resultsContext,
-      state.messages
+      state.messages,
     );
 
     if (result.tokensUsage) {
       turnTokensUsage = { ...result.tokensUsage };
     }
 
+    return { messages: result.messages };
+  }
+
+  // Handle PDF export command
+  if (isPdfExportRequest(state.commandPrompt)) {
+    const result = await handlePdfExportCommand(
+      originalUserMessageForHistory,
+      state.resultsContext,
+      state.conversationHistory,
+      state.conversationSummary,
+      state.userChoiceCallback,
+      state.messages,
+    );
     return { messages: result.messages };
   }
 
@@ -303,7 +345,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       state.model.id,
       state.resultsContext,
       state.chatSessionId,
-      state.messages
+      state.messages,
     );
 
     if (result.tokensUsage) {
@@ -322,7 +364,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       state.model.id,
       state.resultsContext,
       state.messages,
-      updatedAudioCache
+      updatedAudioCache,
     );
 
     // If this is transcription-only (no user instructions), return directly
@@ -355,7 +397,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       originalUserMessageForHistory,
       state.model.id,
       state.resultsContext,
-      state.messages
+      state.messages,
     );
 
     // If this is analysis-only (no additional user instructions after video), return directly
@@ -382,7 +424,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       originalUserMessageForHistory,
       state.model.id,
       state.resultsContext,
-      state.messages
+      state.messages,
     );
 
     // If this is analysis-only (no additional user instructions after PDF), return directly
@@ -422,7 +464,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
   if (isGeminiModel && streamCallback) {
     console.log(
-      "⚠️ Streaming disabled for Gemini model to avoid tool call issues"
+      "⚠️ Streaming disabled for Gemini model to avoid tool call issues",
     );
   }
 
@@ -436,6 +478,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
   if (shouldStream) {
     // Stream the response - use concat to properly accumulate tool call chunks
+
     const stream = await llm_with_tools.stream(messages);
 
     for await (const chunk of stream) {
@@ -512,7 +555,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
         state.resultsContext,
         state.messages,
         llm_with_tools,
-        sys_msg
+        sys_msg,
       );
 
       // Update token usage from re-invocation
@@ -534,6 +577,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     }
 
     // Return the gathered message (which has proper tool_calls)
+
     return {
       messages: [...state.messages, gathered],
       audioTranscriptionCache: updatedAudioCache,
@@ -564,7 +608,7 @@ const assistant = async (state: typeof ChatAgentState.State) => {
         state.resultsContext,
         state.messages,
         llm_with_tools,
-        sys_msg
+        sys_msg,
       );
 
       // Update token usage from re-invocation
@@ -706,7 +750,7 @@ Please review the tool's parameter schema and try again with valid arguments. Th
         tool_call_id: toolCallId,
         name: invalidCall.name || "unknown_tool",
       });
-    }
+    },
   );
 
   // Add the error messages to the list
@@ -741,6 +785,8 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       // Tool confirmation for sensitive operations
       toolConfirmationCallback: state.toolConfirmationCallback,
       alwaysApprovedTools: state.alwaysApprovedTools,
+      // User choice callback for ask_user_choice tool
+      userChoiceCallback: state.userChoiceCallback,
     },
   };
 
@@ -748,7 +794,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
 
   // Cache tool results
   const toolMessages = result.messages.filter(
-    (msg: any) => msg.getType?.() === "tool" || msg._getType?.() === "tool"
+    (msg: any) => msg.getType?.() === "tool" || msg._getType?.() === "tool",
   );
   const updatedCache = { ...state.toolResultsCache };
 
@@ -786,7 +832,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
           msg.content
         ) {
           const displayMatch = msg.content.match(
-            /\[DISPLAY\]([\s\S]*?)\[\/DISPLAY\]/
+            /\[DISPLAY\]([\s\S]*?)\[\/DISPLAY\]/,
           );
           if (displayMatch) {
             displayResponse = displayMatch[1].trim();
@@ -810,10 +856,10 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     try {
       // Pass the original results context - the callback tracks additions via ref
       updatedResultsContext = await state.expandedResultsCallback(
-        state.resultsContext || []
+        state.resultsContext || [],
       );
       console.log(
-        `✅ [Chat Agent] Context expanded, now has ${updatedResultsContext.length} results`
+        `✅ [Chat Agent] Context expanded, now has ${updatedResultsContext.length} results`,
       );
       shouldRebuildSystemPrompt = true;
     } catch (error) {
@@ -826,13 +872,13 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     // Build conversation context
     const conversationContext = buildConversationContext(
       state.conversationHistory,
-      state.conversationSummary
+      state.conversationSummary,
     );
 
     // Build results context with expanded results
     const resultsContextString = buildResultsContext(
       updatedResultsContext,
-      state.resultsDescription
+      state.resultsDescription,
     );
 
     // Rebuild system prompt
@@ -856,6 +902,7 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
     sys_msg = new SystemMessage({ content: systemPrompt });
   }
 
+  console.log("🔍 [toolsWithCaching] Returning result to graph");
   return {
     ...result,
     resultsContext: updatedResultsContext,
@@ -910,7 +957,7 @@ const finalize = async (state: typeof ChatAgentState.State) => {
 
   // Add user message
   const userMessage = state.messages.find(
-    (msg) => msg.getType?.() === "human" || msg._getType?.() === "human"
+    (msg) => msg.getType?.() === "human" || msg._getType?.() === "human",
   );
   if (userMessage) {
     newHistory.push(`\n<User>: ${userMessage.content}`);

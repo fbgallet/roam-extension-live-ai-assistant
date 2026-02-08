@@ -13,8 +13,9 @@ import { createBlockTool } from "./createBlockTool";
 import { createPageTool } from "./createPageTool";
 import { updateBlockTool } from "./updateBlockTool";
 import { deleteBlockTool } from "./deleteBlockTool";
+import { askUserChoiceTool } from "./askUserChoiceTool";
 
-export type ToolCategory = "context" | "edit" | "skills";
+export type ToolCategory = "context" | "edit" | "skills" | "interaction";
 
 // Edit tools that require the section master switch
 export const EDIT_TOOL_NAMES = ["create_block", "create_page", "update_block", "delete_block"];
@@ -100,6 +101,14 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       description:
         "Access specialized skills stored in Roam with #liveai/skill tag. Skills provide instructions and resources for specific tasks/workflows. Load progressively: start with core instructions, then request deeper resources only when needed.",
     },
+    // Interaction tool
+    ask_user_choice: {
+      tool: askUserChoiceTool,
+      securityLevel: "secure",
+      category: "interaction",
+      description:
+        "Present the user with an interactive choice form inline in chat. Use for ambiguous requests, quizzes/QCM, polls, preference selection, multi-path decisions, or any interactive experience requiring user input.",
+    },
   };
 }
 
@@ -172,6 +181,14 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     category: "skills",
     description:
       "Access specialized skills stored in Roam with #liveai/skill tag. Skills provide instructions and resources for specific tasks/workflows. Load progressively: start with core instructions, then request deeper resources only when needed.",
+  },
+  // Interaction tool
+  ask_user_choice: {
+    tool: null,
+    securityLevel: "secure",
+    category: "interaction",
+    description:
+      "Present the user with an interactive choice form inline in chat. Use for ambiguous requests, quizzes/QCM, polls, preference selection, multi-path decisions, or any interactive experience requiring user input.",
   },
 };
 

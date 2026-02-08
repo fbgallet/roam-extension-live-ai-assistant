@@ -271,7 +271,7 @@ const initializeTools = (permissions: { contentAccess: boolean }) => {
 
 // Conversation router node for intelligent routing decisions
 const conversationRouter = async (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ) => {
   // Check if forceScopeSelection flag is set (from Pattern analysis command)
   if (state.forceScopeSelection && !state.pendingScopeOptions) {
@@ -358,11 +358,11 @@ const conversationRouter = async (
     // Map strategy to query
     const queryConfig = mapScopeStrategyToQuery(
       selectedStrategy,
-      state.userIntent || "Exploratory analysis"
+      state.userIntent || "Exploratory analysis",
     );
 
     logger.info(
-      `Mapped strategy "${selectedStrategy}" to query: ${queryConfig.formalQuery}`
+      `Mapped strategy "${selectedStrategy}" to query: ${queryConfig.formalQuery}`,
     );
     updateAgentToaster(`🔍 Proceeding with: ${selectedStrategy}`);
 
@@ -378,10 +378,10 @@ const conversationRouter = async (
       const currentMode = state.privateMode ? "Private" : "Secure";
 
       logger.info(
-        `Strategy requires content analysis but user is in ${currentMode} mode - showing privacy escalation dialog`
+        `Strategy requires content analysis but user is in ${currentMode} mode - showing privacy escalation dialog`,
       );
       updateAgentToaster(
-        `🔒 This analysis requires "balanced" or "full" mode to access page content`
+        `🔒 This analysis requires "balanced" or "full" mode to access page content`,
       );
 
       return {
@@ -510,19 +510,19 @@ const conversationRouter = async (
   const retryType = detectRetryType(query);
 
   const isSimpleFollowUp = simpleFollowUpPatterns.some((pattern) =>
-    pattern.test(query)
+    pattern.test(query),
   );
   const isCacheSuitable = cacheSuitablePatterns.some((pattern) =>
-    pattern.test(query)
+    pattern.test(query),
   );
   const needsComplexAnalysis = complexAnalysisPatterns.some((pattern) =>
-    pattern.test(query)
+    pattern.test(query),
   );
 
   // Handle retry requests first (highest priority)
   if (retryType && hasConversationHistory) {
     console.log(
-      `🔄 [ConversationRouter] Retry detected: ${retryType} expansion requested`
+      `🔄 [ConversationRouter] Retry detected: ${retryType} expansion requested`,
     );
 
     const expansionGuidance = buildRetryGuidance(retryType, hasCachedResults);
@@ -614,7 +614,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
     const responseContent = response.content.toString();
     console.log(
       `🎯 [IntentParser] Raw response (${llmDuration}ms):`,
-      responseContent
+      responseContent,
     );
 
     // Track tokens and timing
@@ -748,7 +748,7 @@ const intentParser = async (state: typeof ReactSearchAgentState.State) => {
           (opt, idx) =>
             `${idx + 1}. **${opt.strategy}**: ${
               opt.description
-            }\n   *Best for: ${opt.bestFor}* (≈${opt.estimatedCount} pages)`
+            }\n   *Best for: ${opt.bestFor}* (≈${opt.estimatedCount} pages)`,
         )
         .join("\n\n");
 
@@ -799,7 +799,7 @@ Please choose a strategy by number (1-${scopeOptions.length}), or I can proceed 
     // Handle privacy mode escalation
     if (analysis.suggestedMode && state.privateMode) {
       updateAgentToaster(
-        `🔒 This query requires "${analysis.suggestedMode}" security level to access block content`
+        `🔒 This query requires "${analysis.suggestedMode}" security level to access block content`,
       );
 
       // Use the same pattern as showResultsThenExpand to pause execution
@@ -821,14 +821,14 @@ Please choose a strategy by number (1-${scopeOptions.length}), or I can proceed 
     // Replace the parsing message with query results
     replaceLastToasterMessage(
       "🎯 Parsing user intent...",
-      `🔍 Symbolic query: ${analysis.formalQuery}`
+      `🔍 Symbolic query: ${analysis.formalQuery}`,
     );
     updateAgentToaster(`🔍 ${analysis.searchStrategy} search strategy planned`);
     if (analysis.isExpansionGlobal) {
       updateAgentToaster(
         `🧠 Global semantic expansion: ${
           analysis.semanticExpansion || "synonyms"
-        }`
+        }`,
       );
     }
 
@@ -887,7 +887,7 @@ Please choose a strategy by number (1-${scopeOptions.length}), or I can proceed 
  */
 export const mapScopeStrategyToQuery = (
   strategy: string,
-  originalIntent: string
+  originalIntent: string,
 ): {
   formalQuery: string;
   constraints?: any;
@@ -927,7 +927,7 @@ export const mapScopeStrategyToQuery = (
           needsContentExpansion: true, // Expand pages with their full content for analysis
         },
         userIntent: `${originalIntent} - SINGLE-STEP QUERY: Call findDailyNotesByPeriod with timeRange={start: "${getDaysAgo(
-          90
+          90,
         )}", end: "${
           now.toISOString().split("T")[0]
         }", filterMode: "created"}, limit=90, purpose="final" (or omit purpose). This will return the last 90 daily note pages (from the last 90 days based on creation date). After receiving the results, the system will automatically expand each page with its full content (children blocks). Analyze the CONTENT of these daily notes to identify patterns, themes, and insights.`,
@@ -982,7 +982,7 @@ export const mapScopeStrategyToQuery = (
  * Build optimized cache results summary using the new summarization system
  */
 const buildCacheResultsSummary = (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ): string => {
   const summaries: string[] = [];
 
@@ -1021,7 +1021,7 @@ const buildCacheResultsSummary = (
  */
 const generateCacheBasedResponse = async (
   state: typeof ReactSearchAgentState.State,
-  cacheProcessorResponse: string
+  cacheProcessorResponse: string,
 ): Promise<{
   finalResponse: string;
   tokensUsed: { input: number; output: number };
@@ -1033,14 +1033,14 @@ const generateCacheBasedResponse = async (
     const securityMode = state.privateMode
       ? "private"
       : state.permissions?.contentAccess
-      ? "full"
-      : "balanced";
+        ? "full"
+        : "balanced";
 
     // Build a response using the same system as finalResponseWriter but with cache context
     const cacheSystemPrompt = buildCacheSystemPrompt(
       state,
       cacheProcessorResponse,
-      securityMode
+      securityMode,
     );
 
     try {
@@ -1071,7 +1071,7 @@ const generateCacheBasedResponse = async (
     } catch (error) {
       console.warn(
         "Cache-based response generation failed, using original:",
-        error
+        error,
       );
       return {
         finalResponse: cacheProcessorResponse,
@@ -1096,7 +1096,7 @@ const cacheProcessor = async (state: typeof ReactSearchAgentState.State) => {
   const totalResultsCount = newResultsCount + legacyResultsCount;
 
   logger.debug(
-    `Available cached results: ${totalResultsCount} (${newResultsCount} new + ${legacyResultsCount} legacy)`
+    `Available cached results: ${totalResultsCount} (${newResultsCount} new + ${legacyResultsCount} legacy)`,
   );
   uiMessages.processingCache();
 
@@ -1181,7 +1181,7 @@ INSTRUCTIONS: You can use fromResultId parameters to reference cached data and c
     // This ensures consistency with the new finalResponseWriter approach
     const cacheResponseData = await generateCacheBasedResponse(
       state,
-      responseContent
+      responseContent,
     );
 
     // Combine tokens from the cache processing LLM call and any additional LLM call in generateCacheBasedResponse
@@ -1261,7 +1261,7 @@ const loadModel = async (state: typeof ReactSearchAgentState.State) => {
     // Show warning for thinking models
     if (state.model.thinking) {
       updateAgentToaster(
-        `⚠️ Thinking models can be very slow to respond with this agent.`
+        `⚠️ Thinking models can be very slow to respond with this agent.`,
       );
     }
   }
@@ -1339,7 +1339,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
 
   // Only check final results for expansion decision
   const finalResults = Object.values(state.resultStore || {}).filter(
-    (result) => result?.purpose === "final" && result?.status === "active"
+    (result) => result?.purpose === "final" && result?.status === "active",
   );
 
   // Separate errors from successful searches and count total results
@@ -1368,7 +1368,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
   // NEW EXPANSION MODE LOGIC: Handle the four different expansion modes
   const expansionMode = state.automaticExpansionMode || "ask_user";
   console.log(
-    `🔧 [Assistant] Expansion mode: ${expansionMode}, hasToolsBeenExecuted: ${hasToolsBeenExecuted}, hasNoResults: ${hasNoResults}, hasLowResults: ${hasLowResults}, requestsExactMatch: ${requestsExactMatch}`
+    `🔧 [Assistant] Expansion mode: ${expansionMode}, hasToolsBeenExecuted: ${hasToolsBeenExecuted}, hasNoResults: ${hasNoResults}, hasLowResults: ${hasLowResults}, requestsExactMatch: ${requestsExactMatch}`,
   );
 
   // Tools now handle expansion automatically (fuzzy → synonyms → related_concepts → broader_terms)
@@ -1381,7 +1381,7 @@ const assistant = async (state: typeof ReactSearchAgentState.State) => {
     const hasAutoExpansionFailure = toolResults.some(
       (result: any) =>
         result?.metadata?.automaticExpansion?.finalAttempt === true &&
-        result?.data?.length === 0
+        result?.data?.length === 0,
     );
     if (hasAutoExpansionFailure) {
       needsAlternativeStrategies = true;
@@ -1452,8 +1452,8 @@ ${
           const securityMode = state.privateMode
             ? "private"
             : state.permissions?.contentAccess
-            ? "full"
-            : "balanced";
+              ? "full"
+              : "balanced";
 
           if (
             securityMode === "full" &&
@@ -1463,7 +1463,7 @@ ${
             // Apply intermediate content truncation for full mode
             const truncatedData = applyIntermediateContentTruncation(
               parsed.data,
-              50000
+              50000,
             ); // 50k char limit for intermediate processing
             const truncatedContent = JSON.stringify({
               ...parsed,
@@ -1599,7 +1599,7 @@ ${
               args.combineConditions === "OR" ? " OR " : " AND ";
             const limitText = args.conditions.length > 3 ? "..." : "";
             return `Page Content Search: ${searchTerms.join(
-              combineLogic
+              combineLogic,
             )}${limitText}`;
           }
           const pageSearchText = args.searchText || args.query || "content";
@@ -1629,8 +1629,8 @@ ${
             operation === "union"
               ? "combining"
               : operation === "intersection"
-              ? "finding common"
-              : "processing";
+                ? "finding common"
+                : "processing";
           return `Combine Results: ${opText} ${resultCount} sets`;
 
         case "getNodeDetails":
@@ -1702,13 +1702,13 @@ ${
           exp.includes('"') ||
           exp.includes("[[") ||
           exp.includes("pages") ||
-          exp.includes("blocks")
+          exp.includes("blocks"),
       ).length;
       const analysisCount = toolExplanations.filter(
         (exp) =>
           exp.includes("analyzing") ||
           exp.includes("→") ||
-          exp.includes("combining")
+          exp.includes("combining"),
       ).length;
 
       if (searchCount > 0 && analysisCount > 0) {
@@ -1724,12 +1724,12 @@ ${
 
     replaceLastToasterMessage(
       "🤖 Understanding your request...",
-      `🔍 ${explanation} (${(llmDuration / 1000).toFixed(1)}s)`
+      `🔍 ${explanation} (${(llmDuration / 1000).toFixed(1)}s)`,
     );
   } else {
     replaceLastToasterMessage(
       "🤖 Understanding your request...",
-      `✅ Analysis complete (${(llmDuration / 1000).toFixed(1)}s)`
+      `✅ Analysis complete (${(llmDuration / 1000).toFixed(1)}s)`,
     );
   }
 
@@ -1767,8 +1767,8 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   const securityMode = state.privateMode
     ? "private"
     : state.permissions?.contentAccess
-    ? "full"
-    : "balanced";
+      ? "full"
+      : "balanced";
 
   // Handle system prompt based on execution mode
   let sys_msg: SystemMessage;
@@ -1782,7 +1782,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
 
       const responseSystemPrompt = buildFinalResponseSystemPrompt(
         state,
-        securityMode
+        securityMode,
       );
       sys_msg = new SystemMessage({ content: responseSystemPrompt });
     }
@@ -1790,7 +1790,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     // For regular execution, build system prompt with access to actual result data via state
     const responseSystemPrompt = buildFinalResponseSystemPrompt(
       state,
-      securityMode
+      securityMode,
     );
 
     sys_msg = new SystemMessage({ content: responseSystemPrompt });
@@ -1833,7 +1833,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
   ) {
     // Check if we have final results (tools have been executed)
     const hasFinalResults = Object.values(state.resultStore).some(
-      (result: any) => result?.purpose === "final" && result?.data?.length > 0
+      (result: any) => result?.purpose === "final" && result?.data?.length > 0,
     );
 
     if (hasFinalResults) {
@@ -1845,19 +1845,19 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       // Pattern 1: executeDatomicQuery
       messageContent = messageContent.replace(
         /- Use executeDatomicQuery tool[^.]*\.\s*After getting the results,/i,
-        "- Using the provided search results,"
+        "- Using the provided search results,",
       );
 
       // Pattern 2: findPagesByTitle with SINGLE-STEP QUERY
       messageContent = messageContent.replace(
         /- SINGLE-STEP QUERY: Call findPagesByTitle[^.]*\.\s*After receiving results,/i,
-        "- Using the provided search results,"
+        "- Using the provided search results,",
       );
 
       // Pattern 3: Generic "tool call" followed by "analyze"
       messageContent = messageContent.replace(
         /- SINGLE-STEP QUERY: Call \w+[^.]*\.\s*(The tool will[^.]*\.)?\s*After receiving results,/i,
-        "- Using the provided search results,"
+        "- Using the provided search results,",
       );
     }
   }
@@ -1869,7 +1869,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
     console.log(
       `🎯 [PopupExecution] User message: "${state.userQuery.substring(0, 200)}${
         state.userQuery.length > 200 ? "..." : ""
-      }"`
+      }"`,
     );
   }
 
@@ -1913,12 +1913,10 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       // For streaming, we need to create the response block first
       const { getInstantAssistantRole } = await import("../../..");
       const { chatRoles } = await import("../../..");
-      const { createChildBlock, insertBlockInCurrentView } = await import(
-        "../../../utils/roamAPI"
-      );
-      const { insertParagraphForStream } = await import(
-        "../../../utils/domElts"
-      );
+      const { createChildBlock, insertBlockInCurrentView } =
+        await import("../../../utils/roamAPI");
+      const { insertParagraphForStream } =
+        await import("../../../utils/domElts");
 
       const assistantRole = state.model.id
         ? getInstantAssistantRole(state.model.id)
@@ -1929,7 +1927,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       if (state.rootUid) {
         streamingTargetUid = await createChildBlock(
           state.rootUid,
-          assistantRole
+          assistantRole,
         );
       } else {
         streamingTargetUid = await insertBlockInCurrentView(assistantRole);
@@ -1958,7 +1956,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
         if (state.abortSignal?.aborted) {
           if (streamElt) {
             streamElt.innerHTML += DOMPurify.sanitize(
-              " (⚠️ stream interrupted by user)"
+              " (⚠️ stream interrupted by user)",
             );
           }
           finalAnswerContent = streamedContent; // Use what we got so far
@@ -1979,7 +1977,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
           (state as any).streamingCallback(chunkContent);
         } else if (!streamElt && !(state as any).streamingCallback) {
           console.warn(
-            `🎯 [ResponseWriter] No stream element or callback available for chunk ${chunkCount}`
+            `🎯 [ResponseWriter] No stream element or callback available for chunk ${chunkCount}`,
           );
         }
 
@@ -2002,7 +2000,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
       console.error("Streaming error:", error);
       if (streamElt) {
         streamElt.innerHTML += DOMPurify.sanitize(
-          " (⚠️ streaming failed, generating response normally)"
+          " (⚠️ streaming failed, generating response normally)",
         );
       }
       // Fallback to non-streaming
@@ -2034,7 +2032,7 @@ const responseWriter = async (state: typeof ReactSearchAgentState.State) => {
 
   replaceLastToasterMessage(
     tempMessage,
-    `✅ Response generated (${(llmDuration / 1000).toFixed(1)}s)`
+    `✅ Response generated (${(llmDuration / 1000).toFixed(1)}s)`,
   );
 
   console.log(`🎯 [FinalResponseWriter] Response content:`, finalAnswerContent);
@@ -2117,18 +2115,18 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
       // Detailed timing for console
       console.log(
-        `⏱️ Total: ${totalDuration}s (LLM: ${llmTime}s/${llmCalls} calls, Tools: ${toolTime}s/${toolCalls} calls)${streamingNote}`
+        `⏱️ Total: ${totalDuration}s (LLM: ${llmTime}s/${llmCalls} calls, Tools: ${toolTime}s/${toolCalls} calls)${streamingNote}`,
       );
 
       // Simplified timing for toaster
       replaceLastToasterMessage(
         "📝 Preparing your results...",
-        `✅ Completed in ${totalDuration}s`
+        `✅ Completed in ${totalDuration}s`,
       );
     } else {
       replaceLastToasterMessage(
         "📝 Preparing your results...",
-        `✅ Completed in ${totalDuration}s`
+        `✅ Completed in ${totalDuration}s`,
       );
     }
   }
@@ -2161,9 +2159,8 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
     if (state.rootUid) {
       targetUid = await createChildBlock(state.rootUid, assistantRole);
     } else {
-      const { insertBlockInCurrentView } = await import(
-        "../../../utils/roamAPI"
-      );
+      const { insertBlockInCurrentView } =
+        await import("../../../utils/roamAPI");
       targetUid = await insertBlockInCurrentView(assistantRole);
     }
   }
@@ -2176,7 +2173,7 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
 
   // Calculate result stats for smart button logic - only count final results with actual data
   const finalResults = Object.values(state.resultStore || {}).filter(
-    (result) => result?.purpose === "final" && result?.status === "active"
+    (result) => result?.purpose === "final" && result?.status === "active",
   );
 
   // Only count results from successful searches (no errors)
@@ -2184,7 +2181,7 @@ const insertResponse = async (state: typeof ReactSearchAgentState.State) => {
   const totalFinalResults = successfulResults.reduce(
     (sum, result) =>
       sum + (Array.isArray(result?.data) ? result.data.length : 0),
-    0
+    0,
   );
 
   // Check if expansion was applied during this session
@@ -2236,7 +2233,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   const isScopeStrategyQuery = state.searchDetails?.needsContentExpansion;
 
   console.log(
-    `🌳 [ContextExpansion] Starting expansion - isScopeStrategyQuery: ${isScopeStrategyQuery}`
+    `🌳 [ContextExpansion] Starting expansion - isScopeStrategyQuery: ${isScopeStrategyQuery}`,
   );
 
   // Get final results for context expansion
@@ -2253,26 +2250,26 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
         result?.status === "active" &&
         result?.data?.length > 0
       );
-    }
+    },
   );
 
   if (finalResults.length === 0) {
     console.log(
-      `🌳 [ContextExpansion] EARLY RETURN: No final results found in resultStore`
+      `🌳 [ContextExpansion] EARLY RETURN: No final results found in resultStore`,
     );
     console.log(
       `🌳 [ContextExpansion] ResultStore keys:`,
-      Object.keys(state.resultStore || {})
+      Object.keys(state.resultStore || {}),
     );
     console.log(
       `🌳 [ContextExpansion] ResultStore contents:`,
-      JSON.stringify(state.resultStore, null, 2).slice(0, 500)
+      JSON.stringify(state.resultStore, null, 2).slice(0, 500),
     );
     return state; // Pass through unchanged
   }
 
   console.log(
-    `🌳 [ContextExpansion] Found ${finalResults.length} result sets to expand`
+    `🌳 [ContextExpansion] Found ${finalResults.length} result sets to expand`,
   );
 
   const allResults = finalResults.flatMap((r) => r.data || []);
@@ -2281,7 +2278,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   // Skip expansion if too many results (performance protection)
   if (resultCount > 500) {
     console.log(
-      `🌳 [ContextExpansion] EARLY RETURN: Too many results (${resultCount} > 500)`
+      `🌳 [ContextExpansion] EARLY RETURN: Too many results (${resultCount} > 500)`,
     );
     return state;
   }
@@ -2290,8 +2287,8 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   const mode = state.privateMode
     ? "private"
     : state.permissions?.contentAccess
-    ? "full"
-    : "balanced";
+      ? "full"
+      : "balanced";
 
   if (mode === "private") {
     return state;
@@ -2304,8 +2301,8 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   const accessMode = state.privateMode
     ? "Private"
     : state.permissions?.contentAccess
-    ? "Full Access"
-    : "Balanced";
+      ? "Full Access"
+      : "Balanced";
 
   const modelTokensLimit = state.model?.id
     ? (modelAccordingToProvider(state.model.id) as any).tokensLimit || 32000
@@ -2317,12 +2314,12 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
       : modelTokensLimit * 2; //  ~90% context window vs ~50% context window
 
   console.log(
-    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}, mode: ${mode}, accessMode: ${accessMode}`
+    `🌳 [ContextExpansion] Current content: ${currentContentLength} chars, limit: ${expansionBudget}, mode: ${mode}, accessMode: ${accessMode}`,
   );
   console.log(
     `🌳 [ContextExpansion] About to expand ${resultCount} results (${
       allResults.filter((r) => r.isPage).length
-    } pages, ${allResults.filter((r) => !r.isPage).length} blocks)`
+    } pages, ${allResults.filter((r) => !r.isPage).length} blocks)`,
   );
 
   // Perform adaptive context expansion
@@ -2330,11 +2327,11 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     allResults,
     expansionBudget,
     currentContentLength,
-    accessMode
+    accessMode,
   );
 
   console.log(
-    `🌳 [ContextExpansion] Expansion complete - got ${expandedResults.length} expanded results`
+    `🌳 [ContextExpansion] Expansion complete - got ${expandedResults.length} expanded results`,
   );
 
   if (expandedResults.length > 0) {
@@ -2365,12 +2362,12 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
     };
 
     console.log(
-      `🌳 [ContextExpansion] Stored expanded results in resultStore with id: ${contextResultId}`
+      `🌳 [ContextExpansion] Stored expanded results in resultStore with id: ${contextResultId}`,
     );
 
     replaceLastToasterMessage(
       "🌳 Checking if more surrounding context is needed...",
-      `🌳 Added surrounding context (${expandedResults.length} results)`
+      `🌳 Added surrounding context (${expandedResults.length} results)`,
     );
 
     return {
@@ -2381,7 +2378,7 @@ const contextExpansion = async (state: typeof ReactSearchAgentState.State) => {
   }
 
   console.log(
-    `🌳 [ContextExpansion] No expanded results - returning state unchanged`
+    `🌳 [ContextExpansion] No expanded results - returning state unchanged`,
   );
   return state;
 };
@@ -2411,7 +2408,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   const displayLimit = userRequestedLimit || 20; // Default to 20 if no specific limit requested
 
   console.log(
-    `🎯 [DirectFormat] User requested limit: ${userRequestedLimit}, isRandom: ${isRandom}, using display limit: ${displayLimit}`
+    `🎯 [DirectFormat] User requested limit: ${userRequestedLimit}, isRandom: ${isRandom}, using display limit: ${displayLimit}`,
   );
 
   // Get final/active results from resultStore
@@ -2421,7 +2418,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
         (result?.purpose === "final" || result?.purpose === "completion") &&
         result?.status === "active"
       );
-    }
+    },
   );
 
   if (relevantEntries.length === 0) {
@@ -2446,7 +2443,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   // Deduplicate by UID (essential when multiple tool calls return overlapping results)
   const deduplicatedResults = deduplicateResultsByUid(
     allResults,
-    "DirectFormat"
+    "DirectFormat",
   );
 
   // CRITICAL: Use deduplicated count for accurate display
@@ -2502,7 +2499,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   let resultText;
   if (displayCount === totalCount) {
     resultText = `Found ${totalCount} matching ${resultType}:\n${formattedResults.join(
-      "\n\n"
+      "\n\n",
     )}`;
   } else {
     const samplingLabel = isRandom
@@ -2510,10 +2507,10 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
         ? `${displayCount} random`
         : `${displayCount} random`
       : userRequestedLimit
-      ? `first ${displayCount}`
-      : `first ${displayCount}`;
+        ? `first ${displayCount}`
+        : `first ${displayCount}`;
     resultText = `Found ${totalCount} matching ${resultType} [showing ${samplingLabel}]:\n${formattedResults.join(
-      "\n\n"
+      "\n\n",
     )}`;
 
     // Add Full Results note only when there are more results than displayed
@@ -2530,7 +2527,7 @@ const directFormat = async (state: typeof ReactSearchAgentState.State) => {
   // Replace the formatting message
   replaceLastToasterMessage(
     "📝 Formatting results...",
-    `✅ Results formatted: ${totalCount} ${resultType}`
+    `✅ Results formatted: ${totalCount} ${resultType}`,
   );
 
   return {
@@ -2549,7 +2546,7 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
     ? Object.values(state.resultStore)
     : [];
   const allResults = finalResults.flatMap((entry: any) =>
-    Array.isArray(entry.data) ? entry.data : []
+    Array.isArray(entry.data) ? entry.data : [],
   );
 
   const resultCount = allResults.length;
@@ -2583,7 +2580,7 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
   const expansionOptions = getContextualExpansionOptions(
     state.userQuery,
     state.formalQuery,
-    state.expansionState?.appliedSemanticStrategies
+    state.expansionState?.appliedSemanticStrategies,
   );
 
   const message =
@@ -2593,13 +2590,13 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
 
   replaceLastToasterMessage(
     "📝 Formatting results...",
-    message + resultsSummary
+    message + resultsSummary,
   );
 
   // Don't call updateAgentToaster with empty string - just update the buttons
   // The buttons will be added to the existing toaster message
   const toasterElement = (window as any).agentToasterStream?.closest?.(
-    ".bp3-toast"
+    ".bp3-toast",
   );
   if (toasterElement) {
     const existingButtons = toasterElement.querySelector(".buttons");
@@ -2619,7 +2616,7 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
           expansionOptions: expansionOptions,
           showStopButton: false,
           showFullResultsButton: resultCount > 0,
-        }
+        },
       );
     }, 50);
   }
@@ -2643,12 +2640,11 @@ const showResultsThenExpand = (state: typeof ReactSearchAgentState.State) => {
  * Similar to showPrivacyModeDialog but for exploratory query scope selection
  */
 const showScopeSelectionDialog = async (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ) => {
   // Import the display function dynamically to avoid circular dependencies
-  const { displayScopeSelectionDialog } = await import(
-    "../../../utils/domElts.js"
-  );
+  const { displayScopeSelectionDialog } =
+    await import("../../../utils/domElts.js");
 
   logger.info("Showing scope selection dialog");
 
@@ -2707,12 +2703,11 @@ const showScopeSelectionDialog = async (
  * Similar to showResultsThenExpand but for privacy mode selection
  */
 const showPrivacyModeDialog = async (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ) => {
   // Import the display function dynamically to avoid circular dependencies
-  const { displayAskGraphModeDialog } = await import(
-    "../../../utils/domElts.js"
-  );
+  const { displayAskGraphModeDialog } =
+    await import("../../../utils/domElts.js");
 
   // Show the mode selection dialog with callback to handle user choice
   displayAskGraphModeDialog({
@@ -2762,12 +2757,12 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
 
   // Check if we have sufficient final results to proceed with response
   const finalResults = Object.values(state.resultStore || {}).filter(
-    (result) => result?.purpose === "final" && result?.status === "active"
+    (result) => result?.purpose === "final" && result?.status === "active",
   );
   const totalFinalResults = finalResults.reduce(
     (sum, result) =>
       sum + (Array.isArray(result?.data) ? result.data.length : 0),
-    0
+    0,
   );
 
   const hasSufficientResults = totalFinalResults > 0;
@@ -2840,7 +2835,7 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
       // Increment counter for final purpose results with zero data
       // Remove !hasExpansionGuidance condition that was preventing counter increments
       const finalPurposeResults = successfulResults.filter(
-        (result) => result.purpose === "final"
+        (result) => result.purpose === "final",
       );
       if (finalPurposeResults.length > 0) {
         state.zeroResultsAttempts = (state.zeroResultsAttempts || 0) + 1;
@@ -2850,7 +2845,7 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
       const updatedZeroAttempts = state.zeroResultsAttempts || 0;
       if (updatedZeroAttempts >= maxZeroAttempts) {
         console.log(
-          `🛑 [Graph] Maximum zero results attempts reached (${maxZeroAttempts}). Stopping automatic expansion.`
+          `🛑 [Graph] Maximum zero results attempts reached (${maxZeroAttempts}). Stopping automatic expansion.`,
         );
         // Go to showResultsThenExpand to give user manual control
         return "showResultsThenExpand";
@@ -2865,7 +2860,7 @@ const shouldContinue = (state: typeof ReactSearchAgentState.State) => {
           lastMessage.tool_calls.length === 0)
       ) {
         console.log(
-          `🛑 [Graph] SAFETY: Assistant made no tool calls on attempt ${updatedZeroAttempts}/${maxZeroAttempts}. LLM may be stuck - forcing stop.`
+          `🛑 [Graph] SAFETY: Assistant made no tool calls on attempt ${updatedZeroAttempts}/${maxZeroAttempts}. LLM may be stuck - forcing stop.`,
         );
         // Force stop to prevent infinite loops where LLM doesn't make tool calls
         return "showResultsThenExpand";
@@ -2902,7 +2897,7 @@ const routeAfterLoadModel = (state: typeof ReactSearchAgentState.State) => {
 
 // Routing logic after conversation router
 const routeAfterConversationRouter = (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ) => {
   // Check for direct expansion bypass first
   if (state.isDirectExpansion) {
@@ -2957,7 +2952,7 @@ const routeAfterCache = (state: typeof ReactSearchAgentState.State) => {
 
 // Custom tools node with intelligent result lifecycle management
 const toolsWithResultLifecycle = async (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ) => {
   const toolStartTime = Date.now();
 
@@ -3010,7 +3005,7 @@ const toolsWithResultLifecycle = async (
 
   const toolDuration = Date.now() - toolStartTime;
   const toolCallCount = result.messages.filter(
-    (m) => !m.tool_calls && m.content
+    (m) => !m.tool_calls && m.content,
   ).length;
 
   // Process tool results with lifecycle management
@@ -3133,7 +3128,7 @@ const routeAfterTools = (state: typeof ReactSearchAgentState.State) => {
       (latestResult?.purpose === "final" && !state.isConversationMode)
     ) {
       console.log(
-        `🔀 [Tools] Routing to: contextExpansion (scope strategy or final result)`
+        `🔀 [Tools] Routing to: contextExpansion (scope strategy or final result)`,
       );
       return "contextExpansion";
     } else {
@@ -3202,7 +3197,7 @@ const detectAnalyticalQuery = (userQuery: string): boolean => {
 // Process tool results with intelligent lifecycle management
 const processToolResultsWithLifecycle = (
   state: typeof ReactSearchAgentState.State,
-  toolMessages: any[]
+  toolMessages: any[],
 ): { resultStore: Record<string, any>; resultIdCounter: number } => {
   const updatedResultStore = { ...state.resultStore };
   let currentResultId = state.nextResultId || 1;
@@ -3223,14 +3218,14 @@ const processToolResultsWithLifecycle = (
         // Extract lifecycle parameters from the tool call
         const toolCall = findCorrespondingToolCall(
           state.messages,
-          message.name
+          message.name,
         );
         const lifecycleParams = extractLifecycleParams(toolCall);
 
         // Generate result ID with incrementing counter
         const resultId = `${message.name}_${String(currentResultId).padStart(
           3,
-          "0"
+          "0",
         )}`;
         currentResultId++; // Increment for next result
 
@@ -3256,7 +3251,7 @@ const processToolResultsWithLifecycle = (
             data,
             message.name,
             lifecycleParams,
-            toolResult.metadata
+            toolResult.metadata,
           );
         } else if (!toolResult.success || toolResult.error) {
           // Handle tool errors - store as empty data with error flag
@@ -3267,7 +3262,7 @@ const processToolResultsWithLifecycle = (
             message.name,
             lifecycleParams,
             toolResult.metadata,
-            toolResult.error || "Tool execution failed"
+            toolResult.error || "Tool execution failed",
           );
         }
       } catch (jsonError) {
@@ -3277,14 +3272,14 @@ const processToolResultsWithLifecycle = (
           message.content.includes("failed")
         ) {
           console.warn(
-            `Tool ${message.name} returned error: ${message.content}`
+            `Tool ${message.name} returned error: ${message.content}`,
           );
           // Don't try to store failed results in result store
         } else {
           console.warn(
             `Failed to process tool result for ${message.name}:`,
             jsonError,
-            `Content was: ${message.content.substring(0, 200)}...`
+            `Content was: ${message.content.substring(0, 200)}...`,
           );
         }
       }
@@ -3326,7 +3321,7 @@ const handleResultLifecycle = (
   toolName: string,
   lifecycleParams: any,
   metadata?: any,
-  error?: string
+  error?: string,
 ) => {
   const { purpose, replacesResultId, completesResultId } = lifecycleParams;
 
@@ -3360,7 +3355,7 @@ const handleResultLifecycle = (
 
 // Routing functions for popup execution
 const routeAfterResponseWriter = (
-  state: typeof ReactSearchAgentState.State
+  state: typeof ReactSearchAgentState.State,
 ) => {
   if ((state as any).isPopupExecution || state.forcePopupOnly) {
     return "__end__";

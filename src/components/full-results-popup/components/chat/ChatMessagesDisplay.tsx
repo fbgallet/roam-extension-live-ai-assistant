@@ -241,6 +241,314 @@ interface PendingToolConfirmation {
   timestamp: number;
 }
 
+export interface PendingUserChoice {
+  commandId: string;
+  title: string;
+  hintsEnabled?: boolean;
+  options: Array<{
+    id: string;
+    label: string;
+    type: "radio" | "checkbox" | "text" | "slider";
+    choices?: Array<{ value: string; label: string; hint?: string }>;
+    defaultValue?: string;
+    placeholder?: string;
+    min?: number;
+    max?: number;
+    step?: number;
+  }>;
+  timestamp: number;
+}
+
+/**
+ * Inline choice form component — used by both ask_user_choice tool and PDF export bypass
+ */
+/**
+ * Renders a single choice item (radio or checkbox) with optional hint tooltip
+ */
+const ChoiceItem: React.FC<{
+  choice: { value: string; label: string; hint?: string };
+  hintsVisible: boolean;
+  children: React.ReactNode;
+}> = ({ choice, hintsVisible, children }) => {
+  if (hintsVisible && choice.hint) {
+    return (
+      <Popover
+        content={
+          <div className="user-choice-hint-popover">{choice.hint}</div>
+        }
+        interactionKind="hover"
+        position={Position.RIGHT}
+        hoverOpenDelay={200}
+        hoverCloseDelay={100}
+        minimal
+      >
+        {children as React.ReactElement}
+      </Popover>
+    );
+  }
+  return <>{children}</>;
+};
+
+const UserChoiceForm: React.FC<{
+  pendingChoice: PendingUserChoice;
+  onSubmit: (selectedOptions: Record<string, string>) => void;
+  onCancel: () => void;
+}> = ({ pendingChoice, onSubmit, onCancel }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [selections, setSelections] = useState<Record<string, string>>(() => {
+    const defaults: Record<string, string> = {};
+    pendingChoice.options.forEach((opt) => {
+      if (opt.type === "text") {
+        defaults[opt.id] = opt.defaultValue || "";
+      } else if (opt.type === "checkbox") {
+        defaults[opt.id] = "";
+      } else if (opt.type === "slider") {
+        const min = opt.min ?? 0;
+        const max = opt.max ?? 10;
+        defaults[opt.id] =
+          opt.defaultValue || String(Math.round((min + max) / 2));
+      } else {
+        defaults[opt.id] = opt.defaultValue || opt.choices?.[0]?.value || "";
+      }
+    });
+    return defaults;
+  });
+  const [hintsVisible, setHintsVisible] = useState(false);
+
+  // Auto-focus and scroll into view on mount
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      containerRef.current.focus();
+    }
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+      e.preventDefault();
+      onSubmit(selections);
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+    // Number keys 1-9 for quick radio/checkbox selection
+    const num = parseInt(e.key, 10);
+    if (num >= 1 && num <= 9) {
+      // Don't intercept when typing in text inputs
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") {
+        const inputType = (e.target as HTMLInputElement).type;
+        if (inputType === "text" || inputType === "number" || tag === "TEXTAREA") return;
+      }
+      // Find radio/checkbox groups
+      const choiceGroups = pendingChoice.options.filter(
+        (opt) => (opt.type === "radio" || opt.type === "checkbox" || !opt.type) && opt.choices
+      );
+      if (choiceGroups.length === 0) return;
+      // Apply to first (or only) choice group
+      const group = choiceGroups[0];
+      const idx = num - 1;
+      if (group.choices && idx < group.choices.length) {
+        e.preventDefault();
+        const choiceValue = group.choices[idx].value;
+        if (group.type === "checkbox") {
+          toggleCheckbox(group.id, choiceValue);
+        } else {
+          setSelections((prev) => ({ ...prev, [group.id]: choiceValue }));
+        }
+      }
+    }
+  };
+
+  // Check if any choice has a hint
+  const hasHints =
+    pendingChoice.hintsEnabled &&
+    pendingChoice.options.some(
+      (opt) => opt.choices?.some((c) => c.hint)
+    );
+
+  const toggleCheckbox = (groupId: string, value: string) => {
+    setSelections((prev) => {
+      const current = prev[groupId]
+        ? prev[groupId].split(",").filter(Boolean)
+        : [];
+      const updated = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [groupId]: updated.join(",") };
+    });
+  };
+
+  return (
+    <div
+      className="full-results-chat-user-choice"
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
+      <div className="user-choice-header">
+        <Icon icon="info-sign" size={14} />
+        <span>{pendingChoice.title}</span>
+        {hasHints && (
+          <Button
+            minimal
+            small
+            icon="lightbulb"
+            intent={hintsVisible ? "warning" : "none"}
+            className="user-choice-hint-toggle"
+            title={hintsVisible ? "Hide hints" : "Show hints"}
+            onClick={() => setHintsVisible(!hintsVisible)}
+          />
+        )}
+      </div>
+      {pendingChoice.options.map((optGroup) => (
+        <div key={optGroup.id} className="user-choice-group">
+          <div className="user-choice-label">{optGroup.label}</div>
+
+          {/* Radio: single choice */}
+          {(optGroup.type === "radio" || !optGroup.type) &&
+            optGroup.choices && (
+              <div className="user-choice-options">
+                {optGroup.choices.map((choice) => (
+                  <ChoiceItem
+                    key={choice.value}
+                    choice={choice}
+                    hintsVisible={hintsVisible}
+                  >
+                    <label className="user-choice-radio">
+                      <input
+                        type="radio"
+                        name={`user-choice-${pendingChoice.commandId}-${optGroup.id}`}
+                        value={choice.value}
+                        checked={selections[optGroup.id] === choice.value}
+                        onChange={() =>
+                          setSelections((prev) => ({
+                            ...prev,
+                            [optGroup.id]: choice.value,
+                          }))
+                        }
+                      />
+                      <span>{choice.label}</span>
+                      {hintsVisible && choice.hint && (
+                        <Icon
+                          icon="lightbulb"
+                          size={11}
+                          className="user-choice-hint-icon"
+                        />
+                      )}
+                    </label>
+                  </ChoiceItem>
+                ))}
+              </div>
+            )}
+
+          {/* Checkbox: multiple choice */}
+          {optGroup.type === "checkbox" && optGroup.choices && (
+            <div className="user-choice-options">
+              {optGroup.choices.map((choice) => {
+                const selectedValues = selections[optGroup.id]
+                  ? selections[optGroup.id].split(",").filter(Boolean)
+                  : [];
+                return (
+                  <ChoiceItem
+                    key={choice.value}
+                    choice={choice}
+                    hintsVisible={hintsVisible}
+                  >
+                    <label className="user-choice-checkbox">
+                      <input
+                        type="checkbox"
+                        value={choice.value}
+                        checked={selectedValues.includes(choice.value)}
+                        onChange={() =>
+                          toggleCheckbox(optGroup.id, choice.value)
+                        }
+                      />
+                      <span>{choice.label}</span>
+                      {hintsVisible && choice.hint && (
+                        <Icon
+                          icon="lightbulb"
+                          size={11}
+                          className="user-choice-hint-icon"
+                        />
+                      )}
+                    </label>
+                  </ChoiceItem>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Text: free-form input */}
+          {optGroup.type === "text" && (
+            <div className="user-choice-text-wrapper">
+              <textarea
+                className="user-choice-text-input"
+                placeholder={optGroup.placeholder || "Type your answer..."}
+                value={selections[optGroup.id] || ""}
+                onChange={(e) =>
+                  setSelections((prev) => ({
+                    ...prev,
+                    [optGroup.id]: e.target.value,
+                  }))
+                }
+                rows={2}
+              />
+            </div>
+          )}
+
+          {/* Slider: range value */}
+          {optGroup.type === "slider" && (() => {
+            const min = optGroup.min ?? 0;
+            const max = optGroup.max ?? 10;
+            const step = optGroup.step ?? 1;
+            const currentVal = selections[optGroup.id] || String(Math.round((min + max) / 2));
+            return (
+              <div className="user-choice-slider-wrapper">
+                <input
+                  type="range"
+                  className="user-choice-slider"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={currentVal}
+                  onChange={(e) =>
+                    setSelections((prev) => ({
+                      ...prev,
+                      [optGroup.id]: e.target.value,
+                    }))
+                  }
+                />
+                <div className="user-choice-slider-labels">
+                  <span className="user-choice-slider-min">{min}</span>
+                  <span className="user-choice-slider-value">{currentVal}</span>
+                  <span className="user-choice-slider-max">{max}</span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ))}
+      <div className="user-choice-buttons">
+        <Button
+          intent="primary"
+          icon="tick"
+          small
+          onClick={() => onSubmit(selections)}
+        >
+          Confirm
+        </Button>
+        <Button intent="none" icon="cross" small onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 interface ChatMessagesDisplayProps {
   chatMessages: ChatMessage[];
   isTyping: boolean;
@@ -274,6 +582,10 @@ interface ChatMessagesDisplayProps {
   ) => void;
   declineReasonInput: string;
   setDeclineReasonInput: (value: string) => void;
+  // User choice props
+  pendingUserChoice: PendingUserChoice | null;
+  onUserChoiceResponse: (selectedOptions: Record<string, string>) => void;
+  onUserChoiceCancelled: () => void;
   // Edit message props
   editingMessageIndex: number | null;
   onEditMessage: (index: number) => void;
@@ -301,6 +613,9 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onToolConfirmationResponse,
   declineReasonInput,
   setDeclineReasonInput,
+  pendingUserChoice,
+  onUserChoiceResponse,
+  onUserChoiceCancelled,
   editingMessageIndex,
   onEditMessage,
   onSaveEdit,
@@ -1055,6 +1370,15 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   />
                 </div>
               </div>
+            )}
+
+            {/* User choice form UI */}
+            {pendingUserChoice && (
+              <UserChoiceForm
+                pendingChoice={pendingUserChoice}
+                onSubmit={onUserChoiceResponse}
+                onCancel={onUserChoiceCancelled}
+              />
             )}
           </div>
         </div>

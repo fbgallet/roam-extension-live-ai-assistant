@@ -103,6 +103,18 @@ export const BUILTIN_COMMANDS = [
     },
   },
   {
+    id: 193,
+    name: "Export to PDF (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to PDF",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      completion: true,
+    },
+  },
+  {
     id: 192,
     name: "Export to PDF — clean document (with Claude)",
     icon: "document",
@@ -203,7 +215,6 @@ export const BUILTIN_COMMANDS = [
     isIncompatibleWith: {
       outliner: true,
       style: true,
-      chat: true,
     },
   },
   {
@@ -215,7 +226,6 @@ export const BUILTIN_COMMANDS = [
     isIncompatibleWith: {
       outliner: true,
       style: true,
-      chat: true,
     },
   },
   {
@@ -954,5 +964,5 @@ export const BUILTIN_COMMANDS = [
       },
       isSub: true,
     };
-  })
+  }),
 );

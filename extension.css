@@ -3549,6 +3549,163 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   margin-top: 8px;
 }
 
+/* User choice form UI */
+.full-results-chat-user-choice {
+  background: linear-gradient(to bottom, #eef3fc, #e8eef8);
+  border: 1px solid #a3bffa;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+.full-results-chat-user-choice:focus {
+  outline: 2px solid #5c9cf5;
+  outline-offset: 2px;
+}
+.user-choice-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #2b5797;
+  font-size: 13px;
+}
+.user-choice-group {
+  margin-bottom: 10px;
+}
+.user-choice-label {
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #444;
+}
+.user-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 4px;
+}
+.user-choice-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.user-choice-radio input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+.user-choice-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.user-choice-checkbox input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.user-choice-text-wrapper {
+  margin-top: 2px;
+}
+.user-choice-text-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #a3bffa;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+  resize: vertical;
+  min-height: 36px;
+}
+.user-choice-text-input:focus {
+  outline: none;
+  border-color: #5b8def;
+  box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.2);
+}
+.user-choice-text-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+/* Slider */
+.user-choice-slider-wrapper {
+  padding: 4px 4px 0;
+}
+.user-choice-slider {
+  width: 100%;
+  cursor: pointer;
+  accent-color: #5b8def;
+}
+.user-choice-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+}
+.user-choice-slider-value {
+  font-weight: 600;
+  color: #2b5797;
+  font-size: 13px;
+}
+/* Hint toggle & icon */
+.user-choice-hint-toggle {
+  margin-left: auto;
+}
+.user-choice-hint-icon {
+  color: #d4a017;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+.user-choice-hint-popover {
+  padding: 6px 10px;
+  max-width: 260px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #333;
+}
+.user-choice-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.user-choice-buttons .bp3-button {
+  font-size: 12px;
+}
+
+/* Dark mode variants for user choice form */
+.bp3-dark .full-results-chat-user-choice {
+  background: linear-gradient(to bottom, #1e2a3a, #1a2533);
+  border-color: #3d5a80;
+}
+.bp3-dark .user-choice-header {
+  color: #8ab4f8;
+}
+.bp3-dark .user-choice-label {
+  color: #bcc;
+}
+.bp3-dark .user-choice-slider-labels {
+  color: #999;
+}
+.bp3-dark .user-choice-slider-value {
+  color: #8ab4f8;
+}
+.bp3-dark .user-choice-hint-popover {
+  color: #e0e0e0;
+}
+.bp3-dark .user-choice-text-input {
+  background: #1a2533;
+  border-color: #3d5a80;
+  color: #e0e0e0;
+}
+.bp3-dark .user-choice-text-input:focus {
+  border-color: #5b8def;
+  box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.15);
+}
+
 /* Removed - using consolidated definition below */
 
 .full-results-chat-mode-toggle {
