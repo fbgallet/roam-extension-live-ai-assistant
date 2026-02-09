@@ -21,6 +21,8 @@ const voidRoamContext = {
   block: false,
   blockArgument: [],
   linkedRefsArgument: [],
+  siblings: false,
+  path: false,
 };
 
 export const useContextMenuState = () => {

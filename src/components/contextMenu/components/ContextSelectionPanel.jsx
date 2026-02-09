@@ -1,7 +1,7 @@
 import React from "react";
 import { Checkbox, Tooltip, NumericInput, Icon } from "@blueprintjs/core";
 import { Select } from "@blueprintjs/select";
-import { hasBlockChildren, isLogView } from "../../../utils/roamAPI";
+import { hasBlockChildren, hasSiblings, isLogView } from "../../../utils/roamAPI";
 
 const DNP_PERIOD_OPTIONS = [
   { value: "0", label: "0", days: 0 },
@@ -136,6 +136,51 @@ const ContextSelectionPanel = ({
             onChange={(e) => updateContext("linkedRefs", e)}
           />
         )}
+        {!selectedBlocks?.current?.length &&
+          !selectedTextInBlock.current &&
+          focusedBlockUid.current &&
+          hasSiblings(focusedBlockUid.current) && (
+            <Tooltip
+              content={
+                <div>
+                  Include all sibling blocks
+                  <br />
+                  and their children
+                </div>
+              }
+              hoverOpenDelay={800}
+              openOnTargetFocus={false}
+            >
+              <Checkbox
+                checked={roamContext.siblings}
+                label="Siblings"
+                inline={true}
+                onChange={(e) => updateContext("siblings", e)}
+              />
+            </Tooltip>
+          )}
+        {!selectedBlocks?.current?.length &&
+          !selectedTextInBlock.current &&
+          focusedBlockUid.current && (
+            <Tooltip
+              content={
+                <div>
+                  Hierarchical location of the focused block
+                  <br />
+                  (Page &gt; parent &gt; parent...)
+                </div>
+              }
+              hoverOpenDelay={800}
+              openOnTargetFocus={false}
+            >
+              <Checkbox
+                checked={roamContext.path}
+                label="Path"
+                inline={true}
+                onChange={(e) => updateContext("path", e)}
+              />
+            </Tooltip>
+          )}
         <Tooltip
           content={
             <div>

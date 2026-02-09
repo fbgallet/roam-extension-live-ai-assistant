@@ -13,4 +13,6 @@ export interface RoamContext {
   blockArgument?: string[]; // Array of block UIDs
   query?: boolean; // Query results context
   queryBlockUid?: string; // UID of the query block to load results from
+  siblings?: boolean; // Include sibling blocks and their children
+  path?: boolean; // Include hierarchical breadcrumb path
 }

@@ -166,6 +166,42 @@ export function hasBlockChildren(uid) {
   return true;
 }
 
+export function hasSiblings(uid) {
+  if (!uid) return false;
+  const parentUid = getParentBlock(uid);
+  if (!parentUid) return false;
+  const children = getOrderedDirectChildren(parentUid);
+  if (!children) return false;
+  return children.length > 1;
+}
+
+export function getSiblingBlocks(uid) {
+  if (!uid) return [];
+  const parentUid = getParentBlock(uid);
+  if (!parentUid) return [];
+  const children = getOrderedDirectChildren(parentUid);
+  if (!children) return [];
+  return children.filter((child) => child.uid !== uid);
+}
+
+export function getBlockPathString(uid) {
+  if (!uid) return "";
+  const pageUid = getPageUidByBlockUid(uid);
+  const pageTitle = pageUid ? getPageNameByPageUid(pageUid) : null;
+  const path = getPathOfBlock(uid);
+  if (!path || !path.length) return pageTitle ? `in Page: [[${pageTitle}]]` : "";
+  // path elements: {uid, string} from root to direct parent
+  // Page element has string undefined, so we filter it out
+  const parentParts = path
+    .filter((p) => p.string)
+    .map((p) => p.string);
+  let result = `in Page: [[${pageTitle || ""}]]`;
+  if (parentParts.length > 0) {
+    result += " > " + parentParts.join(" > ");
+  }
+  return result;
+}
+
 export function getParentBlock(uid) {
   let result = window.roamAlphaAPI.pull(
     "[:block/uid {:block/parents [:block/uid {:block/children [:block/uid]}]}]",

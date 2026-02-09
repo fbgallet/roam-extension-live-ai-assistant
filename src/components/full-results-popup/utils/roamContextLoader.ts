@@ -15,6 +15,8 @@ import {
   getMainViewUid,
   getRelativeCurrentDate,
   getYesterdayDate,
+  getParentBlock,
+  getOrderedDirectChildren,
 } from "../../../utils/roamAPI";
 
 /**
@@ -238,6 +240,21 @@ export const loadResultsFromRoamContext = async ({
       }
     }
 
+    // 4f. Handle siblings context
+    if (roamContext.siblings && rootUid) {
+      const parentUid = getParentBlock(rootUid);
+      if (parentUid) {
+        const children = getOrderedDirectChildren(parentUid);
+        if (children) {
+          for (const child of children) {
+            if (child.uid !== rootUid && !blockUids.includes(child.uid)) {
+              blockUids.push(child.uid);
+            }
+          }
+        }
+      }
+    }
+
     // Now we have 3 arrays: blockUids, pageUids, linkedRefPageUids
     const allResults: RoamContextResult[] = [];
 
@@ -373,6 +390,12 @@ export const loadResultsFromRoamContext = async ({
     }
     if (roamContext.linkedPages) {
       parts.push("linked pages");
+    }
+    if (roamContext.siblings) {
+      parts.push("sibling blocks");
+    }
+    if (roamContext.path) {
+      parts.push("block path");
     }
     if (roamContext.logPages && roamContext.logPagesArgument > 0) {
       parts.push(`${roamContext.logPagesArgument} daily notes`);

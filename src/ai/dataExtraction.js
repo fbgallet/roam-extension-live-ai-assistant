@@ -27,6 +27,7 @@ import {
   createNextSiblingIfPossible,
   extractNormalizedUidFromRef,
   getBlockContentByUid,
+  getBlockPathString,
   getBlocksMentioningTitle,
   getBlocksSelectionUids,
   getLastTopLevelOfSeletion,
@@ -39,6 +40,7 @@ import {
   getParentBlock,
   getPreviousSiblingBlock,
   getRelativeCurrentDate,
+  getSiblingBlocks,
   getTreeByUid,
   getUidAndTitleOfMentionedPagesInBlock,
   getYesterdayDate,
@@ -585,6 +587,27 @@ export const getAndNormalizeContext = async ({
       if (childrenFlattenedContent)
         context += "\n\n" + childrenFlattenedContent;
     }
+    if (roamContext.siblings) {
+      const siblings = getSiblingBlocks(focusedBlock);
+      if (siblings.length > 0) {
+        siblings.forEach((sibling) => {
+          context +=
+            "\n\n" +
+            getFlattenedContentFromTree({
+              parentUid: sibling.uid,
+              maxCapturing: maxDepth || 99,
+              maxUid: withUid && uidsInPrompt ? 99 : 0,
+              withDash: withHierarchy,
+            });
+        });
+      }
+    }
+    if (roamContext.path) {
+      const pathString = getBlockPathString(focusedBlock);
+      if (pathString) {
+        context += "\n\n" + pathString;
+      }
+    }
     if (roamContext.linkedPages) {
       let sourceUids =
         blocksSelectionUids && blocksSelectionUids.length
@@ -851,6 +874,8 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
     "block",
     "logPages",
     "children",
+    "siblings",
+    "path",
   ];
   const roamContext = {};
   let hasContext = false;
@@ -882,8 +907,8 @@ export const getRoamContextFromPrompt = (prompt, alert = true) => {
   if (alert)
     AppToaster.show({
       message:
-        "Valid options for ((context: )) or {{context: }} inline definition: block(uid1+uid2+...), page or page(title1+title2+...), linkedRefs or linkedRefs(title), sidebar, logPages. " +
-        "For the last one, you can precise the number of days, eg.: logPages(30)",
+        "Valid options for ((context: )) or {{context: }} inline definition: block(uid1+uid2+...), page or page(title1+title2+...), linkedRefs or linkedRefs(title), sidebar, logPages, siblings, path. " +
+        "For logPages, you can precise the number of days, eg.: logPages(30)",
       timeout: 0,
     });
   return null;
@@ -1218,6 +1243,8 @@ export const getUnionContext = (context1, context2) => {
         .concat(context2?.blockArgument?.length ? context2?.blockArgument : [])
     ),
     children: context1?.children || context2?.children,
+    siblings: context1?.siblings || context2?.siblings,
+    path: context1?.path || context2?.path,
     page: context1?.page || context2?.page,
     pageViewUid: context1?.pageViewUid || context2?.pageViewUid,
     pageArgument: removeDuplicates(

@@ -56,7 +56,7 @@ export const askUserChoiceTool = tool(
   {
     name: "ask_user_choice",
     description:
-      "Present the user with an interactive choice form inline in the chat. Use this tool whenever: (1) A request is ambiguous and you need the user to pick an approach before proceeding, (2) You want to offer the user a set of options to choose from (e.g. quiz/QCM questions, polls, preference selection), (3) A task has multiple valid paths and the user should decide (e.g. format, scope, style), (4) You are building an interactive experience that requires step-by-step user input. Prefer this over listing options as plain text whenever the user needs to make an actual selection that drives what happens next.",
+      "Present the user with an interactive choice form inline in the chat. Use this tool whenever: (1) A request is ambiguous and you need the user to pick an approach before proceeding, (2) You have to offer the user a set of options to choose from (e.g. quiz/QCM questions, polls, preference selection), (3) A task has multiple valid paths and the user should decide (e.g. format, scope, style), (4) You are building an interactive experience that requires step-by-step user input. Always prefer this over listing options as plain text whenever the user needs to make an actual selection that drives what happens next.",
     schema: z.object({
       title: z.string().describe("Short title for the choice form"),
       command_id: z.string().optional().describe("Identifier for tracking"),
@@ -64,7 +64,7 @@ export const askUserChoiceTool = tool(
         .boolean()
         .optional()
         .describe(
-          "If true, show a 'Show hints' toggle button. When user enables it, hints on individual choices are revealed on hover. Great for quizzes/QCM.",
+          "If true, show a 'Show hints' toggle button. When user enables it, hints on a few (not all) individual choices are revealed on hover. Great for quizzes/QCM (be sure to not reveal correct answer!)",
         ),
       options: z
         .array(
