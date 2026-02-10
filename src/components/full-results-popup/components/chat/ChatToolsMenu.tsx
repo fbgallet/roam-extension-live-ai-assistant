@@ -5,7 +5,7 @@
  * with toggles to enable/disable each one
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Button,
   Menu,
@@ -51,6 +51,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
 }) => {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const autoEnabledSkills = useRef<Set<string>>(new Set());
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(
     new Set()
   );
@@ -71,18 +72,24 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
       const loadedSkills = extractAllSkills();
       setSkills(loadedSkills);
 
-      // Auto-enable new skills that aren't in the enabled set yet
+      // Auto-enable skills that have never been seen before
       // (only if live_ai_skills tool is enabled)
+      // We track which skills we've already auto-enabled to avoid
+      // re-enabling skills that the user has manually disabled
       if (enabledTools.has("live_ai_skills")) {
         loadedSkills.forEach((skill) => {
           const skillKey = `skill:${skill.name}`;
-          if (!enabledTools.has(skillKey)) {
-            onToggleTool(skillKey); // Auto-enable new skill
+          if (!autoEnabledSkills.current.has(skillKey)) {
+            autoEnabledSkills.current.add(skillKey);
+            if (!enabledTools.has(skillKey)) {
+              onToggleTool(skillKey); // Auto-enable new skill
+            }
           }
         });
       }
     }
-  }, [isOpen, enabledTools, onToggleTool]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Load help topics when menu opens
   useEffect(() => {

@@ -17,6 +17,7 @@ import { embedRegex, strictPageRegex } from "../../../../utils/regex";
 import { getFlattenedContentFromTree } from "../../../dataExtraction";
 
 const DESCRIPTION_PREFIX_REGEX = /^\*{0,2}Description\*{0,2}::?\s*/i;
+const INSTRUCTIONS_PREFIX_REGEX = /^\*{0,2}Instructions?\*{0,2}::?\s*/i;
 const RESOURCE_PREFIX_REGEX = /^\*{0,2}Resources?\*{0,2}::?\s*/i;
 const RECORDS_PREFIX_REGEX = /^\*{0,2}Records?\*{0,2}::?\s*/i;
 
@@ -95,6 +96,70 @@ function isResourceTag(str: string): boolean {
 
 function isRecordsTag(str: string): boolean {
   return /(?:^|\s)#liveai\/skill-records?(?:\s|$)/i.test(str);
+}
+
+/**
+ * Extract all [[page]] and ((uid)) references from a block string
+ * and return their UIDs. Pages are resolved to page UIDs.
+ */
+function extractRefsAsUids(blockString: string): string[] {
+  const uids: string[] = [];
+  const seen = new Set<string>();
+
+  // Extract [[page]] references and resolve to page UIDs
+  const pageRefRegex = /\[\[([^\]]+)\]\]/g;
+  let pageMatch;
+  while ((pageMatch = pageRefRegex.exec(blockString)) !== null) {
+    const pageName = pageMatch[1];
+    const pageUid = getPageUidByPageName(pageName);
+    if (pageUid && !seen.has(pageUid)) {
+      uids.push(pageUid);
+      seen.add(pageUid);
+    }
+  }
+
+  // Extract ((uid)) references (local copy to avoid global lastIndex issues)
+  const blockRefRegex = /(?<!`)\(\(([^\)`\s]{9})\)\)(?!\)?`)/g;
+  let blockMatch;
+  while ((blockMatch = blockRefRegex.exec(blockString)) !== null) {
+    const refUid = blockMatch[1];
+    if (!seen.has(refUid)) {
+      uids.push(refUid);
+      seen.add(refUid);
+    }
+  }
+
+  return uids;
+}
+
+/**
+ * Extract all [[page]] and ((uid)) references from a block string,
+ * fetch their full content, and return as a formatted context string.
+ */
+function extractRefsContent(blockString: string): string {
+  const refUids = extractRefsAsUids(blockString);
+  if (refUids.length === 0) return "";
+
+  const contextParts: string[] = [];
+  refUids.forEach((ref: string) => {
+    const isPage = !getParentBlock(ref);
+    const label = isPage
+      ? `Content of [[${getPageNameByPageUid(ref)}]] page:`
+      : `Content of ((${ref})) block:`;
+    const content = getFlattenedContentFromTree({
+      parentUid: ref,
+      maxCapturing: 99,
+      maxUid: 0,
+      withDash: true,
+      isParentToIgnore: isPage,
+      initialLeftShift: "  ",
+    });
+    if (content.trim()) {
+      contextParts.push(`${label}\n${content}`);
+    }
+  });
+
+  return contextParts.join("\n\n");
 }
 
 function stripSkillTag(str: string): string {
@@ -223,12 +288,47 @@ export function extractSkillInstructions(
       : firstChild?.string?.trim() || "";
 
     // Extract instructions (skip first child only if it's the description)
-    const instructionsBlocks = sortedChildren.slice(
+    const remainingBlocks = sortedChildren.slice(
       isFirstChildDescription ? 1 : 0
     );
     const resources: SkillResourceInfo[] = [];
     const records: SkillRecordsInfo[] = [];
     const instructionLines: string[] = [];
+
+    // Check if the first remaining block is an "Instructions:" prefix block
+    let permanentContext = "";
+    let instructionsBlocks: any[];
+
+    if (
+      remainingBlocks.length > 0 &&
+      INSTRUCTIONS_PREFIX_REGEX.test(remainingBlocks[0].string || "")
+    ) {
+      const instructionsBlock = remainingBlocks[0];
+      const instructionsBlockString = instructionsBlock.string || "";
+
+      // Extract [[page]] and ((uid)) references as permanent context
+      permanentContext = extractRefsContent(instructionsBlockString);
+
+      // Strip prefix and refs, keep remaining text as instruction line if non-empty
+      const strippedText = instructionsBlockString
+        .replace(INSTRUCTIONS_PREFIX_REGEX, "")
+        .replace(/\[\[[^\]]+\]\]/g, "")
+        .replace(/(?<!`)\(\([^\)`\s]{9}\)\)(?!\)?`)/g, "")
+        .trim();
+      if (strippedText) {
+        instructionLines.push(`- ${resolveReferences(strippedText)}`);
+      }
+
+      // Children of Instructions: block + sibling blocks after it
+      const instructionsChildren = instructionsBlock.children
+        ? [...instructionsBlock.children].sort(
+            (a: any, b: any) => (a.order || 0) - (b.order || 0)
+          )
+        : [];
+      instructionsBlocks = [...instructionsChildren, ...remainingBlocks.slice(1)];
+    } else {
+      instructionsBlocks = remainingBlocks;
+    }
 
     // Process blocks to identify resources, records, and build instructions
     function processBlock(block: any, indent: number = 0) {
@@ -344,10 +444,18 @@ export function extractSkillInstructions(
     // Process all instruction blocks
     instructionsBlocks.forEach((block: any) => processBlock(block, 0));
 
+    // Build final instructions with permanent context prepended
+    let finalInstructions = "";
+    if (permanentContext) {
+      finalInstructions +=
+        "**Permanent context:**\n" + permanentContext + "\n\n";
+    }
+    finalInstructions += instructionLines.join("\n");
+
     return {
       name,
       description,
-      instructions: instructionLines.join("\n"),
+      instructions: finalInstructions,
       resources,
       records,
     };
@@ -433,7 +541,8 @@ export function extractSkillResource(
       );
       if (!found) return null;
       resourceUid = found.uid;
-      resourceRefs = [];
+      // Extract [[page]] and ((uid)) refs from the prefix resource block's text
+      resourceRefs = extractRefsAsUids(found.blockString);
     }
 
     let content = "";
@@ -487,20 +596,22 @@ function findPrefixBlockInTree(
   skillUid: string,
   searchTitle: string,
   prefixRegex: RegExp
-): { uid: string } | null {
+): { uid: string; blockString: string } | null {
   const tree = getTreeByUid(skillUid);
   if (!tree || !tree[0]) return null;
 
   const normalizedTitle = searchTitle.toLowerCase().trim();
 
-  function searchChildren(children: any[]): { uid: string } | null {
+  function searchChildren(
+    children: any[]
+  ): { uid: string; blockString: string } | null {
     if (!children) return null;
     for (const child of children) {
       const str = child.string || "";
       if (prefixRegex.test(str)) {
         const title = str.replace(prefixRegex, "").trim();
         if (title.toLowerCase() === normalizedTitle) {
-          return { uid: child.uid };
+          return { uid: child.uid, blockString: str };
         }
       }
       const found = searchChildren(child.children);

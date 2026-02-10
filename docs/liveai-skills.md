@@ -43,6 +43,30 @@ Skills support three types of special blocks. Each can be identified either by a
 
 Both resources and records follow the same pattern: the block text (after tag/prefix) is the title, and children are the content loaded on demand.
 
+### Instructions Block and Permanent Context
+
+You can optionally group your instructions under an `Instructions:` prefix block. Beyond being a structural marker, this block unlocks **permanent context**: any `[[page]]` or `((block-ref))` mentioned directly in the `Instructions:` block text is **always loaded with the skill**, every time it is invoked.
+
+This is useful for skills that rely on living reference material — notes, guidelines, templates, or any page that evolves over time. The content is fetched fresh on each skill load.
+
+```
+- Skill Name #liveai/skill
+  - Description: ...
+  - Instructions: [[My Style Guide]] [[Team Conventions]]
+    - Step 1 — agent already has the style guide in context
+    - Step 2
+    - Step 3
+```
+
+In this example, the full content of `[[My Style Guide]]` and `[[Team Conventions]]` is automatically injected before the instruction steps each time the skill is loaded — no need to embed them manually or load them as a separate resource.
+
+**Rules:**
+- Any `[[page]]` reference → full page content is fetched and included
+- Any `((block-uid))` reference → the block and its children are fetched and included
+- Any remaining text in the `Instructions:` block (after stripping the prefix and references) is kept as an instruction line
+- Children of the `Instructions:` block become the regular instruction steps, as usual
+- If there is no `Instructions:` block, all children after the description are treated as instructions (unchanged behavior)
+
 ### Resources
 
 Resources provide deeper reference content that the agent loads only when needed. Children of resource blocks are **not** included in core instructions — the agent must explicitly request them.
@@ -67,6 +91,13 @@ You can reference existing pages or blocks in a resource title using `[[page]]` 
 - Security standards from [[OWASP Top 10]] #liveai/skill-resource
   - Additional context-specific notes here
 ```
+
+```
+- Resource: Security standards from [[OWASP Top 10]]
+  - Additional context-specific notes here
+```
+
+Both tag-based and prefix-based resources support page and block references this way. The referenced content is fetched live when the resource is loaded, so it always reflects the current state of the page.
 
 ### Records
 
@@ -118,21 +149,23 @@ These are just examples — there's no mandatory structure. Describe your expect
 - Content Production #liveai/skill
   - Description: Workflow for producing and publishing blog content
     - Covers research, writing, editing, and SEO
-  - Research the topic thoroughly before writing
-  - Structure with clear headings and short paragraphs
-  - Resource: SEO optimization checklist
-    - Keyword density: 1-2% for primary keyword
-    - Include meta description (155 chars max)
-    - Add internal links to related posts
-  - Style guide from [[Company Style Guide]] #liveai/skill-resource
-  - Review and edit before publishing
-  - Records: Published articles — append new entries with date, title, and URL #liveai/skill-records
-    - {{[[embed]]: ((articles-list-uid))}}
+  - Instructions: [[Brand Voice Guidelines]] [[Editorial Calendar]]
+    - Research the topic thoroughly before writing
+    - Structure with clear headings and short paragraphs
+    - Resource: SEO optimization checklist
+      - Keyword density: 1-2% for primary keyword
+      - Include meta description (155 chars max)
+      - Add internal links to related posts
+    - Style guide from [[Company Style Guide]] #liveai/skill-resource
+    - Review and edit before publishing
+    - Records: Published articles — append new entries with date, title, and URL #liveai/skill-records
+      - {{[[embed]]: ((articles-list-uid))}}
 ```
 
 In this example:
 
 - **Description** includes children ("Covers research, writing...")
+- **`Instructions:`** loads `[[Brand Voice Guidelines]]` and `[[Editorial Calendar]]` as permanent context on every skill invocation — their live content is injected before the instruction steps
 - **"SEO optimization checklist"** is a resource using `Resource:` prefix
 - **"Style guide..."** is a resource using `#liveai/skill-resource` tag with a page reference
 - **"Published articles..."** is an editable records outline; the description itself tells the agent to append entries with date/title/URL format
@@ -142,7 +175,7 @@ In this example:
 1. **Clear Descriptions**: Write concise, searchable descriptions; add detail as children
 2. **Progressive Depth**: Essential info in core instructions, details in resources
 3. **Focused Resources**: Each resource covers one specific topic
-4. **Leverage Existing Pages**: Use `[[page]]` references to reuse documentation
+4. **Leverage Existing Pages**: Use `[[page]]` references in the `Instructions:` block for living context that should always be available, or in resource titles for content loaded on demand
 5. **Use Records for Output**: When the skill should produce or maintain structured content, define records with clear expectations about format and conditions
 
 ### Naming Conventions
@@ -153,41 +186,58 @@ In this example:
 ### Structure Guidelines
 
 1. **First Child = Description** starting with `Description:`
-2. **Remaining Children = Instructions**, resources, and records in logical order
-3. **Resource/Records Placement**: Place them inline where they're most relevant in the workflow
+2. **Optional `Instructions:` block** — groups instruction steps and carries permanent context via page/block references in its text
+3. **Remaining Children = Instructions**, resources, and records in logical order
+4. **Resource/Records Placement**: Place them inline where they're most relevant in the workflow
 
 ## Technical Details
 
 ### Tags and Prefixes
 
-| Tag                      | Prefix      | Purpose                                     |
-| ------------------------ | ----------- | ------------------------------------------- |
-| `#liveai/skill`          | —           | Marks the root block of a skill             |
-| `#liveai/skill-resource` | `Resource:` | Deeper resource (children loaded on demand) |
-| `#liveai/skill-records`  | `Records:`  | Editable outline (agent can read and write) |
+| Tag                      | Prefix         | Purpose                                                        |
+| ------------------------ | -------------- | -------------------------------------------------------------- |
+| `#liveai/skill`          | —              | Marks the root block of a skill                                |
+| —                        | `Instructions:` | Optional grouping block; inline page/block refs become permanent context |
+| `#liveai/skill-resource` | `Resource:`    | Deeper resource (children + referenced pages loaded on demand) |
+| `#liveai/skill-records`  | `Records:`     | Editable outline (agent can read and write)                    |
 
 All prefix matching is **case-insensitive** and supports both single colon (`Records:`) and double colon (`Records::`) Roam attribute syntax.
 
 Plural forms of tags are also supported (`#liveai/skills`, `#liveai/skill-resources`, `#liveai/skill-records`) but the **singular form is recommended** for skill and resource tags, and the **plural form is recommended** for records.
 
+### Permanent Context (Instructions block)
+
+When the agent loads a skill that has an `Instructions:` block, the following happens automatically:
+
+1. All `[[page]]` references in the `Instructions:` block text → full page content fetched via `getFlattenedContentFromTree`
+2. All `((block-uid))` references → that block and its children are fetched
+3. The fetched content is prepended to the instruction steps under a **Permanent context** header
+4. The remaining text of the `Instructions:` block (after removing the prefix and references) is kept as an instruction line if non-empty
+5. Children of the `Instructions:` block become the regular instruction steps
+
+This content is **always loaded** with the skill (not on demand), and is **fetched live** every time — so it reflects the current state of the referenced pages or blocks.
+
 ### Progressive Loading Flow
 
-1. Agent calls `live_ai_skills` with `skill_name` → gets core instructions + list of resources/records
-2. Agent calls with `resource_title` → gets resource content
+1. Agent calls `live_ai_skills` with `skill_name` → gets core instructions (including permanent context) + list of resources/records
+2. Agent calls with `resource_title` → gets resource content (including any referenced page content)
 3. Agent calls with `records_title` → gets records' current content + writable UID
 4. Agent uses `create_block`/`update_block` with the records UID to add or edit content
 
 ### Context Optimization
 
-- Core instructions: typically 100-300 tokens
+- Core instructions: typically 100-300 tokens (permanent context adds to this proportionally)
 - Resources/records: loaded only when needed
 - Agent is autonomous: loads resources/records without asking the user
+- Use permanent context for material the agent always needs; use resources for deeper reference loaded on demand
 
 ## Troubleshooting
 
 **Skill not found**: Verify the block has `#liveai/skill` tag. Skill name matching is case-insensitive.
 
 **Resource not loading**: Check it has `#liveai/skill-resource` tag or starts with `Resource:`, and is within the skill's block hierarchy.
+
+**Permanent context not appearing**: Ensure the `Instructions:` block is the first child after the description, and that the `[[page]]` or `((uid))` references in its text are valid (the page must exist in your graph).
 
 **Records not resolving embed**: Ensure the embed syntax is correct (`{{[[embed]]: ((uid))}}`) and the referenced block exists.
 
