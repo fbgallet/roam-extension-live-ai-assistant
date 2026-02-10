@@ -15,4 +15,5 @@ export interface RoamContext {
   queryBlockUid?: string; // UID of the query block to load results from
   siblings?: boolean; // Include sibling blocks and their children
   path?: boolean; // Include hierarchical breadcrumb path
+  pathDepth?: number; // Number of ancestors to include (0 = full path)
 }

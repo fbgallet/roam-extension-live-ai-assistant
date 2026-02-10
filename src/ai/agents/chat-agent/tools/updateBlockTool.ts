@@ -756,7 +756,10 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
           "New text content for the block. Replaces the entire block content. Omit to keep current content unchanged.",
         ),
       heading: z
-        .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)])
+        .number()
+        .int()
+        .min(0)
+        .max(3)
         .optional()
         .describe(
           "Set heading level: 0 (normal text), 1 (H1), 2 (H2), 3 (H3). Omit to keep current heading.",
@@ -780,10 +783,10 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
           "Page title to move the block to (alternative to new_parent_uid). The page must exist.",
         ),
       new_order: z
-        .union([z.literal("first"), z.literal("last"), z.number(), z.literal("")])
+        .union([z.enum(["first", "last"]), z.number().int().min(0)])
         .optional()
         .describe(
-          'Position among new siblings after move: "first", "last" (default), or 0-indexed number.',
+          'Position among new siblings after move: "first", "last" (default), or 0-indexed non-negative integer.',
         ),
       smart_move: z
         .boolean()
@@ -802,12 +805,10 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
               .optional()
               .describe("New text content for THIS specific block only. Must be the content of a single block, not a tree/outline. Omit if content doesn't change."),
             heading: z
-              .union([
-                z.literal(0),
-                z.literal(1),
-                z.literal(2),
-                z.literal(3),
-              ])
+              .number()
+              .int()
+              .min(0)
+              .max(3)
               .optional()
               .describe("Set heading level: 0 (normal), 1 (H1), 2 (H2), 3 (H3)"),
             open: z
@@ -823,9 +824,9 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
               .optional()
               .describe("Page title to move the block to"),
             new_order: z
-              .union([z.literal("first"), z.literal("last"), z.number(), z.literal("")])
+              .union([z.enum(["first", "last"]), z.number().int().min(0)])
               .optional()
-              .describe("Position among siblings after move"),
+              .describe('Position among siblings after move: "first", "last", or 0-indexed integer'),
             smart_move: z
               .boolean()
               .optional()

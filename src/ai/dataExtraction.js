@@ -603,7 +603,7 @@ export const getAndNormalizeContext = async ({
       }
     }
     if (roamContext.path) {
-      const pathString = getBlockPathString(focusedBlock);
+      const pathString = getBlockPathString(focusedBlock, roamContext.pathDepth);
       if (pathString) {
         context += "\n\n" + pathString;
       }

@@ -1,7 +1,7 @@
-import React from "react";
-import { Checkbox, Tooltip, NumericInput, Icon } from "@blueprintjs/core";
+import React, { useMemo } from "react";
+import { Checkbox, Tooltip, NumericInput, Icon, MenuItem } from "@blueprintjs/core";
 import { Select } from "@blueprintjs/select";
-import { hasBlockChildren, hasSiblings, isLogView } from "../../../utils/roamAPI";
+import { hasBlockChildren, hasSiblings, isLogView, getPathOfBlock } from "../../../utils/roamAPI";
 
 const DNP_PERIOD_OPTIONS = [
   { value: "0", label: "0", days: 0 },
@@ -14,6 +14,87 @@ const DNP_PERIOD_OPTIONS = [
   { value: "1 Y", label: "1 year", days: 365 },
   { value: "Custom", label: "Custom" },
 ];
+
+const PathContextControl = ({
+  roamContext,
+  updateContext,
+  setRoamContext,
+  focusedBlockUid,
+}) => {
+  const ancestorCount = useMemo(() => {
+    if (!focusedBlockUid.current) return 0;
+    const path = getPathOfBlock(focusedBlockUid.current);
+    if (!path) return 0;
+    // path includes page (with string undefined) + ancestor blocks
+    // Count only those with string content (actual block ancestors)
+    return path.filter((p) => p.string).length;
+  }, [focusedBlockUid.current]);
+
+  const pathDepthOptions = useMemo(() => {
+    const options = [{ value: 0, label: "Full" }];
+    for (let i = ancestorCount; i >= 1; i--) {
+      options.push({ value: i, label: `${i}` });
+    }
+    return options;
+  }, [ancestorCount]);
+
+  const currentDepth = roamContext.pathDepth || 0;
+  const currentLabel =
+    pathDepthOptions.find((o) => o.value === currentDepth)?.label || "Full";
+
+  return (
+    <>
+      <Tooltip
+        content={
+          <div>
+            Hierarchical location of the focused block
+            <br />
+            (Page &gt; parent &gt; parent...)
+          </div>
+        }
+        hoverOpenDelay={800}
+        openOnTargetFocus={false}
+      >
+        <Checkbox
+          checked={roamContext.path}
+          label="Path"
+          inline={true}
+          onChange={(e) => updateContext("path", e)}
+        />
+      </Tooltip>
+      {roamContext.path && ancestorCount > 1 && (
+        <Select
+          items={pathDepthOptions}
+          itemRenderer={(item, { handleClick, modifiers }) => (
+            <MenuItem
+              key={item.value}
+              text={item.label}
+              active={modifiers.active}
+              onClick={handleClick}
+              icon={item.value === currentDepth ? "tick" : "blank"}
+            />
+          )}
+          onItemSelect={(item) => {
+            setRoamContext((prev) => ({
+              ...prev,
+              pathDepth: item.value,
+            }));
+          }}
+          filterable={false}
+          popoverProps={{
+            minimal: true,
+            placement: "bottom-start",
+          }}
+        >
+          <button>
+            {currentLabel}
+            <Icon icon="caret-down" size={12} />
+          </button>
+        </Select>
+      )}
+    </>
+  );
+};
 
 const ContextSelectionPanel = ({
   selectedBlocks,
@@ -162,24 +243,12 @@ const ContextSelectionPanel = ({
         {!selectedBlocks?.current?.length &&
           !selectedTextInBlock.current &&
           focusedBlockUid.current && (
-            <Tooltip
-              content={
-                <div>
-                  Hierarchical location of the focused block
-                  <br />
-                  (Page &gt; parent &gt; parent...)
-                </div>
-              }
-              hoverOpenDelay={800}
-              openOnTargetFocus={false}
-            >
-              <Checkbox
-                checked={roamContext.path}
-                label="Path"
-                inline={true}
-                onChange={(e) => updateContext("path", e)}
-              />
-            </Tooltip>
+            <PathContextControl
+              roamContext={roamContext}
+              updateContext={updateContext}
+              setRoamContext={setRoamContext}
+              focusedBlockUid={focusedBlockUid}
+            />
           )}
         <Tooltip
           content={

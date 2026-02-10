@@ -184,7 +184,7 @@ export function getSiblingBlocks(uid) {
   return children.filter((child) => child.uid !== uid);
 }
 
-export function getBlockPathString(uid) {
+export function getBlockPathString(uid, depth) {
   if (!uid) return "";
   const pageUid = getPageUidByBlockUid(uid);
   const pageTitle = pageUid ? getPageNameByPageUid(pageUid) : null;
@@ -192,9 +192,13 @@ export function getBlockPathString(uid) {
   if (!path || !path.length) return pageTitle ? `in Page: [[${pageTitle}]]` : "";
   // path elements: {uid, string} from root to direct parent
   // Page element has string undefined, so we filter it out
-  const parentParts = path
+  let parentParts = path
     .filter((p) => p.string)
     .map((p) => p.string);
+  // If depth is specified (> 0), keep only the N closest ancestors
+  if (depth && depth > 0 && parentParts.length > depth) {
+    parentParts = parentParts.slice(parentParts.length - depth);
+  }
   let result = `in Page: [[${pageTitle || ""}]]`;
   if (parentParts.length > 0) {
     result += " > " + parentParts.join(" > ");

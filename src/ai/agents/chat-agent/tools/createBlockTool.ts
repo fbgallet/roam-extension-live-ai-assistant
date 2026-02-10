@@ -421,10 +421,10 @@ smart_insertion: Set true to auto-find best location within the outline.`,
           "⚠️ DO NOT provide on first call. First call without this to see the outline. Then call again WITH this, formatted to match the existing style you observed.",
         ),
       order: z
-        .union([z.literal("first"), z.literal("last"), z.number()])
+        .union([z.enum(["first", "last"]), z.number().int().min(0)])
         .optional()
         .describe(
-          'Where to insert the new blocks among siblings: "first" (at the beginning), "last" (at the end, default), or a number for specific position (0-indexed). Ignored if smart_insertion is true.',
+          'Where to insert the new blocks among siblings: "first" (at the beginning), "last" (at the end, default), or a non-negative integer for specific position (0-indexed). Ignored if smart_insertion is true.',
         ),
       smart_insertion: z
         .boolean()

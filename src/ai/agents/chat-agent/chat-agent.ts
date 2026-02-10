@@ -787,6 +787,8 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       alwaysApprovedTools: state.alwaysApprovedTools,
       // User choice callback for ask_user_choice tool
       userChoiceCallback: state.userChoiceCallback,
+      // Enabled tools set for checking tool availability
+      enabledTools: state.enabledTools,
     },
   };
 

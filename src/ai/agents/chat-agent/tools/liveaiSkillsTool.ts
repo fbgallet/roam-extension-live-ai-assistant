@@ -15,6 +15,7 @@ import {
   extractSkillRecords,
   getFormattedSkillsList,
 } from "./skillsUtils";
+import { EDIT_SECTION_KEY } from "./chatToolsRegistry";
 
 export const liveaiSkillsTool = tool(
   async (
@@ -85,6 +86,28 @@ You have loaded deeper instructions for "${resourceContent.title}". Use these de
 
     // If records_title is provided, extract that specific records outline
     if (records_title) {
+      // Check if edit tools are enabled
+      const enabledTools = config?.configurable?.enabledTools;
+      const isEditSectionEnabled =
+        enabledTools && enabledTools.has(EDIT_SECTION_KEY);
+
+      // Show warning toast if edit tools are not enabled
+      if (!isEditSectionEnabled) {
+        // Dynamically import to avoid circular dependencies
+        import("../../../../components/Toaster")
+          .then(({ AppToaster }) => {
+            AppToaster.show({
+              message:
+                "⚠️ This skill includes editable records, but Edit Tools are disabled. Enable Edit Tools in the chat tools menu to allow the agent to write records.",
+              intent: "warning",
+              timeout: 8000,
+            });
+          })
+          .catch((err) => {
+            console.warn("Could not show warning toast:", err);
+          });
+      }
+
       const recordsContent = extractSkillRecords(skill.uid, records_title);
 
       if (!recordsContent) {
@@ -134,6 +157,30 @@ Follow any conditions or format described above when adding or editing records.`
 
     if (!instructions) {
       return `Error loading skill "${skill_name}". The skill may be malformed.`;
+    }
+
+    // Check if edit tools are enabled and if skill has records
+    if (instructions.records.length > 0) {
+      const enabledTools = config?.configurable?.enabledTools;
+      const isEditSectionEnabled =
+        enabledTools && enabledTools.has(EDIT_SECTION_KEY);
+
+      // Show warning toast if edit tools are not enabled
+      if (!isEditSectionEnabled) {
+        // Dynamically import to avoid circular dependencies
+        import("../../../../components/Toaster")
+          .then(({ AppToaster }) => {
+            AppToaster.show({
+              message:
+                "⚠️ This skill includes editable records, but Edit Tools are disabled. Enable Edit Tools in the chat tools menu to allow the agent to write records.",
+              intent: "warning",
+              timeout: 8000,
+            });
+          })
+          .catch((err) => {
+            console.warn("Could not show warning toast:", err);
+          });
+      }
     }
 
     // Build response with core instructions and available resources/records

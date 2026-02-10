@@ -395,7 +395,11 @@ export const loadResultsFromRoamContext = async ({
       parts.push("sibling blocks");
     }
     if (roamContext.path) {
-      parts.push("block path");
+      parts.push(
+        roamContext.pathDepth
+          ? `block path (${roamContext.pathDepth} ancestors)`
+          : "block path"
+      );
     }
     if (roamContext.logPages && roamContext.logPagesArgument > 0) {
       parts.push(`${roamContext.logPagesArgument} daily notes`);
