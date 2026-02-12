@@ -122,7 +122,7 @@ const isMultiServer = (serverId: string | string[]): serverId is string[] => {
 
 const buildServerInfo = (
   serverName: string | string[],
-  isMultiple: boolean
+  isMultiple: boolean,
 ): string => {
   if (isMultiple && Array.isArray(serverName)) {
     return `servers: ${serverName.join(", ")}`;
@@ -187,14 +187,14 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
     const serverId = serverIds[i];
     const client = mcpManager.getClient(serverId);
     const serverItems = mcpToolsList.filter(
-      (item) => item.serverId === serverId
+      (item) => item.serverId === serverId,
     );
 
     // Only create tools for actual MCP tools, not resources
     const tools = createToolsForLLM(
       serverItems,
       client,
-      state.preferredToolName
+      state.preferredToolName,
     );
     allTools.push(...tools);
   }
@@ -205,7 +205,7 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   const { toolDescriptions, preferredToolGuidance } = buildToolDescriptions(
     mcpToolsList,
     state.preferredToolName,
-    isMultiple
+    isMultiple,
   );
 
   // Build conversation context once for reuse
@@ -222,7 +222,7 @@ const loadModel = async (state: typeof MCPAgentState.State) => {
   // Build resource content for system prompt
   const resourceContent = buildResourceContent(
     state.activeResources || {},
-    state.resourceContent
+    state.resourceContent,
   );
 
   let systemPrompt = buildSystemPrompt({
@@ -256,9 +256,9 @@ const parsePlanningResponse = (responseText: string) => {
     executionPlan: string;
     reasoning: string;
   }>(responseText, {
-    needsPlanning: ['needsPlanning', 'needs_planning'],
-    executionPlan: ['executionPlan', 'execution_plan', 'plan'],
-    reasoning: ['reasoning', 'reason']
+    needsPlanning: ["needsPlanning", "needs_planning"],
+    executionPlan: ["executionPlan", "execution_plan", "plan"],
+    reasoning: ["reasoning", "reason"],
   });
 };
 
@@ -356,7 +356,7 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
     if (currentToaster) {
       currentToaster.innerText = currentToaster.innerText.replace(
         `📄 Loading resource: ${resourceUri}...`,
-        `📄 Loaded resource: ${resourceUri} (${content.length} chars)`
+        `📄 Loaded resource: ${resourceUri} (${content.length} chars)`,
       );
     }
 
@@ -381,13 +381,13 @@ const processResourceContext = async (state: typeof MCPAgentState.State) => {
   } catch (error) {
     console.error(
       `❌ [RESOURCE ERROR] Error processing resource "${resourceUri}":`,
-      error
+      error,
     );
 
     if (currentToaster) {
       currentToaster.innerText = currentToaster.innerText.replace(
         `📄 Loading resource: ${resourceUri}...`,
-        `❌ Resource failed: ${error.message}`
+        `❌ Resource failed: ${error.message}`,
       );
     }
 
@@ -484,19 +484,20 @@ If a required argument cannot be extracted, set it to null.`;
         ]);
 
         // Use shared JSON parsing
-        promptArguments = parseJSONResponse(extractionResponse.content.toString()) || {};
+        promptArguments =
+          parseJSONResponse(extractionResponse.content.toString()) || {};
 
         // Check if any required arguments are missing
         const missingRequired = requiredArgs.filter(
           (arg) =>
-            !promptArguments[arg.name] || promptArguments[arg.name] === null
+            !promptArguments[arg.name] || promptArguments[arg.name] === null,
         );
 
         if (missingRequired.length > 0) {
           throw new Error(
             `Missing required arguments for prompt "${promptName}": ${missingRequired
               .map((a) => a.name)
-              .join(", ")}`
+              .join(", ")}`,
           );
         }
       }
@@ -506,7 +507,7 @@ If a required argument cannot be extracted, set it to null.`;
     const promptResponse = await mcpManager.getPrompt(
       serverIds[0],
       promptName,
-      promptArguments
+      promptArguments,
     );
 
     if (!promptResponse.result || !promptResponse.result.messages) {
@@ -528,7 +529,7 @@ If a required argument cannot be extracted, set it to null.`;
     if (currentToaster) {
       currentToaster.innerText = currentToaster.innerText.replace(
         `📝 Processing prompt: ${promptName}...`,
-        `📝 Applied prompt: ${promptName}`
+        `📝 Applied prompt: ${promptName}`,
       );
     }
 
@@ -546,13 +547,13 @@ If a required argument cannot be extracted, set it to null.`;
   } catch (error) {
     console.error(
       `❌ [PROMPT ERROR] Error processing prompt "${promptName}":`,
-      error
+      error,
     );
 
     if (currentToaster) {
       currentToaster.innerText = currentToaster.innerText.replace(
         `📝 Processing prompt: ${promptName}...`,
-        `❌ Prompt failed: ${error.message}`
+        `❌ Prompt failed: ${error.message}`,
       );
     }
 
@@ -594,7 +595,7 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
     if (currentToaster) {
       currentToaster.innerText = currentToaster.innerText.replace(
         "📋 Planning multi-server coordination...",
-        `📋 Retry Planning: ${executionPlan}`
+        `📋 Retry Planning: ${executionPlan}`,
       );
     }
 
@@ -609,7 +610,7 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
   const { toolDescriptions } = buildToolDescriptions(
     state.availableToolsForDynamic || [],
     state.preferredToolName,
-    isMultiple
+    isMultiple,
   );
 
   // Build planning prompt for multi-server coordination
@@ -631,14 +632,14 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
 
     // Use shared JSON parsing
     let planningResult = parsePlanningResponse(responseText);
-    
+
     if (!planningResult) {
       // Fallback to basic multi-server template
       planningResult = {
         needsPlanning: true,
         executionPlan: MULTI_SERVER_PLAN_TEMPLATE.replace(
           "<SERVER_NAMES>",
-          serverNames.join(", ")
+          serverNames.join(", "),
         ),
         reasoning: "Fallback plan due to parsing failure",
       };
@@ -649,14 +650,14 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
       planningResult.executionPlan ||
       MULTI_SERVER_PLAN_TEMPLATE.replace(
         "<SERVER_NAMES>",
-        serverNames.join(", ")
+        serverNames.join(", "),
       );
 
     if (currentToaster) {
       // Replace planning message with actual plan preview
       currentToaster.innerText = currentToaster.innerText.replace(
         "📋 Planning multi-server coordination...",
-        `📋 Multi-server plan: ${executionPlan.substring(0, 100)}...`
+        `📋 Multi-server plan: ${executionPlan.substring(0, 100)}...`,
       );
     }
 
@@ -668,13 +669,13 @@ const multiServerPlanning = async (state: typeof MCPAgentState.State) => {
     // Always provide a fallback plan for multi-server scenarios
     const fallbackPlan = MULTI_SERVER_PLAN_TEMPLATE.replace(
       "<SERVER_NAMES>",
-      serverNames.join(", ")
+      serverNames.join(", "),
     );
 
     if (currentToaster) {
       currentToaster.innerText = currentToaster.innerText.replace(
         "📋 Planning multi-server coordination...",
-        `📋 Fallback plan: ${fallbackPlan}`
+        `📋 Fallback plan: ${fallbackPlan}`,
       );
     }
 
@@ -696,19 +697,19 @@ const assistant = async (state: typeof MCPAgentState.State) => {
     // Rebuild system prompt with fresh enhancement
     const serverInfo = buildServerInfo(
       state.serverName as any,
-      Array.isArray(state.serverId)
+      Array.isArray(state.serverId),
     );
     const { toolDescriptions, preferredToolGuidance } = buildToolDescriptions(
       state.availableToolsForDynamic || [],
       state.preferredToolName,
-      Array.isArray(state.serverId)
+      Array.isArray(state.serverId),
     );
     const conversationContextData = buildConversationContext(state);
 
     // Build resource content for enhanced system prompt
     const resourceContent = buildResourceContent(
       state.activeResources || {},
-      state.resourceContent
+      state.resourceContent,
     );
 
     const enhancedSystemPrompt = buildSystemPrompt({
@@ -741,6 +742,7 @@ const assistant = async (state: typeof MCPAgentState.State) => {
 
   const llmStartTime = Date.now();
   const response = await llm_with_tools.invoke(messages);
+  console.log("mcp-agent response :>> ", response);
   const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(1);
 
   if ("tool_calls" in response && response.tool_calls) {
@@ -797,7 +799,7 @@ const insertResponse = async (state: typeof MCPAgentState.State) => {
   state.targetUid = await createChildBlock(
     parentUid,
     assistantRole,
-    state.isRetry ? "first" : "last"
+    state.isRetry ? "first" : "last",
   );
   await insertStructuredAIResponse({
     targetUid: state.targetUid,
@@ -837,7 +839,7 @@ const toolsWithCaching = async (state: typeof MCPAgentState.State) => {
 
   // Cache tool results for conversation continuity with resource deduplication
   const toolMessages = result.messages.filter(
-    (msg: any) => msg._getType() === "tool"
+    (msg: any) => msg._getType() === "tool",
   );
   const updatedCache = { ...state.toolResultsCache };
 

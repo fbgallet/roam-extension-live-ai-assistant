@@ -78,6 +78,7 @@ export const handleClickOnCommand = async ({
   isChildrenTreeToInclude,
   commands,
   includePdfInContext,
+  includeQueryInContext,
   thinkingEnabled,
   // Setters
   setDefaultLgg,
@@ -692,6 +693,7 @@ ${rawTranscription}`,
         : null,
       forceNotInConversation: isInConversation && command.id === 1,
       includePdfInContext,
+      includeQueryInContext,
       thinkingEnabled,
     });
   } else {

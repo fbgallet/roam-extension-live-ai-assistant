@@ -24,6 +24,7 @@ import { languages } from "../../ai/languagesSupport";
 import {
   getAndNormalizeContext,
   getCustomStyles,
+  getFlattenedContentFromTree,
   getFocusAndSelection,
   getOrderedCustomPromptBlocks,
   isPromptInConversation,
@@ -32,6 +33,7 @@ import {
   getBlockOrderByUid,
   getPageStatus,
   getPageUidByBlockUid,
+  hasBlockChildren,
   isExistingBlock,
   isLogView,
 } from "../../utils/roamAPI";
@@ -97,6 +99,7 @@ export const StandaloneContextMenu = () => {
     // User Preferences
     isChildrenTreeToInclude,
     setIsChildrenTreeToInclude,
+    isChildrenTreeToIncludeRef,
     targetBlock,
     setTargetBlock,
     style,
@@ -108,6 +111,10 @@ export const StandaloneContextMenu = () => {
     setModel,
     includePdfInContext,
     setIncludePdfInContext,
+    includePdfInContextRef,
+    includeQueryInContext,
+    setIncludeQueryInContext,
+    includeQueryInContextRef,
 
     // Thinking Mode State
     thinkingEnabled,
@@ -242,7 +249,13 @@ export const StandaloneContextMenu = () => {
   }, [isOpen]);
 
   useEffect(() => {
-    if (!hasTrueBooleanKey(roamContext)) {
+    const hasContext = hasTrueBooleanKey(roamContext);
+    const hasChildren =
+      isChildrenTreeToInclude &&
+      focusedBlockUid.current &&
+      hasBlockChildren(focusedBlockUid.current);
+
+    if (!hasContext && !hasChildren) {
       setEstimatedTokens(null);
       return;
     }
@@ -250,11 +263,26 @@ export const StandaloneContextMenu = () => {
     // Handle async context processing
     const estimateTokensAsync = async () => {
       try {
-        const contextContent = hasTrueBooleanKey(roamContext)
-          ? await getAndNormalizeContext({ roamContext })
-          : null;
-        const tokenEstimate = contextContent
-          ? estimateContextTokens(contextContent)
+        let totalContent = "";
+
+        if (hasContext) {
+          const contextContent = await getAndNormalizeContext({ roamContext });
+          if (contextContent) totalContent += contextContent;
+        }
+
+        if (hasChildren) {
+          const childrenContent = getFlattenedContentFromTree({
+            parentUid: focusedBlockUid.current,
+            maxCapturing: 99,
+            maxUid: 0,
+            withDash: true,
+            isParentToIgnore: false,
+          });
+          if (childrenContent) totalContent += childrenContent;
+        }
+
+        const tokenEstimate = totalContent
+          ? estimateContextTokens(totalContent)
           : null;
         setEstimatedTokens(tokenEstimate ? tokenEstimate.toString() : null);
       } catch (error) {
@@ -264,7 +292,7 @@ export const StandaloneContextMenu = () => {
     };
 
     estimateTokensAsync();
-  }, [roamContext]);
+  }, [roamContext, isChildrenTreeToInclude]);
 
   useEffect(() => {
     const updateMcpCommands = () => {
@@ -602,7 +630,7 @@ export const StandaloneContextMenu = () => {
       prompt,
       model: cmdModel,
       // Context and state
-      isChildrenTreeToInclude,
+      isChildrenTreeToInclude: isChildrenTreeToIncludeRef.current,
       roamContextRef,
       focusedBlockUid,
       focusedBlockContent,
@@ -619,7 +647,8 @@ export const StandaloneContextMenu = () => {
       isOutlinerAgent,
       isInConversation,
       commands,
-      includePdfInContext,
+      includePdfInContext: includePdfInContextRef.current,
+      includeQueryInContext: includeQueryInContextRef.current,
       thinkingEnabled: thinkingEnabledRef.current,
       // Setters
       setDefaultLgg,
@@ -633,7 +662,7 @@ export const StandaloneContextMenu = () => {
           focusedBlockContent,
           selectedBlocks,
           selectedTextInBlock,
-          isChildrenTreeToInclude,
+          isChildrenTreeToInclude: isChildrenTreeToIncludeRef.current,
           additionalPrompt,
         }),
       handleOutlinePrompt: (e, prompt, model) =>
@@ -648,7 +677,7 @@ export const StandaloneContextMenu = () => {
               focusedBlockContent,
               selectedBlocks,
               selectedTextInBlock,
-              isChildrenTreeToInclude,
+              isChildrenTreeToInclude: isChildrenTreeToIncludeRef.current,
               additionalPrompt,
             }),
         }),
@@ -1391,6 +1420,8 @@ export const StandaloneContextMenu = () => {
               renderDnpPeriodItem={renderDnpPeriodItem}
               includePdfInContext={includePdfInContext}
               setIncludePdfInContext={setIncludePdfInContext}
+              includeQueryInContext={includeQueryInContext}
+              setIncludeQueryInContext={setIncludeQueryInContext}
             />
 
             <TokenEstimateDisplay

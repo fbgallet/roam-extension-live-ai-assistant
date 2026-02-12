@@ -77,6 +77,7 @@ import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import { openChatPopup } from "../components/full-results-popup";
 import { imageGeneration } from "./multimodalAI";
+import { getContextFromQueries } from "./queryContextExtractor";
 
 export const lastCompletion = {
   prompt: null,
@@ -216,6 +217,7 @@ export const aiCompletionRunner = async ({
   isButtonToInsert = true,
   forceNotInConversation = false,
   includePdfInContext = false,
+  includeQueryInContext = false,
   thinkingEnabled = undefined,
 }) => {
   let withAssistantRole = target === "new" ? true : false;
@@ -336,6 +338,7 @@ export const aiCompletionRunner = async ({
   // console.log("systemPrompt :>> ", systemPrompt);
   // console.log("completed prompt from aiCompletionRunner :>> ", completedPrompt);
 
+  console.log("[QueryContext] aiCompletionRunner calling insertCompletion, includeQueryInContext:", includeQueryInContext);
   insertCompletion({
     prompt: completedPrompt,
     systemPrompt,
@@ -356,6 +359,7 @@ export const aiCompletionRunner = async ({
     roamContext,
     isButtonToInsert,
     includePdfInContext,
+    includeQueryInContext,
     thinkingEnabled,
   });
 };
@@ -380,8 +384,10 @@ export const insertCompletion = async ({
   isButtonToInsert = true,
   retryInstruction,
   includePdfInContext = false,
+  includeQueryInContext = false,
   thinkingEnabled = undefined,
 }) => {
+  console.log("[QueryContext] insertCompletion called, includeQueryInContext:", includeQueryInContext, "context length:", context?.length, "prompt type:", typeof prompt);
   lastCompletion.prompt = prompt;
   lastCompletion.systemPrompt = systemPrompt;
   lastCompletion.targetUid = targetUid;
@@ -441,6 +447,28 @@ export const insertCompletion = async ({
   )
     systemPrompt += hierarchicalResponseFormat;
   // console.log("systemPrompt :>> ", systemPrompt);
+
+  if (includeQueryInContext && !isRedone) {
+    console.log("[QueryContext] Running query context extraction, isInConversation:", isInConversation, "prompt length:", typeof prompt === "string" ? prompt.length : "array", "context length:", context?.length);
+    const queryContext = await getContextFromQueries({
+      prompt: typeof prompt === "string" ? prompt : JSON.stringify(prompt),
+      context,
+      model,
+      rootUid: targetUid,
+    });
+    if (queryContext) {
+      console.log("[QueryContext] Adding query results to context, length:", queryContext.length);
+      if (isInConversation) {
+        // In conversation mode, context is not used for content assembly — append to systemPrompt
+        systemPrompt += "\n\n" + queryContext;
+      } else {
+        context = context ? context + "\n\n" + queryContext : queryContext;
+      }
+    } else {
+      console.log("[QueryContext] No query results found");
+    }
+  }
+
   if (!isRedone && !isInConversation) {
     content =
       context && !context.includes(contextInstruction)

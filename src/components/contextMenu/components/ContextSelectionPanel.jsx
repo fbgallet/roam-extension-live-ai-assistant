@@ -116,6 +116,8 @@ const ContextSelectionPanel = ({
   renderDnpPeriodItem,
   includePdfInContext,
   setIncludePdfInContext,
+  includeQueryInContext,
+  setIncludeQueryInContext,
 }) => {
   return (
     <>
@@ -266,6 +268,24 @@ const ContextSelectionPanel = ({
             label="PDF"
             inline={true}
             onChange={() => setIncludePdfInContext((prev) => !prev)}
+          />
+        </Tooltip>
+        <Tooltip
+          content={
+            <div>
+              Execute Roam queries and :q Datomic queries
+              <br />
+              found in prompt/context and add results as context
+            </div>
+          }
+          hoverOpenDelay={800}
+          openOnTargetFocus={false}
+        >
+          <Checkbox
+            checked={includeQueryInContext}
+            label="Queries"
+            inline={true}
+            onChange={() => setIncludeQueryInContext((prev) => !prev)}
           />
         </Tooltip>
         <Tooltip

@@ -54,6 +54,7 @@ export const useContextMenuState = () => {
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
   const [includePdfInContext, setIncludePdfInContext] = useState(false);
+  const [includeQueryInContext, setIncludeQueryInContext] = useState(false);
 
   // Thinking Mode State
   const [thinkingEnabled, setThinkingEnabled] = useState(() =>
@@ -100,6 +101,14 @@ export const useContextMenuState = () => {
   const styleRef = useRef(style);
   const targetBlockRef = useRef(targetBlock);
   const thinkingEnabledRef = useRef(thinkingEnabled);
+  const isChildrenTreeToIncludeRef = useRef(isChildrenTreeToInclude);
+  const includePdfInContextRef = useRef(includePdfInContext);
+  const includeQueryInContextRef = useRef(includeQueryInContext);
+
+  // Update isChildrenTreeToIncludeRef when isChildrenTreeToInclude changes
+  useEffect(() => {
+    isChildrenTreeToIncludeRef.current = isChildrenTreeToInclude;
+  }, [isChildrenTreeToInclude]);
 
   // Update roamContextRef when roamContext changes
   useEffect(() => {
@@ -120,6 +129,16 @@ export const useContextMenuState = () => {
   useEffect(() => {
     thinkingEnabledRef.current = thinkingEnabled;
   }, [thinkingEnabled]);
+
+  // Update includePdfInContextRef when includePdfInContext changes
+  useEffect(() => {
+    includePdfInContextRef.current = includePdfInContext;
+  }, [includePdfInContext]);
+
+  // Update includeQueryInContextRef when includeQueryInContext changes
+  useEffect(() => {
+    includeQueryInContextRef.current = includeQueryInContext;
+  }, [includeQueryInContext]);
 
   // Handle close functionality
   const handleClose = (shouldResetContext = true) => {
@@ -142,6 +161,7 @@ export const useContextMenuState = () => {
 
     setIsChildrenTreeToInclude(includeChildrenByDefault);
     setIncludePdfInContext(false);
+    setIncludeQueryInContext(false);
     // Reset thinking to default model's setting
     setThinkingEnabled(hasThinkingDefault(defaultModel));
     selectedBlocks.current = null;
@@ -186,6 +206,7 @@ export const useContextMenuState = () => {
     // User Preferences
     isChildrenTreeToInclude,
     setIsChildrenTreeToInclude,
+    isChildrenTreeToIncludeRef,
     targetBlock,
     setTargetBlock,
     style,
@@ -200,6 +221,10 @@ export const useContextMenuState = () => {
     setModel,
     includePdfInContext,
     setIncludePdfInContext,
+    includePdfInContextRef,
+    includeQueryInContext,
+    setIncludeQueryInContext,
+    includeQueryInContextRef,
 
     // Thinking Mode State
     thinkingEnabled,
