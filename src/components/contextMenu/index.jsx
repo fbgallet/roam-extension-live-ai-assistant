@@ -266,7 +266,10 @@ export const StandaloneContextMenu = () => {
         let totalContent = "";
 
         if (hasContext) {
-          const contextContent = await getAndNormalizeContext({ roamContext });
+          const contextContent = await getAndNormalizeContext({
+            roamContext,
+            focusedBlock: focusedBlockUid.current,
+          });
           if (contextContent) totalContent += contextContent;
         }
 

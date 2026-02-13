@@ -99,6 +99,37 @@ You can reference existing pages or blocks in a resource title using `[[page]]` 
 
 Both tag-based and prefix-based resources support page and block references this way. The referenced content is fetched live when the resource is loaded, so it always reflects the current state of the page.
 
+#### Relative Date References in Resources
+
+Resources also support **relative date keywords** inside `[[...]]`. These are resolved at invocation time to the corresponding Roam daily note pages (DNPs). Range keywords expand to multiple daily note pages, so all of them are fetched and combined.
+
+| Keyword | Resolves to |
+| ------- | ----------- |
+| `[[today]]` | Today's daily note |
+| `[[yesterday]]` | Yesterday's daily note |
+| `[[tomorrow]]` | Tomorrow's daily note |
+| `[[next week]]` | Same day next week |
+| `[[next month]]` | Same day next month |
+| `[[in X days]]` | Daily note X days from today |
+| `[[in X weeks]]` | Daily note X weeks from today |
+| `[[in X months]]` | Daily note X months from today |
+| `[[last week]]` | The 7 daily notes ending yesterday |
+| `[[last month]]` | The 30 daily notes ending yesterday |
+| `[[last X days]]` | The X daily notes ending yesterday |
+| `[[this week]]` | Daily notes from last Monday through today |
+| `[[this month]]` | Daily notes from the 1st of this month through today |
+
+Examples:
+
+```
+- Today's journal #liveai/skill-resource
+  - Resource: my notes from [[today]]
+
+- Resource: context from [[last week]]
+
+- Recent activity from [[last 3 days]] #liveai/skill-resource
+```
+
 ### Records
 
 Records define **editable outlines** where the agent can add, update, or remove content using `create_block`, `update_block`, and `delete_block` tools. The agent receives the records' UID and current content.
@@ -118,6 +149,31 @@ Records define **editable outlines** where the agent can add, update, or remove 
 1. **Embed child** (explicit): If the first child of a records block is an embed (`{{[[embed]]: ((uid))}}`), the agent writes to the embedded outline. This lets you point a skill at any existing outline in your graph.
 2. **Page reference in title** (shorthand): If the records title contains a `[[page]]` reference (e.g., `Records: Tweet drafts — prepend new entries on [[my tweet drafts]]`), the agent writes to that page. This is a convenient shorthand — no embed child needed.
 3. **Records block itself** (default): If neither of the above is present, the records block itself is the writable container, records will be written as children of this block.
+
+#### Relative Date References in Records
+
+The **page reference in title** shorthand (option 2) supports **single-day relative date keywords**, letting you target today's (or another day's) daily note as the write destination:
+
+| Keyword | Resolves to |
+| ------- | ----------- |
+| `[[today]]` | Today's daily note |
+| `[[yesterday]]` | Yesterday's daily note |
+| `[[tomorrow]]` | Tomorrow's daily note |
+| `[[next week]]` | Same day next week |
+| `[[next month]]` | Same day next month |
+| `[[in X days]]` | X days from today |
+| `[[in X weeks]]` | X weeks from today |
+| `[[in X months]]` | X months from today |
+
+Range keywords (`[[last week]]`, `[[this month]]`, etc.) are not supported for Records since a single write target is required.
+
+Example:
+
+```
+- Records: Daily standup notes — append to [[today]]
+- Records: Weekly review — write to [[next week]]
+- Records: Follow-up tasks — log on [[in 3 days]]
+```
 
 ```
 - Explicit embed (option 1):
@@ -202,6 +258,14 @@ In this example:
 | `#liveai/skill-records`  | `Records:`     | Editable outline (agent can read and write)                    |
 
 All prefix matching is **case-insensitive** and supports both single colon (`Records:`) and double colon (`Records::`) Roam attribute syntax.
+
+### Relative Date Resolution
+
+Relative date keywords in `[[...]]` syntax are resolved at invocation time — no LLM call required, no token cost. Keywords are matched case-insensitively.
+
+- **Resources** support both single-day keywords and range keywords. Range keywords (e.g. `[[last week]]`) expand to multiple `[[DNP page]]` references so all matching daily notes are fetched and combined.
+- **Records** support single-day keywords only (e.g. `[[today]]`), since a write target must be a single page.
+- Keywords are resolved relative to the current local date at the moment the skill is invoked.
 
 Plural forms of tags are also supported (`#liveai/skills`, `#liveai/skill-resources`, `#liveai/skill-records`) but the **singular form is recommended** for skill and resource tags, and the **plural form is recommended** for records.
 

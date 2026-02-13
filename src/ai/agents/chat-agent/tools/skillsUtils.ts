@@ -21,6 +21,125 @@ const INSTRUCTIONS_PREFIX_REGEX = /^\*{0,2}Instructions?\*{0,2}::?\s*/i;
 const RESOURCE_PREFIX_REGEX = /^\*{0,2}Resources?\*{0,2}::?\s*/i;
 const RECORDS_PREFIX_REGEX = /^\*{0,2}Records?\*{0,2}::?\s*/i;
 
+/**
+ * Resolve relative date keywords inside [[...]] references to actual Roam DNP titles.
+ *
+ * Supported single-day keywords (valid for both Resources and Records):
+ *   [[today]], [[yesterday]], [[tomorrow]]
+ *   [[in X day(s)]] / [[in X week(s)]] / [[in X month(s)]]  — future offsets
+ *   [[next week]]  — same weekday next week
+ *   [[next month]] — same day-of-month next month
+ *
+ * Supported range keywords (Resources only, singleOnly=false):
+ *   [[last week]]    — 7 days ending yesterday (Mon–Sun of previous week semantics: today-7 to today-1)
+ *   [[last month]]   — 30 days ending yesterday
+ *   [[last X days]]  — X days ending yesterday
+ *   [[this week]]    — from last Monday through today
+ *   [[this month]]   — from 1st of current month through today
+ *
+ * Range keywords expand to multiple [[DNP Title]] references so that
+ * extractRefsAsUids() picks them all up and fetches each page's content.
+ *
+ * @param blockString  The raw block string to process
+ * @param singleOnly   When true, range keywords are ignored (use for Records target)
+ */
+function resolveRelativeDateRefs(
+  blockString: string,
+  singleOnly = false
+): string {
+  const toTitle = (d: Date): string =>
+    (window as any).roamAlphaAPI.util.dateToPageTitle(d);
+
+  const addDays = (base: Date, n: number): Date => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + n);
+    return d;
+  };
+
+  const now = new Date();
+  // Midnight of today (local)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let result = blockString;
+
+  // ── Single-day keywords ──────────────────────────────────────────────────
+
+  const singleKeywords: Array<[RegExp, Date]> = [
+    [/\[\[today\]\]/gi, today],
+    [/\[\[yesterday\]\]/gi, addDays(today, -1)],
+    [/\[\[tomorrow\]\]/gi, addDays(today, 1)],
+    [/\[\[next week\]\]/gi, addDays(today, 7)],
+    [/\[\[next month\]\]/gi, (() => {
+      const d = new Date(today);
+      d.setMonth(d.getMonth() + 1);
+      return d;
+    })()],
+  ];
+
+  for (const [regex, date] of singleKeywords) {
+    result = result.replace(regex, `[[${toTitle(date)}]]`);
+  }
+
+  // [[in X day(s)]] / [[in X week(s)]] / [[in X month(s)]]
+  result = result.replace(
+    /\[\[in (\d+)\s*(day|days|week|weeks|month|months)\]\]/gi,
+    (_match, numStr, unit) => {
+      const n = parseInt(numStr, 10);
+      const d = new Date(today);
+      const u = unit.toLowerCase().replace(/s$/, ""); // strip trailing 's'
+      if (u === "day") d.setDate(d.getDate() + n);
+      else if (u === "week") d.setDate(d.getDate() + n * 7);
+      else if (u === "month") d.setMonth(d.getMonth() + n);
+      return `[[${toTitle(d)}]]`;
+    }
+  );
+
+  if (singleOnly) return result;
+
+  // ── Range keywords (Resources only) ─────────────────────────────────────
+
+  const expandRange = (startDate: Date, endDate: Date): string => {
+    const refs: string[] = [];
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+      refs.push(`[[${toTitle(new Date(cur))}]]`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return refs.join(" ");
+  };
+
+  // [[last week]] — 7 days ending yesterday
+  result = result.replace(/\[\[last week\]\]/gi, () =>
+    expandRange(addDays(today, -7), addDays(today, -1))
+  );
+
+  // [[last month]] — 30 days ending yesterday
+  result = result.replace(/\[\[last month\]\]/gi, () =>
+    expandRange(addDays(today, -30), addDays(today, -1))
+  );
+
+  // [[last X days]] — X days ending yesterday
+  result = result.replace(/\[\[last (\d+)\s*days?\]\]/gi, (_match, numStr) => {
+    const n = parseInt(numStr, 10);
+    return expandRange(addDays(today, -n), addDays(today, -1));
+  });
+
+  // [[this week]] — last Monday through today
+  result = result.replace(/\[\[this week\]\]/gi, () => {
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    return expandRange(addDays(today, -daysToMonday), today);
+  });
+
+  // [[this month]] — 1st of current month through today
+  result = result.replace(/\[\[this month\]\]/gi, () => {
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    return expandRange(firstOfMonth, today);
+  });
+
+  return result;
+}
+
 export interface SkillInfo {
   name: string;
   description: string;
@@ -101,10 +220,14 @@ function isRecordsTag(str: string): boolean {
 /**
  * Extract all [[page]] and ((uid)) references from a block string
  * and return their UIDs. Pages are resolved to page UIDs.
+ * Relative date keywords (e.g. [[today]], [[last week]]) are resolved first.
  */
 function extractRefsAsUids(blockString: string): string[] {
   const uids: string[] = [];
   const seen = new Set<string>();
+
+  // Resolve relative date keywords before extracting refs (ranges enabled)
+  blockString = resolveRelativeDateRefs(blockString, false);
 
   // Extract [[page]] references and resolve to page UIDs
   const pageRefRegex = /\[\[([^\]]+)\]\]/g;
@@ -397,8 +520,10 @@ export function extractSkillInstructions(
         }
 
         // Fallback: if no embed, check for [[page]] reference in the description
+        // Resolve relative date keywords first (single day only — Records need one target page)
         if (!isEmbed) {
-          const pageMatch = recordsDescription.match(/\[\[([^\]]+)\]\]/);
+          const resolvedDescription = resolveRelativeDateRefs(recordsDescription, true);
+          const pageMatch = resolvedDescription.match(/\[\[([^\]]+)\]\]/);
           if (pageMatch) {
             const pageName = pageMatch[1];
             const pageUid = getPageUidByPageName(pageName);
@@ -526,12 +651,20 @@ export function extractSkillResource(
     if (allResults && allResults.length > 0) {
       // Tag-based resource found via Datomic query
       resourceUid = allResults[0][0];
+      const rawBlockString: string = allResults[0][1] || "";
       const resourcePageUid =
         getPageUidByPageName("liveai/skill-resource") ||
         getPageUidByPageName("liveai/skill-resources");
+      // Start from Datomic-resolved refs (real Roam page refs)
       resourceRefs = allResults
         .filter((r: any) => r[2] !== resourcePageUid)
         .map((r: any) => r[2]);
+      // Also resolve relative date keywords from the raw block string and add those UIDs
+      // (extractRefsAsUids already handles relative date resolution internally)
+      const relativeDateUids = extractRefsAsUids(rawBlockString).filter(
+        (uid) => !resourceRefs.includes(uid)
+      );
+      resourceRefs = [...resourceRefs, ...relativeDateUids];
     } else {
       // Fallback: search tree for "Resource:" prefix blocks
       const found = findPrefixBlockInTree(

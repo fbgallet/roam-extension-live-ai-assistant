@@ -1,7 +1,18 @@
 import React, { useMemo } from "react";
-import { Checkbox, Tooltip, NumericInput, Icon, MenuItem } from "@blueprintjs/core";
+import {
+  Checkbox,
+  Tooltip,
+  NumericInput,
+  Icon,
+  MenuItem,
+} from "@blueprintjs/core";
 import { Select } from "@blueprintjs/select";
-import { hasBlockChildren, hasSiblings, isLogView, getPathOfBlock } from "../../../utils/roamAPI";
+import {
+  hasBlockChildren,
+  hasSiblings,
+  isLogView,
+  getPathOfBlock,
+} from "../../../utils/roamAPI";
 
 const DNP_PERIOD_OPTIONS = [
   { value: "0", label: "0", days: 0 },
@@ -44,54 +55,62 @@ const PathContextControl = ({
 
   return (
     <>
-      <Tooltip
-        content={
-          <div>
-            Hierarchical location of the focused block
-            <br />
-            (Page &gt; parent &gt; parent...)
-          </div>
-        }
-        hoverOpenDelay={800}
-        openOnTargetFocus={false}
-      >
-        <Checkbox
-          checked={roamContext.path}
-          label="Path"
-          inline={true}
-          onChange={(e) => updateContext("path", e)}
-        />
-      </Tooltip>
-      {roamContext.path && ancestorCount > 1 && (
-        <Select
-          items={pathDepthOptions}
-          itemRenderer={(item, { handleClick, modifiers }) => (
-            <MenuItem
-              key={item.value}
-              text={item.label}
-              active={modifiers.active}
-              onClick={handleClick}
-              icon={item.value === currentDepth ? "tick" : "blank"}
-            />
-          )}
-          onItemSelect={(item) => {
-            setRoamContext((prev) => ({
-              ...prev,
-              pathDepth: item.value,
-            }));
-          }}
-          filterable={false}
-          popoverProps={{
-            minimal: true,
-            placement: "bottom-start",
-          }}
+      <div>
+        <Tooltip
+          content={
+            <div>
+              Hierarchical location of the focused block
+              <br />
+              (Page &gt; parent &gt; parent...)
+            </div>
+          }
+          hoverOpenDelay={800}
+          openOnTargetFocus={false}
         >
-          <button>
-            {currentLabel}
-            <Icon icon="caret-down" size={12} />
-          </button>
-        </Select>
-      )}
+          <Checkbox
+            checked={roamContext.path}
+            label="Path"
+            inline={true}
+            onChange={(e) => updateContext("path", e)}
+          />
+        </Tooltip>
+        {roamContext.path && ancestorCount > 1 && (
+          <Tooltip
+            content="Nb of parents to include in Path context"
+            hoverOpenDelay={800}
+            openOnTargetFocus={false}
+          >
+            <Select
+              items={pathDepthOptions}
+              itemRenderer={(item, { handleClick, modifiers }) => (
+                <MenuItem
+                  key={item.value}
+                  text={item.label}
+                  active={modifiers.active}
+                  onClick={handleClick}
+                  icon={item.value === currentDepth ? "tick" : "blank"}
+                />
+              )}
+              onItemSelect={(item) => {
+                setRoamContext((prev) => ({
+                  ...prev,
+                  pathDepth: item.value,
+                }));
+              }}
+              filterable={false}
+              popoverProps={{
+                minimal: true,
+                placement: "bottom-start",
+              }}
+            >
+              <button>
+                {currentLabel}
+                <Icon icon="caret-down" size={12} />
+              </button>
+            </Select>
+          </Tooltip>
+        )}
+      </div>
     </>
   );
 };
@@ -182,7 +201,7 @@ const ContextSelectionPanel = ({
                   !isZoom.current || (isZoom.current && !pageUid.current)
                     ? "page"
                     : "zoom",
-                  e
+                  e,
                 )
               }
             />
