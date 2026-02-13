@@ -97,6 +97,10 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
    - `{replace-}`: replace the current block content, without assistant name, only the response
    - `{append}`: append the response to the current block content
    - `{chat}`: open the Live AI Chat panel with the prompt and context loaded, and automatically execute the AI response (useful for interactive conversations with context)
+   - `{chat:tool:name}`: same as `{chat}`, but also force-enables a specific agent tool. `name` must be a valid tool name (e.g. `create_block`, `add_to_context`, `ask_your_graph`).
+   - `{chat:skill:name}`: same as `{chat}`, but also force-enables a specific skill (defined in your graph with `#liveai/skill`). `name` is the skill name as written in your graph, or a block reference in `((uid))` format pointing to the skill block.
+   - Multiple tools and skills can be combined with `+`: `{chat:skill:Research+tool:create_block+skill:Writing}`
+   - Force-enabled tools/skills are **merged** with your currently enabled tools — they are additive and never remove tools you already have on. They are **not saved** to your preferences, so your normal tool setup is preserved after the chat session.
 4. AI model to query: exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`. Default: default model defined in extension settings.
 5. Levels within the linked references or DNP to include in the context: number, default fixed in settings.
 6. Insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
@@ -108,6 +112,10 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 `<%LIVEAIGEN:{((cSoBrilIU))+((Iuq6UTY5C))},[[my last article]],,,4%>` => prompt in the first referenced block (and children) and instructions (for example about the output format) in the second referenced block, will be applied to the content of 'my last article' page and all its linked references (including up to the 4 levels).
 
 `<%LIVEAIGEN:Analyze this content,{children},{chat}%>` => opens the Live AI Chat panel with "Analyze this content" as the prompt, all children blocks as context displayed in the Results panel, and automatically executes the AI response for an interactive conversation.
+
+`<%LIVEAIGEN:{current},{page},{chat:skill:Research}%>` => opens the Chat panel with the current page as context and force-enables the "Research" skill, so the agent immediately uses it without the user having to select it manually.
+
+`<%LIVEAIGEN:{current},,{chat:skill:((abc12345))+tool:create_block}%>` => opens the Chat panel with the skill referenced by block `((abc12345))` and the `create_block` tool both force-enabled (useful when the skill involves writing records back to the graph).
 
 ### <%LIVEAITEMPLATE:template,context,target,model,template levels,context levels,context uids%>`
 

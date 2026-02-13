@@ -24,6 +24,7 @@ import {
   createChildBlock,
   extractNormalizedUidFromRef,
   filterTopLevelBlocks,
+  getBlockContentByUid,
   getFirstChildUid,
   getPageUidByBlockUid,
   resolveReferences,
@@ -300,6 +301,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           toAppend,
           shouldOpenChat,
           roamContext,
+          forcedTools,
         } = await getInfosFromSmartBlockParams({
           sbContext,
           prompt,
@@ -322,6 +324,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
                 ? "both"
                 : "chat-only",
             commandPrompt: "prompt", // Use "prompt" to trigger auto-execution without additional command processing
+            forcedTools: forcedTools,
           });
           return [toAppend];
         }
@@ -563,6 +566,7 @@ const getInfosFromSmartBlockParams = async ({
   let targetUid;
   let isContentToReplace = false;
   let shouldOpenChat = false;
+  let forcedTools = null;
 
   let stringifiedPrompt = "";
   if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
@@ -604,9 +608,37 @@ const getInfosFromSmartBlockParams = async ({
     target = "{append}";
   }
 
-  // Check if target is {chat}
-  if (target === "{chat}") {
+  // Check if target is {chat} or {chat:skill:name+tool:name}
+  if (target === "{chat}" || (target && target.startsWith("{chat:") && target.endsWith("}"))) {
     shouldOpenChat = true;
+
+    // Parse forced tools from {chat:skill:name1+tool:name2}
+    if (target.startsWith("{chat:")) {
+      const toolsSpec = target.slice(6, -1); // Remove "{chat:" and "}"
+      if (toolsSpec) {
+        forcedTools = new Set();
+        const items = toolsSpec.split("+");
+        items.forEach((item) => {
+          item = item.trim();
+          if (item.startsWith("skill:")) {
+            let skillName = item.slice(6);
+            // Support ((uid)) or plain UID references: resolve to actual skill name
+            const skillUid = extractNormalizedUidFromRef(skillName);
+            if (skillUid) {
+              const blockContent = getBlockContentByUid(skillUid);
+              if (blockContent) {
+                // Strip #liveai/skill tag to get clean name (same as skillsUtils.stripSkillTag)
+                skillName = blockContent.replace(/#liveai\/skills?/gi, "").trim();
+              }
+            }
+            forcedTools.add(`skill:${skillName}`);
+            forcedTools.add("live_ai_skills"); // Required for skills to work
+          } else if (item.startsWith("tool:")) {
+            forcedTools.add(item.slice(5));
+          }
+        });
+      }
+    }
     // Build RoamContext from the context parameter if provided
     if (context && context !== "{current}") {
       // Parse context to extract RoamContext object
@@ -692,5 +724,6 @@ const getInfosFromSmartBlockParams = async ({
     toAppend,
     shouldOpenChat,
     roamContext,
+    forcedTools,
   };
 };

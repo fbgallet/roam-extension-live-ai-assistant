@@ -63,6 +63,8 @@ export interface FullResultsPopupProps {
   // Initial filter state
   initialIncludedReferences?: string[]; // Pre-populate included references filter
   initialExcludedReferences?: string[]; // Pre-populate excluded references filter
+  // Initial tools state (for forced tools from SmartBlock commands)
+  initialEnabledTools?: Set<string>;
 }
 
 export type ViewMode = "blocks" | "pages" | "mixed";

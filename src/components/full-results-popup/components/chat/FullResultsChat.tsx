@@ -99,6 +99,7 @@ interface FullResultsChatProps {
   initialStyle?: string;
   initialCommandId?: number;
   initialCommandPrompt?: string;
+  initialEnabledTools?: Set<string>; // Force-enable specific tools/skills (merged with user prefs)
   // Page autocomplete props
   availablePages: string[];
   isLoadingPages: boolean;
@@ -149,6 +150,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   initialStyle,
   initialCommandId,
   initialCommandPrompt,
+  initialEnabledTools,
   availablePages,
   isLoadingPages,
   queryAvailablePages,
@@ -1243,12 +1245,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Storage is guaranteed to have a value (set in index.js onload)
     // Can be: [] (user disabled all) or [...] (enabled tools)
-    return new Set(storedTools || []);
+    const baseSet = new Set<string>(storedTools || []);
+
+    // Merge forced tools if provided (e.g., from SmartBlock {chat:skill:X+tool:Y})
+    if (initialEnabledTools && initialEnabledTools.size > 0) {
+      initialEnabledTools.forEach((tool) => baseSet.add(tool));
+    }
+
+    return baseSet;
   });
 
+  // Whether this chat session was opened with forced tools (don't persist to storage)
+  const hasForcedTools = useRef(!!(initialEnabledTools && initialEnabledTools.size > 0));
+
   // Save enabled tools to storage whenever they change
+  // Skip if this session has forced tools to avoid overwriting user preferences
   useEffect(() => {
-    extensionStorage.set("chatEnabledTools", Array.from(enabledTools));
+    if (!hasForcedTools.current) {
+      extensionStorage.set("chatEnabledTools", Array.from(enabledTools));
+    }
   }, [enabledTools]);
 
   // Handler to toggle individual tool

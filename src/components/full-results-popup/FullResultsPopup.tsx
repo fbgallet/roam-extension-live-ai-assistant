@@ -74,6 +74,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
   initialCommandPrompt,
   initialIncludedReferences,
   initialExcludedReferences,
+  initialEnabledTools,
 }) => {
   // Query execution state
   const [isExecutingQuery, setIsExecutingQuery] = useState(false);
@@ -2855,6 +2856,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 initialStyle={initialStyle}
                 initialCommandId={initialCommandId}
                 initialCommandPrompt={initialCommandPrompt}
+                initialEnabledTools={initialEnabledTools}
                 // Page autocomplete
                 availablePages={availablePages}
                 isLoadingPages={isLoadingPages}

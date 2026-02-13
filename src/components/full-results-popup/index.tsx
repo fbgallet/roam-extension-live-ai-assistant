@@ -209,6 +209,9 @@ export interface OpenFullResultsPopupOptions {
   // Initial filter state
   initialIncludedReferences?: string[]; // Pre-populate included references filter
   initialExcludedReferences?: string[]; // Pre-populate excluded references filter
+
+  // Initial tools state (for forced tools from SmartBlock commands)
+  initialEnabledTools?: Set<string>;
 }
 
 // React component for popup functionality
@@ -235,6 +238,7 @@ export const openFullResultsPopup = async (
     commandPrompt = null,
     initialIncludedReferences = null,
     initialExcludedReferences = null,
+    initialEnabledTools = null,
   } = options;
 
   // Handle loading results from RoamContext if provided
@@ -325,6 +329,7 @@ export const openFullResultsPopup = async (
         initialCommandPrompt={commandPrompt}
         initialIncludedReferences={initialIncludedReferences}
         initialExcludedReferences={initialExcludedReferences}
+        initialEnabledTools={initialEnabledTools}
       />
     );
   };
@@ -348,6 +353,7 @@ export interface OpenChatPopupOptions {
   style?: string;
   commandId?: number; // Command ID from BUILTIN_COMMANDS
   commandPrompt?: string; // Key in completionCommands (e.g., "summarize", "keyInsights")
+  forcedTools?: Set<string>; // Force-enable specific tools/skills (merged with user prefs)
 }
 
 /**
@@ -365,6 +371,7 @@ export const openChatPopup = async ({
   style,
   commandId,
   commandPrompt,
+  forcedTools,
 }: OpenChatPopupOptions = {}) => {
   try {
     // Get the CURRENT page UID for context
@@ -488,6 +495,7 @@ export const openChatPopup = async ({
       style,
       commandId,
       commandPrompt,
+      initialEnabledTools: forcedTools,
     });
   } catch (error) {
     console.error("Error opening chat popup:", error);
