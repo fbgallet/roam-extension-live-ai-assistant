@@ -53,7 +53,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const autoEnabledSkills = useRef<Set<string>>(new Set());
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // Help topics state
@@ -88,7 +88,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
         });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Load help topics when menu opens
@@ -166,9 +166,8 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     });
   };
 
-  // Get available tools based on permissions (exclude interaction tools — always-on, not user-toggled)
+  // Get available tools based on permissions
   const availableTools = Object.entries(CHAT_TOOLS).filter(([, info]) => {
-    if (info.category === "interaction") return false;
     if (info.securityLevel === "secure") return true;
     if (info.securityLevel === "content" && permissions.contentAccess)
       return true;
@@ -177,13 +176,16 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
 
   // Categorize tools
   const contextTools = availableTools.filter(
-    ([, info]) => info.category === "context"
+    ([, info]) => info.category === "context",
   );
   const editTools = availableTools.filter(
-    ([, info]) => info.category === "edit"
+    ([, info]) => info.category === "edit",
+  );
+  const interactionTools = availableTools.filter(
+    ([, info]) => info.category === "interaction",
   );
   const skillsToolEntry = availableTools.find(
-    ([, info]) => info.category === "skills"
+    ([, info]) => info.category === "skills",
   );
 
   // Edit section master switch - uses a special key in enabledTools
@@ -218,7 +220,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   const renderToolItem = (
     toolName: string,
     toolInfo: (typeof CHAT_TOOLS)[string],
-    disabled = false
+    disabled = false,
   ) => {
     const isExpanded = expandedDescriptions.has(toolName);
     const isGetHelpTool = toolName === "get_help";
@@ -345,9 +347,25 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
           <span>Context</span>
         </div>
         {contextTools.map(([toolName, toolInfo]) =>
-          renderToolItem(toolName, toolInfo)
+          renderToolItem(toolName, toolInfo),
         )}
       </div>
+
+      {/* Interaction Section */}
+      {interactionTools.length > 0 && (
+        <>
+          <Divider />
+          <div className="chat-tools-section">
+            <div className="chat-tools-section-header">
+              <Icon icon="form" size={14} />
+              <span>Interaction</span>
+            </div>
+            {interactionTools.map(([toolName, toolInfo]) =>
+              renderToolItem(toolName, toolInfo),
+            )}
+          </div>
+        </>
+      )}
 
       <Divider />
 
@@ -391,7 +409,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
         <Collapse isOpen={isEditSectionExpanded}>
           <div className="chat-tools-section-content">
             {editTools.map(([toolName, toolInfo]) =>
-              renderToolItem(toolName, toolInfo, !isEditSectionEnabled)
+              renderToolItem(toolName, toolInfo, !isEditSectionEnabled),
             )}
           </div>
         </Collapse>
@@ -465,7 +483,9 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                             icon={isExpanded ? "chevron-down" : "chevron-right"}
                             size={12}
                           />
-                          <span style={{ marginLeft: "6px" }}>{skill.name}</span>
+                          <span style={{ marginLeft: "6px" }}>
+                            {skill.name}
+                          </span>
                         </div>
                         <div
                           className={`chat-tool-description ${
@@ -495,8 +515,8 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
               })
             ) : (
               <div className="chat-tools-no-skills">
-                No skills found. Add skills with{" "}
-                <code>#liveai/skill</code> tag in your graph.
+                No skills found. Add skills with <code>#liveai/skill</code> tag
+                in your graph.
               </div>
             )}
           </div>
@@ -583,7 +603,7 @@ const HelpTopicsMultiSelect: React.FC<HelpTopicsMultiSelectProps> = ({
 
   const renderTopic: ItemRenderer<HelpTopic> = (
     topic,
-    { handleClick, handleFocus, modifiers }
+    { handleClick, handleFocus, modifiers },
   ) => {
     if (!modifiers.matchesPredicate) {
       return null;

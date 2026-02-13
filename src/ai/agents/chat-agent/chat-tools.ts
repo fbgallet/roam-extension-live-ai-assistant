@@ -45,9 +45,6 @@ export const getChatTools = (
         return false;
       }
 
-      // Always include interaction tools (ask_user_choice) — not user-toggled
-      if (tool.name === "ask_user_choice") return true;
-
       // Check if this tool's name is in the enabledTools set
       return enabledTools.has(tool.name);
     });

@@ -2862,6 +2862,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               return `"${opt.label}" (${choiceCount} choices)`;
             });
             details = `**${args.title || "Choice form"}** — ${groupSummaries.join(", ")}`;
+          } else if (toolInfo.toolName === "random_pick") {
+            // Friendly summary for random_pick — hide the raw items array
+            const args = toolInfo.args || {};
+            const count = args.count ?? 1;
+            const total = (args.items || []).length;
+            const selectInUi = args.select_in_ui ? ", select in UI" : "";
+            details = `${count} of ${total} item${total !== 1 ? "s" : ""}${selectInUi}`;
           } else {
             // For other tools, show arguments only (tool name is already in the title)
             if (toolInfo.args) {

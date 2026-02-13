@@ -14,6 +14,7 @@ import { createPageTool } from "./createPageTool";
 import { updateBlockTool } from "./updateBlockTool";
 import { deleteBlockTool } from "./deleteBlockTool";
 import { askUserChoiceTool } from "./askUserChoiceTool";
+import { randomPickTool } from "./randomPickTool";
 
 export type ToolCategory = "context" | "edit" | "skills" | "interaction";
 
@@ -101,13 +102,20 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       description:
         "Access specialized skills stored in Roam with #liveai/skill tag. Skills provide instructions and resources for specific tasks/workflows. Load progressively: start with core instructions, then request deeper resources only when needed.",
     },
-    // Interaction tool
+    // Interaction tools
     ask_user_choice: {
       tool: askUserChoiceTool,
       securityLevel: "secure",
       category: "interaction",
       description:
         "Present the user with an interactive choice form inline in chat. Use for ambiguous requests, quizzes/QCM, polls, preference selection, multi-path decisions, or any interactive experience requiring user input.",
+    },
+    random_pick: {
+      tool: randomPickTool,
+      securityLevel: "secure",
+      category: "interaction",
+      description:
+        "Randomly pick one or more unique items from a list. Works with context results, user-provided lists, or LLM-generated lists. Always build the complete items array before calling.",
     },
   };
 }
@@ -182,13 +190,20 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     description:
       "Access specialized skills stored in Roam with #liveai/skill tag. Skills provide instructions and resources for specific tasks/workflows. Load progressively: start with core instructions, then request deeper resources only when needed.",
   },
-  // Interaction tool
+  // Interaction tools
   ask_user_choice: {
     tool: null,
     securityLevel: "secure",
     category: "interaction",
     description:
       "Present the user with an interactive choice form inline in chat. Use for ambiguous requests, quizzes/QCM, polls, preference selection, multi-path decisions, or any interactive experience requiring user input.",
+  },
+  random_pick: {
+    tool: null,
+    securityLevel: "secure",
+    category: "interaction",
+    description:
+      "Randomly pick one or more unique items from a list. Works with context results, user-provided lists, or LLM-generated lists. Always build the complete items array before calling.",
   },
 };
 
