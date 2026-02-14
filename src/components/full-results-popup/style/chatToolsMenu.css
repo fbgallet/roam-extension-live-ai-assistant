@@ -1,5 +1,43 @@
 /* Chat Tools Menu Styles */
 
+/* Menu header */
+.chat-tools-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  gap: 8px;
+}
+
+.chat-tools-mode-label {
+  display: flex;
+  gap: 5px;
+  cursor: default;
+}
+
+.chat-tools-mode-status {
+  font-size: 11px;
+  font-weight: normal;
+}
+
+.chat-tools-mode-status.enabled {
+  color: #0f9960;
+}
+
+.chat-tools-mode-status.disabled {
+  color: #5c7080;
+}
+
+/* Wrapper that greys out all tool sections when agent mode is off */
+.chat-tools-sections-wrapper {
+  /* no special styles needed in enabled state */
+}
+
+.chat-tools-sections-wrapper.agent-mode-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* Section Styles */
 .chat-tools-section {
   padding: 4px 0;
@@ -166,7 +204,7 @@
   background: #f5f8fa;
   border: 1px solid #d8e1e8;
   border-radius: 4px;
-  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-family: "SF Mono", "Monaco", "Courier New", monospace;
   font-size: 11px;
   line-height: 1.4;
   white-space: pre-wrap;

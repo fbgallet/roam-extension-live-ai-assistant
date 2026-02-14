@@ -2818,7 +2818,7 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
                 paginatedResults={paginatedResults}
                 privateMode={privateMode}
                 targetUid={targetUid}
-                onClose={() => toggleChat()}
+                onClose={handleClose}
                 chatMessages={chatMessages}
                 setChatMessages={setChatMessages}
                 chatAccessMode={chatAccessMode}

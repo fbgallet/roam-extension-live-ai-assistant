@@ -297,6 +297,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       imageInput: true,
       imageOutput: true,
+      editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: true,
@@ -311,6 +312,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       imageInput: true,
       imageOutput: true,
+      // editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: false,
@@ -325,6 +327,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       imageInput: true,
       imageOutput: true,
+      // editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: true,
@@ -507,6 +510,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       imageInput: true,
       imageOutput: true,
+      editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: true,
@@ -528,6 +532,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       imageInput: true,
       imageOutput: true,
+      editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: true,
@@ -664,6 +669,7 @@ export const MODEL_REGISTRY = {
     capabilities: {
       imageInput: true,
       imageOutput: true,
+      editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: true,
@@ -707,6 +713,17 @@ export function getModelByIdentifier(identifier) {
     if (model.name.toLowerCase() === normalized) return model;
     if (model.aliases?.some((a) => a.toLowerCase() === normalized))
       return model;
+  }
+
+  // Fallback: match models whose ID is a prefix of the identifier
+  // Handles thinking-mode suffixes like "grok-4-1-fast-reasoning" -> "grok-4-1-fast"
+  for (const model of Object.values(MODEL_REGISTRY)) {
+    if (
+      model.thinkingIdSuffix &&
+      normalized.startsWith(model.id.toLowerCase())
+    ) {
+      return model;
+    }
   }
 
   return null;

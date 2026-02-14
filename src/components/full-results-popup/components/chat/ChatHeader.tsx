@@ -4,7 +4,7 @@
  * Renders the chat header with info badge, action buttons, loaded chat title, and warnings
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { Button, Icon, Tooltip } from "@blueprintjs/core";
 import { Result, ChatMessage } from "../../types/types";
 import { ChatHistorySelect } from "./ChatHistorySelect";
@@ -37,6 +37,8 @@ interface ChatHeaderProps {
   onResetChat: () => void;
   onLoadChatHistory: (uid: string) => void;
   onLoadedChatClick: (e: React.MouseEvent) => void;
+  isClearDialogOpen: boolean;
+  onSetClearDialogOpen: (open: boolean) => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -65,8 +67,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onResetChat,
   onLoadChatHistory,
   onLoadedChatClick,
+  isClearDialogOpen,
+  onSetClearDialogOpen,
 }) => {
-  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
   return (
     <div className="full-results-chat-header">
       <div className="full-results-chat-info">
@@ -193,7 +196,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   if (!hasRealMessages(chatMessages)) {
                     onResetChat();
                   } else {
-                    setIsClearDialogOpen(true);
+                    onSetClearDialogOpen(true);
                   }
                 }}
                 minimal
@@ -251,7 +254,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       )}
       <ClearChatDialog
         isOpen={isClearDialogOpen}
-        onClose={() => setIsClearDialogOpen(false)}
+        onClose={() => onSetClearDialogOpen(false)}
         onClearChat={onResetChat}
         chatMessages={chatMessages}
         insertedMessages={insertedMessagesCount}

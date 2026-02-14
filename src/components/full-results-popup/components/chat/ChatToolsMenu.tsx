@@ -39,14 +39,16 @@ import "../../style/chatToolsMenu.css";
 interface ChatToolsMenuProps {
   enabledTools: Set<string>;
   onToggleTool: (toolName: string) => void;
-  onToggleAll: (enable: boolean) => void;
+  isAgentMode: boolean;
+  onToggleAgentMode: (enabled: boolean) => void;
   permissions: { contentAccess: boolean };
 }
 
 export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   enabledTools,
   onToggleTool,
-  onToggleAll,
+  isAgentMode,
+  onToggleAgentMode,
   permissions,
 }) => {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -195,20 +197,15 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   // Check if skills section is enabled
   const isSkillsSectionEnabled = enabledTools.has("live_ai_skills");
 
-  // Check if all tools are enabled
-  const allToolsEnabled =
-    availableTools.every(([name]) => enabledTools.has(name)) &&
-    skills.every((skill) => enabledTools.has(`skill:${skill.name}`));
-
   // Count enabled tools (including skills)
   const enabledCount = enabledTools.size;
   const totalCount = availableTools.length + skills.length;
 
-  // Determine icon intent based on enabled count
-  // No intent (grey) if 0 enabled, primary (blue) if some enabled, success (green) if all enabled
+  // Determine icon intent based on agent mode
+  // No intent (grey) if agent mode off, primary (blue) if on with some tools, success (green) if on with all tools
   let iconIntent: "none" | "primary" | "success" = "none";
   const iconName = "wrench";
-  if (enabledCount === 0) {
+  if (!isAgentMode) {
     iconIntent = "none";
   } else if (enabledCount < totalCount) {
     iconIntent = "primary";
@@ -330,204 +327,240 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   const menu = (
     <Menu className="chat-tools-menu">
       <div className="chat-tools-menu-header">
-        <strong>Available Tools</strong>
-        <Button
-          small
-          minimal
-          text={allToolsEnabled ? "Disable All" : "Enable All"}
-          onClick={() => onToggleAll(!allToolsEnabled)}
+        <Tooltip
+          content={
+            <>
+              When enabled, the AI can use tools to search your graph, run
+              queries, etc.
+              <br></br>
+              Each enabled tool adds ~50–200 tokens per request.
+            </>
+          }
+          openOnTargetFocus={false}
+          hoverOpenDelay={500}
+        >
+          <div className="chat-tools-mode-label">
+            <strong>Agent Mode</strong>
+            <span
+              className={`chat-tools-mode-status ${isAgentMode ? "enabled" : "disabled"}`}
+            >
+              {isAgentMode ? "(tools available)" : "(tools disabled)"}
+            </span>
+          </div>
+        </Tooltip>
+        <Switch
+          checked={isAgentMode}
+          onChange={() => onToggleAgentMode(!isAgentMode)}
+          style={{ marginBottom: 0 }}
         />
       </div>
       <Divider />
 
-      {/* Context Section */}
-      <div className="chat-tools-section">
-        <div className="chat-tools-section-header">
-          <Icon icon="search-around" size={14} />
-          <span>Context</span>
+      <div
+        className={`chat-tools-sections-wrapper ${!isAgentMode ? "agent-mode-disabled" : ""}`}
+      >
+        {/* Context Section */}
+        <div className="chat-tools-section">
+          <div className="chat-tools-section-header">
+            <Icon icon="search-around" size={14} />
+            <span>Context</span>
+          </div>
+          {contextTools.map(([toolName, toolInfo]) =>
+            renderToolItem(toolName, toolInfo, !isAgentMode),
+          )}
         </div>
-        {contextTools.map(([toolName, toolInfo]) =>
-          renderToolItem(toolName, toolInfo),
-        )}
-      </div>
 
-      {/* Interaction Section */}
-      {interactionTools.length > 0 && (
-        <>
-          <Divider />
-          <div className="chat-tools-section">
-            <div className="chat-tools-section-header">
-              <Icon icon="form" size={14} />
-              <span>Interaction</span>
+        {/* Interaction Section */}
+        {interactionTools.length > 0 && (
+          <>
+            <Divider />
+            <div className="chat-tools-section">
+              <div className="chat-tools-section-header">
+                <Icon icon="form" size={14} />
+                <span>Interaction</span>
+              </div>
+              {interactionTools.map(([toolName, toolInfo]) =>
+                renderToolItem(toolName, toolInfo, !isAgentMode),
+              )}
             </div>
-            {interactionTools.map(([toolName, toolInfo]) =>
-              renderToolItem(toolName, toolInfo),
-            )}
-          </div>
-        </>
-      )}
+          </>
+        )}
 
-      <Divider />
+        <Divider />
 
-      {/* Edit or Add Content Section */}
-      <div
-        className={`chat-tools-section chat-tools-section-edit ${
-          isEditSectionEnabled ? "enabled" : "disabled"
-        }`}
-      >
+        {/* Edit or Add Content Section */}
         <div
-          className="chat-tools-section-header chat-tools-section-header-clickable"
-          onClick={() => setIsEditSectionExpanded(!isEditSectionExpanded)}
+          className={`chat-tools-section chat-tools-section-edit ${
+            isEditSectionEnabled ? "enabled" : "disabled"
+          }`}
         >
-          <div className="chat-tools-section-header-left">
-            <Icon
-              icon={isEditSectionExpanded ? "chevron-down" : "chevron-right"}
-              size={12}
-            />
-            <Icon icon="warning-sign" size={14} intent="warning" />
-            <span>Edit or add content</span>
-          </div>
-          <Tooltip
-            content={
-              isEditSectionEnabled
-                ? "Disable edit section"
-                : "Enable edit section (allows AI to modify your graph)"
-            }
-            position="top"
+          <div
+            className="chat-tools-section-header chat-tools-section-header-clickable"
+            onClick={() => setIsEditSectionExpanded(!isEditSectionExpanded)}
           >
-            <Switch
-              checked={isEditSectionEnabled}
-              onChange={(e) => {
-                e.stopPropagation();
-                onToggleTool(EDIT_SECTION_KEY);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              style={{ marginBottom: 0 }}
-            />
-          </Tooltip>
-        </div>
-        <Collapse isOpen={isEditSectionExpanded}>
-          <div className="chat-tools-section-content">
-            {editTools.map(([toolName, toolInfo]) =>
-              renderToolItem(toolName, toolInfo, !isEditSectionEnabled),
-            )}
-          </div>
-        </Collapse>
-      </div>
-
-      <Divider />
-
-      {/* Skills Section */}
-      <div
-        className={`chat-tools-section chat-tools-section-skills ${
-          isSkillsSectionEnabled ? "enabled" : "disabled"
-        }`}
-      >
-        <div
-          className="chat-tools-section-header chat-tools-section-header-clickable"
-          onClick={() => setIsSkillsSectionExpanded(!isSkillsSectionExpanded)}
-        >
-          <div className="chat-tools-section-header-left">
-            <Icon
-              icon={isSkillsSectionExpanded ? "chevron-down" : "chevron-right"}
-              size={12}
-            />
-            <Icon icon="lightbulb" size={14} />
-            <span>Skills</span>
-          </div>
-          {skillsToolEntry && (
+            <div className="chat-tools-section-header-left">
+              <Icon
+                icon={isEditSectionExpanded ? "chevron-down" : "chevron-right"}
+                size={12}
+              />
+              <Icon icon="warning-sign" size={14} intent="warning" />
+              <span>Edit or add content</span>
+            </div>
             <Tooltip
               content={
-                isSkillsSectionEnabled
-                  ? "Disable skills tool"
-                  : "Enable skills tool"
+                isEditSectionEnabled
+                  ? "Disable edit section"
+                  : "Enable edit section (allows AI to modify your graph)"
               }
               position="top"
             >
               <Switch
-                checked={isSkillsSectionEnabled}
+                checked={isEditSectionEnabled}
                 onChange={(e) => {
                   e.stopPropagation();
-                  onToggleTool("live_ai_skills");
+                  onToggleTool(EDIT_SECTION_KEY);
                 }}
                 onClick={(e) => e.stopPropagation()}
                 style={{ marginBottom: 0 }}
               />
             </Tooltip>
-          )}
+          </div>
+          <Collapse isOpen={isEditSectionExpanded}>
+            <div className="chat-tools-section-content">
+              {editTools.map(([toolName, toolInfo]) =>
+                renderToolItem(
+                  toolName,
+                  toolInfo,
+                  !isEditSectionEnabled || !isAgentMode,
+                ),
+              )}
+            </div>
+          </Collapse>
         </div>
-        <Collapse isOpen={isSkillsSectionExpanded}>
-          <div className="chat-tools-section-content">
-            {skills.length > 0 ? (
-              skills.map((skill) => {
-                const skillKey = `skill:${skill.name}`;
-                const isExpanded = expandedDescriptions.has(skillKey);
 
-                return (
-                  <MenuItem
-                    key={skillKey}
-                    text={
-                      <div
-                        className="chat-tool-item"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleDescription(skillKey);
-                        }}
-                        style={{
-                          cursor: "pointer",
-                          opacity: isSkillsSectionEnabled ? 1 : 0.5,
-                        }}
-                      >
-                        <div className="chat-tool-name">
-                          <Icon
-                            icon={isExpanded ? "chevron-down" : "chevron-right"}
-                            size={12}
-                          />
-                          <span style={{ marginLeft: "6px" }}>
-                            {skill.name}
-                          </span>
-                        </div>
-                        <div
-                          className={`chat-tool-description ${
-                            isExpanded ? "expanded" : "collapsed"
-                          }`}
-                        >
-                          {skill.description}
-                        </div>
-                      </div>
-                    }
-                    labelElement={
-                      <Switch
-                        checked={enabledTools.has(skillKey)}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          onToggleTool(skillKey);
-                        }}
-                        style={{ marginBottom: 0 }}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={!isSkillsSectionEnabled}
-                      />
-                    }
-                    shouldDismissPopover={false}
-                    disabled={!isSkillsSectionEnabled}
-                  />
-                );
-              })
-            ) : (
-              <div className="chat-tools-no-skills">
-                No skills found. Add skills with <code>#liveai/skill</code> tag
-                in your graph.
-              </div>
+        <Divider />
+
+        {/* Skills Section */}
+        <div
+          className={`chat-tools-section chat-tools-section-skills ${
+            isSkillsSectionEnabled ? "enabled" : "disabled"
+          }`}
+        >
+          <div
+            className="chat-tools-section-header chat-tools-section-header-clickable"
+            onClick={() => setIsSkillsSectionExpanded(!isSkillsSectionExpanded)}
+          >
+            <div className="chat-tools-section-header-left">
+              <Icon
+                icon={
+                  isSkillsSectionExpanded ? "chevron-down" : "chevron-right"
+                }
+                size={12}
+              />
+              <Icon icon="lightbulb" size={14} />
+              <span>Skills</span>
+            </div>
+            {skillsToolEntry && (
+              <Tooltip
+                content={
+                  isSkillsSectionEnabled
+                    ? "Disable skills tool"
+                    : "Enable skills tool"
+                }
+                position="top"
+              >
+                <Switch
+                  checked={isSkillsSectionEnabled}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onToggleTool("live_ai_skills");
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ marginBottom: 0 }}
+                />
+              </Tooltip>
             )}
           </div>
-        </Collapse>
+          <Collapse isOpen={isSkillsSectionExpanded}>
+            <div className="chat-tools-section-content">
+              {skills.length > 0 ? (
+                skills.map((skill) => {
+                  const skillKey = `skill:${skill.name}`;
+                  const isExpanded = expandedDescriptions.has(skillKey);
+
+                  return (
+                    <MenuItem
+                      key={skillKey}
+                      text={
+                        <div
+                          className="chat-tool-item"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleDescription(skillKey);
+                          }}
+                          style={{
+                            cursor: "pointer",
+                            opacity: isSkillsSectionEnabled ? 1 : 0.5,
+                          }}
+                        >
+                          <div className="chat-tool-name">
+                            <Icon
+                              icon={
+                                isExpanded ? "chevron-down" : "chevron-right"
+                              }
+                              size={12}
+                            />
+                            <span style={{ marginLeft: "6px" }}>
+                              {skill.name}
+                            </span>
+                          </div>
+                          <div
+                            className={`chat-tool-description ${
+                              isExpanded ? "expanded" : "collapsed"
+                            }`}
+                          >
+                            {skill.description}
+                          </div>
+                        </div>
+                      }
+                      labelElement={
+                        <Switch
+                          checked={enabledTools.has(skillKey)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            onToggleTool(skillKey);
+                          }}
+                          style={{ marginBottom: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                          disabled={!isSkillsSectionEnabled}
+                        />
+                      }
+                      shouldDismissPopover={false}
+                      disabled={!isSkillsSectionEnabled}
+                    />
+                  );
+                })
+              ) : (
+                <div className="chat-tools-no-skills">
+                  No skills found. Add skills with <code>#liveai/skill</code>{" "}
+                  tag in your graph.
+                </div>
+              )}
+            </div>
+          </Collapse>
+        </div>
       </div>
+      {/* end chat-tools-sections-wrapper */}
     </Menu>
   );
 
   return (
     <Tooltip
-      content={`Agentic chat: ${enabledCount}/${totalCount} tools enabled`}
+      content={
+        isAgentMode
+          ? `Agent mode: ${enabledCount}/${totalCount} tools enabled`
+          : "Chat mode (no tools)"
+      }
       placement="top"
     >
       <Popover

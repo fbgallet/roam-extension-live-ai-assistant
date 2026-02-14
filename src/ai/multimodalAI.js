@@ -5,6 +5,7 @@ import {
   resImages,
   groqLibrary,
   grokLibrary,
+  GROK_API_KEY,
   isUsingGroqWhisper,
   maxImagesNb,
   openRouterModelsInfo,
@@ -939,7 +940,8 @@ export async function imageGeneration(
 
       if (matchingImagesInPrompt.length) {
         // Image editing mode
-        // Remove image markdown from prompt
+        // xAI API requires application/json for image edits (not multipart/form-data),
+        // so we use a direct HTTP request instead of the OpenAI SDK's images.edit()
         let textPrompt = prompt;
         for (const match of matchingImagesInPrompt) {
           textPrompt = textPrompt.replace(
@@ -948,40 +950,41 @@ export async function imageGeneration(
           );
         }
 
-        // Fetch the first image as a File object (Grok API expects array of file-like objects)
+        // Fetch the first image and convert to base64 data URI
+        // (Roam Firebase URLs may be private, so base64 is more reliable than passing the URL)
         const imageUrl = matchingImagesInPrompt[0][2];
         const imageBlob = await roamAlphaAPI.file.get({ url: imageUrl });
         const mimeType = imageBlob.type || "image/jpeg";
-        // Determine file extension from MIME type
-        const extension =
-          mimeType === "image/png"
-            ? "png"
-            : mimeType === "image/webp"
-              ? "webp"
-              : "jpg";
-        // Convert Blob to File object for Grok API compatibility
-        const imageFile = new File([imageBlob], `image.${extension}`, {
-          type: mimeType,
+        const imageArrayBuffer = await imageBlob.arrayBuffer();
+        const imageBase64 = arrayBufferToBase64(imageArrayBuffer);
+        const dataUri = `data:${mimeType};base64,${imageBase64}`;
+
+        // Direct HTTP request to xAI image edit endpoint (JSON format)
+        const editResponse = await fetch("https://api.x.ai/v1/images/edits", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${GROK_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "grok-imagine-image",
+            prompt: textPrompt.trim(),
+            image: {
+              url: dataUri,
+              type: "image_url",
+            },
+            response_format: "b64_json",
+          }),
         });
 
-        // Debug logging for Grok image edit
-        // console.log("Grok Imagine Edit - Image details:", {
-        //   originalUrl: imageUrl,
-        //   blobType: imageBlob.type,
-        //   blobSize: imageBlob.size,
-        //   mimeType: mimeType,
-        //   fileName: imageFile.name,
-        //   fileType: imageFile.type,
-        //   fileSize: imageFile.size,
-        //   prompt: textPrompt.trim(),
-        // });
+        if (!editResponse.ok) {
+          const errorBody = await editResponse.text();
+          throw new Error(
+            `Grok image edit failed (${editResponse.status}): ${errorBody}`
+          );
+        }
 
-        // Use OpenAI SDK compatible edit endpoint - image must be an array
-        result = await grokLibrary.images.edit({
-          model: "grok-imagine-image",
-          image: imageFile,
-          prompt: textPrompt.trim(),
-        });
+        result = await editResponse.json();
       } else {
         // Generation mode
         result = await grokLibrary.images.generate({

@@ -104,6 +104,11 @@ export interface ChatAgentOptions {
   // Tool results cache (for deduplication across turns)
   toolResultsCache?: Record<string, any>;
 
+  // Image edition mode state
+  imageEditionMode?: boolean;
+  imageGenerationModelId?: string;
+  lastGeneratedImageUrl?: string;
+
   // Previous state for continuation
   previousState?: Partial<ChatAgentStateType>;
 }
@@ -125,6 +130,11 @@ export interface ChatAgentResult {
 
   // Token usage (cumulative across the conversation)
   tokensUsage: TokensUsage;
+
+  // Image edition mode state
+  imageEditionMode?: boolean;
+  imageGenerationModelId?: string;
+  lastGeneratedImageUrl?: string;
 
   // Timing
   duration: number;
@@ -222,6 +232,11 @@ export async function invokeChatAgent(
     // Invalid tool call retry counter (start at 0)
     invalidToolCallRetries: 0,
 
+    // Image edition mode
+    imageEditionMode: options.imageEditionMode ?? false,
+    imageGenerationModelId: options.imageGenerationModelId,
+    lastGeneratedImageUrl: options.lastGeneratedImageUrl,
+
     // Merge previous state if provided
     ...(options.previousState || {}),
   };
@@ -240,6 +255,9 @@ export async function invokeChatAgent(
     toolResultsCache: result.toolResultsCache || {},
     activeSkillInstructions: result.activeSkillInstructions,
     tokensUsage: result.tokensUsage || { input_tokens: 0, output_tokens: 0 },
+    imageEditionMode: result.imageEditionMode ?? false,
+    imageGenerationModelId: result.imageGenerationModelId,
+    lastGeneratedImageUrl: result.lastGeneratedImageUrl,
     duration,
   };
 }

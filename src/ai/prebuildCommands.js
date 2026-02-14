@@ -22,6 +22,7 @@ export const CATEGORY_ICON = {
   "MCP TOOLS": "wrench",
   "MCP RESOURCES": "database",
   "MCP PROMPTS": "chat",
+  CHAT: "chat",
 };
 
 export const BUILTIN_COMMANDS = [

@@ -1219,7 +1219,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       );
     }
   };
-  const [chatMode, setChatMode] = useState<ChatMode>("simple");
+  const [chatMode, setChatMode] = useState<ChatMode>(() => {
+    // Initialize agent mode if there are enabled tools (persisted or forced)
+    const storedTools = extensionStorage.get("chatEnabledTools");
+    const hasStoredTools = storedTools && storedTools.length > 0;
+    const hasForcedInitialTools = initialEnabledTools && initialEnabledTools.size > 0;
+    return hasStoredTools || hasForcedInitialTools ? "agent" : "simple";
+  });
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     [],
@@ -1279,30 +1286,6 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     });
   };
 
-  // Handler to toggle all tools on/off
-  const handleToggleAllTools = (enable: boolean) => {
-    if (enable) {
-      // Enable all tools
-      const allTools = new Set<string>();
-      Object.keys(
-        require("../../../../ai/agents/chat-agent/tools/chatToolsRegistry")
-          .CHAT_TOOLS,
-      ).forEach((toolName) => {
-        allTools.add(toolName);
-      });
-      // Also enable all skills
-      const skills =
-        require("../../../../ai/agents/chat-agent/tools/skillsUtils").extractAllSkills();
-      skills.forEach((skill: any) => {
-        allTools.add(`skill:${skill.name}`);
-      });
-      setEnabledTools(allTools);
-    } else {
-      // Disable all tools
-      setEnabledTools(new Set());
-    }
-  };
-
   // Handler for pinned style change
   const handlePinnedStyleChange = (isPinned: boolean) => {
     setIsPinnedStyle(isPinned);
@@ -1326,20 +1309,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   }, [selectedStyle, isPinnedStyle]);
 
-  // Automatically set chat mode based on enabled tools
-  useEffect(() => {
-    if (enabledTools.size > 0) {
-      // If any tools are enabled, switch to agent mode
-      if (chatMode !== "agent") {
-        setChatMode("agent");
-      }
-    } else {
-      // If no tools are enabled, switch to simple mode
-      if (chatMode !== "simple") {
-        setChatMode("simple");
-      }
-    }
-  }, [enabledTools.size, chatMode]);
+  // No longer derive chatMode from enabledTools - they are independent.
+  // chatMode controls whether tools are used at all (agent vs chat mode).
+  // enabledTools controls which specific tools are available when in agent mode.
 
   // Calculate total tokens used in the conversation
   const { totalIn, totalOut } = React.useMemo(
@@ -1431,11 +1403,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
 
-  const insertConversationInRoam = async () => {
+  const insertConversationInRoam = async (forceDNP?: boolean) => {
     // Capture the current inserted count at the start to avoid race conditions
     const currentInsertedCount = insertedMessagesCount;
 
-    if (!loadedChatUid || !isExistingBlock(loadedChatUid)) {
+    if (forceDNP) {
+      // Force insert into today's daily note page
+      const dnpUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
+      targetRef.current = await createChildBlock(dnpUid, "");
+    } else if (!loadedChatUid || !isExistingBlock(loadedChatUid)) {
       let focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
       if (
         !focusedUid &&
@@ -2670,6 +2646,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // Tool results cache from previous turns (for deduplication)
         toolResultsCache: chatAgentData?.toolResultsCache,
 
+        // Image edition mode state from previous turns
+        imageEditionMode: chatAgentData?.imageEditionMode,
+        imageGenerationModelId: chatAgentData?.imageGenerationModelId,
+        lastGeneratedImageUrl: chatAgentData?.lastGeneratedImageUrl,
+
         // Streaming
         streamingCallback: (content: string) => {
           setStreamingContent((prev) => prev + content);
@@ -3062,6 +3043,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         toolResultsCache: agentResult.toolResultsCache,
         activeSkillInstructions: agentResult.activeSkillInstructions,
         tokensUsage: agentResult.tokensUsage,
+        imageEditionMode: agentResult.imageEditionMode,
+        imageGenerationModelId: agentResult.imageGenerationModelId,
+        lastGeneratedImageUrl: agentResult.lastGeneratedImageUrl,
       };
 
       setChatAgentData(newAgentData);
@@ -3225,6 +3209,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onResetChat={resetChat}
         onLoadChatHistory={handleLoadChatHistory}
         onLoadedChatClick={handleLoadedChatClick}
+        isClearDialogOpen={isClearDialogOpen}
+        onSetClearDialogOpen={setIsClearDialogOpen}
       />
 
       <ChatMessagesDisplay
@@ -3276,7 +3262,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onQueryPages={queryAvailablePages}
         enabledTools={enabledTools}
         onToggleTool={handleToggleTool}
-        onToggleAllTools={handleToggleAllTools}
+        isAgentMode={chatMode === "agent"}
+        onToggleAgentMode={(enabled) => setChatMode(enabled ? "agent" : "simple")}
         selectedStyle={selectedStyle}
         onStyleChange={setSelectedStyle}
         customStyleTitles={customStyleTitles}
@@ -3284,6 +3271,46 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onPinnedStyleChange={handlePinnedStyleChange}
         thinkingEnabled={thinkingEnabled}
         onThinkingChange={setThinkingEnabled}
+        imageEditionMode={chatAgentData?.imageEditionMode ?? false}
+        hasGeneratedImage={!!(chatAgentData?.lastGeneratedImageUrl)}
+        onExitImageEdition={() => {
+          setChatAgentData({
+            ...chatAgentData,
+            imageEditionMode: false,
+          });
+          const exitMessage: ChatMessage = {
+            role: "assistant",
+            content:
+              "*Exited image edition mode. Your messages will now be processed as regular conversation.*",
+            timestamp: new Date(),
+          };
+          setChatMessages((prev) => [...prev, exitMessage]);
+        }}
+        onEnterImageEdition={() => {
+          setChatAgentData({
+            ...chatAgentData,
+            imageEditionMode: true,
+          });
+          const enterMessage: ChatMessage = {
+            role: "assistant",
+            content:
+              "*🖼️ Image edition mode activated. All your messages will now be used to edit the last generated image. Use `/exit-edit` or click the badge to return to conversation mode.*",
+            timestamp: new Date(),
+          };
+          setChatMessages((prev) => [...prev, enterMessage]);
+        }}
+        onClearChat={() => {
+          if (!hasRealMessages(chatMessages)) {
+            resetChat();
+          } else {
+            setIsClearDialogOpen(true);
+          }
+        }}
+        onCloseChat={onClose}
+        onChatModeSetSimple={() => setChatMode("simple")}
+        onChatModeSetAgent={() => setChatMode("agent")}
+        onSaveChat={() => insertConversationInRoam()}
+        onSaveChatDNP={() => insertConversationInRoam(true)}
       />
     </div>
   );

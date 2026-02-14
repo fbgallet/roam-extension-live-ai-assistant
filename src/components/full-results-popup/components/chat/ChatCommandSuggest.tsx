@@ -58,7 +58,7 @@ interface ChatCommandSuggestProps {
   onCommandSelect: (
     command: Command,
     isFromSlashCommand?: boolean,
-    instantModel?: string
+    instantModel?: string,
   ) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   onClose: () => void;
@@ -67,6 +67,8 @@ interface ChatCommandSuggestProps {
   currentPrompt?: string; // Current chat input for audio detection
   selectedModel?: string; // Currently selected model (for visual indicator)
   onModelSwitch?: (model: string) => void; // Callback for model switching
+  chatSlashCommands?: any[]; // Chat-specific slash commands
+  onChatCommand?: (commandId: string) => void; // Callback for chat-specific commands
 }
 
 const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
@@ -78,6 +80,8 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   currentPrompt = "",
   selectedModel = "",
   onModelSwitch,
+  chatSlashCommands = [],
+  onChatCommand,
 }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -171,8 +175,13 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
       icon: "user",
     }));
 
-    return [...BUILTIN_COMMANDS, ...customCommands, ...modelCommands];
-  }, [modelCommands]);
+    return [
+      ...chatSlashCommands,
+      ...BUILTIN_COMMANDS,
+      ...customCommands,
+      ...modelCommands,
+    ];
+  }, [modelCommands, chatSlashCommands]);
 
   // Filter commands to exclude chat-incompatible ones
   const chatCompatibleCommands = React.useMemo(() => {
@@ -223,7 +232,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   // Render individual command item with submenu support
   const renderCommand = (
     item: Command,
-    { handleClick, modifiers, query }: any
+    { handleClick, modifiers, query }: any,
   ) => {
     if (!modifiers.matchesPredicate) {
       return null;
@@ -244,7 +253,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
           <>
             {item.submenu!.map((subId) => {
               const subCommand = chatCompatibleCommands.find(
-                (cmd) => cmd.id === subId
+                (cmd) => cmd.id === subId,
               );
               if (!subCommand || query) return null;
 
@@ -283,13 +292,13 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
   const slashModeFilteredItems = React.useMemo(() => {
     if (!isSlashMode) return [];
     return chatCompatibleCommands.filter((item) =>
-      filterCommands(initialQuery, item)
+      filterCommands(initialQuery, item),
     );
   }, [isSlashMode, chatCompatibleCommands, initialQuery]);
 
   const slashModeFlatItems = React.useMemo(() => {
     return slashModeFilteredItems.filter(
-      (item) => !item.submenu || initialQuery
+      (item) => !item.submenu || initialQuery,
     );
   }, [slashModeFilteredItems, initialQuery]);
 
@@ -320,7 +329,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         e.preventDefault();
         e.stopPropagation();
         setActiveIndex((prev) =>
-          Math.min(prev + 1, slashModeFlatItems.length - 1)
+          Math.min(prev + 1, slashModeFlatItems.length - 1),
         );
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
@@ -362,7 +371,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
     itemsParentRef,
   }: any) => {
     const filteredItems = items.filter((item: Command) =>
-      filterCommands(query, item)
+      filterCommands(query, item),
     );
 
     if (!filteredItems.length) {
@@ -396,7 +405,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
         {/* Render categorized commands */}
         {Object.entries(grouped).map(([category, commands]) => {
           const categoryIcon =
-            CATEGORY_ICON[category as keyof typeof CATEGORY_ICON] || "dot";
+            CATEGORY_ICON[category as keyof typeof CATEGORY_ICON] || "chat";
 
           return (
             <React.Fragment key={category}>
@@ -496,7 +505,7 @@ const ChatCommandSuggest: React.FC<ChatCommandSuggestProps> = ({
             <>
               {item.submenu!.map((subId) => {
                 const subCommand = chatCompatibleCommands.find(
-                  (cmd) => cmd.id === subId
+                  (cmd) => cmd.id === subId,
                 );
                 if (!subCommand) return null;
 

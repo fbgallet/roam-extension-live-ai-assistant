@@ -27,7 +27,10 @@ import {
   googleLibrary,
   defaultModel,
 } from "../../..";
-import { getDefaultWebSearchModel } from "../../modelRegistry";
+import {
+  getDefaultWebSearchModel,
+  getModelByIdentifier,
+} from "../../modelRegistry";
 import {
   isModelVisible,
   getModelConfig,
@@ -48,6 +51,12 @@ interface MultimodalCommandResult {
   tokensUsage?: TokensUsage;
 }
 
+interface ImageGenerationResult extends MultimodalCommandResult {
+  imageEditionMode?: boolean;
+  imageGenerationModelId?: string;
+  lastGeneratedImageUrl?: string;
+}
+
 /**
  * Handle image generation command
  *
@@ -57,7 +66,9 @@ interface MultimodalCommandResult {
  * @param resultsContext - Results context containing images/text
  * @param chatSessionId - Chat session ID for multi-turn editing
  * @param currentMessages - Current message history
- * @returns Result with updated messages and token usage
+ * @param userChoiceCallback - Optional callback for inline choice forms
+ * @param isAlreadyInEditMode - Whether the chat is already in image edition mode
+ * @returns Result with updated messages, token usage, and image edition state
  */
 export async function handleImageGenerationCommand(
   originalUserPrompt: string,
@@ -66,7 +77,14 @@ export async function handleImageGenerationCommand(
   resultsContext: any[] | undefined,
   chatSessionId: string | undefined,
   currentMessages: any[],
-): Promise<MultimodalCommandResult> {
+  userChoiceCallback?: (
+    req: any,
+  ) => Promise<{
+    selectedOptions: Record<string, string>;
+    cancelled: boolean;
+  }>,
+  isAlreadyInEditMode: boolean = false,
+): Promise<ImageGenerationResult> {
   let turnTokensUsage: TokensUsage | undefined;
 
   // Extract quality from command prompt (e.g., "Image generation (high)" -> "high")
@@ -77,9 +95,17 @@ export async function handleImageGenerationCommand(
   const configDefaultImageModel =
     modelConfig?.defaultImageModel || defaultImageModel;
 
-  const imageModel = imageGenerationModels.includes(modelId)
+  let imageModel = imageGenerationModels.includes(modelId)
     ? modelId
     : configDefaultImageModel;
+
+  // Resolve display names (e.g., "Nano Banana Pro") to API model IDs
+  if (imageModel && !imageGenerationModels.includes(imageModel)) {
+    const resolved = getModelByIdentifier(imageModel);
+    if (resolved?.id) {
+      imageModel = resolved.id;
+    }
+  }
 
   // Check if this is a Gemini model that supports multi-turn editing
   // Note: OpenAI Images API doesn't support multi-turn conversation
@@ -116,17 +142,31 @@ export async function handleImageGenerationCommand(
   console.log("Image generation - completePrompt:", completePrompt);
 
   // Generate image
-  const imageLink = await imageGeneration(
-    completePrompt,
-    quality,
-    imageModel,
-    (t: any) => {
-      turnTokensUsage = { ...t };
-    },
-    chatSessionId, // Enable multi-turn image editing in chat sessions
-  );
+  let imageLink: string;
+  try {
+    imageLink = await imageGeneration(
+      completePrompt,
+      quality,
+      imageModel,
+      (t: any) => {
+        turnTokensUsage = { ...t };
+      },
+      chatSessionId, // Enable multi-turn image editing in chat sessions
+    );
+  } catch (error: any) {
+    console.error("Image generation error:", error);
+    const errorMessage = `⚠️ Image generation failed: ${error.message || "Unknown error"}`;
+    return {
+      messages: [...currentMessages, new AIMessage(errorMessage)],
+      imageEditionMode: isAlreadyInEditMode,
+    };
+  }
 
   console.log("imageModel :>> ", imageModel);
+
+  // Extract generated image URL from the response
+  const imageUrlMatch = imageLink?.match(/!\[.*?\]\((.*?)\)/);
+  const generatedImageUrl = imageUrlMatch ? imageUrlMatch[1] : undefined;
 
   // Detect if this was an image edit operation (images were in the prompt)
   roamImageRegex.lastIndex = 0;
@@ -149,9 +189,47 @@ export async function handleImageGenerationCommand(
       "\n\n*Image edited based on your instructions. To make further edits, include the new image in your next message.*";
   }
 
+  // Ask user if they want to enter image edition mode
+  // Only on explicit first generation, not when already in edit mode
+  let enterEditMode = false;
+
+  if (
+    isExplicitImageGeneration &&
+    userChoiceCallback &&
+    generatedImageUrl &&
+    !isAlreadyInEditMode
+  ) {
+    const choice = await userChoiceCallback({
+      commandId: "image_edition_mode",
+      title: "Image Edition Mode",
+      options: [
+        {
+          id: "mode",
+          label:
+            "Would you like to enter image edition mode? All your next messages will be treated as image editing instructions.",
+          type: "radio",
+          choices: [
+            { value: "yes", label: "Yes, enter image edition mode" },
+            { value: "no", label: "No, continue conversation" },
+          ],
+          defaultValue: "no",
+        },
+      ],
+    });
+
+    if (!choice.cancelled && choice.selectedOptions.mode === "yes") {
+      enterEditMode = true;
+      responseMessage +=
+        "\n\n*🖼️ Image edition mode activated. All your messages will now be used to edit this image. Use `/exit-edit` or click the badge to return to conversation mode.*";
+    }
+  }
+
   return {
     messages: [...currentMessages, new AIMessage(responseMessage)],
     tokensUsage: turnTokensUsage,
+    imageEditionMode: enterEditMode || isAlreadyInEditMode,
+    imageGenerationModelId: imageModel,
+    lastGeneratedImageUrl: generatedImageUrl,
   };
 }
 
@@ -165,13 +243,15 @@ export async function handleImageGenerationCommand(
 export function isImageGenerationRequest(
   commandPrompt: string | undefined,
   chatSessionId: string | undefined,
+  imageEditionMode: boolean = false,
 ): boolean {
   // Check if this is an explicit image generation command
   const isImageGeneration = commandPrompt?.slice(0, 16) === "Image generation";
 
   // Check if we're in an active Gemini image editing session
   // Note: OpenAI Images API doesn't support multi-turn, only Gemini does
-  if (chatSessionId) {
+  // Only auto-route to image generation if imageEditionMode is still active
+  if (chatSessionId && imageEditionMode) {
     const hasGeminiChat =
       imageGenerationChats.has(`${chatSessionId}_gemini-2.5-flash-image`) ||
       imageGenerationChats.has(`${chatSessionId}_gemini-3-pro-image-preview`);

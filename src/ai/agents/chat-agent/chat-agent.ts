@@ -30,6 +30,7 @@ import {
   modelViaLanggraph,
   TokensUsage,
 } from "../langraphModelsLoader";
+import { hasCapability } from "../../modelRegistry";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
   buildChatSystemPrompt,
@@ -152,6 +153,12 @@ const ChatAgentState = Annotation.Root({
   invalidToolCallRetries: Annotation<number>,
   // Audio transcription cache (URL -> transcription)
   audioTranscriptionCache: Annotation<Map<string, string>>,
+  // Image edition mode
+  imageEditionMode: Annotation<boolean>,
+  // Model used for the last image generation (to reuse for editing)
+  imageGenerationModelId: Annotation<string | undefined>,
+  // URL of the last generated image (for non-Gemini models that need it passed explicitly)
+  lastGeneratedImageUrl: Annotation<string | undefined>,
 });
 
 // Module-level variables
@@ -337,8 +344,72 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     return { messages: result.messages };
   }
 
+  // Handle image edition mode - route all prompts to image editing
+  if (state.imageEditionMode) {
+    // Check for exit commands (safety net - normally handled at UI level)
+    const userInput = originalUserMessageForHistory.trim().toLowerCase();
+    if (
+      userInput === "/exit-edit" ||
+      userInput === "/conversation"
+    ) {
+      return {
+        messages: [
+          ...state.messages,
+          new AIMessage(
+            "*Exited image edition mode. Your messages will now be processed as regular conversation.*",
+          ),
+        ],
+        imageEditionMode: false,
+      };
+    }
+
+    // Determine which model to use for editing
+    let editModel = state.imageGenerationModelId;
+
+    // Check if the stored model supports editing
+    if (editModel && !hasCapability(editModel, "editImage")) {
+      editModel = "gemini-3-pro-image-preview"; // Fallback to Nano Banana Pro
+    }
+
+    // If no model stored, use Nano Banana Pro
+    if (!editModel) {
+      editModel = "gemini-3-pro-image-preview";
+    }
+
+    // For non-Gemini models, prepend last image as markdown so imageGeneration() picks it up
+    const isGeminiModel = editModel.includes("gemini");
+    let editPrompt = originalUserMessageForHistory;
+
+    if (!isGeminiModel && state.lastGeneratedImageUrl) {
+      editPrompt = `![last_generated](${state.lastGeneratedImageUrl})\n\n${originalUserMessageForHistory}`;
+    }
+
+    const result = await handleImageGenerationCommand(
+      editPrompt,
+      undefined, // No command prompt - this is an edit
+      editModel,
+      state.resultsContext,
+      state.chatSessionId,
+      state.messages,
+      undefined, // No userChoiceCallback - don't ask again
+      true, // Already in edit mode
+    );
+
+    if (result.tokensUsage) {
+      turnTokensUsage = { ...result.tokensUsage };
+    }
+
+    return {
+      messages: result.messages,
+      imageEditionMode: true, // Stay in edit mode
+      imageGenerationModelId: editModel,
+      lastGeneratedImageUrl:
+        result.lastGeneratedImageUrl || state.lastGeneratedImageUrl,
+    };
+  }
+
   // Handle image generation
-  if (isImageGenerationRequest(state.commandPrompt, state.chatSessionId)) {
+  if (isImageGenerationRequest(state.commandPrompt, state.chatSessionId, state.imageEditionMode)) {
     const result = await handleImageGenerationCommand(
       originalUserMessageForHistory,
       state.commandPrompt,
@@ -346,13 +417,22 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       state.resultsContext,
       state.chatSessionId,
       state.messages,
+      state.userChoiceCallback,
+      false,
     );
 
     if (result.tokensUsage) {
       turnTokensUsage = { ...result.tokensUsage };
     }
 
-    return { messages: result.messages };
+    return {
+      messages: result.messages,
+      imageEditionMode: result.imageEditionMode ?? state.imageEditionMode,
+      imageGenerationModelId:
+        result.imageGenerationModelId ?? state.imageGenerationModelId,
+      lastGeneratedImageUrl:
+        result.lastGeneratedImageUrl ?? state.lastGeneratedImageUrl,
+    };
   }
 
   // Handle audio analysis requests (automatic, not command-based)
@@ -977,6 +1057,10 @@ const finalize = async (state: typeof ChatAgentState.State) => {
     activeSkillInstructions: state.activeSkillInstructions,
     toolResultsCache: state.toolResultsCache,
     audioTranscriptionCache: state.audioTranscriptionCache,
+    // Image edition mode state
+    imageEditionMode: state.imageEditionMode,
+    imageGenerationModelId: state.imageGenerationModelId,
+    lastGeneratedImageUrl: state.lastGeneratedImageUrl,
     // Reset retry counter for next turn
     invalidToolCallRetries: 0,
   };

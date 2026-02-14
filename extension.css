@@ -3575,6 +3575,7 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
 
 /* User choice form UI */
 .full-results-chat-user-choice {
+  color: initial;
   background: linear-gradient(to bottom, #eef3fc, #e8eef8);
   border: 1px solid #a3bffa;
   border-radius: 8px;
@@ -3955,6 +3956,12 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
 }
 
 /* Elegant controls area */
+.full-results-chat-edition-mode-bar {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 0;
+}
+
 .full-results-chat-controls {
   display: flex;
   flex-wrap: wrap;

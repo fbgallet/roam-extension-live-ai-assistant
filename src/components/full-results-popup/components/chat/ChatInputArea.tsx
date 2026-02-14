@@ -8,6 +8,7 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   Button,
   Popover,
+  Tag,
   Tooltip,
   Menu,
   MenuDivider,
@@ -64,7 +65,8 @@ interface ChatInputAreaProps {
   onQueryPages: (query: string) => void;
   enabledTools: Set<string>;
   onToggleTool: (toolName: string) => void;
-  onToggleAllTools: (enable: boolean) => void;
+  isAgentMode: boolean;
+  onToggleAgentMode: (enabled: boolean) => void;
   selectedStyle?: string;
   onStyleChange?: (style: string) => void;
   customStyleTitles?: string[];
@@ -72,6 +74,18 @@ interface ChatInputAreaProps {
   onPinnedStyleChange?: (isPinned: boolean) => void;
   thinkingEnabled?: boolean;
   onThinkingChange?: (enabled: boolean) => void;
+  // Image edition mode
+  imageEditionMode?: boolean;
+  hasGeneratedImage?: boolean; // Whether an image has been generated (to show /image-edit command)
+  onExitImageEdition?: () => void;
+  onEnterImageEdition?: () => void; // Enter image edition mode manually via slash command
+  // Chat-specific slash command callbacks
+  onClearChat?: () => void;
+  onCloseChat?: () => void;
+  onChatModeSetSimple?: () => void;
+  onChatModeSetAgent?: () => void;
+  onSaveChat?: () => void;
+  onSaveChatDNP?: () => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -94,7 +108,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onQueryPages,
   enabledTools,
   onToggleTool,
-  onToggleAllTools,
+  isAgentMode,
+  onToggleAgentMode,
   selectedStyle = "Normal",
   onStyleChange,
   customStyleTitles = [],
@@ -102,6 +117,16 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onPinnedStyleChange,
   thinkingEnabled = false,
   onThinkingChange,
+  imageEditionMode = false,
+  hasGeneratedImage = false,
+  onExitImageEdition,
+  onEnterImageEdition,
+  onClearChat,
+  onCloseChat,
+  onChatModeSetSimple,
+  onChatModeSetAgent,
+  onSaveChat,
+  onSaveChatDNP,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
@@ -119,6 +144,102 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const commandSuggestInputRef = useRef<HTMLInputElement>(null);
 
   const allStyles = [...BUILTIN_STYLES, ...customStyleTitles];
+
+  // Chat-specific slash commands (handled directly, not sent to LLM)
+  // Commands are context-sensitive: image edit commands only shown when relevant
+  const CHAT_SLASH_COMMANDS = [
+    {
+      id: "chat-clear",
+      name: "Clear conversation",
+      prompt: "/clear",
+      isChatCommand: true,
+      keyWords: "clear reset",
+      category: "CHAT",
+      icon: "trash",
+    },
+    {
+      id: "chat-exit",
+      name: "Close chat panel",
+      prompt: "/exit",
+      isChatCommand: true,
+      keyWords: "exit close quit",
+      category: "CHAT",
+      icon: "cross",
+    },
+    // Show "Enter image edition mode" only when an image exists but we're NOT already editing
+    ...(hasGeneratedImage && !imageEditionMode
+      ? [
+          {
+            id: "chat-image-edit",
+            name: "Image edition mode",
+            prompt: "/image-edit",
+            isChatCommand: true,
+            keyWords: "image-edit edition mode picture",
+            category: "CHAT",
+            icon: "media",
+          },
+        ]
+      : []),
+    // Show exit commands only when in image edition mode
+    ...(imageEditionMode
+      ? [
+          {
+            id: "chat-exit-edit",
+            name: "Exit image edition mode",
+            prompt: "/exit-edit",
+            isChatCommand: true,
+            keyWords: "exit-edit edit stop image",
+            category: "CHAT",
+            icon: "disable",
+          },
+          {
+            id: "chat-conversation",
+            name: "Switch to conversation mode",
+            prompt: "/conversation",
+            isChatCommand: true,
+            keyWords: "conversation chat talk mode",
+            category: "CHAT",
+            icon: "chat",
+          },
+        ]
+      : []),
+    {
+      id: "chat-mode-simple",
+      name: "Chat mode (no tools)",
+      prompt: "/chat",
+      isChatCommand: true,
+      keyWords: "chat simple mode no tools",
+      category: "CHAT",
+      icon: "comment",
+    },
+    {
+      id: "chat-mode-agent",
+      name: "Agent mode (with tools)",
+      prompt: "/agent",
+      isChatCommand: true,
+      keyWords: "agent tools mode",
+      category: "CHAT",
+      icon: "build",
+    },
+    {
+      id: "chat-save",
+      name: "Save conversation",
+      prompt: "/save",
+      isChatCommand: true,
+      keyWords: "save insert chat",
+      category: "CHAT",
+      icon: "floppy-disk",
+    },
+    {
+      id: "chat-save-dnp",
+      name: "Save on Today DNP",
+      prompt: "/save-dnp",
+      isChatCommand: true,
+      keyWords: "save insert daily dnp today conversation",
+      category: "CHAT",
+      icon: "calendar",
+    },
+  ];
 
   // Track if component is mounted to prevent setState on unmounted component
   const isMountedRef = useRef(true);
@@ -140,6 +261,39 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     fromSlash: boolean = false,
     instantModel: string = "",
   ) => {
+    // Handle chat-specific commands directly
+    if (command.isChatCommand) {
+      onChatInputChange("");
+      setIsCommandSuggestOpen(false);
+      setSlashCommandMode(false);
+      setSlashStartIndex(-1);
+      setSlashQuery("");
+      setTextLengthAtSlashTrigger(0);
+
+      if (command.id === "chat-clear" && onClearChat) {
+        onClearChat();
+      } else if (command.id === "chat-exit" && onCloseChat) {
+        onCloseChat();
+      } else if (command.id === "chat-image-edit" && onEnterImageEdition) {
+        onEnterImageEdition();
+      } else if (
+        (command.id === "chat-exit-edit" ||
+          command.id === "chat-conversation") &&
+        onExitImageEdition
+      ) {
+        onExitImageEdition();
+      } else if (command.id === "chat-mode-simple" && onChatModeSetSimple) {
+        onChatModeSetSimple();
+      } else if (command.id === "chat-mode-agent" && onChatModeSetAgent) {
+        onChatModeSetAgent();
+      } else if (command.id === "chat-save" && onSaveChat) {
+        onSaveChat();
+      } else if (command.id === "chat-save-dnp" && onSaveChatDNP) {
+        onSaveChatDNP();
+      }
+      return;
+    }
+
     onCommandSelect(command, fromSlash, instantModel);
     setIsCommandSuggestOpen(false);
     setSlashCommandMode(false);
@@ -386,6 +540,21 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
     const normalizedQuery = query.toLowerCase();
 
+    // Check chat-specific slash commands first
+    const chatMatch = CHAT_SLASH_COMMANDS.find((cmd) => {
+      const promptMatch = cmd.prompt
+        .slice(1) // Remove leading "/"
+        .toLowerCase()
+        .startsWith(normalizedQuery);
+      const nameMatch = cmd.name.toLowerCase().includes(normalizedQuery);
+      const keywordsMatch = cmd.keyWords
+        ?.toLowerCase()
+        .includes(normalizedQuery);
+      return promptMatch || nameMatch || keywordsMatch;
+    });
+
+    if (chatMatch) return chatMatch;
+
     // Filter chat-compatible commands
     const compatibleCommands = BUILTIN_COMMANDS.filter((cmd) => {
       if (cmd.isIncompatibleWith?.chat === true) return false;
@@ -497,6 +666,18 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
   return (
     <div className="full-results-chat-input-area">
+      {imageEditionMode && (
+        <div className="full-results-chat-edition-mode-bar">
+          <Tag
+            intent="warning"
+            icon="media"
+            onRemove={onExitImageEdition}
+            large={false}
+          >
+            Image Edit Mode
+          </Tag>
+        </div>
+      )}
       <div className="full-results-chat-controls">
         <Tooltip
           content={`Access Mode: ${chatAccessMode}`}
@@ -597,7 +778,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           <ChatToolsMenu
             enabledTools={enabledTools}
             onToggleTool={onToggleTool}
-            onToggleAll={onToggleAllTools}
+            isAgentMode={isAgentMode}
+            onToggleAgentMode={onToggleAgentMode}
             permissions={{ contentAccess: chatAccessMode === "Full Access" }}
           />
         </div>
@@ -671,6 +853,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               or apply it to user input below
             </p>
           }
+          hoverOpenDelay={400}
+          hoverCloseDelay={400}
         >
           <div className="full-results-chat-command-suggest">
             <Popover
@@ -703,6 +887,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                   isSlashMode={slashCommandMode}
                   currentPrompt={chatInput}
                   selectedModel={selectedModel}
+                  chatSlashCommands={CHAT_SLASH_COMMANDS}
                   onModelSwitch={(model: string) => {
                     // Clear only the slash command from input, preserve the rest
                     if (slashCommandMode && slashStartIndex !== -1) {
@@ -915,8 +1100,57 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     ).trim();
                     onChatInputChange(newInput);
 
+                    // Handle chat-specific commands directly
+                    if (matchingCommand.isChatCommand) {
+                      onChatInputChange("");
+                      setSlashCommandMode(false);
+                      setIsCommandSuggestOpen(false);
+                      setSlashStartIndex(-1);
+                      setSlashQuery("");
+                      setTextLengthAtSlashTrigger(0);
+
+                      if (matchingCommand.id === "chat-clear" && onClearChat) {
+                        onClearChat();
+                      } else if (
+                        matchingCommand.id === "chat-exit" &&
+                        onCloseChat
+                      ) {
+                        onCloseChat();
+                      } else if (
+                        matchingCommand.id === "chat-image-edit" &&
+                        onEnterImageEdition
+                      ) {
+                        onEnterImageEdition();
+                      } else if (
+                        (matchingCommand.id === "chat-exit-edit" ||
+                          matchingCommand.id === "chat-conversation") &&
+                        onExitImageEdition
+                      ) {
+                        onExitImageEdition();
+                      } else if (
+                        matchingCommand.id === "chat-mode-simple" &&
+                        onChatModeSetSimple
+                      ) {
+                        onChatModeSetSimple();
+                      } else if (
+                        matchingCommand.id === "chat-mode-agent" &&
+                        onChatModeSetAgent
+                      ) {
+                        onChatModeSetAgent();
+                      } else if (
+                        matchingCommand.id === "chat-save" &&
+                        onSaveChat
+                      ) {
+                        onSaveChat();
+                      } else if (
+                        matchingCommand.id === "chat-save-dnp" &&
+                        onSaveChatDNP
+                      ) {
+                        onSaveChatDNP();
+                      }
+                    }
                     // Handle model commands specially - just switch model, don't run command
-                    if (
+                    else if (
                       matchingCommand.isModelCommand &&
                       matchingCommand.prompt
                     ) {
