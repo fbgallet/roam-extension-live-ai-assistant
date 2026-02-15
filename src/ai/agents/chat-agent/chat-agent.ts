@@ -30,6 +30,7 @@ import {
   modelViaLanggraph,
   TokensUsage,
 } from "../langraphModelsLoader";
+import { updateTokenCounter } from "../../modelsInfo";
 import { hasCapability } from "../../modelRegistry";
 import { StructuredOutputType } from "@langchain/core/language_models/base";
 import {
@@ -164,6 +165,7 @@ const ChatAgentState = Annotation.Root({
 // Module-level variables
 let llm: StructuredOutputType;
 let turnTokensUsage: TokensUsage;
+let initialTokensUsage: TokensUsage;
 let sys_msg: SystemMessage;
 let originalUserMessageForHistory: string;
 
@@ -180,6 +182,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
 
   // Initialize token usage tracking
   turnTokensUsage = state.tokensUsage || { input_tokens: 0, output_tokens: 0 };
+  initialTokensUsage = { ...turnTokensUsage };
 
   llm = modelViaLanggraph(state.model, turnTokensUsage);
 
@@ -567,13 +570,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
 
-      // Capture token usage from streaming chunks (Anthropic sends this in first chunk)
-      if (chunk.usage_metadata) {
+      // Capture token usage from streaming chunks (only for thinking models where callback is disabled)
+      if (chunk.usage_metadata && state.model.id.includes("+thinking")) {
         if (chunk.usage_metadata.input_tokens) {
-          turnTokensUsage.input_tokens = chunk.usage_metadata.input_tokens;
+          turnTokensUsage.input_tokens += chunk.usage_metadata.input_tokens;
         }
         if (chunk.usage_metadata.output_tokens) {
-          turnTokensUsage.output_tokens = chunk.usage_metadata.output_tokens;
+          turnTokensUsage.output_tokens += chunk.usage_metadata.output_tokens;
         }
       }
 
@@ -667,13 +670,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     // Non-streaming response
     const response = await llm_with_tools.invoke(messages);
 
-    // Capture token usage from response (Anthropic sends usage_metadata)
-    if (response.usage_metadata) {
+    // Capture token usage from response (only for thinking models where callback is disabled)
+    if (response.usage_metadata && state.model.id.includes("+thinking")) {
       if (response.usage_metadata.input_tokens) {
-        turnTokensUsage.input_tokens = response.usage_metadata.input_tokens;
+        turnTokensUsage.input_tokens += response.usage_metadata.input_tokens;
       }
       if (response.usage_metadata.output_tokens) {
-        turnTokensUsage.output_tokens = response.usage_metadata.output_tokens;
+        turnTokensUsage.output_tokens += response.usage_metadata.output_tokens;
       }
     }
 
@@ -1048,6 +1051,17 @@ const finalize = async (state: typeof ChatAgentState.State) => {
 
   // Add assistant response
   newHistory.push(`\n<Assistant>: ${finalAnswer}`);
+
+  // Persist this turn's token usage to extensionStorage
+  const turnDelta = {
+    input_tokens:
+      turnTokensUsage.input_tokens - initialTokensUsage.input_tokens,
+    output_tokens:
+      turnTokensUsage.output_tokens - initialTokensUsage.output_tokens,
+  };
+  if (turnDelta.input_tokens > 0 || turnDelta.output_tokens > 0) {
+    updateTokenCounter(state.model.id, turnDelta);
+  }
 
   return {
     finalAnswer,

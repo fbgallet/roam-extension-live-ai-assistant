@@ -1273,6 +1273,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     !!(initialEnabledTools && initialEnabledTools.size > 0),
   );
 
+  // Override for conversation history used by processChatMessage (for retry/delete)
+  const conversationHistoryOverrideRef = useRef<string[] | null>(null);
+
   // Save enabled tools to storage whenever they change
   // Skip if this session has forced tools to avoid overwriting user preferences
   useEffect(() => {
@@ -1669,6 +1672,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Just delete the assistant message if user message not found
       setChatMessages((prev) => prev.filter((_, idx) => idx !== messageIndex));
     }
+
+    // Invalidate cached conversation history so it rebuilds from chatMessages on next send
+    if (chatAgentData?.conversationHistory) {
+      setChatAgentData({
+        ...chatAgentData,
+        conversationHistory: null,
+      });
+    }
   };
 
   const handleRetryMessage = async (messageIndex: number) => {
@@ -1703,6 +1714,23 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
     // Re-add the user message and regenerate
     setChatMessages((prev) => [...prev, userMessage]);
+
+    // Build the correct truncated history from messages BEFORE the retried turn
+    // and set it as override so processChatMessage uses it instead of the stale
+    // chatAgentData.conversationHistory (which still contains the old response)
+    const messagesBeforeRetry = chatMessages.slice(0, userMessageIndex);
+    conversationHistoryOverrideRef.current = messagesBeforeRetry.map((msg) => {
+      const role = msg.role === "user" ? "User" : "Assistant";
+      return `${role}: ${msg.content}`;
+    });
+
+    // Also reset persisted agent state so next turn after this one starts clean
+    if (chatAgentData) {
+      setChatAgentData({
+        ...chatAgentData,
+        conversationHistory: null,
+      });
+    }
 
     setIsTyping(true);
     setIsStreaming(true);
@@ -2614,12 +2642,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       // Use conversation history from previous agent turn (if available)
       // This preserves commandPrompt instructions and other context added by the agent
       // Only rebuild from chatMessages if no agent data exists (first turn)
+      // conversationHistoryOverrideRef is set by retry/delete to bypass stale agent history
       const currentConversationHistory =
+        conversationHistoryOverrideRef.current ||
         chatAgentData?.conversationHistory ||
         chatMessages.map((msg) => {
           const role = msg.role === "user" ? "User" : "Assistant";
           return `${role}: ${msg.content}`;
         });
+      conversationHistoryOverrideRef.current = null; // consume the override
 
       // Get command prompt if provided
       let commandPrompt: string | undefined = undefined;

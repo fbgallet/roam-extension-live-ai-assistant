@@ -18,7 +18,7 @@ import {
   convertRoamToMarkdownFormat,
 } from "./chatMessageUtils";
 
-const LIVEAI_PAGE_NAME = "liveai";
+const LIVEAI_PAGE_NAME = "liveai/chat";
 
 /**
  * Ensure the [[liveai]] page exists and return its UID.
@@ -52,7 +52,7 @@ export const ensureLiveAIPage = async (): Promise<string> => {
  */
 export const createTemporaryEditBlock = async (
   content: string,
-  rolePrefix: string
+  rolePrefix: string,
 ): Promise<string> => {
   const pageUid = await ensureLiveAIPage();
 
@@ -65,7 +65,7 @@ export const createTemporaryEditBlock = async (
     pageUid,
     headerText,
     "last",
-    true // open = true to show children
+    true, // open = true to show children
   );
 
   // Parse and create the content as children of the temp block
@@ -104,7 +104,9 @@ export const extractContentFromBlock = (blockUid: string): string => {
  *
  * @param blockUid - The UID of the temporary block to delete
  */
-export const cleanupTemporaryBlock = async (blockUid: string): Promise<void> => {
+export const cleanupTemporaryBlock = async (
+  blockUid: string,
+): Promise<void> => {
   try {
     await deleteBlock(blockUid);
   } catch (error) {
@@ -161,7 +163,7 @@ export const getFirstChildBlockUid = (parentUid: string): string => {
   if (tree && tree[0]?.children && tree[0].children.length > 0) {
     // Sort by order to get the first child
     const sortedChildren = [...tree[0].children].sort(
-      (a: any, b: any) => (a.order || 0) - (b.order || 0)
+      (a: any, b: any) => (a.order || 0) - (b.order || 0),
     );
     return sortedChildren[0].uid;
   }

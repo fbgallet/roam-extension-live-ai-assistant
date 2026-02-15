@@ -13,12 +13,15 @@ import {
   completionCommands,
   defaultAssistantCharacter,
   hierarchicalResponseFormat,
+  roamKanbanFormat,
+  roamTableFormat,
 } from "../../prompts";
 import { getStylePrompt } from "../../responseInsertion";
 import { getFormattedSkillsList } from "../chat-agent/tools/skillsUtils";
 
 // Base system prompt for chat agent
 export const buildChatSystemPrompt = async ({
+  lastMessage,
   style,
   toolsEnabled,
   conversationContext,
@@ -166,7 +169,21 @@ The content you provide to these tools is in markdown format, automatically conv
 - **Dates**: use Roam date format \`[[Month Dth, Year]]\` (e.g. \`[[January 5th, 2025]]\`) for date page references
 - **Highlights**: use \`^^\` to surround highlighted text (e.g. \`^^important^^)\`
 - Standard markdown (bold, italic, headings, lists, code blocks, links) is supported and will be converted automatically.
-- Do NOT wrap Roam-specific syntax in markdown link format.`
+- Do NOT wrap Roam-specific syntax in markdown link format.${
+    (() => {
+      const combined = (lastMessage || "") + (resultsContext || "");
+      const needsTable =
+        combined.toLowerCase().includes("table") ||
+        combined.includes("{{[[table]]}}") ||
+        combined.includes("{{table}}");
+      const needsKanban =
+        combined.toLowerCase().includes("kanban") ||
+        combined.includes("{{[[kanban]]}}") ||
+        combined.includes("{{kanban}}");
+      return (needsTable ? "\n" + roamTableFormat : "") +
+        (needsKanban ? "\n" + roamKanbanFormat : "");
+    })()
+  }`
     : ""
 }`;
 

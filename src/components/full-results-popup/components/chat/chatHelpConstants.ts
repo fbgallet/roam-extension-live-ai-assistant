@@ -15,6 +15,8 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt) and styles (#liveai/style)
 - **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
 - Support images, .pdf (with most models) and even audio or video analysis (with Gemini models)
+- **Slash Commands**: Type / to access quick commands (clear, close, change mode, save, switch model)
+- **Edit Messages**: Click to edit previous messages, rendered as Roam blocks
 
 #### **Context panel**
 - **Easy access**: switch to a detailed context view (click on the vertical button on the left of chat panel) or split view
@@ -22,10 +24,11 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Precise control**: filter, sort and select the most relevant data for your chat
 
 #### **Chat Agent: Intelligent Context & Tools**
+- **Agent/Chat Modes**: Switch between Agent mode (with tools) and simple Chat mode (no tools) anytime
 - **Access Modes**: adaptative depth of pages/blocks in the context
   - 🛡️ **Balanced**: 50% context window, faster responses, adaptive depth (0-4 levels for blocks, 4 for pages)
-  - 🔓 **Full Access**: 90% context window, deeper analysis, unlimited depth (0-99 levels for blocks, unlimited for pages)
-- **6 Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Get Help, Skills (only the first one is enabled by default)
+  - 🔓 **Full Access**: 90% context window, deeper analysis, unlimited depth + "No truncation" option
+- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Get Help, Skills, Edition tools (create/update/delete blocks & pages), Interaction tools (Ask User Choice, Random Pick)
 - **Smart Context**: Agent loads pages/blocks dynamically based on mentions and needs
 - **Query Integration**: Run queries, compose searches, manage results directly in the panel
 
@@ -33,10 +36,11 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Bidirectional Roam Integration**: Chat → Roam (insert button), Roam → Chat (load #liveai/chat blocks)
 - **Interactive References**: Hover over [block refs](((block-refs))) or [[page-refs]] to highlight them in the result view (Shift/Alt modifiers supported so open them)
 - **Tool Visibility**: Watch agent actions in real-time with tool usage display
+- **Generate Documents**: Export to PDF, DOCX, PPTX directly from chat (Anthropic API Key requested)
 
 #### **Recommendations**
 - **For Speed**: Disable tools (~3000 tokens saved per message), use Balanced mode, combine questions
-- **For Quality**: use Full Access mode and powerful models (Claude Sonnet 4.5, GPT-5.1, Gemini 3 Pro...)
+- **For Quality**: use Full Access mode and powerful models (Claude Opus 4.6, GPT-5.2, Gemini 3 Pro...)
 - **For Cost**: Disable tools, use Balanced mode, cheaper models, batch questions, start new chats when switching topics
 - **Inline vs Chat**: Use inline for Roam structure, Mermaid, PDFs; use chat for conversation, search analysis
 
@@ -49,7 +53,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.25 (Dec 2025) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.27 (Feb 2026) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
@@ -57,44 +61,54 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 - ✍️ **Custom prompts**: Create reusable prompts with \`#liveai/prompt\`
 - 🎨 **Custom styles**: Define output formats with \`#liveai/style\`
 - 💬 **Chat panel**: chat with your notes, linked references or any other query result
+- 🛠️ **Live AI Skills**: Advanced automated workflows with instructions, resources and records ([doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))
 
 #### **Multimodal features**
 - 🎤 **Voice**: Dictate notes and commands, Text-to-speech
 - 🌁 **Image**: analysis and generation
 - 📑 **Pdf**: extract or analyze documents
 - 🕸️ **Web search**: Ask AI to find up-to-date or precise informations on the web!
+- 📄 **Document generation**: Export to PDF, DOCX, PPTX
 
 #### **Explore and leverage your Roam graph**
 - 🔍 **Query agents and Ask Your Graph**: Deep semantic search across your entire graph
 - 📝 **Live Outliner**: AI-assisted outlining and content updated/generation
+- 💬 **Chat with query results**: Instantly chat with native query results or linked references
 
 #### **Supported LLM Providers:**
-OpenAI (GPT-4.1, GPT-5.1), Anthropic (Claude), Google (Gemini), xAI (Grok), DeepSeek, Ollama (local models), and more!
+OpenAI (GPT-5.2), Anthropic (Claude Opus 4.6, Sonnet 4.5), Google (Gemini 3), xAI (Grok), DeepSeek, Ollama (local models), and more via OpenRouter!
 
 #### **How to support my work ?**
-Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) @fbgallet`;
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.27 🎉
 
-**v.26 released: December 10th, 2025**
-**Fixes**
-- Voice transcription was broken in the previous version!
-- Just after updating Google API Key, Gemini models were not accessible
+#### **Chat Panel**
+- **Slash Commands**: Type / to quickly clear, close, change mode, save, or search & switch models
+- **Edit Messages**: Click any message to edit it, rendered as a Roam block
+- **Agent/Chat Toggle**: Easily switch between Agent mode (with tools) and simple Chat mode
+- **No Truncation Option**: In Full Access mode, disable truncation for complete context
 
-**v.25 released: November 25th, 2025**
+#### **Chat Agent Tools**
+- **Edition Tools**: Create pages or blocks, update or delete blocks (with human validation)
+- **Interaction Tools**: Ask User Choice (for polls, QCM) and Random Pick (from context or any list)
 
-#### **🎬 Better Multimodal Support**
+#### **Live AI Skills — Major Update**
+- **Records**: Skills can now write output to any defined place in your graph ([detailed doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))
+- **SmartBlocks Integration**: Run skills from SmartBlocks with \`<%LIVEAIGEN:prompt,context,{chat:skill:skill_name}%>\`
+- **Relative Dates**: Resources and records support relative date keywords (today, last week, in 3 days...)
+- **Improved Structure**: Description supports children blocks, singular/plural tags, page embeds, bold flags
 
-**New Features:**
-- **Audio & Video Analysis** 🎥 with Gemini models - Analyze YouTube videos or audio files, with timestamp support
-- **Audio Transcription** 🎙️ with OpenAI or Gemini models - Convert audio to text with speaker detection
+#### **Models & UI**
+- Models menu & customization entirely revamped with many new models (GPT-5.2, Claude Opus 4.6, Gemini Flash 3, GPT Image 1.5, Grok Imagine)
+- New button and dropdown to handle thinking effort of reasoning models
+- Chat with native query results button
 
-**Updates:**
-- **New Models Support**: Gemini 3 Pro, Nano banana Pro, Claude Opus 4.5
-- **Drag & Drop** 📦 blocks to Chat panel to add them to context
-- **Multimodal Chat**: PDF, image, audio, video and web search now supported in Chat panel
-- **Direct Image Editing** 🎨 with Nano banana - Edit images directly in child blocks or in chat
-- **Hide Thinking Process** 🧠 - New option to hide reasoning models' thinking process display
+#### **Context Menu**
+- New context options: 'Siblings', 'Path' (ancestors) and Queries (Roam queries and :q queries)
+
+#### **Document Generation**
+- Generate PDF, DOCX, PPTX documents directly (Anthropic API Key requested)
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
@@ -110,16 +124,23 @@ export const LIVE_AI_TIPS = [
   "**Fuzzy & semantic search**: Using query agents or Ask Your Graph agent, end a word with `*` for fuzzy (practice* → practise, practicing) or `~` for semantic (practice~ → workout, exercise) ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent))",
   "**Did you know?** You can create **Mermaid diagrams** directly! Just select your content and choose 'Mermaid diagram' - the AI will generate flowcharts, timelines, mindmaps, and more in Roam-compatible format",
   "**Did you know?** You can get **vocabulary suggestions** inline (works only in Roam blocks, not in chat currently)! The AI will propose better word choices wrapped in `{{or: best | alternative | ~~original~~}}` - just accept the first suggestion",
+  "**New context options**: In the context menu, use 'Siblings' to include sibling blocks, 'Path' for ancestors, or 'Queries' to include Roam native queries and :q Datomic query results as context!",
+  "**Document generation**: Generate PDF, DOCX, or PPTX documents directly from your content or chat — great for sharing polished output outside Roam! (Anthropic API Key requested)",
 ];
 
 // Tips specific to Chat
 export const CHAT_TIPS = [
   "**Chat storage**: Tag any block with `#liveai/chat` to save and continue conversations later. Direct child blocks are chat turn, beginning with the user if no role placeholder is used ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant#chat-with-your-ai-assistant))",
-  "**Tokens optimization**: When working with large contexts, combine multiple questions in one request to save tokens (context is sent to the LLM on each conversation turn). For brief conversations that don't need your graph data, turn off tools in the chat. When you switch to a different topic, start a completely new chat session.",
+  "**Tokens optimization**: When working with large contexts, combine multiple questions in one request to save tokens (context is sent to the LLM on each conversation turn). For brief conversations that don't need your graph data, switch to Chat mode (no tools). When you switch to a different topic, start a completely new chat session.",
   "**Set the chat context on opening**: Select blocks and open the chat to use them as context! Or use 'Open chat panel' in the Live AI context menu, or you can set the context with one click (sidebar, current page, etc.)",
   "**Markdown style**: Chat responses support a wide variety of markdown styles, including headers, lists, highlights, and tables—don't hesitate to ask the AI to use them. They will be automatically converted to Roam format if you copy or insert the messages.",
-  "**Live AI Skills**: inspired by Anthropic Agent Skills, these are 'super' custom prompts that the agent loads when it deems necessary, using only the relevant parts for the current task—allowing them to be very comprehensive without overloading the AI with unnecessary instructions.",
-  "**Enrich context on the fly**: Add pages or blocks to the context just by asking in natural language (if tools are enabled), or simply mentions pages in your prompt, the agent will decide if it's needed to load their content or reference in the context.",
+  "**Live AI Skills**: Advanced automated workflows with instructions, resources and records. Skills can read context, follow instructions, and write structured output to any place in your graph! ([detailed doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))",
+  "**Enrich context on the fly**: Add pages or blocks to the context just by asking in natural language (if tools are enabled), or simply mention pages in your prompt, the agent will decide if it's needed to load their content or reference in the context.",
+  "**Slash commands**: Type / in the chat input to access quick commands: clear chat, close panel, switch between Agent/Chat mode, save conversation, or search and switch models — all without leaving the keyboard!",
+  "**Edit messages**: You can edit any previous message in the chat by clicking on it. The message is rendered as a Roam block for easy editing.",
+  "**Skills with Records**: Skills can now write output directly to your graph using Records — define a target page or block, and the agent will create or update content there. Use relative dates like \\`[[today]]\\` or \\`[[last week]]\\` for dynamic targets ([doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))",
+  "**Skills via SmartBlocks**: Trigger specific skills from SmartBlocks with \\`<%LIVEAIGEN:prompt,context,{chat:skill:skill_name}%>\\` — great for automated workflows and repeatable processes!",
+  "**Edit images**: Once you generate an image, you can choose to switch to Edit image mode (available with Gemini, GPT 1.5 Image & Grok Imagine): any further prompt will be used to apply modification to the previously generated image! Use /exit-edit to come back to conversation mode.",
 ];
 
 // Tips applicable to both Live AI and Chat
@@ -139,7 +160,7 @@ export const BOTH_TIPS = [
   "**Modifier keys**: Define what context the AI should use when clicking AI buttons by pressing `Alt` for full current page, `Shift` for sidebar or `Cmd/Ctrl` for linked refs ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context))",
   "**Local models**: Run free local models with Ollama (no API key needed) - great for privacy-sensitive notes or offline work. But know that they are generally slower and will struggle more with complex tasks, particularly agents like Ask your graph or tools in chat ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md))",
   "**Built-in prompts**: You can insert built-in prompts in your custom prompts with `<built-in:summarize>` or `<built-in:translate:Spanish>` to rely on their instructions and adapt them to your specific needs ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts))",
-  "**Multiple models**: Mix providers and LLMs! Use DeepSeek or Google for cheap bulk work, Claude Sonnet or GPT-5 for quality, GPT-4.1-mini or Gemini flash for speed. Switching is almost instant (type first letters of the provider in context menu) ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens))",
+  "**Multiple models**: Mix providers and LLMs! Use DeepSeek or Google for cheap bulk work, Claude Sonnet or GPT-5.2 for quality, GPT-4.1-mini or Gemini Flash 3 for speed. Switching is almost instant — use / in chat to search and switch models! ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#main-models-pricing-per-million-tokens))",
   "**OpenRouter access**: Get 100+ models and the most recent ones with one API key via OpenRouter - perfect for testing different models without multiple accounts ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#get-api-keys))",
   "**Did you know?** Live AI can **extract text from images** (OCR) or analyze artwork! Use 'Extract text from image' or 'Image Analysis' commands on blocks containing images",
   "**Did you know?** Live AI can **create quizzes** from your notes! Use the 'Quiz on provided content' command or use 'Quiz' style for active learning and knowledge testing",

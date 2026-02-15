@@ -2,7 +2,7 @@
 
 **AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam. Interact with your favorite AI directly in Roam blocks, making the most of Roam’s interface to truly extend your thinking rather than just read answers! Or discover a new way to explore your graph in the agentic Chat interface. No usage limits, pay only for what you use (probably just a few dozen cents per month) or rely on free local models through Ollama or OpenAI compatible servers.**
 
-**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, images, .pdf, etc.) and chat with this content or get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context!**
+**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, queries, images, .pdf, etc.) and chat with this content or get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context!**
 
 **Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, explore, filter and chat with the results!**
 
@@ -18,13 +18,20 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.25 (December 2025)
+### 🆕 New in v.27 (February 2026)
 
-- Drag & drop block(s) to Chat panel to add them to the context
-- New models support: Gemini 3 Pro and Nano banana Pro, Claude Opus 4.5
-- Audio and Video analysis with Gemini models
-- Audio file transcription with OpenAI or Gemini
-- Pdf, image, audio, video and web search supported in Chat panel
+- New button to instantly Chat with native query results (similar to Chat with linked references).
+- Models menu & customization entirely revamped
+- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6, Gemini Flash 3, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
+- New button and dropdown to handle thinking effort of reasoning models.
+- New tools for Chat agent (in chat panel):
+  - Edition: create Page or blocks, update or detele blocks (with human validation)
+  - Interaction: Ask user choice (for poll, QCM...) and Random pick (from context or any list)
+- Skills now support 'Records', capacity to write output at any defined place in your graph (see detailed [doc about Live AI Skills here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))
+- New context options in Context menu: 'Siblings', 'Path' (ancestors) and Queries (Roam querie and :q queries)
+- Generate PDF/DOCX/PPTX documents (Anthropic API Key requested)
+- Any message in Chat panel is editable (rendered as Roam blocks)
+- Fixed a lot of bugs
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -166,6 +173,9 @@ To define the context, you can either check the corresponding box in the context
 - **Sidebar** (click +`Shift`): all the content of the sidebar
 - **DNPs** (click +`Ctrl`): a defined range of previous Daily notes (relative to the currently opened or focused DNP, but NOT including today or current day, unless triggered from a not-DNP)
 - **[[page]]** mentions: the content and linked references of the mentioned pages (as [[page]], #tag or atttribute::)
+- **Siblings**: sibling blocks of the focused or selected block(s)
+- **Path**: ancestor blocks (path from root to the focused or selected block)
+- **Queries**: results of Roam native queries or :q Datomic queries present in the context
 - **Pdf**: if .pdf documents are present in your notes, as file or as web url, they can be processed by the AI model (OpenAI or Anthropic models)
 
 > [!TIP]
@@ -262,17 +272,17 @@ You can analyze specific segments of videos by adding time markers in your promp
 
 ### Images generation
 
-You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key. Google Gemini 3 'Nano banana Pro' is currently the most suitable model for edition and text insertion in images and is set as default image generation model in settings.
+You can generate images directly embedded in Roam using a prompt (written in a block, or a block selection, optionally including a context) with the `Image generation` command. This feature requires an OpenAI API key (and your organization's authentication (identity verification)) or Google API key. **GPT Image 1.5** (OpenAI) and **Grok Imagine** (xAI) are also supported. Google Gemini 3 'Nano banana Pro' is currently the most suitable model for edition and text insertion in images and is set as default image generation model in settings.
 
 See [best practices for Google Gemini image models 'nano banana' here](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) (don't care about the code on this page, all is handled by Live AI)
 
 In the built-in prompts menu, choose among three levels of **image quality** (except for gemini-2.5-flash-image, always 1K): low, medium or high (equivalent to 1K, 2K or 4K for Nano banana pro). The low level is usually enough, the image generates faster (about fifteen seconds for a simple prompt) and costs much less (see the [pricing doc](https://ai.google.dev/gemini-api/docs/image-generation#best-practices) for details).
 
-In you prompt, you can provide:
+In your prompt, you can provide:
 
 - **Image format**: if you want a square (1024x1024), portrait (1024\*1536), or landscape format (1536x1024), or a transparent background (or the model will choose by itself). For Google models, you can specify ratio directly in your prompt (e.g.: 1:1, 2:3, 4:3, 16:9, etc.)
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
-- **Image edition**: Gemini Nano banana models allow direct image edition without any mask: just insert the image to edit in your prompt or context and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, you can refine images through multiple conversational edits (once an image has been generated in the chat, all following message can only be used for image edition and no other purpose); in Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. The chat maintains context across edits and model attribution is automatically added below each generated image. Google Imagen-4 models doesn't support edit. For OpenAPI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
+- **Image edition**: Gemini Nano banana models, GPT Image 1.5 and Grok Imagine allow direct image edition: just insert the image to edit in your prompt or context and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, once an image has been generated, you can switch to Edit image mode — all further prompts are then applied as modifications to the previous image; use `/exit-edit` to return to conversation mode. In Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. Google Imagen-4 models don't support edit. For OpenAI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
 ### Use PDF files as input
 
@@ -281,6 +291,18 @@ OpenAI, Anthropic and Google models supporting images as input support also `.pd
 In Chat panel, you can insert a pdf in the prompt or in the context and chat with its content! If your pdf is in the context, you have to explicitly mention "pdf" keyword in your first prompt to allow the agent to extract .pdf from the context.
 
 You have to know that for each page, text and an image of the page will be sent as input to the LLM: the total tokens count will be greater than for simple text input, even if there is no image in your .pdf.
+
+### Export to PDF, DOCX, PPTX
+
+You can generate polished documents directly from your Roam content or from a chat conversation using the `Export to PDF`, `Export to DOCX`, or `Export to PPTX` commands (also accessible via a dedicated button in the Chat panel).
+
+This feature uses **Claude Skills** (Anthropic's tool-use API) and requires an **Anthropic API key**. Document generation relies on a lightweight proxy server that calls the [Anthropic Files API](https://docs.anthropic.com/en/docs/build-with-claude/files) to assemble and return the document. **No private data is stored** on the server. The proxy server is open source and its code is publicly available at [github.com/fbgallet/ai-api-back](https://github.com/fbgallet/ai-api-back).
+
+Use cases:
+
+- Export a structured set of Roam blocks as a formatted Word document or PDF report
+- Turn a chat response or outline into a presentation (PPTX)
+- Share AI-generated content outside Roam in a standard document format
 
 ### Web search (or web as context)
 
