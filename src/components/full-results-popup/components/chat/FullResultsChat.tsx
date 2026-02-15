@@ -19,6 +19,7 @@ import {
   hasBlockChildren,
   updateBlock,
   isExistingBlock,
+  getDNPTitleFromDate,
 } from "../../../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../../../utils/format";
@@ -49,6 +50,7 @@ import {
 } from "../../utils/chatEditUtils";
 import { generateNLQuery } from "../../../../ai/agents/nl-query";
 import { generateNLDatomicQuery } from "../../../../ai/agents/nl-datomic-query";
+import { isFileExportRequest } from "../../../../ai/agents/chat-agent/multimodal-commands";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -159,6 +161,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 }) => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | undefined>(
+    undefined,
+  );
   const [streamingContent, setStreamingContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(() => {
@@ -1223,7 +1228,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     // Initialize agent mode if there are enabled tools (persisted or forced)
     const storedTools = extensionStorage.get("chatEnabledTools");
     const hasStoredTools = storedTools && storedTools.length > 0;
-    const hasForcedInitialTools = initialEnabledTools && initialEnabledTools.size > 0;
+    const hasForcedInitialTools =
+      initialEnabledTools && initialEnabledTools.size > 0;
     return hasStoredTools || hasForcedInitialTools ? "agent" : "simple";
   });
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
@@ -1263,7 +1269,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   });
 
   // Whether this chat session was opened with forced tools (don't persist to storage)
-  const hasForcedTools = useRef(!!(initialEnabledTools && initialEnabledTools.size > 0));
+  const hasForcedTools = useRef(
+    !!(initialEnabledTools && initialEnabledTools.size > 0),
+  );
 
   // Save enabled tools to storage whenever they change
   // Skip if this session has forced tools to avoid overwriting user preferences
@@ -1431,9 +1439,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       const newMessages = chatMessages.slice(currentInsertedCount);
 
       if (newMessages.length === 0) {
+        const alreadySavedTitle = loadedChatTitle || loadedChatUid;
         AppToaster.show({
-          message:
-            "No new messages to insert. All messages were already in Roam.",
+          message: alreadySavedTitle
+            ? `All messages are already saved in the Roam chat "${alreadySavedTitle}".`
+            : "All messages are already saved in Roam — nothing new to insert.",
           timeout: 6000,
         });
         return;
@@ -1601,13 +1611,28 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Show success message with count
       const insertedCount = newMessages.length;
-      const messageType = isFirstInsertion ? "created" : "appended";
+      const msgWord = insertedCount > 1 ? "messages" : "message";
+      const finalTitle = getBlockContentByUid(targetRef.current)
+        .replace(/#liveai\/chat/g, "")
+        .trim();
+      let successMessage: string;
+      if (isFirstInsertion) {
+        const pageTitle = forceDNP ? getDNPTitleFromDate(new Date()) : null;
+        const locationHint = pageTitle
+          ? ` on [[${pageTitle}]]`
+          : finalTitle
+            ? ` as "${finalTitle}"`
+            : "";
+        successMessage = `Conversation saved${locationHint} (${insertedCount} ${msgWord})`;
+      } else {
+        const chatRef =
+          loadedChatTitle || finalTitle || loadedChatUid || "the existing chat";
+        successMessage = `${insertedCount} new ${msgWord} appended to "${chatRef}"`;
+      }
       AppToaster.show({
-        message: `${insertedCount} message${insertedCount > 1 ? "s" : ""} ${messageType} ${
-          isFirstInsertion ? "in" : "to"
-        } Roam chat`,
+        message: successMessage,
         intent: "success",
-        timeout: 3000,
+        timeout: 4000,
       });
     } catch (error) {
       console.error("Failed to insert conversation in Roam:", error);
@@ -2342,7 +2367,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // Phase 4: Add results to context
       if (queryResults.length > 0) {
-        console.log(`📊 [NLQuery] Adding ${queryResults.length} results to context:`, queryResults.slice(0, 3));
+        console.log(
+          `📊 [NLQuery] Adding ${queryResults.length} results to context:`,
+          queryResults.slice(0, 3),
+        );
         onAddResults(queryResults);
 
         const contextMessage: ChatMessage = {
@@ -2387,9 +2415,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     console.log("📊 [NLQuery] Executing with query property:", queryContent);
 
     try {
-      const queryResponse = await (
-        window as any
-      ).roamAlphaAPI.data.roamQuery({
+      const queryResponse = await (window as any).roamAlphaAPI.data.roamQuery({
         query: queryContent,
         limit: null,
       });
@@ -2397,7 +2423,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       console.log("📊 [NLQuery] roamQuery response:", queryResponse);
 
       const queryResults = queryResponse?.results;
-      if (!queryResults || !Array.isArray(queryResults) || queryResults.length === 0) {
+      if (
+        !queryResults ||
+        !Array.isArray(queryResults) ||
+        queryResults.length === 0
+      ) {
         console.warn("📊 [NLQuery] No results returned");
         return [];
       }
@@ -2456,7 +2486,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       if (queryMatch) {
         cleanQuery = queryMatch[1];
       } else {
-        throw new Error("Could not find valid Datomic query pattern [:find ...]");
+        throw new Error(
+          "Could not find valid Datomic query pattern [:find ...]",
+        );
       }
 
       console.log("Executing Datomic query:", cleanQuery);
@@ -2466,7 +2498,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         rawResults = (window as any).roamAlphaAPI.q(cleanQuery);
       } catch (queryError) {
         console.error("Datomic query execution error:", queryError);
-        throw new Error(`Query execution failed: ${queryError.message || "Unknown error"}`);
+        throw new Error(
+          `Query execution failed: ${queryError.message || "Unknown error"}`,
+        );
       }
 
       if (!rawResults || !Array.isArray(rawResults)) {
@@ -2606,6 +2640,19 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         }
       }
 
+      // Set a status message for long-running operations
+      if (isFileExportRequest(commandPromptFromCall)) {
+        const fmt =
+          commandPromptFromCall === "Export to DOCX"
+            ? "DOCX"
+            : commandPromptFromCall === "Export to PPTX"
+              ? "PPTX"
+              : "PDF";
+        setStatusMessage(
+          `⏳ Generating ${fmt} with Claude Skill — this may take 1–2 minutes or more depending on data provided...`,
+        );
+      }
+
       // Invoke the chat agent
       const agentResult = await invokeChatAgent({
         model: modelAccordingToProvider(
@@ -2630,7 +2677,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isAgentMode: chatMode === "agent",
 
         // Permissions
-        permissions: { contentAccess: chatAccessMode === "Full Access", noTruncation },
+        permissions: {
+          contentAccess: chatAccessMode === "Full Access",
+          noTruncation,
+        },
 
         // Conversation state from previous turns
         conversationHistory: currentConversationHistory,
@@ -3092,10 +3142,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setToolUsageHistory([]);
       toolUsageHistoryRef.current = [];
 
+      // Clear any status message
+      setStatusMessage(undefined);
+
       // The agent's built-in conversation management will handle history and summarization automatically
       // We just need to preserve the agent state for the next turn
     } catch (error) {
       console.error("Chat processing error:", error);
+      setStatusMessage(undefined);
       setIsStreaming(false);
       setStreamingContent("");
       const errorMessage: ChatMessage = {
@@ -3240,6 +3294,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onEditMessage={handleEditMessage}
         onSaveEdit={handleSaveEdit}
         onCancelEdit={handleCancelEdit}
+        statusMessage={statusMessage}
       />
 
       <ChatInputArea
@@ -3263,7 +3318,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         enabledTools={enabledTools}
         onToggleTool={handleToggleTool}
         isAgentMode={chatMode === "agent"}
-        onToggleAgentMode={(enabled) => setChatMode(enabled ? "agent" : "simple")}
+        onToggleAgentMode={(enabled) =>
+          setChatMode(enabled ? "agent" : "simple")
+        }
         selectedStyle={selectedStyle}
         onStyleChange={setSelectedStyle}
         customStyleTitles={customStyleTitles}
@@ -3272,7 +3329,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         thinkingEnabled={thinkingEnabled}
         onThinkingChange={setThinkingEnabled}
         imageEditionMode={chatAgentData?.imageEditionMode ?? false}
-        hasGeneratedImage={!!(chatAgentData?.lastGeneratedImageUrl)}
+        hasGeneratedImage={!!chatAgentData?.lastGeneratedImageUrl}
         onExitImageEdition={() => {
           setChatAgentData({
             ...chatAgentData,

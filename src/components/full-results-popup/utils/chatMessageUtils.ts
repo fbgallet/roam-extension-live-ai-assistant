@@ -118,9 +118,9 @@ export const renderMarkdown = (text: string): string => {
   const roamEmbeds: string[] = [];
   const roamEmbedPlaceholder = "ROAMEMBED-";
 
-  // Protect {{[[audio]]: url}}, {{[[video]]: url}}, {{[[youtube]]: url}}
+  // Protect {{[[audio]]: url}}, {{[[video]]: url}}, {{[[youtube]]: url}}, {{[[pdf]]: url}}
   rendered = rendered.replace(
-    /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/gi,
+    /\{\{\[\[(?:audio|video|youtube|pdf)\]\]:\s*https?:[^\s}]+\}\}/gi,
     (match) => {
       const index = roamEmbeds.length;
       roamEmbeds.push(match);

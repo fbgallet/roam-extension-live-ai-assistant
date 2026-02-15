@@ -50,7 +50,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
     const hasRoamElements =
       containsKaTeX(content) ||
       containsRoamQuery(content) ||
-      /\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\}/i.test(
+      /\{\{\[\[(?:audio|video|youtube|pdf)\]\]:\s*https?:[^\s}]+\}\}/i.test(
         content,
       );
 
@@ -110,10 +110,14 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
 
       let node: Node | null;
       while ((node = walker.nextNode())) {
+        // Skip text nodes inside <code> or <pre> — their content is raw text, not Roam syntax
+        const insideCode = (node.parentNode as Element)?.closest?.("code, pre");
+        if (insideCode) continue;
+
         if (
           node.textContent &&
           (/\$\$.+?\$\$/s.test(node.textContent) ||
-            /\{\{\[\[(?:audio|video|youtube)\]\]:/i.test(node.textContent))
+            /\{\{\[\[(?:audio|video|youtube|pdf)\]\]:/i.test(node.textContent))
         ) {
           textNodes.push(node);
         }
@@ -128,7 +132,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
 
         // Split by KaTeX formulas and media embeds
         const parts = text.split(
-          /(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube)\]\]:\s*https?:[^\s}]+\}\})/is,
+          /(\$\$.+?\$\$|\{\{\[\[(?:audio|video|youtube|pdf)\]\]:\s*https?:[^\s}]+\}\})/is,
         );
         const fragment = document.createDocumentFragment();
 
@@ -146,8 +150,10 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
               span.textContent = part; // Fallback to showing raw formula
             }
             fragment.appendChild(span);
-          } else if (/^\{\{\[\[(?:audio|video|youtube)\]\]:/i.test(part)) {
-            // This is an audio or video embed - render with Roam API
+          } else if (
+            /^\{\{\[\[(?:audio|video|youtube|pdf)\]\]:/i.test(part)
+          ) {
+            // This is a media/PDF embed - render with Roam API
             const div = document.createElement("div");
             div.style.display = "block";
             div.style.margin = "8px 0";
@@ -641,6 +647,8 @@ interface ChatMessagesDisplayProps {
   onEditMessage: (index: number) => void;
   onSaveEdit: (index: number) => void;
   onCancelEdit: (index: number) => void;
+  // Optional status message shown instead of "Thinking..." during long operations
+  statusMessage?: string;
 }
 
 export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
@@ -670,6 +678,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onEditMessage,
   onSaveEdit,
   onCancelEdit,
+  statusMessage,
 }) => {
   // Memoize the initial random tip so it doesn't change on every render
   const [initialTip] = React.useState(() => getRandomTip("chat"));
@@ -1210,7 +1219,9 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                 className="full-results-chat-text streaming"
               />
             ) : (isTyping || isStreaming) && toolUsageHistory.length === 0 ? (
-              <div className="full-results-chat-typing">Thinking...</div>
+              <div className="full-results-chat-typing">
+                {statusMessage || "Thinking..."}
+              </div>
             ) : null}
 
             {/* Tool confirmation UI */}

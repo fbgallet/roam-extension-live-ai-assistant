@@ -45,6 +45,8 @@ import {
 } from "../../../utils/regex";
 import { aiCompletion } from "../../responseInsertion";
 import { buildResultsContext } from "./chat-agent-prompts";
+import { AppToaster } from "../../../components/Toaster";
+import { ANTHROPIC_API_KEY } from "../../..";
 
 interface MultimodalCommandResult {
   messages: any[];
@@ -77,9 +79,7 @@ export async function handleImageGenerationCommand(
   resultsContext: any[] | undefined,
   chatSessionId: string | undefined,
   currentMessages: any[],
-  userChoiceCallback?: (
-    req: any,
-  ) => Promise<{
+  userChoiceCallback?: (req: any) => Promise<{
     selectedOptions: Record<string, string>;
     cancelled: boolean;
   }>,
@@ -1016,18 +1016,30 @@ export async function handleWebSearchRequest(
 }
 
 /**
- * Check if the command is a PDF export request
+ * Check if the command is a file export request (PDF, DOCX, or PPTX)
  *
  * @param commandPrompt - The command prompt string
- * @returns true if this is a PDF export request
+ * @returns true if this is a file export request
  */
+export function isFileExportRequest(
+  commandPrompt: string | undefined,
+): boolean {
+  return (
+    commandPrompt === "Export to PDF" ||
+    commandPrompt === "Export to DOCX" ||
+    commandPrompt === "Export to PPTX"
+  );
+}
+
+/** @deprecated Use isFileExportRequest instead */
 export function isPdfExportRequest(commandPrompt: string | undefined): boolean {
-  return commandPrompt === "Export to PDF";
+  return isFileExportRequest(commandPrompt);
 }
 
 /**
- * Handle PDF export command via inline choice form + aiCompletion
+ * Handle file export command (PDF, DOCX, PPTX) via inline choice form + aiCompletion
  *
+ * @param commandPrompt - The export command ("Export to PDF", "Export to DOCX", "Export to PPTX")
  * @param originalUserPrompt - The user's original text prompt
  * @param resultsContext - Results context from chat state
  * @param conversationHistory - Conversation history array
@@ -1036,27 +1048,47 @@ export function isPdfExportRequest(commandPrompt: string | undefined): boolean {
  * @param currentMessages - Current message history
  * @returns Result with updated messages
  */
-export async function handlePdfExportCommand(
+export async function handleFileExportCommand(
+  commandPrompt: string,
   originalUserPrompt: string,
   resultsContext: any[] | undefined,
   conversationHistory: string[] | undefined,
   conversationSummary: string | undefined,
   userChoiceCallback:
-    | ((
-        req: any,
-      ) => Promise<{
+    | ((req: any) => Promise<{
         selectedOptions: Record<string, string>;
         cancelled: boolean;
       }>)
     | undefined,
   currentMessages: any[],
 ): Promise<MultimodalCommandResult> {
+  const formatLabel =
+    commandPrompt === "Export to DOCX"
+      ? "DOCX"
+      : commandPrompt === "Export to PPTX"
+        ? "PPTX"
+        : "PDF";
+
+  // Check that an Anthropic API key is configured (required for Claude Skills)
+  if (!ANTHROPIC_API_KEY) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          `⚠️ An Anthropic API key is required for ${formatLabel} export (Claude Skills). Please add your key in the extension settings.`,
+        ),
+      ],
+    };
+  }
+
   // Check if userChoiceCallback is available
   if (!userChoiceCallback) {
     return {
       messages: [
         ...currentMessages,
-        new AIMessage("⚠️ PDF export is not available in this context."),
+        new AIMessage(
+          `⚠️ ${formatLabel} export is not available in this context.`,
+        ),
       ],
     };
   }
@@ -1070,7 +1102,7 @@ export async function handlePdfExportCommand(
       messages: [
         ...currentMessages,
         new AIMessage(
-          "⚠️ No content available for PDF export. Please add context blocks or start a conversation first.",
+          `⚠️ No content available for ${formatLabel} export. Please add context blocks or start a conversation first.`,
         ),
       ],
     };
@@ -1080,9 +1112,13 @@ export async function handlePdfExportCommand(
   const options: Array<{
     id: string;
     label: string;
-    type: "radio";
-    choices: Array<{ value: string; label: string }>;
+    type: "radio" | "text" | "slider";
+    choices?: Array<{ value: string; label: string }>;
     defaultValue?: string;
+    placeholder?: string;
+    min?: number;
+    max?: number;
+    step?: number;
   }> = [];
 
   // Content source options (only if both are available)
@@ -1100,28 +1136,89 @@ export async function handlePdfExportCommand(
     });
   }
 
-  // Format options
+  // Format options per export type
+  if (commandPrompt === "Export to PDF" || commandPrompt === "Export to DOCX") {
+    options.push({
+      id: "format",
+      label: "Document format",
+      type: "radio",
+      choices: [
+        { value: "clean", label: "Clean document (prose)" },
+        { value: "outline", label: "Outline (hierarchical)" },
+      ],
+      defaultValue: "clean",
+    });
+  } else if (commandPrompt === "Export to PPTX") {
+    options.push({
+      id: "format",
+      label: "Content density",
+      type: "radio",
+      choices: [
+        { value: "short", label: "Shortened content (lighter slides)" },
+        { value: "full", label: "Full content (more charged slides)" },
+      ],
+      defaultValue: "short",
+    });
+    options.push({
+      id: "slides",
+      label: "Approximate number of slides",
+      type: "slider",
+      min: 3,
+      max: 30,
+      step: 1,
+      defaultValue: "10",
+    });
+  }
+
+  // Fidelity option for all formats
   options.push({
-    id: "format",
-    label: "Document format",
+    id: "fidelity",
+    label: "Content fidelity",
     type: "radio",
     choices: [
-      { value: "clean", label: "Clean document (prose)" },
-      { value: "outline", label: "Outline (hierarchical)" },
+      { value: "faithful", label: "Faithful (preserve original wording)" },
+      {
+        value: "rephrase",
+        label: "Rephrase (rewrite freely, keep the spirit)",
+      },
     ],
-    defaultValue: "clean",
+    defaultValue: "faithful",
+  });
+
+  // Model choice for all formats
+  options.push({
+    id: "model",
+    label: "Claude model",
+    type: "radio",
+    choices: [
+      { value: "claude-sonnet-4-5-20250929", label: "Sonnet 4.5" },
+      { value: "claude-opus-4-6-20250918", label: "Opus 4.6" },
+      { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
+    ],
+    defaultValue: "claude-sonnet-4-5-20250929",
+  });
+
+  // Styling text input for all formats
+  options.push({
+    id: "styling",
+    label: "Formatting preferences (optional)",
+    type: "text",
+    placeholder: "e.g. font, color theme, layout...",
   });
 
   // Show the choice form
   const choiceResult = await userChoiceCallback({
-    commandId: "pdf_export",
-    title: "PDF Export Options",
+    commandId: "file_export",
+    title: `${formatLabel} Export Options`,
     options,
   });
 
   if (choiceResult.cancelled) {
     return {
-      messages: [...currentMessages, new AIMessage("PDF export cancelled.")],
+      messages: [
+        ...currentMessages,
+        new AIMessage(`${formatLabel} export cancelled.`),
+      ],
     };
   }
 
@@ -1130,7 +1227,6 @@ export async function handlePdfExportCommand(
   // Determine content source
   let source = sel.source;
   if (!source) {
-    // If only one source is available, use it
     source = hasContext ? "context" : "conversation";
   }
 
@@ -1151,13 +1247,43 @@ export async function handlePdfExportCommand(
     contentToExport += conversationHistory!.join("\n\n");
   }
 
-  // Determine command based on format
-  const command =
-    sel.format === "outline" ? "Export to PDF outline" : "Export to PDF";
+  // Determine command based on format selection
+  let command = commandPrompt;
+  if (sel.format === "outline") {
+    if (commandPrompt === "Export to PDF") command = "Export to PDF outline";
+    else if (commandPrompt === "Export to DOCX")
+      command = "Export to DOCX outline";
+  } else if (commandPrompt === "Export to PPTX" && sel.format === "full") {
+    command = "Export to PPTX full";
+  }
+
+  // Append optional user preferences to content
+  if (sel.fidelity === "rephrase") {
+    contentToExport += `\n\n---\nCONTENT FIDELITY: You may freely rephrase, restructure and rewrite the content. Respect the spirit and meaning but not necessarily the original wording.`;
+  } else {
+    contentToExport += `\n\n---\nCONTENT FIDELITY: Stay as faithful as possible to the original content and wording. Preserve the exact phrasing — only adapt formatting for the target document type.`;
+  }
+  if (sel.styling) {
+    contentToExport += `\n\n---\nFORMATTING PREFERENCES: ${sel.styling}`;
+  }
+  if (sel.slides) {
+    contentToExport += `\n\n---\nTARGET NUMBER OF SLIDES: approximately ${sel.slides} slides`;
+  }
+
+  // Use selected model or default to Sonnet
+  const selectedModel = sel.model || "claude-sonnet-4-5-20250929";
+
+  // Show early toast — the actual generation can take 1-2 minutes
+  AppToaster.show({
+    message: `⏳ Generating ${formatLabel} with Claude skill — this may take 1–2 minutes…`,
+    timeout: 15000,
+    intent: "primary",
+    icon: "document",
+  });
 
   try {
     const response = await aiCompletion({
-      instantModel: "claude-haiku-4-5-20251001", // "claude-sonnet-4-5-20250929",
+      instantModel: selectedModel,
       prompt: [{ role: "user", content: originalUserPrompt || "" }],
       command,
       content: contentToExport,
@@ -1166,22 +1292,57 @@ export async function handlePdfExportCommand(
       isButtonToInsert: false,
     });
 
+    AppToaster.clear();
     if (!response) {
-      throw new Error("No response received from PDF export");
+      throw new Error(`No response received from ${formatLabel} export`);
     }
 
     return {
       messages: [...currentMessages, new AIMessage(response)],
     };
   } catch (error) {
-    console.error("Error during PDF export:", error);
+    AppToaster.clear();
+    AppToaster.show({
+      message: `⚠️ ${formatLabel} export failed: ${error.message || "Unknown error"}`,
+      timeout: 10000,
+      intent: "danger",
+      icon: "error",
+    });
+    console.error(`Error during ${formatLabel} export:`, error);
     return {
       messages: [
         ...currentMessages,
         new AIMessage(
-          `⚠️ Error during PDF export: ${error.message || "Unknown error"}`,
+          `⚠️ Error during ${formatLabel} export: ${error.message || "Unknown error"}`,
         ),
       ],
     };
   }
+}
+
+/** @deprecated Use handleFileExportCommand instead */
+export async function handlePdfExportCommand(
+  originalUserPrompt: string,
+  resultsContext: any[] | undefined,
+  conversationHistory: string[] | undefined,
+  conversationSummary: string | undefined,
+  userChoiceCallback:
+    | ((
+        req: any,
+      ) => Promise<{
+        selectedOptions: Record<string, string>;
+        cancelled: boolean;
+      }>)
+    | undefined,
+  currentMessages: any[],
+): Promise<MultimodalCommandResult> {
+  return handleFileExportCommand(
+    "Export to PDF",
+    originalUserPrompt,
+    resultsContext,
+    conversationHistory,
+    conversationSummary,
+    userChoiceCallback,
+    currentMessages,
+  );
 }

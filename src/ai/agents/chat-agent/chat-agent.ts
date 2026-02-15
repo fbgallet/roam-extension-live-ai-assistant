@@ -53,8 +53,8 @@ import {
   handlePdfAnalysisRequest,
   isWebSearchRequest,
   handleWebSearchRequest,
-  isPdfExportRequest,
-  handlePdfExportCommand,
+  isFileExportRequest,
+  handleFileExportCommand,
 } from "./multimodal-commands";
 
 // Chat Agent State
@@ -331,9 +331,10 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     return { messages: result.messages };
   }
 
-  // Handle PDF export command
-  if (isPdfExportRequest(state.commandPrompt)) {
-    const result = await handlePdfExportCommand(
+  // Handle file export commands (PDF, DOCX, PPTX)
+  if (isFileExportRequest(state.commandPrompt)) {
+    const result = await handleFileExportCommand(
+      state.commandPrompt!,
       originalUserMessageForHistory,
       state.resultsContext,
       state.conversationHistory,

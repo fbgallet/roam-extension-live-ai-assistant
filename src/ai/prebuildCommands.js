@@ -586,6 +586,78 @@ export const BUILTIN_COMMANDS = [
       completion: true,
     },
   },
+  {
+    id: 194,
+    name: "Export to DOCX — clean document (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to DOCX",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+  },
+  {
+    id: 196,
+    name: "Export to DOCX — outline (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to DOCX outline",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+  },
+  {
+    id: 195,
+    name: "Export to PPTX — shortened (with Claude)",
+    icon: "presentation",
+    category: "CREATION",
+    prompt: "Export to PPTX",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+  },
+  {
+    id: 197,
+    name: "Export to PPTX — full content (with Claude)",
+    icon: "presentation",
+    category: "CREATION",
+    prompt: "Export to PPTX full",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      chat: true,
+    },
+  },
+  {
+    id: 1940,
+    name: "Export to Word document / DOCX (with Claude)",
+    icon: "document",
+    category: "CREATION",
+    prompt: "Export to DOCX",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      completion: true,
+    },
+  },
+  {
+    id: 1950,
+    name: "Export to PowerPoint / PPTX (with Claude)",
+    icon: "presentation",
+    category: "CREATION",
+    prompt: "Export to PPTX",
+    includeUids: false,
+    isIncompatibleWith: {
+      outliner: true,
+      completion: true,
+    },
+  },
 
   // REPHRASING
   {

@@ -272,19 +272,23 @@ export const aiCompletionRunner = async ({
     withAssistantRole = false;
   }
 
-  if (prompt === "Export to PDF" || prompt === "Export to PDF outline") {
+  if (
+    prompt === "Export to PDF" ||
+    prompt === "Export to PDF outline" ||
+    prompt === "Export to DOCX" ||
+    prompt === "Export to DOCX outline" ||
+    prompt === "Export to PPTX" ||
+    prompt === "Export to PPTX full"
+  ) {
     if (!ANTHROPIC_API_KEY) {
       AppToaster.show({
-        message: `An Anthropic API key is needed for PDF export`,
+        message: `An Anthropic API key is needed for file export`,
         timeout: 10000,
       });
       return;
     }
     instantModel = "claude-sonnet-4-5-20250929";
-    command =
-      prompt === "Export to PDF outline"
-        ? "Export to PDF outline"
-        : "Export to PDF";
+    command = prompt; // command equals prompt for all export variants
     prompt = "";
     target = "new";
     withAssistantRole = true;

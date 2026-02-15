@@ -70,7 +70,12 @@ import {
   addAudioToGeminiMessage,
   isModelSupportingImage,
 } from "./multimodalAI";
-import { completionCommands } from "./prompts";
+import {
+  handleFileExport,
+  isFileExportCommand,
+  getFileExportConfig,
+  getFileExportPrompt,
+} from "./fileExport";
 
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
@@ -469,14 +474,12 @@ export async function claudeCompletion({
                   (content ? "\n\nContext:\n" + content : ""),
               },
             ]
-          : command === "Export to PDF" || command === "Export to PDF outline"
+          : isFileExportCommand(command)
             ? [
                 {
                   role: "user",
                   content:
-                    (command === "Export to PDF outline"
-                      ? completionCommands.pdfOutline
-                      : completionCommands.pdfCleanDocument) +
+                    getFileExportPrompt(command) +
                     // User-specific instructions from focused block (formatting, margins, etc.)
                     (prompt.length && prompt[0]?.content
                       ? "\n\nADDITIONAL USER INSTRUCTIONS:\n" +
@@ -541,16 +544,19 @@ export async function claudeCompletion({
         headers["anthropic-beta"] = "web-fetch-2025-09-10";
       } else if (command === "MCP Agent") {
         options.tools = tools;
-      } else if (
-        command === "Export to PDF" ||
-        command === "Export to PDF outline"
-      ) {
+      } else if (isFileExportCommand(command)) {
         options.stream = false;
         options.tools = [
           { type: "code_execution_20250825", name: "code_execution" },
         ];
         options.container = {
-          skills: [{ type: "anthropic", skill_id: "pdf", version: "latest" }],
+          skills: [
+            {
+              type: "anthropic",
+              skill_id: getFileExportConfig(command).skillId,
+              version: "latest",
+            },
+          ],
         };
         headers["anthropic-beta"] =
           "code-execution-2025-08-25,skills-2025-10-02,files-api-2025-04-14";
@@ -788,203 +794,19 @@ export async function claudeCompletion({
               }
             });
           }
-        } else if (
-          command === "Export to PDF" ||
-          command === "Export to PDF outline"
-        ) {
-          AppToaster.show({
-            message: "Generating PDF... This may take 30 seconds or more.",
-            timeout: 60000,
-            intent: "primary",
-            icon: "document",
-          });
-
-          // Handle pause_turn: loop until stop_reason !== "pause_turn"
-          let currentData = data;
-          let currentMessages = [...options.messages];
-          let containerId = currentData.container?.id;
-
-          while (currentData.stop_reason === "pause_turn") {
-            currentMessages.push({
-              role: "assistant",
-              content: currentData.content,
+        } else if (isFileExportCommand(command)) {
+          const { respStr: exportRespStr, usage: exportUsage } =
+            await handleFileExport({
+              data,
+              options,
+              command,
+              headers,
+              ANTHROPIC_API_KEY,
             });
-            const continueResponse = await fetch(
-              "https://api.anthropic.com/v1/messages",
-              {
-                method: "POST",
-                headers,
-                body: JSON.stringify({
-                  ...options,
-                  messages: currentMessages,
-                  container: {
-                    id: containerId,
-                    skills: [
-                      {
-                        type: "anthropic",
-                        skill_id: "pdf",
-                        version: "latest",
-                      },
-                    ],
-                  },
-                }),
-              },
-            );
-            currentData = await continueResponse.json();
-            if (currentData.container?.id)
-              containerId = currentData.container.id;
-          }
-
-          // Extract file info and text from response
-          let pdfGenerated = false;
-          let pdfFilename = "export.pdf";
-          let textContent = "";
-          for (const item of currentData.content) {
-            if (item.type === "bash_code_execution_tool_result") {
-              const result = item.content;
-              if (
-                result.type === "bash_code_execution_result" &&
-                result.content
-              ) {
-                for (const file of result.content) {
-                  if (file.file_id) {
-                    pdfGenerated = true;
-                    if (file.filename) pdfFilename = file.filename;
-                  }
-                }
-              }
-            } else if (item.type === "text") {
-              textContent += item.text;
-            }
-          }
-
-          if (pdfGenerated) {
-            AppToaster.show({
-              message: "PDF generated! Retrieving file...",
-              timeout: 30000,
-              intent: "primary",
-              icon: "document",
-            });
-            // Files API is not accessible from browser (CORS).
-            // Send a follow-up message in the same container to get base64-encoded PDF.
-            const followUpMessages = [...currentMessages];
-            followUpMessages.push({
-              role: "assistant",
-              content: currentData.content,
-            });
-            followUpMessages.push({
-              role: "user",
-              content:
-                "Read the PDF file you just created and output ONLY its base64-encoded content. " +
-                "Use Python:\nimport base64\nwith open('" +
-                pdfFilename +
-                "', 'rb') as f:\n    print(base64.b64encode(f.read()).decode())\n" +
-                "Output ONLY the raw base64 string, no explanation, no markdown.",
-            });
-
-            let b64Response = await fetch(
-              "https://api.anthropic.com/v1/messages",
-              {
-                method: "POST",
-                headers,
-                body: JSON.stringify({
-                  ...options,
-                  messages: followUpMessages,
-                  container: {
-                    id: containerId,
-                    skills: [
-                      {
-                        type: "anthropic",
-                        skill_id: "pdf",
-                        version: "latest",
-                      },
-                    ],
-                  },
-                }),
-              },
-            );
-            let b64Data = await b64Response.json();
-
-            // Handle pause_turn for the follow-up too
-            let b64Messages = [...followUpMessages];
-            while (b64Data.stop_reason === "pause_turn") {
-              b64Messages.push({
-                role: "assistant",
-                content: b64Data.content,
-              });
-              b64Response = await fetch(
-                "https://api.anthropic.com/v1/messages",
-                {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify({
-                    ...options,
-                    messages: b64Messages,
-                    container: {
-                      id: containerId,
-                      skills: [
-                        {
-                          type: "anthropic",
-                          skill_id: "pdf",
-                          version: "latest",
-                        },
-                      ],
-                    },
-                  }),
-                },
-              );
-              b64Data = await b64Response.json();
-            }
-
-            // Extract base64 from stdout or text content
-            let base64Content = "";
-            for (const item of b64Data.content) {
-              if (item.type === "bash_code_execution_tool_result") {
-                const result = item.content;
-                if (result?.stdout) {
-                  base64Content = result.stdout.trim();
-                }
-              } else if (item.type === "text" && !base64Content) {
-                // Fallback: look for base64 string in text
-                const cleaned = item.text.replace(/[\s\n`]/g, "");
-                if (
-                  /^[A-Za-z0-9+/]+=*$/.test(cleaned) &&
-                  cleaned.length > 100
-                ) {
-                  base64Content = cleaned;
-                }
-              }
-            }
-
-            AppToaster.clear();
-            if (base64Content) {
-              // Decode base64 and upload to Roam
-              const binaryString = atob(base64Content);
-              const bytes = new Uint8Array(binaryString.length);
-              for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-              }
-              const blob = new Blob([bytes], { type: "application/pdf" });
-              const firebaseUrl = await roamAlphaAPI.file.upload({
-                file: blob,
-              });
-
-              respStr =
-                (textContent ? textContent + "\n" : "") + `${firebaseUrl}`;
-            } else {
-              console.warn("PDF base64 extraction failed", b64Data);
-              respStr =
-                textContent || "PDF was generated but could not be retrieved";
-            }
-          } else {
-            AppToaster.clear();
-            respStr =
-              textContent || "PDF generation failed - no file was created";
-          }
-
-          if (currentData.usage) {
-            usage["input_tokens"] = currentData.usage["input_tokens"];
-            usage["output_tokens"] = currentData.usage["output_tokens"];
+          respStr = exportRespStr;
+          if (exportUsage["input_tokens"] !== undefined) {
+            usage["input_tokens"] = exportUsage["input_tokens"];
+            usage["output_tokens"] = exportUsage["output_tokens"];
           }
         } else respStr = data.content[0].text;
         if (data.usage) {

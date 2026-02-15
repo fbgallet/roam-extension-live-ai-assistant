@@ -958,6 +958,7 @@ STRUCTURE & FORMATTING:
 - Use headings (H1, H2, H3) for top-level structural elements when appropriate
 - Group related bullet points into coherent paragraphs
 - Use tables when the content naturally lends itself to tabular presentation
+- TABLE RULES: keep cell content concise (short phrases, not full sentences); never let text overflow cell boundaries; if content is long, split it across rows or abbreviate; ensure all columns have appropriate relative widths; use a header row to label columns clearly
 - Use numbered or bulleted lists only when the content is genuinely a list of items
 - Add proper spacing between sections
 
@@ -965,7 +966,116 @@ DOCUMENT QUALITY:
 - Produce a clean, professional, publication-ready document
 - Use appropriate typography and readable layout
 - Ensure logical flow between sections
-- The result should read as a polished document, not as exported notes`,
+- The result should read as a polished document, not as exported notes
+
+FILENAME (MANDATORY):
+- You MUST save the output file with a short, descriptive name that reflects the actual content topic (e.g., "project-overview.pdf", "sales-strategy.pdf", "team-meeting-notes.pdf").
+- Use lowercase with hyphens, no spaces. Always include the .pdf extension.
+- NEVER use generic names like "export.pdf", "document.pdf", or "output.pdf".`,
+
+  docxDocument: `Convert the following Roam Research content into a well-formatted, clean Word document (.docx).
+
+CONTENT TRANSFORMATION RULES:
+- Replace [[page references]] with bold text (the page name in bold, without brackets)
+- Remove #hashtags or convert them to subtle italic annotations if they add meaning
+- Replace ((block references)) with the referenced text if visible in context, otherwise remove them
+- Convert Roam {{[[TODO]]}} / {{[[DONE]]}} to proper checkbox-style text (☐ / ☑)
+- Remove any Roam-specific syntax that wouldn't make sense in a conventional document
+
+STRUCTURE & FORMATTING:
+- Transform the hierarchical outline into flowing prose with proper paragraphs
+- Use Word heading styles (Heading 1, Heading 2, Heading 3) for structural elements
+- Group related bullet points into coherent paragraphs
+- Use tables when the content naturally lends itself to tabular presentation
+- TABLE RULES: keep cell content concise (short phrases, not full sentences); never let text overflow cell boundaries; if content is long, split it across rows or abbreviate; ensure all columns have appropriate relative widths; use a header row to label columns clearly
+- Use numbered or bulleted lists only when the content is genuinely a list of items
+
+DOCUMENT QUALITY:
+- Produce a clean, professional, publication-ready document
+- Ensure logical flow between sections
+- The result should read as a polished document, not as exported notes
+
+FILENAME (MANDATORY):
+- You MUST save the output file with a short, descriptive name that reflects the actual content topic (e.g., "meeting-notes.docx", "project-plan.docx", "research-summary.docx").
+- Use lowercase with hyphens, no spaces. Always include the .docx extension.
+- NEVER use generic names like "export.docx", "document.docx", or "output.docx".`,
+
+  docxOutline: `Convert the following Roam Research content into a Word document (.docx) that preserves the original outline/hierarchical structure.
+
+CONTENT TRANSFORMATION RULES:
+- Replace [[page references]] with bold text (the page name in bold, without brackets)
+- Convert #hashtags to italic text if meaningful, otherwise remove them
+- Replace ((block references)) with the referenced text if visible in context, otherwise remove them
+- Convert Roam {{[[TODO]]}} / {{[[DONE]]}} to proper checkbox-style text (☐ / ☑)
+- Remove any Roam-specific syntax that wouldn't make sense in a printed document
+
+STRUCTURE & FORMATTING:
+- Preserve the hierarchical bullet-point/outline structure with proper indentation
+- Use Word heading styles (Heading 1, Heading 2, Heading 3) for top-level items
+- Maintain the parent-child relationships between items
+- Use indentation and visual hierarchy to reflect the original nesting levels
+- Keep the faithful structure of the original content without merging or rewriting bullets
+
+DOCUMENT QUALITY:
+- Produce a clean, readable document with consistent formatting
+- The result should look like a well-formatted outline or structured notes document
+
+FILENAME (MANDATORY):
+- You MUST save the output file with a short, descriptive name that reflects the actual content topic (e.g., "meeting-notes.docx", "project-plan.docx", "research-summary.docx").
+- Use lowercase with hyphens, no spaces. Always include the .docx extension.
+- NEVER use generic names like "export.docx", "document.docx", or "output.docx".`,
+
+  pptxPresentation: `Convert the following Roam Research content into a well-structured PowerPoint presentation (.pptx).
+
+CONTENT TRANSFORMATION RULES:
+- Replace [[page references]] with plain bold text (without brackets)
+- Remove #hashtags or use them as subtle slide labels if meaningful
+- Replace ((block references)) with the referenced text if visible in context, otherwise remove them
+- Remove any Roam-specific syntax that wouldn't make sense in a presentation
+
+SLIDE STRUCTURE:
+- Create a title slide with a clear presentation title derived from the content
+- Each major top-level item should become its own slide
+- Use bullet points on slides — keep each point concise (max 10 words per bullet)
+- Add a brief speaker note for each slide summarizing the key message
+- Group related sub-items as bullet points under the slide's main point
+
+PRESENTATION QUALITY:
+- Produce a clean, professional presentation suitable for an audience
+- Keep slides uncluttered — max 5-6 bullet points per slide
+- Use a logical flow from introduction to conclusion
+
+FILENAME (MANDATORY):
+- You MUST save the output file with a short, descriptive name that reflects the actual content topic (e.g., "quarterly-review.pptx", "product-launch.pptx", "team-update.pptx").
+- Use lowercase with hyphens, no spaces. Always include the .pptx extension.
+- NEVER use generic names like "export.pptx", "presentation.pptx", or "output.pptx".`,
+
+  pptxFull: `Convert the following Roam Research content into a comprehensive PowerPoint presentation (.pptx) that preserves the full content.
+
+CONTENT TRANSFORMATION RULES:
+- Replace [[page references]] with plain bold text (without brackets)
+- Remove #hashtags or use them as subtle slide labels if meaningful
+- Replace ((block references)) with the referenced text if visible in context, otherwise remove them
+- Remove any Roam-specific syntax that wouldn't make sense in a presentation
+
+SLIDE STRUCTURE:
+- Create a title slide with a clear presentation title derived from the content
+- Each major top-level item should become its own slide
+- Include all relevant details and sub-points — do not shorten or omit content
+- Use bullet points on slides — each point can be more detailed than a typical presentation
+- Add detailed speaker notes for each slide with full context and talking points
+- Group related sub-items as bullet points under the slide's main point
+
+PRESENTATION QUALITY:
+- Produce a comprehensive presentation that captures all the source content
+- Allow up to 8-10 bullet points per slide when content requires it
+- Use a logical flow from introduction to conclusion
+- Prioritize completeness over brevity
+
+FILENAME (MANDATORY):
+- You MUST save the output file with a short, descriptive name that reflects the actual content topic (e.g., "quarterly-review.pptx", "product-launch.pptx", "team-update.pptx").
+- Use lowercase with hyphens, no spaces. Always include the .pptx extension.
+- NEVER use generic names like "export.pptx", "presentation.pptx", or "output.pptx".`,
 
   pdfOutline: `Convert the following Roam Research content into a well-formatted PDF document that preserves the original outline/hierarchical structure.
 
@@ -986,7 +1096,12 @@ STRUCTURE & FORMATTING:
 DOCUMENT QUALITY:
 - Produce a clean, readable document with consistent formatting
 - Use appropriate typography and spacing
-- The result should look like a well-formatted outline or structured notes document`,
+- The result should look like a well-formatted outline or structured notes document
+
+FILENAME (MANDATORY):
+- You MUST save the output file with a short, descriptive name that reflects the actual content topic (e.g., "project-outline.pdf", "research-notes.pdf", "course-summary.pdf").
+- Use lowercase with hyphens, no spaces. Always include the .pdf extension.
+- NEVER use generic names like "export.pdf", "document.pdf", or "output.pdf".`,
 
   extractHighlights: `As a text extraction assistant, your task is to process input text and extract only the highlighted portions (text between double ^^ markers). Follow these exact rules:
 
