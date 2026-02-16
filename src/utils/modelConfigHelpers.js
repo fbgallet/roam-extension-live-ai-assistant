@@ -1,13 +1,23 @@
 import { extensionStorage } from "..";
 import { webSearchModels, imageGenerationModels, normalizeClaudeModel } from "../ai/modelsInfo";
 import { tokensLimit, modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
-import { hasCapability, getModelsByProvider } from "../ai/modelRegistry";
+import { hasCapability, getModelsByProvider, MODEL_REGISTRY } from "../ai/modelRegistry";
 import {
   getNewModelIds,
   getDeprecatedModels,
   isModelNew as isModelNewFromUpdates,
   getUpdateVersion,
 } from "../ai/modelUpdates";
+
+/**
+ * Build the default hiddenModels list from MODEL_REGISTRY (models with visibleByDefault: false)
+ * @returns {Array} Array of model names that should be hidden by default
+ */
+function getDefaultHiddenModels() {
+  return Object.values(MODEL_REGISTRY)
+    .filter((m) => m.visibleByDefault === false)
+    .map((m) => m.name);
+}
 
 /**
  * Get model configuration with defaults if not exists
@@ -18,7 +28,7 @@ export function getModelConfig() {
 
   if (!config || !config.version) {
     return {
-      hiddenModels: [],
+      hiddenModels: getDefaultHiddenModels(),
       favoriteModels: [],
       defaultModel: null, // Default model for the extension
       modelOrder: null,
@@ -124,7 +134,7 @@ export async function migrateModelConfig() {
   const ollamaServer = extensionStorage.get("ollamaServer") || "http://localhost:11434";
 
   const modelConfig = {
-    hiddenModels: [],
+    hiddenModels: getDefaultHiddenModels(),
     favoriteModels: [],
     defaultModel: null,
     modelOrder: null,

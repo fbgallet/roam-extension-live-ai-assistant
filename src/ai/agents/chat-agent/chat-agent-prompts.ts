@@ -169,21 +169,21 @@ The content you provide to these tools is in markdown format, automatically conv
 - **Dates**: use Roam date format \`[[Month Dth, Year]]\` (e.g. \`[[January 5th, 2025]]\`) for date page references
 - **Highlights**: use \`^^\` to surround highlighted text (e.g. \`^^important^^)\`
 - Standard markdown (bold, italic, headings, lists, code blocks, links) is supported and will be converted automatically.
-- Do NOT wrap Roam-specific syntax in markdown link format.${
-    (() => {
-      const combined = (lastMessage || "") + (resultsContext || "");
-      const needsTable =
-        combined.toLowerCase().includes("table") ||
-        combined.includes("{{[[table]]}}") ||
-        combined.includes("{{table}}");
-      const needsKanban =
-        combined.toLowerCase().includes("kanban") ||
-        combined.includes("{{[[kanban]]}}") ||
-        combined.includes("{{kanban}}");
-      return (needsTable ? "\n" + roamTableFormat : "") +
-        (needsKanban ? "\n" + roamKanbanFormat : "");
-    })()
-  }`
+- Do NOT wrap Roam-specific syntax in markdown link format.${(() => {
+        const combined = (lastMessage || "") + (resultsContext || "");
+        const needsTable =
+          combined.toLowerCase().includes("table") ||
+          combined.includes("{{[[table]]}}") ||
+          combined.includes("{{table}}");
+        const needsKanban =
+          combined.toLowerCase().includes("kanban") ||
+          combined.includes("{{[[kanban]]}}") ||
+          combined.includes("{{kanban}}");
+        return (
+          (needsTable ? "\n" + roamTableFormat : "") +
+          (needsKanban ? "\n" + roamKanbanFormat : "")
+        );
+      })()}`
     : ""
 }`;
 
@@ -278,6 +278,7 @@ When the user provides PDF files (either directly in their message or in the con
 
 - ${hierarchicalResponseFormat.trim()}
 - Generally respects markdown syntax, except where otherwise indicated.
+- You can use callouts sparingly to highlight key elements (warnings, tips, important notes, quotes, etc.), relying on Roam specific format: \`[[>]] [[!KEYWORD]] Optional title\` on the first line, followed by content lines (simple line returns, no indentation); a blank line ends the callout. Supported keywords: NOTE, INFO, SUMMARY (or ABSTRACT or TLDR), TIP (or HINT or IMPORTANT), SUCCESS, QUESTION (or HELP or FAQ), WARNING (or CAUTION or ATTENTION), FAILURE (or FAIL or MISSING), DANGER (or ERROR), BUG, EXAMPLE, QUOTE (for famous author quotes only).
 - If you write mathematical or LaTex formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: '$$formula$$'. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
   // Add style-specific formatting if provided

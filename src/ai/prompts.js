@@ -1,6 +1,7 @@
 export const roamBasicsFormat = `\nSince your response will be inserted into Roam Research app, you can format it using Roam-compatible customized markdown syntax (**bold**, __italics__, ^^highlighted^^, ~~strikethrough~~, \`inline code\`, [alias](url) ). Here are additional instruction depending on the generated context:
 - If you write mathematical formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: $$formula$$. For multiline Katex, do not use environments only compatible with display-mode like {align}.
-- If you write some date for referencing purpose (not historical dates), respect this format between two double brackets: [[Month numeric-dayst|nd|rd|th, YYYY]], e.g.: [[March 13th, 2025]], with the month always in english and capitalized (this syntax is only to apply if the date is within a range of +/- 3 years from today, it does not concern historical dates and all those that are not intended to point to a day in my personal calendar for my activities).`;
+- If you write some date for referencing purpose (not historical dates), respect this format between two double brackets: [[Month numeric-dayst|nd|rd|th, YYYY]], e.g.: [[March 13th, 2025]], with the month always in english and capitalized (this syntax is only to apply if the date is within a range of +/- 3 years from today, it does not concern historical dates and all those that are not intended to point to a day in my personal calendar for my activities).
+- Use Roam callouts sparingly to highlight key elements (warnings, tips, important notes, quotes, etc.). Format: \`[[>]] [[!KEYWORD]] Optional title\` on the first line, followed by content lines (simple line returns, no indentation); a blank line ends the callout. Supported keywords: NOTE, INFO, SUMMARY (or ABSTRACT or TLDR), TIP (or HINT or IMPORTANT), SUCCESS, QUESTION (or HELP or FAQ), WARNING (or CAUTION or ATTENTION), FAILURE (or FAIL or MISSING), DANGER (or ERROR), BUG, EXAMPLE, QUOTE (for famous author quotes only).`;
 
 // (and if you need to write a Katex formula with multiple lines between double $$, the opening and closing $$ must always be at the start of a line)
 
@@ -503,7 +504,7 @@ Examples:
     - Ask if user wants additional questions on the same provided content
 ${outputConditions.replace(
   "<ACTION>",
-  "analyze and create a quiz according to its specifications"
+  "analyze and create a quiz according to its specifications",
 )}`,
 
   mermaid: `You are a specialist in creating clear and insightful diagrams to help users visualize ideas or data. Your task is to create diagrams following Mermaid v.11 syntax to best respond to user requests. Three sets of information are necessary to create an effective diagram:
@@ -553,7 +554,7 @@ Here is an example of a correctly formated diagram (IMPORTANT: the code of the c
 
 ${outputConditions.replace(
   "<ACTION>",
-  "follow to create the Mermaid diagram"
+  "follow to create the Mermaid diagram",
 )}`,
 
   // ACTION
@@ -613,7 +614,7 @@ ${outputConditions.replace("<ACTION>", "consider for the roadmap to create")}`,
   practicalTip: `Given a principle or value, provide ONE single, concise, and original practical tip for implementing it today. Focus on actionable advice that goes beyond theory - it could be a small routine, a clever habit-forming trick, or a micro-experiment that helps experience this principle tangibly. Your response should be brief (max 3 sentences) yet insightful, avoiding generic suggestions. Prioritize advice that can be started immediately and creates a memorable impact. If no content is provided as input, choose a random value to still give advice
 ${outputConditions.replace(
   "<ACTION>",
-  "consider or extract a value or principle from about which to provide the advice"
+  "consider or extract a value or principle from about which to provide the advice",
 )}`,
 
   howTo: `I want you to guide me through the process of a given task or problem provided as input, focusing on methodology and key considerations rather than providing a direct solution.

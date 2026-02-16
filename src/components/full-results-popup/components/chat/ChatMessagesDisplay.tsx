@@ -31,8 +31,38 @@ const containsKaTeX = (content: string): boolean => {
 // Helper function to detect if content contains Roam queries
 const containsRoamQuery = (content: string): boolean => {
   return (
-    /\{\{\s*(\[\[query\]\]|query)\s*:/i.test(content) || /^:q\s/m.test(content.trim())
+    /\{\{\s*(\[\[query\]\]|query)\s*:/i.test(content) ||
+    /^:q\s/m.test(content.trim())
   );
+};
+
+// Helper function to detect if content contains Roam callouts
+const containsCallout = (content: string): boolean => {
+  return /\[\[>\]\]\s+\[\[!(?:NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE)\]\]/i.test(
+    content
+  );
+};
+
+// Render all data-roam-callout spans inside a container using Roam's renderString
+const renderCalloutSpans = (container: HTMLElement): void => {
+  const calloutSpans =
+    container.querySelectorAll<HTMLElement>("[data-roam-callout]");
+  calloutSpans.forEach((span) => {
+    const rawCallout = span.getAttribute("data-roam-callout");
+    if (!rawCallout) return;
+    const wrapper = document.createElement("div");
+    wrapper.style.margin = "8px 0";
+    try {
+      window.roamAlphaAPI?.ui.components.renderString({
+        el: wrapper,
+        string: rawCallout,
+      });
+    } catch (error) {
+      console.error("Failed to render callout:", error);
+      wrapper.textContent = rawCallout;
+    }
+    span.replaceWith(wrapper);
+  });
 };
 
 // Helper component to render message content with KaTeX formulas
@@ -50,6 +80,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
     const hasRoamElements =
       containsKaTeX(content) ||
       containsRoamQuery(content) ||
+      containsCallout(content) ||
       /\{\{\[\[(?:audio|video|youtube|pdf)\]\]:\s*https?:[^\s}]+\}\}/i.test(
         content,
       );
@@ -99,6 +130,9 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
       }
       // First, render the markdown structure normally
       containerRef.current.innerHTML = renderMarkdown(content);
+
+      // Render any callout blocks via Roam's renderString
+      renderCalloutSpans(containerRef.current);
 
       // Then, find all text nodes and render any Roam-specific elements with Roam API
       const textNodes: Node[] = [];
@@ -150,9 +184,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
               span.textContent = part; // Fallback to showing raw formula
             }
             fragment.appendChild(span);
-          } else if (
-            /^\{\{\[\[(?:audio|video|youtube|pdf)\]\]:/i.test(part)
-          ) {
+          } else if (/^\{\{\[\[(?:audio|video|youtube|pdf)\]\]:/i.test(part)) {
             // This is a media/PDF embed - render with Roam API
             const div = document.createElement("div");
             div.style.display = "block";
@@ -178,6 +210,7 @@ const MessageContent: React.FC<{ content: string; className?: string }> = ({
     } else {
       // No special Roam elements - just use regular markdown rendering
       containerRef.current.innerHTML = renderMarkdown(content);
+      renderCalloutSpans(containerRef.current);
     }
   }, [content]);
 
@@ -329,9 +362,7 @@ const ChoiceItem: React.FC<{
   if (hintsVisible && choice.hint) {
     return (
       <Popover
-        content={
-          <div className="user-choice-hint-popover">{choice.hint}</div>
-        }
+        content={<div className="user-choice-hint-popover">{choice.hint}</div>}
         interactionKind="hover"
         position={Position.RIGHT}
         hoverOpenDelay={200}
@@ -374,7 +405,10 @@ const UserChoiceForm: React.FC<{
   // Auto-focus and scroll into view on mount
   useEffect(() => {
     if (containerRef.current) {
-      containerRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      containerRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
       containerRef.current.focus();
     }
   }, []);
@@ -397,11 +431,18 @@ const UserChoiceForm: React.FC<{
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "TEXTAREA" || tag === "INPUT") {
         const inputType = (e.target as HTMLInputElement).type;
-        if (inputType === "text" || inputType === "number" || tag === "TEXTAREA") return;
+        if (
+          inputType === "text" ||
+          inputType === "number" ||
+          tag === "TEXTAREA"
+        )
+          return;
       }
       // Find radio/checkbox groups
       const choiceGroups = pendingChoice.options.filter(
-        (opt) => (opt.type === "radio" || opt.type === "checkbox" || !opt.type) && opt.choices
+        (opt) =>
+          (opt.type === "radio" || opt.type === "checkbox" || !opt.type) &&
+          opt.choices,
       );
       if (choiceGroups.length === 0) return;
       // Apply to first (or only) choice group
@@ -422,9 +463,7 @@ const UserChoiceForm: React.FC<{
   // Check if any choice has a hint
   const hasHints =
     pendingChoice.hintsEnabled &&
-    pendingChoice.options.some(
-      (opt) => opt.choices?.some((c) => c.hint)
-    );
+    pendingChoice.options.some((opt) => opt.choices?.some((c) => c.hint));
 
   const toggleCheckbox = (groupId: string, value: string) => {
     setSelections((prev) => {
@@ -557,35 +596,39 @@ const UserChoiceForm: React.FC<{
           )}
 
           {/* Slider: range value */}
-          {optGroup.type === "slider" && (() => {
-            const min = optGroup.min ?? 0;
-            const max = optGroup.max ?? 10;
-            const step = optGroup.step ?? 1;
-            const currentVal = selections[optGroup.id] || String(Math.round((min + max) / 2));
-            return (
-              <div className="user-choice-slider-wrapper">
-                <input
-                  type="range"
-                  className="user-choice-slider"
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={currentVal}
-                  onChange={(e) =>
-                    setSelections((prev) => ({
-                      ...prev,
-                      [optGroup.id]: e.target.value,
-                    }))
-                  }
-                />
-                <div className="user-choice-slider-labels">
-                  <span className="user-choice-slider-min">{min}</span>
-                  <span className="user-choice-slider-value">{currentVal}</span>
-                  <span className="user-choice-slider-max">{max}</span>
+          {optGroup.type === "slider" &&
+            (() => {
+              const min = optGroup.min ?? 0;
+              const max = optGroup.max ?? 10;
+              const step = optGroup.step ?? 1;
+              const currentVal =
+                selections[optGroup.id] || String(Math.round((min + max) / 2));
+              return (
+                <div className="user-choice-slider-wrapper">
+                  <input
+                    type="range"
+                    className="user-choice-slider"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={currentVal}
+                    onChange={(e) =>
+                      setSelections((prev) => ({
+                        ...prev,
+                        [optGroup.id]: e.target.value,
+                      }))
+                    }
+                  />
+                  <div className="user-choice-slider-labels">
+                    <span className="user-choice-slider-min">{min}</span>
+                    <span className="user-choice-slider-value">
+                      {currentVal}
+                    </span>
+                    <span className="user-choice-slider-max">{max}</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
         </div>
       ))}
       <div className="user-choice-buttons">
@@ -784,34 +827,36 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
       {chatMessages.length === 0 ? (
         <>
           {/* Help message with icon and random tip */}
-          <div className="full-results-chat-welcome">
-            <div className="full-results-chat-help-avatar">
-              <Icon icon="help" size={18} intent="primary" />
-            </div>
-            <div className="full-results-chat-assistant-message chat-help">
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "8px",
-                }}
-              >
-                <Icon
-                  icon="lightbulb"
-                  size={14}
-                  intent="warning"
-                  style={{ marginTop: "2px", flexShrink: 0 }}
-                />
-                <div
-                  style={{ flex: 1 }}
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(initialTip.replace(/^💡\s*/, "")),
-                  }}
-                />
+          {!hasSearchResults && (
+            <div className="full-results-chat-welcome">
+              <div className="full-results-chat-help-avatar">
+                <Icon icon="help" size={18} intent="primary" />
               </div>
-              {helpButtons}
+              <div className="full-results-chat-assistant-message chat-help">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "8px",
+                  }}
+                >
+                  <Icon
+                    icon="lightbulb"
+                    size={14}
+                    intent="warning"
+                    style={{ marginTop: "2px", flexShrink: 0 }}
+                  />
+                  <div
+                    style={{ flex: 1 }}
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdown(initialTip.replace(/^💡\s*/, "")),
+                    }}
+                  />
+                </div>
+                {helpButtons}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Main welcome message */}
           <div className="full-results-chat-welcome">
@@ -1066,7 +1111,9 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                         </span>
                       )}
                     </div>
-                    <pre className="chat-query-code-block"><code>{displayContent}</code></pre>
+                    <pre className="chat-query-code-block">
+                      <code>{displayContent}</code>
+                    </pre>
                     {message.queryType === "roam" && (
                       <MessageContent
                         content={displayContent}

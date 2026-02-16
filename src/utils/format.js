@@ -1,4 +1,5 @@
 import { isResponseToSplit } from "..";
+import { calloutRegex } from "./regex";
 import {
   addContentToBlock,
   createChildBlock,
@@ -42,7 +43,7 @@ export const sanitizeJSONstring = (str) => {
     .replace(codeBlockRegex, (match) => match.replace(/\n/g, "\\n"))
     // escape line break in all content string, if not already escaped
     .replace(jsonContentStringRegex, (match) =>
-      match.replace(notEscapedBreakLineRegex, " \\n")
+      match.replace(notEscapedBreakLineRegex, " \\n"),
     );
   return sanitized;
 };
@@ -86,7 +87,7 @@ export const splitParagraphs = (str) => {
 export const parseAndCreateBlocks = async (
   parentBlockRef,
   text,
-  isParentToReplace = false
+  isParentToReplace = false,
 ) => {
   let codeBlockBaseIndent = 0;
   const lines = text.split("\n");
@@ -97,6 +98,9 @@ export const parseAndCreateBlocks = async (
   let blockType = null; // 'code' or 'katex'
   let codeBlockContent = "";
   let isInListCodeBlock = false;
+  let inCallout = false;
+  let calloutContent = "";
+  let calloutIndentLevel = 0;
   let isFistParent = true;
   let position = isParentToReplace
     ? getBlockOrderByUid(parentBlockRef)
@@ -143,7 +147,7 @@ export const parseAndCreateBlocks = async (
           stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
         const newBlockRef = await createChildBlock(
           codeParentRef,
-          codeBlockContent
+          codeBlockContent,
         );
 
         hierarchyTracker.set(i, {
@@ -178,12 +182,79 @@ export const parseAndCreateBlocks = async (
       }
     }
 
+    // If we are in a callout, accumulate lines until a blank line or a new callout/list item
+    if (inCallout) {
+      const trimmedForCallout = line.trimStart();
+      const isNewCallout = trimmedForCallout.match(calloutRegex);
+      const isIndentedListItem =
+        line.match(/^ /) && trimmedForCallout.match(/^[-•*\d]/);
+      if (!line.trim() || isNewCallout || isIndentedListItem) {
+        // Blank line, new callout, or indented list item ends the callout — flush it
+        inCallout = false;
+        // Find the correct parent for the callout based on its indent level
+        while (
+          stack.length > 1 &&
+          stack[stack.length - 1].level > calloutIndentLevel
+        ) {
+          stack.pop();
+        }
+        const calloutParentRef =
+          stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
+        const newBlockRef = await createChildBlock(
+          calloutParentRef,
+          calloutContent,
+          "last",
+          true,
+        );
+        const calloutLevel = calloutIndentLevel + 1;
+        if (newBlockRef)
+          stack.push({
+            level: calloutLevel,
+            ref: newBlockRef,
+          });
+        hierarchyTracker.set(i - 1, {
+          level: calloutLevel,
+          ref: newBlockRef,
+          indentLevel: calloutIndentLevel,
+          isHeader: false,
+          headerLevel: null,
+          isList: false,
+          listMatchType: null,
+          parentRef: calloutParentRef,
+          isCodeBlock: false,
+          isCallout: true,
+        });
+        calloutContent = "";
+        isFistParent = false;
+        if (!line.trim()) continue;
+        // Fall through to process the current line (new callout or list item)
+      } else {
+        calloutContent += "\n" + line.trimStart();
+        continue;
+      }
+    }
+
     if (!line.trim()) continue;
 
     // Detect indentation by spaces
     const leadingSpaces = line.match(/^ */)[0].length;
     const indentLevel = Math.floor(leadingSpaces / 2);
     let trimmedLine = line.trimStart();
+
+    // Detect callout start: [[>]] [[!KEYWORD]] ...
+    if (trimmedLine.match(calloutRegex)) {
+      // Pop stack back to the appropriate level for this callout's indent
+      while (
+        stack.length > 1 &&
+        stack[stack.length - 1].level > indentLevel
+      ) {
+        stack.pop();
+      }
+      inCallout = true;
+      calloutContent = trimmedLine;
+      calloutIndentLevel = indentLevel;
+      continue;
+    }
 
     // Handle code blocks and Katex multi-lines
     if (
@@ -382,7 +453,7 @@ export const parseAndCreateBlocks = async (
         listPrefix = alphaMatch ? alphaMatch[1] + " " : "";
       } else if (listMatchType === "roman") {
         const romanMatch = trimmedLine.match(
-          /^([ivx]+[.]|[IVX]+[.]|[ivx]+[)]|[IVX]+[)])\s+/i
+          /^([ivx]+[.]|[IVX]+[.]|[ivx]+[)]|[IVX]+[)])\s+/i,
         );
         listPrefix = romanMatch ? romanMatch[1] + " " : "";
       }
@@ -399,7 +470,7 @@ export const parseAndCreateBlocks = async (
         content,
         "last",
         true,
-        heading
+        heading,
       );
     } else if (isFistParent) {
       newBlockRef = currentParentRef;
@@ -430,5 +501,22 @@ export const parseAndCreateBlocks = async (
       parentRef: currentParentRef,
       isCodeBlock: false,
     });
+  }
+
+  // Flush any pending callout at end of input
+  if (inCallout && calloutContent) {
+    while (
+      stack.length > 1 &&
+      stack[stack.length - 1].level > calloutIndentLevel
+    ) {
+      stack.pop();
+    }
+    const calloutParentRef =
+      stack.length > 0 ? stack[stack.length - 1].ref : parentBlockRef;
+    if (isFistParent) {
+      updateBlock({ blockUid: calloutParentRef, newContent: calloutContent });
+    } else {
+      await createChildBlock(calloutParentRef, calloutContent, "last", true);
+    }
   }
 };

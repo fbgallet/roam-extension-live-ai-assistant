@@ -113,6 +113,24 @@ export const renderMarkdown = (text: string): string => {
 
   let rendered = text;
 
+  // STEP 0a: Extract Roam callout blocks BEFORE any other processing
+  // Format: [[>]] [[!KEYWORD]] Optional title\ncontent lines\n\n (ends at blank line or end of string)
+  const callouts: string[] = [];
+  const calloutPlaceholder = "ROAMCALLOUT-";
+  const calloutKeywords =
+    "NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE";
+  rendered = rendered.replace(
+    new RegExp(
+      `(\\[\\[>\\]\\]\\s+\\[\\[!(?:${calloutKeywords})\\]\\][^\\n]*(?:\\n(?!\\n)[^\\n]*)*)`,
+      "gi"
+    ),
+    (match) => {
+      const index = callouts.length;
+      callouts.push(match);
+      return `${calloutPlaceholder}${index}`;
+    }
+  );
+
   // STEP 0: Protect Roam-specific embeds from markdown processing
   // Extract and store audio/video embeds BEFORE any other processing
   const roamEmbeds: string[] = [];
@@ -402,6 +420,15 @@ export const renderMarkdown = (text: string): string => {
   // STEP 5: Restore code blocks, links, inline code, and Roam embeds BEFORE wrapping in paragraphs or sanitizing
   // Use split/join approach for reliable placeholder replacement (replaceAll not available in all environments)
 
+  // Restore Roam callouts as data-attributed spans (renderString will handle them in MessageContent)
+  callouts.forEach((callout, index) => {
+    const placeholder = `${calloutPlaceholder}${index}`;
+    const encoded = callout.replace(/"/g, "&quot;");
+    rendered = rendered
+      .split(placeholder)
+      .join(`<span data-roam-callout="${encoded}"></span>`);
+  });
+
   // Restore Roam embeds FIRST (these need to be intact for renderString in React component)
   roamEmbeds.forEach((embed, index) => {
     const placeholder = `${roamEmbedPlaceholder}${index}`;
@@ -442,6 +469,7 @@ export const renderMarkdown = (text: string): string => {
       "data-block-uid",
       "data-page-title",
       "data-page-uid",
+      "data-roam-callout",
       "style",
       "src",
       "alt",

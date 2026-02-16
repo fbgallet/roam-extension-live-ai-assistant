@@ -1055,11 +1055,17 @@ export async function openaiCompletionLegacy({
             (model === "deepseek-reasoner" ||
               model.includes("grok-3-mini") ||
               model === "grok-4" ||
-              model === "grok-4-1-fast-reasoning") &&
-            thinkingToasterStream
-          )
-            thinkingToasterStream.innerText +=
-              streamData?.delta?.reasoning_content;
+              model === "grok-4-1-fast-reasoning")
+          ) {
+            if (thinkingToasterStream)
+              thinkingToasterStream.innerText +=
+                streamData?.delta?.reasoning_content;
+            else
+              console.log(
+                "Thinking process: ",
+                streamData?.delta?.reasoning_content,
+              );
+          }
           respStr += chunkStr;
           streamElt.innerHTML += DOMPurify.sanitize(chunkStr);
           if (streamData?.delta?.annotations)
@@ -1252,15 +1258,7 @@ export async function openaiResponse({
         });
       const streamElt = insertParagraphForStream(targetUid);
       let thinkingToasterStream;
-      if (
-        isThinkingProcessToDisplay &&
-        (model.includes("o3") ||
-          model.includes("o4") ||
-          model.includes("gpt-5") ||
-          model.includes("grok-3-mini") ||
-          model === "grok-4" ||
-          model === "grok-4-1-fast-reasoning")
-      ) {
+      if (thinking && isThinkingProcessToDisplay) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
       }
 
@@ -1276,11 +1274,12 @@ export async function openaiResponse({
             const chunkStr = event.delta || "";
             respStr += chunkStr;
             streamElt.innerHTML += DOMPurify.sanitize(chunkStr);
-          } else if (
-            event.type === "response.reasoning.delta" &&
-            thinkingToasterStream
-          ) {
-            thinkingToasterStream.innerText += event.delta || "";
+          } else if (event.type === "response.reasoning.delta") {
+            if (thinkingToasterStream) {
+              thinkingToasterStream.innerText += event.delta || "";
+            } else {
+              console.log("Thinking process: ", event.delta || "");
+            }
           } else if (
             event.type === "response.completed" ||
             event.type === "response.done"
