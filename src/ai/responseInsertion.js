@@ -232,7 +232,8 @@ export const aiCompletionRunner = async ({
     if (!instantModel) {
       // Determine default web search model based on user's default model and configuration
       const modelConfig = getModelConfig();
-      const currentDefaultModel = extensionStorage.get("defaultModel") || defaultModel;
+      const currentDefaultModel =
+        extensionStorage.get("defaultModel") || defaultModel;
       const orderedProviders = getOrderedProviders();
 
       instantModel = getDefaultWebSearchModel(
@@ -240,7 +241,7 @@ export const aiCompletionRunner = async ({
         isModelVisible,
         orderedProviders,
         modelConfig.modelOrder,
-        modelConfig.defaultWebSearchModel
+        modelConfig.defaultWebSearchModel,
       );
 
       // If no web search model is available, show error and return
@@ -287,7 +288,7 @@ export const aiCompletionRunner = async ({
       });
       return;
     }
-    instantModel = "claude-sonnet-4-5-20250929";
+    instantModel = "claude-sonnet-4-6";
     command = prompt; // command equals prompt for all export variants
     prompt = "";
     target = "new";
@@ -320,7 +321,7 @@ export const aiCompletionRunner = async ({
     selectedUids,
     selectedText,
     roamContext,
-    forceNotInConversation
+    forceNotInConversation,
   );
   if (noData) return;
 
@@ -333,7 +334,7 @@ export const aiCompletionRunner = async ({
     roamBasicsFormat +
     (uidsInPrompt && includeUids ? roamUidsPrompt : "") +
     `\n\nCurrent date and time are: ${getRelativeDateAndTimeString(
-      sourceUid
+      sourceUid,
     )}` +
     hierarchicalResponseFormat;
 
@@ -342,7 +343,10 @@ export const aiCompletionRunner = async ({
   // console.log("systemPrompt :>> ", systemPrompt);
   // console.log("completed prompt from aiCompletionRunner :>> ", completedPrompt);
 
-  console.log("[QueryContext] aiCompletionRunner calling insertCompletion, includeQueryInContext:", includeQueryInContext);
+  console.log(
+    "[QueryContext] aiCompletionRunner calling insertCompletion, includeQueryInContext:",
+    includeQueryInContext,
+  );
   insertCompletion({
     prompt: completedPrompt,
     systemPrompt,
@@ -391,7 +395,14 @@ export const insertCompletion = async ({
   includeQueryInContext = false,
   thinkingEnabled = undefined,
 }) => {
-  console.log("[QueryContext] insertCompletion called, includeQueryInContext:", includeQueryInContext, "context length:", context?.length, "prompt type:", typeof prompt);
+  console.log(
+    "[QueryContext] insertCompletion called, includeQueryInContext:",
+    includeQueryInContext,
+    "context length:",
+    context?.length,
+    "prompt type:",
+    typeof prompt,
+  );
   lastCompletion.prompt = prompt;
   lastCompletion.systemPrompt = systemPrompt;
   lastCompletion.targetUid = targetUid;
@@ -439,7 +450,7 @@ export const insertCompletion = async ({
 
   if (!systemPrompt.includes("Current date and time are:"))
     systemPrompt += `\nCurrent date and time are: ${getRelativeDateAndTimeString(
-      targetUid
+      targetUid,
     )}`;
   if (!systemPrompt.includes(roamBasicsFormat))
     systemPrompt +=
@@ -453,7 +464,14 @@ export const insertCompletion = async ({
   // console.log("systemPrompt :>> ", systemPrompt);
 
   if (includeQueryInContext && !isRedone) {
-    console.log("[QueryContext] Running query context extraction, isInConversation:", isInConversation, "prompt length:", typeof prompt === "string" ? prompt.length : "array", "context length:", context?.length);
+    console.log(
+      "[QueryContext] Running query context extraction, isInConversation:",
+      isInConversation,
+      "prompt length:",
+      typeof prompt === "string" ? prompt.length : "array",
+      "context length:",
+      context?.length,
+    );
     const queryContext = await getContextFromQueries({
       prompt: typeof prompt === "string" ? prompt : JSON.stringify(prompt),
       context,
@@ -461,7 +479,10 @@ export const insertCompletion = async ({
       rootUid: targetUid,
     });
     if (queryContext) {
-      console.log("[QueryContext] Adding query results to context, length:", queryContext.length);
+      console.log(
+        "[QueryContext] Adding query results to context, length:",
+        queryContext.length,
+      );
       if (isInConversation) {
         // In conversation mode, context is not used for content assembly — append to systemPrompt
         systemPrompt += "\n\n" + queryContext;
@@ -556,7 +577,7 @@ export const insertCompletion = async ({
           command?.split("(")[1].split(")")[0],
           model,
           null, // tokensCallback
-          getParentBlock(targetUid) // Always use parent UID for image editing chat continuity
+          getParentBlock(targetUid), // Always use parent UID for image editing chat continuity
         )
       : await aiCompletion({
           instantModel: model,
@@ -627,7 +648,7 @@ export async function insertStructuredAIResponse({
     await parseAndCreateBlocks(
       targetUid,
       content,
-      target === "replace" || target === "new w/o"
+      target === "replace" || target === "new w/o",
     );
   }
 }
@@ -636,7 +657,7 @@ export const copyTemplate = async (
   targetUid,
   templateUid,
   maxDepth,
-  strToExclude = "{text}"
+  strToExclude = "{text}",
 ) => {
   let uidsToExclude = [];
   if (!templateUid) return;
@@ -645,7 +666,7 @@ export const copyTemplate = async (
     tree,
     targetUid,
     maxDepth,
-    strToExclude
+    strToExclude,
   );
   return uidsToExclude;
 };
@@ -655,7 +676,7 @@ export const copyTreeBranches = async (
   targetUid,
   maxDepth,
   strToExclude,
-  isClone = true
+  isClone = true,
 ) => {
   let uidsToExclude = [];
   // copy only the branches, not the parent block
@@ -666,7 +687,7 @@ export const copyTreeBranches = async (
       strToExclude,
       maxDepth,
       1,
-      isClone
+      isClone,
     );
   } else return null;
   return uidsToExclude;
@@ -678,7 +699,7 @@ export async function insertChildrenBlocksRecursively(
   strToExclude,
   maxDepth = 99,
   depth = 1,
-  isClone
+  isClone,
 ) {
   let uidsToExclude = [];
   for (let i = 0; i < children.length; i++) {
@@ -691,7 +712,7 @@ export async function insertChildrenBlocksRecursively(
       children[i].open,
       children[i].heading,
       children[i]["view-type"],
-      !isClone && children[i].uid
+      !isClone && children[i].uid,
     );
     if (children[i].string.includes(strToExclude)) uidsToExclude.push(uid);
     if (children[i].children && depth < maxDepth) {
@@ -701,7 +722,7 @@ export async function insertChildrenBlocksRecursively(
         strToExclude,
         maxDepth,
         ++depth,
-        isClone
+        isClone,
       );
       uidsToExclude = uidsToExclude.concat(moreUidsToExclude);
     }

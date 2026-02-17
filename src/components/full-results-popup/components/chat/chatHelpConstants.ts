@@ -49,7 +49,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 **💡 Agentic Help**: Enable tools and ask questions - the agent will use get_help tool to fetch relevant docs!
 
 #### **How to support my work ?**
-Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) @fbgallet`;
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
@@ -76,7 +76,7 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 - 💬 **Chat with query results**: Instantly chat with native query results or linked references
 
 #### **Supported LLM Providers:**
-OpenAI (GPT-5.2), Anthropic (Claude Opus 4.6, Sonnet 4.5), Google (Gemini 3), xAI (Grok), DeepSeek, Ollama (local models), and more via OpenRouter!
+OpenAI (GPT-5.2), Anthropic (Claude Opus 4.6, Sonnet 4.6), Google (Gemini 3), xAI (Grok), DeepSeek, Ollama (local models), and more via OpenRouter!
 
 #### **How to support my work ?**
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
@@ -100,7 +100,7 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.27 🎉
 - **Improved Structure**: Description supports children blocks, singular/plural tags, page embeds, bold flags
 
 #### **Models & UI**
-- Models menu & customization entirely revamped with many new models (GPT-5.2, Claude Opus 4.6, Gemini Flash 3, GPT Image 1.5, Grok Imagine)
+- Models menu & customization entirely revamped with many new models (GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine)
 - New button and dropdown to handle thinking effort of reasoning models
 - Chat with native query results button
 
@@ -113,7 +113,7 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.27 🎉
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
 #### **How to support my work ?**
-Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow me on [X](https://x.com/fbgallet) or [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) @fbgallet`;
+Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Tips specific to Live AI (context menu, inline commands)
 export const LIVE_AI_TIPS = [

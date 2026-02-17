@@ -1191,11 +1191,11 @@ export async function handleFileExportCommand(
     label: "Claude model",
     type: "radio",
     choices: [
-      { value: "claude-sonnet-4-5-20250929", label: "Sonnet 4.5" },
-      { value: "claude-opus-4-6-20250918", label: "Opus 4.6" },
+      { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+      { value: "claude-opus-4-6", label: "Opus 4.6" },
       { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
     ],
-    defaultValue: "claude-sonnet-4-5-20250929",
+    defaultValue: "claude-sonnet-4-6",
   });
 
   // Styling text input for all formats
@@ -1271,7 +1271,7 @@ export async function handleFileExportCommand(
   }
 
   // Use selected model or default to Sonnet
-  const selectedModel = sel.model || "claude-sonnet-4-5-20250929";
+  const selectedModel = sel.model || "claude-sonnet-4-6";
 
   // Show early toast — the actual generation can take 1-2 minutes
   AppToaster.show({
@@ -1327,9 +1327,7 @@ export async function handlePdfExportCommand(
   conversationHistory: string[] | undefined,
   conversationSummary: string | undefined,
   userChoiceCallback:
-    | ((
-        req: any,
-      ) => Promise<{
+    | ((req: any) => Promise<{
         selectedOptions: Record<string, string>;
         cancelled: boolean;
       }>)

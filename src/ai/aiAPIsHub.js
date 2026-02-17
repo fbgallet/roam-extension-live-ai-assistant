@@ -152,8 +152,8 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
 
   if (!model) {
     llm.provider = "OpenAI";
-    llm.id = "gpt-4.1-mini";
-    llm.name = "gpt-4.1-mini";
+    llm.id = "gpt-5.1";
+    llm.name = "gpt-5.1";
     llm.library = openaiLibrary;
     isAPIKeyNeeded(llm);
     return llm;
@@ -380,12 +380,8 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
           } else if (!modelLower.includes("gpt-5")) {
             llm.id = modelLower + "-preview";
           }
-        } else if (modelLower === "gpt-5.1 reasoning") {
-          llm.id = "gpt-5.1";
-          llm.name = "gpt-5.1 reasoning";
-          llm.thinking = true;
         } else {
-          llm.id = modelLower || "gpt-4.1-mini";
+          llm.id = modelLower || "gpt-5.1";
         }
       }
     }
@@ -524,24 +520,26 @@ export async function claudeCompletion({
         ];
         isUrlToFetch = true;
         headers["anthropic-beta"] = "web-fetch-2025-09-10";
+        //headers["anthropic-beta"] = "code-execution-web-tools-2026-02-09";
       }
       if (command === "Fetch url") options.stream = false;
 
       if (command === "Web search") {
         options.tools = [
           {
-            type: "web_search_20250305",
+            type: "web_search_20250305", // "web_search_20260209",
             name: "web_search",
             max_uses: 5,
           },
           {
-            type: "web_fetch_20250910",
+            type: "web_fetch_20250910", // "web_fetch_20260209",
             name: "web_fetch",
             max_uses: 5,
             citations: { enabled: true },
           },
         ];
         headers["anthropic-beta"] = "web-fetch-2025-09-10";
+        // headers["anthropic-beta"] = "code-execution-web-tools-2026-02-09";
       } else if (command === "MCP Agent") {
         options.tools = tools;
       } else if (isFileExportCommand(command)) {
@@ -642,7 +640,7 @@ export async function claudeCompletion({
         let thinkingToasterStream;
         if (thinking && isThinkingProcessToDisplay) {
           thinkingToasterStream = displayThinkingToast(
-            "Claude 4.5 Extended Thinking process:",
+            "Claude Thinking process:",
           );
         }
 
@@ -666,7 +664,7 @@ export async function claudeCompletion({
             for (const line of lines) {
               if (line.startsWith("data:")) {
                 const data = JSON.parse(line.slice(5));
-                // console.log("data :>> ", data);
+                console.log("data :>> ", data);
                 if (data.type === "content_block_delta") {
                   if (data.delta.type === "text_delta") {
                     const text = data.delta.text;

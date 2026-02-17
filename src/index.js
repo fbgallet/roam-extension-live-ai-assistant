@@ -147,7 +147,7 @@ const modeMap = {
 
 export let extensionStorage;
 
-export function setDefaultModel(str = "gpt-4.1-mini") {
+export function setDefaultModel(str = "gpt-5.1") {
   defaultModel = str;
   extensionStorage.set("defaultModel", str);
   chatRoles = getRolesFromString(
@@ -259,7 +259,7 @@ function getRolesFromString(str, model) {
     } else if (defaultModel === "first Groq model" && groqModels.length) {
       model = groqModels[0];
     } else {
-      model = defaultModel.includes("first") ? "gpt-4.1-mini" : defaultModel;
+      model = defaultModel.includes("first") ? "gpt-5.1" : defaultModel;
     }
   }
   model = modelAccordingToProvider(model);

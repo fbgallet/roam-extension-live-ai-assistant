@@ -22,7 +22,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 - New button to instantly Chat with native query results (similar to Chat with linked references).
 - Models menu & customization entirely revamped
-- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6, Gemini Flash 3, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
+- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
 - New button and dropdown to handle thinking effort of reasoning models.
 - New tools for Chat agent (in chat panel):
   - Edition: create Page or blocks, update or detele blocks (with human validation)

@@ -25,7 +25,7 @@ export interface TokensUsage {
 export function modelViaLanggraph(
   llmInfos: LlmInfos,
   turnTokensUsage?: TokensUsage,
-  structuredOutput?: boolean
+  structuredOutput?: boolean,
 ) {
   let llm;
 
@@ -35,7 +35,7 @@ export function modelViaLanggraph(
         "Used tokens",
         output.llmOutput?.tokenUsage ||
           output.llmOutput?.usage ||
-          output.llmOutput?.usage_metadata
+          output.llmOutput?.usage_metadata,
       );
       const usage: TokensUsage = {
         input_tokens:
@@ -126,12 +126,12 @@ export function modelViaLanggraph(
       llmInfos.id.includes("sonnet") || llmInfos.id.includes("4-5")
         ? 64000
         : llmInfos.id.includes("opus-4-1")
-        ? 32000
-        : 8192;
+          ? 32000
+          : 8192;
     options.streaming = true;
     if (llmInfos.thinking) {
       if (usesAdaptiveThinking(llmInfos.id)) {
-        // Opus 4.6+: adaptive thinking with effort parameter
+        // Opus & Sonnet 4.6+: adaptive thinking with effort parameter
         options.thinking = { type: "adaptive" };
         options["output_config"] = {
           effort: reasoningEffort === "minimal" ? "low" : reasoningEffort,
@@ -195,7 +195,7 @@ export function modelViaLanggraph(
 export const getLlmSuitableOptions = (
   model: LlmInfos,
   schemaTitle: string,
-  temperature?: number
+  temperature?: number,
 ) => {
   const isClaudeModel = model.id.toLowerCase().includes("claude");
   const isGPTmodel = model.id.toLocaleLowerCase().includes("gpt");

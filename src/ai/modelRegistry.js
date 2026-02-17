@@ -370,6 +370,22 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-4.5-opus", "claude opus 4.5", "claude-opus-4-5"],
   },
 
+  "claude-sonnet-4-6": {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6",
+    provider: "Anthropic",
+    contextLength: 200000,
+    maxOutput: 64000,
+    pricing: { input: 3, output: 15 },
+    capabilities: {
+      thinking: true, // Supports thinking mode (toggled via UI)
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    aliases: ["claude-sonnet", "claude-sonnet-4.6", "claude sonnet 4.6"],
+  },
   "claude-sonnet-4-5-20250929": {
     id: "claude-sonnet-4-5-20250929",
     name: "Claude Sonnet 4.5",
@@ -383,13 +399,8 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
-    aliases: [
-      "claude-sonnet",
-      "claude-sonnet-4.5",
-      "claude-sonnet-4-5",
-      "claude sonnet 4.5",
-    ],
+    visibleByDefault: false,
+    aliases: ["claude-sonnet-4.5", "claude-sonnet-4-5", "claude sonnet 4.5"],
   },
 
   "claude-haiku-4-5-20251001": {
@@ -855,7 +866,7 @@ export function usesAdaptiveThinking(identifier) {
   // Strip +thinking suffix used by Claude models
   const cleanId = identifier.replace(/\+thinking/i, "").trim();
   const model = getModelByIdentifier(cleanId);
-  return model?.id === "claude-opus-4-6";
+  return model?.id === "claude-opus-4-6" || model?.id === "claude-sonnet-4-6";
 }
 
 /**
