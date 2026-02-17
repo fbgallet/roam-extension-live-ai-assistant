@@ -32,11 +32,18 @@ const ChatPageAutocomplete: React.FC<ChatPageAutocompleteProps> = ({
   // Handle keyboard navigation
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
+      // Ctrl+J/N (next) and Ctrl+K/P (prev) override browser shortcuts
+      // (e.g. Ctrl+N=new window, Ctrl+P=print) while the autocomplete popup is open
+      const isCtrlOnly = e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+      const normalizedKey = isCtrlOnly ? e.key.toLowerCase() : "";
+      const isVimNext = isCtrlOnly && (normalizedKey === "j" || normalizedKey === "n");
+      const isVimPrev = isCtrlOnly && (normalizedKey === "k" || normalizedKey === "p");
+
+      if (e.key === "ArrowDown" || isVimNext) {
         e.preventDefault();
         e.stopPropagation();
         setActiveIndex((prev) => Math.min(prev + 1, pages.length - 1));
-      } else if (e.key === "ArrowUp") {
+      } else if (e.key === "ArrowUp" || isVimPrev) {
         e.preventDefault();
         e.stopPropagation();
         setActiveIndex((prev) => Math.max(prev - 1, 0));
