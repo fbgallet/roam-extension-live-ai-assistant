@@ -16,7 +16,10 @@ import AskGraphFirstTimeDialog from "../components/AskGraphFirstTimeDialog";
 import ScopeSelectionDialog from "../components/ScopeSelectionDialog";
 import { getFocusAndSelection } from "../ai/dataExtraction";
 import { AppToaster } from "../components/Toaster";
-import { chatWithLinkedRefs, chatWithQuery } from "../components/full-results-popup";
+import {
+  chatWithLinkedRefs,
+  chatWithQuery,
+} from "../components/full-results-popup";
 import ModelConfigDialog from "../components/model-config/ModelConfigDialog";
 import ModelMigrationDialog from "../components/model-config/ModelMigrationDialog";
 import MCPConfigComponent from "../components/MCPConfigComponent";
@@ -25,14 +28,14 @@ import { Dialog, Tooltip } from "@blueprintjs/core";
 export function mountComponent(
   position,
   props,
-  isCapturingCurrentFocus = true
+  isCapturingCurrentFocus = true,
 ) {
   if (window.roamAlphaAPI.platform.isMobile) position = "top";
   let currentBlockUid = isCapturingCurrentFocus
     ? window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"]
     : undefined;
   let container = document.querySelector(
-    `.speech-to-roam-container-${position}`
+    `.speech-to-roam-container-${position}`,
   );
 
   if (!container) {
@@ -61,7 +64,7 @@ export function mountComponent(
     !window.roamAlphaAPI.platform.isDesktop &&
     navigator.userAgent.indexOf("Firefox") === -1 &&
     !getComputedStyle(document.documentElement).getPropertyValue(
-      "--arc-palette-background"
+      "--arc-palette-background",
     ) // specific to Arc browser
       ? getSpeechRecognitionAPI()
       : null;
@@ -74,7 +77,7 @@ export function mountComponent(
       isVisible={isComponentVisible}
       {...props}
     />,
-    container
+    container,
   );
 }
 
@@ -92,7 +95,7 @@ export function toggleComponentVisibility() {
 }
 
 export const simulateClick = (
-  elt = document.querySelector(".roam-body-main")
+  elt = document.querySelector(".roam-body-main"),
 ) => {
   const options = {
     bubbles: true,
@@ -132,12 +135,17 @@ export function createContainer(position) {
   position === "left" && newElt.classList.add("log-button");
   newElt.classList.add(
     "speech-to-roam",
-    `speech-to-roam-container-${position}`
+    `speech-to-roam-container-${position}`,
   );
   const todayTomorrowExtension = document.querySelector("#todayTomorrow");
   if (todayTomorrowExtension && position === "top")
     todayTomorrowExtension.insertAdjacentElement("afterend", newElt);
-  else if (window.roamAlphaAPI.platform.isDesktop && position === "top") {
+  else if (
+    window.roamAlphaAPI.platform.isDesktop &&
+    !window.roamAlphaAPI.platform.isMobile &&
+    !window.roamAlphaAPI.platform.isMobileApp &&
+    position === "top"
+  ) {
     const rightArrow = document.querySelector(".rm-electron-nav-forward-btn");
     rightArrow.insertAdjacentElement("afterend", newElt);
   } else
@@ -145,13 +153,13 @@ export function createContainer(position) {
       newElt,
       position === "top"
         ? rootPosition.firstChild
-        : document.querySelector(".rm-left-sidebar__daily-notes").nextSibling
+        : document.querySelector(".rm-left-sidebar__daily-notes").nextSibling,
     );
 }
 
 export function removeContainer(position) {
   const container = document.querySelector(
-    `.speech-to-roam-container-${position}`
+    `.speech-to-roam-container-${position}`,
   );
   if (container) container.remove();
 }
@@ -173,7 +181,7 @@ export const displaySpinner = async (targetUid) => {
     if (!targetBlockElt) {
       console.warn(
         "⚠️ displaySpinner: Block not found in DOM for UID:",
-        targetUid
+        targetUid,
       );
       return;
     }
@@ -217,13 +225,13 @@ export const insertParagraphForStream = (targetUid) => {
   if (targetUid === "chatResponse") {
     // Look for the chat streaming container in the Full Results Chat panel
     targetBlockElt = document.querySelector(
-      ".full-results-chat-streaming-container"
+      ".full-results-chat-streaming-container",
     );
 
     // If not found, create it in the chat messages area
     if (!targetBlockElt) {
       const chatMessagesArea = document.querySelector(
-        ".full-results-chat-messages"
+        ".full-results-chat-messages",
       );
       if (chatMessagesArea) {
         targetBlockElt = document.createElement("div");
@@ -257,7 +265,7 @@ export const insertInstantButtons = async (props) => {
     .map((elt) =>
       elt.id.includes("sidebar-window")
         ? elt.querySelector(`[id$="${props.targetUid}"]`)
-        : elt
+        : elt,
     )
     .filter((elt, index, array) => index === 0 || elt !== array[index - 1]);
 
@@ -332,7 +340,7 @@ export const displayTokensDialog = () => {
   }
   ReactDOM.render(
     <TokensDialog isOpen={true} onClose={unmountTokensDialog} />,
-    container
+    container,
   );
 };
 
@@ -373,7 +381,7 @@ export const displayAskGraphModeDialog = (dialogData) => {
         }
       }}
     />,
-    container
+    container,
   );
 };
 
@@ -382,7 +390,7 @@ export const displayAskGraphFirstTimeDialog = (dialogData) => {
   const previousContainer =
     targetElt &&
     targetElt.parentElement.querySelector(
-      ".askgraph-firsttime-dialog-container"
+      ".askgraph-firsttime-dialog-container",
     );
   let container;
   if (previousContainer) {
@@ -413,7 +421,7 @@ export const displayAskGraphFirstTimeDialog = (dialogData) => {
         }
       }}
     />,
-    container
+    container,
   );
 };
 
@@ -471,7 +479,7 @@ export const displayScopeSelectionDialog = (dialogData) => {
         }
       }}
     />,
-    container
+    container,
   );
 };
 
@@ -521,7 +529,7 @@ export const highlightHtmlElt = ({
         .map((elt) =>
           elt.tagName === "TEXTAREA"
             ? elt.parentElement.parentElement
-            : elt.parentElement
+            : elt.parentElement,
         )
         .map((elt) => (onlyChildren ? elt.nextElementSibling : elt));
   }
@@ -683,7 +691,7 @@ export const displayModelConfigDialog = (dialogData = {}, initialTab) => {
       }}
       initialTab={initialTab}
     />,
-    container
+    container,
   );
 };
 
@@ -718,13 +726,13 @@ export const displayMCPConfigDialog = () => {
     >
       <MCPConfigComponent extensionStorage={extensionStorage} />
     </Dialog>,
-    container
+    container,
   );
 };
 
 export const displayModelMigrationDialog = (
   deprecatedModels = [],
-  onMigrate
+  onMigrate,
 ) => {
   const targetElt = document.querySelector(".roam-body");
   const previousContainer =
@@ -758,7 +766,7 @@ export const displayModelMigrationDialog = (
         }
       }}
     />,
-    container
+    container,
   );
 };
 
@@ -784,7 +792,7 @@ function insertQueryChatButton(titleElement) {
   // Check if button already exists
   if (
     titleElement.nextElementSibling?.classList?.contains(
-      "ask-query-button-container"
+      "ask-query-button-container",
     )
   ) {
     return;
