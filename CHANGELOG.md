@@ -1,10 +1,48 @@
+## v.27 (February 2026) Chat with queries, edition agentic features...
+
+**New features**
+
+- New button to instantly Chat with native query results (similar to Chat with linked references).
+- New dialog for Models & models menus customization
+- New tools for Chat agent (in chat panel):
+  - Edition: create Page or blocks, update or detele blocks (with human validation)
+  - Interaction: Ask user choice (for poll, QCM...) and Random pick (from context or any list)
+- New context options in Context menu: 'Siblings', 'Path' (ancestors) and 'Queries' (Roam querie and :q queries)
+- Commands to generate PDF/DOCX/PPTX documents via Claude Skills (Anthropic API Key requested)
+- New button and dropdown to handle thinking effort of reasoning models.
+- Any message in Chat panel is editable (rendered as Roam blocks)
+- Skills now support 'Records', capacity to write output at any defined place in your graph
+
+**Updates**
+
+- New models available: GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
+- Skills resources support relative dates
+- Natural language query and :q interpreter now supported in Chat panel (and instantly loading results in context)
+- No truncation (infinite) mode, in Full Access mode
+- Image edit mode in Chat panel
+- Slash commands dedicated to Chat panel (/clear, /exit, /save...)
+- In chat panel, Build-in prompt menu and Page autocompletion support Vim shortcut (ctrl+p or j / ctrl+n or k)
+
+**Fixed**
+
+- Grok API was not working any more (due to API change)
+- Edit image with Gemini model was causing an OpenAI error
+- Retry & Delete chat turn command were not properly removing corresponding messages from the at history
+- Tokens count from chat panel not always recorded in Tokens count dialog
+- "Include children" in prompt wasn't working reliably
+- Topbar buttons were hiding back/forward arrows in Roam desktop app
+- "Chat with [assistant header]" was not parsed from #liveai/chat titles
+- Always default model name was displayed when inserting chat in Roam blocks
+
 ## v.26 (December 10th, 2025) Fixes
 
 **Fixes**
+
 - Voice transcription was broken in the previous version!
 - Just after updating Google API Key, Gemini models were not accessible
 
 **Limitation**
+
 - DeepSeek endpoint CORS policy has changed and doesn't work anymore from frontend like other OpenAI compatible models. So i've temporarily made DeepSeek model unavailable from the models menu. DeepSeek models can still be used via OpenRouter.
 
 ## v.25 (November 25th, 2025) Better multimodal support
@@ -416,4 +454,3 @@
 - Reference to focused block to append transcription or use as context was not working
 - Block selection was not taken into account if made after start of recording
 - Default settings were not visible on installation
-
