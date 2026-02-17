@@ -32,11 +32,17 @@ const ChatPageAutocomplete: React.FC<ChatPageAutocompleteProps> = ({
   // Handle keyboard navigation
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
+      const normalizedKey = e.key.toLowerCase();
+      const isVimNext =
+        e.ctrlKey && !e.metaKey && !e.altKey && (normalizedKey === "j" || normalizedKey === "n");
+      const isVimPrev =
+        e.ctrlKey && !e.metaKey && !e.altKey && (normalizedKey === "k" || normalizedKey === "p");
+
+      if (e.key === "ArrowDown" || isVimNext) {
         e.preventDefault();
         e.stopPropagation();
         setActiveIndex((prev) => Math.min(prev + 1, pages.length - 1));
-      } else if (e.key === "ArrowUp") {
+      } else if (e.key === "ArrowUp" || isVimPrev) {
         e.preventDefault();
         e.stopPropagation();
         setActiveIndex((prev) => Math.max(prev - 1, 0));
