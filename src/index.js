@@ -1207,19 +1207,8 @@ export default {
     if (extensionAPI.settings.get("voiceInstructions") === null)
       await extensionAPI.settings.set("voiceInstructions", "");
     voiceInstructions = extensionAPI.settings.get("voiceInstructions");
-    if (
-      extensionAPI.settings.get("defaultModel") === null ||
-      extensionAPI.settings.get("defaultModel") === "gpt-5 (not reasoning)" ||
-      extensionAPI.settings.get("defaultModel") === "gpt-5-chat-latest"
-    )
+    if (extensionAPI.settings.get("defaultModel") === null)
       await extensionAPI.settings.set("defaultModel", "gpt-5.1");
-    if (extensionAPI.settings.get("defaultModel").includes("Sonnet 3.7"))
-      await extensionAPI.settings.set(
-        "defaultModel",
-        extensionAPI.settings
-          .get("defaultModel")
-          .replace("Sonnet 3.7", "Sonnet 4"),
-      );
     defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("reasoningEffort") === null)
       await extensionAPI.settings.set("reasoningEffort", "low");

@@ -1,10 +1,10 @@
 # Live AI
 
-**AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam. Interact with your favorite AI directly in Roam blocks, making the most of Roam’s interface to truly extend your thinking rather than just read answers! Or discover a new way to explore your graph in the agentic Chat interface. No usage limits, pay only for what you use (probably just a few dozen cents per month) or rely on free local models through Ollama or OpenAI compatible servers.**
+**AI Assistant tailor-made for Roam: the power of all the latest LLMs instantly accessible in Roam. Interact with your favorite AI directly in Roam blocks, making the most of Roam’s interface to truly extend your thinking rather than just read answers! Or discover a new way to interact with your graph in the agentic Chat interface. No usage limits, pay only for what you use (probably just a few dozen cents per month) or rely on free local models through Ollama or OpenAI compatible servers.**
 
-**Leverage Roam's features to write simple or structured prompts, query specific parts of your graph (your latest DNPs over a given period, sidebar content, linked references, queries, images, .pdf, etc.) and chat with this content or get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts or your own custom prompts relying on any defined and living context!**
+**Leverage Roam's features to write simple, structured or dynamic prompts, chat with any given part of your graph (your latest DNPs over a given period, sidebar content, linked references, queries, images, .pdf, etc.) and get directly structured responses, which can include tables, images, queries, Mermaid diagrams, code... Dictate, translate, transform, enrich or create structured content very easily thanks to a large set of built-in prompts, your own custom prompts or automated workflow with Skills relying on any defined and living set of instructions and resources!**
 
-**Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, explore, filter and chat with the results!**
+**Ask your entire graph any question with Ask Your Graph agent or unlock the full power of advanced Roam queries using simple natural language queries with query agents, explore, filter and chat with the results by a simple click!**
 
 ![Top demo Live AI Ask your graph in chat](https://github.com/user-attachments/assets/77129426-5cfe-4d0b-b6a3-df2db343baa8)
 
@@ -121,7 +121,7 @@ Once the context menu is open, the first selected command is `Focused block as p
 
 The following 5 ingredients will be part of your requests (the last 3 are optional):
 
-- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them) or .pdf files (only OpenAI and Anthropic models). Note that block references and block or page embed will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
+- **PROMPT**: your instructions to the AI model, available either in the currently focused block (and its children in option) or in a selection of blocks (using native Roam blocks selection), or only the selected text in a block. It can include images for models supporting image recognition (most of them) or .pdf files (OpenAI, Anthropic or Gemini models). Note that block references and block or page embed will be resolved and remplaced by the corresponding block content, unless they are inserted in inline code. Live AI provide also a large set of [built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#apply-built-in-prompts-to-existing-content) and you can create [custom prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#3-custom-prompts) templates for prompts you use regularly.
 - **MODEL**: the AI model (LLM) that will generate a response according to your instructions. In Live AI context menu, the submenu of `Focused block as prompt` command show the list of available models (for other commands, you have to right click on them to show this model submenu). Click on a model to use it for your current prompt. Right click on a model to set it as **default model**. You can also change the default model in the extension settings.
 - **CONTEXT**: the data your instructions might refer to (e.g., an article to summarize or use as inspiration). Live AI lets you leverage Roam powerful graph structure by using content from different parts of the interface as context, like the sidebar, linked references, current page (or zoom), mentioned pages, previous daily notes, and so on. If no prompt is provided (neither focused nor selected block) the context content will directly be used as prompt. [See below](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#providing-rich-context) for more details.
 - **OUTPUT TARGET**: the AI model response will be inserted directly in your graph (unless from the Chat panel, where you can insert responses or whole chat in your graph on demand). By default, it will be inserted as a block or hierarchy of blocks as direct child of the focused block, or as next sibling block of the top block of a selection of blocks. If a prompt is sent without block focused or selected (if the whole zoom view is used, or a custom prompt), the response will be inserted as last block of the current view or daily note. By default, a (customizable) header in the form of `AI Assistant (model):` will be inserted as parent block of the response. You can ask for a response without header by choosing `new w/o` (new block without header) in the target dropdown on the right of the context menu search box. `Replace` will insert the response directly into the selected blocks, what can be very useful to complete some template but you will loose a part or your whole prompt. `Append` maintains your prompt and add the response in the same block (in case of short response). `Chat` will open the chat panel and display the response of the LLM. Most of the time, `auto` mode is the better solution, adapted to the existing built-in prompts.
@@ -306,13 +306,11 @@ Use cases:
 
 ### Web search (or web as context)
 
-⚠️ Currently Web Search can be achieved with OpenAI dedicated models, or all Anthropic, Google or Grok models.
+⚠️ Currently Web Search can be achieved with most OpenAI, Anthropic, Google or Grok models.
 
-The knowledge base used for the LLM responses can be the web itself if you use `Web search` command (or OpenAI `gpt-5-search-api`, `gpt-4o-search` or `gpt-4o-mini-search` models with basic prompt completion command) . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
+The knowledge base used for the LLM responses can be the web itself if you use `Web search` command . It's useful if you're looking for information that requires recent data or practical questions, for example, organizing a trip.
 
 The models don't just summarize different relevant content found on the internet. You can use a rich prompt that requests all types of advanced and structured content processing that the LLM will gather.
-
-You can set the default model to use for Web search either in extension settings or by right-clicking on the choosen model in the submenu of `Web search` command.
 
 > [!WARNING]
 > ⚠️ To collect its data and prepare its response, the model will browse several sites: the input tokens used will be much higher than your prompt, leading to additional costs. Additionally, providers charge a fee per 1,000 queries: $10 for Anthropic, and between $25 and $50 for OpenAI, depending on the context size and model.
@@ -364,7 +362,7 @@ Currently, 3 complementary AI Agents can help users to find precise information 
 - **Natural language query**: transform the user request in a properly formatted Roam query. It supports period range and semantic variations, [see details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent). Very reliable.
 - **Natural language :q Datomic query**: transform the user request in a Datalog Datomic query using the native `:q` query syntax, supporting more complexes and structured queries than the previous one. [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-q-datomic-agent).
 
-### Ask Your Graph (🆕 New in v.21)
+### Ask Your Graph
 
 Ask anything to your entire graph, the agent will find the most relevant data to answer your request. Then you can interact and chat with the results to get the best insights! And when no block is focused, "**Ask Linked References of current page**" command allow to chat with linked references!
 
@@ -423,8 +421,8 @@ Examples of request:
 - From there, you can chat directly with the results or with a selected subset of results. In its responses, the agent will reference the concerned results. You can instantly connect what the agent says with the related blocks just by hovering over them!
 - <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
 
-- A new button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results (reproducing the current filters), allowing to filter/select some of them and chat with them!
-- You can also take an existing query or :q query (without dedicated rules or variables) as the base for new searches. Ask Your Graph will understand it, reproduce its results, and open new filtering and precision search possibilities.
+- A button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results (reproducing the current filters), allowing to filter/select some of them and chat with them!
+- You can also chat with the results of an existing query thanks to a new chat button (v.27) or ask to generate a :q query directly in the Chat panel (via Natural language :q query buil-in prompt), and the results will be loaded in the context.
 - Each user query can be saved for further exploration and the 3 most recents queries remain available. Each query can also be combined with other queries or completed by specific pages or blocks. Run "Open results view" command to load and chat with saved queries.
 
 #### **Control the privacy level of your agent usage**:

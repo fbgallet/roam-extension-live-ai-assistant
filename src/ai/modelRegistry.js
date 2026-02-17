@@ -340,7 +340,7 @@ export const MODEL_REGISTRY = {
     name: "Claude Opus 4.6",
     provider: "Anthropic",
     contextLength: 200000,
-    maxOutput: 64000,
+    maxOutput: 128000,
     pricing: { input: 5, output: 25 },
     capabilities: {
       thinking: true, // Supports thinking mode (toggled via UI)
@@ -383,6 +383,7 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: true,
     aliases: ["claude-sonnet", "claude-sonnet-4.6", "claude sonnet 4.6"],
   },
