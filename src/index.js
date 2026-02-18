@@ -28,9 +28,11 @@ import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
   getModelsInfo,
   imageGenerationModels,
+  loadCachedOpenRouterModels,
   updateTokenCounter,
 } from "./ai/modelsInfo";
 import {
+  loadCachedRemoteModels,
   loadRemoteModelUpdates,
   registerOpenRouterModels,
 } from "./ai/modelRegistry";
@@ -1444,8 +1446,16 @@ export default {
         OPENROUTER_API_KEY,
         "https://openrouter.ai/api/v1",
       );
-      openRouterModelsInfo = await getModelsInfo();
+      // Load from cache synchronously, refresh in background
+      openRouterModelsInfo = loadCachedOpenRouterModels();
       registerOpenRouterModels(openRouterModelsInfo);
+      getModelsInfo().then((freshModels) => {
+        if (freshModels.length > 0) {
+          openRouterModelsInfo = freshModels;
+          registerOpenRouterModels(openRouterModelsInfo);
+          updateAvailableModels();
+        }
+      });
     }
     if (GROQ_API_KEY) {
       groqLibrary = initializeOpenAIAPI(
@@ -1457,8 +1467,9 @@ export default {
 
     customStyles = getCustomStyles();
 
-    // Load remote model updates from GitHub
-    await loadRemoteModelUpdates();
+    // Load cached remote models synchronously, refresh in background
+    loadCachedRemoteModels();
+    loadRemoteModelUpdates();
 
     updateAvailableModels();
     // console.log("availableModels :>> ", availableModels);
