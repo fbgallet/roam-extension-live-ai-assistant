@@ -174,9 +174,32 @@ export function setEnabledTopicIds(topicIds: string[]): void {
  * Gets the cached help depot from extension storage
  * @returns Cached help depot or null
  */
+const HELP_DEPOT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 export function getCachedDepot(): HelpDepot | null {
   const stored = extensionStorage.get("help-depot-cache");
-  return stored ? JSON.parse(stored) : null;
+  if (!stored) return null;
+  try {
+    const parsed = JSON.parse(stored);
+    // Support both old format (raw depot) and new format ({ depot, cachedAt })
+    if (parsed.cachedAt !== undefined) {
+      return parsed.depot;
+    }
+    return parsed; // Legacy format: raw depot object
+  } catch {
+    return null;
+  }
+}
+
+function isHelpDepotCacheFresh(): boolean {
+  const stored = extensionStorage.get("help-depot-cache");
+  if (!stored) return false;
+  try {
+    const { cachedAt } = JSON.parse(stored);
+    return cachedAt && Date.now() - cachedAt < HELP_DEPOT_TTL_MS;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -184,7 +207,10 @@ export function getCachedDepot(): HelpDepot | null {
  * @param depot - Help depot to cache
  */
 export function setCachedDepot(depot: HelpDepot): void {
-  extensionStorage.set("help-depot-cache", JSON.stringify(depot));
+  extensionStorage.set(
+    "help-depot-cache",
+    JSON.stringify({ depot, cachedAt: Date.now() })
+  );
 }
 
 /**
@@ -215,7 +241,20 @@ export async function loadDepot(
   // Try to load from cache first (unless forcing refresh)
   if (!forceRefresh) {
     const cached = getCachedDepot();
-    if (cached) return cached;
+    if (cached && isHelpDepotCacheFresh()) return cached;
+    if (cached) {
+      // Cache exists but stale — return it immediately, refresh in background
+      fetchHelpDepot()
+        .then((freshDepot) => {
+          const mergedDepot = {
+            ...freshDepot,
+            topics: [...BUILTIN_LIVEAI_TOPICS, ...freshDepot.topics],
+          };
+          setCachedDepot(mergedDepot);
+        })
+        .catch(() => {}); // Silently fail background refresh
+      return cached;
+    }
   }
 
   // Try to fetch from GitHub
