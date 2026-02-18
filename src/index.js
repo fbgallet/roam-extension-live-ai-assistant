@@ -1482,9 +1482,6 @@ export default {
     // Initial call to insert button on current page
     onPageLoad();
 
-    // Connect query observer for Ask Query buttons
-    connectQueryObserver();
-
     await extensionAPI.settings.panel.create(getPanelConfig());
 
     console.log("Extension loaded.");
