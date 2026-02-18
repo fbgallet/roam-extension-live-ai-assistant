@@ -1,3 +1,5 @@
+import { extensionStorage, updateAvailableModels } from "..";
+
 /**
  * Unified Model Registry - Single Source of Truth
  *
@@ -1189,18 +1191,62 @@ export function registerOllamaModels(models) {
 const REMOTE_MODELS_URL =
   "https://raw.githubusercontent.com/fbgallet/roam-extension-speech-to-roam/main/model-updates.json";
 
+const REMOTE_MODELS_CACHE_KEY = "remote-model-updates-cache";
+const REMOTE_MODELS_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 /**
- * Fetch and merge remote models into registry
- * Allows adding new models without app release
+ * Load remote models from extensionStorage cache synchronously.
+ * Call this on startup before updateAvailableModels().
+ */
+export function loadCachedRemoteModels() {
+  try {
+    const stored = extensionStorage.get(REMOTE_MODELS_CACHE_KEY);
+    if (!stored) return;
+    const { models, cachedAt } = JSON.parse(stored);
+    if (!models) return;
+    let count = 0;
+    for (const [key, model] of Object.entries(models)) {
+      if (!MODEL_REGISTRY[key]) {
+        MODEL_REGISTRY[key] = { ...model, isRemote: true };
+        count++;
+      }
+    }
+    if (count > 0) {
+      console.log(`Loaded ${count} cached remote models`);
+    }
+  } catch (error) {
+    console.log("Could not load cached remote models:", error.message);
+  }
+}
+
+/**
+ * Fetch and merge remote models into registry.
+ * Caches result in extensionStorage with TTL.
+ * Skips fetch if cache is fresh.
  */
 export async function loadRemoteModelUpdates() {
   try {
+    // Check if cache is still fresh
+    const stored = extensionStorage.get(REMOTE_MODELS_CACHE_KEY);
+    if (stored) {
+      const { cachedAt } = JSON.parse(stored);
+      if (cachedAt && Date.now() - cachedAt < REMOTE_MODELS_TTL_MS) {
+        return; // Cache is fresh, skip fetch
+      }
+    }
+
     const response = await fetch(REMOTE_MODELS_URL);
     if (!response.ok) {
       console.log("No remote model updates available");
       return;
     }
     const remoteModels = await response.json();
+
+    // Cache the raw response with timestamp
+    extensionStorage.set(
+      REMOTE_MODELS_CACHE_KEY,
+      JSON.stringify({ models: remoteModels.models || {}, cachedAt: Date.now() })
+    );
 
     let count = 0;
     for (const [key, model] of Object.entries(remoteModels.models || {})) {
@@ -1212,6 +1258,7 @@ export async function loadRemoteModelUpdates() {
 
     if (count > 0) {
       console.log(`Loaded ${count} remote model updates`);
+      updateAvailableModels();
     }
   } catch (error) {
     console.log("Could not fetch remote model updates:", error.message);
