@@ -1202,7 +1202,7 @@ export function loadCachedRemoteModels() {
   try {
     const stored = extensionStorage.get(REMOTE_MODELS_CACHE_KEY);
     if (!stored) return;
-    const { models, cachedAt } = JSON.parse(stored);
+    const { models } = JSON.parse(stored);
     if (!models) return;
     let count = 0;
     for (const [key, model] of Object.entries(models)) {

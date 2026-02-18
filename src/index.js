@@ -1455,7 +1455,7 @@ export default {
           registerOpenRouterModels(openRouterModelsInfo);
           updateAvailableModels();
         }
-      });
+      }).catch(() => {});
     }
     if (GROQ_API_KEY) {
       groqLibrary = initializeOpenAIAPI(
