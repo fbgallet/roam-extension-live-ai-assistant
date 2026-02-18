@@ -603,6 +603,7 @@ export function removePageNavigationListeners() {
 export function onPageLoad() {
   setTimeout(() => {
     insertAskLinkedReferencesButton();
+    processQueryTitles();
   }, 50);
 }
 
