@@ -138,10 +138,37 @@ export function openRouterModelPricing(model, inOrOut) {
   return null;
 }
 
+const OPENROUTER_CACHE_KEY = "openrouter-models-cache";
+const OPENROUTER_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+/**
+ * Load OpenRouter model info from extensionStorage cache synchronously.
+ * Returns cached array or empty array if no cache.
+ */
+export function loadCachedOpenRouterModels() {
+  try {
+    const stored = extensionStorage.get(OPENROUTER_CACHE_KEY);
+    if (!stored) return [];
+    const { models } = JSON.parse(stored);
+    return models || [];
+  } catch (error) {
+    console.log("Could not load cached OpenRouter models:", error.message);
+    return [];
+  }
+}
+
 export async function getModelsInfo() {
   try {
+    // Check if cache is still fresh
+    const stored = extensionStorage.get(OPENROUTER_CACHE_KEY);
+    if (stored) {
+      const { cachedAt } = JSON.parse(stored);
+      if (cachedAt && Date.now() - cachedAt < OPENROUTER_TTL_MS) {
+        return loadCachedOpenRouterModels(); // Cache is fresh
+      }
+    }
+
     const { data } = await axios.get("https://openrouter.ai/api/v1/models");
-    // console.log("data", data);
     let result = data.data
       .filter((model) => openRouterModels.includes(model.id))
       .map((model) => {
@@ -156,6 +183,13 @@ export async function getModelsInfo() {
           imagePricing: model.pricing.image * 1000,
         };
       });
+
+    // Cache with timestamp
+    extensionStorage.set(
+      OPENROUTER_CACHE_KEY,
+      JSON.stringify({ models: result, cachedAt: Date.now() })
+    );
+
     return result;
   } catch (error) {
     console.log("Impossible to get OpenRouter models infos:", error);
