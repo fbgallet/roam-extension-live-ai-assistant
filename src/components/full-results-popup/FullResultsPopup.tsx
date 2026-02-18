@@ -12,6 +12,7 @@ import {
 } from "@blueprintjs/core";
 
 import { createChildBlock, filterTopLevelBlocks } from "../../utils/roamAPI.js";
+import { connectQueryObserver, disconnectQueryObserver } from "../../utils/domElts.js";
 import { roamQueryRegex } from "../../utils/regex.js";
 import { FullResultsPopupProps, Result } from "./types/types.js";
 import { FullResultsChat } from "./components/chat/FullResultsChat";
@@ -304,6 +305,14 @@ const FullResultsPopup: React.FC<FullResultsPopupProps> = ({
 
     execute();
   }, [pendingQueryExecution]);
+
+  // Connect query observer while popup is open for dynamic button injection
+  useEffect(() => {
+    connectQueryObserver();
+    return () => {
+      disconnectQueryObserver();
+    };
+  }, []);
 
   // Store the currently active query with full structure (eliminates need for storage lookups)
   // This is the SOURCE OF TRUTH for the current query
