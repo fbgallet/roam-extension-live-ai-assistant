@@ -28,6 +28,7 @@ import { ChatToolsMenu } from "./ChatToolsMenu";
 import { ThinkingToggle } from "../../../ThinkingToggle";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 import { BUILTIN_STYLES } from "../../../../ai/styleConstants";
+import { getDisplayName } from "../../../../ai/modelRegistry";
 import {
   isThinkingModel,
   hasThinkingDefault,
@@ -973,7 +974,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               }
               placement="top"
             >
-              <Button minimal small icon="cog" text={selectedModel} />
+              <Button minimal small icon="cog" text={getDisplayName(selectedModel)} />
             </Popover>
           </div>
         </Tooltip>

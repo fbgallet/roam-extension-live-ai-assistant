@@ -1116,6 +1116,11 @@ export function getProviderPrefix(provider) {
  * Register dynamic models from OpenRouter
  * @param {Array} modelsInfo - Array of model info objects from OpenRouter API
  */
+export function unregisterOpenRouterModel(modelId) {
+  const key = `openRouter/${modelId}`;
+  delete MODEL_REGISTRY[key];
+}
+
 export function registerOpenRouterModels(modelsInfo) {
   for (const model of modelsInfo) {
     const key = `openRouter/${model.id}`;

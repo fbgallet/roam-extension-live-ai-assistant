@@ -177,6 +177,9 @@ export const ModelCard = ({
           )}
           {capabilities.map(renderCapabilityBadge)}
         </h5>
+        {model.id !== model.name && (
+          <span className="model-id-subtitle">{model.id}</span>
+        )}
         <div className="model-metadata">
           {model.contextLength && (
             <Tag minimal icon="database">

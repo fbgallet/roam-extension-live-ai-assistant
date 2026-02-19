@@ -9,22 +9,17 @@ import {
 } from "@blueprintjs/core";
 import {
   anthropicLibrary,
-  customOpenAIOnly,
   deepseekLibrary,
   defaultModel,
   extensionStorage,
   googleLibrary,
+  GROQ_API_KEY,
   grokLibrary,
-  groqModels,
-  ollamaModels,
-  openAiCustomModels,
-  openRouterModels,
-  openRouterModelsInfo,
+  OPENROUTER_API_KEY,
   openRouterOnly,
   openaiLibrary,
   setDefaultModel,
 } from "..";
-import { tokensLimit } from "../ai/modelsInfo";
 import { getWebSearchModels, getImageGenerationModels } from "../ai/modelRegistry";
 import { AppToaster } from "./Toaster";
 import {
@@ -156,11 +151,11 @@ const ModelsMenu = ({
       case "Grok":
         return grokLibrary;
       case "OpenRouter":
-        return { apiKey: openRouterModels.length > 0 };
+        return { apiKey: !!OPENROUTER_API_KEY || (modelConfig.customModels?.openrouter?.length > 0) };
       case "Groq":
-        return { apiKey: groqModels.length > 0 };
+        return { apiKey: !!GROQ_API_KEY || (modelConfig.customModels?.groq?.length > 0) };
       case "Ollama":
-        return { apiKey: ollamaModels.length > 0 };
+        return { apiKey: modelConfig.customModels?.ollama?.length > 0 };
       default:
         return null;
     }
@@ -392,47 +387,6 @@ const ModelsMenu = ({
         ))}
       </>
     );
-  };
-
-  const customOpenAIModelsMenu = (withMenu = true) => {
-    const customModelsMap = () => {
-      return openAiCustomModels.map((model) => (
-        <MenuItem
-          icon={currentDefaultModel === model && "pin"}
-          onClick={(e) => {
-            handleClickOnModel(
-              e,
-              customOpenAIOnly ? "" : "custom/",
-              model.replace("custom/", "")
-            );
-          }}
-          onKeyDown={(e) => {
-            handleKeyDownOnModel(e);
-          }}
-          onContextMenu={(e) => handleContextMenu(e)}
-          tabindex="0"
-          text={model.replace("custom/", "")}
-          labelElement={
-            tokensLimit[model]
-              ? (tokensLimit[model] / 1000).toFixed(0).toString() + "k"
-              : null
-          }
-        />
-      ));
-    };
-
-    return openAiCustomModels && openAiCustomModels.length ? (
-      withMenu ? (
-        <MenuItem tabindex="0" text="Custom models via OpenAI API">
-          {customModelsMap()}
-        </MenuItem>
-      ) : (
-        <>
-          <MenuDivider title="Custom OpenAI compatible models" />
-          {customModelsMap()}
-        </>
-      )
-    ) : null;
   };
 
   if (isImageGeneration) return imageGenerationModelsSubmenu();

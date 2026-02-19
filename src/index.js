@@ -159,6 +159,12 @@ export function setDefaultModel(str = "gpt-5.1") {
 export function updateAvailableModels() {
   availableModels = [];
 
+  // Refresh dynamic model lists from current config so stale exports are updated
+  const currentConfig = getModelConfig();
+  openRouterModels = currentConfig.customModels?.openrouter?.map((m) => m.id) || [];
+  groqModels = currentConfig.customModels?.groq?.map((m) => m.id) || [];
+  ollamaModels = currentConfig.customModels?.ollama?.map((m) => m.id) || [];
+
   // Helper to get prefix for provider
   const getPrefix = (provider) => {
     switch (provider) {
@@ -187,11 +193,11 @@ export function updateAvailableModels() {
       case "Grok":
         return !!GROK_API_KEY;
       case "OpenRouter":
-        return !!OPENROUTER_API_KEY || openRouterModels.length > 0;
+        return !!OPENROUTER_API_KEY || (getModelConfig().customModels?.openrouter?.length > 0);
       case "Groq":
-        return !!GROQ_API_KEY || groqModels.length > 0;
+        return !!GROQ_API_KEY || (getModelConfig().customModels?.groq?.length > 0);
       case "Ollama":
-        return ollamaModels.length > 0;
+        return getModelConfig().customModels?.ollama?.length > 0;
       default:
         return false;
     }
@@ -1262,33 +1268,12 @@ export default {
       }, 2000);
     }
 
-    // Update model lists from new config for backward compatibility (using modelConfig from above)
-    openAiCustomModels =
-      modelConfig.customModels?.openai?.map((m) => m.id) ||
-      getArrayFromList(
-        extensionAPI.settings.get("customModel") || "",
-        ",",
-        customOpenAIOnly ? "" : "custom/",
-      );
-    openRouterModels =
-      modelConfig.customModels?.openrouter?.map((m) => m.id) ||
-      getArrayFromList(extensionAPI.settings.get("openRouterModels") || "");
-    groqModels =
-      modelConfig.customModels?.groq?.map((m) => m.id) ||
-      getArrayFromList(extensionAPI.settings.get("groqModels") || "");
-    ollamaModels =
-      modelConfig.customModels?.ollama?.map((m) => m.id) ||
-      getArrayFromList(extensionAPI.settings.get("ollamaModels") || "");
+    // Update model lists from new config (migration has already run, so modelConfig is authoritative)
+    openAiCustomModels = modelConfig.customModels?.openai?.map((m) => m.id) || [];
+    openRouterModels = modelConfig.customModels?.openrouter?.map((m) => m.id) || [];
+    groqModels = modelConfig.customModels?.groq?.map((m) => m.id) || [];
+    ollamaModels = modelConfig.customModels?.ollama?.map((m) => m.id) || [];
 
-    // Keep old settings for backward compatibility (can be removed in future versions)
-    if (extensionAPI.settings.get("customModel") === null)
-      await extensionAPI.settings.set("customModel", "");
-    if (extensionAPI.settings.get("openRouterModels") === null)
-      await extensionAPI.settings.set("openRouterModels", "");
-    if (extensionAPI.settings.get("groqModels") === null)
-      await extensionAPI.settings.set("groqModels", "");
-    if (extensionAPI.settings.get("ollamaModels") === null)
-      await extensionAPI.settings.set("ollamaModels", "");
     if (extensionAPI.settings.get("ollamaServer") === null)
       await extensionAPI.settings.set("ollamaServer", "");
     ollamaServer = extensionAPI.settings.get("ollamaServer");

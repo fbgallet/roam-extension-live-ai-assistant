@@ -277,23 +277,33 @@ export function getProviderModels(provider) {
   // This ensures models like DeepSeek that have visibleByDefault: false can still be shown
   // when the user explicitly makes them visible in the config
   const registryModels = getModelsByProvider(provider);
-  const baseModelIds = registryModels.map((m) => m.name);
 
   // Get custom models for this provider
   const providerKey = provider.toLowerCase();
   const customModels = modelConfig.customModels?.[providerKey] || [];
 
-  // Convert base model IDs to objects
-  const baseModels = baseModelIds.map(id => ({
-    id,
-    name: id, // Use ID as default name
-    contextLength: tokensLimit[id],
-    pricing: modelsPricing[id]
-  }));
+  // Convert registry models to objects
+  // For native providers, .name is used as canonical ID throughout the app (stored in hiddenModels, etc.)
+  // For dynamic providers (OpenRouter, Groq, Ollama), .id (raw API id) is used as canonical ID
+  // In both cases, the display name (.name from registry) is preserved for UI display
+  const isDynamicProvider = ["OpenRouter", "Groq", "Ollama"].includes(provider);
+  const baseModels = registryModels.map(m => {
+    const canonicalId = isDynamicProvider ? m.id : m.name;
+    return {
+      id: canonicalId,
+      name: m.name || canonicalId,
+      contextLength: tokensLimit[m.name] || tokensLimit[m.id],
+      pricing: modelsPricing[m.name] || modelsPricing[m.id]
+    };
+  });
 
   // Filter out custom models that are already in base models (to prevent duplicates)
-  const baseModelIdsSet = new Set(baseModelIds);
-  const uniqueCustomModels = customModels.filter(m => !baseModelIdsSet.has(m.id));
+  // Check against both the canonical id AND the raw registry .id to catch all naming variants
+  const baseModelIdsSet = new Set(baseModels.map(m => m.id));
+  const baseModelRawIds = new Set(registryModels.map(m => m.id));
+  const uniqueCustomModels = customModels.filter(m =>
+    !baseModelIdsSet.has(m.id) && !baseModelRawIds.has(m.id)
+  );
 
   // Combine base and custom models
   const allModels = [...baseModels, ...uniqueCustomModels];

@@ -48,7 +48,7 @@ import {
   isImageGenModel,
 } from "../../utils/modelConfigHelpers";
 import { getAvailableModels } from "../../ai/modelsInfo";
-import { getModelsByProvider, MODEL_REGISTRY } from "../../ai/modelRegistry";
+import { getModelsByProvider, MODEL_REGISTRY, unregisterOpenRouterModel } from "../../ai/modelRegistry";
 import "./ModelConfigDialog.css";
 
 /**
@@ -151,25 +151,31 @@ export const ModelConfigDialog = ({
     // getModelsByProvider returns all models for the provider (not filtered by visibleByDefault)
     const registryModels = getModelsByProvider(provider);
 
-    // Convert registry models to the format we need
-    const baseModelIds = registryModels.map((m) => m.name);
-
     // Get custom models for this provider from working config
     const providerKey = provider.toLowerCase();
     const customModels = workingConfig?.customModels?.[providerKey] || [];
 
-    // Convert base model IDs to objects
-    const baseModels = baseModelIds.map((id) => ({
-      id,
-      name: id,
-      contextLength: getModelMetadata(id).contextLength,
-      pricing: getModelMetadata(id).pricing,
-    }));
+    // Convert registry models to objects
+    // For native providers, .name is used as canonical ID throughout the app (stored in hiddenModels, etc.)
+    // For dynamic providers (OpenRouter, Groq, Ollama), .id (raw API id) is used as canonical ID
+    // In both cases, the display name (.name from registry) is preserved for UI display
+    const isDynamicProvider = ["OpenRouter", "Groq", "Ollama"].includes(provider);
+    const baseModels = registryModels.map((m) => {
+      const canonicalId = isDynamicProvider ? m.id : m.name;
+      return {
+        id: canonicalId,
+        name: m.name || canonicalId,
+        contextLength: getModelMetadata(canonicalId).contextLength,
+        pricing: getModelMetadata(canonicalId).pricing,
+      };
+    });
 
     // Filter out custom models that are already in base models (to prevent duplicates)
-    const baseModelIdsSet = new Set(baseModelIds);
+    // Check against both the canonical id AND the raw registry .id to catch all naming variants
+    const baseModelIdsSet = new Set(baseModels.map(m => m.id));
+    const baseModelRawIds = new Set(registryModels.map((m) => m.id));
     const uniqueCustomModels = customModels.filter(
-      (m) => !baseModelIdsSet.has(m.id)
+      (m) => !baseModelIdsSet.has(m.id) && !baseModelRawIds.has(m.id)
     );
 
     // Combine base and custom models
@@ -409,6 +415,13 @@ export const ModelConfigDialog = ({
     );
     customModels[provider] = providerModels;
 
+    // For OpenRouter models, also remove from MODEL_REGISTRY so they disappear
+    // from the Visibility tab and menu immediately (they are registered there
+    // when an API key is set via registerOpenRouterModels).
+    if (provider === "openrouter") {
+      unregisterOpenRouterModel(modelId);
+    }
+
     setWorkingConfig({
       ...workingConfig,
       customModels,
@@ -570,6 +583,39 @@ export const ModelConfigDialog = ({
       ...workingConfig,
       providerEndpoints,
     });
+  };
+
+  const handleResetCustomModels = () => {
+    if (
+      window.confirm(
+        "Delete all custom models? This cannot be undone. Provider endpoints and model visibility settings will be preserved."
+      )
+    ) {
+      // Unregister all custom OpenRouter models from the registry
+      (workingConfig.customModels?.openrouter || []).forEach((m) =>
+        unregisterOpenRouterModel(m.id)
+      );
+
+      setWorkingConfig({
+        ...workingConfig,
+        customModels: {
+          openai: [],
+          anthropic: [],
+          google: [],
+          deepseek: [],
+          grok: [],
+          openrouter: [],
+          groq: [],
+          ollama: [],
+        },
+      });
+
+      AppToaster.show({
+        message: "All custom models deleted",
+        intent: "success",
+        timeout: 2000,
+      });
+    }
   };
 
   const handleReset = () => {
@@ -1455,6 +1501,9 @@ export const ModelConfigDialog = ({
                 onAddModel={(model) =>
                   handleAddCustomModel("openrouter", model)
                 }
+                onRemoveModel={(modelId) =>
+                  handleDeleteCustomModel("openrouter", modelId)
+                }
               />
             </div>
           </Collapse>
@@ -1762,6 +1811,11 @@ export const ModelConfigDialog = ({
           {activeTab === "visibility" && (
             <Button onClick={handleReset} icon="reset">
               Reset to Defaults
+            </Button>
+          )}
+          {activeTab === "custom" && (
+            <Button onClick={handleResetCustomModels} icon="trash" intent="danger">
+              Delete All Custom Models
             </Button>
           )}
           <Button onClick={handleClose} intent="primary">

@@ -412,7 +412,10 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
     const finalThinkingEnabled = modelThinkingDefault || thinkingEnabled;
 
     // Update the ID if the model has thinking ID suffix (e.g., Grok)
-    llm.id = getApiModelId(model, finalThinkingEnabled);
+    // Use llm.id (already stripped of provider prefix) so unregistered dynamic
+    // models (e.g. custom OpenRouter models not in MODEL_REGISTRY) fall back
+    // to their raw API id rather than the full prefixed identifier.
+    llm.id = getApiModelId(llm.id, finalThinkingEnabled);
 
     // Set the thinking flag in the llm object
     llm.thinking = finalThinkingEnabled;

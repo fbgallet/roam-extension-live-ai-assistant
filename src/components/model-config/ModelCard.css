@@ -55,6 +55,17 @@
   color: #1c2127;
 }
 
+.model-card .model-id-subtitle {
+  display: block;
+  font-size: 10px;
+  color: #8a9ba8;
+  margin-top: -1px;
+  margin-bottom: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .model-card .model-metadata {
   display: flex;
   gap: 4px;
