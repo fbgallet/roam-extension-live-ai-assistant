@@ -421,9 +421,9 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Google Models ====================
-  "gemini-3-pro-preview": {
-    id: "gemini-3-pro-preview",
-    name: "Gemini 3 Pro",
+  "gemini-3.1-pro-preview": {
+    id: "gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro",
     provider: "Google",
     contextLength: 1048576,
     maxOutput: 65536,
@@ -438,7 +438,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
-    aliases: ["gemini-3-pro"],
+    aliases: ["gemini-3.1-pro"],
   },
 
   "gemini-3-flash-preview": {

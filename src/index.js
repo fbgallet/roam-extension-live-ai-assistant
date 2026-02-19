@@ -161,7 +161,8 @@ export function updateAvailableModels() {
 
   // Refresh dynamic model lists from current config so stale exports are updated
   const currentConfig = getModelConfig();
-  openRouterModels = currentConfig.customModels?.openrouter?.map((m) => m.id) || [];
+  openRouterModels =
+    currentConfig.customModels?.openrouter?.map((m) => m.id) || [];
   groqModels = currentConfig.customModels?.groq?.map((m) => m.id) || [];
   ollamaModels = currentConfig.customModels?.ollama?.map((m) => m.id) || [];
 
@@ -193,9 +194,14 @@ export function updateAvailableModels() {
       case "Grok":
         return !!GROK_API_KEY;
       case "OpenRouter":
-        return !!OPENROUTER_API_KEY || (getModelConfig().customModels?.openrouter?.length > 0);
+        return (
+          !!OPENROUTER_API_KEY ||
+          getModelConfig().customModels?.openrouter?.length > 0
+        );
       case "Groq":
-        return !!GROQ_API_KEY || (getModelConfig().customModels?.groq?.length > 0);
+        return (
+          !!GROQ_API_KEY || getModelConfig().customModels?.groq?.length > 0
+        );
       case "Ollama":
         return getModelConfig().customModels?.ollama?.length > 0;
       default:
@@ -1215,6 +1221,10 @@ export default {
     voiceInstructions = extensionAPI.settings.get("voiceInstructions");
     if (extensionAPI.settings.get("defaultModel") === null)
       await extensionAPI.settings.set("defaultModel", "gpt-5.1");
+    else if (
+      extensionAPI.settings.get("defaultModel") === "gemini-3-pro-preview"
+    )
+      await extensionAPI.settings.set("defaultModel", "gemini-3.1-pro-preview");
     defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("reasoningEffort") === null)
       await extensionAPI.settings.set("reasoningEffort", "low");
@@ -1269,8 +1279,10 @@ export default {
     }
 
     // Update model lists from new config (migration has already run, so modelConfig is authoritative)
-    openAiCustomModels = modelConfig.customModels?.openai?.map((m) => m.id) || [];
-    openRouterModels = modelConfig.customModels?.openrouter?.map((m) => m.id) || [];
+    openAiCustomModels =
+      modelConfig.customModels?.openai?.map((m) => m.id) || [];
+    openRouterModels =
+      modelConfig.customModels?.openrouter?.map((m) => m.id) || [];
     groqModels = modelConfig.customModels?.groq?.map((m) => m.id) || [];
     ollamaModels = modelConfig.customModels?.ollama?.map((m) => m.id) || [];
 

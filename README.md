@@ -18,7 +18,10 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### v.28: Fixes for custom models duplication and ability to remove OpenRouter models
+### v.28:
+
+- Fixes for custom models duplication and ability to remove OpenRouter models
+- Gemini 3.1 Pro support
 
 ### 🆕 New in v.27 (February 2026)
 

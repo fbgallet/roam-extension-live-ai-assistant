@@ -180,6 +180,11 @@ export function modelViaLanggraph(
         (reasoningEffort === "minimal" || reasoningEffort === "medium")
       )
         options["thinkingLevel"] = "low";
+      else if (
+        llmInfos.id === "gemini-3.1-pro-preview" &&
+        reasoningEffort === "minimal"
+      )
+        options["thinkingLevel"] = "low";
       options["includeThoughts"] = true;
     }
     llm = new ChatGoogleGenerativeAI({

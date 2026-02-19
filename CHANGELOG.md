@@ -2,6 +2,7 @@
 
 - Fixes for custom models duplication
 - Button to remove OpenRouter models and display only added models
+- Gemini 3.1 Pro support
 
 ## v.27 (February 18th, 2026) Chat with queries, edition agentic features...
 
