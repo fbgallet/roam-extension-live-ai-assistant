@@ -3,9 +3,9 @@
 **New features**
 
 - New button to instantly Chat with native query results (similar to Chat with linked references).
-- New dialog for Models & models menus customization
+- New dialog for Models & models menus customization (select models to display in the menu, favorites, add custom models...)
 - New tools for Chat agent (in chat panel):
-  - Edition: create Page or blocks, update or detele blocks (with human validation)
+  - Edition: create Page or blocks, update or delete blocks (with human validation)
   - Interaction: Ask user choice (for poll, QCM...) and Random pick (from context or any list)
 - New context options in Context menu: 'Siblings', 'Path' (ancestors) and 'Queries' (Roam querie and :q queries)
 - Commands to generate PDF/DOCX/PPTX documents via Claude Skills (Anthropic API Key requested)
@@ -15,7 +15,8 @@
 
 **Updates**
 
-- New models available: GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
+- New models available: GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeepSeek models are back.
+- New Outline Roam feature supported (inline and in chat panel)
 - Skills resources support relative dates
 - Natural language query and :q interpreter now supported in Chat panel (and instantly loading results in context)
 - No truncation (infinite) mode, in Full Access mode
