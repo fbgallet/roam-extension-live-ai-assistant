@@ -40,7 +40,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 #### **Recommendations**
 - **For Speed**: Disable tools (~3000 tokens saved per message), use Balanced mode, combine questions
-- **For Quality**: use Full Access mode and powerful models (Claude Opus 4.6, GPT-5.2, Gemini 3 Pro...)
+- **For Quality**: use Full Access mode and powerful models (Claude Opus 4.6, GPT-5.2, Gemini 3.1 Pro...)
 - **For Cost**: Disable tools, use Balanced mode, cheaper models, batch questions, start new chats when switching topics
 - **Inline vs Chat**: Use inline for Roam structure, Mermaid, PDFs; use chat for conversation, search analysis
 
@@ -100,7 +100,7 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.27 🎉
 - **Improved Structure**: Description supports children blocks, singular/plural tags, page embeds, bold flags
 
 #### **Models & UI**
-- Models menu & customization entirely revamped with many new models (GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine)
+- Models menu & customization entirely revamped with many new models (GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3.1 Pro & Gemini 3 Flash, GPT Image 1.5, Grok Imagine)
 - New button and dropdown to handle thinking effort of reasoning models
 - Chat with native query results button
 
