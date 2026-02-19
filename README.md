@@ -18,11 +18,13 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### v.28: Fixes for custom models duplication and ability to remove OpenRouter models
+
 ### 🆕 New in v.27 (February 2026)
 
 - New button to instantly Chat with native query results (similar to Chat with linked references).
 - Models menu & customization entirely revamped
-- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
+- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeepSeek models are back.
 - New button and dropdown to handle thinking effort of reasoning models.
 - New tools for Chat agent (in chat panel):
   - Edition: create Page or blocks, update or detele blocks (with human validation)
@@ -65,7 +67,7 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 ### Your first prompts using the Chat panel
 
-🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! Just write your request and press Enter!
+🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! Just write your request and press Enter! Or focus on a given block containing your prompt and click on Chat icon.
 
 See the demo .gif [in the introduction section](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai). N.B.: in this demo the Live AI buttons are in the top bar instead of left sidebar (you can switch in the extension settings)
 
@@ -76,6 +78,8 @@ Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roa
 > You can even be guided by the Chat Agent to discover all the new features! Verify that 'Get help' tool is enabled, and just ask questions. The agent will rely on this help file and other Live AI detailed help file support you in learning how to use this extension!
 
 <img width="595" height="706" alt="image" src="https://github.com/user-attachments/assets/e8bb7b43-ed80-4017-9b1c-bbea53af5504" />
+
+You can easily add blocks to the context by a simple drag & drop of any block or selection of blocks to the Chat panel. If context handling tools are enabled, you can simply ask in natural language to add to the context some [[page]], current page or date interval of daily notes. You can easily switch to the Context panel (mouse over the left border) to filter, sort or add any blocks or page to the context manually or with natural language queries.
 
 ### Your first prompts using buttons
 

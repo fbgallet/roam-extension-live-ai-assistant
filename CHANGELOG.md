@@ -1,4 +1,9 @@
-## v.27 (February 2026) Chat with queries, edition agentic features...
+### v.28 (February 19th, 2026) Small fixes
+
+- Fixes for custom models duplication
+- Button to remove OpenRouter models and display only added models
+
+## v.27 (February 18th, 2026) Chat with queries, edition agentic features...
 
 **New features**
 
