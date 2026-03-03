@@ -190,7 +190,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {chatMessages.length > 0 && (
             <Tooltip content="Reset chat conversation">
               <Button
-                icon="trash"
+                icon="refresh"
                 onClick={() => {
                   // If only help messages, clear directly without confirmation
                   if (!hasRealMessages(chatMessages)) {

@@ -158,8 +158,9 @@ export const renderMarkdown = (text: string): string => {
     (_match, language, code) => {
       const index = codeBlocks.length;
       const langClass = language ? ` class="language-${language}"` : "";
+      const escapedCode = escapeHtml(code.trim());
       codeBlocks.push(
-        `<pre><code${langClass}>${escapeHtml(code.trim())}</code></pre>`
+        `<div class="chat-code-block-wrapper"><pre><code${langClass}>${escapedCode}</code></pre><button type="button" class="chat-code-copy-button" aria-label="Copy code block" title="Copy code">Copy</button></div>`
       );
       return `${codeBlockPlaceholder}${index}`;
     }
@@ -454,7 +455,7 @@ export const renderMarkdown = (text: string): string => {
   });
 
   // Wrap in paragraphs (but not if it starts with a header, list, blockquote, hr, or table)
-  if (!rendered.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr|table)/)) {
+  if (!rendered.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr|table|div)/)) {
     rendered = "<p>" + rendered + "</p>";
   }
   rendered = rendered.replace(/<p><\/p>/g, "");
@@ -473,6 +474,9 @@ export const renderMarkdown = (text: string): string => {
       "style",
       "src",
       "alt",
+      "type",
+      "aria-label",
+      "title",
     ],
     ADD_TAGS: [
       "code",
@@ -490,6 +494,7 @@ export const renderMarkdown = (text: string): string => {
       "h5",
       "h6",
       "img",
+      "button",
     ],
     ALLOWED_URI_REGEXP:
       /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|www):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,

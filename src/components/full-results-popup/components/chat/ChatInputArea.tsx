@@ -7,6 +7,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Button,
+  Icon,
   Popover,
   Tag,
   Tooltip,
@@ -136,6 +137,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const [textLengthAtSlashTrigger, setTextLengthAtSlashTrigger] = useState(0); // Track text length when / was typed
   const [isPageAutocompleteOpen, setIsPageAutocompleteOpen] = useState(false);
   const [pageAutocompleteQuery, setPageAutocompleteQuery] = useState("");
+  const [pageAutocompleteTrigger, setPageAutocompleteTrigger] = useState<
+    "double-bracket" | "hash" | null
+  >(null);
+  const [pageAutocompleteStartIndex, setPageAutocompleteStartIndex] =
+    useState(-1);
   const [isRecording, setIsRecording] = useState(false);
   const [isVoiceRecorderAvailable, setIsVoiceRecorderAvailable] =
     useState(false);
@@ -303,33 +309,50 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   };
 
   const handlePageSelect = (pageTitle: string) => {
-    // Find the [[ position and replace the incomplete link with completed one
-    const lastDoubleBracketIndex = chatInput.lastIndexOf("[[");
-    if (lastDoubleBracketIndex !== -1) {
-      const beforeBrackets = chatInput.substring(0, lastDoubleBracketIndex);
-      const newValue = `${beforeBrackets}[[${pageTitle}]]`;
-      onChatInputChange(newValue);
+    if (pageAutocompleteStartIndex === -1 || !pageAutocompleteTrigger) return;
 
-      // Close autocomplete
-      setIsPageAutocompleteOpen(false);
-      setPageAutocompleteQuery("");
+    const triggerLength = pageAutocompleteTrigger === "double-bracket" ? 2 : 1;
+    const replacement =
+      pageAutocompleteTrigger === "double-bracket"
+        ? `[[${pageTitle}]]`
+        : `#[[${pageTitle}]]`;
 
-      // Maintain focus on textarea
-      setTimeout(() => {
-        if (chatInputRef.current) {
-          chatInputRef.current.focus();
-          // Move cursor to end
-          chatInputRef.current.selectionStart = newValue.length;
-          chatInputRef.current.selectionEnd = newValue.length;
-        }
-      }, 0);
-    }
+    const replaceStart = pageAutocompleteStartIndex;
+    const replaceEnd =
+      pageAutocompleteStartIndex + triggerLength + pageAutocompleteQuery.length;
+    const newValue =
+      chatInput.substring(0, replaceStart) +
+      replacement +
+      chatInput.substring(replaceEnd);
+
+    onChatInputChange(newValue);
+
+    // Close autocomplete
+    setIsPageAutocompleteOpen(false);
+    setPageAutocompleteQuery("");
+    setPageAutocompleteTrigger(null);
+    setPageAutocompleteStartIndex(-1);
+
+    // Maintain focus on textarea
+    setTimeout(() => {
+      if (chatInputRef.current) {
+        chatInputRef.current.focus();
+        // Move cursor to end of inserted page reference
+        const cursorPosition = replaceStart + replacement.length;
+        chatInputRef.current.selectionStart = cursorPosition;
+        chatInputRef.current.selectionEnd = cursorPosition;
+      }
+    }, 0);
   };
 
   // Detect slash command trigger
-  const handleInputChange = (value: string) => {
+  const handleInputChange = (value: string, cursorPosition?: number) => {
     // Update parent state first
     onChatInputChange(value);
+    const textBeforeCursor = value.substring(
+      0,
+      cursorPosition ?? value.length,
+    );
 
     // If already in slash mode, track changes relative to the slash start position
     if (slashCommandMode && slashStartIndex !== -1) {
@@ -430,36 +453,85 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       }
     }
 
-    // Detect [[ for page autocomplete
-    const lastDoubleBracketIndex = value.lastIndexOf("[[");
+    // Detect page autocomplete triggers ([[ and #)
+    const pageAutocompleteCandidates: Array<{
+      trigger: "double-bracket" | "hash";
+      startIndex: number;
+      query: string;
+    }> = [];
+
+    // Trigger 1: [[page
+    const lastDoubleBracketIndex = textBeforeCursor.lastIndexOf("[[");
     const hasDoubleBracket = lastDoubleBracketIndex !== -1;
 
     if (hasDoubleBracket) {
       // Extract the part after the last "[["
-      const afterBrackets = value.substring(lastDoubleBracketIndex + 2);
+      const afterBrackets = textBeforeCursor.substring(lastDoubleBracketIndex + 2);
       const hasClosingBracket = afterBrackets.includes("]]");
       const hasSpace = afterBrackets.startsWith(" ");
 
       // Only open if there's at least one character and no space immediately after [[
       if (!hasClosingBracket && !hasSpace && afterBrackets.length > 0) {
-        if (!isPageAutocompleteOpen) {
-          setIsPageAutocompleteOpen(true);
-        }
-        // Update query and fetch pages
-        setPageAutocompleteQuery(afterBrackets);
-        onQueryPages(afterBrackets);
-      } else if (
-        isPageAutocompleteOpen &&
-        (hasClosingBracket || hasSpace || afterBrackets.length === 0)
-      ) {
-        // Close if user completed the link or added space or removed all text
-        setIsPageAutocompleteOpen(false);
-        setPageAutocompleteQuery("");
+        pageAutocompleteCandidates.push({
+          trigger: "double-bracket",
+          startIndex: lastDoubleBracketIndex,
+          query: afterBrackets,
+        });
       }
-    } else if (isPageAutocompleteOpen && !hasDoubleBracket) {
-      // Close if [[ was removed
+    }
+
+    // Trigger 2: #page
+    const lastHashIndex = textBeforeCursor.lastIndexOf("#");
+    const hasHash = lastHashIndex !== -1;
+
+    if (hasHash) {
+      const beforeHash = textBeforeCursor.substring(0, lastHashIndex);
+      const afterHash = textBeforeCursor.substring(lastHashIndex + 1);
+      const charBeforeHash =
+        lastHashIndex > 0 ? beforeHash.charAt(beforeHash.length - 1) : "";
+      const isPartOfWord = /[a-zA-Z0-9_]/.test(charBeforeHash);
+      const hasSpaceImmediatelyAfterHash = afterHash.startsWith(" ");
+      const hasBracketAfterHash = afterHash.startsWith("[[");
+      const isSingleHashToken = /^[^\s\[\]]+$/.test(afterHash);
+
+      if (
+        !isPartOfWord &&
+        !hasSpaceImmediatelyAfterHash &&
+        !hasBracketAfterHash &&
+        isSingleHashToken
+      ) {
+        pageAutocompleteCandidates.push({
+          trigger: "hash",
+          startIndex: lastHashIndex,
+          query: afterHash,
+        });
+      }
+    }
+
+    const activePageAutocomplete = pageAutocompleteCandidates.reduce<{
+      trigger: "double-bracket" | "hash";
+      startIndex: number;
+      query: string;
+    } | null>((latest, candidate) => {
+      if (!latest || candidate.startIndex > latest.startIndex) {
+        return candidate;
+      }
+      return latest;
+    }, null);
+
+    if (activePageAutocomplete) {
+      if (!isPageAutocompleteOpen) {
+        setIsPageAutocompleteOpen(true);
+      }
+      setPageAutocompleteQuery(activePageAutocomplete.query);
+      setPageAutocompleteTrigger(activePageAutocomplete.trigger);
+      setPageAutocompleteStartIndex(activePageAutocomplete.startIndex);
+      onQueryPages(activePageAutocomplete.query);
+    } else if (isPageAutocompleteOpen) {
       setIsPageAutocompleteOpen(false);
       setPageAutocompleteQuery("");
+      setPageAutocompleteTrigger(null);
+      setPageAutocompleteStartIndex(-1);
     }
   };
 
@@ -693,7 +765,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               content={
                 <Menu>
                   <MenuItem
-                    text="🛡️ Balanced"
+                    text={
+                      <span className="full-results-chat-access-menu-item">
+                        <Icon icon="shield" size={12} />
+                        Balanced
+                      </span>
+                    }
                     active={chatAccessMode === "Balanced"}
                     onClick={() => {
                       onAccessModeChange("Balanced");
@@ -701,7 +778,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     }}
                   />
                   <MenuItem
-                    text="🔓 Full Access"
+                    text={
+                      <span className="full-results-chat-access-menu-item">
+                        <Icon icon="unlock" size={12} />
+                        Full Access
+                      </span>
+                    }
                     active={chatAccessMode === "Full Access"}
                     onClick={() => {
                       onAccessModeChange("Full Access");
@@ -763,12 +845,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               <Button
                 minimal
                 small
+                className="full-results-chat-toolbar-button"
+                icon={chatAccessMode === "Balanced" ? "shield" : "unlock"}
                 text={
-                  chatAccessMode === "Balanced"
-                    ? "🛡️"
-                    : noTruncation
-                      ? "🔓∞"
-                      : "🔓"
+                  chatAccessMode === "Full Access" && noTruncation
+                    ? "∞"
+                    : undefined
                 }
               />
             </Popover>
@@ -836,6 +918,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               <Button
                 minimal
                 small
+                className="full-results-chat-toolbar-button"
                 icon="style"
                 intent={isPinnedStyle ? "primary" : "none"}
               />
@@ -939,6 +1022,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               <Button
                 minimal
                 small
+                className="full-results-chat-toolbar-button"
                 icon="rocket"
                 onClick={() => {
                   if (!slashCommandMode) {
@@ -973,7 +1057,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               }
               placement="top"
             >
-              <Button minimal small icon="cog" text={selectedModel} />
+              <Button
+                minimal
+                small
+                className="full-results-chat-toolbar-button"
+                icon="cog"
+                text={selectedModel}
+              />
             </Popover>
           </div>
         </Tooltip>
@@ -1025,7 +1115,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             <Button
               minimal
               small
-              className="full-results-chat-mic-button"
+              className="full-results-chat-mic-button full-results-chat-toolbar-button"
               onClick={isRecording ? handleTranscribeClick : handleMicClick}
               disabled={isTyping}
             >
@@ -1045,6 +1135,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             if (!nextOpenState) {
               setIsPageAutocompleteOpen(false);
               setPageAutocompleteQuery("");
+              setPageAutocompleteTrigger(null);
+              setPageAutocompleteStartIndex(-1);
             }
           }}
           content={
@@ -1064,10 +1156,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         >
           <textarea
             ref={chatInputRef}
-            placeholder="Write your prompt... (type / for commands, [[ for pages)"
+            placeholder="Write your prompt... (type / for commands, [[ or # for pages)"
             value={chatInput}
             onChange={(e) => {
-              handleInputChange(e.target.value);
+              handleInputChange(
+                e.target.value,
+                e.target.selectionStart ?? e.target.value.length,
+              );
               // Auto-resize textarea
               e.target.style.height = "auto";
               e.target.style.height = e.target.scrollHeight + "px";

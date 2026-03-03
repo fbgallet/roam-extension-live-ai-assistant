@@ -1,7 +1,7 @@
 /**
  * Chat Page Autocomplete Component
  *
- * Displays a filtered list of page titles for autocompletion when user types [[
+ * Displays a filtered list of page titles for autocompletion when user types [[ or #
  */
 
 import React from "react";

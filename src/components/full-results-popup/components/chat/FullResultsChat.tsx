@@ -956,6 +956,49 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     const handleBlockRefClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
+      // Handle code block copy button
+      const codeCopyButton = target.closest(
+        ".chat-code-copy-button",
+      ) as HTMLButtonElement | null;
+      if (codeCopyButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const codeBlockWrapper = codeCopyButton.closest(
+          ".chat-code-block-wrapper",
+        );
+        const codeElement = codeBlockWrapper?.querySelector("code");
+        const codeText = codeElement?.textContent ?? "";
+
+        if (!codeText) {
+          AppToaster.show({
+            message: "No code found to copy.",
+            intent: "warning",
+            timeout: 1500,
+          });
+          return;
+        }
+
+        navigator.clipboard
+          .writeText(codeText)
+          .then(() => {
+            AppToaster.show({
+              message: "Copied to clipboard!",
+              intent: "success",
+              timeout: 1500,
+            });
+          })
+          .catch((error) => {
+            console.error("Failed to copy code block:", error);
+            AppToaster.show({
+              message: "Failed to copy code block.",
+              intent: "danger",
+              timeout: 2000,
+            });
+          });
+        return;
+      }
+
       // Only handle Roam-specific links, let external links work normally
       if (target.classList.contains("roam-block-ref-chat")) {
         event.preventDefault();

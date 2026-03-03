@@ -570,7 +570,13 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
         placement="top"
         minimal
       >
-        <Button minimal small icon={iconName} intent={iconIntent} />
+        <Button
+          minimal
+          small
+          className="full-results-chat-toolbar-button"
+          icon={iconName}
+          intent={iconIntent}
+        />
       </Popover>
     </Tooltip>
   );
