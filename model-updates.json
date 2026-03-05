@@ -8,6 +8,7 @@
       "maxOutput": 16000,
       "pricing": { "input": 1.75, "output": 14 },
       "capabilities": {
+        "thinking": false,
         "imageInput": true,
         "webSearch": true
       },
