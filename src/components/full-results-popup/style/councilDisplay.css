@@ -55,6 +55,21 @@
   text-align: center;
 }
 
+.council-criteria-scores {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: 2px;
+}
+
+.council-criterion-tag.bp3-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  min-height: unset;
+  line-height: 16px;
+}
+
 .council-eval-target {
   font-size: 11px;
   color: #5c7080;

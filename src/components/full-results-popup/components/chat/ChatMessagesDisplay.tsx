@@ -39,15 +39,16 @@ const containsRoamQuery = (content: string): boolean => {
 
 // Helper function to detect if content contains Roam callouts
 const containsCallout = (content: string): boolean => {
-  return /\[\[>\]\]\s+\[\[!(?:NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE)\]\]/i.test(
-    content
+  return /\[?\[?>\]?\]?\s+\[\[!(?:NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE)\]\]/i.test(
+    content,
   );
 };
 
 // Render all data-roam-callout spans inside a container using Roam's renderString
 const renderCalloutSpans = (container: HTMLElement): void => {
-  const calloutSpans =
-    container.querySelectorAll<HTMLElement>("[data-roam-callout]");
+  const calloutSpans = container.querySelectorAll<HTMLElement>(
+    "[data-roam-callout]",
+  );
   calloutSpans.forEach((span) => {
     const rawCallout = span.getAttribute("data-roam-callout");
     if (!rawCallout) return;
@@ -991,10 +992,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               !message.councilStep.isIntermediate;
             const showFooter = isSynthesis || isFinalGeneration;
             return (
-              <div
-                key={index}
-                className="full-results-chat-message assistant"
-              >
+              <div key={index} className="full-results-chat-message assistant">
                 <div className="full-results-chat-avatar">🏛️</div>
                 <div className="full-results-chat-content">
                   <CouncilStepDisplay

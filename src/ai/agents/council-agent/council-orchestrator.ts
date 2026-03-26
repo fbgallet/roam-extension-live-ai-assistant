@@ -6,6 +6,7 @@
  * - Parallel Competition: parallel generation → blind cross-evaluation → synthesis
  */
 
+import { z } from "zod";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import {
   modelViaLanggraph,
@@ -37,6 +38,8 @@ import {
   buildSynthesisSystemPrompt,
   buildSynthesisUserPrompt,
   parseEvaluationFromText,
+  criterionNameToKey,
+  DEFAULT_CRITERIA_NAMES,
 } from "./council-prompts";
 import { ChatMessage } from "../../../components/full-results-popup/types/types";
 
@@ -180,7 +183,16 @@ function ensureString(value: unknown): string {
  * Sanitizes all string fields of an evaluation output to ensure no [object Object] rendering.
  */
 function sanitizeEvaluation(evaluation: EvaluationOutput): EvaluationOutput {
+  // Sanitize criteriaScores: keep only numeric values in 0-10 range
+  let criteriaScores: Record<string, number> | undefined;
+  if (evaluation.criteriaScores && typeof evaluation.criteriaScores === "object") {
+    criteriaScores = {};
+    for (const [key, val] of Object.entries(evaluation.criteriaScores)) {
+      criteriaScores[key] = typeof val === "number" ? Math.min(10, Math.max(0, val)) : 5;
+    }
+  }
   return {
+    criteriaScores: criteriaScores || {},
     score: typeof evaluation.score === "number" ? evaluation.score : 5,
     strengths: ensureString(evaluation.strengths),
     weaknesses: ensureString(evaluation.weaknesses),
@@ -190,11 +202,65 @@ function sanitizeEvaluation(evaluation: EvaluationOutput): EvaluationOutput {
   };
 }
 
+/**
+ * Uses an LLM to extract evaluation criterion names from the user's custom instructions.
+ * Returns DEFAULT_CRITERIA_NAMES if no custom text or if extraction fails.
+ */
+async function extractCriteriaWithLLM(
+  modelId: string,
+  customInstructions: string,
+): Promise<string[]> {
+  if (!customInstructions?.trim()) return DEFAULT_CRITERIA_NAMES;
+
+  const tokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 };
+  const instance = instantiateModel(modelId, tokensUsage);
+  if (!instance) return DEFAULT_CRITERIA_NAMES;
+
+  const { llm, llmInfos } = instance;
+
+  const schema = z.object({
+    criteria: z
+      .array(z.string().describe("Short criterion name (2-5 words max)"))
+      .describe(
+        "List of distinct evaluation criteria extracted from the text. Return ONLY the criteria found in the user's instructions — do NOT add default criteria. If the text contains no identifiable criteria, return an empty array.",
+      ),
+  });
+
+  try {
+    const structuredLlm = llm.withStructuredOutput(
+      schema,
+      getLlmSuitableOptions(llmInfos, "criteria_extraction", 0),
+    );
+    const result = await structuredLlm.invoke([
+      new SystemMessage(
+        `You are a concise assistant. Extract evaluation criteria names from the user's instructions below. Return short names (2-5 words each). Return ONLY the criteria explicitly mentioned or implied by the user — do NOT add any default criteria. If the text contains no identifiable criteria, return an empty array.`,
+      ),
+      new HumanMessage(customInstructions),
+    ]);
+    const parsed = result?.parsed || result;
+    if (parsed?.criteria?.length > 0) {
+      // Deduplicate and limit to reasonable count
+      const unique = [...new Set<string>(parsed.criteria.map((c: string) => c.trim()))].filter(
+        (c) => c.length > 0 && c.length < 80,
+      );
+      if (unique.length > 0) {
+        updateTokenCounter(llmInfos.id, tokensUsage);
+        return unique.slice(0, 12); // cap at 12 criteria
+      }
+    }
+  } catch (err) {
+    console.warn("Council: criteria extraction failed, using defaults", err);
+  }
+
+  return DEFAULT_CRITERIA_NAMES;
+}
+
 async function evaluateResponse(
   modelId: string,
   systemPrompt: string,
   userPrompt: string,
   wordLimit: number = 400,
+  criteriaNames?: string[],
 ): Promise<{
   evaluation: EvaluationOutput;
   tokensIn: number;
@@ -213,7 +279,7 @@ async function evaluateResponse(
   let evaluation: EvaluationOutput;
   const metadataUsage = { input_tokens: 0, output_tokens: 0 };
   try {
-    const schema = buildEvaluationSchema(wordLimit);
+    const schema = buildEvaluationSchema(wordLimit, criteriaNames);
     const structuredLlm = llm.withStructuredOutput(
       schema,
       getLlmSuitableOptions(llmInfos, "council_evaluation", 0.3),
@@ -296,6 +362,25 @@ function createIntermediateMessage(
   };
 }
 
+/**
+ * Formats per-criterion scores as a markdown line for display in evaluation content.
+ * e.g. "**Accuracy:** 7/10 · **Relevance:** 8/10\n\n"
+ */
+function formatCriteriaScores(
+  criteriaScores: Record<string, number> | undefined,
+  criteriaNames: string[],
+): string {
+  if (!criteriaScores || Object.keys(criteriaScores).length === 0) return "";
+  const parts: string[] = [];
+  for (const name of criteriaNames) {
+    const key = criterionNameToKey(name);
+    if (key in criteriaScores) {
+      parts.push(`**${name}:** ${criteriaScores[key]}/10`);
+    }
+  }
+  return parts.length > 0 ? parts.join(" · ") + "\n\n" : "";
+}
+
 // ==================== HELPER: Stagger parallel calls to same provider ====================
 
 async function staggeredParallel<T>(
@@ -358,6 +443,10 @@ export async function runIterativeCouncil(
 
   const generatorModel = config.generatorModel;
   const evaluatorModels = config.evaluatorModels;
+  const criteriaNames = await extractCriteriaWithLLM(
+    evaluatorModels[0] || generatorModel,
+    config.evaluationCriteria,
+  );
   const evaluationSystemPrompt = buildEvaluationSystemPrompt(
     config.evaluationCriteria,
     config.evaluationWordLimit || 400,
@@ -366,10 +455,13 @@ export async function runIterativeCouncil(
   let currentResponse = "";
   let lastEvaluations: CouncilEvaluation[] = [];
 
-  for (let iteration = 1; iteration <= config.maxIterations; iteration++) {
+  // totalLoopIterations = 1 (initial generation) + maxReEvaluations (evaluate+regenerate cycles)
+  const totalLoopIterations = 1 + config.maxReEvaluations;
+
+  for (let iteration = 1; iteration <= totalLoopIterations; iteration++) {
     if (abortSignal?.aborted) break;
 
-    const isLastIteration = iteration === config.maxIterations;
+    const isLastIteration = iteration === totalLoopIterations;
 
     // --- GENERATION ---
     let systemPrompt: string;
@@ -401,12 +493,12 @@ export async function runIterativeCouncil(
       createIntermediateMessage(
         iteration === 1
           ? `Generating initial response with **${getDisplayName(generatorModel)}**...`
-          : `Re-generating response (iteration ${iteration}/${config.maxIterations}) with **${getDisplayName(generatorModel)}**...`,
+          : `Re-generating response (re-evaluation ${iteration - 1}/${config.maxReEvaluations}) with **${getDisplayName(generatorModel)}**...`,
         {
           type: "status",
           councilMode: "iterative",
           iteration,
-          totalIterations: config.maxIterations,
+          totalIterations: totalLoopIterations,
           isIntermediate: true,
         },
       ),
@@ -449,7 +541,7 @@ export async function runIterativeCouncil(
           type: "generation",
           councilMode: "iterative",
           iteration,
-          totalIterations: config.maxIterations,
+          totalIterations: totalLoopIterations,
           model: generatorModel,
           modelDisplayName: getDisplayName(generatorModel),
           isIntermediate: !isLastIteration,
@@ -486,7 +578,7 @@ export async function runIterativeCouncil(
       evaluatorModels.map((modelId) => ({
         modelId,
         fn: () =>
-          evaluateResponse(modelId, evaluationSystemPrompt, evalUserPrompt, config.evaluationWordLimit || 400),
+          evaluateResponse(modelId, evaluationSystemPrompt, evalUserPrompt, config.evaluationWordLimit || 400, criteriaNames),
       })),
     );
 
@@ -513,6 +605,8 @@ export async function runIterativeCouncil(
         evaluatorModel: evaluatorModels[i],
         evaluatorModelDisplayName: getDisplayName(evaluatorModels[i]),
         score: result.evaluation.score,
+        criteriaScores: result.evaluation.criteriaScores,
+        criteriaNames,
         strengths: result.evaluation.strengths,
         weaknesses: result.evaluation.weaknesses,
         unexaminedAssumptions: result.evaluation.unexaminedAssumptions,
@@ -525,8 +619,9 @@ export async function runIterativeCouncil(
       totalTokensIn += result.tokensIn;
       totalTokensOut += result.tokensOut;
 
-      // Post evaluation
-      const evalContent = `**Score: ${evaluation.score}/10**\n\n**Strengths:** ${evaluation.strengths}\n\n**Weaknesses:** ${evaluation.weaknesses}\n\n**Unexamined assumptions:** ${evaluation.unexaminedAssumptions}\n\n**Suggestions:** ${evaluation.suggestions}\n\n**Overall:** ${evaluation.overallFeedback}`;
+      // Post evaluation — include per-criterion scores
+      const criteriaScoresLine = formatCriteriaScores(evaluation.criteriaScores, criteriaNames);
+      const evalContent = `${criteriaScoresLine}**Overall Score: ${evaluation.score}/10**\n\n**Strengths:** ${evaluation.strengths}\n\n**Weaknesses:** ${evaluation.weaknesses}\n\n**Unexamined assumptions:** ${evaluation.unexaminedAssumptions}\n\n**Suggestions:** ${evaluation.suggestions}\n\n**Overall:** ${evaluation.overallFeedback}`;
       intermediateCallback?.(
         createIntermediateMessage(
           evalContent,
@@ -537,6 +632,8 @@ export async function runIterativeCouncil(
             model: evaluatorModels[i],
             modelDisplayName: getDisplayName(evaluatorModels[i]),
             score: evaluation.score,
+            criteriaScores: evaluation.criteriaScores,
+            criteriaNames,
             isIntermediate: true,
           },
           result.tokensIn,
@@ -625,6 +722,10 @@ export async function runParallelCouncil(
   const evalWordLimit = isCrossEval
     ? Math.min(config.evaluationWordLimit || 400, 200)
     : config.evaluationWordLimit || 400;
+  const criteriaNames = await extractCriteriaWithLLM(
+    competitorModels[0] || config.synthesizerModel,
+    config.evaluationCriteria,
+  );
   const evaluationSystemPrompt = buildEvaluationSystemPrompt(
     config.evaluationCriteria,
     evalWordLimit,
@@ -766,6 +867,7 @@ export async function runParallelCouncil(
                 targetGen.blindLabel,
               ),
               evalWordLimit,
+              criteriaNames,
             ),
           targetGenIndex: targetIdx,
           evaluatorGenIndex: evalIdx,
@@ -790,6 +892,7 @@ export async function runParallelCouncil(
               targetGen.blindLabel,
             ),
             evalWordLimit,
+            criteriaNames,
           ),
         targetGenIndex: i,
         evaluatorGenIndex: evaluatorIdx,
@@ -845,6 +948,8 @@ export async function runParallelCouncil(
       evaluatorModel: evaluatorGen.modelId,
       evaluatorModelDisplayName: getDisplayName(evaluatorGen.modelId),
       score: result.evaluation.score,
+      criteriaScores: result.evaluation.criteriaScores,
+      criteriaNames,
       strengths: result.evaluation.strengths,
       weaknesses: result.evaluation.weaknesses,
       unexaminedAssumptions: result.evaluation.unexaminedAssumptions,
@@ -859,9 +964,10 @@ export async function runParallelCouncil(
     totalTokensIn += result.tokensIn;
     totalTokensOut += result.tokensOut;
 
-    // Post evaluation
+    // Post evaluation — include per-criterion scores
     const selfTag = task.targetGenIndex === task.evaluatorGenIndex ? " *(self-evaluation)*" : "";
-    const evalContent = `**${targetGen.blindLabel}** evaluated by **${getDisplayName(evaluatorGen.modelId)}**${selfTag} — **Score: ${evaluation.score}/10**\n\n**Strengths:** ${evaluation.strengths}\n\n**Weaknesses:** ${evaluation.weaknesses}\n\n**Unexamined assumptions:** ${evaluation.unexaminedAssumptions}\n\n**Suggestions:** ${evaluation.suggestions}\n\n**Overall:** ${evaluation.overallFeedback}`;
+    const criteriaScoresLine = formatCriteriaScores(evaluation.criteriaScores, criteriaNames);
+    const evalContent = `**${targetGen.blindLabel}** evaluated by **${getDisplayName(evaluatorGen.modelId)}**${selfTag} — **Overall Score: ${evaluation.score}/10**\n\n${criteriaScoresLine}**Strengths:** ${evaluation.strengths}\n\n**Weaknesses:** ${evaluation.weaknesses}\n\n**Unexamined assumptions:** ${evaluation.unexaminedAssumptions}\n\n**Suggestions:** ${evaluation.suggestions}\n\n**Overall:** ${evaluation.overallFeedback}`;
     intermediateCallback?.(
       createIntermediateMessage(
         evalContent,
@@ -872,6 +978,8 @@ export async function runParallelCouncil(
           model: evaluatorGen.modelId,
           modelDisplayName: getDisplayName(evaluatorGen.modelId),
           score: evaluation.score,
+          criteriaScores: evaluation.criteriaScores,
+          criteriaNames,
           blindLabel: targetGen.blindLabel,
           evaluatedModel: targetGen.modelId,
           evaluatedModelDisplayName: getDisplayName(targetGen.modelId),
@@ -904,10 +1012,25 @@ export async function runParallelCouncil(
     } else {
       // Aggregate: average score, concatenate feedback from all evaluators
       const avgScore = evals.reduce((s, e) => s + e.score, 0) / evals.length;
+      // Aggregate per-criterion scores by averaging across evaluators
+      const mergedCriteriaScores: Record<string, number> = {};
+      if (criteriaNames.length > 0) {
+        for (const name of criteriaNames) {
+          const key = criterionNameToKey(name);
+          const vals = evals
+            .map((e) => e.criteriaScores?.[key])
+            .filter((v): v is number => v != null);
+          if (vals.length > 0) {
+            mergedCriteriaScores[key] = Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10;
+          }
+        }
+      }
       const mergedEval: CouncilEvaluation = {
         evaluatorModel: "aggregate",
         evaluatorModelDisplayName: `${evals.length} evaluators`,
         score: Math.round(avgScore * 10) / 10,
+        criteriaScores: mergedCriteriaScores,
+        criteriaNames,
         strengths: evals.map((e) => `[${e.evaluatorModelDisplayName}] ${e.strengths}`).join("\n"),
         weaknesses: evals.map((e) => `[${e.evaluatorModelDisplayName}] ${e.weaknesses}`).join("\n"),
         unexaminedAssumptions: evals.map((e) => `[${e.evaluatorModelDisplayName}] ${e.unexaminedAssumptions}`).join("\n"),

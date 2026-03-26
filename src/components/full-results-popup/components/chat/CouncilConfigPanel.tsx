@@ -228,12 +228,12 @@ export const CouncilConfigPanel: React.FC<CouncilConfigPanelProps> = ({
             {/* Iteration settings */}
             <div className="council-config-section">
               <div className="council-config-row">
-                <label>Max iterations:</label>
+                <label>Max re-evaluations:</label>
                 <NumericInput
-                  value={config.maxIterations}
+                  value={config.maxReEvaluations}
                   onValueChange={(val) =>
                     updateConfig({
-                      maxIterations: Math.max(1, Math.min(10, val)),
+                      maxReEvaluations: Math.max(1, Math.min(10, val)),
                     })
                   }
                   min={1}
@@ -353,10 +353,10 @@ export const CouncilConfigPanel: React.FC<CouncilConfigPanelProps> = ({
           </div>
         </div>
 
-        {/* Evaluation criteria (both modes) */}
+        {/* Evaluation instructions (both modes) */}
         <div className="council-config-section">
           <div className="council-config-section-label">
-            Evaluation Criteria (optional)
+            Evaluation Instructions (optional)
           </div>
           <TextArea
             className="council-config-criteria-textarea"
@@ -364,7 +364,7 @@ export const CouncilConfigPanel: React.FC<CouncilConfigPanelProps> = ({
             onChange={(e) =>
               updateConfig({ evaluationCriteria: e.target.value })
             }
-            placeholder="Leave empty for default criteria (accuracy, completeness & relevance, reasoning robustness, unexamined assumptions). Or provide your own criteria here..."
+            placeholder="Custom instructions for the evaluation process. Any criteria you define here will replace the defaults. You can also provide general guidance to the evaluators. Leave empty to use the default criteria (accuracy, completeness & relevance, reasoning robustness, unexamined assumptions)."
             small
             fill
           />

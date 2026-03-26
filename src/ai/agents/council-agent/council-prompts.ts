@@ -8,19 +8,50 @@
 import { z } from "zod";
 import { CouncilEvaluation } from "./council-types";
 
+// ==================== CRITERIA ====================
+
+/**
+ * Default criterion names used when no custom criteria are provided.
+ */
+export const DEFAULT_CRITERIA_NAMES = [
+  "Accuracy",
+  "Completeness & Relevance",
+  "Reasoning robustness",
+  "Unexamined assumptions",
+];
+
 // ==================== STRUCTURED OUTPUT SCHEMA ====================
 
-export function buildEvaluationSchema(wordLimit: number = 400) {
+export function buildEvaluationSchema(
+  wordLimit: number = 400,
+  criteriaNames?: string[],
+) {
   // Distribute word budget: strengths & overall get ~15% each, main 3 fields share the rest
   const fieldLimit = Math.floor(wordLimit / 3 / 10) * 10; // rounded down to nearest 10
   const briefLimit = Math.floor(fieldLimit / 2 / 10) * 10;
 
+  // Build per-criterion score fields dynamically
+  const criteriaScoreFields: Record<string, z.ZodNumber> = {};
+  const names = criteriaNames && criteriaNames.length > 0 ? criteriaNames : DEFAULT_CRITERIA_NAMES;
+  for (const name of names) {
+    // Create a safe key: lowercase, replace non-alphanum with underscores
+    const key = criterionNameToKey(name);
+    criteriaScoreFields[key] = z
+      .number()
+      .min(0)
+      .max(10)
+      .describe(`Score (0-10) for criterion: ${name}`);
+  }
+
   return z.object({
+    criteriaScores: z
+      .object(criteriaScoreFields)
+      .describe("Individual score (0-10) for each evaluation criterion"),
     score: z
       .number()
       .min(0)
       .max(10)
-      .describe("Overall score from 0 to 10"),
+      .describe("Overall weighted score from 0 to 10 (not just an average of criteria scores — use your judgment)"),
     strengths: z
       .string()
       .describe(`1-2 sentences: what the response does well. Keep this brief (max ~${briefLimit} words).`),
@@ -43,6 +74,17 @@ export function buildEvaluationSchema(wordLimit: number = 400) {
   });
 }
 
+/**
+ * Converts a criterion display name to a safe object key.
+ * e.g. "Completeness & Relevance" → "completeness_relevance"
+ */
+export function criterionNameToKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
 // Default schema for fallback/typing
 export const evaluationSchema = buildEvaluationSchema(400);
 
@@ -58,7 +100,7 @@ export const DEFAULT_EVALUATION_CRITERIA = `Evaluate the response based on these
 
 Approach this evaluation as a falsification attempt (in the Popperian sense): actively try to find what is wrong, misleading, or unjustified. A response that survives rigorous scrutiny deserves a high score.
 
-Provide an overall score from 0 to 10.`;
+Provide a separate score (0-10) for EACH criterion, plus an overall score from 0 to 10.`;
 
 // ==================== EVALUATION PROMPTS ====================
 
@@ -72,7 +114,7 @@ export function buildEvaluationSystemPrompt(
 
 ${criteria}
 
-Be rigorous and intellectually honest. A score of 10 means the response survives all attempts at falsification — reserve it for truly exceptional responses. A score of 5 means adequate but with significant flaws or gaps. A score below 3 means the response is fundamentally flawed or misleading.
+Be rigorous and intellectually honest. Score each criterion individually (0-10), then provide an overall score that reflects your weighted judgment (not necessarily a simple average). A score of 10 means the response survives all attempts at falsification — reserve it for truly exceptional responses. A score of 5 means adequate but with significant flaws or gaps. A score below 3 means the response is fundamentally flawed or misleading.
 
 Focus your feedback on what is wrong and how to fix it. Be specific, be harsh where warranted, and always explain why.${concisionInstruction}
 
@@ -92,6 +134,24 @@ ${userMessage}
 ${label}${response}
 
 Evaluate this response according to the criteria provided. Actively attempt to falsify its claims and expose its weaknesses. Provide your score and detailed feedback.`;
+}
+
+// ==================== HELPER: Format criteria scores for prompts ====================
+
+/**
+ * Formats per-criterion scores as a markdown line for inclusion in prompts.
+ * Returns empty string if no criteria scores are available.
+ */
+function formatCriteriaScoresForPrompt(evaluation: CouncilEvaluation): string {
+  if (!evaluation.criteriaScores || !evaluation.criteriaNames?.length) return "";
+  const parts: string[] = [];
+  for (const name of evaluation.criteriaNames) {
+    const key = criterionNameToKey(name);
+    if (key in evaluation.criteriaScores) {
+      parts.push(`${name}: ${evaluation.criteriaScores[key]}/10`);
+    }
+  }
+  return parts.length > 0 ? `- **Criteria scores**: ${parts.join(" · ")}\n` : "";
 }
 
 // ==================== ITERATIVE RE-GENERATION PROMPTS ====================
@@ -123,8 +183,9 @@ export function buildIterativeRegenerationUserPrompt(
 ): string {
   let feedbackSection = "";
   for (const evaluation of evaluations) {
-    feedbackSection += `\n### Evaluator (${evaluation.evaluatorModelDisplayName}) — Score: ${evaluation.score}/10
-- **Strengths**: ${evaluation.strengths}
+    const criteriaLine = formatCriteriaScoresForPrompt(evaluation);
+    feedbackSection += `\n### Evaluator (${evaluation.evaluatorModelDisplayName}) — Overall Score: ${evaluation.score}/10
+${criteriaLine}- **Strengths**: ${evaluation.strengths}
 - **Weaknesses**: ${evaluation.weaknesses}
 - **Unexamined assumptions**: ${evaluation.unexaminedAssumptions}
 - **Suggestions**: ${evaluation.suggestions}
@@ -172,12 +233,13 @@ export function buildSynthesisUserPrompt(
 ): string {
   let responsesSection = "";
   for (const { blindLabel, content, evaluation } of responses) {
-    responsesSection += `\n## ${blindLabel} (Score: ${evaluation.score}/10)
+    const criteriaLine = formatCriteriaScoresForPrompt(evaluation);
+    responsesSection += `\n## ${blindLabel} (Overall Score: ${evaluation.score}/10)
 
 ${content}
 
 ### Evaluation:
-- **Strengths**: ${evaluation.strengths}
+${criteriaLine}- **Strengths**: ${evaluation.strengths}
 - **Weaknesses**: ${evaluation.weaknesses}
 - **Unexamined assumptions**: ${evaluation.unexaminedAssumptions}
 - **Suggestions**: ${evaluation.suggestions}
@@ -232,6 +294,7 @@ export function parseEvaluationFromText(text: string): EvaluationOutput {
     extractSection(text, "suggestions") || "See overall feedback.";
 
   return {
+    criteriaScores: {},
     score,
     strengths,
     weaknesses,

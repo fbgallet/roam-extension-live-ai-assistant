@@ -241,13 +241,10 @@ export const parseAndCreateBlocks = async (
     const indentLevel = Math.floor(leadingSpaces / 2);
     let trimmedLine = line.trimStart();
 
-    // Detect callout start: [[>]] [[!KEYWORD]] ...
+    // Detect callout start: > [[!KEYWORD]] ...
     if (trimmedLine.match(calloutRegex)) {
       // Pop stack back to the appropriate level for this callout's indent
-      while (
-        stack.length > 1 &&
-        stack[stack.length - 1].level > indentLevel
-      ) {
+      while (stack.length > 1 && stack[stack.length - 1].level > indentLevel) {
         stack.pop();
       }
       inCallout = true;

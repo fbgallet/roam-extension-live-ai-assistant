@@ -8,6 +8,7 @@
 import React, { useState } from "react";
 import { Tag, Collapse, Icon, Button } from "@blueprintjs/core";
 import { CouncilStepInfo } from "../../../../ai/agents/council-agent/council-types";
+import { criterionNameToKey } from "../../../../ai/agents/council-agent/council-prompts";
 import { renderMarkdown } from "../../utils/chatMessageUtils";
 
 interface CouncilStepDisplayProps {
@@ -145,6 +146,30 @@ export const CouncilStepDisplay: React.FC<CouncilStepDisplayProps> = ({
             {councilStep.score}/10
           </Tag>
         )}
+        {councilStep.type === "evaluation" &&
+          councilStep.criteriaScores &&
+          councilStep.criteriaNames &&
+          councilStep.criteriaNames.length > 0 && (
+            <span className="council-criteria-scores">
+              {councilStep.criteriaNames.map((name) => {
+                const key = criterionNameToKey(name);
+                const val = councilStep.criteriaScores?.[key];
+                if (val == null) return null;
+                return (
+                  <Tag
+                    key={key}
+                    minimal
+                    round
+                    intent={getScoreIntent(val)}
+                    className="council-criterion-tag"
+                    title={name}
+                  >
+                    {name}: {val}/10
+                  </Tag>
+                );
+              })}
+            </span>
+          )}
         {councilStep.type === "evaluation" &&
           councilStep.evaluatedModelDisplayName && (
             <span className="council-eval-target">

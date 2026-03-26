@@ -12,7 +12,7 @@ export interface CouncilConfig {
   // Iterative mode
   generatorModel: string; // model identifier for the generator
   evaluatorModels: string[]; // 1-4 evaluator model identifiers
-  maxIterations: number; // default 3
+  maxReEvaluations: number; // max evaluate+regenerate cycles after first generation (default 2)
   scoreThreshold: number; // default 8 (0-10)
   // Parallel mode
   competitorModels: string[]; // 2-5 competitor model identifiers
@@ -29,6 +29,8 @@ export interface CouncilEvaluation {
   evaluatorModel: string;
   evaluatorModelDisplayName: string;
   score: number;
+  criteriaScores?: Record<string, number>; // per-criterion scores (key → 0-10)
+  criteriaNames?: string[]; // ordered display names matching criteriaScores keys
   strengths: string;
   weaknesses: string;
   unexaminedAssumptions: string;
@@ -55,6 +57,8 @@ export interface CouncilStepInfo {
   model?: string;
   modelDisplayName?: string;
   score?: number;
+  criteriaScores?: Record<string, number>; // per-criterion scores (key → 0-10)
+  criteriaNames?: string[]; // ordered display names for criteriaScores keys
   averageScore?: number;
   scoreThreshold?: number;
   isIntermediate: boolean; // true = collapsible intermediate step
@@ -80,7 +84,7 @@ export const DEFAULT_COUNCIL_CONFIG: CouncilConfig = {
   mode: "iterative",
   generatorModel: "", // defaults to selectedModel at runtime
   evaluatorModels: [], // defaults to 2 diverse models at runtime
-  maxIterations: 3,
+  maxReEvaluations: 2,
   scoreThreshold: 8,
   competitorModels: [], // defaults to 3 diverse models at runtime
   synthesizerModel: "", // defaults to selectedModel at runtime
