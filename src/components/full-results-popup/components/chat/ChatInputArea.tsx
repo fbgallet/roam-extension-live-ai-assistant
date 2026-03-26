@@ -25,10 +25,12 @@ import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
 import ChatPageAutocomplete from "./ChatPageAutocomplete";
 import { ChatToolsMenu } from "./ChatToolsMenu";
+import { CouncilConfigPanel } from "./CouncilConfigPanel";
 import { ThinkingToggle } from "../../../ThinkingToggle";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 import { BUILTIN_STYLES } from "../../../../ai/styleConstants";
 import { getDisplayName } from "../../../../ai/modelRegistry";
+import { CouncilConfig } from "../../../../ai/agents/council-agent/council-types";
 import {
   isThinkingModel,
   hasThinkingDefault,
@@ -46,6 +48,7 @@ interface ChatInputAreaProps {
   chatInput: string;
   onChatInputChange: (value: string) => void;
   onSubmit: () => void;
+  onStop?: () => void;
   isTyping: boolean;
   chatAccessMode: "Balanced" | "Full Access";
   onAccessModeChange: (mode: "Balanced" | "Full Access") => void;
@@ -87,12 +90,17 @@ interface ChatInputAreaProps {
   onChatModeSetAgent?: () => void;
   onSaveChat?: () => void;
   onSaveChatDNP?: () => void;
+  // Council mode
+  councilConfig?: CouncilConfig;
+  onCouncilConfigChange?: (config: CouncilConfig) => void;
+  onChatModeSetCouncil?: () => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   chatInput,
   onChatInputChange,
   onSubmit,
+  onStop,
   isTyping,
   chatAccessMode,
   onAccessModeChange,
@@ -128,6 +136,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onChatModeSetAgent,
   onSaveChat,
   onSaveChatDNP,
+  councilConfig,
+  onCouncilConfigChange,
+  onChatModeSetCouncil,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
@@ -223,6 +234,15 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       icon: "build",
     },
     {
+      id: "chat-mode-council",
+      name: "Council mode (multi-LLM deliberation)",
+      prompt: "/council",
+      isChatCommand: true,
+      keyWords: "council deliberation multi llm evaluate parallel",
+      category: "CHAT",
+      icon: "people",
+    },
+    {
       id: "chat-save",
       name: "Save conversation",
       prompt: "/save",
@@ -287,6 +307,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         onChatModeSetSimple();
       } else if (command.id === "chat-mode-agent" && onChatModeSetAgent) {
         onChatModeSetAgent();
+      } else if (command.id === "chat-mode-council" && onChatModeSetCouncil) {
+        onChatModeSetCouncil();
       } else if (command.id === "chat-save" && onSaveChat) {
         onSaveChat();
       } else if (command.id === "chat-save-dnp" && onSaveChatDNP) {
@@ -985,6 +1007,29 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           thinkingEnabled={thinkingEnabled}
           onThinkingChange={onThinkingChange || (() => {})}
         />
+        <Tooltip
+          content={
+            chatMode === "council"
+              ? "Exit council mode"
+              : "LLM Council (multi-model deliberation)"
+          }
+          openOnTargetFocus={false}
+        >
+          <Button
+            minimal
+            small
+            icon="people"
+            active={chatMode === "council"}
+            intent={chatMode === "council" ? "primary" : "none"}
+            onClick={() => {
+              if (chatMode === "council") {
+                onChatModeSetSimple?.();
+              } else {
+                onChatModeSetCouncil?.();
+              }
+            }}
+          />
+        </Tooltip>
       </div>
 
       {/* Future evolution: Chat Mode vs Deep Analysis - currently hidden
@@ -1011,6 +1056,16 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         </label>
       </div>
       */}
+
+      {/* Council config panel - shown when council mode is active */}
+      {chatMode === "council" && councilConfig && onCouncilConfigChange && (
+        <CouncilConfigPanel
+          config={councilConfig}
+          onConfigChange={onCouncilConfigChange}
+          defaultModel={selectedModel}
+          isRunning={isTyping}
+        />
+      )}
 
       <div className="full-results-chat-input-container">
         {isVoiceRecorderAvailable && (
@@ -1139,6 +1194,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                       ) {
                         onChatModeSetAgent();
                       } else if (
+                        matchingCommand.id === "chat-mode-council" &&
+                        onChatModeSetCouncil
+                      ) {
+                        onChatModeSetCouncil();
+                      } else if (
                         matchingCommand.id === "chat-save" &&
                         onSaveChat
                       ) {
@@ -1192,13 +1252,22 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             rows={1}
           />
         </Popover>
-        <Button
-          icon="send-message"
-          onClick={onSubmit}
-          disabled={!chatInput.trim() || isTyping}
-          intent="primary"
-          className="full-results-chat-send"
-        />
+        {isTyping && onStop ? (
+          <Button
+            icon="stop"
+            onClick={onStop}
+            intent="danger"
+            className="full-results-chat-send full-results-chat-stop"
+          />
+        ) : (
+          <Button
+            icon="send-message"
+            onClick={onSubmit}
+            disabled={!chatInput.trim() || isTyping}
+            intent="primary"
+            className="full-results-chat-send"
+          />
+        )}
       </div>
     </div>
   );

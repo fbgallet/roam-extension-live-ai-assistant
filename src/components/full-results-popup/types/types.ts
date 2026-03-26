@@ -35,6 +35,8 @@ export interface ChatMessage {
   queryContent?: string; // The generated query string ({{query:...}} or :q [...])
   queryType?: "roam" | "datomic"; // Type of query
   queryResultCount?: number; // Number of results from executing the query
+  // Council-specific fields (for LLM Council intermediate steps)
+  councilStep?: import("../../../ai/agents/council-agent/council-types").CouncilStepInfo;
 }
 
 export interface FullResultsPopupProps {
@@ -71,7 +73,7 @@ export type ViewMode = "blocks" | "pages" | "mixed";
 export type PageDisplayMode = "metadata" | "embed";
 export type SortBy = "relevance" | "date" | "page" | "content-alpha" | "content-length" | "selection";
 export type SortOrder = "asc" | "desc";
-export type ChatMode = "simple" | "agent";
+export type ChatMode = "simple" | "agent" | "council";
 export type DNPFilter = "all" | "dnp-only" | "no-dnp";
 export type SelectionFilter = "all" | "selected-only";
 

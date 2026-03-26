@@ -3955,6 +3955,31 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   z-index: 1;
 }
 
+/* Stop button variant */
+.full-results-chat-stop.full-results-chat-send {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.35);
+  animation: stop-pulse 1.5s ease-in-out infinite;
+}
+
+.full-results-chat-stop.full-results-chat-send:hover {
+  box-shadow: 0 8px 20px rgba(231, 76, 60, 0.45);
+}
+
+.full-results-chat-stop.full-results-chat-send:active {
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.4);
+}
+
+@keyframes stop-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
 /* Elegant controls area */
 .full-results-chat-edition-mode-bar {
   display: flex;

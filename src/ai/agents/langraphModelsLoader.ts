@@ -6,7 +6,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { updateTokenCounter } from "../modelsInfo";
 import { modelTemperature, reasoningEffort } from "../..";
-import { usesAdaptiveThinking } from "../modelRegistry";
+import { usesAdaptiveThinking, getMaxOutput } from "../modelRegistry";
 
 export interface LlmInfos {
   provider: string;
@@ -122,12 +122,7 @@ export function modelViaLanggraph(
       maxRetries: 2,
     });
   } else if (llmInfos.provider === "Anthropic") {
-    options.maxTokens =
-      llmInfos.id.includes("sonnet") || llmInfos.id.includes("4-5")
-        ? 64000
-        : llmInfos.id.includes("opus-4-1")
-          ? 32000
-          : 8192;
+    options.maxTokens = getMaxOutput(llmInfos.id);
     options.streaming = true;
     if (llmInfos.thinking) {
       if (usesAdaptiveThinking(llmInfos.id)) {

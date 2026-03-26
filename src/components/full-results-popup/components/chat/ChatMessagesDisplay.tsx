@@ -22,6 +22,7 @@ import {
   getRandomTip,
 } from "./chatHelpConstants";
 import { textToSpeech } from "../../../../ai/multimodalAI";
+import { CouncilStepDisplay } from "./CouncilStepDisplay";
 
 // Helper function to detect if content contains KaTeX formulas
 const containsKaTeX = (content: string): boolean => {
@@ -981,6 +982,62 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               ? `**[${message.commandName}]**\n\n${message.content}`
               : `**[${message.commandName}]**`
             : message.content;
+
+          // Council step messages get their own rendering
+          if (message.councilStep) {
+            const isSynthesis = message.councilStep.type === "synthesis";
+            const isFinalGeneration =
+              message.councilStep.type === "generation" &&
+              !message.councilStep.isIntermediate;
+            const showFooter = isSynthesis || isFinalGeneration;
+            return (
+              <div
+                key={index}
+                className="full-results-chat-message assistant"
+              >
+                <div className="full-results-chat-avatar">🏛️</div>
+                <div className="full-results-chat-content">
+                  <CouncilStepDisplay
+                    content={message.content}
+                    councilStep={message.councilStep}
+                    tokensIn={message.tokensIn}
+                    tokensOut={message.tokensOut}
+                  />
+                  {showFooter && (
+                    <div className="full-results-chat-message-footer">
+                      <span className="full-results-chat-timestamp">
+                        {message.timestamp.toLocaleTimeString()}
+                        {message.tokensIn !== undefined &&
+                          message.tokensOut !== undefined && (
+                            <span className="full-results-chat-tokens">
+                              {" "}
+                              • Tokens in: {message.tokensIn.toLocaleString()},
+                              out: {message.tokensOut.toLocaleString()}
+                            </span>
+                          )}
+                      </span>
+                      <span className="full-results-chat-copy-link">
+                        <Popover
+                          content={
+                            <Menu>
+                              <MenuItem
+                                icon="clipboard"
+                                text="Copy to clipboard"
+                                onClick={() => onCopyMessage(message.content)}
+                              />
+                            </Menu>
+                          }
+                          position={Position.BOTTOM_RIGHT}
+                        >
+                          <Button icon="more" minimal small />
+                        </Popover>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
 
           // Check if this is a help message
           const isHelpMsg = message.isHelpMessage;

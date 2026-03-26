@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { invokeChatAgent } from "../../../../ai/agents/chat-agent/chat-agent-invoke";
+import {
+  invokeCouncil,
+} from "../../../../ai/agents/council-agent/council-invoke";
+import {
+  CouncilConfig,
+  DEFAULT_COUNCIL_CONFIG,
+} from "../../../../ai/agents/council-agent/council-types";
+import "../../style/councilDisplay.css";
 import { Result, ChatMessage, ChatMode } from "../../types/types";
 import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/helpers/contextExpansion";
 import {
@@ -161,10 +169,27 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 }) => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const chatAbortRef = useRef<AbortController | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | undefined>(
     undefined,
   );
-  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingContent, _setStreamingContent] = useState("");
+  const streamingContentRef = useRef("");
+  // Wrapper that keeps the ref in sync with state
+  const setStreamingContent = (
+    value: string | ((prev: string) => string),
+  ) => {
+    if (typeof value === "function") {
+      _setStreamingContent((prev) => {
+        const next = value(prev);
+        streamingContentRef.current = next;
+        return next;
+      });
+    } else {
+      streamingContentRef.current = value;
+      _setStreamingContent(value);
+    }
+  };
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(() => {
     // Restore from persisted state if available
@@ -636,6 +661,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setToolUsageHistory([]);
       toolUsageHistoryRef.current = []; // Sync ref
 
+      // Create abort controller for this request
+      const abortController = new AbortController();
+      chatAbortRef.current = abortController;
+
       try {
         const contextResults = getSelectedResultsForChat();
 
@@ -657,17 +686,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             undefined,
             selectedStyle,
           );
-      } catch (error) {
-        console.error("Auto-execution error:", error);
-        const errorMessage: ChatMessage = {
-          role: "assistant",
-          content:
-            "Sorry, I encountered an error processing your request with the command. Please try again.",
-          timestamp: new Date(),
-        };
-        setChatMessages((prev) => [...prev, errorMessage]);
+      } catch (error: any) {
+        if (error.name === "AbortError") {
+          const partialContent = streamingContentRef.current.trim();
+          const abortMessage: ChatMessage = {
+            role: "assistant",
+            content: partialContent
+              ? `${partialContent}\n\n*— Generation stopped by user.*`
+              : "*Generation stopped by user.*",
+            timestamp: new Date(),
+          };
+          setChatMessages((prev) => [...prev, abortMessage]);
+        } else {
+          console.error("Auto-execution error:", error);
+          const errorMessage: ChatMessage = {
+            role: "assistant",
+            content:
+              "Sorry, I encountered an error processing your request with the command. Please try again.",
+            timestamp: new Date(),
+          };
+          setChatMessages((prev) => [...prev, errorMessage]);
+        }
       }
 
+      chatAbortRef.current = null;
       setIsTyping(false);
       setIsStreaming(false);
       setStreamingContent("");
@@ -1232,6 +1274,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       initialEnabledTools && initialEnabledTools.size > 0;
     return hasStoredTools || hasForcedInitialTools ? "agent" : "simple";
   });
+  // Council config state
+  const [councilConfig, setCouncilConfig] = useState<CouncilConfig>(() => {
+    const stored = extensionStorage.get("councilConfig");
+    if (stored) {
+      try {
+        return { ...DEFAULT_COUNCIL_CONFIG, ...JSON.parse(stored) };
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return { ...DEFAULT_COUNCIL_CONFIG };
+  });
+  const councilAbortRef = useRef<AbortController | null>(null);
+
+  const handleCouncilConfigChange = (newConfig: CouncilConfig) => {
+    setCouncilConfig(newConfig);
+    extensionStorage.set("councilConfig", JSON.stringify(newConfig));
+  };
+
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
@@ -1738,6 +1799,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = [];
 
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    chatAbortRef.current = abortController;
+
     try {
       const contextResults = getSelectedResultsForChat();
 
@@ -1761,17 +1826,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           selectedStyle,
         );
       }
-    } catch (error) {
-      console.error("Retry error:", error);
-      const errorMessage: ChatMessage = {
-        role: "assistant",
-        content:
-          "Sorry, I encountered an error while retrying. Please try again.",
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [...prev, errorMessage]);
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        const partialContent = streamingContentRef.current.trim();
+        const abortMessage: ChatMessage = {
+          role: "assistant",
+          content: partialContent
+            ? `${partialContent}\n\n*— Generation stopped by user.*`
+            : "*Generation stopped by user.*",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, abortMessage]);
+      } else {
+        console.error("Retry error:", error);
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "Sorry, I encountered an error while retrying. Please try again.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+      }
     }
 
+    chatAbortRef.current = null;
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
@@ -2199,6 +2277,96 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setCommandContext(null);
   };
 
+  /**
+   * Process a message in Council mode.
+   * Invokes the council orchestrator which handles multi-LLM deliberation
+   * and pushes intermediate steps via callback.
+   */
+  const processCouncilMessage = async (message: string) => {
+    // Build conversation context from prior messages (only final answers, not intermediate steps)
+    const conversationContext = chatMessages
+      .filter((msg) => !msg.councilStep || !msg.councilStep.isIntermediate)
+      .map((msg) => {
+        const role = msg.role === "user" ? "User" : "Assistant";
+        return `${role}: ${msg.content}`;
+      })
+      .join("\n\n");
+
+    // Ensure config has defaults populated
+    const config = { ...councilConfig };
+    if (!config.generatorModel) config.generatorModel = selectedModel;
+    if (!config.synthesizerModel) config.synthesizerModel = selectedModel;
+    if (config.evaluatorModels.length === 0) {
+      config.evaluatorModels = [selectedModel];
+    }
+    if (config.competitorModels.length === 0) {
+      config.competitorModels = [selectedModel];
+    }
+
+    // Get context results if available
+    const contextResults = getSelectedResultsForChat();
+
+    // Create abort controller
+    const abortController = new AbortController();
+    councilAbortRef.current = abortController;
+
+    try {
+      const result = await invokeCouncil({
+        config,
+        userMessage: message,
+        conversationContext: conversationContext || undefined,
+        resultsContext: contextResults.length > 0 ? contextResults : undefined,
+        style: selectedStyle !== "Normal" ? selectedStyle : undefined,
+        streamingCallback: (content: string) => {
+          setStreamingContent(content);
+        },
+        intermediateCallback: (intermediateMessage: ChatMessage) => {
+          setChatMessages((prev) => [...prev, intermediateMessage]);
+        },
+        abortSignal: abortController.signal,
+      });
+
+      // Clear streaming
+      setIsStreaming(false);
+      setStreamingContent("");
+
+      // If the final answer wasn't already posted via intermediateCallback
+      // (for iterative mode, the last generation IS the final answer)
+      // Add a final summary message with total tokens
+      if (result.finalAnswer && result.mode === "iterative") {
+        // The final generation was already posted; no need to duplicate
+      }
+
+      // Update conversation context for multi-turn
+      // Only the final answer goes into conversation history
+      if (result.finalAnswer) {
+        const finalHistoryEntry = `Assistant: ${result.finalAnswer}`;
+        const currentHistory = chatAgentData?.conversationHistory || [];
+        setChatAgentData({
+          ...chatAgentData,
+          conversationHistory: [
+            ...currentHistory,
+            `User: ${message}`,
+            finalHistoryEntry,
+          ],
+        });
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        const abortMessage: ChatMessage = {
+          role: "assistant",
+          content: "*Council deliberation was cancelled.*",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, abortMessage]);
+      } else {
+        throw error;
+      }
+    } finally {
+      councilAbortRef.current = null;
+    }
+  };
+
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || isTyping) return;
 
@@ -2216,31 +2384,62 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = []; // Sync ref
 
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    chatAbortRef.current = abortController;
+
     try {
-      const contextResults = getSelectedResultsForChat();
-      await processChatMessage(
-        userMessage.content,
-        contextResults,
-        undefined,
-        undefined,
-        undefined,
-        selectedStyle,
-      );
-    } catch (error) {
-      console.error("Chat error:", error);
-      const errorMessage: ChatMessage = {
-        role: "assistant",
-        content:
-          "Sorry, I encountered an error processing your request. Please try again.",
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [...prev, errorMessage]);
+      if (chatMode === "council") {
+        await processCouncilMessage(userMessage.content);
+      } else {
+        const contextResults = getSelectedResultsForChat();
+        await processChatMessage(
+          userMessage.content,
+          contextResults,
+          undefined,
+          undefined,
+          undefined,
+          selectedStyle,
+        );
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        // Capture whatever was streamed so far as a partial response
+        const partialContent = streamingContentRef.current.trim();
+        const abortMessage: ChatMessage = {
+          role: "assistant",
+          content: partialContent
+            ? `${partialContent}\n\n*— Generation stopped by user.*`
+            : "*Generation stopped by user.*",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, abortMessage]);
+      } else {
+        console.error("Chat error:", error);
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "Sorry, I encountered an error processing your request. Please try again.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+      }
     }
 
+    chatAbortRef.current = null;
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
     // Don't clear tool usage history - it should persist to show user what tools were used
+  };
+
+  const handleStopGeneration = () => {
+    if (chatAbortRef.current) {
+      chatAbortRef.current.abort();
+    }
+    if (councilAbortRef.current) {
+      councilAbortRef.current.abort();
+    }
   };
 
   // Handler for help buttons
@@ -2684,8 +2883,24 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         );
       }
 
-      // Invoke the chat agent
-      const agentResult = await invokeChatAgent({
+      // Create abort promise that rejects when abort signal fires
+      const abortPromise = chatAbortRef.current
+        ? new Promise<never>((_, reject) => {
+            const signal = chatAbortRef.current!.signal;
+            if (signal.aborted) {
+              reject(new DOMException("Aborted", "AbortError"));
+              return;
+            }
+            signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          })
+        : null;
+
+      // Invoke the chat agent (race with abort if available)
+      const agentInvocation = invokeChatAgent({
         model: modelAccordingToProvider(
           commandModelFromCall || selectedModel,
           thinkingEnabled,
@@ -2743,7 +2958,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           args?: Record<string, any>;
         }) => {
           // Capture any intermediate message that was streamed before the tool call
-          const intermediateMessage = streamingContent.trim();
+          const intermediateMessage = streamingContentRef.current.trim();
 
           // Build detailed description based on tool name and args
           let details = "";
@@ -3114,7 +3329,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Token usage from previous turns
         tokensUsage: chatAgentData?.tokensUsage,
+
+        // Abort signal to stop streaming on user cancel
+        abortSignal: chatAbortRef.current?.signal,
       });
+
+      const agentResult = abortPromise
+        ? await Promise.race([agentInvocation, abortPromise])
+        : await agentInvocation;
 
       // Update agent data for next conversation turn
       const newAgentData = {
@@ -3144,7 +3366,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         "I couldn't analyze the results. Please try rephrasing your question.";
 
       // Finalize streaming content or use the final answer
-      const finalContent = streamingContent || aiResponse;
+      const finalContent = streamingContentRef.current || aiResponse;
       setIsStreaming(false);
       setStreamingContent("");
 
@@ -3178,11 +3400,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // The agent's built-in conversation management will handle history and summarization automatically
       // We just need to preserve the agent state for the next turn
-    } catch (error) {
-      console.error("Chat processing error:", error);
+    } catch (error: any) {
       setStatusMessage(undefined);
       setIsStreaming(false);
       setStreamingContent("");
+      // Re-throw AbortError so callers can handle it
+      if (error.name === "AbortError") {
+        throw error;
+      }
+      console.error("Chat processing error:", error);
       const errorMessage: ChatMessage = {
         role: "assistant",
         content:
@@ -3332,6 +3558,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         chatInput={chatInput}
         onChatInputChange={setChatInput}
         onSubmit={handleChatSubmit}
+        onStop={handleStopGeneration}
         isTyping={isTyping}
         chatAccessMode={chatAccessMode}
         onAccessModeChange={setChatAccessMode}
@@ -3397,6 +3624,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onCloseChat={onClose}
         onChatModeSetSimple={() => setChatMode("simple")}
         onChatModeSetAgent={() => setChatMode("agent")}
+        onChatModeSetCouncil={() => setChatMode("council")}
+        councilConfig={councilConfig}
+        onCouncilConfigChange={handleCouncilConfigChange}
         onSaveChat={() => insertConversationInRoam()}
         onSaveChatDNP={() => insertConversationInRoam(true)}
       />

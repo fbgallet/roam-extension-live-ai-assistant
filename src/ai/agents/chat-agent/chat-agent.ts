@@ -87,6 +87,8 @@ const ChatAgentState = Annotation.Root({
   isAgentMode: Annotation<boolean>,
   // Streaming
   streamingCallback: Annotation<((content: string) => void) | undefined>,
+  // Abort signal
+  abortSignal: Annotation<AbortSignal | undefined>,
   // Tool usage callback
   toolUsageCallback: Annotation<
     | ((toolInfo: { toolName: string; args?: Record<string, any> }) => void)
@@ -566,6 +568,9 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     const stream = await llm_with_tools.stream(messages);
 
     for await (const chunk of stream) {
+      // Stop streaming if abort signal fired
+      if (state.abortSignal?.aborted) break;
+
       // console.log("chunk :>> ", chunk);
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;

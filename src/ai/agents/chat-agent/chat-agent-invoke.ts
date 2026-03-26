@@ -43,6 +43,9 @@ export interface ChatAgentOptions {
   // Streaming
   streamingCallback?: (content: string) => void;
 
+  // Abort signal to cancel streaming and processing
+  abortSignal?: AbortSignal;
+
   // Tool usage callback
   toolUsageCallback?: (toolInfo: {
     toolName: string;
@@ -197,6 +200,9 @@ export async function invokeChatAgent(
 
     // Streaming
     streamingCallback: options.streamingCallback,
+
+    // Abort signal
+    abortSignal: options.abortSignal,
 
     // Tool usage callback
     toolUsageCallback: options.toolUsageCallback,
