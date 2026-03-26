@@ -18,6 +18,10 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### v.29:
+
+- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
+
 ### v.28:
 
 - Fixes for custom models duplication and ability to remove OpenRouter models
@@ -45,7 +49,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 1. [GETTING STARTED](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#1-getting-started)
 2. [Model-Specific Features (Voice, Web search, Image, PDF)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-voice-web-search-image)
 3. [Going further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-going-further-to-get-better-answers)
-4. [Agents (Query agents, Ask Your Graph and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
+4. [Agents (Query agents, Ask Your Graph, Live Outliner and LLM Council)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
 6. [Detailed documentation and advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
 
@@ -485,6 +489,7 @@ With Live AI, you generally have control over what you decide to send or not to 
 3. [MCP Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/mcp-agent.md)
 4. [Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md)
 5. [Skills for Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md)
+6. [LLM Council](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
 
 - **LLM Providers**
 

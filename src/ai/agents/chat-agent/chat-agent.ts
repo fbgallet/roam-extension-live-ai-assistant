@@ -575,8 +575,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
 
-      // Capture token usage from streaming chunks (only for thinking models where callback is disabled)
-      if (chunk.usage_metadata && state.model.id.includes("+thinking")) {
+      // Capture token usage from streaming chunks
+      // For thinking models, callback is disabled so we must read usage_metadata here.
+      // For Anthropic models, the handleLLMEnd callback doesn't receive usage data when streaming.
+      if (
+        chunk.usage_metadata &&
+        (state.model.thinking || state.model.provider === "Anthropic")
+      ) {
         if (chunk.usage_metadata.input_tokens) {
           turnTokensUsage.input_tokens += chunk.usage_metadata.input_tokens;
         }
@@ -675,8 +680,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     // Non-streaming response
     const response = await llm_with_tools.invoke(messages);
 
-    // Capture token usage from response (only for thinking models where callback is disabled)
-    if (response.usage_metadata && state.model.id.includes("+thinking")) {
+    // Capture token usage from response
+    // For thinking models, callback is disabled so we must read usage_metadata here.
+    // For Anthropic models, the handleLLMEnd callback doesn't receive usage data when streaming.
+    if (
+      response.usage_metadata &&
+      (state.model.thinking || state.model.provider === "Anthropic")
+    ) {
       if (response.usage_metadata.input_tokens) {
         turnTokensUsage.input_tokens += response.usage_metadata.input_tokens;
       }

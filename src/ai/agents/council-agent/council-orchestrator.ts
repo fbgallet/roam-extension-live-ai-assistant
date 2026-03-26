@@ -75,6 +75,7 @@ async function generateResponse(
   ];
 
   let content: string;
+  const metadataUsage = { input_tokens: 0, output_tokens: 0 };
   if (streamingCallback) {
     // Stream the response
     let accumulated = "";
@@ -91,6 +92,10 @@ async function generateResponse(
             : "";
       accumulated += text;
       streamingCallback(accumulated);
+      if (chunk.usage_metadata) {
+        metadataUsage.input_tokens += chunk.usage_metadata.input_tokens || 0;
+        metadataUsage.output_tokens += chunk.usage_metadata.output_tokens || 0;
+      }
     }
     content = accumulated;
   } else {
@@ -104,6 +109,20 @@ async function generateResponse(
               .map((p: any) => p.text)
               .join("")
           : String(result.content);
+    if (result.usage_metadata) {
+      metadataUsage.input_tokens = result.usage_metadata.input_tokens || 0;
+      metadataUsage.output_tokens = result.usage_metadata.output_tokens || 0;
+    }
+  }
+  // Use usage_metadata as fallback when the handleLLMEnd callback didn't capture tokens
+  // (happens with Anthropic and Gemini streaming)
+  if (
+    (metadataUsage.input_tokens || metadataUsage.output_tokens) &&
+    !tokensUsage.input_tokens &&
+    !tokensUsage.output_tokens
+  ) {
+    tokensUsage.input_tokens = metadataUsage.input_tokens;
+    tokensUsage.output_tokens = metadataUsage.output_tokens;
   }
 
   updateTokenCounter(llmInfos.id, tokensUsage);
@@ -192,6 +211,7 @@ async function evaluateResponse(
   ];
 
   let evaluation: EvaluationOutput;
+  const metadataUsage = { input_tokens: 0, output_tokens: 0 };
   try {
     const schema = buildEvaluationSchema(wordLimit);
     const structuredLlm = llm.withStructuredOutput(
@@ -201,6 +221,11 @@ async function evaluateResponse(
     const raw = await structuredLlm.invoke(messages);
     // Some models with includeRaw return { raw, parsed }
     evaluation = sanitizeEvaluation(raw?.parsed || raw);
+    const rawResponse = raw?.raw || raw;
+    if (rawResponse?.usage_metadata) {
+      metadataUsage.input_tokens = rawResponse.usage_metadata.input_tokens || 0;
+      metadataUsage.output_tokens = rawResponse.usage_metadata.output_tokens || 0;
+    }
   } catch (err) {
     console.warn(
       `Council: structured output failed for ${modelId}, falling back to text parsing`,
@@ -220,6 +245,10 @@ async function evaluateResponse(
                 .join("")
             : String(result.content);
       evaluation = parseEvaluationFromText(text);
+      if (result.usage_metadata) {
+        metadataUsage.input_tokens = result.usage_metadata.input_tokens || 0;
+        metadataUsage.output_tokens = result.usage_metadata.output_tokens || 0;
+      }
     } catch (fallbackErr) {
       console.error(
         `Council: evaluation completely failed for ${modelId}`,
@@ -227,6 +256,16 @@ async function evaluateResponse(
       );
       return null;
     }
+  }
+  // Use usage_metadata as fallback when the handleLLMEnd callback didn't capture tokens
+  // (happens with Anthropic and Gemini streaming)
+  if (
+    (metadataUsage.input_tokens || metadataUsage.output_tokens) &&
+    !tokensUsage.input_tokens &&
+    !tokensUsage.output_tokens
+  ) {
+    tokensUsage.input_tokens = metadataUsage.input_tokens;
+    tokensUsage.output_tokens = metadataUsage.output_tokens;
   }
 
   updateTokenCounter(llmInfos.id, tokensUsage);

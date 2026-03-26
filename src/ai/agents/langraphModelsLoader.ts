@@ -57,9 +57,7 @@ export function modelViaLanggraph(
   });
 
   let options: any = {
-    callbackManager: !llmInfos.id.includes("+thinking")
-      ? tokensUsageCallback
-      : null,
+    callbackManager: !llmInfos.thinking ? tokensUsageCallback : null,
     maxRetries: 2,
   };
   if (llmInfos.provider !== "ollama") options.apiKey = llmInfos.library?.apiKey;
