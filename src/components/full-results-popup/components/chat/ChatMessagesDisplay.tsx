@@ -1551,6 +1551,13 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                     </div>
                   )}
 
+                {pendingToolConfirmation.args?.non_atomic && (
+                  <div className="tool-confirmation-non-atomic-warning">
+                    <Icon icon="info-sign" size={12} />
+                    <span>Batch operations are not atomic — if one fails, previously completed operations won't be rolled back.</span>
+                  </div>
+                )}
+
                 <div className="tool-confirmation-buttons">
                   <Button
                     intent="success"

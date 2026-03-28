@@ -70,10 +70,17 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Identify** relationships, contradictions, common themes, or missing pieces
 - **Be analytical** - help the user understand significance and context
 
-### IMPORTTANT formatting contrainsts when referencing content from the Context. Respect them STRICTLY:
-- **Reference blocks (<BLOCK> items in the context)** - When possible, use a short descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. If description would be too long or it's simply requested to add a link to block source at the end of a sentence or paragraph, e.g. for citation, use the format '[*](((UID)))' (it will just display a clickable '*').
+### CRITICAL: Block UID integrity — NEVER fabricate UIDs
+- Block UIDs are 9-character alphanumeric strings (e.g., "a1B2c3D4e") provided explicitly in the context.
+- **ONLY use UIDs that appear verbatim in the context** — either as a "uid" field in a JSON block entry, or as a \`[uid]\` prefix in children outlines.
+- **NEVER guess, infer, interpolate, or fabricate a UID.** If you cannot find the exact UID for a block you want to reference, describe the content instead without a block reference link.
+- If content is in a children outline with format \`- [uid] content\`, the UID is the string inside the brackets.
+
+### Formatting constraints when referencing content from the Context. Respect them STRICTLY:
+- **Reference blocks (items with "type": "BLOCK" in the context)** - When possible, use a short descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. If description would be too long or it's simply requested to add a link to block source at the end of a sentence or paragraph, e.g. for citation, use the format '[*](((UID)))' (it will just display a clickable '*').
+- **Children block references** - Children in the outline include their UID as \`[uid]\` prefix. You can reference these children blocks using the same '[description](((uid)))' syntax.
 - **Multiple block references** - For citing multiple sources, use: '[1](((UID1))), [2](((UID2))), [3](((UID3)))' instead of '((UID1)), ((UID2)), ((UID3))'.
-- **Reference pages** (<PAGE> items in the context) - Always use the syntax '[[page title]]' or '#title' for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.\n\n`;
+- **Reference pages** (items with "type": "PAGE" in the context) - Always use the syntax '[[page title]]' or '#title' for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.\n\n`;
   }
 
   // Add conversation context if available
@@ -278,6 +285,7 @@ When the user provides PDF files (either directly in their message or in the con
 
 - ${hierarchicalResponseFormat.trim()}
 - Generally respects markdown syntax, except where otherwise indicated.
+- NEVER use the format #1, #2, #3... (or #anything) for numbering items, since the # symbol creates tags in Roam Research. Use "1.", "2.", "3." or other numbering formats instead. The # symbol should only appear inside backticks (\`#example\`) or as an actual Roam tag reference or Markdown header.
 - You can use callouts sparingly to highlight key elements (warnings, tips, important notes, quotes, etc.), relying on Roam specific format: \`> [[!KEYWORD]] Optional title\` on the first line, followed by content lines (simple line returns, no indentation); a blank line ends the callout. Supported keywords: NOTE, INFO, SUMMARY (or ABSTRACT or TLDR), TIP (or HINT or IMPORTANT), SUCCESS, QUESTION (or HELP or FAQ), WARNING (or CAUTION or ATTENTION), FAILURE (or FAIL or MISSING), DANGER (or ERROR), BUG, EXAMPLE, QUOTE (for famous author quotes only).
 - If you write mathematical or LaTex formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: '$$formula$$'. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
@@ -380,68 +388,70 @@ export const buildResultsContext = (
 
   context += `\n\n`;
 
-  // Format results exactly as FullResultsChat does
+  // Format results as structured JSON-like entries for unambiguous parsing
   const formattedResults = results
     .map((result, index) => {
-      const parts = [];
       const isPage = !result.pageUid; // Pages don't have pageUid property
 
-      // UID (if present)
-      if (result.uid && !isPage) {
-        parts.push(`<BLOCK>\nUID: ${result.uid}`);
+      if (isPage) {
+        const entry: Record<string, string> = {
+          type: "PAGE",
+          title: result.pageTitle || result.title || "no title found",
+        };
+        if (result.created) {
+          entry.created = String(result.created)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
+        if (result.modified) {
+          entry.modified = String(result.modified)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
+        let output = JSON.stringify(entry, null, 2);
+        // Append children outline outside JSON for readability (hierarchical content)
+        if (result.expandedBlock?.childrenOutline) {
+          output += `\nContent:\n${result.expandedBlock.childrenOutline}`;
+        }
+        return output;
+      } else {
+        // Block
+        if (!result.uid) return null;
+        const entry: Record<string, string> = {
+          type: "BLOCK",
+          uid: result.uid,
+        };
         if (result.pageTitle || result.title) {
-          parts.push(`In page: [[${result.pageTitle || result.title}]]`);
+          entry.page = `[[${result.pageTitle || result.title}]]`;
         }
-        // Parent info (only for blocks that have parent context)
         if (result.expandedBlock?.parent) {
-          parts.push(
-            `Parent: ${resolveReferences(result.expandedBlock.parent)}`,
-          );
+          entry.parent = resolveReferences(result.expandedBlock.parent);
         }
-      } else
-        parts.push(
-          `<PAGE>\nTitle: ${
-            result.pageTitle || result.title
-              ? `[[${result.pageTitle || result.title}]]`
-              : "no title found"
-          }`,
-        );
-
-      // Timestamps - show only date, not time
-      if (result.created) {
-        const createdStr = String(result.created)
-          .split(" ")
-          .slice(0, 4)
-          .join(" ");
-        parts.push(`Created: ${createdStr}`);
-      }
-      if (result.modified) {
-        const modifiedStr = String(result.modified)
-          .split(" ")
-          .slice(0, 4)
-          .join(" ");
-        parts.push(`Modified: ${modifiedStr}`);
-      }
-
-      // Content (if available)
-      if (!isPage && (result.expandedBlock?.original || result.content)) {
+        if (result.created) {
+          entry.created = String(result.created)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
+        if (result.modified) {
+          entry.modified = String(result.modified)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
         const content = result.expandedBlock?.original || result.content;
-        parts.push(`Content:\n${content}`);
+        if (content) {
+          entry.content = content;
+        }
+        let output = JSON.stringify(entry, null, 2);
+        // Append children outline outside JSON for readability (hierarchical content with UIDs)
+        if (result.expandedBlock?.childrenOutline) {
+          output += `\nChildren:\n${result.expandedBlock.childrenOutline}`;
+        }
+        return output;
       }
-
-      // Children info (if available)
-      if (result.expandedBlock?.childrenOutline) {
-        parts.push(
-          `${isPage ? "Content:\n" : "Children:\n"}${
-            result.expandedBlock.childrenOutline
-          }`,
-        );
-      }
-
-      // Only include result if it has at least one displayable field
-      if (parts.length === 0) return null;
-
-      return /*`Result ${index + 1}:\n */ `${parts.join("\n")}`;
     })
     .filter((r) => r !== null) // Remove empty results
     .join("\n\n---\n\n");

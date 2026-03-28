@@ -18,6 +18,7 @@ import {
   getDNPTitleFromDate,
   isExistingBlock,
 } from "../../../../utils/roamAPI";
+import { parseISODateLocal } from "./dateUtils";
 
 export const createPageTool = tool(
   async (
@@ -37,9 +38,9 @@ export const createPageTool = tool(
     let isDNP = false;
 
     if (date) {
-      // Parse ISO date format (YYYY-MM-DD)
-      const dateObj = new Date(date);
-      if (isNaN(dateObj.getTime())) {
+      // Parse ISO date format (YYYY-MM-DD) using local date to avoid timezone shift
+      const dateObj = parseISODateLocal(date);
+      if (!dateObj) {
         return `⚠️ Invalid date format: "${date}". Please provide a valid ISO date (YYYY-MM-DD format, e.g., "2024-01-15").`;
       }
       finalTitle = getDNPTitleFromDate(dateObj);
@@ -89,7 +90,7 @@ export const createPageTool = tool(
       // Check if the Roam API is available
       const roamAPI = (window as any).roamAlphaAPI;
       if (!roamAPI?.data?.page?.fromMarkdown) {
-        return "Error: Roam Alpha API (page.fromMarkdown) is not available. This tool requires Roam Research with the Alpha API enabled.";
+        return "❌ Roam Alpha API (page.fromMarkdown) is not available. This tool requires Roam Research with the Alpha API enabled.";
       }
 
       // Check if page already exists
@@ -122,7 +123,7 @@ export const createPageTool = tool(
       return `✅ Page "[[${finalTitle}]]" creation initiated. The page should now be available in your graph.`;
     } catch (error) {
       console.error("Error creating page from markdown:", error);
-      return `Error: Failed to create page. ${
+      return `❌ Failed to create page. ${
         error instanceof Error ? error.message : "Unknown error"
       }`;
     }

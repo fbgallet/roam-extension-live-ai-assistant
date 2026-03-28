@@ -3371,6 +3371,18 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   font-size: 13px;
 }
 
+.tool-confirmation-non-atomic-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #a67908;
+  background: rgba(217, 179, 14, 0.1);
+  border-radius: 4px;
+}
+
 .tool-confirmation-buttons {
   display: flex;
   gap: 8px;

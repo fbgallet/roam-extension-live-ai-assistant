@@ -21,15 +21,7 @@ import {
   getPageNameByPageUid,
 } from "../../../../utils/roamAPI";
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
-
-/**
- * Truncate text to a maximum length, adding ellipsis if needed.
- */
-function truncateText(text: string, maxLength: number): string {
-  if (!text) return "";
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + "...";
-}
+import { truncateText, findContainingPageName } from "./toolUtils";
 
 /**
  * Counts the total number of descendant blocks in a tree.
@@ -53,19 +45,30 @@ function countDescendants(tree: any): number {
 }
 
 /**
- * Compute the depth of a block in the graph (number of ancestors).
- * Used to sort blocks deepest-first for batch deletion.
+ * Compute the depth of multiple blocks efficiently using a shared cache.
+ * Avoids redundant parent-chain walks when blocks share ancestors.
+ * Returns a Map of uid -> depth.
  */
-function getBlockDepth(uid: string): number {
-  let depth = 0;
-  let current = uid;
-  while (true) {
-    const parent = getParentBlock(current);
-    if (!parent) break;
-    depth++;
-    current = parent;
+function getBlockDepths(uids: string[]): Map<string, number> {
+  const depthCache = new Map<string, number>();
+
+  function computeDepth(uid: string): number {
+    if (depthCache.has(uid)) return depthCache.get(uid)!;
+    const parent = getParentBlock(uid);
+    if (!parent) {
+      depthCache.set(uid, 0);
+      return 0;
+    }
+    const depth = 1 + computeDepth(parent);
+    depthCache.set(uid, depth);
+    return depth;
   }
-  return depth;
+
+  for (const uid of uids) {
+    computeDepth(uid);
+  }
+
+  return depthCache;
 }
 
 /**
@@ -93,13 +96,7 @@ function getBlockDeletePreview(uid: string): {
       pageName = parentPageName;
     } else {
       const parentContent = getBlockContentByUid(parentUid);
-      // Walk up to find the containing page
-      let current: string | null = parentUid;
-      while (current) {
-        const pName = getPageNameByPageUid(current);
-        if (pName) { pageName = pName; break; }
-        current = getParentBlock(current);
-      }
+      pageName = findContainingPageName(parentUid);
       positionContext = `under "${truncateText(parentContent || "", 50)}"${pageName ? ` on [[${pageName}]]` : ""}`;
     }
   }
@@ -154,10 +151,11 @@ async function executeBatchDelete(
   );
 
   // 3. Sort by depth (deepest first) to avoid parent-before-child deletion
+  const depthMap = getBlockDepths(valid.map(({ uid }) => uid));
   const withDepth = valid.map(({ uid, index }) => ({
     uid,
     index,
-    depth: getBlockDepth(uid),
+    depth: depthMap.get(uid) || 0,
   }));
   withDepth.sort((a, b) => b.depth - a.depth);
 
@@ -178,6 +176,7 @@ async function executeBatchDelete(
         operation_count: valid.length,
         total_descendants: totalDescendants,
         blocks: blockPreviews,
+        non_atomic: valid.length > 1,
       },
     });
 
@@ -204,6 +203,11 @@ async function executeBatchDelete(
         continue;
       }
       await deleteBlock(uid);
+      // Verify deletion actually happened
+      if (isExistingBlock(uid)) {
+        results.push({ index, uid, status: "FAILED: Block still exists after deletion attempt" });
+        continue;
+      }
       const preview = blockPreviews.find((b) => b.block_uid === uid);
       let status = "Deleted";
       if (preview && preview.descendant_count > 0) {
@@ -227,7 +231,8 @@ async function executeBatchDelete(
   const failed = results.filter((r) => r.status.startsWith("FAILED"));
   const alreadyDeleted = results.filter((r) => r.status.startsWith("SKIPPED"));
 
-  let output = `Batch delete results (${blockUids.length} operations):\n`;
+  const statusEmoji = failed.length === 0 ? "✅" : (succeeded.length > 0 ? "⚠️" : "❌");
+  let output = `${statusEmoji} Batch delete results (${blockUids.length} operations):\n`;
   for (const r of results) {
     // Include content from blockPreviews (captured before deletion)
     const preview = blockPreviews.find((b) => b.block_uid === r.uid);
@@ -360,6 +365,11 @@ export const deleteBlockTool = tool(
 
       await deleteBlock(block_uid);
 
+      // Verify deletion actually happened
+      if (isExistingBlock(block_uid)) {
+        return `❌ Block ((${block_uid})) still exists after deletion attempt. The operation may have silently failed.`;
+      }
+
       let result = `✅ Block "${contentPreview}" ((${block_uid})) has been deleted.`;
       if (preview.descendant_count > 0) {
         result += ` (${preview.descendant_count} descendant block(s) were also removed)`;
@@ -367,7 +377,7 @@ export const deleteBlockTool = tool(
       return result;
     } catch (error) {
       console.error("Error deleting block:", error);
-      return `Error: Failed to delete block. ${
+      return `❌ Failed to delete block. ${
         error instanceof Error ? error.message : "Unknown error"
       }`;
     }

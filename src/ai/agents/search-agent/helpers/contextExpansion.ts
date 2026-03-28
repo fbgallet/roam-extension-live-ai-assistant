@@ -548,8 +548,8 @@ async function buildRecursiveChildrenOutline(
       }
 
       // NO TRUNCATION YET - extract full content
-      // Add current level with indentation
-      outlineLines.push(`${indent}- ${formattedContent}`);
+      // Add current level with indentation, including UID for referenceable blocks
+      outlineLines.push(`${indent}- [${childUid}] ${formattedContent}`);
 
       // Recursively get children of this child if we have depth remaining
       if (currentLevel < maxDepth) {

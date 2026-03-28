@@ -19,16 +19,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
-import { getBlockContentByUid, getOrderedDirectChildren, getParentBlock, getPageNameByPageUid } from "../../../../utils/roamAPI";
-
-/**
- * Truncate text to a maximum length, adding ellipsis if needed.
- */
-function truncateText(text: string, maxLength: number): string {
-  if (!text) return "";
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + "...";
-}
+import { getBlockContentByUid, getOrderedDirectChildren } from "../../../../utils/roamAPI";
+import { truncateText, findContainingPageName } from "./toolUtils";
 
 /**
  * Format a block reference with its content for display.
@@ -205,6 +197,22 @@ export const createBlockTool = tool(
       return `📄 Analyzed ${targetDescription}. Target UID: ((${targetUid}))\n\n${truncatedOutline}`;
     }
 
+    // === PRE-VALIDATION (before asking user for confirmation) ===
+    // Check if the Roam API is available
+    const roamAPI = (window as any).roamAlphaAPI;
+    if (!roamAPI?.data?.block?.fromMarkdown) {
+      return "❌ Roam Alpha API (fromMarkdown) is not available. This tool requires Roam Research with the Alpha API enabled.";
+    }
+
+    // Verify the target block/page exists
+    const targetExists = roamAPI.data.pull("[:block/uid]", [
+      ":block/uid",
+      targetUid,
+    ]);
+    if (!targetExists) {
+      return `⚠️ Target with UID "${targetUid}" was not found. Please verify the UID exists in your graph.`;
+    }
+
     // === CONFIRMATION FLOW FOR INSERTION MODE ===
     // When markdown_content is provided, we need user confirmation before inserting
     const toolConfirmationCallback = config?.configurable?.toolConfirmationCallback;
@@ -221,15 +229,7 @@ export const createBlockTool = tool(
       const insertionContext = getInsertionContext(targetUid, order, resolved.isPage);
 
       // Determine the containing page for any target (walk up if needed)
-      let containingPageName = resolved.pageName;
-      if (!containingPageName && !resolved.isPage) {
-        let current: string | null = targetUid;
-        while (current) {
-          const pName = getPageNameByPageUid(current);
-          if (pName) { containingPageName = pName; break; }
-          current = getParentBlock(current);
-        }
-      }
+      const containingPageName = resolved.pageName || (!resolved.isPage ? findContainingPageName(targetUid) : undefined);
 
       // Request confirmation from the user with rich context
       const confirmationResult = await toolConfirmationCallback({
@@ -261,24 +261,11 @@ export const createBlockTool = tool(
     }
 
     try {
-      // Check if the Roam API is available
-      const roamAPI = (window as any).roamAlphaAPI;
-      if (!roamAPI?.data?.block?.fromMarkdown) {
-        return "Error: Roam Alpha API (fromMarkdown) is not available. This tool requires Roam Research with the Alpha API enabled.";
-      }
-
-      // Verify the target block/page exists
-      const targetExists = roamAPI.data.pull("[:block/uid]", [
-        ":block/uid",
-        targetUid,
-      ]);
-      if (!targetExists) {
-        return `⚠️ Target with UID "${targetUid}" was not found. Please verify the UID exists in your graph.`;
-      }
 
       // Determine final insertion location
       let finalParentUid = targetUid;
       let finalOrder: "first" | "last" | number = order;
+      let smartInsertionFailed = false;
 
       // Smart insertion: use LLM to find best location
       if (smart_insertion) {
@@ -300,11 +287,19 @@ export const createBlockTool = tool(
           finalOrder = evalResult.location.order;
         } else {
           // Fallback to direct insertion at target
+          smartInsertionFailed = true;
           console.warn(
             "Smart insertion failed to determine location, using target directly",
           );
         }
       }
+
+      // Snapshot children count before insertion to verify success
+      const childrenBefore = roamAPI.data.pull("[:block/children]", [
+        ":block/uid",
+        finalParentUid,
+      ]);
+      const childCountBefore = childrenBefore?.[":block/children"]?.length || 0;
 
       // Create blocks from markdown
       const result = await roamAPI.data.block.fromMarkdown({
@@ -342,17 +337,21 @@ export const createBlockTool = tool(
         locationDesc += " (smart insertion)";
       }
 
-      // If we couldn't get UIDs but the API didn't throw, assume success
-      // The fromMarkdown API sometimes returns undefined but still creates blocks
+      // Smart insertion fallback note
+      const smartFallbackNote = smartInsertionFailed
+        ? "\n⚠️ Smart insertion could not determine the best location — content was appended at the end instead."
+        : "";
+
+      // If we couldn't get UIDs but the API didn't throw, verify via child count change
       if (topUidsArray.length === 0) {
-        // Check if blocks were actually created by verifying the parent has new children
-        const parentCheck = roamAPI.data.pull("[:block/children]", [
+        const childrenAfter = roamAPI.data.pull("[:block/children]", [
           ":block/uid",
           finalParentUid,
         ]);
+        const childCountAfter = childrenAfter?.[":block/children"]?.length || 0;
 
-        if (parentCheck && parentCheck[":block/children"]) {
-          return `✅ Blocks successfully created as children of ${locationDesc}. The content has been inserted into your graph - you can view it there directly.`;
+        if (childCountAfter > childCountBefore) {
+          return `✅ Blocks created as children of ${locationDesc}.${smartFallbackNote}`;
         }
 
         return "⚠️ No blocks were created. The markdown content may be empty or invalid.";
@@ -367,10 +366,10 @@ export const createBlockTool = tool(
               .map((uid: string) => `((${uid}))`)
               .join(", ")} ... and ${createdCount - 3} more`;
 
-      return `✅ Created ${createdCount} top-level block(s) as children of ${locationDesc}.\nBlock UIDs: ${uidList}\n\nThe content has been inserted into your graph - no need to copy it again.`;
+      return `✅ Created ${createdCount} top-level block(s) as children of ${locationDesc}.\nBlock UIDs: ${uidList}${smartFallbackNote}`;
     } catch (error) {
       console.error("Error creating blocks from markdown:", error);
-      return `Error: Failed to create blocks. ${
+      return `❌ Failed to create blocks. ${
         error instanceof Error ? error.message : "Unknown error"
       }`;
     }
