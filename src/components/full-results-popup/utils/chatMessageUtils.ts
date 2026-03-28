@@ -285,6 +285,47 @@ export const renderMarkdown = (text: string): string => {
   const processedLines: string[] = [];
   let listStack: Array<{ indent: number; type: "ul" | "ol" }> = [];
 
+  // Helper: find the last <li> in processedLines and append content to it
+  const appendToLastLi = (content: string): boolean => {
+    for (let j = processedLines.length - 1; j >= 0; j--) {
+      if (processedLines[j].endsWith("</li>")) {
+        processedLines[j] =
+          processedLines[j].slice(0, -5) + `<br>${content}</li>`;
+        return true;
+      }
+      // Stop searching if we hit a list boundary
+      if (
+        processedLines[j].match(
+          /^<\/?(ul|ol)>$|^<li>|^<(h[1-6]|hr|blockquote|pre)/,
+        )
+      ) {
+        break;
+      }
+    }
+    return false;
+  };
+
+  // Helper: look ahead to check if a future line has a list item at the same or lower level
+  const hasUpcomingListItem = (fromIndex: number): boolean => {
+    for (let j = fromIndex; j < lines.length; j++) {
+      const futureTrimmed = lines[j].trim();
+      if (!futureTrimmed) continue; // skip empty lines
+      // Check if it's a list item
+      if (
+        lines[j].match(/^(\s*)([-*•])\s(.+)$/) ||
+        lines[j].match(/^(\s*)(\d+\.)\s(.+)$/)
+      ) {
+        return true;
+      }
+      // If the line is indented, it might be continuation — keep looking
+      const leadingSpaces = lines[j].match(/^(\s*)/)?.[1].length || 0;
+      if (leadingSpaces > 0) continue;
+      // Non-indented, non-empty, non-list line — the list has ended
+      return false;
+    }
+    return false;
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
@@ -331,11 +372,36 @@ export const renderMarkdown = (text: string): string => {
 
       processedLines.push(`<li>${content}</li>`);
     } else if (!trimmedLine && listStack.length > 0) {
-      // Empty line within a list - keep it to allow spacing between list items
-      // Don't close the list, just preserve the blank line
-      processedLines.push(line);
+      // Empty line within a list - keep it only if more list items or continuation follow
+      if (hasUpcomingListItem(i + 1)) {
+        processedLines.push(line);
+      } else {
+        // No more list items ahead — close the list
+        while (listStack.length > 0) {
+          const closingList = listStack.pop()!;
+          processedLines.push(`</${closingList.type}>`);
+        }
+        processedLines.push(line);
+      }
+    } else if (listStack.length > 0 && trimmedLine) {
+      // Non-list, non-empty line while inside a list
+      // Check if it's indented (continuation of current list item)
+      const leadingSpaces = line.match(/^(\s*)/)?.[1].length || 0;
+      if (leadingSpaces > 0) {
+        // Indented continuation content — append to the last <li>
+        if (!appendToLastLi(trimmedLine)) {
+          processedLines.push(line);
+        }
+      } else {
+        // Non-indented line — close the list, this is new content outside the list
+        while (listStack.length > 0) {
+          const closingList = listStack.pop()!;
+          processedLines.push(`</${closingList.type}>`);
+        }
+        processedLines.push(line);
+      }
     } else {
-      // Not a list item and not an empty line in a list - close all open lists
+      // Not a list item and not inside a list - just emit the line
       while (listStack.length > 0) {
         const closingList = listStack.pop()!;
         processedLines.push(`</${closingList.type}>`);
@@ -419,39 +485,41 @@ export const renderMarkdown = (text: string): string => {
 
   // STEP 5: Restore code blocks, links, inline code, and Roam embeds BEFORE wrapping in paragraphs or sanitizing
   // Use split/join approach for reliable placeholder replacement (replaceAll not available in all environments)
+  // IMPORTANT: Restore in REVERSE order (highest index first) to prevent prefix collisions
+  // e.g., "INLINECODE-1" would match inside "INLINECODE-10" if restored first
 
   // Restore Roam callouts as data-attributed spans (renderString will handle them in MessageContent)
-  callouts.forEach((callout, index) => {
-    const placeholder = `${calloutPlaceholder}${index}`;
-    const encoded = callout.replace(/"/g, "&quot;");
+  for (let i = callouts.length - 1; i >= 0; i--) {
+    const placeholder = `${calloutPlaceholder}${i}`;
+    const encoded = callouts[i].replace(/"/g, "&quot;");
     rendered = rendered
       .split(placeholder)
       .join(`<span data-roam-callout="${encoded}"></span>`);
-  });
+  }
 
   // Restore Roam embeds FIRST (these need to be intact for renderString in React component)
-  roamEmbeds.forEach((embed, index) => {
-    const placeholder = `${roamEmbedPlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(embed);
-  });
+  for (let i = roamEmbeds.length - 1; i >= 0; i--) {
+    const placeholder = `${roamEmbedPlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(roamEmbeds[i]);
+  }
 
   // Restore multi-line code blocks
-  codeBlocks.forEach((codeBlock, index) => {
-    const placeholder = `${codeBlockPlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(codeBlock);
-  });
+  for (let i = codeBlocks.length - 1; i >= 0; i--) {
+    const placeholder = `${codeBlockPlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(codeBlocks[i]);
+  }
 
   // Restore links and images
-  links.forEach((link, index) => {
-    const placeholder = `${linkPlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(link);
-  });
+  for (let i = links.length - 1; i >= 0; i--) {
+    const placeholder = `${linkPlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(links[i]);
+  }
 
   // Restore inline code
-  inlineCodes.forEach((inlineCode, index) => {
-    const placeholder = `${inlineCodePlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(inlineCode);
-  });
+  for (let i = inlineCodes.length - 1; i >= 0; i--) {
+    const placeholder = `${inlineCodePlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(inlineCodes[i]);
+  }
 
   // Wrap in paragraphs (but not if it starts with a header, list, blockquote, hr, or table)
   if (!rendered.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr|table)/)) {
