@@ -1004,34 +1004,27 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const blockUid = target.getAttribute("data-block-uid");
         if (!blockUid) return;
 
-        // Always copy ((uid)) to clipboard
-        const clipboardText = `((${blockUid}))`;
-        navigator.clipboard
-          .writeText(clipboardText)
-          .then(() => {
-            console.log(
-              "[Chat Link Click] Copied to clipboard:",
-              clipboardText,
-            );
-          })
-          .catch((err) => {
-            console.warn("[Chat Link Click] Failed to copy to clipboard:", err);
-          });
-
         if (event.shiftKey) {
           // Shift+click: Open in sidebar
-
           window.roamAlphaAPI.ui.rightSidebar.addWindow({
             window: { type: "block", "block-uid": blockUid },
           });
         } else if (event.altKey || event.metaKey) {
-          // Alt/Option+click: Open in main window
+          // Alt/Option+click: Copy block reference & show result
+          const clipboardText = `((${blockUid}))`;
+          navigator.clipboard
+            .writeText(clipboardText)
+            .then(() => {
+              console.log(
+                "[Chat Link Click] Copied to clipboard:",
+                clipboardText,
+              );
+            })
+            .catch((err) => {
+              console.warn("[Chat Link Click] Failed to copy to clipboard:", err);
+            });
 
-          window.roamAlphaAPI.ui.mainWindow.openBlock({
-            block: { uid: blockUid },
-          });
-        } else {
-          // Regular click: Check if block exists in results
+          // Check if block exists in results
           const allAvailableResults =
             selectedResults.length > 0 ? selectedResults : allResults;
           const blockExistsInResults = allAvailableResults.some(
@@ -1041,14 +1034,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           if (blockExistsInResults) {
             // Block exists in results - show it
             if (chatOnlyMode) {
-              // Set pending highlight and switch mode - useEffect will handle the rest
               setPendingHighlight(blockUid);
-              handleChatOnlyToggle(); // Use the proper handler instead of direct setter
+              handleChatOnlyToggle();
             } else {
-              // Highlight immediately if already in results view
               highlightAndScrollToResult(blockUid);
             }
           }
+        } else {
+          // Regular click: Open in main window
+          window.roamAlphaAPI.ui.mainWindow.openBlock({
+            block: { uid: blockUid },
+          });
         }
       }
 

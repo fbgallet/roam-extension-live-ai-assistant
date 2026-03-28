@@ -57,6 +57,8 @@ import {
   isFileExportRequest,
   handleFileExportCommand,
 } from "./multimodal-commands";
+import { getContextFromQueries } from "../../queryContextExtractor";
+import { alwaysExtractQuery } from "../../..";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -242,6 +244,17 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     state.messages.push(new HumanMessage(completedLastMessage));
   }
 
+  // Extract query results if alwaysExtractQuery is enabled
+  let queryContext: string | null = null;
+  if (alwaysExtractQuery) {
+    queryContext = await getContextFromQueries({
+      prompt: lastMessage,
+      context: resultsContext || "",
+      model: state.model.id,
+      rootUid: "",
+    });
+  }
+
   // Build system prompt - NOTE: Don't include tool descriptions
   // LangChain's bindTools() handles tool schemas automatically via the API
   const systemPrompt = await buildChatSystemPrompt({
@@ -262,7 +275,10 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     hasPdfContent: hasPdfContent(lastMessage, state.resultsContext),
   });
 
-  sys_msg = new SystemMessage({ content: systemPrompt });
+  const finalSystemPrompt = queryContext
+    ? systemPrompt + "\n\n" + queryContext
+    : systemPrompt;
+  sys_msg = new SystemMessage({ content: finalSystemPrompt });
 
   return {
     messages: state.messages,

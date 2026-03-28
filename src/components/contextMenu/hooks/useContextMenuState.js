@@ -5,6 +5,8 @@ import {
   includeChildrenByDefault,
   logPagesNbDefault,
   defaultModel,
+  alwaysExtractPdf,
+  alwaysExtractQuery,
 } from "../../..";
 import { BUILTIN_COMMANDS } from "../../../ai/prebuildCommands";
 import { isThinkingModel, hasThinkingDefault } from "../../../ai/modelRegistry";
@@ -53,8 +55,8 @@ export const useContextMenuState = () => {
   const [customStyles, setCustomStyles] = useState([]);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
-  const [includePdfInContext, setIncludePdfInContext] = useState(false);
-  const [includeQueryInContext, setIncludeQueryInContext] = useState(false);
+  const [includePdfInContext, setIncludePdfInContext] = useState(alwaysExtractPdf || false);
+  const [includeQueryInContext, setIncludeQueryInContext] = useState(alwaysExtractQuery || false);
 
   // Thinking Mode State
   const [thinkingEnabled, setThinkingEnabled] = useState(() =>

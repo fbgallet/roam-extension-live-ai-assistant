@@ -136,6 +136,8 @@ export let isSafari =
   window.roamAlphaAPI.platform.isIOS;
 export let customStyles;
 export let isThinkingProcessToDisplay;
+export let alwaysExtractPdf;
+export let alwaysExtractQuery;
 
 const modeMap = {
   "Always ask user": "ask_user",
@@ -666,6 +668,30 @@ function getPanelConfig() {
           type: "switch",
           onChange: () => {
             isThinkingProcessToDisplay = !isThinkingProcessToDisplay;
+          },
+        },
+      },
+      {
+        id: "alwaysExtractPdf",
+        name: "Always extract PDF content",
+        description:
+          "Automatically extract and include PDF content found in the prompt or context, without needing to check the PDF checkbox each time",
+        action: {
+          type: "switch",
+          onChange: () => {
+            alwaysExtractPdf = !alwaysExtractPdf;
+          },
+        },
+      },
+      {
+        id: "alwaysExtractQuery",
+        name: "Always extract query results",
+        description:
+          "Automatically execute Roam queries and Datomic :q queries found in prompt/context and add results, without needing to check the Queries checkbox each time",
+        action: {
+          type: "switch",
+          onChange: () => {
+            alwaysExtractQuery = !alwaysExtractQuery;
           },
         },
       },
@@ -1234,6 +1260,12 @@ export default {
     isThinkingProcessToDisplay = extensionAPI.settings.get(
       "displayThinkingProcess",
     );
+    if (extensionAPI.settings.get("alwaysExtractPdf") === null)
+      await extensionAPI.settings.set("alwaysExtractPdf", false);
+    alwaysExtractPdf = extensionAPI.settings.get("alwaysExtractPdf");
+    if (extensionAPI.settings.get("alwaysExtractQuery") === null)
+      await extensionAPI.settings.set("alwaysExtractQuery", false);
+    alwaysExtractQuery = extensionAPI.settings.get("alwaysExtractQuery");
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");
     customBaseURL = extensionAPI.settings.get("customBaseUrl");

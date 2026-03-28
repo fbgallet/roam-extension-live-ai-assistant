@@ -394,20 +394,20 @@ export const renderMarkdown = (text: string): string => {
   // Convert Roam embed syntax to clickable links
   rendered = rendered.replace(
     /\{\{\[\[(.*?)\]\]:\s*\(\(([^\(]{9,10})\)\)\}\}/g,
-    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>',
+    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Copy block reference & show result">📄 {{[[embed-path]]: (($2))}}]</a>',
   );
 
   // IMPORTANT: Process [description](((uid))) BEFORE ((uid)) to prevent conflicts
   // Convert [description](((uid))) to clickable link with description
   rendered = rendered.replace(
     /\[([^\[\]]+?)\]\(\(\(([^\(]{9,10})\)\)\)/g,
-    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">$1</a>`,
+    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Copy block reference & show result">$1</a>`,
   );
 
   // Simple block reference ((uid)) - process AFTER [description](((uid)))
   rendered = rendered.replace(
     /(?<!\]\()\(\(([^\(]{9,10})\)\)(?!\}\})/g,
-    `<a  data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">(($1))</span></a>`,
+    `<a  data-block-uid="$1" class="roam-block-ref-chat" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Copy block reference & show result">(($1))</span></a>`,
   );
 
   // Tag references #tag - make clickable
