@@ -8,7 +8,7 @@ import {
   DEFAULT_COUNCIL_CONFIG,
 } from "../../../../ai/agents/council-agent/council-types";
 import "../../style/councilDisplay.css";
-import { Result, ChatMessage, ChatMode } from "../../types/types";
+import { Result, ChatMessage, ChatMode, VectorSearchUIPayload } from "../../types/types";
 import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/helpers/contextExpansion";
 import {
   extensionStorage,
@@ -219,6 +219,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       response?: string; // Tool's response/feedback
       timestamp: number;
       intermediateMessage?: string;
+      vectorSearchData?: VectorSearchUIPayload;
     }>
   >([]);
 
@@ -3195,7 +3196,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         }) => {
           // Filter response for analysis/browse mode (hide outline from user)
           let displayResponse = toolInfo.response;
-          if (
+          let vectorSearchData: VectorSearchUIPayload | undefined;
+
+          if (toolInfo.toolName === "vector_search") {
+            // Extract structured UI payload from vector search response
+            const uiMatch = toolInfo.response.match(
+              /<!--VECTOR_SEARCH_UI:(.*?):END_VECTOR_SEARCH_UI-->/s
+            );
+            if (uiMatch) {
+              try {
+                vectorSearchData = JSON.parse(uiMatch[1]);
+              } catch (e) {
+                console.warn("[Chat] Failed to parse vector search UI data:", e);
+              }
+              // Show a clean summary as the text response
+              const count = vectorSearchData?.results?.length || 0;
+              const time = vectorSearchData?.executionTime || "";
+              displayResponse = `Found ${count} result${count !== 1 ? "s" : ""} in ${time}s`;
+            }
+          } else if (
             (toolInfo.toolName === "create_block" ||
               toolInfo.toolName === "create_page") &&
             toolInfo.response.startsWith("📄 Analyzed")
@@ -3225,6 +3244,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
                 updatedHistory[i] = {
                   ...updatedHistory[i],
                   response: displayResponse,
+                  ...(vectorSearchData ? { vectorSearchData } : {}),
                 };
                 break;
               }
@@ -3548,6 +3568,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onSaveEdit={handleSaveEdit}
         onCancelEdit={handleCancelEdit}
         statusMessage={statusMessage}
+        onAddResults={onAddResults}
       />
 
       <ChatInputArea

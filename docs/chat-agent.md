@@ -262,6 +262,64 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 - "Pages about project management with recent updates"
 - "What are the main themes in my graph?" (with metadataOnly mode)
 
+### `vector_search` - Semantic Search
+
+**Purpose**: Search across your indexed Roam graph and uploaded files using semantic vector search
+
+**Requires**: OpenAI API key (the tool is disabled if no key is configured)
+
+**How it works**:
+
+1. **Indexing**: Your Roam graph content is extracted, converted to markdown, and uploaded to OpenAI's Vector Store
+2. **File uploads**: You can also upload external documents directly — PDFs, Word documents, PowerPoint, Markdown, plain text, HTML, CSV, code files (JS, TS, Python, Go, Java, etc.) — ideal for searching across large reference documents, research papers, or any text-based files alongside your Roam notes
+3. **Storage**: All indexed content is stored on OpenAI's servers (manageable at https://platform.openai.com/storage)
+4. **Search**: Queries use semantic similarity (meaning-based), not just keyword matching — works across both Roam content and uploaded files in a single search
+5. **Results**: Returns ranked passages with relevance scores and source attribution (Roam page or file name)
+
+**Supported file formats for upload**: `.pdf`, `.docx`, `.doc`, `.pptx`, `.txt`, `.md`, `.html`, `.csv`, `.json`, `.js`, `.ts`, `.py`, `.c`, `.cpp`, `.java`, `.go`, `.rb`, `.php`, `.sh`, `.tex`, `.css`
+
+**Indexing details** (Roam graph):
+
+- Daily notes and regular pages are stored in separate chunks for better retrieval
+- Block outline structure is preserved (indentation, parent-child hierarchy)
+- Block references `((uid))` are resolved to their actual text content
+- Blocks matching your exclusion tags (e.g., `#private`, `[[secret]]`) are excluded, along with all their children
+- A top-level childless block with an exclusion tag acts as a "stop marker": all following siblings on that page are also excluded
+- Incremental indexing: only pages with changes (including block-level edits) are re-uploaded
+
+**Configurable settings** (in the Vector Databases section of the tools menu):
+
+- **Max results**: Number of results returned per search (1-50, default: 10)
+- **Min score %**: Hide results below a relevance threshold (0-100, default: 0 = show all)
+
+**Source filtering**: The agent can narrow searches by source type:
+
+- `all` (default): Search everything — regular pages, daily notes, and uploaded files
+- `roam`: All Roam content (pages + daily notes)
+- `roam-pages`: Regular pages only
+- `roam-dnp`: Daily notes only
+- `uploads`: Uploaded files only (PDFs, DOCX, etc.)
+
+**Multiple databases**: You can create separate vector databases (e.g., one for your graph, another for research papers). All enabled databases are searched by default, or the agent can target a specific one.
+
+**Important**: Vector search always uses the OpenAI API regardless of which chat model you have selected. The chat model (Claude, Gemini, etc.) processes the results, but the search itself is performed by OpenAI's vector store infrastructure.
+
+**Getting started**:
+
+When enabling the vector search tool for the first time, you can either:
+- **Index your Roam graph** — creates a "Current Graph" database and indexes all your pages and daily notes
+- **Upload files** — creates an "Uploaded Files" database and lets you upload documents (PDFs, DOCX, etc.)
+
+You can create additional databases later to organize content by topic (e.g., "Research Papers", "Work Docs").
+
+**Examples**:
+
+- "Search my graph for notes about machine learning approaches"
+- "Find documents about project budgets in my uploaded PDFs"
+- "What have I written about meditation in my daily notes?"
+- "Summarize the key points from the uploaded research paper on climate change"
+- "Search across all my content for mentions of quarterly goals" (searches both Roam and uploaded files)
+
 ### `get_help`
 
 **Purpose**: Fetch Live AI extension documentation
@@ -313,6 +371,7 @@ By default, the following tool configuration is applied:
 **Disabled by default**:
 
 - `ask_your_graph` ⚡ - Heavy operation, must be explicitly enabled
+- `vector_search` - Requires OpenAI API key and vector store setup
 
 You can customize which tools are enabled via the tools menu (wrench icon). Your preferences are saved across sessions.
 

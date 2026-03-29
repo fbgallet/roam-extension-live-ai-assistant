@@ -15,6 +15,7 @@ import { updateBlockTool } from "./updateBlockTool";
 import { deleteBlockTool } from "./deleteBlockTool";
 import { askUserChoiceTool } from "./askUserChoiceTool";
 import { randomPickTool } from "./randomPickTool";
+import { vectorSearchTool } from "./vectorSearchTool";
 
 export type ToolCategory = "context" | "edit" | "skills" | "interaction";
 
@@ -64,6 +65,13 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       category: "context",
       description:
         "Fetch Live AI extension documentation when users ask for help about features, pricing, agents, or how to use the extension. Automatically retrieves relevant .md files from GitHub.",
+    },
+    vector_search: {
+      tool: vectorSearchTool,
+      securityLevel: "secure",
+      category: "context",
+      description:
+        "Search across indexed Roam graph and uploaded files using semantic vector search. Finds content by meaning, not just keywords. Requires vector store setup from tools menu.",
     },
     // Edit tools
     create_block: {
@@ -152,6 +160,13 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     category: "context",
     description:
       "Fetch Live AI extension documentation when users ask for help about features, pricing, agents, or how to use the extension. Automatically retrieves relevant .md files from GitHub.",
+  },
+  vector_search: {
+    tool: null,
+    securityLevel: "secure",
+    category: "context",
+    description:
+      "Search across indexed Roam graph and uploaded files using semantic vector search. Finds content by meaning, not just keywords. Requires vector store setup from tools menu.",
   },
   // Edit tools
   create_block: {

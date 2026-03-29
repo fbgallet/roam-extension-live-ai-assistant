@@ -3352,6 +3352,260 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   font-size: 12px;
 }
 
+/* ========================================
+   Vector Search Results Display
+   ======================================== */
+
+.vs-results-container {
+  margin-top: 6px;
+  border-radius: 8px;
+}
+
+.vs-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #f0f4f8;
+  border-bottom: 1px solid #dce4ec;
+  font-size: 12px;
+}
+
+.vs-results-summary {
+  font-weight: 600;
+  color: #394b59;
+}
+
+.vs-results-time {
+  margin-left: 6px;
+  color: #8a9ba8;
+  font-weight: 400;
+}
+
+.vs-add-all-btn,
+.vs-add-btn,
+.vs-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid #d8e1e8;
+  border-radius: 4px;
+  background: #fff;
+  color: #394b59;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vs-add-all-btn:hover:not(:disabled),
+.vs-add-btn:hover:not(:disabled) {
+  background: #e1f0ff;
+  border-color: #4a90d9;
+  color: #2b6cb0;
+}
+
+.vs-expand-btn:hover {
+  background: #f0f4f8;
+}
+
+.vs-add-all-btn.vs-added,
+.vs-add-btn.vs-added {
+  background: #e6f4ea;
+  border-color: #a8d5b8;
+  color: #1e7e34;
+  cursor: default;
+}
+
+.vs-add-all-btn:disabled,
+.vs-add-btn:disabled {
+  opacity: 0.7;
+}
+
+.vs-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+}
+
+.vs-result-card {
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.vs-result-card:hover {
+  border-color: #c1cdd6;
+}
+
+.vs-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #fafbfc;
+  border-bottom: 1px solid #f0f3f5;
+}
+
+.vs-result-title {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-page-ref {
+  color: #137cbd;
+}
+
+.vs-page-ref.vs-clickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.vs-page-ref.vs-clickable:hover {
+  color: #0e5a8a;
+  text-decoration-style: solid;
+}
+
+.vs-source-icon {
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+.vs-dnp-icon {
+  color: #a854a8;
+  opacity: 0.7;
+}
+
+.vs-file-name {
+  color: #5c7080;
+  font-style: italic;
+}
+
+/* Relevance badges with gradient coloring */
+.vs-relevance-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.vs-relevance-high {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.vs-relevance-medium {
+  background: #fff8e1;
+  color: #b8860b;
+}
+
+.vs-relevance-low {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.vs-relevance-poor {
+  background: #fce4ec;
+  color: #c62828;
+}
+
+.vs-result-content {
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #394b59;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.vs-result-content p {
+  margin: 0 0 4px;
+}
+
+.vs-result-content ul,
+.vs-result-content ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.vs-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px 6px;
+  gap: 8px;
+}
+
+.vs-result-actions:empty {
+  display: none;
+}
+
+/* Dark theme support */
+.bp3-dark .vs-results-header,
+.dark-mode .vs-results-header {
+  background: #2a3540;
+  border-bottom-color: #3a4a56;
+}
+
+.bp3-dark .vs-results-summary,
+.dark-mode .vs-results-summary {
+  color: #d8e1e8;
+}
+
+.bp3-dark .vs-result-card,
+.dark-mode .vs-result-card {
+  background: #1e2a33;
+  border-color: #3a4a56;
+}
+
+.bp3-dark .vs-result-header,
+.dark-mode .vs-result-header {
+  background: #253240;
+  border-bottom-color: #2a3a48;
+}
+
+.bp3-dark .vs-result-content,
+.dark-mode .vs-result-content {
+  color: #c5d0d8;
+}
+
+.bp3-dark .vs-page-ref,
+.dark-mode .vs-page-ref {
+  color: #48aff0;
+}
+
+.bp3-dark .vs-page-ref.vs-clickable:hover,
+.dark-mode .vs-page-ref.vs-clickable:hover {
+  color: #6bbfff;
+}
+
+.bp3-dark .vs-add-all-btn,
+.bp3-dark .vs-add-btn,
+.bp3-dark .vs-expand-btn,
+.dark-mode .vs-add-all-btn,
+.dark-mode .vs-add-btn,
+.dark-mode .vs-expand-btn {
+  background: #2a3540;
+  border-color: #3a4a56;
+  color: #c5d0d8;
+}
+
+.bp3-dark .vs-results-list,
+.dark-mode .vs-results-list {
+  background: transparent;
+}
+
 /* Tool confirmation UI */
 .full-results-chat-tool-confirmation {
   background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);

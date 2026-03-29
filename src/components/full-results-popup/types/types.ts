@@ -11,6 +11,27 @@ export interface Result {
   [key: string]: any;
 }
 
+export interface VectorSearchResultItem {
+  index: number;
+  pageTitle: string;
+  score: number;
+  source: string;
+  content: string;
+  blockUids: string[];
+  /** First top-level (depth 0) block UID — the best candidate for add-to-context */
+  firstTopBlockUid?: string;
+  fileName: string;
+  databaseName?: string;
+  databaseId?: string;
+}
+
+export interface VectorSearchUIPayload {
+  type: "vector_search_results";
+  query: string;
+  executionTime: string;
+  results: VectorSearchResultItem[];
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -28,6 +49,7 @@ export interface ChatMessage {
     response?: string; // Tool's response/feedback
     timestamp: number;
     intermediateMessage?: string;
+    vectorSearchData?: VectorSearchUIPayload;
   }>;
   roamBlockUid?: string; // UID of this message's block in Roam (if saved)
   isTemporaryBlock?: boolean; // True if block was created just for editing
