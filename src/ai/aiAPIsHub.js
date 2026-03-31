@@ -295,8 +295,18 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
     }
     // ==================== FALLBACK LOGIC FOR UNREGISTERED MODELS ====================
     else {
+      // Check if this is a custom OpenAI-compatible model before pattern matching
+      // This prevents model IDs like "gemini-3.1-pro-high" from being routed to Google
+      // when the user explicitly configured them as OpenAI-compatible custom models
+      if (openAiCustomModels.some((m) => m.toLowerCase() === modelLower)) {
+        llm.provider = "custom";
+        llm.prefix = "custom/";
+        llm.id = model;
+        llm.name = model;
+        llm.library = customOpenaiLibrary;
+      }
       // Claude models
-      if (modelLower.startsWith("claude")) {
+      else if (modelLower.startsWith("claude")) {
         llm.provider = "Anthropic";
         llm.id = normalizeClaudeModel(model);
         llm.name = normalizeClaudeModel(model, true);

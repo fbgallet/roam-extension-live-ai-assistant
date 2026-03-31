@@ -4,7 +4,7 @@
  * Renders the chat input controls including access mode selector, model selector, and text input
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Button,
   Popover,
@@ -26,6 +26,8 @@ import ChatCommandSuggest from "./ChatCommandSuggest";
 import ChatPageAutocomplete from "./ChatPageAutocomplete";
 import { ChatToolsMenu } from "./ChatToolsMenu";
 import { CouncilConfigPanel } from "./CouncilConfigPanel";
+import { CHAT_TOOLS } from "../../../../ai/agents/chat-agent/tools/chatToolsRegistry";
+import { extractAllSkills } from "../../../../ai/agents/chat-agent/tools/skillsUtils";
 import { ThinkingToggle } from "../../../ThinkingToggle";
 import { BUILTIN_COMMANDS } from "../../../../ai/prebuildCommands";
 import { BUILTIN_STYLES } from "../../../../ai/styleConstants";
@@ -157,6 +159,15 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
   const allStyles = [...BUILTIN_STYLES, ...customStyleTitles];
 
+  // Load available skills from Roam graph
+  const availableSkills = useMemo(() => {
+    try {
+      return extractAllSkills();
+    } catch {
+      return [];
+    }
+  }, []);
+
   // Chat-specific slash commands (handled directly, not sent to LLM)
   // Commands are context-sensitive: image edit commands only shown when relevant
   const CHAT_SLASH_COMMANDS = [
@@ -260,6 +271,26 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       category: "CHAT",
       icon: "calendar",
     },
+    // Tool slash commands: /toolname forces the use of the tool for this turn
+    ...Object.entries(CHAT_TOOLS).map(([name, info]) => ({
+      id: `chat-tool-${name}`,
+      name: `Use ${name}${!enabledTools.has(name) ? " (disabled)" : ""}`,
+      prompt: `/${name}`,
+      isChatCommand: true,
+      keyWords: `${name} tool ${info.category} use force`,
+      category: "TOOLS",
+      icon: info.category === "edit" ? "edit" : info.category === "context" ? "add-to-artifact" : "wrench",
+    })),
+    // Individual skill slash commands: /skillname forces use of that specific skill
+    ...availableSkills.map((skill) => ({
+      id: `chat-skill-${skill.uid}`,
+      name: `Skill: ${skill.name}`,
+      prompt: `/${skill.name.toLowerCase().replace(/\s+/g, "-")}`,
+      isChatCommand: true,
+      keyWords: `${skill.name} skill ${skill.description || ""}`,
+      category: "SKILLS",
+      icon: "lightbulb",
+    })),
   ];
 
   // Track if component is mounted to prevent setState on unmounted component
@@ -284,6 +315,45 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   ) => {
     // Handle chat-specific commands directly
     if (command.isChatCommand) {
+      // Tool commands: insert "Use 'tool_name': " prefix instead of clearing
+      // Skill commands: insert "Use 'live_ai_skills': skill_name: " prefix
+      if (typeof command.id === "string" && (command.id.startsWith("chat-tool-") || command.id.startsWith("chat-skill-"))) {
+        let prefix: string;
+        if (command.id.startsWith("chat-tool-")) {
+          const toolName = command.id.replace("chat-tool-", "");
+          prefix = `Use '${toolName}': `;
+        } else {
+          // Extract skill name from the command name (format: "Skill: <name>")
+          const skillName = command.name.replace("Skill: ", "");
+          prefix = `Use 'live_ai_skills': ${skillName}: `;
+        }
+        // Get remaining text (anything after the slash command)
+        let remainingText = "";
+        if (fromSlash && slashStartIndex !== -1) {
+          const beforeSlash = chatInput.substring(0, slashStartIndex);
+          const afterSlash = chatInput.substring(slashStartIndex + 1);
+          const spaceIndex = afterSlash.indexOf(" ");
+          const afterSlashCommand = spaceIndex === -1 ? "" : afterSlash.substring(spaceIndex + 1);
+          remainingText = (beforeSlash.trimEnd() + " " + afterSlashCommand.trimStart()).trim();
+        }
+        onChatInputChange(remainingText ? `${prefix}${remainingText}` : prefix);
+        setIsCommandSuggestOpen(false);
+        setSlashCommandMode(false);
+        setSlashStartIndex(-1);
+        setSlashQuery("");
+        setTextLengthAtSlashTrigger(0);
+        // Focus and place cursor at end
+        setTimeout(() => {
+          if (chatInputRef.current) {
+            chatInputRef.current.focus();
+            const len = chatInputRef.current.value.length;
+            chatInputRef.current.selectionStart = len;
+            chatInputRef.current.selectionEnd = len;
+          }
+        }, 0);
+        return;
+      }
+
       onChatInputChange("");
       setIsCommandSuggestOpen(false);
       setSlashCommandMode(false);
@@ -1158,6 +1228,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
                     // Handle chat-specific commands directly
                     if (matchingCommand.isChatCommand) {
+                      // Tool/skill commands: insert prefix via handleCommandSelect
+                      if (typeof matchingCommand.id === "string" && (matchingCommand.id.startsWith("chat-tool-") || matchingCommand.id.startsWith("chat-skill-"))) {
+                        handleCommandSelect(matchingCommand, true);
+                        return;
+                      }
+
                       onChatInputChange("");
                       setSlashCommandMode(false);
                       setIsCommandSuggestOpen(false);

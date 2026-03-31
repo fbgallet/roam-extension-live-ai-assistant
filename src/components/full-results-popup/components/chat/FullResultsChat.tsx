@@ -2896,6 +2896,23 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           })
         : null;
 
+      // Detect "Use 'tool_name': " prefix to force-enable a tool for this turn
+      const forcedToolMatch = message.match(/^Use '([^']+)':\s*/);
+      let effectiveEnabledTools = enabledTools;
+      let effectiveToolsEnabled = chatMode === "agent";
+      if (forcedToolMatch) {
+        const forcedToolName = forcedToolMatch[1];
+        effectiveEnabledTools = new Set(enabledTools);
+        effectiveEnabledTools.add(forcedToolName);
+        // Also enable edit section master switch if forcing an edit tool
+        const editTools = ["create_block", "create_page", "update_block", "delete_block"];
+        if (editTools.includes(forcedToolName)) {
+          effectiveEnabledTools.add("section:edit");
+        }
+        effectiveToolsEnabled = true; // Force agent mode for this turn
+        console.log(`🔧 [Chat] Force-enabling tool '${forcedToolName}' for this turn. Effective tools:`, Array.from(effectiveEnabledTools));
+      }
+
       // Invoke the chat agent (race with abort if available)
       const agentInvocation = invokeChatAgent({
         model: modelAccordingToProvider(
@@ -2914,10 +2931,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // Configuration
         style: styleFromCall,
         commandPrompt: commandPromptFromCall,
-        toolsEnabled: chatMode === "agent", // Enable tools only in agent mode
-        enabledTools: enabledTools, // Pass the set of enabled tools
+        toolsEnabled: effectiveToolsEnabled,
+        enabledTools: effectiveEnabledTools,
         accessMode: chatAccessMode,
-        isAgentMode: chatMode === "agent",
+        isAgentMode: effectiveToolsEnabled,
 
         // Permissions
         permissions: {
@@ -3158,6 +3175,51 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             const total = (args.items || []).length;
             const selectInUi = args.select_in_ui ? ", select in UI" : "";
             details = `${count} of ${total} item${total !== 1 ? "s" : ""}${selectInUi}`;
+          } else if (toolInfo.toolName === "add_to_context") {
+            // Friendly summary for add_to_context
+            const args = toolInfo.args || {};
+            const parts: string[] = [];
+            if (args.page_titles?.length > 0) {
+              parts.push(args.page_titles.map((t: string) => `[[${t}]]`).join(", "));
+            }
+            if (args.block_uids?.length > 0) {
+              parts.push(args.block_uids.map((u: string) => `((${u}))`).join(", "));
+            }
+            if (args.use_current_page) parts.push("current page");
+            if (args.use_focused_block) parts.push("focused block");
+            if (args.use_sidebar) parts.push("sidebar");
+            if (args.linked_refs_page_titles?.length > 0) {
+              parts.push(`linked refs of ${args.linked_refs_page_titles.map((t: string) => `[[${t}]]`).join(", ")}`);
+            }
+            if (args.use_current_page_refs) parts.push("current page linked refs");
+            if (args.daily_notes_count > 0) parts.push(`${args.daily_notes_count} daily note(s)`);
+            details = parts.length > 0 ? parts.join(", ") : "Loading context...";
+          } else if (toolInfo.toolName === "run_smartblock") {
+            // Friendly summary for run_smartblock
+            const args = toolInfo.args || {};
+            const src = args.src_name ? `'${args.src_name}'` : `((${args.src_uid}))`;
+            const target = args.target_name
+              ? `[[${args.target_name}]]`
+              : args.target_uid
+                ? `((${args.target_uid}))`
+                : args.date || "";
+            details = `Run ${src} SmartBlock` + (target ? ` on ${target}` : "");
+          } else if (toolInfo.toolName === "select_results_by_criteria") {
+            const args = toolInfo.args || {};
+            const criteria = args.criteria_description || "custom criteria";
+            details = `Selecting results by: ${criteria.length > 80 ? criteria.substring(0, 80) + "..." : criteria}`;
+          } else if (toolInfo.toolName === "ask_your_graph") {
+            const args = toolInfo.args || {};
+            const query = args.query || args.natural_language_query || "";
+            details = query ? `Query: ${query.length > 80 ? query.substring(0, 80) + "..." : query}` : "Querying graph...";
+          } else if (toolInfo.toolName === "get_help") {
+            const args = toolInfo.args || {};
+            const topic = args.topic || args.query || "";
+            details = topic ? `Topic: ${topic}` : "Loading help...";
+          } else if (toolInfo.toolName === "vector_search") {
+            const args = toolInfo.args || {};
+            const query = args.query || "";
+            details = query ? `Search: ${query.length > 80 ? query.substring(0, 80) + "..." : query}` : "Searching...";
           } else {
             // For other tools, show arguments only (tool name is already in the title)
             if (toolInfo.args) {

@@ -1,12 +1,13 @@
 /**
  * File Converter for Vector Store
  *
- * Performance-optimized approach:
- * 1. Convert all pages to markdown locally (fast, synchronous)
- * 2. Bundle pages into a few large files (~500KB each)
- * 3. Upload just those few files (5-10 API calls instead of thousands)
+ * Handles conversion of Roam pages to markdown and indexing into
+ * both OpenAI and Local vector store providers.
  *
- * Handles:
+ * - OpenAI: Bundles pages into ~500KB files for upload
+ * - Local: Passes individual pages for per-page embedding
+ *
+ * Modes:
  * - Mode A: Live Roam graph indexing via roamAlphaAPI
  * - Mode B: Roam export parsing (msgpack/JSON)
  * - Mode C: Regular file pass-through
@@ -16,6 +17,7 @@ import {
   VectorStoreManifest,
   ProgressCallback,
   IndexingProgress,
+  PageDocument,
   RoamExportPage,
   RoamExportBlock,
 } from "./types";
@@ -23,7 +25,11 @@ import {
   getOrCreateVectorStore,
   uploadRoamBundles,
   getManifest,
+  getDatabaseProvider,
+  getDatabaseEmbeddingModel,
+  saveLocalIndexState,
 } from "./vectorStoreService";
+import { indexPages } from "./providers/local/localProvider";
 
 // @ts-ignore - JS module
 import { getTreeByUid, getBlockContentByUid } from "../../utils/roamAPI";
@@ -75,8 +81,6 @@ function queryAllPages(): Array<{
   uid: string;
   editTime: number;
 }> {
-  // Use (max ?edit-time) to capture edits to any block on the page,
-  // not just changes to the page entity itself.
   const results = (window as any).roamAlphaAPI.q(`
     [:find ?title ?uid (max ?edit-time)
      :where
@@ -95,10 +99,11 @@ function queryAllPages(): Array<{
   }));
 }
 
-/** Index the Roam graph into the vector store (bundled, fast) */
+/** Index the Roam graph — routes to OpenAI (bundled) or Local (per-page) */
 export async function indexRoamGraph(
   onProgress?: ProgressCallback,
-  databaseId?: string
+  databaseId?: string,
+  signal?: AbortSignal
 ): Promise<void> {
   const progress: IndexingProgress = {
     phase: "querying",
@@ -140,7 +145,6 @@ export async function indexRoamGraph(
     };
   }
 
-  // Check for deleted pages
   for (const title of Object.keys(oldManifest)) {
     if (!newManifest[title]) {
       hasChanges = true;
@@ -154,15 +158,16 @@ export async function indexRoamGraph(
     return;
   }
 
-  // Step 3: Convert ALL pages to markdown (local, fast)
-  // Separate DNP (daily notes) from regular pages for distinct bundles
+  // Step 3: Convert ALL pages to markdown
   progress.phase = "converting";
   progress.total = pages.length;
   progress.processed = 0;
   onProgress?.(progress);
 
-  const dnpEntries: Array<{ md: string; uid: string }> = [];
-  const pageMarkdown: string[] = [];
+  const pageDocuments: PageDocument[] = [];
+  const dnpEntries: Array<{ doc: PageDocument; sortKey: number }> = [];
+  const regularMarkdown: string[] = [];
+  const dnpMarkdown: Array<{ md: string; uid: string }> = [];
 
   for (const page of pages) {
     progress.currentPage = page.title;
@@ -174,11 +179,21 @@ export async function indexRoamGraph(
       if (!tree || !tree[0]) continue;
 
       const md = pageTreeToMarkdown(page.title, tree[0]);
-      if (md.trim().split("\n").length > 1) {
-        if (isDailyNoteUid(page.uid) || isDailyNoteTitle(page.title)) {
-          dnpEntries.push({ md, uid: page.uid });
+      if (hasSubstantialContent(md)) {
+        const isDnp = isDailyNoteUid(page.uid) || isDailyNoteTitle(page.title);
+
+        // Collect for both providers
+        pageDocuments.push({
+          title: page.title,
+          uid: page.uid,
+          markdown: md,
+          isDnp,
+        });
+
+        if (isDnp) {
+          dnpMarkdown.push({ md, uid: page.uid });
         } else {
-          pageMarkdown.push(md);
+          regularMarkdown.push(md);
         }
       }
     } catch {
@@ -186,39 +201,59 @@ export async function indexRoamGraph(
     }
   }
 
-  // Sort DNPs chronologically so bundles contain contiguous date ranges
-  dnpEntries.sort((a, b) => parseDnpUid(a.uid) - parseDnpUid(b.uid));
-  const dnpMarkdown = dnpEntries.map((e) => e.md);
-
   onProgress?.(progress);
 
-  // Step 4: Bundle into large files (DNP and pages separately)
-  const bundles = [
-    ...bundleMarkdown(pageMarkdown, "roam-pages"),
-    ...bundleMarkdown(dnpMarkdown, "roam-dnp"),
-  ];
+  // Determine provider and route accordingly
+  const provider = getDatabaseProvider(databaseId);
 
-  // Step 5: Upload bundles (replaces previous Roam bundles)
-  progress.phase = "uploading";
-  progress.total = bundles.length;
-  progress.processed = 0;
-  onProgress?.(progress);
+  if (provider === "local") {
+    // Local provider: pass individual pages for per-page embedding
+    const embeddingModel = getDatabaseEmbeddingModel(databaseId);
+    await indexPages(
+      databaseId!,
+      pageDocuments,
+      oldManifest,
+      newManifest,
+      onProgress,
+      embeddingModel,
+      signal
+    );
+    if (!signal?.aborted) {
+      await saveLocalIndexState(newManifest, databaseId!);
+    }
+  } else {
+    // OpenAI provider: bundle and upload
+    // Sort DNPs reverse-chronologically
+    dnpMarkdown.sort((a, b) => parseDnpUid(b.uid) - parseDnpUid(a.uid));
+    const sortedDnpMd = dnpMarkdown.map((e) => e.md);
 
-  await getOrCreateVectorStore(databaseId);
-  await uploadRoamBundles(bundles, newManifest, (uploaded, _total) => {
-    progress.processed = uploaded;
+    const bundles = [
+      ...bundleMarkdown(regularMarkdown, "roam-pages"),
+      ...bundleMarkdown(sortedDnpMd, "roam-dnp"),
+    ];
+
+    progress.phase = "uploading";
+    progress.total = bundles.length;
+    progress.processed = 0;
+    progress.currentPage = undefined;
     onProgress?.(progress);
-  }, databaseId);
 
-  progress.phase = "done";
-  onProgress?.(progress);
+    await getOrCreateVectorStore(databaseId);
+    await uploadRoamBundles(bundles, newManifest, (uploaded, _total) => {
+      progress.processed = uploaded;
+      onProgress?.(progress);
+    }, databaseId);
+
+    progress.phase = "done";
+    onProgress?.(progress);
+  }
 }
 
 // ============================================================
 // Mode B: Roam Export Upload (msgpack/JSON)
 // ============================================================
 
-/** Parse a Roam export file and index (bundled) */
+/** Parse a Roam export file and index */
 export async function indexRoamExport(
   file: File,
   onProgress?: ProgressCallback,
@@ -252,7 +287,6 @@ export async function indexRoamExport(
     );
   }
 
-  // Build manifest and check changes
   const oldManifest = getManifest(databaseId);
   const newManifest: VectorStoreManifest = {};
   let hasChanges = false;
@@ -288,12 +322,12 @@ export async function indexRoamExport(
     return;
   }
 
-  // Convert all pages to markdown, separating DNP from regular pages
   progress.phase = "converting";
   progress.total = pages.length;
   progress.processed = 0;
   onProgress?.(progress);
 
+  const pageDocuments: PageDocument[] = [];
   const dnpEntries: Array<{ md: string; title: string }> = [];
   const pageMarkdown: string[] = [];
 
@@ -302,8 +336,17 @@ export async function indexRoamExport(
     if (progress.processed % 50 === 0) onProgress?.(progress);
 
     const md = exportPageToMarkdown(page);
-    if (md.trim().split("\n").length > 1) {
-      if (isDailyNoteTitle(page.title)) {
+    if (hasSubstantialContent(md)) {
+      const isDnp = isDailyNoteTitle(page.title);
+
+      pageDocuments.push({
+        title: page.title,
+        uid: page.children?.[0]?.uid || page.title,
+        markdown: md,
+        isDnp,
+      });
+
+      if (isDnp) {
         dnpEntries.push({ md, title: page.title });
       } else {
         pageMarkdown.push(md);
@@ -311,29 +354,44 @@ export async function indexRoamExport(
     }
   }
 
-  // Sort DNPs chronologically so bundles contain contiguous date ranges
-  dnpEntries.sort((a, b) => parseDnpTitle(a.title) - parseDnpTitle(b.title));
-  const dnpMarkdown = dnpEntries.map((e) => e.md);
+  const provider = getDatabaseProvider(databaseId);
 
-  // Bundle and upload (DNP and pages separately)
-  const bundles = [
-    ...bundleMarkdown(pageMarkdown, "roam-pages"),
-    ...bundleMarkdown(dnpMarkdown, "roam-dnp"),
-  ];
+  if (provider === "local") {
+    const embeddingModel = getDatabaseEmbeddingModel(databaseId);
+    await indexPages(
+      databaseId!,
+      pageDocuments,
+      oldManifest,
+      newManifest,
+      onProgress,
+      embeddingModel,
+      undefined // no cancel support for export
+    );
+    await saveLocalIndexState(newManifest, databaseId!);
+  } else {
+    // Sort DNPs reverse-chronologically
+    dnpEntries.sort((a, b) => parseDnpTitle(b.title) - parseDnpTitle(a.title));
+    const dnpMarkdown = dnpEntries.map((e) => e.md);
 
-  progress.phase = "uploading";
-  progress.total = bundles.length;
-  progress.processed = 0;
-  onProgress?.(progress);
+    const bundles = [
+      ...bundleMarkdown(pageMarkdown, "roam-pages"),
+      ...bundleMarkdown(dnpMarkdown, "roam-dnp"),
+    ];
 
-  await getOrCreateVectorStore(databaseId);
-  await uploadRoamBundles(bundles, newManifest, (uploaded) => {
-    progress.processed = uploaded;
+    progress.phase = "uploading";
+    progress.total = bundles.length;
+    progress.processed = 0;
     onProgress?.(progress);
-  }, databaseId);
 
-  progress.phase = "done";
-  onProgress?.(progress);
+    await getOrCreateVectorStore(databaseId);
+    await uploadRoamBundles(bundles, newManifest, (uploaded) => {
+      progress.processed = uploaded;
+      onProgress?.(progress);
+    }, databaseId);
+
+    progress.phase = "done";
+    onProgress?.(progress);
+  }
 }
 
 // ============================================================
@@ -371,35 +429,74 @@ export async function isRoamJsonExport(file: File): Promise<boolean> {
   }
 }
 
+/**
+ * Check if a page markdown has meaningful content beyond just the header.
+ * Strips PAGE markers, title heading, uid markers, and whitespace,
+ * then checks if anything substantial remains.
+ * Filters out empty pages used only as tags/references in Roam.
+ */
+function hasSubstantialContent(md: string): boolean {
+  const stripped = md
+    .replace(/<!-- PAGE: .+? -->\n?/g, "")
+    .replace(/^#\s+.+\n*/m, "")
+    .replace(/\[uid:[^\]]+\]\s*/g, "")
+    .replace(/^[\s\-]*/gm, "")
+    .trim();
+  return stripped.length > 0;
+}
+
 // ============================================================
-// Bundling
+// Bundling (OpenAI provider only)
 // ============================================================
 
-/**
- * Bundle markdown strings into ~500KB chunks.
- * @param prefix - file name prefix, e.g. "roam-pages" or "roam-dnp"
- */
+/** Preamble headers for bundle files — helps OpenAI's chunker understand the structure */
+const BUNDLE_PREAMBLE: Record<string, string> = {
+  "roam-pages": `# Roam Research Graph — Pages
+
+This file contains pages from a Roam Research knowledge graph.
+Each page starts with a <!-- PAGE: Title --> marker followed by a # heading.
+Blocks are listed as bullet points with [uid:xxx] markers for traceability.
+Indented bullets are child blocks. Pages are separated by double --- lines.
+IMPORTANT: Each page is a self-contained document. Do NOT merge content across --- separators.
+
+---
+
+`,
+  "roam-dnp": `# Roam Research Graph — Daily Notes
+
+This file contains Daily Note Pages (DNPs) from a Roam Research knowledge graph, sorted from most recent to oldest.
+Each daily note starts with a <!-- PAGE: Date --> marker followed by a # heading with the date.
+Blocks are listed as bullet points with [uid:xxx] markers for traceability.
+Indented bullets are child blocks. Daily notes are separated by double --- lines.
+IMPORTANT: Each daily note is a self-contained document. Do NOT merge content across --- separators.
+
+---
+
+`,
+};
+
 function bundleMarkdown(
   markdownPages: string[],
   prefix: string = "roam-graph"
 ): Array<{ content: string; name: string }> {
   const bundles: Array<{ content: string; name: string }> = [];
-  let current = "";
+  const preamble = BUNDLE_PREAMBLE[prefix] || "";
+  let current = preamble;
   let bundleIndex = 1;
 
   for (const md of markdownPages) {
-    if (current.length + md.length > BUNDLE_TARGET_SIZE && current.length > 0) {
+    if (current.length + md.length > BUNDLE_TARGET_SIZE && current.length > preamble.length) {
       bundles.push({
         content: current,
         name: `${prefix}-${bundleIndex}.md`,
       });
       bundleIndex++;
-      current = "";
+      current = preamble;
     }
-    current += md + "\n\n---\n\n";
+    current += md + "\n\n---\n\n---\n\n";
   }
 
-  if (current.length > 0) {
+  if (current.length > preamble.length) {
     bundles.push({
       content: current,
       name: `${prefix}-${bundleIndex}.md`,
@@ -410,12 +507,11 @@ function bundleMarkdown(
 }
 
 // ============================================================
-// Markdown Conversion
+// Markdown Conversion (shared by both providers)
 // ============================================================
 
 /** Convert a live Roam page tree to Markdown */
 function pageTreeToMarkdown(title: string, tree: any): string {
-  // PAGE marker allows reliable title extraction even after OpenAI chunking
   let md = `<!-- PAGE: ${title} -->\n# ${title}\n\n`;
   const children = tree[":block/children"] || tree.children;
   if (!children || !Array.isArray(children)) return md;
@@ -429,8 +525,6 @@ function pageTreeToMarkdown(title: string, tree: any): string {
   const excludeList: string[] = exclusionStrings || [];
 
   for (const child of sorted) {
-    // If a top-level block matches an exclusion string and has no children,
-    // treat it as a "stop marker": ignore it and all following siblings.
     if (excludeList.length > 0) {
       const blockContent = child[":block/string"] || child.string || "";
       const blockChildren = child[":block/children"] || child.children;
@@ -445,8 +539,7 @@ function pageTreeToMarkdown(title: string, tree: any): string {
   return md;
 }
 
-/** Convert a block and its children to Markdown.
- *  Skips blocks (and all their children) that match any exclusionStrings. */
+/** Convert a block and its children to Markdown */
 function blockToMarkdown(
   block: any,
   depth: number,
@@ -456,7 +549,6 @@ function blockToMarkdown(
     ? block[":block/string"] || block.string || ""
     : block.string || "";
 
-  // Check exclusion: if block content contains any exclusion string, skip it and all children
   const excludeList: string[] = exclusionStrings || [];
   if (excludeList.length > 0 && excludeList.some((str: string) => content.includes(str))) {
     return "";
@@ -467,9 +559,11 @@ function blockToMarkdown(
     ? block[":block/uid"] || block.uid
     : block.uid;
 
-  const resolved = isLiveApi
-    ? resolveBlockRefsLive(content)
-    : resolveBlockRefsExport(content);
+  const resolved = cleanForIndexing(
+    isLiveApi
+      ? resolveBlockRefsLive(content)
+      : resolveBlockRefsExport(content)
+  );
 
   let md = `${indent}- [uid:${uid}] ${resolved}\n`;
 
@@ -490,6 +584,34 @@ function blockToMarkdown(
   }
 
   return md;
+}
+
+/**
+ * Clean block content for vector indexing:
+ * - Remove #c:COLOR styling tags (e.g. #c:red, #c:blue)
+ * - Remove #.xxx formatting tags (e.g. #.bg-red, #.bg-ch-blue, #.box-green)
+ * - Remove code blocks (triple backtick fenced blocks)
+ * - Remove inline code backticks wrapper (keep the text inside)
+ */
+function cleanForIndexing(text: string): string {
+  // Skip blocks that are datalog queries (start with :q )
+  if (text.trimStart().startsWith(":q ")) return "";
+
+  return text
+    // Remove fenced code blocks (``` ... ```) including content
+    .replace(/```[\s\S]*?```/g, "")
+    // Remove {{[[query]]: ...}} blocks
+    .replace(/\{\{\[\[query\]\]\s*:.*?\}\}/g, "")
+    // Remove #c:COLOR tags
+    .replace(/#c:\w+/g, "")
+    // Remove #.xxx formatting tags (e.g. #.bg-red, #.bg-ch-blue, #.box-green, #.box-ch-red)
+    .replace(/#\.\S+/g, "")
+    // Remove URLs (keep link text from markdown links [text](url))
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    // Collapse multiple spaces left by removals
+    .replace(/  +/g, " ")
+    .trim();
 }
 
 /** Resolve ((uid)) block references using live Roam API — one level only */
@@ -525,7 +647,6 @@ function exportPageToMarkdown(page: RoamExportPage): string {
   const excludeList: string[] = exclusionStrings || [];
 
   for (const child of sorted) {
-    // Stop marker: top-level childless block matching exclusion string
     if (excludeList.length > 0) {
       const blockContent = child.string || "";
       const hasChildren = child.children && child.children.length > 0;

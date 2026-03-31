@@ -80,6 +80,7 @@ export function modelViaLanggraph(
 
   if (
     llmInfos.provider === "OpenAI" ||
+    llmInfos.provider === "custom" ||
     llmInfos.provider === "groq" ||
     llmInfos.provider === "Grok"
   ) {

@@ -51,7 +51,8 @@ export const buildChatSystemPrompt = async ({
 
   const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
     getCurrentDateContext(new Date());
-  let systemPrompt = `**Current Date and Time**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})\n\n`;
+  let systemPrompt = `**Current Date and Time**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})
+**Date parameter rule**: When any tool has a "date" parameter and the user refers to "today", "today's page", "today's DNP", "tomorrow", "yesterday", or any relative date, you MUST convert it to ISO format (YYYY-MM-DD) using the current date above. For example, "today" → "${dateStr}". Never pass a formatted page title like "${monthName} ${dayNb}, ${fullYear}" as a page_title for DNPs — always use the date parameter instead.\n\n`;
   if (resultsContext) {
     systemPrompt += `## Available Context\n${resultsContext}
     

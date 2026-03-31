@@ -19,6 +19,7 @@ import {
   CHAT_HELP_RESPONSE,
   LIVE_AI_HELP_RESPONSE,
   WHATS_NEW_RESPONSE,
+  WHATS_NEW_VERSION,
   getRandomTip,
 } from "./chatHelpConstants";
 import { textToSpeech } from "../../../../ai/multimodalAI";
@@ -952,6 +953,12 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   // Memoize the initial random tip so it doesn't change on every render
   const [initialTip] = React.useState(() => getRandomTip("chat"));
 
+  // Track whether the user has seen the current "What's New" version
+  const [hasSeenWhatsNew, setHasSeenWhatsNew] = React.useState(() => {
+    const seenVersion = localStorage.getItem("liveai-whats-new-seen-version");
+    return seenVersion === WHATS_NEW_VERSION;
+  });
+
   // Keyboard shortcuts for tool confirmation (Enter = Accept, Escape = Decline)
   useEffect(() => {
     if (!pendingToolConfirmation) return;
@@ -994,11 +1001,22 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
         <div className="full-results-chat-suggestions">
           {helpType !== "whatsnew" && (
             <button
-              onClick={() => onHelpButtonClick("whatsnew", WHATS_NEW_RESPONSE)}
+              className={!hasSeenWhatsNew ? "whats-new-unseen" : undefined}
+              onClick={() => {
+                if (!hasSeenWhatsNew) {
+                  localStorage.setItem(
+                    "liveai-whats-new-seen-version",
+                    WHATS_NEW_VERSION
+                  );
+                  setHasSeenWhatsNew(true);
+                }
+                onHelpButtonClick("whatsnew", WHATS_NEW_RESPONSE);
+              }}
               disabled={isTyping}
             >
               <Icon icon="star" size={12} style={{ marginRight: "4px" }} />
               What's New
+              {!hasSeenWhatsNew && <span className="whats-new-badge" />}
             </button>
           )}
           {helpType !== "chat" && (
@@ -1585,6 +1603,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           create_page: "page creation",
                           update_block: "block update",
                           delete_block: "block deletion",
+                          run_smartblock: "SmartBlock execution",
                         }[pendingToolConfirmation.toolName] || "operation";
                       return opCount > 1
                         ? `batch ${label} (${opCount} blocks)`
@@ -1791,6 +1810,29 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           className="tool-confirmation-diff-new"
                         />
                       </div> */}
+                    </div>
+                  )}
+
+                {/* Preview for run_smartblock */}
+                {pendingToolConfirmation.toolName === "run_smartblock" &&
+                  pendingToolConfirmation.args && (
+                    <div className="tool-confirmation-preview">
+                      <div className="tool-confirmation-smartblock-summary">
+                        Run '<strong>{pendingToolConfirmation.args.src_name || pendingToolConfirmation.args.src_uid}</strong>' SmartBlock
+                        {pendingToolConfirmation.args.target_name
+                          ? <> on '<strong>[[{pendingToolConfirmation.args.target_name}]]</strong>'</>
+                          : pendingToolConfirmation.args.target_uid
+                            ? <> in '<strong>(({pendingToolConfirmation.args.target_uid}))</strong>'</>
+                            : null}
+                        {pendingToolConfirmation.args.variables &&
+                          Object.keys(pendingToolConfirmation.args.variables).length > 0 && (
+                            <div className="tool-confirmation-smartblock-variables">
+                              Variables: {Object.entries(pendingToolConfirmation.args.variables)
+                                .map(([k, v]) => `${k}=${v}`)
+                                .join(", ")}
+                            </div>
+                          )}
+                      </div>
                     </div>
                   )}
 

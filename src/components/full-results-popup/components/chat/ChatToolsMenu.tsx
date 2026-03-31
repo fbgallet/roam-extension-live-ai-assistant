@@ -47,8 +47,15 @@ import {
   listDatabases as vsListDatabases,
   getDefaultDatabaseId as vsGetDefaultDatabaseId,
   setDefaultDatabase as vsSetDefaultDatabase,
+  debugListVectorStoreFiles as vsDebugListFiles,
+  debugSearch as vsDebugSearch,
 } from "../../../../ai/vectorStore/vectorStoreService";
-import type { VectorDatabase } from "../../../../ai/vectorStore/types";
+import type {
+  VectorDatabase,
+  VectorStoreProvider,
+  LocalEmbeddingModel,
+} from "../../../../ai/vectorStore/types";
+import { EMBEDDING_MODELS } from "../../../../ai/vectorStore/types";
 import {
   indexRoamGraph as vsIndexRoamGraph,
   indexRoamExport as vsIndexRoamExport,
@@ -57,6 +64,10 @@ import {
 // @ts-ignore - JS module
 import { OPENAI_API_KEY } from "../../../../index";
 import "../../style/chatToolsMenu.css";
+
+// Expose debug functions on window for console diagnostics
+(window as any).debugVectorStore = vsDebugListFiles;
+(window as any).debugVectorSearch = vsDebugSearch;
 
 interface ChatToolsMenuProps {
   enabledTools: Set<string>;
@@ -117,6 +128,10 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     string | undefined
   >();
   const [newDbName, setNewDbName] = useState("");
+  const [newDbProvider, setNewDbProvider] =
+    useState<VectorStoreProvider>("local");
+  const [newDbModel, setNewDbModel] =
+    useState<LocalEmbeddingModel>("bge-small-en");
   const [renamingDbId, setRenamingDbId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,11 +152,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     };
   }, [vsMaxResults, vsThreshold]);
 
-  // Index confirmation dialog state
-  const [isIndexAlertOpen, setIsIndexAlertOpen] = useState(false);
-  const [pendingIndexDbId, setPendingIndexDbId] = useState<
-    string | undefined
-  >();
+  // (Index confirmation dialog removed — indexing starts directly)
 
   // Load vector store info when menu opens
   useEffect(() => {
@@ -160,22 +171,31 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     }
   };
 
-  const handleCreateDatabase = useCallback(async () => {
-    const name = newDbName.trim();
-    if (!name) return;
-    setVectorStoreStatus("creating");
-    setVectorStoreProgress(`Creating "${name}"...`);
-    try {
-      await vsCreateDatabase(name);
-      setNewDbName("");
-      setVectorStoreProgress("");
-      loadVectorStoreInfo();
-    } catch (e: any) {
-      setVectorStoreProgress(`Error: ${e.message}`);
-    } finally {
-      setVectorStoreStatus("idle");
-    }
-  }, [newDbName]);
+  const handleCreateDatabase = useCallback(
+    async (providerOverride?: VectorStoreProvider) => {
+      const name = newDbName.trim();
+      if (!name) return;
+      const provider = providerOverride || newDbProvider;
+      setVectorStoreStatus("creating");
+      setVectorStoreProgress(`Creating "${name}" (${provider})...`);
+      try {
+        await vsCreateDatabase(
+          name,
+          undefined,
+          provider,
+          provider === "local" ? newDbModel : undefined,
+        );
+        setNewDbName("");
+        setVectorStoreProgress("");
+        loadVectorStoreInfo();
+      } catch (e: any) {
+        setVectorStoreProgress(`Error: ${e.message}`);
+      } finally {
+        setVectorStoreStatus("idle");
+      }
+    },
+    [newDbName, newDbProvider, newDbModel],
+  );
 
   const handleToggleDatabase = useCallback(async (dbId: string) => {
     try {
@@ -230,37 +250,55 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     [renameValue],
   );
 
-  const confirmAndIndexRoamGraph = useCallback((databaseId?: string) => {
-    setPendingIndexDbId(databaseId);
-    setIsIndexAlertOpen(true);
-  }, []);
+  const indexAbortRef = useRef<AbortController | null>(null);
 
   const handleIndexRoamGraph = useCallback(async (databaseId?: string) => {
+    const abortCtrl = new AbortController();
+    indexAbortRef.current = abortCtrl;
     setVectorStoreStatus("indexing");
     setVectorStoreProgress("Querying pages...");
     setVectorStoreProgressRatio(0);
     try {
-      await vsIndexRoamGraph((progress) => {
-        const ratio =
-          progress.total > 0 ? progress.processed / progress.total : 0;
-        setVectorStoreProgressRatio(ratio);
-        if (progress.phase === "done") {
-          setVectorStoreProgress(
-            `Done: ${progress.newPages} new, ${progress.updatedPages} updated, ${progress.deletedPages} deleted, ${progress.unchangedPages} unchanged`,
-          );
-        } else {
-          setVectorStoreProgress(
-            `${progress.phase}: ${progress.processed}/${progress.total}${progress.currentPage ? ` — ${progress.currentPage}` : ""}`,
-          );
-        }
-      }, databaseId);
+      await vsIndexRoamGraph(
+        (progress) => {
+          const ratio =
+            progress.total > 0 ? progress.processed / progress.total : 0;
+          setVectorStoreProgressRatio(ratio);
+          if (progress.phase === "done") {
+            setVectorStoreProgress(
+              progress.currentPage?.startsWith("Cancelled")
+                ? progress.currentPage
+                : `Done: ${progress.newPages} new, ${progress.updatedPages} updated, ${progress.deletedPages} deleted, ${progress.unchangedPages} unchanged`,
+            );
+          } else {
+            setVectorStoreProgress(
+              `${progress.phase}: ${progress.processed}/${progress.total}${progress.currentPage ? ` — ${progress.currentPage}` : ""}`,
+            );
+          }
+        },
+        databaseId,
+        abortCtrl.signal,
+      );
       loadVectorStoreInfo();
     } catch (e: any) {
       setVectorStoreProgress(`Error: ${e.message}`);
     } finally {
+      indexAbortRef.current = null;
       setVectorStoreStatus("idle");
     }
   }, []);
+
+  const handleCancelIndexing = useCallback(() => {
+    indexAbortRef.current?.abort();
+    setVectorStoreProgress("Cancelling...");
+  }, []);
+
+  const confirmAndIndexRoamGraph = useCallback(
+    (databaseId?: string) => {
+      handleIndexRoamGraph(databaseId);
+    },
+    [handleIndexRoamGraph],
+  );
 
   const handleUploadFiles = useCallback(
     async (files: FileList, databaseId?: string) => {
@@ -638,9 +676,26 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                       stripes
                       animate
                     />
-                    <span className="vector-store-progress-text">
-                      {vectorStoreProgress}
-                    </span>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <span
+                        className="vector-store-progress-text"
+                        style={{ flex: 1 }}
+                      >
+                        {vectorStoreProgress}
+                      </span>
+                      {vectorStoreStatus === "indexing" && (
+                        <Button
+                          small
+                          minimal
+                          icon="cross"
+                          intent="danger"
+                          onClick={handleCancelIndexing}
+                          title="Cancel indexing"
+                        />
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -655,17 +710,76 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                 {databases.length === 0 && vectorStoreStatus === "idle" && (
                   <div className="vs-get-started">
                     <p className="vs-get-started-text">
-                      Create a vector database to enable semantic search across your content.
+                      Create a vector database to enable semantic search across
+                      your content.
                     </p>
-                    <div className="vs-get-started-actions">
+                    <div
+                      className="vs-get-started-actions"
+                      style={{ flexDirection: "column", gap: 6 }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "center",
+                        }}
+                      >
+                        <Button
+                          icon="database"
+                          text="Index my Roam Graph (Local — Free)"
+                          intent="primary"
+                          small
+                          fill
+                          onClick={async () => {
+                            try {
+                              const db = await vsCreateDatabase(
+                                "Current Graph",
+                                undefined,
+                                "local",
+                                newDbModel,
+                              );
+                              loadVectorStoreInfo();
+                              confirmAndIndexRoamGraph(db.id);
+                            } catch (e: any) {
+                              setVectorStoreProgress(`Error: ${e.message}`);
+                            }
+                          }}
+                        />
+                        <select
+                          value={newDbModel}
+                          onChange={(e) =>
+                            setNewDbModel(e.target.value as LocalEmbeddingModel)
+                          }
+                          style={{
+                            fontSize: "10px",
+                            padding: "4px 6px",
+                            borderRadius: 3,
+                            border: "1px solid #ccc",
+                            background: "transparent",
+                          }}
+                          title="Embedding model — English (best quality), English faster (faster indexing), Multilingual (100+ languages)"
+                        >
+                          {Object.entries(EMBEDDING_MODELS).map(
+                            ([key, config]) => (
+                              <option key={key} value={key}>
+                                {config.label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </div>
                       <Button
-                        icon="database"
-                        text="Index my Roam Graph"
-                        intent="primary"
+                        icon="cloud"
+                        text="Index my Roam Graph (OpenAI)"
                         small
+                        fill
                         onClick={async () => {
                           try {
-                            const db = await vsCreateDatabase("Current Graph");
+                            const db = await vsCreateDatabase(
+                              "Current Graph",
+                              undefined,
+                              "openai",
+                            );
                             loadVectorStoreInfo();
                             confirmAndIndexRoamGraph(db.id);
                           } catch (e: any) {
@@ -673,16 +787,25 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                           }
                         }}
                         disabled={!OPENAI_API_KEY}
-                        title={!OPENAI_API_KEY ? "Requires an OpenAI API key" : undefined}
+                        title={
+                          !OPENAI_API_KEY
+                            ? "Requires an OpenAI API key"
+                            : undefined
+                        }
                       />
                       <Button
                         icon="upload"
-                        text="Upload Files"
+                        text="Upload Files (OpenAI)"
                         small
+                        fill
                         onClick={async () => {
                           const name = newDbName.trim() || "Uploaded Files";
                           try {
-                            const db = await vsCreateDatabase(name);
+                            const db = await vsCreateDatabase(
+                              name,
+                              undefined,
+                              "openai",
+                            );
                             loadVectorStoreInfo();
                             setActiveDatabaseId(db.id);
                             setNewDbName("");
@@ -692,12 +815,21 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                           }
                         }}
                         disabled={!OPENAI_API_KEY}
-                        title={!OPENAI_API_KEY ? "Requires an OpenAI API key" : undefined}
+                        title={
+                          !OPENAI_API_KEY
+                            ? "Requires an OpenAI API key"
+                            : undefined
+                        }
                       />
                     </div>
                     {!OPENAI_API_KEY && (
-                      <p className="vs-get-started-warning">
-                        <Icon icon="warning-sign" size={12} /> An OpenAI API key is required. Set it in extension settings.
+                      <p
+                        className="vs-get-started-warning"
+                        style={{ fontSize: 11, marginTop: 6 }}
+                      >
+                        <Icon icon="info-sign" size={12} /> Local indexing is
+                        free with no API key. OpenAI features require an OpenAI
+                        API key.
                       </p>
                     )}
                   </div>
@@ -756,6 +888,24 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                                   {db.name}
                                 </span>
                               )}
+                              <Tag
+                                minimal
+                                intent={
+                                  db.provider === "local"
+                                    ? "success"
+                                    : "warning"
+                                }
+                                style={{ fontSize: "9px" }}
+                                title={
+                                  db.provider === "local" && db.embeddingModel
+                                    ? `${EMBEDDING_MODELS[db.embeddingModel]?.hfName || db.embeddingModel}\n${EMBEDDING_MODELS[db.embeddingModel]?.description || ""}`
+                                    : undefined
+                                }
+                              >
+                                {db.provider === "local"
+                                  ? `Local${db.embeddingModel ? ` · ${EMBEDDING_MODELS[db.embeddingModel]?.label || db.embeddingModel}` : ""}`
+                                  : "OpenAI"}
+                              </Tag>
                               {isDefault && (
                                 <Tag
                                   minimal
@@ -765,16 +915,6 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                                   default
                                 </Tag>
                               )}
-                            </div>
-                            <div className="vector-db-item-right">
-                              <Tag minimal style={{ fontSize: "10px" }}>
-                                {pageCount > 0 ? `${pageCount} pages` : ""}
-                                {pageCount > 0 && fileCount > 0 ? ", " : ""}
-                                {fileCount > 0 ? `${fileCount} files` : ""}
-                                {pageCount === 0 && fileCount === 0
-                                  ? "empty"
-                                  : ""}
-                              </Tag>
                             </div>
                           </div>
 
@@ -799,8 +939,34 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                                 disabled={vectorStoreStatus !== "idle"}
                               />
                             </Tooltip>
+                            <div className="vector-db-item-right">
+                              <Tag minimal style={{ fontSize: "10px" }}>
+                                {pageCount > 0 ? `${pageCount} pages` : ""}
+                                {pageCount > 0 && fileCount > 0 ? ", " : ""}
+                                {fileCount > 0 ? `${fileCount} files` : ""}
+                                {pageCount === 0 && fileCount === 0
+                                  ? "empty"
+                                  : ""}
+                              </Tag>
+                              {db.lastIndexedAt && (
+                                <span
+                                  style={{
+                                    fontSize: "9px",
+                                    color: "#8a9ba8",
+                                    marginLeft: 4,
+                                  }}
+                                  title={new Date(
+                                    db.lastIndexedAt,
+                                  ).toLocaleString()}
+                                >
+                                  {formatRelativeTime(db.lastIndexedAt)}
+                                </span>
+                              )}
+                            </div>
                             <Tooltip
-                              content="Upload files to this database"
+                              content={db.provider === "local"
+                                ? "File upload not yet supported for local databases"
+                                : "Upload files to this database"}
                               position="top"
                             >
                               <Button
@@ -816,7 +982,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                                   vectorStoreStatus === "uploading" &&
                                   activeDatabaseId === db.id
                                 }
-                                disabled={vectorStoreStatus !== "idle"}
+                                disabled={vectorStoreStatus !== "idle" || db.provider === "local"}
                               />
                             </Tooltip>
                             {!isDefault && (
@@ -922,6 +1088,49 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                     }}
                     disabled={vectorStoreStatus !== "idle"}
                   />
+                  <select
+                    value={newDbProvider}
+                    onChange={(e) =>
+                      setNewDbProvider(e.target.value as VectorStoreProvider)
+                    }
+                    disabled={vectorStoreStatus !== "idle"}
+                    style={{
+                      fontSize: "10px",
+                      padding: "2px 4px",
+                      borderRadius: 3,
+                      border: "1px solid #ccc",
+                      background: "transparent",
+                    }}
+                    title="Vector store provider"
+                  >
+                    <option value="local">Local (Free)</option>
+                    <option value="openai" disabled={!OPENAI_API_KEY}>
+                      OpenAI {!OPENAI_API_KEY ? "(no key)" : ""}
+                    </option>
+                  </select>
+                  {newDbProvider === "local" && (
+                    <select
+                      value={newDbModel}
+                      onChange={(e) =>
+                        setNewDbModel(e.target.value as LocalEmbeddingModel)
+                      }
+                      disabled={vectorStoreStatus !== "idle"}
+                      style={{
+                        fontSize: "10px",
+                        padding: "2px 4px",
+                        borderRadius: 3,
+                        border: "1px solid #ccc",
+                        background: "transparent",
+                      }}
+                      title="Embedding model"
+                    >
+                      {Object.entries(EMBEDDING_MODELS).map(([key, config]) => (
+                        <option key={key} value={key}>
+                          {config.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <Tooltip
                     content="Create a new vector database"
                     position="top"
@@ -930,7 +1139,7 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                       small
                       icon="plus"
                       intent="primary"
-                      onClick={handleCreateDatabase}
+                      onClick={() => handleCreateDatabase()}
                       loading={vectorStoreStatus === "creating"}
                       disabled={
                         vectorStoreStatus !== "idle" || !newDbName.trim()
@@ -1211,47 +1420,6 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
           <Button minimal small icon={iconName} intent={iconIntent} />
         </Popover>
       </Tooltip>
-
-      <Alert
-        isOpen={isIndexAlertOpen}
-        onConfirm={() => {
-          setIsIndexAlertOpen(false);
-          handleIndexRoamGraph(pendingIndexDbId);
-        }}
-        onCancel={() => setIsIndexAlertOpen(false)}
-        confirmButtonText="Index my graph"
-        cancelButtonText="Cancel"
-        intent="primary"
-        icon="cloud-upload"
-      >
-        <p>
-          <strong>Index your Roam graph into the vector database?</strong>
-        </p>
-        <p>This will:</p>
-        <ul style={{ paddingLeft: 20, margin: "8px 0" }}>
-          <li>
-            Extract all your pages and blocks content (excluding blocks with
-            your exclusion tags)
-          </li>
-          <li>
-            Convert them to text and upload to OpenAI's storage for semantic
-            search
-          </li>
-          <li>Daily notes and regular pages are stored in separate chunks</li>
-        </ul>
-        <p style={{ fontSize: 12, color: "#5c7080", marginTop: 8 }}>
-          Your data is stored on OpenAI's servers and can be managed at{" "}
-          <a
-            href="https://platform.openai.com/storage"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            platform.openai.com/storage
-          </a>
-          . An OpenAI API key is required and usage fees will apply (free
-          storage up to 1 GB, $2.50 / 1k calls + tokens processed).
-        </p>
-      </Alert>
     </>
   );
 };
@@ -1259,6 +1427,18 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
 /**
  * Format tool name for display (convert snake_case to Title Case)
  */
+/** Format a timestamp as relative time (e.g. "2h ago", "3d ago") */
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 function formatToolName(name: string): string {
   return name
     .split("_")

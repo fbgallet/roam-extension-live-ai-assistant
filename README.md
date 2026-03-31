@@ -18,14 +18,13 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### v.29:
+### 🆕 New in v.29 (April 2026)
 
-- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
-
-### v.28:
-
-- Fixes for custom models duplication and ability to remove OpenRouter models
-- Gemini 3.1 Pro support
+- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). Switch with `/council`. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
+- **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat — e.g., "run Sb Daily on today's page". Supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.
+- **Vector Search tool**: search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
+- **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
+- Improved tool feedback in chat: human-readable summaries instead of raw parameters.
 
 ### 🆕 New in v.27 (February 2026)
 
@@ -40,7 +39,6 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - New context options in Context menu: 'Siblings', 'Path' (ancestors) and Queries (Roam querie and :q queries)
 - Generate PDF/DOCX/PPTX documents (Anthropic API Key requested)
 - Any message in Chat panel is editable (rendered as Roam blocks)
-- Fixed a lot of bugs
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

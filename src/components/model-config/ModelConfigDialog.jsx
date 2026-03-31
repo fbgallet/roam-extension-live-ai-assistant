@@ -377,10 +377,12 @@ export const ModelConfigDialog = ({
   };
 
   const handleAddCustomModel = (provider, model) => {
+    // "openai-custom" is a UI-only variant; store under "openai"
+    const storageProvider = provider === "openai-custom" ? "openai" : provider;
     const customModels = { ...(workingConfig.customModels || {}) };
-    const providerModels = [...(customModels[provider] || [])];
+    const providerModels = [...(customModels[storageProvider] || [])];
     providerModels.push(model);
-    customModels[provider] = providerModels;
+    customModels[storageProvider] = providerModels;
 
     setWorkingConfig({
       ...workingConfig,
@@ -396,13 +398,13 @@ export const ModelConfigDialog = ({
       "deepseek",
       "grok",
     ];
-    const formKey = nativeProviders.includes(provider)
+    const formKey = nativeProviders.includes(storageProvider)
       ? "native-apis"
-      : provider;
+      : storageProvider;
     setShowAddForm({ ...showAddForm, [formKey]: false });
 
     AppToaster.show({
-      message: `Added "${model.name}" to ${provider} models`,
+      message: `Added "${model.name}" to ${storageProvider} models`,
       intent: "success",
       timeout: 2000,
     });

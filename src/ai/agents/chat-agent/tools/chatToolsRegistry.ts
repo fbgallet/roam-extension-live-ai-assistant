@@ -16,11 +16,12 @@ import { deleteBlockTool } from "./deleteBlockTool";
 import { askUserChoiceTool } from "./askUserChoiceTool";
 import { randomPickTool } from "./randomPickTool";
 import { vectorSearchTool } from "./vectorSearchTool";
+import { runSmartBlockTool } from "./runSmartBlockTool";
 
 export type ToolCategory = "context" | "edit" | "skills" | "interaction";
 
 // Edit tools that require the section master switch
-export const EDIT_TOOL_NAMES = ["create_block", "create_page", "update_block", "delete_block"];
+export const EDIT_TOOL_NAMES = ["create_block", "create_page", "update_block", "delete_block", "run_smartblock"];
 // Special key for the edit section master switch
 export const EDIT_SECTION_KEY = "section:edit";
 
@@ -101,6 +102,13 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       category: "edit",
       description:
         'Delete blocks from Roam (and all their children). Uses mode flag: "browse" to view outline, "delete" to remove. Batch mode: use batch_block_uids array (max 20). Deletion is irreversible.',
+    },
+    run_smartblock: {
+      tool: runSmartBlockTool,
+      securityLevel: "secure",
+      category: "edit",
+      description:
+        "Trigger a SmartBlock (also called 'Sb' or 'SB' by users) workflow defined in the user's graph. Provide the workflow name (or UID) and a target page/block or date. Verifies the SmartBlock exists before running. Requires roamjs SmartBlocks extension.",
     },
     // Skills tool
     live_ai_skills: {
@@ -196,6 +204,13 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     category: "edit",
     description:
       'Delete blocks from Roam (and all their children). Uses mode flag: "browse" to view outline, "delete" to remove. Batch mode: use batch_block_uids array (max 20). Deletion is irreversible.',
+  },
+  run_smartblock: {
+    tool: null,
+    securityLevel: "secure",
+    category: "edit",
+    description:
+      "Trigger a SmartBlock (also called 'Sb' or 'SB' by users) workflow defined in the user's graph. Provide the workflow name (or UID) and a target page/block or date. Verifies the SmartBlock exists before running. Requires roamjs SmartBlocks extension.",
   },
   // Skills tool
   live_ai_skills: {

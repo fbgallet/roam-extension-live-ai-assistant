@@ -324,6 +324,7 @@
 
 .vector-db-item-left .bp3-control.bp3-switch {
   margin-bottom: 0;
+  margin-left: 0;
   flex-shrink: 0;
 }
 
@@ -355,7 +356,7 @@
   display: flex;
   gap: 2px;
   margin-top: 4px;
-  padding-left: 32px;
+  /* padding-left: 32px; */
 }
 
 .vector-db-item-actions .bp3-button {

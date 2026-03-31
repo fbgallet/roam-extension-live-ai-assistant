@@ -8,3 +8,5 @@ package-lock.json
 # Webpack generated chunks
 src_*.js
 vendors-*.js
+*.wasm
+*.mjs

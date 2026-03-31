@@ -15,7 +15,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt) and styles (#liveai/style)
 - **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
 - Support images, .pdf (with most models) and even audio or video analysis (with Gemini models)
-- **Slash Commands**: Type / to access quick commands (clear, close, change mode, save, switch model)
+- **Slash Commands**: Type / to access quick commands (clear, close, change mode, save, switch model) or force-use any tool for a single turn
 - **Edit Messages**: Click to edit previous messages, rendered as Roam blocks
 
 #### **Context panel**
@@ -28,7 +28,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Access Modes**: adaptative depth of pages/blocks in the context
   - 🛡️ **Balanced**: 50% context window, faster responses, adaptive depth (0-4 levels for blocks, 4 for pages)
   - 🔓 **Full Access**: 90% context window, deeper analysis, unlimited depth + "No truncation" option
-- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Get Help, Skills, Edition tools (create/update/delete blocks & pages), Interaction tools (Ask User Choice, Random Pick)
+- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Vector Search, Get Help, Skills, Edition tools (create/update/delete blocks & pages, Run SmartBlock), Interaction tools (Ask User Choice, Random Pick)
 - **Smart Context**: Agent loads pages/blocks dynamically based on mentions and needs
 - **Query Integration**: Run queries, compose searches, manage results directly in the panel
 
@@ -81,34 +81,22 @@ OpenAI (GPT-5.2), Anthropic (Claude Opus 4.6, Sonnet 4.6), Google (Gemini 3), xA
 #### **How to support my work ?**
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.27 🎉
+// Update this version each time you update WHATS_NEW_RESPONSE content
+export const WHATS_NEW_VERSION = "29";
 
-#### **Chat Panel**
-- **Slash Commands**: Type / to quickly clear, close, change mode, save, or search & switch models
-- **Edit Messages**: Click any message to edit it, rendered as a Roam block
-- **Agent/Chat Toggle**: Easily switch between Agent mode (with tools) and simple Chat mode
-- **No Truncation Option**: In Full Access mode, disable truncation for complete context
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.29 🎉
+
+#### **LLM Council Mode**
+- **Multi-LLM Deliberation**: Switch to Council mode (/council) to have multiple LLMs discuss and synthesize responses together
+- Get richer, more balanced answers by combining perspectives from different models
 
 #### **Chat Agent Tools**
-- **Edition Tools**: Create pages or blocks, update or delete blocks (with human validation)
-- **Interaction Tools**: Ask User Choice (for polls, QCM) and Random Pick (from context or any list)
+- **Run SmartBlock**: New tool to trigger SmartBlock workflows directly from chat — just say "run Sb Daily on today's page" and the agent handles the rest (supports relative dates like today, tomorrow, etc.)
+- **Vector Search**: Search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser) or OpenAI's vector store
+- **Slash Commands for Tools**: Type / followed by a tool name to force-use any tool for a single turn, even if it's disabled — e.g., \`/vector\` to trigger a one-off semantic search without permanently enabling the tool
 
-#### **Live AI Skills — Major Update**
-- **Records**: Skills can now write output to any defined place in your graph ([detailed doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))
-- **SmartBlocks Integration**: Run skills from SmartBlocks with \`<%LIVEAIGEN:prompt,context,{chat:skill:skill_name}%>\`
-- **Relative Dates**: Resources and records support relative date keywords (today, last week, in 3 days...)
-- **Improved Structure**: Description supports children blocks, singular/plural tags, page embeds, bold flags
-
-#### **Models & UI**
-- Models menu & customization entirely revamped with many new models (GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3.1 Pro & Gemini 3 Flash, GPT Image 1.5, Grok Imagine)
-- New button and dropdown to handle thinking effort of reasoning models
-- Chat with native query results button
-
-#### **Context Menu**
-- New context options: 'Siblings', 'Path' (ancestors) and Queries (Roam queries and :q queries)
-
-#### **Document Generation**
-- Generate PDF, DOCX, PPTX documents directly (Anthropic API Key requested)
+#### **Improved Tool Feedback**
+- Tool usage display now shows human-readable summaries instead of raw parameters (e.g., "1 daily note(s)" instead of "dailynotes_count: 1")
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
@@ -141,6 +129,10 @@ export const CHAT_TIPS = [
   "**Skills with Records**: Skills can now write output directly to your graph using Records — define a target page or block, and the agent will create or update content there. Use relative dates like \\`[[today]]\\` or \\`[[last week]]\\` for dynamic targets ([doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))",
   "**Skills via SmartBlocks**: Trigger specific skills from SmartBlocks with \\`<%LIVEAIGEN:prompt,context,{chat:skill:skill_name}%>\\` — great for automated workflows and repeatable processes!",
   "**Edit images**: Once you generate an image, you can choose to switch to Edit image mode (available with Gemini, GPT 1.5 Image & Grok Imagine): any further prompt will be used to apply modification to the previously generated image! Use /exit-edit to come back to conversation mode.",
+  "**Council mode**: Switch to /council mode to have multiple LLMs deliberate together on your question — great for getting diverse perspectives and more balanced, well-rounded answers!",
+  "**Run SmartBlocks from chat**: Ask the agent to run any SmartBlock workflow — e.g., 'run Sb Daily on today's page'. It supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.",
+  "**Vector search**: Enable the vector_search tool to search your Roam graph and uploaded files by meaning, not just keywords. Choose a free local provider (all in your browser) or OpenAI's vector store for uploaded documents.",
+  "**Force any tool with /**: Type / followed by a tool name (e.g., /vector, /ask_your_graph, /run_smartblock) to use it for a single turn — even if it's disabled in your tools menu. Your persistent settings stay unchanged.",
 ];
 
 // Tips applicable to both Live AI and Chat

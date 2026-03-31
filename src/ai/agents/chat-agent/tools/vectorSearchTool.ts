@@ -25,12 +25,15 @@ export const vectorSearchTool = tool(
     _config
   ): Promise<string> => {
     const {
-      query,
+      query: rawQuery,
       max_results = 10,
       source_filter = "all",
       database_filter,
       reason,
     } = input;
+
+    // Strip slash-command prefix if user invoked via /vector_search
+    const query = rawQuery.replace(/^Use 'vector_search':\s*/i, "").trim();
 
     // Read user-configured settings from the tools menu
     const userSettings = (typeof window !== "undefined" && (window as any).vectorSearchSettings) || {};
@@ -46,7 +49,7 @@ export const vectorSearchTool = tool(
       const info = getVectorStoreInfo();
       if (!info.isConfigured) {
         return `No vector store is configured yet. The user needs to set up vector search first:
-- Open the Chat tools menu and create a vector database
+- Open the Chat tools menu and create a vector database (Local free or OpenAI cloud)
 - Click "Index Roam Graph" to index their graph into a database
 - Or upload files (PDF, DOCX, TXT, etc.) via the "Upload Files" button
 
@@ -97,11 +100,12 @@ Consider:
 - Using broader or more specific search terms`;
       }
 
-      // Clean content: strip [uid:...] markers, PAGE markers, and page headers
+      // Clean content: strip [uid:...] markers, PAGE markers, context prefixes, and page headers
       const cleanContent = (text: string): string => {
         return text
           .replace(/<!-- PAGE: .+? -->\n?/g, "")
           .replace(/\[uid:[^\]]+\]\s*/g, "")
+          .replace(/^\[Page: .+?\]\n?/m, "")
           .trim();
       };
 
@@ -129,17 +133,51 @@ Consider:
       };
 
       /**
-       * Find the first top-level (depth 0) block UID in the chunk content.
+       * Find the most relevant top-level block UID based on query term overlap.
        * Top-level blocks start at column 0: "- [uid:xxx]"
-       * Indented children start with spaces: "  - [uid:xxx]"
-       * We must NOT return the page UID (pages have :node/title, not :block/string).
+       * For each top-level block, we collect its text + children text and score
+       * by how many query words appear. Falls back to first top-level block.
        */
-      const findFirstTopBlockUid = (content: string, allBlockUids: string[]): string | undefined => {
-        // Match lines starting with "- [uid:xxx]" (no leading spaces = top-level block)
-        const topLevelMatch = content.match(/^- \[uid:([^\]]+)\]/m);
-        if (topLevelMatch) return topLevelMatch[1];
-        // Fallback to first UID in the list
-        return allBlockUids[0];
+      const findBestTopBlockUid = (content: string, allBlockUids: string[], searchQuery: string): string | undefined => {
+        // Parse top-level blocks with their sections (including children)
+        const lines = content.split("\n");
+        const sections: Array<{ uid: string; text: string }> = [];
+        let currentUid = "";
+        let currentText = "";
+
+        for (const line of lines) {
+          const topMatch = line.match(/^- \[uid:([^\]]+)\]/);
+          if (topMatch) {
+            if (currentUid) sections.push({ uid: currentUid, text: currentText });
+            currentUid = topMatch[1];
+            currentText = line;
+          } else if (currentUid) {
+            currentText += "\n" + line;
+          }
+        }
+        if (currentUid) sections.push({ uid: currentUid, text: currentText });
+
+        if (sections.length === 0) return allBlockUids[0];
+        if (sections.length === 1) return sections[0].uid;
+
+        // Score each section by query word overlap
+        const queryWords = searchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        if (queryWords.length === 0) return sections[0].uid;
+
+        let bestUid = sections[0].uid;
+        let bestScore = 0;
+        for (const section of sections) {
+          const lower = section.text.toLowerCase();
+          let score = 0;
+          for (const word of queryWords) {
+            if (lower.includes(word)) score++;
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestUid = section.uid;
+          }
+        }
+        return bestUid;
       };
 
       // Build structured results for UI display
@@ -151,8 +189,8 @@ Consider:
           .replace(/^#\s+.+\n+/, "")
           .trim();
 
-        // Find first top-level block UID (not page UID, not child block)
-        const firstTopBlockUid = findFirstTopBlockUid(r.content, r.blockUids);
+        // Use firstBlockUid from local provider (chunk-level), or find best match for OpenAI
+        const firstTopBlockUid = r.firstBlockUid || findBestTopBlockUid(r.content, r.blockUids, query);
 
         return {
           index: i + 1,
@@ -215,14 +253,16 @@ Try:
   },
   {
     name: "vector_search",
-    description: `Search across the user's indexed Roam graph and uploaded files using semantic vector search powered by OpenAI.
+    description: `Search across the user's indexed Roam graph and uploaded files using semantic vector search.
+Supports both local (free, in-browser) and OpenAI (cloud) vector databases.
 
-This tool finds content by MEANING, not just keywords. Use it when:
+This tool finds content by MEANING, not just keywords. The local provider also uses hybrid search (keyword + semantic) for best results.
+Use it when:
 - The user wants to find content across their entire graph or uploaded documents based on a topic or concept
 - Keyword-based search (ask_your_graph) might miss semantically related content
 - The user has uploaded external files (PDFs, documents) they want to search
 
-The user can have multiple vector databases (e.g. one for their Roam graph, another for research papers).
+The user can have multiple vector databases (e.g. one local for their Roam graph, another on OpenAI for research papers).
 Searches all enabled databases by default. Use database_filter to target a specific one.
 Returns ranked passages with relevance scores, source attribution, and database name.`,
     schema: z.object({

@@ -2827,6 +2827,50 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
   border-color: rgba(102, 126, 234, 0.5);
 }
 
+/* "What's New" button highlight for unseen updates */
+.full-results-chat-suggestions button.whats-new-unseen {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 165, 0, 0.15) 0%,
+    rgba(255, 100, 50, 0.15) 100%
+  );
+  border-color: rgba(255, 165, 0, 0.6);
+  color: #e08a00;
+  font-weight: 600;
+  animation: whatsNewPulse 2s ease-in-out infinite;
+}
+
+.full-results-chat-suggestions button.whats-new-unseen:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 165, 0, 0.25) 0%,
+    rgba(255, 100, 50, 0.25) 100%
+  );
+  border-color: rgba(255, 165, 0, 0.8);
+  box-shadow: 0 4px 12px rgba(255, 165, 0, 0.3);
+}
+
+.whats-new-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #ff6a00;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  box-shadow: 0 0 6px rgba(255, 106, 0, 0.6);
+}
+
+@keyframes whatsNewPulse {
+  0%, 100% {
+    box-shadow: 0 2px 4px rgba(255, 165, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 2px 12px rgba(255, 165, 0, 0.35);
+  }
+}
+
 .full-results-chat-feature-hint {
   margin-top: 6px;
 }

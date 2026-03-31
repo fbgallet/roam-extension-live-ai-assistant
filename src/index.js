@@ -163,10 +163,31 @@ export function updateAvailableModels() {
 
   // Refresh dynamic model lists from current config so stale exports are updated
   const currentConfig = getModelConfig();
+  openAiCustomModels =
+    currentConfig.customModels?.openai?.map((m) => m.id) || [];
   openRouterModels =
     currentConfig.customModels?.openrouter?.map((m) => m.id) || [];
   groqModels = currentConfig.customModels?.groq?.map((m) => m.id) || [];
   ollamaModels = currentConfig.customModels?.ollama?.map((m) => m.id) || [];
+
+  // Refresh custom endpoint settings from config
+  const openaiEndpoint = currentConfig.providerEndpoints?.openai;
+  if (openaiEndpoint) {
+    customBaseURL = openaiEndpoint.baseURL || customBaseURL;
+    customEndpointEnabled = openaiEndpoint.enabled ?? customEndpointEnabled;
+    customOpenAIOnly = openaiEndpoint.exclusive ?? customOpenAIOnly;
+  }
+
+  // Re-initialize OpenAI libraries if endpoint settings changed
+  if (OPENAI_API_KEY || (customBaseURL && customOpenAIOnly)) {
+    openaiLibrary = initializeOpenAIAPI(
+      OPENAI_API_KEY,
+      customOpenAIOnly ? customBaseURL : null,
+    );
+  }
+  if (customBaseURL && customEndpointEnabled && !customOpenAIOnly) {
+    customOpenaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
+  }
 
   // Helper to get prefix for provider
   const getPrefix = (provider) => {

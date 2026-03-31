@@ -1,12 +1,12 @@
 /**
  * Vector Store Service
  *
- * Manages multiple OpenAI Vector Store databases: CRUD, upload, search, delete.
- * Each database is backed by its own OpenAI vector store and can be
- * independently enabled/disabled for search.
+ * Manages multiple vector databases with two provider backends:
+ * - OpenAI: Remote vector store (requires API key, paid)
+ * - Local: In-browser Orama + Transformers.js (free, zero config)
  *
- * Performance strategy: bundle many pages into few large files (~500KB each)
- * to minimize API calls. OpenAI auto-chunks the content.
+ * Each database is backed by its provider and can be independently
+ * enabled/disabled for search.
  */
 
 import {
@@ -18,7 +18,14 @@ import {
   VectorSearchResult,
   VectorSearchOptions,
   VectorSearchSource,
+  VectorStoreProvider,
+  LocalEmbeddingModel,
 } from "./types";
+
+import {
+  localSearch,
+  deleteLocalDatabase,
+} from "./providers/local/localProvider";
 
 // @ts-ignore - JS module
 import { openaiLibrary, OPENAI_API_KEY, extensionStorage } from "../../index";
@@ -43,6 +50,7 @@ function migrateLegacyState(legacy: VectorStoreState): VectorStoreGlobalState {
   const db: VectorDatabase = {
     id: generateId(),
     name: "Roam Graph",
+    provider: "openai",
     vectorStoreId: legacy.vectorStoreId,
     enabled: true,
     createdAt: Date.now(),
@@ -62,7 +70,14 @@ function getGlobalState(): VectorStoreGlobalState {
 
   // Check if this is the new multi-database format
   if (Array.isArray((stored as any).databases)) {
-    return stored as VectorStoreGlobalState;
+    const state = stored as VectorStoreGlobalState;
+    // Ensure all databases have a provider field (backfill legacy)
+    for (const db of state.databases) {
+      if (!db.provider) {
+        (db as any).provider = "openai";
+      }
+    }
+    return state;
   }
 
   // Legacy single-store format — migrate
@@ -115,25 +130,37 @@ function getOpenAIClient(): any {
 // Database CRUD
 // ============================================================
 
-/** Create a new vector database */
+/** Create a new vector database (OpenAI or Local) */
 export async function createDatabase(
   name: string,
-  description?: string
+  description?: string,
+  provider: VectorStoreProvider = "openai",
+  embeddingModel?: LocalEmbeddingModel
 ): Promise<VectorDatabase> {
-  const client = getOpenAIClient();
-  const store = await client.vectorStores.create({
-    name: `Live AI - ${name}`,
-    expires_after: {
-      anchor: "last_active_at",
-      days: DEFAULT_EXPIRY_DAYS,
-    },
-  });
+  let vectorStoreId = "";
+
+  if (provider === "openai") {
+    const client = getOpenAIClient();
+    const store = await client.vectorStores.create({
+      name: `Live AI - ${name}`,
+      expires_after: {
+        anchor: "last_active_at",
+        days: DEFAULT_EXPIRY_DAYS,
+      },
+    });
+    vectorStoreId = store.id;
+  } else {
+    // Local: just generate an ID — Orama instance created on first use
+    vectorStoreId = `local-${generateId()}`;
+  }
 
   const db: VectorDatabase = {
     id: generateId(),
     name,
     description,
-    vectorStoreId: store.id,
+    provider,
+    embeddingModel: provider === "local" ? (embeddingModel || "bge-small-en") : undefined,
+    vectorStoreId,
     enabled: true,
     createdAt: Date.now(),
     manifest: {},
@@ -187,32 +214,32 @@ export async function toggleDatabase(
   return db.enabled;
 }
 
-/** Delete a database, its OpenAI vector store, and all stored files */
+/** Delete a database and its backing store */
 export async function deleteDatabase(databaseId: string): Promise<void> {
   const state = getGlobalState();
   const db = findDatabase(state, databaseId);
   if (!db) return;
 
-  const client = getOpenAIClient();
-
-  // Delete all stored files (Roam bundles + user uploads) from OpenAI Storage
-  const allFileIds = [
-    ...db.roamBundleFileIds,
-    ...db.files.map((f) => f.openaiFileId),
-  ];
-  if (allFileIds.length > 0) {
-    await Promise.allSettled(
-      allFileIds.map(async (fileId) => {
-        try { await client.files.del(fileId); } catch { /* already deleted */ }
-      })
-    );
-  }
-
-  // Delete the vector store itself
-  try {
-    await client.vectorStores.del(db.vectorStoreId);
-  } catch {
-    // Already deleted on OpenAI side
+  if (db.provider === "openai") {
+    try {
+      const client = getOpenAIClient();
+      const allFileIds = [
+        ...db.roamBundleFileIds,
+        ...db.files.map((f) => f.openaiFileId),
+      ];
+      if (allFileIds.length > 0) {
+        await Promise.allSettled(
+          allFileIds.map(async (fileId) => {
+            try { await client.files.del(fileId); } catch { /* already deleted */ }
+          })
+        );
+      }
+      await client.vectorStores.del(db.vectorStoreId);
+    } catch {
+      // Already deleted on OpenAI side
+    }
+  } else {
+    await deleteLocalDatabase(db.id);
   }
 
   state.databases = state.databases.filter((d) => d.id !== databaseId);
@@ -244,26 +271,23 @@ export function getDefaultDatabaseId(): string | undefined {
 }
 
 // ============================================================
-// Database-aware getOrCreate (for fileConverter compatibility)
+// Database-aware getOrCreate (OpenAI only)
 // ============================================================
 
 /**
- * Ensure a database's OpenAI vector store exists, or create one.
- * If no databaseId given, uses the default database (creating one if needed).
- * Returns the OpenAI vector store ID.
+ * Ensure an OpenAI database's vector store exists, or create one.
+ * For local databases, this is a no-op.
  */
 export async function getOrCreateVectorStore(
   databaseId?: string
 ): Promise<string> {
   const state = getGlobalState();
 
-  // Resolve which database to use
   let db: VectorDatabase | undefined;
   if (databaseId) {
     db = findDatabase(state, databaseId);
     if (!db) throw new Error(`Database not found: ${databaseId}`);
   } else {
-    // Use default, or create one
     if (state.defaultDatabaseId) {
       db = findDatabase(state, state.defaultDatabaseId);
     }
@@ -273,7 +297,10 @@ export async function getOrCreateVectorStore(
   }
 
   if (db) {
-    // Verify the store still exists on OpenAI
+    // Local databases don't need remote verification
+    if (db.provider === "local") return db.vectorStoreId;
+
+    // Verify the OpenAI store still exists
     try {
       const client = getOpenAIClient();
       await client.vectorStores.retrieve(db.vectorStoreId);
@@ -283,7 +310,6 @@ export async function getOrCreateVectorStore(
         `[VectorStore] Store for "${db.name}" not found, recreating:`,
         e.message
       );
-      // Recreate
       const client = getOpenAIClient();
       const store = await client.vectorStores.create({
         name: `Live AI - ${db.name}`,
@@ -304,13 +330,10 @@ export async function getOrCreateVectorStore(
 }
 
 // ============================================================
-// File upload (database-aware)
+// File upload (OpenAI databases only)
 // ============================================================
 
-/**
- * Upload a single file to a database.
- * If no databaseId, uses the default database.
- */
+/** Upload a single file to an OpenAI database */
 export async function uploadFile(
   blob: Blob,
   fileName: string,
@@ -345,10 +368,7 @@ export async function uploadFile(
   return uploadedFile.id;
 }
 
-/**
- * Upload Roam graph content as bundled files to a specific database.
- * If no databaseId, uses the default database.
- */
+/** Upload Roam graph bundles to an OpenAI database */
 export async function uploadRoamBundles(
   bundles: Array<{ content: string; name: string }>,
   manifest: VectorStoreManifest,
@@ -360,26 +380,22 @@ export async function uploadRoamBundles(
   const state = getGlobalState();
   const db = findDatabase(state, resolvedDbId)!;
 
-  // Step 1: Delete old Roam bundle files (in parallel)
+  // Step 1: Delete old Roam bundle files
   if (db.roamBundleFileIds.length > 0) {
     await Promise.allSettled(
       db.roamBundleFileIds.map(async (fileId) => {
         try {
           await client.vectorStores.files.del(db.vectorStoreId, fileId);
-        } catch {
-          // Already removed
-        }
+        } catch { /* Already removed */ }
         try {
           await client.files.del(fileId);
-        } catch {
-          // Already deleted
-        }
+        } catch { /* Already deleted */ }
       })
     );
     db.roamBundleFileIds = [];
   }
 
-  // Step 2: Upload new bundles (parallel within small batches)
+  // Step 2: Upload new bundles
   const PARALLEL = 3;
   const newFileIds: string[] = [];
 
@@ -408,6 +424,20 @@ export async function uploadRoamBundles(
   // Step 3: Save state
   db.roamBundleFileIds = newFileIds;
   db.manifest = manifest;
+  db.lastIndexedAt = Date.now();
+  await saveGlobalState(state);
+}
+
+/** Save manifest and timestamp for a local database after indexing */
+export async function saveLocalIndexState(
+  manifest: VectorStoreManifest,
+  databaseId: string
+): Promise<void> {
+  const state = getGlobalState();
+  const db = findDatabase(state, databaseId);
+  if (!db) throw new Error(`Database not found: ${databaseId}`);
+  db.manifest = manifest;
+  db.lastIndexedAt = Date.now();
   await saveGlobalState(state);
 }
 
@@ -419,7 +449,6 @@ export async function removeFile(
   const client = getOpenAIClient();
   const state = getGlobalState();
 
-  // Find which database has this file
   let db: VectorDatabase | undefined;
   if (databaseId) {
     db = findDatabase(state, databaseId);
@@ -432,16 +461,12 @@ export async function removeFile(
   if (db) {
     try {
       await client.vectorStores.files.del(db.vectorStoreId, openaiFileId);
-    } catch {
-      // Already removed
-    }
+    } catch { /* Already removed */ }
   }
 
   try {
     await client.files.del(openaiFileId);
-  } catch {
-    // Already deleted
-  }
+  } catch { /* Already deleted */ }
 
   if (db) {
     db.files = db.files.filter((f) => f.openaiFileId !== openaiFileId);
@@ -450,10 +475,10 @@ export async function removeFile(
 }
 
 // ============================================================
-// Search (across multiple enabled databases)
+// Search (across multiple enabled databases, any provider)
 // ============================================================
 
-/** Search across all enabled databases (or specific ones) */
+/** Search across all enabled databases (routes to correct provider) */
 export async function search(
   query: string,
   options: VectorSearchOptions = {}
@@ -461,89 +486,41 @@ export async function search(
   const state = getGlobalState();
   const maxResults = options.maxResults || 10;
 
-  // Determine which databases to search
   let databasesToSearch: VectorDatabase[];
   if (options.databaseIds && options.databaseIds.length > 0) {
     databasesToSearch = state.databases.filter(
-      (db) => options.databaseIds!.includes(db.id) && db.vectorStoreId
+      (db) => options.databaseIds!.includes(db.id)
     );
   } else {
-    databasesToSearch = state.databases.filter(
-      (db) => db.enabled && db.vectorStoreId
-    );
+    databasesToSearch = state.databases.filter((db) => db.enabled);
   }
 
   if (databasesToSearch.length === 0) {
     throw new Error(
-      "No vector store configured. Please set up vector search from the tools menu (create a database, then index your Roam graph or upload files)."
+      "No vector store configured. Please create a database (Local or OpenAI) from the tools menu, then index your Roam graph."
     );
   }
 
-  const client = getOpenAIClient();
-
-  // Search all target databases in parallel
+  // Search all databases in parallel, routing to correct provider
   const searchPromises = databasesToSearch.map(async (db) => {
     try {
-      const searchResponse = await client.vectorStores.search(
-        db.vectorStoreId,
-        { query, max_num_results: maxResults }
-      );
-
-      const roamBundleIds = new Set(db.roamBundleFileIds);
-      const results: VectorSearchResult[] = [];
-
-      for (const item of searchResponse.data || []) {
-        const fileName = item.filename || "unknown";
-        const content =
-          item.content?.map((c: any) => c.text).join("\n") || "";
-        const score = item.score || 0;
-
-        const isRoamBundle = roamBundleIds.has(item.file_id);
-
-        // Determine source type from file name pattern
-        let source: VectorSearchSource;
-        if (!isRoamBundle) {
-          source = "user-upload";
-        } else if (fileName.startsWith("roam-dnp")) {
-          source = "roam-dnp";
-        } else {
-          source = "roam-pages";
-        }
-
-        // Extract block UIDs from [uid:xxx] markers
-        const uidMatches = content.match(/\[uid:([^\]]+)\]/g) || [];
-        const blockUids = uidMatches.map((m: string) =>
-          m.replace("[uid:", "").replace("]", "")
-        );
-
-        // Extract page title from <!-- PAGE: Title --> marker (most reliable)
-        // Search backwards through the content for the last PAGE marker,
-        // which is the page that the main content belongs to
-        let pageTitle: string | undefined;
-        const pageMarkers = content.match(/<!-- PAGE: (.+?) -->/g);
-        if (pageMarkers && pageMarkers.length > 0) {
-          // Use the last marker — it's the page the content primarily belongs to
-          // (earlier markers may be from a previous page's tail in the same chunk)
-          const lastMarker = pageMarkers[pageMarkers.length - 1];
-          const titleMatch = lastMarker.match(/<!-- PAGE: (.+?) -->/);
-          if (titleMatch) pageTitle = titleMatch[1];
-        }
-
-        results.push({
-          content,
-          score,
-          fileName,
-          source,
-          blockUids,
-          pageTitle,
+      if (db.provider === "local") {
+        const results = await localSearch(db.id, query, {
+          ...options,
+          maxResults,
+        }, db.embeddingModel || "bge-small-en");
+        return results.map((r) => ({
+          ...r,
           databaseName: db.name,
           databaseId: db.id,
-        });
+        }));
       }
-      return results;
+
+      // OpenAI provider
+      return await searchOpenAI(db, query, maxResults);
     } catch (e: any) {
       console.warn(
-        `[VectorStore] Search failed for "${db.name}":`,
+        `[VectorStore] Search failed for "${db.name}" (${db.provider}):`,
         e.message
       );
       return [];
@@ -560,8 +537,9 @@ export async function search(
   if (options.sourceFilter && options.sourceFilter !== "all") {
     const filter = options.sourceFilter;
     if (filter === "roam") {
-      // "roam" matches both pages and DNP
-      results = results.filter((r) => r.source === "roam-pages" || r.source === "roam-dnp");
+      results = results.filter(
+        (r) => r.source === "roam-pages" || r.source === "roam-dnp"
+      );
     } else if (filter === "roam-pages" || filter === "roam-dnp") {
       results = results.filter((r) => r.source === filter);
     } else if (filter === "uploads") {
@@ -572,6 +550,65 @@ export async function search(
   return results;
 }
 
+/** OpenAI-specific search implementation */
+async function searchOpenAI(
+  db: VectorDatabase,
+  query: string,
+  maxResults: number
+): Promise<VectorSearchResult[]> {
+  const client = getOpenAIClient();
+  const searchResponse = await client.vectorStores.search(
+    db.vectorStoreId,
+    { query, max_num_results: maxResults }
+  );
+
+  const roamBundleIds = new Set(db.roamBundleFileIds);
+  const results: VectorSearchResult[] = [];
+
+  for (const item of searchResponse.data || []) {
+    const fileName = item.filename || "unknown";
+    const content =
+      item.content?.map((c: any) => c.text).join("\n") || "";
+    const score = item.score || 0;
+
+    const isRoamBundle = roamBundleIds.has(item.file_id);
+
+    let source: VectorSearchSource;
+    if (!isRoamBundle) {
+      source = "user-upload";
+    } else if (fileName.startsWith("roam-dnp")) {
+      source = "roam-dnp";
+    } else {
+      source = "roam-pages";
+    }
+
+    const uidMatches = content.match(/\[uid:([^\]]+)\]/g) || [];
+    const blockUids = uidMatches.map((m: string) =>
+      m.replace("[uid:", "").replace("]", "")
+    );
+
+    let pageTitle: string | undefined;
+    const pageMarkers = content.match(/<!-- PAGE: (.+?) -->/g);
+    if (pageMarkers && pageMarkers.length > 0) {
+      const lastMarker = pageMarkers[pageMarkers.length - 1];
+      const titleMatch = lastMarker.match(/<!-- PAGE: (.+?) -->/);
+      if (titleMatch) pageTitle = titleMatch[1];
+    }
+
+    results.push({
+      content,
+      score,
+      fileName,
+      source,
+      blockUids,
+      pageTitle,
+      databaseName: db.name,
+      databaseId: db.id,
+    });
+  }
+  return results;
+}
+
 // ============================================================
 // Legacy-compatible delete (deletes ALL databases)
 // ============================================================
@@ -579,30 +616,136 @@ export async function search(
 /** Delete all vector databases and their stored files */
 export async function deleteVectorStore(): Promise<void> {
   const state = getGlobalState();
-  const client = getOpenAIClient();
 
   await Promise.allSettled(
     state.databases.map(async (db) => {
-      // Delete all stored files first
-      const allFileIds = [
-        ...db.roamBundleFileIds,
-        ...db.files.map((f) => f.openaiFileId),
-      ];
-      await Promise.allSettled(
-        allFileIds.map(async (fileId) => {
-          try { await client.files.del(fileId); } catch { /* already deleted */ }
-        })
-      );
-      // Then delete the vector store
-      try {
-        await client.vectorStores.del(db.vectorStoreId);
-      } catch {
-        // Already deleted
+      if (db.provider === "local") {
+        await deleteLocalDatabase(db.id);
+        return;
       }
+      // OpenAI cleanup
+      try {
+        const client = getOpenAIClient();
+        const allFileIds = [
+          ...db.roamBundleFileIds,
+          ...db.files.map((f) => f.openaiFileId),
+        ];
+        await Promise.allSettled(
+          allFileIds.map(async (fileId) => {
+            try { await client.files.del(fileId); } catch { /* already deleted */ }
+          })
+        );
+        await client.vectorStores.del(db.vectorStoreId);
+      } catch { /* Already deleted */ }
     })
   );
 
   await saveGlobalState({ databases: [] });
+}
+
+// ============================================================
+// Diagnostics
+// ============================================================
+
+/** Debug: list files in the OpenAI vector store and their status */
+export async function debugListVectorStoreFiles(databaseId?: string): Promise<any> {
+  const state = getGlobalState();
+  const results: any[] = [];
+
+  const dbsToCheck = databaseId
+    ? state.databases.filter(db => db.id === databaseId)
+    : state.databases;
+
+  for (const db of dbsToCheck) {
+    if (db.provider === "local") {
+      results.push({
+        dbName: db.name,
+        dbId: db.id,
+        provider: "local",
+        localManifestSize: Object.keys(db.manifest).length,
+      });
+      continue;
+    }
+
+    try {
+      const client = getOpenAIClient();
+      const storeInfo = await client.vectorStores.retrieve(db.vectorStoreId);
+      const filesResponse = await client.vectorStores.files.list(db.vectorStoreId);
+      const files = filesResponse?.data || [];
+
+      results.push({
+        dbName: db.name,
+        dbId: db.id,
+        provider: "openai",
+        vectorStoreId: db.vectorStoreId,
+        storeStatus: storeInfo.status,
+        fileCounts: storeInfo.file_counts,
+        localManifestSize: Object.keys(db.manifest).length,
+        localBundleIds: db.roamBundleFileIds?.length || 0,
+        remoteFiles: files.map((f: any) => ({
+          id: f.id,
+          status: f.status,
+          lastError: f.last_error,
+        })),
+      });
+    } catch (e: any) {
+      results.push({
+        dbName: db.name,
+        dbId: db.id,
+        provider: "openai",
+        vectorStoreId: db.vectorStoreId,
+        error: e.message,
+      });
+    }
+  }
+
+  return { databases: state.databases.length, results };
+}
+
+/** Debug: raw search bypassing all filters */
+export async function debugSearch(query: string, maxResults: number = 5): Promise<any> {
+  const state = getGlobalState();
+  const results: any[] = [];
+
+  for (const db of state.databases.filter(d => d.enabled)) {
+    try {
+      if (db.provider === "local") {
+        const localResults = await localSearch(db.id, query, { maxResults }, db.embeddingModel || "bge-small-en");
+        for (const r of localResults) {
+          results.push({
+            db: db.name,
+            provider: "local",
+            score: r.score,
+            pageTitle: r.pageTitle,
+            contentPreview: r.content.slice(0, 300),
+          });
+        }
+        continue;
+      }
+
+      const client = getOpenAIClient();
+      const searchResponse = await client.vectorStores.search(
+        db.vectorStoreId,
+        { query, max_num_results: maxResults }
+      );
+
+      for (const item of searchResponse.data || []) {
+        const content = item.content?.map((c: any) => c.text).join("\n") || "";
+        results.push({
+          db: db.name,
+          provider: "openai",
+          fileId: item.file_id,
+          fileName: item.filename,
+          score: item.score,
+          contentPreview: content.slice(0, 300),
+        });
+      }
+    } catch (e: any) {
+      results.push({ db: db.name, error: e.message });
+    }
+  }
+
+  return results;
 }
 
 // ============================================================
@@ -668,24 +811,45 @@ export function getManifest(databaseId?: string): VectorStoreManifest {
     const db = findDatabase(state, databaseId);
     return db?.manifest || {};
   }
-  // Default database
   if (state.defaultDatabaseId) {
     const db = findDatabase(state, state.defaultDatabaseId);
     return db?.manifest || {};
   }
-  // First database
   return state.databases[0]?.manifest || {};
+}
+
+/** Get the provider type for a database */
+export function getDatabaseProvider(databaseId?: string): VectorStoreProvider {
+  const state = getGlobalState();
+  if (databaseId) {
+    const db = findDatabase(state, databaseId);
+    return db?.provider || "openai";
+  }
+  if (state.defaultDatabaseId) {
+    const db = findDatabase(state, state.defaultDatabaseId);
+    return db?.provider || "openai";
+  }
+  return state.databases[0]?.provider || "openai";
+}
+
+/** Get the embedding model for a local database */
+export function getDatabaseEmbeddingModel(databaseId?: string): LocalEmbeddingModel {
+  const state = getGlobalState();
+  if (databaseId) {
+    const db = findDatabase(state, databaseId);
+    return db?.embeddingModel || "bge-small-en";
+  }
+  if (state.defaultDatabaseId) {
+    const db = findDatabase(state, state.defaultDatabaseId);
+    return db?.embeddingModel || "bge-small-en";
+  }
+  return state.databases[0]?.embeddingModel || "bge-small-en";
 }
 
 // ============================================================
 // Internal helpers
 // ============================================================
 
-/**
- * Resolve a databaseId: if provided, validate it exists.
- * If not provided, use default or create one.
- * Returns the resolved database ID.
- */
 async function resolveAndEnsureDatabase(
   databaseId?: string
 ): Promise<string> {
@@ -694,22 +858,27 @@ async function resolveAndEnsureDatabase(
   if (databaseId) {
     const db = findDatabase(state, databaseId);
     if (!db) throw new Error(`Database not found: ${databaseId}`);
-    // Ensure the vector store exists
-    await getOrCreateVectorStore(databaseId);
+    if (db.provider === "openai") {
+      await getOrCreateVectorStore(databaseId);
+    }
     return databaseId;
   }
 
-  // Use default or first
   if (state.defaultDatabaseId) {
-    await getOrCreateVectorStore(state.defaultDatabaseId);
+    const db = findDatabase(state, state.defaultDatabaseId);
+    if (db?.provider === "openai") {
+      await getOrCreateVectorStore(state.defaultDatabaseId);
+    }
     return state.defaultDatabaseId;
   }
   if (state.databases.length > 0) {
-    await getOrCreateVectorStore(state.databases[0].id);
-    return state.databases[0].id;
+    const db = state.databases[0];
+    if (db.provider === "openai") {
+      await getOrCreateVectorStore(db.id);
+    }
+    return db.id;
   }
 
-  // No databases — create default
   const newDb = await createDatabase("Roam Graph");
   return newDb.id;
 }

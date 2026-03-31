@@ -266,15 +266,30 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 
 **Purpose**: Search across your indexed Roam graph and uploaded files using semantic vector search
 
-**Requires**: OpenAI API key (the tool is disabled if no key is configured)
+**Two providers available**:
+
+- **Local** (free, no API key required): Runs embedding models entirely in your browser — no data leaves your machine
+- **OpenAI** (requires OpenAI API key): Uses OpenAI's vector store infrastructure for indexing and search
 
 **How it works**:
 
-1. **Indexing**: Your Roam graph content is extracted, converted to markdown, and uploaded to OpenAI's Vector Store
-2. **File uploads**: You can also upload external documents directly — PDFs, Word documents, PowerPoint, Markdown, plain text, HTML, CSV, code files (JS, TS, Python, Go, Java, etc.) — ideal for searching across large reference documents, research papers, or any text-based files alongside your Roam notes
-3. **Storage**: All indexed content is stored on OpenAI's servers (manageable at https://platform.openai.com/storage)
+1. **Indexing**: Your Roam graph content is extracted, converted to markdown, and embedded into a vector store (local or OpenAI)
+2. **File uploads** (OpenAI only): You can also upload external documents directly — PDFs, Word documents, PowerPoint, Markdown, plain text, HTML, CSV, code files (JS, TS, Python, Go, Java, etc.) — ideal for searching across large reference documents, research papers, or any text-based files alongside your Roam notes
+3. **Storage**: Local databases are stored in your browser's IndexedDB. OpenAI databases are stored on OpenAI's servers (manageable at https://platform.openai.com/storage)
 4. **Search**: Queries use semantic similarity (meaning-based), not just keyword matching — works across both Roam content and uploaded files in a single search
 5. **Results**: Returns ranked passages with relevance scores and source attribution (Roam page or file name)
+
+**Local embedding models**:
+
+When creating a local database, you choose an embedding model:
+
+| Model | ID | Best for | Size |
+|---|---|---|---|
+| **English** | `Xenova/bge-small-en-v1.5` | Best quality for English content | ~10 MB |
+| **English (faster)** | `Xenova/all-MiniLM-L6-v2` | Fast English embeddings, faster indexing | ~10 MB |
+| **Multilingual** | `Xenova/multilingual-e5-small` | 100+ languages | ~40 MB |
+
+The model is downloaded once on first use and cached in the browser. You can see which model a database uses by hovering over its provider tag in the database list.
 
 **Supported file formats for upload**: `.pdf`, `.docx`, `.doc`, `.pptx`, `.txt`, `.md`, `.html`, `.csv`, `.json`, `.js`, `.ts`, `.py`, `.c`, `.cpp`, `.java`, `.go`, `.rb`, `.php`, `.sh`, `.tex`, `.css`
 
@@ -302,13 +317,14 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 
 **Multiple databases**: You can create separate vector databases (e.g., one for your graph, another for research papers). All enabled databases are searched by default, or the agent can target a specific one.
 
-**Important**: Vector search always uses the OpenAI API regardless of which chat model you have selected. The chat model (Claude, Gemini, etc.) processes the results, but the search itself is performed by OpenAI's vector store infrastructure.
+**Important**: The embedding/search provider (local or OpenAI) is independent of the chat model you have selected. The chat model (Claude, Gemini, etc.) processes the results, but the search itself is performed by the provider configured for each database.
 
 **Getting started**:
 
 When enabling the vector search tool for the first time, you can either:
-- **Index your Roam graph** — creates a "Current Graph" database and indexes all your pages and daily notes
-- **Upload files** — creates an "Uploaded Files" database and lets you upload documents (PDFs, DOCX, etc.)
+- **Index your Roam graph (Local)** — creates a local database and indexes all your pages and daily notes entirely in your browser, for free
+- **Index your Roam graph (OpenAI)** — creates an OpenAI-backed database (requires an OpenAI API key)
+- **Upload files (OpenAI)** — creates an "Uploaded Files" database and lets you upload documents (PDFs, DOCX, etc.)
 
 You can create additional databases later to organize content by topic (e.g., "Research Papers", "Work Docs").
 
@@ -348,6 +364,38 @@ You can create additional databases later to organize content by topic (e.g., "R
 
 **Example**: "Help me plan my weekly review" (loads the Weekly Planning skill)
 
+### `run_smartblock` - SmartBlock Runner
+
+**Purpose**: Trigger a SmartBlock workflow defined in your Roam graph
+
+**Capabilities**:
+
+- Run any SmartBlock workflow by name or UID
+- Target a specific page, block, or Daily Notes Page
+- Pass variables to the workflow
+- Verifies the SmartBlock exists before running
+- Requires user confirmation before execution
+
+**Use when**:
+
+- User asks to run a SmartBlock (also abbreviated as "Sb" or "SB")
+- Automating repetitive workflows stored as SmartBlocks
+- Triggering a workflow on a specific page or date
+
+**Date handling**: You can use relative dates naturally — "run Sb Daily on today's page", "run my Weekly Review SmartBlock on tomorrow". The agent converts these to the correct Daily Notes Page automatically, creating it if needed.
+
+**Examples**:
+
+- "Run Sb Daily on today's page"
+- "Run the Weekly Review SmartBlock on tomorrow's DNP"
+- "Run SmartBlock Meeting Notes on [[Project Alpha]]"
+
+**Requires**: The [roamjs SmartBlocks extension](https://github.com/RoamJS/smartblocks) must be installed.
+
+### Edit Tools & Relative Dates
+
+The edit tools (`create_block`, `create_page`, `update_block`, `delete_block`, `run_smartblock`) all support a `date` parameter for targeting Daily Notes Pages. You can use natural date expressions in your requests — "today", "tomorrow", "yesterday", "next Monday", etc. — and the agent will resolve them to the correct DNP automatically, creating the page if it doesn't exist yet.
+
 ### Tool Token Overhead
 
 **Important**: Tools add tokens to each message, affecting responsiveness:
@@ -371,9 +419,49 @@ By default, the following tool configuration is applied:
 **Disabled by default**:
 
 - `ask_your_graph` ⚡ - Heavy operation, must be explicitly enabled
-- `vector_search` - Requires OpenAI API key and vector store setup
+- `vector_search` - Requires vector store setup (local provider is free, OpenAI provider requires API key)
 
 You can customize which tools are enabled via the tools menu (wrench icon). Your preferences are saved across sessions.
+
+### Force Tool Usage with Slash Commands
+
+You can force the agent to use a specific tool for a single turn by typing `/` followed by the tool name. This works even if the tool is currently disabled or if you're in simple chat mode — the tool will be force-enabled and agent mode activated for that turn only, without changing your persistent settings.
+
+**How it works**:
+
+1. Type `/` in the chat input
+2. Start typing the tool name (e.g., `/add`, `/vector`, `/ask`)
+3. Select the tool from the dropdown or press Enter on the first match
+4. The input is prefixed with `Use 'tool_name': ` — type your request after it
+
+**Available tool commands**: `/add_to_context`, `/select_results_by_criteria`, `/ask_your_graph`, `/vector_search`, `/get_help`, `/live_ai_skills`, `/create_block`, `/create_page`, `/update_block`, `/delete_block`, `/run_smartblock`, `/ask_user_choice`, `/random_pick`
+
+**Example**: Type `/vector how to use React hooks` → input becomes `Use 'vector_search': how to use React hooks` → the agent is instructed to use vector search for this request.
+
+**Individual skill commands**: All your `#liveai/skill` skills also appear as slash commands. For example, if you have a skill named "Weekly Review", typing `/weekly` will match it and insert `Use 'live_ai_skills': Weekly Review: ` as a prefix, instructing the agent to load and apply that specific skill.
+
+This is particularly useful for:
+
+- Forcing `ask_your_graph` without permanently enabling it
+- Triggering a specific skill by name without the agent having to guess
+- Using `vector_search` for a one-off semantic search
+- Any scenario where you want explicit control over which tool the agent uses
+
+### Other Chat Slash Commands
+
+The chat input supports several slash commands for quick actions:
+
+- `/clear` — Clear the conversation (with confirmation dialog)
+- `/exit` — Close the chat panel
+- `/chat` — Switch to simple chat mode (no tools)
+- `/agent` — Switch to agent mode (with tools)
+- `/council` — Switch to council mode (multi-LLM deliberation)
+- `/save` — Save the conversation to Roam
+- `/save-dnp` — Save the conversation to today's Daily Note Page
+- `/image-edit` — Enter image edition mode (when an image has been generated)
+- `/exit-edit` — Exit image edition mode
+
+You can also type `/` followed by a model name to quickly switch models.
 
 ---
 
