@@ -1,3 +1,33 @@
+### v.29 (April 2026) LLM council & Vector search (experimental)
+
+**New features**
+
+- LLM Council mode in Chat: orchestrate multiple models to generate, evaluate and refine answers
+- Vector Search tool (experimental): choose between a free local models or OpenAI's vector store.
+- Chat with :q Datomic query results (new button in query menu)
+- Run SmartBlock tool: trigger any SmartBlock workflow directly from chat
+- Public API for developers (`window.LiveAI_API`) available to other Roam extensions
+
+**Updates**
+
+- New models support: GPT-5.4-mini, Gemini 3.1 Flash Lite, Nano Banana 2
+- Anthropic models have now 1M context window
+- Stop button in Chat panel
+- Slash commands to force-use tools in Chat panel
+- Tool usage display shows more human-readable summaries
+- Advanced parameters in '...' menu in Chat panel (including temperature, top_p, presence_penalty)
+- "What's new" more visible until first click
+- Options in extension settings to always extract PDF or Query content
+- Button to copy codeblocks in Chat messages
+- More consistent icons in Chat panel
+
+**Fixed**
+
+- Better parsing of complexe content including, regex or hashtag in inline codeblock
+- Prevent LLM to use format like `#1` to number things !
+- Better handling of numbered list
+- Hallucinations on UIDs should be dramatically reduced
+
 ### v.28 (February 19th, 2026) Small fixes
 
 - Fixes for custom models duplication

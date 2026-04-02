@@ -21,10 +21,11 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ### 🆕 New in v.29 (April 2026)
 
 - **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). Switch with `/council`. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
-- **Vector Search tool**: search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
+- **Vector Search tool** (experimental): search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
 - **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table
 - **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
 - **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat
+- **Advanced parameters** in Chat panel for LLMs: max_tokens, temperature, top_p, presence_penalty (not available for all providers)
 - **Public API for developers** (`window.LiveAI_API`): other Roam extensions can now leverage Live AI's generative AI capabilities. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
 
 ### 🆕 New in v.27 (February 2026)

@@ -91,9 +91,9 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.29 🎉
 - Get richer, more balanced answers by combining perspectives from different models
 
 #### **Chat Agent Tools**
-- **Run SmartBlock**: New tool to trigger SmartBlock workflows directly from chat — just say "run Sb Daily on today's page" and the agent handles the rest (supports relative dates like today, tomorrow, etc.)
 - **Vector Search**: Search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser) or OpenAI's vector store
 - **Slash Commands for Tools**: Type / followed by a tool name to force-use any tool for a single turn, even if it's disabled — e.g., \`/vector\` to trigger a one-off semantic search without permanently enabling the tool
+- **Run SmartBlock**: New tool to trigger SmartBlock workflows directly from chat — just say "run Sb Daily on today's page" and the agent handles the rest (supports relative dates like today, tomorrow, etc.)
 
 #### **Improved Tool Feedback**
 - Tool usage display now shows human-readable summaries instead of raw parameters (e.g., "1 daily note(s)" instead of "dailynotes_count: 1")
