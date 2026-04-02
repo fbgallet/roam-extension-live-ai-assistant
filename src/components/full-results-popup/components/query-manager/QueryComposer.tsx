@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Button, HTMLSelect, Popover, Collapse, Icon } from "@blueprintjs/core";
 import ModelsMenu from "../../../ModelsMenu";
+import { getDisplayName } from "../../../../ai/modelRegistry";
 import { defaultModel } from "../../../..";
 
 interface QueryComposerProps {
@@ -95,7 +96,7 @@ const QueryComposer: React.FC<QueryComposerProps> = ({
               minimal
               small
               icon="cog"
-              text={selectedModel}
+              text={getDisplayName(selectedModel)}
               title="Click to change AI model"
               disabled={isComposingQuery}
             />

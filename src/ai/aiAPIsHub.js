@@ -77,6 +77,52 @@ import {
   getFileExportPrompt,
 } from "./fileExport";
 
+/**
+ * Create a stream target that handles chunk display.
+ * - Default (no streamTo): creates the standard DOM stream paragraph
+ * - streamTo is a DOM element: uses that element
+ * - streamTo is "none": no DOM display (chunks still go to onChunk callback)
+ *
+ * Returns { streamElt, writeChunk, cleanup } where:
+ * - streamElt: the DOM element (or a no-op stub)
+ * - writeChunk(text): writes sanitized text to the element + calls onChunk
+ * - cleanup(): removes the stream element (unless custom or "none")
+ */
+export function createStreamTarget({ targetUid, streamTo, onChunk }) {
+  let streamElt;
+  let isCustom = false;
+  let isNone = false;
+
+  if (streamTo === "none") {
+    // No-op DOM element stub
+    isNone = true;
+    streamElt = { innerHTML: "", remove() {} };
+  } else if (streamTo instanceof HTMLElement) {
+    isCustom = true;
+    streamElt = streamTo;
+  } else {
+    // Default behavior
+    streamElt = insertParagraphForStream(targetUid);
+  }
+
+  function writeChunk(text) {
+    if (!isNone) {
+      streamElt.innerHTML += DOMPurify.sanitize(text);
+    }
+    if (typeof onChunk === "function") {
+      onChunk(text);
+    }
+  }
+
+  function cleanup() {
+    if (!isCustom && !isNone && streamElt?.remove) {
+      streamElt.remove();
+    }
+  }
+
+  return { streamElt, writeChunk, cleanup };
+}
+
 export function initializeOpenAIAPI(API_KEY, baseURL) {
   try {
     const clientSetting = {
@@ -295,8 +341,18 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
     }
     // ==================== FALLBACK LOGIC FOR UNREGISTERED MODELS ====================
     else {
+      // Check if this is a custom OpenAI-compatible model before pattern matching
+      // This prevents model IDs like "gemini-3.1-pro-high" from being routed to Google
+      // when the user explicitly configured them as OpenAI-compatible custom models
+      if (openAiCustomModels.some((m) => m.toLowerCase() === modelLower)) {
+        llm.provider = "custom";
+        llm.prefix = "custom/";
+        llm.id = model;
+        llm.name = model;
+        llm.library = customOpenaiLibrary;
+      }
       // Claude models
-      if (modelLower.startsWith("claude")) {
+      else if (modelLower.startsWith("claude")) {
         llm.provider = "Anthropic";
         llm.id = normalizeClaudeModel(model);
         llm.name = normalizeClaudeModel(model, true);
@@ -412,7 +468,10 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
     const finalThinkingEnabled = modelThinkingDefault || thinkingEnabled;
 
     // Update the ID if the model has thinking ID suffix (e.g., Grok)
-    llm.id = getApiModelId(model, finalThinkingEnabled);
+    // Use llm.id (already stripped of provider prefix) so unregistered dynamic
+    // models (e.g. custom OpenRouter models not in MODEL_REGISTRY) fall back
+    // to their raw API id rather than the full prefixed identifier.
+    llm.id = getApiModelId(llm.id, finalThinkingEnabled);
 
     // Set the thinking flag in the llm object
     llm.thinking = finalThinkingEnabled;
@@ -422,19 +481,21 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
   return llm;
 }
 
-export function isAPIKeyNeeded(llm) {
+export function isAPIKeyNeeded(llm, silent = false) {
   if (
     llm.provider !== "ollama" &&
     !llm.library?.apiKey &&
     !(llm.provider === "OpenAI" && customBaseURL) &&
     !llm.provider === "custom"
   ) {
-    AppToaster.show({
-      message: `Provide an API key to use ${
-        llm.name || "an AI"
-      } model. See doc and settings.`,
-      timeout: 15000,
-    });
+    if (!silent) {
+      AppToaster.show({
+        message: `Provide an API key to use ${
+          llm.name || "an AI"
+        } model. See doc and settings.`,
+        timeout: 15000,
+      });
+    }
     return true;
   }
   return false;
@@ -453,6 +514,8 @@ export async function claudeCompletion({
   thinking,
   tools,
   includePdfInContext = false,
+  onChunk,
+  streamTo,
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
@@ -636,7 +699,7 @@ export async function claudeCompletion({
             targetUid,
             isStreamStopped: false,
           });
-        const streamElt = insertParagraphForStream(targetUid);
+        const { streamElt, writeChunk, cleanup: cleanupStream } = createStreamTarget({ targetUid, streamTo, onChunk });
         let thinkingToasterStream;
         if (thinking && isThinkingProcessToDisplay) {
           thinkingToasterStream = displayThinkingToast(
@@ -650,9 +713,7 @@ export async function claudeCompletion({
         try {
           while (true) {
             if (isCanceledStreamGlobal) {
-              streamElt.innerHTML += DOMPurify.sanitize(
-                "(⚠️ stream interrupted by user)",
-              );
+              writeChunk("(⚠️ stream interrupted by user)");
               respStr = "";
               break;
             }
@@ -669,7 +730,7 @@ export async function claudeCompletion({
                   if (data.delta.type === "text_delta") {
                     const text = data.delta.text;
                     respStr += text;
-                    streamElt.innerHTML += DOMPurify.sanitize(text);
+                    writeChunk(text);
                   } else if (data.delta?.type === "thinking_delta") {
                     if (thinkingToasterStream)
                       thinkingToasterStream.innerText += data.delta.thinking;
@@ -732,7 +793,7 @@ export async function claudeCompletion({
           streamEltCopy = DOMPurify.sanitize(streamElt.innerHTML);
           if (isCanceledStreamGlobal)
             console.warn("Anthropic API response stream interrupted.");
-          else streamElt.remove();
+          else cleanupStream();
         }
       } else {
         const data = await response.json();
@@ -871,6 +932,8 @@ export async function openaiCompletionLegacy({
   thinking,
   isButtonToInsert,
   includePdfInContext = false,
+  onChunk,
+  streamTo,
 }) {
   let respStr = "";
   let usage = {};
@@ -1017,7 +1080,7 @@ export async function openaiCompletionLegacy({
           targetUid,
           isStreamStopped: false,
         });
-      const streamElt = insertParagraphForStream(targetUid);
+      const { streamElt, writeChunk, cleanup: cleanupStream } = createStreamTarget({ targetUid, streamTo, onChunk });
       let thinkingToasterStream;
       if (
         isThinkingProcessToDisplay &&
@@ -1033,7 +1096,7 @@ export async function openaiCompletionLegacy({
         let chunkStr = "";
         for await (const chunk of response) {
           if (isCanceledStreamGlobal) {
-            streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+            writeChunk("(⚠️ stream interrupted by user)");
             // respStr = "";
             break;
           }
@@ -1065,7 +1128,7 @@ export async function openaiCompletionLegacy({
               );
           }
           respStr += chunkStr;
-          streamElt.innerHTML += DOMPurify.sanitize(chunkStr);
+          writeChunk(chunkStr);
           if (streamData?.delta?.annotations)
             annotations = streamData.delta.annotations;
           if (chunk.usage || chunk.response?.usage) {
@@ -1083,7 +1146,7 @@ export async function openaiCompletionLegacy({
         streamEltCopy = streamElt.innerHTML;
         if (isCanceledStreamGlobal)
           console.log("GPT response stream interrupted.");
-        else streamElt.remove();
+        else cleanupStream();
       }
     } else usage = response.usage;
 
@@ -1141,6 +1204,8 @@ export async function openaiResponse({
   thinking,
   isButtonToInsert,
   includePdfInContext = false,
+  onChunk,
+  streamTo,
   previousResponseId = null,
   storeConversation = false,
   vectorStoreIds = null,
@@ -1254,7 +1319,7 @@ export async function openaiResponse({
           targetUid,
           isStreamStopped: false,
         });
-      const streamElt = insertParagraphForStream(targetUid);
+      const { streamElt, writeChunk, cleanup: cleanupStream } = createStreamTarget({ targetUid, streamTo, onChunk });
       let thinkingToasterStream;
       if (thinking && isThinkingProcessToDisplay) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
@@ -1263,7 +1328,7 @@ export async function openaiResponse({
       try {
         for await (const event of response) {
           if (isCanceledStreamGlobal) {
-            streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+            writeChunk("(⚠️ stream interrupted by user)");
             break;
           }
 
@@ -1271,7 +1336,7 @@ export async function openaiResponse({
           if (event.type === "response.output_text.delta") {
             const chunkStr = event.delta || "";
             respStr += chunkStr;
-            streamElt.innerHTML += DOMPurify.sanitize(chunkStr);
+            writeChunk(chunkStr);
           } else if (event.type === "response.reasoning.delta") {
             if (thinkingToasterStream) {
               thinkingToasterStream.innerText += event.delta || "";
@@ -1294,7 +1359,7 @@ export async function openaiResponse({
         if (isCanceledStreamGlobal) {
           console.log("OpenAI Response API stream interrupted.");
         } else {
-          streamElt.remove();
+          cleanupStream();
         }
       }
     } else {
@@ -1489,6 +1554,8 @@ export async function googleCompletion({
   targetUid,
   isButtonToInsert,
   includePdfInContext = false,
+  onChunk,
+  streamTo,
 }) {
   let respStr = "";
   let usage = {};
@@ -1857,7 +1924,7 @@ export async function googleCompletion({
           targetUid,
           isStreamStopped: false,
         });
-      const streamElt = insertParagraphForStream(targetUid);
+      const { streamElt, writeChunk, cleanup: cleanupStream } = createStreamTarget({ targetUid, streamTo, onChunk });
       let thinkingToasterStream;
       if (isGoogleThinkingModel && isThinkingProcessToDisplay) {
         thinkingToasterStream = displayThinkingToast("Thinking process:");
@@ -1868,7 +1935,7 @@ export async function googleCompletion({
 
         for await (const chunk of streamResponse) {
           if (isCanceledStreamGlobal) {
-            streamElt.innerHTML += "(⚠️ stream interrupted by user)";
+            writeChunk("(⚠️ stream interrupted by user)");
             break;
           }
           for (const part of chunk.candidates[0].content.parts) {
@@ -1882,7 +1949,7 @@ export async function googleCompletion({
             } else {
               const chunkText = part.text || "";
               respStr += chunkText;
-              streamElt.innerHTML += DOMPurify.sanitize(chunkText);
+              writeChunk(chunkText);
 
               // Capture usage metadata if available in chunks
               if (chunk.usageMetadata) {
@@ -1901,7 +1968,7 @@ export async function googleCompletion({
       } finally {
         if (isCanceledStreamGlobal)
           console.log("Google response stream interrupted.");
-        else streamElt.remove();
+        else cleanupStream();
       }
     } else {
       const response = await chat.sendMessage(messageToSend);

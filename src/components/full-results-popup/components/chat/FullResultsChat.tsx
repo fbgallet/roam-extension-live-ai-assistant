@@ -1,6 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { invokeChatAgent } from "../../../../ai/agents/chat-agent/chat-agent-invoke";
-import { Result, ChatMessage, ChatMode } from "../../types/types";
+import {
+  invokeCouncil,
+} from "../../../../ai/agents/council-agent/council-invoke";
+import {
+  CouncilConfig,
+  DEFAULT_COUNCIL_CONFIG,
+} from "../../../../ai/agents/council-agent/council-types";
+import "../../style/councilDisplay.css";
+import { Result, ChatMessage, ChatMode, VectorSearchUIPayload } from "../../types/types";
 import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/helpers/contextExpansion";
 import {
   extensionStorage,
@@ -51,6 +59,13 @@ import {
 import { generateNLQuery } from "../../../../ai/agents/nl-query";
 import { generateNLDatomicQuery } from "../../../../ai/agents/nl-datomic-query";
 import { isFileExportRequest } from "../../../../ai/agents/chat-agent/multimodal-commands";
+import {
+  AdvancedOptionsState,
+  getDefaultAdvancedOptions,
+  getActiveAdvancedParams,
+  getIncludePdfOverride,
+} from "./AdvancedOptionsMenu";
+import { alwaysExtractPdf } from "../../../..";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -161,10 +176,27 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 }) => {
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const chatAbortRef = useRef<AbortController | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | undefined>(
     undefined,
   );
-  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingContent, _setStreamingContent] = useState("");
+  const streamingContentRef = useRef("");
+  // Wrapper that keeps the ref in sync with state
+  const setStreamingContent = (
+    value: string | ((prev: string) => string),
+  ) => {
+    if (typeof value === "function") {
+      _setStreamingContent((prev) => {
+        const next = value(prev);
+        streamingContentRef.current = next;
+        return next;
+      });
+    } else {
+      streamingContentRef.current = value;
+      _setStreamingContent(value);
+    }
+  };
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(() => {
     // Restore from persisted state if available
@@ -194,6 +226,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       response?: string; // Tool's response/feedback
       timestamp: number;
       intermediateMessage?: string;
+      vectorSearchData?: VectorSearchUIPayload;
     }>
   >([]);
 
@@ -636,6 +669,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       setToolUsageHistory([]);
       toolUsageHistoryRef.current = []; // Sync ref
 
+      // Create abort controller for this request
+      const abortController = new AbortController();
+      chatAbortRef.current = abortController;
+
       try {
         const contextResults = getSelectedResultsForChat();
 
@@ -657,17 +694,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             undefined,
             selectedStyle,
           );
-      } catch (error) {
-        console.error("Auto-execution error:", error);
-        const errorMessage: ChatMessage = {
-          role: "assistant",
-          content:
-            "Sorry, I encountered an error processing your request with the command. Please try again.",
-          timestamp: new Date(),
-        };
-        setChatMessages((prev) => [...prev, errorMessage]);
+      } catch (error: any) {
+        if (error.name === "AbortError") {
+          const partialContent = streamingContentRef.current.trim();
+          const abortMessage: ChatMessage = {
+            role: "assistant",
+            content: partialContent
+              ? `${partialContent}\n\n*— Generation stopped by user.*`
+              : "*Generation stopped by user.*",
+            timestamp: new Date(),
+          };
+          setChatMessages((prev) => [...prev, abortMessage]);
+        } else {
+          console.error("Auto-execution error:", error);
+          const errorMessage: ChatMessage = {
+            role: "assistant",
+            content:
+              "Sorry, I encountered an error processing your request with the command. Please try again.",
+            timestamp: new Date(),
+          };
+          setChatMessages((prev) => [...prev, errorMessage]);
+        }
       }
 
+      chatAbortRef.current = null;
       setIsTyping(false);
       setIsStreaming(false);
       setStreamingContent("");
@@ -979,22 +1029,32 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           return;
         }
 
+        // Wrap in triple backticks if "Copy as codeblock" button
+        const isCodeblock = codeCopyButton.classList.contains(
+          "chat-code-copy-as-codeblock",
+        );
+        const langClass = codeElement?.className ?? "";
+        const langMatch = langClass.match(/language-(\w+)/);
+        const lang = langMatch ? langMatch[1] : "";
+        const textToCopy = isCodeblock
+          ? `\`\`\`${lang}\n${codeText}\n\`\`\``
+          : codeText;
+
+        // Visual feedback on button
+        const originalText = codeCopyButton.textContent;
+        codeCopyButton.textContent = "Copied!";
+        setTimeout(() => {
+          codeCopyButton.textContent = originalText;
+        }, 1500);
+
         navigator.clipboard
-          .writeText(codeText)
-          .then(() => {
-            AppToaster.show({
-              message: "Copied to clipboard!",
-              intent: "success",
-              timeout: 1500,
-            });
-          })
+          .writeText(textToCopy)
           .catch((error) => {
             console.error("Failed to copy code block:", error);
-            AppToaster.show({
-              message: "Failed to copy code block.",
-              intent: "danger",
-              timeout: 2000,
-            });
+            codeCopyButton.textContent = "Failed";
+            setTimeout(() => {
+              codeCopyButton.textContent = originalText;
+            }, 1500);
           });
         return;
       }
@@ -1005,34 +1065,27 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         const blockUid = target.getAttribute("data-block-uid");
         if (!blockUid) return;
 
-        // Always copy ((uid)) to clipboard
-        const clipboardText = `((${blockUid}))`;
-        navigator.clipboard
-          .writeText(clipboardText)
-          .then(() => {
-            console.log(
-              "[Chat Link Click] Copied to clipboard:",
-              clipboardText,
-            );
-          })
-          .catch((err) => {
-            console.warn("[Chat Link Click] Failed to copy to clipboard:", err);
-          });
-
         if (event.shiftKey) {
           // Shift+click: Open in sidebar
-
           window.roamAlphaAPI.ui.rightSidebar.addWindow({
             window: { type: "block", "block-uid": blockUid },
           });
         } else if (event.altKey || event.metaKey) {
-          // Alt/Option+click: Open in main window
+          // Alt/Option+click: Copy block reference & show result
+          const clipboardText = `((${blockUid}))`;
+          navigator.clipboard
+            .writeText(clipboardText)
+            .then(() => {
+              console.log(
+                "[Chat Link Click] Copied to clipboard:",
+                clipboardText,
+              );
+            })
+            .catch((err) => {
+              console.warn("[Chat Link Click] Failed to copy to clipboard:", err);
+            });
 
-          window.roamAlphaAPI.ui.mainWindow.openBlock({
-            block: { uid: blockUid },
-          });
-        } else {
-          // Regular click: Check if block exists in results
+          // Check if block exists in results
           const allAvailableResults =
             selectedResults.length > 0 ? selectedResults : allResults;
           const blockExistsInResults = allAvailableResults.some(
@@ -1042,14 +1095,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           if (blockExistsInResults) {
             // Block exists in results - show it
             if (chatOnlyMode) {
-              // Set pending highlight and switch mode - useEffect will handle the rest
               setPendingHighlight(blockUid);
-              handleChatOnlyToggle(); // Use the proper handler instead of direct setter
+              handleChatOnlyToggle();
             } else {
-              // Highlight immediately if already in results view
               highlightAndScrollToResult(blockUid);
             }
           }
+        } else {
+          // Regular click: Open in main window
+          window.roamAlphaAPI.ui.mainWindow.openBlock({
+            block: { uid: blockUid },
+          });
         }
       }
 
@@ -1275,6 +1331,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       initialEnabledTools && initialEnabledTools.size > 0;
     return hasStoredTools || hasForcedInitialTools ? "agent" : "simple";
   });
+  // Council config state
+  const [councilConfig, setCouncilConfig] = useState<CouncilConfig>(() => {
+    const stored = extensionStorage.get("councilConfig");
+    if (stored) {
+      try {
+        return { ...DEFAULT_COUNCIL_CONFIG, ...JSON.parse(stored) };
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return { ...DEFAULT_COUNCIL_CONFIG };
+  });
+  const councilAbortRef = useRef<AbortController | null>(null);
+
+  const handleCouncilConfigChange = (newConfig: CouncilConfig) => {
+    setCouncilConfig(newConfig);
+    extensionStorage.set("councilConfig", JSON.stringify(newConfig));
+  };
+
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
@@ -1293,6 +1368,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
     return hasThinkingDefault(selectedModel);
   });
+
+  // Advanced options (per-session, reset on new chat)
+  const [advancedOptions, setAdvancedOptions] = useState<AdvancedOptionsState>(
+    () => getDefaultAdvancedOptions(alwaysExtractPdf),
+  );
 
   // Track enabled/disabled state for each tool
   const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
@@ -1781,6 +1861,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = [];
 
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    chatAbortRef.current = abortController;
+
     try {
       const contextResults = getSelectedResultsForChat();
 
@@ -1804,17 +1888,30 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           selectedStyle,
         );
       }
-    } catch (error) {
-      console.error("Retry error:", error);
-      const errorMessage: ChatMessage = {
-        role: "assistant",
-        content:
-          "Sorry, I encountered an error while retrying. Please try again.",
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [...prev, errorMessage]);
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        const partialContent = streamingContentRef.current.trim();
+        const abortMessage: ChatMessage = {
+          role: "assistant",
+          content: partialContent
+            ? `${partialContent}\n\n*— Generation stopped by user.*`
+            : "*Generation stopped by user.*",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, abortMessage]);
+      } else {
+        console.error("Retry error:", error);
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "Sorry, I encountered an error while retrying. Please try again.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+      }
     }
 
+    chatAbortRef.current = null;
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
@@ -2242,6 +2339,96 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setCommandContext(null);
   };
 
+  /**
+   * Process a message in Council mode.
+   * Invokes the council orchestrator which handles multi-LLM deliberation
+   * and pushes intermediate steps via callback.
+   */
+  const processCouncilMessage = async (message: string) => {
+    // Build conversation context from prior messages (only final answers, not intermediate steps)
+    const conversationContext = chatMessages
+      .filter((msg) => !msg.councilStep || !msg.councilStep.isIntermediate)
+      .map((msg) => {
+        const role = msg.role === "user" ? "User" : "Assistant";
+        return `${role}: ${msg.content}`;
+      })
+      .join("\n\n");
+
+    // Ensure config has defaults populated
+    const config = { ...councilConfig };
+    if (!config.generatorModel) config.generatorModel = selectedModel;
+    if (!config.synthesizerModel) config.synthesizerModel = selectedModel;
+    if (config.evaluatorModels.length === 0) {
+      config.evaluatorModels = [selectedModel];
+    }
+    if (config.competitorModels.length === 0) {
+      config.competitorModels = [selectedModel];
+    }
+
+    // Get context results if available
+    const contextResults = getSelectedResultsForChat();
+
+    // Create abort controller
+    const abortController = new AbortController();
+    councilAbortRef.current = abortController;
+
+    try {
+      const result = await invokeCouncil({
+        config,
+        userMessage: message,
+        conversationContext: conversationContext || undefined,
+        resultsContext: contextResults.length > 0 ? contextResults : undefined,
+        style: selectedStyle !== "Normal" ? selectedStyle : undefined,
+        streamingCallback: (content: string) => {
+          setStreamingContent(content);
+        },
+        intermediateCallback: (intermediateMessage: ChatMessage) => {
+          setChatMessages((prev) => [...prev, intermediateMessage]);
+        },
+        abortSignal: abortController.signal,
+      });
+
+      // Clear streaming
+      setIsStreaming(false);
+      setStreamingContent("");
+
+      // If the final answer wasn't already posted via intermediateCallback
+      // (for iterative mode, the last generation IS the final answer)
+      // Add a final summary message with total tokens
+      if (result.finalAnswer && result.mode === "iterative") {
+        // The final generation was already posted; no need to duplicate
+      }
+
+      // Update conversation context for multi-turn
+      // Only the final answer goes into conversation history
+      if (result.finalAnswer) {
+        const finalHistoryEntry = `Assistant: ${result.finalAnswer}`;
+        const currentHistory = chatAgentData?.conversationHistory || [];
+        setChatAgentData({
+          ...chatAgentData,
+          conversationHistory: [
+            ...currentHistory,
+            `User: ${message}`,
+            finalHistoryEntry,
+          ],
+        });
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        const abortMessage: ChatMessage = {
+          role: "assistant",
+          content: "*Council deliberation was cancelled.*",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, abortMessage]);
+      } else {
+        throw error;
+      }
+    } finally {
+      councilAbortRef.current = null;
+    }
+  };
+
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || isTyping) return;
 
@@ -2259,31 +2446,62 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setToolUsageHistory([]);
     toolUsageHistoryRef.current = []; // Sync ref
 
+    // Create abort controller for this request
+    const abortController = new AbortController();
+    chatAbortRef.current = abortController;
+
     try {
-      const contextResults = getSelectedResultsForChat();
-      await processChatMessage(
-        userMessage.content,
-        contextResults,
-        undefined,
-        undefined,
-        undefined,
-        selectedStyle,
-      );
-    } catch (error) {
-      console.error("Chat error:", error);
-      const errorMessage: ChatMessage = {
-        role: "assistant",
-        content:
-          "Sorry, I encountered an error processing your request. Please try again.",
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [...prev, errorMessage]);
+      if (chatMode === "council") {
+        await processCouncilMessage(userMessage.content);
+      } else {
+        const contextResults = getSelectedResultsForChat();
+        await processChatMessage(
+          userMessage.content,
+          contextResults,
+          undefined,
+          undefined,
+          undefined,
+          selectedStyle,
+        );
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        // Capture whatever was streamed so far as a partial response
+        const partialContent = streamingContentRef.current.trim();
+        const abortMessage: ChatMessage = {
+          role: "assistant",
+          content: partialContent
+            ? `${partialContent}\n\n*— Generation stopped by user.*`
+            : "*Generation stopped by user.*",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, abortMessage]);
+      } else {
+        console.error("Chat error:", error);
+        const errorMessage: ChatMessage = {
+          role: "assistant",
+          content:
+            "Sorry, I encountered an error processing your request. Please try again.",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, errorMessage]);
+      }
     }
 
+    chatAbortRef.current = null;
     setIsTyping(false);
     setIsStreaming(false);
     setStreamingContent("");
     // Don't clear tool usage history - it should persist to show user what tools were used
+  };
+
+  const handleStopGeneration = () => {
+    if (chatAbortRef.current) {
+      chatAbortRef.current.abort();
+    }
+    if (councilAbortRef.current) {
+      councilAbortRef.current.abort();
+    }
   };
 
   // Handler for help buttons
@@ -2534,8 +2752,100 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   /**
+   * Parse the :find clause of a Datomic query to extract projected variable names.
+   * Returns an array of variable info objects with name and whether it's an aggregate.
+   */
+  const parseFindClause = (
+    query: string,
+  ): Array<{ name: string; isAggregate: boolean }> => {
+    const findMatch = query.match(
+      /:find\s+(.*?)(?:\s*:(?:where|in|with)|\s*\])/s,
+    );
+    if (!findMatch) return [];
+
+    const findClause = findMatch[1].trim();
+    const variables: Array<{ name: string; isAggregate: boolean }> = [];
+
+    // Match aggregates like (count ?x), (sum ?x), (sample 5 ?x) and plain ?variables
+    const tokenRegex =
+      /\((?:count|sum|avg|min|max|sample\s+\d+|distinct)\s+(\?[\w-]+)\)(?:\s*\.)?|\?[\w-]+/g;
+    let match;
+    while ((match = tokenRegex.exec(findClause)) !== null) {
+      if (match[1]) {
+        // Aggregate — the inner variable
+        variables.push({ name: match[1].substring(1), isAggregate: true });
+      } else {
+        // Plain variable
+        variables.push({
+          name: match[0].substring(1),
+          isAggregate: false,
+        });
+      }
+    }
+    return variables;
+  };
+
+  /**
+   * Resolve a cell value (string UID or numeric entity ID) to a block UID.
+   * Returns the UID string, or null if unresolvable.
+   */
+  const resolveToUid = (cell: unknown): string | null => {
+    if (typeof cell === "string" && /^[a-zA-Z0-9_-]{9,12}$/.test(cell)) {
+      // Already looks like a UID (9-char standard, up to 12 for some edge cases)
+      return cell;
+    }
+    if (typeof cell === "number" && Number.isInteger(cell) && cell > 0) {
+      // Numeric entity ID — resolve via pull
+      try {
+        const pulled = (window as any).roamAlphaAPI.pull(
+          "[:block/uid]",
+          cell,
+        );
+        return pulled?.[":block/uid"] || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Enrich a UID into a full Result object by pulling block/page data.
+   */
+  const enrichUidToResult = (uid: string): Result | null => {
+    const data = (window as any).roamAlphaAPI.pull(
+      "[:block/uid :block/string :node/title :block/page {:block/page [:block/uid :node/title]}]",
+      [":block/uid", uid],
+    );
+    if (!data) return null;
+
+    const pageInfo = data[":block/page"];
+    const title = data[":node/title"];
+
+    if (title) {
+      // This is a page
+      return {
+        uid,
+        content: title,
+        text: title,
+        pageUid: uid,
+        pageTitle: title,
+      };
+    }
+    // This is a block
+    return {
+      uid,
+      content: data[":block/string"] || "",
+      text: data[":block/string"] || "",
+      pageUid: pageInfo?.[":block/uid"] || "",
+      pageTitle: pageInfo?.[":node/title"] || "",
+    };
+  };
+
+  /**
    * Execute a Datomic :q query directly using roamAlphaAPI.q()
-   * Extracts block UIDs from the query results.
+   * Parses the :find clause to understand projected variables, resolves
+   * both string UIDs and numeric entity IDs, and skips aggregates.
    */
   const executeChatDatomicQuery = async (
     queryString: string,
@@ -2551,8 +2861,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         cleanQuery = cleanQuery.substring(2).trim();
       }
 
+      // Remove optional description string (e.g. :q "description"\n[:find ...])
+      cleanQuery = cleanQuery.replace(/^"[^"]*"\s*/, "");
+
       // Extract just the Datomic query part (starts with [:find)
-      // The LLM might include description text before the query
       const queryMatch = cleanQuery.match(/(\[:find[\s\S]*\])/);
       if (queryMatch) {
         cleanQuery = queryMatch[1];
@@ -2562,16 +2874,31 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         );
       }
 
-      console.log("Executing Datomic query:", cleanQuery);
+      // Parse :find clause to understand what each column represents
+      const findVars = parseFindClause(cleanQuery);
+      const isScalarResult = cleanQuery.match(/:find\s+.*\.\s*(?::|\])/s);
+
+      console.log(
+        "Executing Datomic query:",
+        cleanQuery,
+        "| find vars:",
+        findVars.map((v) => (v.isAggregate ? `(agg ${v.name})` : v.name)),
+      );
 
       let rawResults;
       try {
         rawResults = (window as any).roamAlphaAPI.q(cleanQuery);
-      } catch (queryError) {
+      } catch (queryError: any) {
         console.error("Datomic query execution error:", queryError);
         throw new Error(
           `Query execution failed: ${queryError.message || "Unknown error"}`,
         );
+      }
+
+      // Scalar result (e.g. (count ?x) .) — not extractable to context
+      if (isScalarResult && !Array.isArray(rawResults?.[0])) {
+        console.log("Query returned scalar result:", rawResults);
+        return [];
       }
 
       if (!rawResults || !Array.isArray(rawResults)) {
@@ -2580,37 +2907,34 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }
 
       console.log(`Query returned ${rawResults.length} rows`);
+      if (rawResults.length === 0) return [];
 
-      if (rawResults.length === 0) {
-        return [];
-      }
+      // Identify which columns contain resolvable entities (non-aggregate)
+      const resolvableIndices = findVars
+        .map((v, i) => (v.isAggregate ? -1 : i))
+        .filter((i) => i >= 0);
 
       const results: Result[] = [];
       const seenUids = new Set<string>();
 
       for (const row of rawResults) {
-        // Each row is an array; look for UIDs (9-character alphanumeric strings)
         const cells = Array.isArray(row) ? row : [row];
-        for (const cell of cells) {
-          const uid =
-            typeof cell === "string" && /^[a-zA-Z0-9_-]{9}$/.test(cell)
-              ? cell
-              : null;
+
+        // Try resolvable columns first (based on :find clause parsing)
+        const indicesToTry =
+          resolvableIndices.length > 0
+            ? resolvableIndices
+            : cells.map((_, i) => i);
+
+        for (const idx of indicesToTry) {
+          if (idx >= cells.length) continue;
+          const uid = resolveToUid(cells[idx]);
           if (uid && !seenUids.has(uid)) {
             seenUids.add(uid);
-            const blockData = (window as any).roamAlphaAPI.pull(
-              "[:block/uid :block/string :block/page {:block/page [:block/uid :node/title]}]",
-              [":block/uid", uid],
-            );
-            if (blockData) {
-              const pageInfo = blockData[":block/page"];
-              results.push({
-                uid,
-                content: blockData[":block/string"] || "",
-                text: blockData[":block/string"] || "",
-                pageUid: pageInfo?.[":block/uid"] || "",
-                pageTitle: pageInfo?.[":node/title"] || "",
-              });
+            const result = enrichUidToResult(uid);
+            if (result) {
+              results.push(result);
+              break; // One result per row to avoid duplicates from multi-column projections
             }
           }
         }
@@ -2727,12 +3051,51 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         );
       }
 
-      // Invoke the chat agent
-      const agentResult = await invokeChatAgent({
-        model: modelAccordingToProvider(
+      // Create abort promise that rejects when abort signal fires
+      const abortPromise = chatAbortRef.current
+        ? new Promise<never>((_, reject) => {
+            const signal = chatAbortRef.current!.signal;
+            if (signal.aborted) {
+              reject(new DOMException("Aborted", "AbortError"));
+              return;
+            }
+            signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            );
+          })
+        : null;
+
+      // Detect "Use 'tool_name': " prefix to force-enable a tool for this turn
+      const forcedToolMatch = message.match(/^Use '([^']+)':\s*/);
+      let effectiveEnabledTools = enabledTools;
+      let effectiveToolsEnabled = chatMode === "agent";
+      if (forcedToolMatch) {
+        const forcedToolName = forcedToolMatch[1];
+        effectiveEnabledTools = new Set(enabledTools);
+        effectiveEnabledTools.add(forcedToolName);
+        // Also enable edit section master switch if forcing an edit tool
+        const editTools = ["create_block", "create_page", "update_block", "delete_block"];
+        if (editTools.includes(forcedToolName)) {
+          effectiveEnabledTools.add("section:edit");
+        }
+        effectiveToolsEnabled = true; // Force agent mode for this turn
+        console.log(`🔧 [Chat] Force-enabling tool '${forcedToolName}' for this turn. Effective tools:`, Array.from(effectiveEnabledTools));
+      }
+
+      // Build model with per-session advanced params
+      const modelForInvocation = {
+        ...modelAccordingToProvider(
           commandModelFromCall || selectedModel,
           thinkingEnabled,
         ),
+        advancedParams: getActiveAdvancedParams(advancedOptions),
+      };
+
+      // Invoke the chat agent (race with abort if available)
+      const agentInvocation = invokeChatAgent({
+        model: modelForInvocation,
         userMessage: message,
 
         // Chat session ID for multi-turn image editing
@@ -2745,16 +3108,19 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // Configuration
         style: styleFromCall,
         commandPrompt: commandPromptFromCall,
-        toolsEnabled: chatMode === "agent", // Enable tools only in agent mode
-        enabledTools: enabledTools, // Pass the set of enabled tools
+        toolsEnabled: effectiveToolsEnabled,
+        enabledTools: effectiveEnabledTools,
         accessMode: chatAccessMode,
-        isAgentMode: chatMode === "agent",
+        isAgentMode: effectiveToolsEnabled,
 
         // Permissions
         permissions: {
           contentAccess: chatAccessMode === "Full Access",
           noTruncation,
         },
+
+        // Per-session PDF extraction override
+        includePdf: getIncludePdfOverride(advancedOptions),
 
         // Conversation state from previous turns
         conversationHistory: currentConversationHistory,
@@ -2786,7 +3152,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           args?: Record<string, any>;
         }) => {
           // Capture any intermediate message that was streamed before the tool call
-          const intermediateMessage = streamingContent.trim();
+          const intermediateMessage = streamingContentRef.current.trim();
 
           // Build detailed description based on tool name and args
           let details = "";
@@ -2989,6 +3355,51 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             const total = (args.items || []).length;
             const selectInUi = args.select_in_ui ? ", select in UI" : "";
             details = `${count} of ${total} item${total !== 1 ? "s" : ""}${selectInUi}`;
+          } else if (toolInfo.toolName === "add_to_context") {
+            // Friendly summary for add_to_context
+            const args = toolInfo.args || {};
+            const parts: string[] = [];
+            if (args.page_titles?.length > 0) {
+              parts.push(args.page_titles.map((t: string) => `[[${t}]]`).join(", "));
+            }
+            if (args.block_uids?.length > 0) {
+              parts.push(args.block_uids.map((u: string) => `((${u}))`).join(", "));
+            }
+            if (args.use_current_page) parts.push("current page");
+            if (args.use_focused_block) parts.push("focused block");
+            if (args.use_sidebar) parts.push("sidebar");
+            if (args.linked_refs_page_titles?.length > 0) {
+              parts.push(`linked refs of ${args.linked_refs_page_titles.map((t: string) => `[[${t}]]`).join(", ")}`);
+            }
+            if (args.use_current_page_refs) parts.push("current page linked refs");
+            if (args.daily_notes_count > 0) parts.push(`${args.daily_notes_count} daily note(s)`);
+            details = parts.length > 0 ? parts.join(", ") : "Loading context...";
+          } else if (toolInfo.toolName === "run_smartblock") {
+            // Friendly summary for run_smartblock
+            const args = toolInfo.args || {};
+            const src = args.src_name ? `'${args.src_name}'` : `((${args.src_uid}))`;
+            const target = args.target_name
+              ? `[[${args.target_name}]]`
+              : args.target_uid
+                ? `((${args.target_uid}))`
+                : args.date || "";
+            details = `Run ${src} SmartBlock` + (target ? ` on ${target}` : "");
+          } else if (toolInfo.toolName === "select_results_by_criteria") {
+            const args = toolInfo.args || {};
+            const criteria = args.criteria_description || "custom criteria";
+            details = `Selecting results by: ${criteria.length > 80 ? criteria.substring(0, 80) + "..." : criteria}`;
+          } else if (toolInfo.toolName === "ask_your_graph") {
+            const args = toolInfo.args || {};
+            const query = args.query || args.natural_language_query || "";
+            details = query ? `Query: ${query.length > 80 ? query.substring(0, 80) + "..." : query}` : "Querying graph...";
+          } else if (toolInfo.toolName === "get_help") {
+            const args = toolInfo.args || {};
+            const topic = args.topic || args.query || "";
+            details = topic ? `Topic: ${topic}` : "Loading help...";
+          } else if (toolInfo.toolName === "vector_search") {
+            const args = toolInfo.args || {};
+            const query = args.query || "";
+            details = query ? `Search: ${query.length > 80 ? query.substring(0, 80) + "..." : query}` : "Searching...";
           } else {
             // For other tools, show arguments only (tool name is already in the title)
             if (toolInfo.args) {
@@ -3027,7 +3438,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         }) => {
           // Filter response for analysis/browse mode (hide outline from user)
           let displayResponse = toolInfo.response;
-          if (
+          let vectorSearchData: VectorSearchUIPayload | undefined;
+
+          if (toolInfo.toolName === "vector_search") {
+            // Extract structured UI payload from vector search response
+            const uiMatch = toolInfo.response.match(
+              /<!--VECTOR_SEARCH_UI:(.*?):END_VECTOR_SEARCH_UI-->/s
+            );
+            if (uiMatch) {
+              try {
+                vectorSearchData = JSON.parse(uiMatch[1]);
+              } catch (e) {
+                console.warn("[Chat] Failed to parse vector search UI data:", e);
+              }
+              // Show a clean summary as the text response
+              const count = vectorSearchData?.results?.length || 0;
+              const time = vectorSearchData?.executionTime || "";
+              displayResponse = `Found ${count} result${count !== 1 ? "s" : ""} in ${time}s`;
+            }
+          } else if (
             (toolInfo.toolName === "create_block" ||
               toolInfo.toolName === "create_page") &&
             toolInfo.response.startsWith("📄 Analyzed")
@@ -3057,6 +3486,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
                 updatedHistory[i] = {
                   ...updatedHistory[i],
                   response: displayResponse,
+                  ...(vectorSearchData ? { vectorSearchData } : {}),
                 };
                 break;
               }
@@ -3157,7 +3587,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Token usage from previous turns
         tokensUsage: chatAgentData?.tokensUsage,
+
+        // Abort signal to stop streaming on user cancel
+        abortSignal: chatAbortRef.current?.signal,
       });
+
+      const agentResult = abortPromise
+        ? await Promise.race([agentInvocation, abortPromise])
+        : await agentInvocation;
 
       // Update agent data for next conversation turn
       const newAgentData = {
@@ -3187,7 +3624,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         "I couldn't analyze the results. Please try rephrasing your question.";
 
       // Finalize streaming content or use the final answer
-      const finalContent = streamingContent || aiResponse;
+      const finalContent = streamingContentRef.current || aiResponse;
       setIsStreaming(false);
       setStreamingContent("");
 
@@ -3221,11 +3658,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
       // The agent's built-in conversation management will handle history and summarization automatically
       // We just need to preserve the agent state for the next turn
-    } catch (error) {
-      console.error("Chat processing error:", error);
+    } catch (error: any) {
       setStatusMessage(undefined);
       setIsStreaming(false);
       setStreamingContent("");
+      // Re-throw AbortError so callers can handle it
+      if (error.name === "AbortError") {
+        throw error;
+      }
+      console.error("Chat processing error:", error);
       const errorMessage: ChatMessage = {
         role: "assistant",
         content:
@@ -3369,12 +3810,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onSaveEdit={handleSaveEdit}
         onCancelEdit={handleCancelEdit}
         statusMessage={statusMessage}
+        onAddResults={onAddResults}
       />
 
       <ChatInputArea
         chatInput={chatInput}
         onChatInputChange={setChatInput}
         onSubmit={handleChatSubmit}
+        onStop={handleStopGeneration}
         isTyping={isTyping}
         chatAccessMode={chatAccessMode}
         onAccessModeChange={setChatAccessMode}
@@ -3440,8 +3883,13 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onCloseChat={onClose}
         onChatModeSetSimple={() => setChatMode("simple")}
         onChatModeSetAgent={() => setChatMode("agent")}
+        onChatModeSetCouncil={() => setChatMode("council")}
+        councilConfig={councilConfig}
+        onCouncilConfigChange={handleCouncilConfigChange}
         onSaveChat={() => insertConversationInRoam()}
         onSaveChatDNP={() => insertConversationInRoam(true)}
+        advancedOptions={advancedOptions}
+        onAdvancedOptionsChange={setAdvancedOptions}
       />
     </div>
   );

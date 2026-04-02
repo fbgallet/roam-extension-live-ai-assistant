@@ -26,15 +26,7 @@ import {
   getPageNameByPageUid,
 } from "../../../../utils/roamAPI";
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
-
-/**
- * Truncate text to a maximum length, adding ellipsis if needed.
- */
-function truncateText(text: string, maxLength: number): string {
-  if (!text) return "";
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + "...";
-}
+import { truncateText } from "./toolUtils";
 
 /**
  * Normalize a new_order value from LLM input.
@@ -270,6 +262,7 @@ async function executeBatchUpdate(
       args: {
         operation_count: valid.length,
         operations: operationPreviews,
+        non_atomic: valid.length > 1,
       },
     });
 
@@ -389,7 +382,8 @@ async function executeBatchUpdate(
   const succeeded = results.filter((r) => !r.status.startsWith("FAILED"));
   const failed = results.filter((r) => r.status.startsWith("FAILED"));
 
-  let output = `Batch update results (${operations.length} operations):\n`;
+  const statusEmoji = failed.length === 0 ? "✅" : (succeeded.length > 0 ? "⚠️" : "❌");
+  let output = `${statusEmoji} Batch update results (${operations.length} operations):\n`;
   for (const r of results) {
     const content = getBlockContentByUid(r.uid);
     const contentPreview = content ? `"${truncateText(content, 40)}" ` : "";
@@ -489,6 +483,26 @@ export const updateBlockTool = tool(
       effectiveNewParentPageTitle !== undefined;
     const isBrowseMode = mode === "browse" || (!mode && !hasMutationFields);
 
+    // Normalize heading/open by comparing to current block state (single-block mode)
+    // LLMs send heading: 0, open: true as defaults — strip if unchanged
+    let normalizedHeading = effectiveHeading;
+    let normalizedOpen = effectiveOpen;
+    if (!isBrowseMode && block_uid && isExistingBlock(block_uid)) {
+      const currentState = getBlockPreviewState(block_uid);
+      if (
+        normalizedHeading !== undefined &&
+        normalizedHeading === (currentState.current_heading ?? 0)
+      ) {
+        normalizedHeading = undefined;
+      }
+      if (
+        normalizedOpen !== undefined &&
+        normalizedOpen === (currentState.current_open ?? true)
+      ) {
+        normalizedOpen = undefined;
+      }
+    }
+
     // === BROWSE MODE ===
     if (isBrowseMode) {
       // If block_uid is provided, return its current content and context
@@ -542,11 +556,11 @@ export const updateBlockTool = tool(
       return `⚠️ Block with UID "${block_uid}" was not found in your graph.`;
     }
 
-    // Build structured confirmation preview (using effective values)
+    // Build structured confirmation preview (using normalized values)
     const preview = buildOperationPreview(block_uid, {
       new_content: effectiveNewContent,
-      heading: effectiveHeading,
-      open: effectiveOpen,
+      heading: normalizedHeading,
+      open: normalizedOpen,
       new_parent_uid: effectiveNewParentUid,
       new_parent_page_title: effectiveNewParentPageTitle,
       new_order,
@@ -587,12 +601,12 @@ export const updateBlockTool = tool(
       // --- Content / format update ---
       if (
         effectiveNewContent !== undefined ||
-        effectiveHeading !== undefined ||
-        effectiveOpen !== undefined
+        normalizedHeading !== undefined ||
+        normalizedOpen !== undefined
       ) {
         const format: Record<string, any> = {};
-        if (effectiveHeading !== undefined) format.heading = effectiveHeading;
-        if (effectiveOpen !== undefined) format.open = effectiveOpen;
+        if (normalizedHeading !== undefined) format.heading = normalizedHeading;
+        if (normalizedOpen !== undefined) format.open = normalizedOpen;
 
         await updateBlock({
           blockUid: block_uid,
@@ -602,12 +616,12 @@ export const updateBlockTool = tool(
 
         const updatedParts: string[] = [];
         if (effectiveNewContent !== undefined) updatedParts.push("content");
-        if (effectiveHeading !== undefined)
+        if (normalizedHeading !== undefined)
           updatedParts.push(
-            `heading (H${effectiveHeading === 0 ? "none" : effectiveHeading})`,
+            `heading (H${normalizedHeading === 0 ? "none" : normalizedHeading})`,
           );
-        if (effectiveOpen !== undefined)
-          updatedParts.push(`state (${effectiveOpen ? "expanded" : "collapsed"})`);
+        if (normalizedOpen !== undefined)
+          updatedParts.push(`state (${normalizedOpen ? "expanded" : "collapsed"})`);
         results.push(`Updated ${updatedParts.join(", ")}`);
       }
 
@@ -686,10 +700,13 @@ export const updateBlockTool = tool(
       // Get updated content for feedback
       const updatedContent = getBlockContentByUid(block_uid);
       const contentPreview = truncateText(updatedContent || "(empty)", 60);
+      if (results.length === 0) {
+        return `⚠️ No changes applied to block ((${block_uid})) — all provided values match the current state.`;
+      }
       return `✅ Block "${contentPreview}" ((${block_uid})) updated successfully.\n${results.join("\n")}`;
     } catch (error) {
       console.error("Error updating block:", error);
-      return `Error: Failed to update block. ${
+      return `❌ Failed to update block. ${
         error instanceof Error ? error.message : "Unknown error"
       }`;
     }

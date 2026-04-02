@@ -1,0 +1,313 @@
+/* Council Display Styles */
+
+/* ==================== Step Container ==================== */
+
+.council-step {
+  margin: 4px 0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.council-step-intermediate {
+  border-left: 3px solid #d8e1e8;
+  padding-left: 8px;
+}
+
+.bp3-dark .council-step-intermediate {
+  border-left-color: #394b59;
+}
+
+/* ==================== Step Header ==================== */
+
+.council-step-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.council-step-header-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.council-step-header-clickable:hover {
+  opacity: 0.85;
+}
+
+.council-step-toggle.bp3-button.bp3-minimal.bp3-small {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+}
+
+/* ==================== Tags ==================== */
+
+.council-model-tag {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.council-score-tag {
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+}
+
+.council-criteria-scores {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: 2px;
+}
+
+.council-criterion-tag.bp3-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  min-height: unset;
+  line-height: 16px;
+}
+
+.council-eval-target {
+  font-size: 11px;
+  color: #5c7080;
+}
+
+.bp3-dark .council-eval-target {
+  color: #a7b6c2;
+}
+
+.council-blind-label {
+  font-size: 11px;
+  color: #5c7080;
+  font-style: italic;
+}
+
+.bp3-dark .council-blind-label {
+  color: #a7b6c2;
+}
+
+.council-step-tokens {
+  font-size: 10px;
+  color: #8a9ba8;
+  margin-left: auto;
+}
+
+/* ==================== Step Body ==================== */
+
+.council-step-body {
+  padding: 6px 0 6px 28px;
+  line-height: 1.5;
+}
+
+.council-step-body p {
+  margin: 4px 0;
+}
+
+.council-step-body strong {
+  font-weight: 600;
+}
+
+/* ==================== Status Steps ==================== */
+
+.council-step-status {
+  padding: 2px 0;
+}
+
+.council-step-status-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #5c7080;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.bp3-dark .council-step-status-content {
+  color: #a7b6c2;
+}
+
+.council-step-status-content .bp3-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.council-step-status-content p {
+  margin: 0;
+  display: inline;
+}
+
+/* ==================== Synthesis Step ==================== */
+
+.council-step-synthesis {
+  border-left: 3px solid #137cbd;
+  padding-left: 8px;
+  margin-top: 8px;
+}
+
+.bp3-dark .council-step-synthesis {
+  border-left-color: #48aff0;
+}
+
+.council-step-synthesis .council-step-header {
+  margin-bottom: 4px;
+}
+
+/* ==================== Generation Step ==================== */
+
+.council-step-generation .council-step-body {
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-left: 28px;
+}
+
+.bp3-dark .council-step-generation .council-step-body {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ==================== Evaluation Step ==================== */
+
+.council-step-evaluation .council-step-body {
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-left: 28px;
+}
+
+.bp3-dark .council-step-evaluation .council-step-body {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ==================== Council Config Panel ==================== */
+
+.council-config-panel {
+  padding: 8px 12px;
+  border: 1px solid #d8e1e8;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.02);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.bp3-dark .council-config-panel {
+  border-color: #394b59;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.council-config-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.council-config-panel-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.council-config-section {
+  margin-bottom: 10px;
+}
+
+.council-config-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5c7080;
+  margin-bottom: 4px;
+}
+
+.bp3-dark .council-config-section-label {
+  color: #a7b6c2;
+}
+
+.council-config-model-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.council-config-model-row .bp3-tag {
+  cursor: pointer;
+}
+
+.council-config-model-role {
+  font-size: 11px;
+  color: #5c7080;
+  min-width: 70px;
+}
+
+.bp3-dark .council-config-model-role {
+  color: #a7b6c2;
+}
+
+.council-config-criteria-textarea {
+  width: 100%;
+  min-height: 60px;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.council-config-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.council-config-row .bp3-numeric-input .bp3-input-group .bp3-input {
+  width: 40px;
+}
+
+.council-config-row label {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.council-config-row .bp3-slider {
+  min-width: 100px;
+  max-width: 300px;
+  margin: 0 0 0 5px;
+  flex: 1;
+}
+
+/* ==================== Council Message Group ==================== */
+
+.council-deliberation-group {
+  margin: 8px 0;
+  padding: 4px 0;
+}
+
+.council-deliberation-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5c7080;
+}
+
+.bp3-dark .council-deliberation-header {
+  color: #a7b6c2;
+}
+
+.council-deliberation-header:hover {
+  color: #137cbd;
+}
+
+.bp3-dark .council-deliberation-header:hover {
+  color: #48aff0;
+}

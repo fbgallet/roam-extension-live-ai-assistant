@@ -13,15 +13,17 @@ import {
   Popover,
   Position,
 } from "@blueprintjs/core";
-import { ChatMessage, ChatMode } from "../../types/types";
+import { ChatMessage, ChatMode, Result, VectorSearchUIPayload, VectorSearchResultItem } from "../../types/types";
 import { renderMarkdown } from "../../utils/chatMessageUtils";
 import {
   CHAT_HELP_RESPONSE,
   LIVE_AI_HELP_RESPONSE,
   WHATS_NEW_RESPONSE,
+  WHATS_NEW_VERSION,
   getRandomTip,
 } from "./chatHelpConstants";
 import { textToSpeech } from "../../../../ai/multimodalAI";
+import { CouncilStepDisplay } from "./CouncilStepDisplay";
 
 // Helper function to detect if content contains KaTeX formulas
 const containsKaTeX = (content: string): boolean => {
@@ -38,15 +40,16 @@ const containsRoamQuery = (content: string): boolean => {
 
 // Helper function to detect if content contains Roam callouts
 const containsCallout = (content: string): boolean => {
-  return /\[\[>\]\]\s+\[\[!(?:NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE)\]\]/i.test(
-    content
+  return /\[?\[?>\]?\]?\s+\[\[!(?:NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE)\]\]/i.test(
+    content,
   );
 };
 
 // Render all data-roam-callout spans inside a container using Roam's renderString
 const renderCalloutSpans = (container: HTMLElement): void => {
-  const calloutSpans =
-    container.querySelectorAll<HTMLElement>("[data-roam-callout]");
+  const calloutSpans = container.querySelectorAll<HTMLElement>(
+    "[data-roam-callout]",
+  );
   calloutSpans.forEach((span) => {
     const rawCallout = span.getAttribute("data-roam-callout");
     if (!rawCallout) return;
@@ -648,6 +651,225 @@ const UserChoiceForm: React.FC<{
   );
 };
 
+/**
+ * Vector Search Results component - renders structured search results
+ * with collapsible cards, relevance badges, and add-to-context buttons.
+ */
+const VectorSearchResults: React.FC<{
+  data: VectorSearchUIPayload;
+  onAddResults?: (results: Result[]) => void;
+}> = ({ data, onAddResults }) => {
+  const [expandedIndices, setExpandedIndices] = useState<Set<number>>(
+    new Set()
+  );
+  const [addedIndices, setAddedIndices] = useState<Set<number>>(new Set());
+  const [allAdded, setAllAdded] = useState(false);
+  const PREVIEW_LINES = 5;
+  const PREVIEW_CHARS = 500;
+
+  const toggleExpand = (index: number) => {
+    setExpandedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const buildResultObjects = (items: VectorSearchResultItem[]): Result[] => {
+    const results: Result[] = [];
+    const isRoamSource = (s: string) => s === "roam-pages" || s === "roam-dnp";
+
+    for (const item of items) {
+      if (isRoamSource(item.source) && (item.firstTopBlockUid || item.blockUids.length > 0)) {
+        // Use firstTopBlockUid (top-level block, not page UID) for context.
+        // Context expansion will fetch its content + children from the graph.
+        const uid = item.firstTopBlockUid || item.blockUids[0];
+        results.push({
+          uid,
+          pageTitle: item.pageTitle,
+          source: "vector-search",
+          addedByAgent: true,
+          addedAt: new Date().toISOString(),
+        });
+      } else if (isRoamSource(item.source)) {
+        // Roam result without any block UIDs — resolve page UID from title
+        let pageUid: string | undefined;
+        try {
+          const api = (window as any).roamAlphaAPI;
+          if (api) {
+            pageUid = api.q(
+              `[:find ?uid . :where [?p :node/title "${item.pageTitle.replace(/"/g, '\\"')}"] [?p :block/uid ?uid]]`
+            ) as string | undefined;
+          }
+        } catch {}
+        results.push({
+          uid: pageUid,
+          pageTitle: item.pageTitle,
+          isPage: true,
+          source: "vector-search",
+          addedByAgent: true,
+          addedAt: new Date().toISOString(),
+        });
+      } else {
+        // Uploaded file result - no block UID, include content directly
+        results.push({
+          content: item.content,
+          text: item.content.slice(0, 200),
+          pageTitle: item.pageTitle,
+          source: "vector-search",
+          addedByAgent: true,
+          addedAt: new Date().toISOString(),
+        });
+      }
+    }
+    return results;
+  };
+
+  const handleAddOne = (item: VectorSearchResultItem) => {
+    if (!onAddResults) return;
+    onAddResults(buildResultObjects([item]));
+    setAddedIndices((prev) => new Set(prev).add(item.index));
+  };
+
+  const handleAddAll = () => {
+    if (!onAddResults) return;
+    onAddResults(buildResultObjects(data.results));
+    setAllAdded(true);
+    setAddedIndices(new Set(data.results.map((r) => r.index)));
+  };
+
+  const getRelevanceClass = (score: number): string => {
+    if (score >= 80) return "vs-relevance-high";
+    if (score >= 60) return "vs-relevance-medium";
+    if (score >= 40) return "vs-relevance-low";
+    return "vs-relevance-poor";
+  };
+
+  return (
+    <div className="vs-results-container">
+      <div className="vs-results-header">
+        <span className="vs-results-summary">
+          {data.results.length} result{data.results.length !== 1 ? "s" : ""} for
+          &ldquo;{data.query}&rdquo;
+          <span className="vs-results-time">{data.executionTime}s</span>
+        </span>
+        {onAddResults && (
+          <button
+            className={`vs-add-all-btn ${allAdded ? "vs-added" : ""}`}
+            onClick={handleAddAll}
+            disabled={allAdded}
+            title={allAdded ? "All results added to context" : "Add all results to context"}
+          >
+            <Icon icon={allAdded ? "tick" : "plus"} size={12} />
+            {allAdded ? "Added all" : "Add all to context"}
+          </button>
+        )}
+      </div>
+
+      <div className="vs-results-list">
+        {data.results.map((item) => {
+          const lines = item.content.split("\n");
+          const isLongByLines = lines.length > PREVIEW_LINES;
+          const isLongByChars = item.content.length > PREVIEW_CHARS;
+          const isLong = isLongByLines || isLongByChars;
+          const isExpanded = expandedIndices.has(item.index);
+          const isAdded = addedIndices.has(item.index);
+          let displayContent: string;
+          if (isLong && !isExpanded) {
+            // Truncate by lines first, then by characters
+            let preview = lines.slice(0, PREVIEW_LINES).join("\n");
+            if (preview.length > PREVIEW_CHARS) {
+              preview = preview.slice(0, PREVIEW_CHARS) + "…";
+            }
+            displayContent = preview;
+          } else {
+            displayContent = item.content;
+          }
+
+          return (
+            <div key={item.index} className="vs-result-card">
+              <div className="vs-result-header">
+                <span className="vs-result-title">
+                  {(item.source === "roam-pages" || item.source === "roam-dnp") ? (
+                    <>
+                      {item.source === "roam-dnp" && (
+                        <Icon icon="calendar" size={11} className="vs-source-icon vs-dnp-icon" />
+                      )}
+                      <span
+                        className="vs-page-ref vs-clickable"
+                        onClick={() => {
+                          try {
+                            const api = (window as any).roamAlphaAPI;
+                            if (api?.ui?.mainWindow?.openPage) {
+                              const pageUid = api.q(
+                                `[:find ?uid . :where [?p :node/title "${item.pageTitle.replace(/"/g, '\\"')}"] [?p :block/uid ?uid]]`
+                              );
+                              if (pageUid) {
+                                api.ui.mainWindow.openPage({ page: { uid: pageUid } });
+                              }
+                            }
+                          } catch (e) {
+                            console.warn("Failed to open page:", e);
+                          }
+                        }}
+                        title={`Open [[${item.pageTitle}]] in Roam`}
+                      >
+                        [[{item.pageTitle}]]
+                      </span>
+                    </>
+                  ) : (
+                    <span className="vs-file-name">{item.pageTitle}</span>
+                  )}
+                </span>
+                <span
+                  className={`vs-relevance-badge ${getRelevanceClass(item.score)}`}
+                  title={`Relevance: ${item.score}%`}
+                >
+                  {item.score}%
+                </span>
+              </div>
+
+              <div
+                className="vs-result-content"
+                dangerouslySetInnerHTML={{
+                  __html: renderMarkdown(displayContent),
+                }}
+              />
+
+              <div className="vs-result-actions">
+                {isLong && (
+                  <button
+                    className="vs-expand-btn"
+                    onClick={() => toggleExpand(item.index)}
+                  >
+                    <Icon
+                      icon={isExpanded ? "chevron-up" : "chevron-down"}
+                      size={12}
+                    />
+                    {isExpanded ? "Show less" : "Show more"}
+                  </button>
+                )}
+                {onAddResults && item.source !== "user-upload" && (
+                  <button
+                    className={`vs-add-btn ${isAdded ? "vs-added" : ""}`}
+                    onClick={() => handleAddOne(item)}
+                    disabled={isAdded}
+                    title={isAdded ? "Added to context" : "Add to context"}
+                  >
+                    <Icon icon={isAdded ? "tick" : "plus"} size={12} />
+                    {isAdded ? "Added" : "Add to context"}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 interface ChatMessagesDisplayProps {
   chatMessages: ChatMessage[];
   isTyping: boolean;
@@ -658,6 +880,8 @@ interface ChatMessagesDisplayProps {
     details: string;
     timestamp: number;
     intermediateMessage?: string;
+    response?: string;
+    vectorSearchData?: VectorSearchUIPayload;
   }>;
   modelTokensLimit: number;
   chatAccessMode: "Balanced" | "Full Access";
@@ -692,6 +916,8 @@ interface ChatMessagesDisplayProps {
   onCancelEdit: (index: number) => void;
   // Optional status message shown instead of "Thinking..." during long operations
   statusMessage?: string;
+  // Callback to add results to context
+  onAddResults?: (results: Result[]) => void;
 }
 
 export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
@@ -722,9 +948,16 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onSaveEdit,
   onCancelEdit,
   statusMessage,
+  onAddResults,
 }) => {
   // Memoize the initial random tip so it doesn't change on every render
   const [initialTip] = React.useState(() => getRandomTip("chat"));
+
+  // Track whether the user has seen the current "What's New" version
+  const [hasSeenWhatsNew, setHasSeenWhatsNew] = React.useState(() => {
+    const seenVersion = localStorage.getItem("liveai-whats-new-seen-version");
+    return seenVersion === WHATS_NEW_VERSION;
+  });
 
   // Keyboard shortcuts for tool confirmation (Enter = Accept, Escape = Decline)
   useEffect(() => {
@@ -768,11 +1001,22 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
         <div className="full-results-chat-suggestions">
           {helpType !== "whatsnew" && (
             <button
-              onClick={() => onHelpButtonClick("whatsnew", WHATS_NEW_RESPONSE)}
+              className={!hasSeenWhatsNew ? "whats-new-unseen" : undefined}
+              onClick={() => {
+                if (!hasSeenWhatsNew) {
+                  localStorage.setItem(
+                    "liveai-whats-new-seen-version",
+                    WHATS_NEW_VERSION
+                  );
+                  setHasSeenWhatsNew(true);
+                }
+                onHelpButtonClick("whatsnew", WHATS_NEW_RESPONSE);
+              }}
               disabled={isTyping}
             >
               <Icon icon="star" size={12} style={{ marginRight: "4px" }} />
               What's New
+              {!hasSeenWhatsNew && <span className="whats-new-badge" />}
             </button>
           )}
           {helpType !== "chat" && (
@@ -982,6 +1226,59 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               : `**[${message.commandName}]**`
             : message.content;
 
+          // Council step messages get their own rendering
+          if (message.councilStep) {
+            const isSynthesis = message.councilStep.type === "synthesis";
+            const isFinalGeneration =
+              message.councilStep.type === "generation" &&
+              !message.councilStep.isIntermediate;
+            const showFooter = isSynthesis || isFinalGeneration;
+            return (
+              <div key={index} className="full-results-chat-message assistant">
+                <div className="full-results-chat-avatar">🏛️</div>
+                <div className="full-results-chat-content">
+                  <CouncilStepDisplay
+                    content={message.content}
+                    councilStep={message.councilStep}
+                    tokensIn={message.tokensIn}
+                    tokensOut={message.tokensOut}
+                  />
+                  {showFooter && (
+                    <div className="full-results-chat-message-footer">
+                      <span className="full-results-chat-timestamp">
+                        {message.timestamp.toLocaleTimeString()}
+                        {message.tokensIn !== undefined &&
+                          message.tokensOut !== undefined && (
+                            <span className="full-results-chat-tokens">
+                              {" "}
+                              • Tokens in: {message.tokensIn.toLocaleString()},
+                              out: {message.tokensOut.toLocaleString()}
+                            </span>
+                          )}
+                      </span>
+                      <span className="full-results-chat-copy-link">
+                        <Popover
+                          content={
+                            <Menu>
+                              <MenuItem
+                                icon="clipboard"
+                                text="Copy to clipboard"
+                                onClick={() => onCopyMessage(message.content)}
+                              />
+                            </Menu>
+                          }
+                          position={Position.BOTTOM_RIGHT}
+                        >
+                          <Button icon="more" minimal small />
+                        </Popover>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
           // Check if this is a help message
           const isHelpMsg = message.isHelpMessage;
           const isTipMessage = message.content.startsWith("💡");
@@ -1039,15 +1336,20 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                             __html: renderMarkdown(toolUsage.details),
                           }}
                         />
-                        {/* Display tool response/feedback if available */}
-                        {toolUsage.response && (
+                        {/* Display vector search results or plain tool response */}
+                        {toolUsage.vectorSearchData ? (
+                          <VectorSearchResults
+                            data={toolUsage.vectorSearchData}
+                            onAddResults={onAddResults}
+                          />
+                        ) : toolUsage.response ? (
                           <div
                             className="full-results-chat-tool-response"
                             dangerouslySetInnerHTML={{
                               __html: renderMarkdown(toolUsage.response),
                             }}
                           />
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -1254,6 +1556,20 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                         __html: renderMarkdown(toolUsage.details),
                       }}
                     />
+                    {/* Display vector search results or plain response during streaming */}
+                    {toolUsage.vectorSearchData ? (
+                      <VectorSearchResults
+                        data={toolUsage.vectorSearchData}
+                        onAddResults={onAddResults}
+                      />
+                    ) : toolUsage.response ? (
+                      <div
+                        className="full-results-chat-tool-response"
+                        dangerouslySetInnerHTML={{
+                          __html: renderMarkdown(toolUsage.response),
+                        }}
+                      />
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -1287,6 +1603,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           create_page: "page creation",
                           update_block: "block update",
                           delete_block: "block deletion",
+                          run_smartblock: "SmartBlock execution",
                         }[pendingToolConfirmation.toolName] || "operation";
                       return opCount > 1
                         ? `batch ${label} (${opCount} blocks)`
@@ -1495,6 +1812,36 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                       </div> */}
                     </div>
                   )}
+
+                {/* Preview for run_smartblock */}
+                {pendingToolConfirmation.toolName === "run_smartblock" &&
+                  pendingToolConfirmation.args && (
+                    <div className="tool-confirmation-preview">
+                      <div className="tool-confirmation-smartblock-summary">
+                        Run '<strong>{pendingToolConfirmation.args.src_name || pendingToolConfirmation.args.src_uid}</strong>' SmartBlock
+                        {pendingToolConfirmation.args.target_name
+                          ? <> on '<strong>[[{pendingToolConfirmation.args.target_name}]]</strong>'</>
+                          : pendingToolConfirmation.args.target_uid
+                            ? <> in '<strong>(({pendingToolConfirmation.args.target_uid}))</strong>'</>
+                            : null}
+                        {pendingToolConfirmation.args.variables &&
+                          Object.keys(pendingToolConfirmation.args.variables).length > 0 && (
+                            <div className="tool-confirmation-smartblock-variables">
+                              Variables: {Object.entries(pendingToolConfirmation.args.variables)
+                                .map(([k, v]) => `${k}=${v}`)
+                                .join(", ")}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  )}
+
+                {pendingToolConfirmation.args?.non_atomic && (
+                  <div className="tool-confirmation-non-atomic-warning">
+                    <Icon icon="info-sign" size={12} />
+                    <span>Batch operations are not atomic — if one fails, previously completed operations won't be rolled back.</span>
+                  </div>
+                )}
 
                 <div className="tool-confirmation-buttons">
                   <Button

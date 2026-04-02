@@ -114,21 +114,21 @@ export const renderMarkdown = (text: string): string => {
   let rendered = text;
 
   // STEP 0a: Extract Roam callout blocks BEFORE any other processing
-  // Format: [[>]] [[!KEYWORD]] Optional title\ncontent lines\n\n (ends at blank line or end of string)
+  // Format: > [[!KEYWORD]] Optional title\ncontent lines\n\n (ends at blank line or end of string)
   const callouts: string[] = [];
   const calloutPlaceholder = "ROAMCALLOUT-";
   const calloutKeywords =
     "NOTE|INFO|SUMMARY|ABSTRACT|TLDR|TIP|HINT|IMPORTANT|SUCCESS|QUESTION|HELP|FAQ|WARNING|CAUTION|ATTENTION|FAILURE|FAIL|MISSING|DANGER|ERROR|BUG|EXAMPLE|QUOTE";
   rendered = rendered.replace(
     new RegExp(
-      `(\\[\\[>\\]\\]\\s+\\[\\[!(?:${calloutKeywords})\\]\\][^\\n]*(?:\\n(?!\\n)[^\\n]*)*)`,
-      "gi"
+      `(>\\s+\\[\\[!(?:${calloutKeywords})\\]\\][^\\n]*(?:\\n(?!\\n)[^\\n]*)*)`,
+      "gi",
     ),
     (match) => {
       const index = callouts.length;
       callouts.push(match);
       return `${calloutPlaceholder}${index}`;
-    }
+    },
   );
 
   // STEP 0: Protect Roam-specific embeds from markdown processing
@@ -143,7 +143,7 @@ export const renderMarkdown = (text: string): string => {
       const index = roamEmbeds.length;
       roamEmbeds.push(match);
       return `${roamEmbedPlaceholder}${index}`;
-    }
+    },
   );
 
   // STEP 1: Handle code blocks FIRST to protect their content from other transformations
@@ -159,11 +159,9 @@ export const renderMarkdown = (text: string): string => {
       const index = codeBlocks.length;
       const langClass = language ? ` class="language-${language}"` : "";
       const escapedCode = escapeHtml(code.trim());
-      codeBlocks.push(
-        `<div class="chat-code-block-wrapper"><pre><code${langClass}>${escapedCode}</code></pre><button type="button" class="chat-code-copy-button" aria-label="Copy code block" title="Copy code">Copy</button></div>`
-      );
+      codeBlocks.push(`<pre><code${langClass}>${escapedCode}</code></pre>`);
       return `${codeBlockPlaceholder}${index}`;
-    }
+    },
   );
 
   // STEP 2: Extract URLs, images, and inline code BEFORE text formatting
@@ -179,10 +177,10 @@ export const renderMarkdown = (text: string): string => {
     (_match, alt, url) => {
       const index = links.length;
       links.push(
-        `<img src="${url}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`
+        `<img src="${url}" alt="${alt}" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" />`,
       );
       return `${linkPlaceholder}${index}`;
-    }
+    },
   );
 
   // Regular links: [text](url)
@@ -192,10 +190,10 @@ export const renderMarkdown = (text: string): string => {
       const index = links.length;
       const href = url.startsWith("www.") ? `https://${url}` : url;
       links.push(
-        `<a href="${href}" target="_blank" rel="noopener" class="external-link">${text}</a>`
+        `<a href="${href}" target="_blank" rel="noopener" class="external-link">${text}</a>`,
       );
       return `${linkPlaceholder}${index}`;
-    }
+    },
   );
 
   // 2.2: Process inline code (including double backticks)
@@ -220,7 +218,7 @@ export const renderMarkdown = (text: string): string => {
   // Bold text **text** (do this before italic to handle ***text*** correctly)
   rendered = rendered.replace(
     /\*\*\*(.+?)\*\*\*/g,
-    "<strong><em>$1</em></strong>"
+    "<strong><em>$1</em></strong>",
   ); // Bold + Italic ***text***
   rendered = rendered.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"); // Bold **text**
 
@@ -234,7 +232,7 @@ export const renderMarkdown = (text: string): string => {
   // Italic text *text* or _text_
   rendered = rendered.replace(
     /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,
-    "<em>$1</em>"
+    "<em>$1</em>",
   ); // *text* (not preceded/followed by *)
   rendered = rendered.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<em>$1</em>"); // _text_ (not preceded/followed by _)
 
@@ -249,7 +247,7 @@ export const renderMarkdown = (text: string): string => {
         return parseMarkdownTable(match);
       }
       return match;
-    }
+    },
   );
 
   // STEP 3: Headers - handle ###### first (most specific), then decreasing
@@ -277,7 +275,7 @@ export const renderMarkdown = (text: string): string => {
         .filter((line: string) => line.length > 0)
         .join("<br>");
       return `${prefix}<blockquote>${quoteContent}</blockquote>`;
-    }
+    },
   );
 
   // STEP 4: Lists - Bullet points and numbered lists with proper nesting/indentation
@@ -285,6 +283,47 @@ export const renderMarkdown = (text: string): string => {
   const lines = rendered.split("\n");
   const processedLines: string[] = [];
   let listStack: Array<{ indent: number; type: "ul" | "ol" }> = [];
+
+  // Helper: find the last <li> in processedLines and append content to it
+  const appendToLastLi = (content: string): boolean => {
+    for (let j = processedLines.length - 1; j >= 0; j--) {
+      if (processedLines[j].endsWith("</li>")) {
+        processedLines[j] =
+          processedLines[j].slice(0, -5) + `<br>${content}</li>`;
+        return true;
+      }
+      // Stop searching if we hit a list boundary
+      if (
+        processedLines[j].match(
+          /^<\/?(ul|ol)>$|^<li>|^<(h[1-6]|hr|blockquote|pre)/,
+        )
+      ) {
+        break;
+      }
+    }
+    return false;
+  };
+
+  // Helper: look ahead to check if a future line has a list item at the same or lower level
+  const hasUpcomingListItem = (fromIndex: number): boolean => {
+    for (let j = fromIndex; j < lines.length; j++) {
+      const futureTrimmed = lines[j].trim();
+      if (!futureTrimmed) continue; // skip empty lines
+      // Check if it's a list item
+      if (
+        lines[j].match(/^(\s*)([-*•])\s(.+)$/) ||
+        lines[j].match(/^(\s*)(\d+\.)\s(.+)$/)
+      ) {
+        return true;
+      }
+      // If the line is indented, it might be continuation — keep looking
+      const leadingSpaces = lines[j].match(/^(\s*)/)?.[1].length || 0;
+      if (leadingSpaces > 0) continue;
+      // Non-indented, non-empty, non-list line — the list has ended
+      return false;
+    }
+    return false;
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -332,11 +371,36 @@ export const renderMarkdown = (text: string): string => {
 
       processedLines.push(`<li>${content}</li>`);
     } else if (!trimmedLine && listStack.length > 0) {
-      // Empty line within a list - keep it to allow spacing between list items
-      // Don't close the list, just preserve the blank line
-      processedLines.push(line);
+      // Empty line within a list - keep it only if more list items or continuation follow
+      if (hasUpcomingListItem(i + 1)) {
+        processedLines.push(line);
+      } else {
+        // No more list items ahead — close the list
+        while (listStack.length > 0) {
+          const closingList = listStack.pop()!;
+          processedLines.push(`</${closingList.type}>`);
+        }
+        processedLines.push(line);
+      }
+    } else if (listStack.length > 0 && trimmedLine) {
+      // Non-list, non-empty line while inside a list
+      // Check if it's indented (continuation of current list item)
+      const leadingSpaces = line.match(/^(\s*)/)?.[1].length || 0;
+      if (leadingSpaces > 0) {
+        // Indented continuation content — append to the last <li>
+        if (!appendToLastLi(trimmedLine)) {
+          processedLines.push(line);
+        }
+      } else {
+        // Non-indented line — close the list, this is new content outside the list
+        while (listStack.length > 0) {
+          const closingList = listStack.pop()!;
+          processedLines.push(`</${closingList.type}>`);
+        }
+        processedLines.push(line);
+      }
     } else {
-      // Not a list item and not an empty line in a list - close all open lists
+      // Not a list item and not inside a list - just emit the line
       while (listStack.length > 0) {
         const closingList = listStack.pop()!;
         processedLines.push(`</${closingList.type}>`);
@@ -362,13 +426,13 @@ export const renderMarkdown = (text: string): string => {
   // - After closing tags: </h1-6>, </li>, </ul>, </ol>, <hr>, </blockquote>
   rendered = rendered.replace(
     /(?<!<\/(h[1-6]|li|ul|ol|blockquote)>|<hr>)\n(?!<\/?(h[1-6]|li|ul|ol|blockquote|hr)>)/g,
-    "<br>"
+    "<br>",
   );
 
   // Clean up any remaining line breaks around headers, lists, hr, and blockquotes
   rendered = rendered.replace(
     /(<br>)*(<\/?(h[1-6]|ul|ol|li|blockquote)|<hr\/?>)(<br>)*/g,
-    "$2"
+    "$2",
   );
 
   // Process bare URLs (markdown links already processed as LINK-x placeholders)
@@ -376,83 +440,85 @@ export const renderMarkdown = (text: string): string => {
   // Avoid matching URLs already in href attributes or inside tags
   rendered = rendered.replace(
     /(?<!["'=])(https?:\/\/[^\s<>"]+)/g,
-    '<a href="$1" target="_blank" rel="noopener" class="external-link">$1</a>'
+    '<a href="$1" target="_blank" rel="noopener" class="external-link">$1</a>',
   );
 
   // Bare www. URLs (add https:// protocol)
   // Avoid matching www already in href or after a protocol
   rendered = rendered.replace(
     /(?<!["'=:\/])(www\.[^\s<>"]+)/g,
-    '<a href="https://$1" target="_blank" rel="noopener" class="external-link">$1</a>'
+    '<a href="https://$1" target="_blank" rel="noopener" class="external-link">$1</a>',
   );
 
   // Page references [[page title]] - make clickable
   rendered = rendered.replace(
     /\[\[(?!\<)([^\]]+)(?!<\>)\]\]/g,
-    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Filter by this page.">$1</a><span class="rm-page-ref__brackets">]]</span>`
+    `<span class="rm-page-ref__brackets">[[</span><a href="#" data-page-title="$1" data-page-uid="$1" class="rm-page-ref rm-page-ref--link" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Filter by this page.">$1</a><span class="rm-page-ref__brackets">]]</span>`,
   );
 
   // Convert Roam embed syntax to clickable links
   rendered = rendered.replace(
     /\{\{\[\[(.*?)\]\]:\s*\(\(([^\(]{9,10})\)\)\}\}/g,
-    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">📄 {{[[embed-path]]: (($2))}}]</a>'
+    '<a href="#" data-block-uid="$2" class="roam-block-ref-chat roam-embed-link" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Copy block reference & show result">📄 {{[[embed-path]]: (($2))}}]</a>',
   );
 
   // IMPORTANT: Process [description](((uid))) BEFORE ((uid)) to prevent conflicts
   // Convert [description](((uid))) to clickable link with description
   rendered = rendered.replace(
     /\[([^\[\]]+?)\]\(\(\(([^\(]{9,10})\)\)\)/g,
-    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">$1</a>`
+    `<a href="#" data-block-uid="$2" class="roam-block-ref-chat" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Copy block reference & show result">$1</a>`,
   );
 
   // Simple block reference ((uid)) - process AFTER [description](((uid)))
   rendered = rendered.replace(
     /(?<!\]\()\(\(([^\(]{9,10})\)\)(?!\}\})/g,
-    `<a  data-block-uid="$1" class="roam-block-ref-chat" title="Click: Copy block reference & show result. Shift+click: Open in sidebar. Alt+click: Open in main window">(($1))</span></a>`
+    `<a  data-block-uid="$1" class="roam-block-ref-chat" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Copy block reference & show result">(($1))</span></a>`,
   );
 
   // Tag references #tag - make clickable
   // Use negative lookbehind to avoid matching # in URLs (e.g., https://example.com#anchor)
   rendered = rendered.replace(
     /(?<!\w|\/)#([a-zA-Z0-9\/_-]+)/g,
-    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Filter by this tag.">#$1</a>'
+    '<a href="#" data-page-title="$1" class="rm-page-ref rm-page-ref--tag" title="Click: Open in main window. Shift+click: Open in sidebar. Alt+click: Filter by this tag.">#$1</a>',
   );
 
   // STEP 5: Restore code blocks, links, inline code, and Roam embeds BEFORE wrapping in paragraphs or sanitizing
   // Use split/join approach for reliable placeholder replacement (replaceAll not available in all environments)
+  // IMPORTANT: Restore in REVERSE order (highest index first) to prevent prefix collisions
+  // e.g., "INLINECODE-1" would match inside "INLINECODE-10" if restored first
 
   // Restore Roam callouts as data-attributed spans (renderString will handle them in MessageContent)
-  callouts.forEach((callout, index) => {
-    const placeholder = `${calloutPlaceholder}${index}`;
-    const encoded = callout.replace(/"/g, "&quot;");
+  for (let i = callouts.length - 1; i >= 0; i--) {
+    const placeholder = `${calloutPlaceholder}${i}`;
+    const encoded = callouts[i].replace(/"/g, "&quot;");
     rendered = rendered
       .split(placeholder)
       .join(`<span data-roam-callout="${encoded}"></span>`);
-  });
+  }
 
   // Restore Roam embeds FIRST (these need to be intact for renderString in React component)
-  roamEmbeds.forEach((embed, index) => {
-    const placeholder = `${roamEmbedPlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(embed);
-  });
+  for (let i = roamEmbeds.length - 1; i >= 0; i--) {
+    const placeholder = `${roamEmbedPlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(roamEmbeds[i]);
+  }
 
   // Restore multi-line code blocks
-  codeBlocks.forEach((codeBlock, index) => {
-    const placeholder = `${codeBlockPlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(codeBlock);
-  });
+  for (let i = codeBlocks.length - 1; i >= 0; i--) {
+    const placeholder = `${codeBlockPlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(codeBlocks[i]);
+  }
 
   // Restore links and images
-  links.forEach((link, index) => {
-    const placeholder = `${linkPlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(link);
-  });
+  for (let i = links.length - 1; i >= 0; i--) {
+    const placeholder = `${linkPlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(links[i]);
+  }
 
   // Restore inline code
-  inlineCodes.forEach((inlineCode, index) => {
-    const placeholder = `${inlineCodePlaceholder}${index}`;
-    rendered = rendered.split(placeholder).join(inlineCode);
-  });
+  for (let i = inlineCodes.length - 1; i >= 0; i--) {
+    const placeholder = `${inlineCodePlaceholder}${i}`;
+    rendered = rendered.split(placeholder).join(inlineCodes[i]);
+  }
 
   // Wrap in paragraphs (but not if it starts with a header, list, blockquote, hr, or table)
   if (!rendered.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr|table|div)/)) {
@@ -461,7 +527,7 @@ export const renderMarkdown = (text: string): string => {
   rendered = rendered.replace(/<p><\/p>/g, "");
 
   // Configure DOMPurify to allow target="_blank" on links and all formatting tags including tables and images
-  return DOMPurify.sanitize(rendered, {
+  let sanitized = DOMPurify.sanitize(rendered, {
     ADD_ATTR: [
       "href",
       "target",
@@ -474,9 +540,6 @@ export const renderMarkdown = (text: string): string => {
       "style",
       "src",
       "alt",
-      "type",
-      "aria-label",
-      "title",
     ],
     ADD_TAGS: [
       "code",
@@ -494,11 +557,23 @@ export const renderMarkdown = (text: string): string => {
       "h5",
       "h6",
       "img",
-      "button",
     ],
     ALLOWED_URI_REGEXP:
       /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|www):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   });
+
+  // Post-sanitization: wrap <pre> code blocks with copy button
+  // Done after DOMPurify so the button element is never part of sanitized input
+  sanitized = sanitized.replace(
+    /<pre><code/g,
+    '<div class="chat-code-block-wrapper"><pre><code',
+  );
+  sanitized = sanitized.replace(
+    /<\/code><\/pre>/g,
+    '</code></pre><div class="chat-code-buttons"><button type="button" class="chat-code-copy-button" aria-label="Copy code" title="Copy">Copy</button><button type="button" class="chat-code-copy-button chat-code-copy-as-codeblock" aria-label="Copy as code block for Roam" title="Copy as code block">Copy as codeblock</button></div></div>',
+  );
+
+  return sanitized;
 };
 
 /**
@@ -523,7 +598,7 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
   // Single asterisk/underscore for italic (but not at start of line for list markers)
   converted = converted.replace(
     /(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)/g,
-    "__$1__"
+    "__$1__",
   ); // *text* → __text__
   converted = converted.replace(/(?<!_)_(?!_)([^_]+?)(?<!_)_(?!_)/g, "__$1__"); // _text_ → __text__
 
@@ -552,7 +627,7 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
           line
             .split("|")
             .map((cell) => cell.trim())
-            .slice(1, -1) // Remove first and last empty strings from leading/trailing pipes
+            .slice(1, -1), // Remove first and last empty strings from leading/trailing pipes
       );
 
     if (allRows.length === 0) return match;
@@ -573,8 +648,8 @@ export const convertMarkdownToRoamFormat = (markdown: string): string => {
               ? `**${cell}**`
               : " "
             : cell.length > 0
-            ? cell
-            : " ";
+              ? cell
+              : " ";
 
         roamTable += `${indent}- ${cellContent}\n`;
       });
@@ -606,7 +681,7 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
   const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
   if (nonEmptyLines.length > 0) {
     const minIndent = Math.min(
-      ...nonEmptyLines.map((line) => line.match(/^(\s*)/)?.[1].length || 0)
+      ...nonEmptyLines.map((line) => line.match(/^(\s*)/)?.[1].length || 0),
     );
     if (minIndent > 0) {
       converted = lines
@@ -732,7 +807,7 @@ export const convertRoamToMarkdownFormat = (roamText: string): string => {
       }
 
       return "\n" + markdownTable;
-    }
+    },
   );
 
   return converted;

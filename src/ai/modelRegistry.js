@@ -23,6 +23,40 @@
 
 export const MODEL_REGISTRY = {
   // ==================== OpenAI Models ====================
+  "gpt-5.4": {
+    id: "gpt-5.4",
+    name: "GPT 5.4",
+    provider: "OpenAI",
+    contextLength: 1050000,
+    maxOutput: 128000,
+    pricing: { input: 2.5, output: 15 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    aliases: ["GPT 5.4", "gpt-5-4"],
+  },
+
+  "gpt-5.4-mini": {
+    id: "gpt-5.4-mini",
+    name: "GPT-5.4 mini",
+    provider: "OpenAI",
+    contextLength: 400000,
+    maxOutput: 128000,
+    pricing: { input: 0.75, output: 4.5 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    aliases: ["gpt5.4-mini", "gpt-5-4-mini"],
+  },
+
   "gpt-5.2": {
     id: "gpt-5.2",
     name: "GPT-5.2",
@@ -86,7 +120,7 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["gpt-5.1-mini"],
   },
 
@@ -339,7 +373,7 @@ export const MODEL_REGISTRY = {
     id: "claude-opus-4-6",
     name: "Claude Opus 4.6",
     provider: "Anthropic",
-    contextLength: 200000,
+    contextLength: 1000000,
     maxOutput: 128000,
     pricing: { input: 5, output: 25 },
     capabilities: {
@@ -374,7 +408,7 @@ export const MODEL_REGISTRY = {
     id: "claude-sonnet-4-6",
     name: "Claude Sonnet 4.6",
     provider: "Anthropic",
-    contextLength: 200000,
+    contextLength: 1000000,
     maxOutput: 64000,
     pricing: { input: 3, output: 15 },
     capabilities: {
@@ -421,9 +455,9 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Google Models ====================
-  "gemini-3-pro-preview": {
-    id: "gemini-3-pro-preview",
-    name: "Gemini 3 Pro",
+  "gemini-3.1-pro-preview": {
+    id: "gemini-3.1-pro-preview",
+    name: "Gemini 3.1 Pro",
     provider: "Google",
     contextLength: 1048576,
     maxOutput: 65536,
@@ -438,7 +472,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
-    aliases: ["gemini-3-pro"],
+    aliases: ["gemini-3.1-pro"],
   },
 
   "gemini-3-flash-preview": {
@@ -461,47 +495,13 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3-flash"],
   },
 
-  "gemini-2.5-pro": {
-    id: "gemini-2.5-pro",
-    name: "Gemini 2.5 Pro",
+  "gemini-3.1-flash-lite-preview": {
+    id: "gemini-3.1-flash-lite-preview",
+    name: "Gemini 3.1 Flash Lite",
     provider: "Google",
     contextLength: 1048576,
-    pricing: { input: 1.25, output: 10 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-      videoInput: true,
-      audioInput: true,
-    },
-    visibleByDefault: false,
-    thinkingDefault: true,
-    aliases: [],
-  },
-
-  "gemini-2.5-flash": {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    provider: "Google",
-    contextLength: 1048576,
-    pricing: { input: 0.3, output: 2.5 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-      videoInput: true,
-      audioInput: true,
-    },
-    visibleByDefault: false,
-    aliases: [],
-  },
-
-  "gemini-2.5-flash-lite": {
-    id: "gemini-2.5-flash-lite",
-    name: "Gemini 2.5 Flash lite",
-    provider: "Google",
-    contextLength: 1048576,
-    pricing: { input: 0.1, output: 0.4 },
+    maxOutput: 65536,
+    pricing: { input: 0.25, output: 1.5 },
     capabilities: {
       imageInput: true,
       webSearch: true,
@@ -510,10 +510,25 @@ export const MODEL_REGISTRY = {
       audioInput: true,
     },
     visibleByDefault: true,
-    aliases: [],
+    aliases: ["gemini-3.1-flash-lite"],
   },
 
   // Google Image Generation Models
+  "gemini-3.1-flash-image-preview": {
+    id: "gemini-3.1-flash-image-preview",
+    name: "Nano Banana 2",
+    provider: "Google",
+    pricing: { input: 0.25, inputImage: 0.25, output: 39 },
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+      editImage: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: ["nano-banana-2"],
+  },
+
   "gemini-2.5-flash-image": {
     id: "gemini-2.5-flash-image",
     name: "Nano Banana",
@@ -525,7 +540,7 @@ export const MODEL_REGISTRY = {
       editImage: true,
     },
     modelType: "image-generation",
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
@@ -1116,6 +1131,11 @@ export function getProviderPrefix(provider) {
  * Register dynamic models from OpenRouter
  * @param {Array} modelsInfo - Array of model info objects from OpenRouter API
  */
+export function unregisterOpenRouterModel(modelId) {
+  const key = `openRouter/${modelId}`;
+  delete MODEL_REGISTRY[key];
+}
+
 export function registerOpenRouterModels(modelsInfo) {
   for (const model of modelsInfo) {
     const key = `openRouter/${model.id}`;

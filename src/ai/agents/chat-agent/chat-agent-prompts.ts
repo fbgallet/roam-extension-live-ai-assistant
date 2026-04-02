@@ -25,6 +25,7 @@ export const buildChatSystemPrompt = async ({
   style,
   toolsEnabled,
   conversationContext,
+  maxTokensLimit,
   resultsContext,
   activeSkillInstructions,
   enabledTools,
@@ -45,13 +46,15 @@ export const buildChatSystemPrompt = async ({
   hasAudioContent?: boolean;
   hasVideoContent?: boolean;
   hasPdfContent?: boolean;
+  maxTokensLimit?: number;
 }): Promise<string> => {
   // Different base prompt depending on whether we have search results context
   // Add results context if available
 
   const { dayName, monthName, dayNb, fullYear, dateStr, timeHHMM } =
     getCurrentDateContext(new Date());
-  let systemPrompt = `**Current Date and Time**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})\n\n`;
+  let systemPrompt = `**Current Date and Time**: ${dayName}, ${monthName} ${dayNb}, ${fullYear} (${dateStr}, ${timeHHMM})
+**Date parameter rule**: When any tool has a "date" parameter and the user refers to "today", "today's page", "today's DNP", "tomorrow", "yesterday", or any relative date, you MUST convert it to ISO format (YYYY-MM-DD) using the current date above. For example, "today" → "${dateStr}". Never pass a formatted page title like "${monthName} ${dayNb}, ${fullYear}" as a page_title for DNPs — always use the date parameter instead.\n\n`;
   if (resultsContext) {
     systemPrompt += `## Available Context\n${resultsContext}
     
@@ -70,10 +73,17 @@ The user can already see the raw content and metadata - your job is to provide I
 - **Identify** relationships, contradictions, common themes, or missing pieces
 - **Be analytical** - help the user understand significance and context
 
-### IMPORTTANT formatting contrainsts when referencing content from the Context. Respect them STRICTLY:
-- **Reference blocks (<BLOCK> items in the context)** - When possible, use a short descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. If description would be too long or it's simply requested to add a link to block source at the end of a sentence or paragraph, e.g. for citation, use the format '[*](((UID)))' (it will just display a clickable '*').
+### CRITICAL: Block UID integrity — NEVER fabricate UIDs
+- Block UIDs are 9-character alphanumeric strings (e.g., "a1B2c3D4e") provided explicitly in the context.
+- **ONLY use UIDs that appear verbatim in the context** — either as a "uid" field in a JSON block entry, or as a \`[uid]\` prefix in children outlines.
+- **NEVER guess, infer, interpolate, or fabricate a UID.** If you cannot find the exact UID for a block you want to reference, describe the content instead without a block reference link.
+- If content is in a children outline with format \`- [uid] content\`, the UID is the string inside the brackets.
+
+### Formatting constraints when referencing content from the Context. Respect them STRICTLY:
+- **Reference blocks (items with "type": "BLOCK" in the context)** - When possible, use a short descriptive link format '[description](((UID)))' where description is a brief, meaningful phrase that flows naturally in your text (e.g., '[this analysis](((UID)))' or '[the key finding](((UID)))') (IMPORTANT, respect this syntax STRICTLY, the bracket and 3 parentheses are crucial). This creates a clean, readable response with clickable references. If description would be too long or it's simply requested to add a link to block source at the end of a sentence or paragraph, e.g. for citation, use the format '[*](((UID)))' (it will just display a clickable '*').
+- **Children block references** - Children in the outline include their UID as \`[uid]\` prefix. You can reference these children blocks using the same '[description](((uid)))' syntax.
 - **Multiple block references** - For citing multiple sources, use: '[1](((UID1))), [2](((UID2))), [3](((UID3)))' instead of '((UID1)), ((UID2)), ((UID3))'.
-- **Reference pages** (<PAGE> items in the context) - Always use the syntax '[[page title]]' or '#title' for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.\n\n`;
+- **Reference pages** (items with "type": "PAGE" in the context) - Always use the syntax '[[page title]]' or '#title' for pages (where tag is a page title without space and has been used as tag in by the user, otherwise use '[[title]]' syntax) when you have to mention page titles. In this case, link format is not required since the title is supposed to be descriptive enough.\n\n`;
   }
 
   // Add conversation context if available
@@ -278,7 +288,8 @@ When the user provides PDF files (either directly in their message or in the con
 
 - ${hierarchicalResponseFormat.trim()}
 - Generally respects markdown syntax, except where otherwise indicated.
-- You can use callouts sparingly to highlight key elements (warnings, tips, important notes, quotes, etc.), relying on Roam specific format: \`[[>]] [[!KEYWORD]] Optional title\` on the first line, followed by content lines (simple line returns, no indentation); a blank line ends the callout. Supported keywords: NOTE, INFO, SUMMARY (or ABSTRACT or TLDR), TIP (or HINT or IMPORTANT), SUCCESS, QUESTION (or HELP or FAQ), WARNING (or CAUTION or ATTENTION), FAILURE (or FAIL or MISSING), DANGER (or ERROR), BUG, EXAMPLE, QUOTE (for famous author quotes only).
+- NEVER use the format #1, #2, #3... (or #anything) for numbering items, since the # symbol creates tags in Roam Research. Use "1.", "2.", "3." or other numbering formats instead. The # symbol should only appear inside backticks (\`#example\`) or as an actual Roam tag reference or Markdown header.
+- You can use callouts sparingly to highlight key elements (warnings, tips, important notes, quotes, etc.), relying on Roam specific format: \`> [[!KEYWORD]] Optional title\` on the first line, followed by content lines (simple line returns, no indentation); a blank line ends the callout. Supported keywords: NOTE, INFO, SUMMARY (or ABSTRACT or TLDR), TIP (or HINT or IMPORTANT), SUCCESS, QUESTION (or HELP or FAQ), WARNING (or CAUTION or ATTENTION), FAILURE (or FAIL or MISSING), DANGER (or ERROR), BUG, EXAMPLE, QUOTE (for famous author quotes only).
 - If you write mathematical or LaTex formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: '$$formula$$'. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
   // Add style-specific formatting if provided
@@ -286,7 +297,10 @@ When the user provides PDF files (either directly in their message or in the con
     systemPrompt += `\n\n## Response Style\n\n${await getStylePrompt(style)}`;
   }
 
-  // console.log("Complete systemPrompt :>> ", systemPrompt);
+  if (maxTokensLimit) {
+    const approxChars = Math.round(maxTokensLimit * 3.5);
+    systemPrompt += `\n\n## Response Length Constraint\nYour response is limited to a maximum of **${maxTokensLimit} tokens** (approximately **${approxChars} characters** in English). You MUST keep your response concise enough to fit within this limit. Prioritize completeness over detail — deliver a full, coherent answer rather than a detailed one that gets cut off. If the topic is too broad, summarize key points and offer to elaborate.`;
+  }
 
   return systemPrompt;
 };
@@ -380,68 +394,70 @@ export const buildResultsContext = (
 
   context += `\n\n`;
 
-  // Format results exactly as FullResultsChat does
+  // Format results as structured JSON-like entries for unambiguous parsing
   const formattedResults = results
     .map((result, index) => {
-      const parts = [];
       const isPage = !result.pageUid; // Pages don't have pageUid property
 
-      // UID (if present)
-      if (result.uid && !isPage) {
-        parts.push(`<BLOCK>\nUID: ${result.uid}`);
+      if (isPage) {
+        const entry: Record<string, string> = {
+          type: "PAGE",
+          title: result.pageTitle || result.title || "no title found",
+        };
+        if (result.created) {
+          entry.created = String(result.created)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
+        if (result.modified) {
+          entry.modified = String(result.modified)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
+        let output = JSON.stringify(entry, null, 2);
+        // Append children outline outside JSON for readability (hierarchical content)
+        if (result.expandedBlock?.childrenOutline) {
+          output += `\nContent:\n${result.expandedBlock.childrenOutline}`;
+        }
+        return output;
+      } else {
+        // Block
+        if (!result.uid) return null;
+        const entry: Record<string, string> = {
+          type: "BLOCK",
+          uid: result.uid,
+        };
         if (result.pageTitle || result.title) {
-          parts.push(`In page: [[${result.pageTitle || result.title}]]`);
+          entry.page = `[[${result.pageTitle || result.title}]]`;
         }
-        // Parent info (only for blocks that have parent context)
         if (result.expandedBlock?.parent) {
-          parts.push(
-            `Parent: ${resolveReferences(result.expandedBlock.parent)}`,
-          );
+          entry.parent = resolveReferences(result.expandedBlock.parent);
         }
-      } else
-        parts.push(
-          `<PAGE>\nTitle: ${
-            result.pageTitle || result.title
-              ? `[[${result.pageTitle || result.title}]]`
-              : "no title found"
-          }`,
-        );
-
-      // Timestamps - show only date, not time
-      if (result.created) {
-        const createdStr = String(result.created)
-          .split(" ")
-          .slice(0, 4)
-          .join(" ");
-        parts.push(`Created: ${createdStr}`);
-      }
-      if (result.modified) {
-        const modifiedStr = String(result.modified)
-          .split(" ")
-          .slice(0, 4)
-          .join(" ");
-        parts.push(`Modified: ${modifiedStr}`);
-      }
-
-      // Content (if available)
-      if (!isPage && (result.expandedBlock?.original || result.content)) {
+        if (result.created) {
+          entry.created = String(result.created)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
+        if (result.modified) {
+          entry.modified = String(result.modified)
+            .split(" ")
+            .slice(0, 4)
+            .join(" ");
+        }
         const content = result.expandedBlock?.original || result.content;
-        parts.push(`Content:\n${content}`);
+        if (content) {
+          entry.content = content;
+        }
+        let output = JSON.stringify(entry, null, 2);
+        // Append children outline outside JSON for readability (hierarchical content with UIDs)
+        if (result.expandedBlock?.childrenOutline) {
+          output += `\nChildren:\n${result.expandedBlock.childrenOutline}`;
+        }
+        return output;
       }
-
-      // Children info (if available)
-      if (result.expandedBlock?.childrenOutline) {
-        parts.push(
-          `${isPage ? "Content:\n" : "Children:\n"}${
-            result.expandedBlock.childrenOutline
-          }`,
-        );
-      }
-
-      // Only include result if it has at least one displayable field
-      if (parts.length === 0) return null;
-
-      return /*`Result ${index + 1}:\n */ `${parts.join("\n")}`;
     })
     .filter((r) => r !== null) // Remove empty results
     .join("\n\n---\n\n");

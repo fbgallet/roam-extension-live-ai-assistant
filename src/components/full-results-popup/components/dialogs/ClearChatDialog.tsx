@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Button, Dialog, Classes } from "@blueprintjs/core";
 import { ChatMessage } from "../../types/types";
 import { countRealMessages } from "../../utils/chatMessageUtils";
@@ -22,6 +22,18 @@ export const ClearChatDialog: React.FC<ClearChatDialogProps> = ({
   const totalMessages = countRealMessages(chatMessages);
   const uninsertedMessages = totalMessages - insertedMessages;
   const hasUninsertedMessages = uninsertedMessages > 0;
+
+  // Auto-focus the Clear Chat button when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        const btn = document.querySelector<HTMLButtonElement>(
+          ".clear-chat-dialog button[data-clear-chat-confirm]"
+        );
+        btn?.focus();
+      }, 200);
+    }
+  }, [isOpen]);
 
   return (
     <Dialog
@@ -64,6 +76,7 @@ export const ClearChatDialog: React.FC<ClearChatDialogProps> = ({
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
           <Button onClick={onClose}>Cancel</Button>
           <Button
+            data-clear-chat-confirm
             intent={hasUninsertedMessages ? "danger" : "warning"}
             onClick={() => {
               onClearChat();

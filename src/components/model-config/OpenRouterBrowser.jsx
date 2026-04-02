@@ -20,14 +20,20 @@ import "./OpenRouterBrowser.css";
  * @param {Object} props
  * @param {Array} props.existingModels - Already added OpenRouter models
  * @param {Function} props.onAddModel - Callback when model is added
+ * @param {Function} props.onRemoveModel - Callback when model is removed (modelId)
  */
-export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
+export const OpenRouterBrowser = ({
+  existingModels = [],
+  onAddModel,
+  onRemoveModel,
+}) => {
   const [allModels, setAllModels] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("date-new");
   const [filterBy, setFilterBy] = useState("all");
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
 
   // Fetch models from OpenRouter API
   useEffect(() => {
@@ -57,6 +63,11 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
   const filteredModels = useMemo(() => {
     let models = [...allModels];
 
+    // Apply "only selected" filter
+    if (showOnlySelected) {
+      models = models.filter((m) => existingModelIds.has(m.id));
+    }
+
     // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -64,7 +75,7 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
         (m) =>
           m.id.toLowerCase().includes(query) ||
           m.name.toLowerCase().includes(query) ||
-          (m.description && m.description.toLowerCase().includes(query))
+          (m.description && m.description.toLowerCase().includes(query)),
       );
     }
 
@@ -124,7 +135,14 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
     });
 
     return models;
-  }, [allModels, searchQuery, sortBy, filterBy]);
+  }, [
+    allModels,
+    searchQuery,
+    sortBy,
+    filterBy,
+    showOnlySelected,
+    existingModelIds,
+  ]);
 
   const handleAddModel = (model) => {
     const newModel = {
@@ -249,7 +267,17 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
       </div>
 
       <div className="browser-results-count">
-        Showing {filteredModels.length} of {allModels.length} models
+        <span>
+          Showing {filteredModels.length} of {allModels.length} models
+        </span>
+        <label className="only-selected-checkbox">
+          <input
+            type="checkbox"
+            checked={showOnlySelected}
+            onChange={(e) => setShowOnlySelected(e.target.checked)}
+          />{" "}
+          Only selected ({existingModels.length})
+        </label>
       </div>
 
       <div className="browser-models-list">
@@ -291,7 +319,7 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
                             <strong>Input Modalities:</strong>
                             <p>
                               {formatInputModalities(
-                                model.architecture?.input_modalities
+                                model.architecture?.input_modalities,
                               )}
                             </p>
                           </div>
@@ -325,14 +353,23 @@ export const OpenRouterBrowser = ({ existingModels = [], onAddModel }) => {
                     </span>
                   </div>
                 </div>
-                <Button
-                  icon={isAdded ? "tick" : "plus"}
-                  intent={isAdded ? "success" : "primary"}
-                  disabled={isAdded}
-                  onClick={() => handleAddModel(model)}
-                  small
-                  minimal={isAdded}
-                />
+                {isAdded ? (
+                  <Button
+                    icon="minus"
+                    intent="danger"
+                    onClick={() => onRemoveModel(model.id)}
+                    small
+                    minimal
+                    title="Remove from selected models"
+                  />
+                ) : (
+                  <Button
+                    icon="plus"
+                    intent="primary"
+                    onClick={() => handleAddModel(model)}
+                    small
+                  />
+                )}
               </div>
             );
           })

@@ -66,6 +66,7 @@ import "./components/full-results-popup/index.tsx"; // Register window.LiveAI.op
 import { initializeHelpDepot } from "./ai/agents/chat-agent/tools/helpDepotUtils";
 import { AppToaster } from "./components/Toaster";
 import { cleanupAllWindowStorage } from "./components/full-results-popup/utils/windowStorage";
+import { initPublicApi, cleanupPublicApi } from "./api/publicApi";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -136,6 +137,8 @@ export let isSafari =
   window.roamAlphaAPI.platform.isIOS;
 export let customStyles;
 export let isThinkingProcessToDisplay;
+export let alwaysExtractPdf;
+export let alwaysExtractQuery;
 
 const modeMap = {
   "Always ask user": "ask_user",
@@ -158,6 +161,34 @@ export function setDefaultModel(str = "gpt-5.1") {
 
 export function updateAvailableModels() {
   availableModels = [];
+
+  // Refresh dynamic model lists from current config so stale exports are updated
+  const currentConfig = getModelConfig();
+  openAiCustomModels =
+    currentConfig.customModels?.openai?.map((m) => m.id) || [];
+  openRouterModels =
+    currentConfig.customModels?.openrouter?.map((m) => m.id) || [];
+  groqModels = currentConfig.customModels?.groq?.map((m) => m.id) || [];
+  ollamaModels = currentConfig.customModels?.ollama?.map((m) => m.id) || [];
+
+  // Refresh custom endpoint settings from config
+  const openaiEndpoint = currentConfig.providerEndpoints?.openai;
+  if (openaiEndpoint) {
+    customBaseURL = openaiEndpoint.baseURL || customBaseURL;
+    customEndpointEnabled = openaiEndpoint.enabled ?? customEndpointEnabled;
+    customOpenAIOnly = openaiEndpoint.exclusive ?? customOpenAIOnly;
+  }
+
+  // Re-initialize OpenAI libraries if endpoint settings changed
+  if (OPENAI_API_KEY || (customBaseURL && customOpenAIOnly)) {
+    openaiLibrary = initializeOpenAIAPI(
+      OPENAI_API_KEY,
+      customOpenAIOnly ? customBaseURL : null,
+    );
+  }
+  if (customBaseURL && customEndpointEnabled && !customOpenAIOnly) {
+    customOpenaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
+  }
 
   // Helper to get prefix for provider
   const getPrefix = (provider) => {
@@ -187,11 +218,16 @@ export function updateAvailableModels() {
       case "Grok":
         return !!GROK_API_KEY;
       case "OpenRouter":
-        return !!OPENROUTER_API_KEY || openRouterModels.length > 0;
+        return (
+          !!OPENROUTER_API_KEY ||
+          getModelConfig().customModels?.openrouter?.length > 0
+        );
       case "Groq":
-        return !!GROQ_API_KEY || groqModels.length > 0;
+        return (
+          !!GROQ_API_KEY || getModelConfig().customModels?.groq?.length > 0
+        );
       case "Ollama":
-        return ollamaModels.length > 0;
+        return getModelConfig().customModels?.ollama?.length > 0;
       default:
         return false;
     }
@@ -946,6 +982,30 @@ function getPanelConfig() {
         },
       },
       {
+        id: "alwaysExtractPdf",
+        name: "Always extract PDF content",
+        description:
+          "Automatically extract and include PDF content found in the prompt or context, without needing to check the PDF checkbox each time",
+        action: {
+          type: "switch",
+          onChange: () => {
+            alwaysExtractPdf = !alwaysExtractPdf;
+          },
+        },
+      },
+      {
+        id: "alwaysExtractQuery",
+        name: "Always extract query results",
+        description:
+          "Automatically execute Roam queries and Datomic :q queries found in prompt/context and add results, without needing to check the Queries checkbox each time",
+        action: {
+          type: "switch",
+          onChange: () => {
+            alwaysExtractQuery = !alwaysExtractQuery;
+          },
+        },
+      },
+      {
         id: "uidsInPrompt",
         name: "Uids of blocks in promt/context",
         description:
@@ -1121,6 +1181,22 @@ function getPanelConfig() {
           content: "Configure MCP Servers...",
         },
       },
+      {
+        id: "enableLiveAI_API",
+        name: "Enable Public API (window.LiveAI_API)",
+        description:
+          "Allow other Roam extensions to use Live AI models via window.LiveAI_API. API keys are never exposed.",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            if (evt.target.checked) {
+              initPublicApi();
+            } else {
+              cleanupPublicApi();
+            }
+          },
+        },
+      },
     ],
   };
   return panelConfig;
@@ -1209,6 +1285,10 @@ export default {
     voiceInstructions = extensionAPI.settings.get("voiceInstructions");
     if (extensionAPI.settings.get("defaultModel") === null)
       await extensionAPI.settings.set("defaultModel", "gpt-5.1");
+    else if (
+      extensionAPI.settings.get("defaultModel") === "gemini-3-pro-preview"
+    )
+      await extensionAPI.settings.set("defaultModel", "gemini-3.1-pro-preview");
     defaultModel = extensionAPI.settings.get("defaultModel");
     if (extensionAPI.settings.get("reasoningEffort") === null)
       await extensionAPI.settings.set("reasoningEffort", "low");
@@ -1218,6 +1298,12 @@ export default {
     isThinkingProcessToDisplay = extensionAPI.settings.get(
       "displayThinkingProcess",
     );
+    if (extensionAPI.settings.get("alwaysExtractPdf") === null)
+      await extensionAPI.settings.set("alwaysExtractPdf", false);
+    alwaysExtractPdf = extensionAPI.settings.get("alwaysExtractPdf");
+    if (extensionAPI.settings.get("alwaysExtractQuery") === null)
+      await extensionAPI.settings.set("alwaysExtractQuery", false);
+    alwaysExtractQuery = extensionAPI.settings.get("alwaysExtractQuery");
     if (extensionAPI.settings.get("customBaseUrl") === null)
       await extensionAPI.settings.set("customBaseUrl", "");
     customBaseURL = extensionAPI.settings.get("customBaseUrl");
@@ -1262,33 +1348,14 @@ export default {
       }, 2000);
     }
 
-    // Update model lists from new config for backward compatibility (using modelConfig from above)
+    // Update model lists from new config (migration has already run, so modelConfig is authoritative)
     openAiCustomModels =
-      modelConfig.customModels?.openai?.map((m) => m.id) ||
-      getArrayFromList(
-        extensionAPI.settings.get("customModel") || "",
-        ",",
-        customOpenAIOnly ? "" : "custom/",
-      );
+      modelConfig.customModels?.openai?.map((m) => m.id) || [];
     openRouterModels =
-      modelConfig.customModels?.openrouter?.map((m) => m.id) ||
-      getArrayFromList(extensionAPI.settings.get("openRouterModels") || "");
-    groqModels =
-      modelConfig.customModels?.groq?.map((m) => m.id) ||
-      getArrayFromList(extensionAPI.settings.get("groqModels") || "");
-    ollamaModels =
-      modelConfig.customModels?.ollama?.map((m) => m.id) ||
-      getArrayFromList(extensionAPI.settings.get("ollamaModels") || "");
+      modelConfig.customModels?.openrouter?.map((m) => m.id) || [];
+    groqModels = modelConfig.customModels?.groq?.map((m) => m.id) || [];
+    ollamaModels = modelConfig.customModels?.ollama?.map((m) => m.id) || [];
 
-    // Keep old settings for backward compatibility (can be removed in future versions)
-    if (extensionAPI.settings.get("customModel") === null)
-      await extensionAPI.settings.set("customModel", "");
-    if (extensionAPI.settings.get("openRouterModels") === null)
-      await extensionAPI.settings.set("openRouterModels", "");
-    if (extensionAPI.settings.get("groqModels") === null)
-      await extensionAPI.settings.set("groqModels", "");
-    if (extensionAPI.settings.get("ollamaModels") === null)
-      await extensionAPI.settings.set("ollamaModels", "");
     if (extensionAPI.settings.get("ollamaServer") === null)
       await extensionAPI.settings.set("ollamaServer", "");
     ollamaServer = extensionAPI.settings.get("ollamaServer");
@@ -1360,7 +1427,7 @@ export default {
     if (extensionAPI.settings.get("defaultImageModel") === null)
       await extensionAPI.settings.set(
         "defaultImageModel",
-        "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
       );
     defaultImageModel = extensionAPI.settings.get("defaultImageModel");
     // Removed: webModel is now automatically determined based on default model and configuration
@@ -1475,6 +1542,11 @@ export default {
     // Initialize window.LiveAI if it doesn't exist (don't overwrite existing functions)
     if (!window.LiveAI) window.LiveAI = {};
 
+    // Initialize public API if enabled in settings
+    if (extensionAPI.settings.get("enableLiveAI_API")) {
+      initPublicApi();
+    }
+
     initializeContextMenu();
 
     // Add navigation listeners for Ask Linked References button
@@ -1503,6 +1575,9 @@ export default {
 
     // Disconnect all MCP servers (close WebSocket/SSE connections)
     await mcpManager.disconnectAll();
+
+    // Clean up public API
+    cleanupPublicApi();
 
     // Clean up all window object properties (prevent memory leaks)
     cleanupAllWindowStorage();

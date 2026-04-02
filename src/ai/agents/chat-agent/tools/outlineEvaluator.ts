@@ -16,6 +16,8 @@ import {
   getDNPTitleFromDate,
 } from "../../../../utils/roamAPI";
 import { getFlattenedContentFromTree } from "../../../dataExtraction";
+import { parseISODateLocal } from "./dateUtils";
+import { parseJsonFromLLMResponse } from "./toolUtils";
 
 // --- Types ---
 
@@ -153,23 +155,43 @@ export async function resolveContainerUid(params: {
   let resolvedPageTitle = page_title;
 
   // If date is provided, convert to DNP title (expects ISO format YYYY-MM-DD)
+  let isDNPFromDate = false;
   if (!targetUid && date) {
-    const dateObj = new Date(date);
-    if (isNaN(dateObj.getTime())) {
+    const dateObj = parseISODateLocal(date);
+    if (!dateObj) {
       return {
         error: `Invalid date format: "${date}". Please provide an ISO date (YYYY-MM-DD format, e.g., "2024-01-15").`,
       };
     }
     resolvedPageTitle = getDNPTitleFromDate(dateObj);
+    isDNPFromDate = true;
   }
 
   // If page_title (or resolved DNP title) is provided, convert to UID
   if (!targetUid && resolvedPageTitle) {
     targetUid = getPageUidByPageName(resolvedPageTitle);
     if (!targetUid) {
-      return {
-        error: `Page "${resolvedPageTitle}" was not found in your graph. Please verify the page exists.`,
-      };
+      // If this is a DNP from a date parameter, create the page automatically
+      if (isDNPFromDate) {
+        try {
+          const roamAPI = (window as any).roamAlphaAPI;
+          const dateObj = parseISODateLocal(date!);
+          // Use Roam's dateToPageUid to get the correct UID format (MM-DD-YYYY)
+          const dnpUid = roamAPI.util.dateToPageUid(dateObj);
+          await roamAPI.createPage({ page: { title: resolvedPageTitle, uid: dnpUid } });
+          targetUid = dnpUid;
+          console.log(`Created DNP "${resolvedPageTitle}" with UID: ${dnpUid}`);
+        } catch (err) {
+          console.error("Error creating DNP:", err);
+          return {
+            error: `Page "${resolvedPageTitle}" was not found and could not be created. ${err instanceof Error ? err.message : ""}`,
+          };
+        }
+      } else {
+        return {
+          error: `Page "${resolvedPageTitle}" was not found in your graph. Please verify the page exists.`,
+        };
+      }
     }
   }
 
@@ -363,13 +385,11 @@ Only return the JSON, nothing else.`;
     const responseText = response.content.toString().trim();
     console.log("findInsertionLocation response :>> ", responseText);
 
-    const jsonMatch = responseText.match(/\{[^}]+\}/);
-    if (!jsonMatch) {
+    const parsed = parseJsonFromLLMResponse(responseText);
+    if (!parsed) {
       console.error("LLM did not return valid JSON:", responseText);
       return null;
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
 
     if (!parsed.parentUid) {
       console.error("LLM response missing parentUid:", parsed);
@@ -458,9 +478,8 @@ Only return the JSON, nothing else.`;
     const responseText = response.content.toString().trim();
     console.log("findBlocksByCriteria response :>> ", responseText);
 
-    // Parse JSON - handle potential nested objects
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const parsed = parseJsonFromLLMResponse(responseText);
+    if (!parsed) {
       console.error("LLM did not return valid JSON:", responseText);
       return {
         mode: "find_blocks_by_criteria",
@@ -470,8 +489,6 @@ Only return the JSON, nothing else.`;
         matchingBlocks: [],
       };
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
     const matches = Array.isArray(parsed.matches) ? parsed.matches : [];
 
     // Validate UIDs exist in the outline

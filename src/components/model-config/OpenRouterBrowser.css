@@ -43,9 +43,22 @@
 }
 
 .openrouter-browser .browser-results-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 11px;
   color: #5c7080;
   margin-bottom: 8px;
+}
+
+.openrouter-browser .only-selected-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  color: #5c7080;
 }
 
 /* ===== MODELS LIST ===== */
@@ -77,8 +90,7 @@
 }
 
 .openrouter-browser .or-model-item.already-added {
-  opacity: 0.6;
-  background: #f9f9f9;
+  background: #f0f7f0;
 }
 
 .openrouter-browser .or-model-info {
@@ -212,7 +224,12 @@
 
 .bp5-dark .openrouter-browser .or-model-item.already-added,
 .bp3-dark .openrouter-browser .or-model-item.already-added {
-  background: #293742;
+  background: #1e3a2a;
+}
+
+.bp5-dark .openrouter-browser .only-selected-checkbox,
+.bp3-dark .openrouter-browser .only-selected-checkbox {
+  color: #a7b6c2;
 }
 
 .bp5-dark .openrouter-browser .or-model-name,

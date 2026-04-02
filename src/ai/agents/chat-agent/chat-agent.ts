@@ -57,6 +57,8 @@ import {
   isFileExportRequest,
   handleFileExportCommand,
 } from "./multimodal-commands";
+import { getContextFromQueries } from "../../queryContextExtractor";
+import { alwaysExtractQuery } from "../../..";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -87,6 +89,8 @@ const ChatAgentState = Annotation.Root({
   isAgentMode: Annotation<boolean>,
   // Streaming
   streamingCallback: Annotation<((content: string) => void) | undefined>,
+  // Abort signal
+  abortSignal: Annotation<AbortSignal | undefined>,
   // Tool usage callback
   toolUsageCallback: Annotation<
     | ((toolInfo: { toolName: string; args?: Record<string, any> }) => void)
@@ -160,6 +164,8 @@ const ChatAgentState = Annotation.Root({
   imageGenerationModelId: Annotation<string | undefined>,
   // URL of the last generated image (for non-Gemini models that need it passed explicitly)
   lastGeneratedImageUrl: Annotation<string | undefined>,
+  // Per-session PDF extraction override
+  includePdf: Annotation<boolean | undefined>,
 });
 
 // Module-level variables
@@ -240,6 +246,17 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     state.messages.push(new HumanMessage(completedLastMessage));
   }
 
+  // Extract query results if alwaysExtractQuery is enabled
+  let queryContext: string | null = null;
+  if (alwaysExtractQuery) {
+    queryContext = await getContextFromQueries({
+      prompt: lastMessage,
+      context: resultsContext || "",
+      model: state.model.id,
+      rootUid: "",
+    });
+  }
+
   // Build system prompt - NOTE: Don't include tool descriptions
   // LangChain's bindTools() handles tool schemas automatically via the API
   const systemPrompt = await buildChatSystemPrompt({
@@ -257,10 +274,14 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     enabledTools: state.enabledTools,
     hasAudioContent: hasAudioContent(lastMessage, state.resultsContext),
     hasVideoContent: hasVideoContent(lastMessage, state.resultsContext),
-    hasPdfContent: hasPdfContent(lastMessage, state.resultsContext),
+    hasPdfContent: hasPdfContent(lastMessage, state.resultsContext, state.includePdf),
+    maxTokensLimit: state.model.advancedParams?.maxTokens,
   });
 
-  sys_msg = new SystemMessage({ content: systemPrompt });
+  const finalSystemPrompt = queryContext
+    ? systemPrompt + "\n\n" + queryContext
+    : systemPrompt;
+  sys_msg = new SystemMessage({ content: finalSystemPrompt });
 
   return {
     messages: state.messages,
@@ -503,12 +524,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
 
   // Handle PDF analysis requests (automatic, not command-based, requires Gemini)
   // This directly returns the PDF analysis without passing to LLM
-  if (hasPdfContent(originalUserMessageForHistory, state.resultsContext)) {
+  if (hasPdfContent(originalUserMessageForHistory, state.resultsContext, state.includePdf)) {
     const pdfResult = await handlePdfAnalysisRequest(
       originalUserMessageForHistory,
       state.model.id,
       state.resultsContext,
       state.messages,
+      state.includePdf,
     );
 
     // If this is analysis-only (no additional user instructions after PDF), return directly
@@ -566,12 +588,22 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     const stream = await llm_with_tools.stream(messages);
 
     for await (const chunk of stream) {
+      // Stop streaming if abort signal fired
+      if (state.abortSignal?.aborted) break;
+
       // console.log("chunk :>> ", chunk);
       // Use concat to properly merge chunks including tool_call_chunks
       gathered = gathered !== undefined ? concat(gathered, chunk) : chunk;
 
-      // Capture token usage from streaming chunks (only for thinking models where callback is disabled)
-      if (chunk.usage_metadata && state.model.id.includes("+thinking")) {
+      // Capture token usage from streaming chunks
+      // For thinking models, callback is disabled so we must read usage_metadata here.
+      // For Anthropic/Google models, the handleLLMEnd callback doesn't receive usage data reliably.
+      if (
+        chunk.usage_metadata &&
+        (state.model.thinking ||
+          state.model.provider === "Anthropic" ||
+          state.model.provider === "Google")
+      ) {
         if (chunk.usage_metadata.input_tokens) {
           turnTokensUsage.input_tokens += chunk.usage_metadata.input_tokens;
         }
@@ -670,8 +702,15 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     // Non-streaming response
     const response = await llm_with_tools.invoke(messages);
 
-    // Capture token usage from response (only for thinking models where callback is disabled)
-    if (response.usage_metadata && state.model.id.includes("+thinking")) {
+    // Capture token usage from response
+    // For thinking models, callback is disabled so we must read usage_metadata here.
+    // For Anthropic/Google models, the handleLLMEnd callback doesn't receive usage data reliably.
+    if (
+      response.usage_metadata &&
+      (state.model.thinking ||
+        state.model.provider === "Anthropic" ||
+        state.model.provider === "Google")
+    ) {
       if (response.usage_metadata.input_tokens) {
         turnTokensUsage.input_tokens += response.usage_metadata.input_tokens;
       }
@@ -982,7 +1021,8 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       enabledTools: state.enabledTools,
       hasAudioContent: hasAudioContent(lastMessage, updatedResultsContext),
       hasVideoContent: hasVideoContent(lastMessage, updatedResultsContext),
-      hasPdfContent: hasPdfContent(lastMessage, updatedResultsContext),
+      hasPdfContent: hasPdfContent(lastMessage, updatedResultsContext, state.includePdf),
+      maxTokensLimit: state.model.advancedParams?.maxTokens,
     });
 
     sys_msg = new SystemMessage({ content: systemPrompt });

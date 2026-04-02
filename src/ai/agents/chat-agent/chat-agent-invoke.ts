@@ -43,6 +43,9 @@ export interface ChatAgentOptions {
   // Streaming
   streamingCallback?: (content: string) => void;
 
+  // Abort signal to cancel streaming and processing
+  abortSignal?: AbortSignal;
+
   // Tool usage callback
   toolUsageCallback?: (toolInfo: {
     toolName: string;
@@ -111,6 +114,9 @@ export interface ChatAgentOptions {
 
   // Previous state for continuation
   previousState?: Partial<ChatAgentStateType>;
+
+  // Per-session PDF extraction override (independent of global alwaysExtractPdf)
+  includePdf?: boolean;
 }
 
 export interface ChatAgentResult {
@@ -198,6 +204,9 @@ export async function invokeChatAgent(
     // Streaming
     streamingCallback: options.streamingCallback,
 
+    // Abort signal
+    abortSignal: options.abortSignal,
+
     // Tool usage callback
     toolUsageCallback: options.toolUsageCallback,
 
@@ -236,6 +245,9 @@ export async function invokeChatAgent(
     imageEditionMode: options.imageEditionMode ?? false,
     imageGenerationModelId: options.imageGenerationModelId,
     lastGeneratedImageUrl: options.lastGeneratedImageUrl,
+
+    // Per-session PDF extraction override
+    includePdf: options.includePdf,
 
     // Merge previous state if provided
     ...(options.previousState || {}),

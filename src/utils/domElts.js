@@ -19,6 +19,7 @@ import { AppToaster } from "../components/Toaster";
 import {
   chatWithLinkedRefs,
   chatWithQuery,
+  chatWithDatomicQuery,
 } from "../components/full-results-popup";
 import ModelConfigDialog from "../components/model-config/ModelConfigDialog";
 import ModelMigrationDialog from "../components/model-config/ModelMigrationDialog";
@@ -773,6 +774,7 @@ export const displayModelMigrationDialog = (
 // Query Observer for "Ask Query" button
 let queryObserver = null;
 let queryObserverDebounceTimer = null;
+let datomicMenuObserver = null;
 
 /**
  * Extract query block UID from a query title element by traversing up to find .rm-block
@@ -856,6 +858,89 @@ function insertQueryChatButton(titleElement) {
 }
 
 /**
+ * Insert a "Chat with results" menu item inside a :q query settings popup menu.
+ * The menu is a .bp3-menu with class .rm-data-table__settings, rendered in a portal.
+ * We find the associated block UID from the popover target (the gear icon inside .rm-data-table).
+ */
+function insertDatomicQueryChatMenuItem(menuElement) {
+  // Check if menu item already exists
+  if (menuElement.querySelector(".ask-datomic-query-menu-item")) {
+    return;
+  }
+
+  // The menu is rendered inside a .bp3-portal > .bp3-overlay > .bp3-popover.
+  // The popover target (gear icon) is the element that triggered it.
+  // We find the block UID by looking at the .bp3-popover-target or the
+  // currently open popover's reference in the DOM.
+  // Strategy: find the .rm-data-table element that has an open popover target
+  const popoverWrapper = menuElement.closest(".bp3-popover");
+  let queryBlockUid = null;
+
+  if (popoverWrapper) {
+    // Blueprint v3: the popover and target are siblings inside a .bp3-popover-wrapper
+    const wrapper = popoverWrapper.closest(".bp3-popover-wrapper");
+    if (wrapper) {
+      const blockElement = wrapper.closest(".rm-block");
+      if (blockElement) {
+        queryBlockUid = blockElement.getAttribute("data-block-uid");
+      }
+    }
+  }
+
+  // Fallback: find any .rm-data-table whose settings button has aria-expanded or is active
+  if (!queryBlockUid) {
+    const openTarget = document.querySelector(
+      ".rm-data-table .bp3-popover-wrapper .bp3-popover-open",
+    );
+    if (openTarget) {
+      const blockElement = openTarget.closest(".rm-block");
+      if (blockElement) {
+        queryBlockUid = blockElement.getAttribute("data-block-uid");
+      }
+    }
+  }
+
+  if (!queryBlockUid) return;
+
+  // Add a divider before our menu item
+  const divider = document.createElement("li");
+  divider.className = "bp3-menu-divider";
+  menuElement.appendChild(divider);
+
+  // Create a bp3 menu item with label icon on the right
+  const menuItem = document.createElement("li");
+  menuItem.className = "ask-datomic-query-menu-item";
+
+  ReactDOM.render(
+    <a
+      className="bp3-menu-item"
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          await chatWithDatomicQuery({ queryBlockUid });
+        } catch (error) {
+          console.error("Error invoking :q query chat:", error);
+          AppToaster.show({
+            message: `Failed to chat with :q query results: ${error.message}`,
+            intent: "warning",
+            timeout: 5000,
+          });
+        }
+      }}
+    >
+      <div className="bp3-text-overflow-ellipsis bp3-fill">
+        Chat with results
+      </div>
+      <span className="bp3-icon bp3-icon-chat bp3-icon-standard bp3-menu-item-label" />
+    </a>,
+    menuItem,
+  );
+
+  menuElement.appendChild(menuItem);
+}
+
+/**
  * Scan DOM and insert buttons for all query titles
  */
 function processQueryTitles() {
@@ -866,7 +951,7 @@ function processQueryTitles() {
 }
 
 /**
- * Connect the MutationObserver for query titles
+ * Connect the MutationObserver for query titles and :q settings menus
  */
 export function connectQueryObserver() {
   // Disconnect any existing observer
@@ -881,9 +966,8 @@ export function connectQueryObserver() {
   // Process any existing query titles
   processQueryTitles();
 
-  // Create observer to watch for new query titles
+  // Observer for native query titles (inside .roam-app)
   queryObserver = new MutationObserver((mutations) => {
-    // Debounce to avoid excessive processing
     if (queryObserverDebounceTimer) {
       clearTimeout(queryObserverDebounceTimer);
     }
@@ -893,6 +977,28 @@ export function connectQueryObserver() {
   });
 
   queryObserver.observe(targetNode, {
+    childList: true,
+    subtree: true,
+  });
+
+  // Separate observer for :q settings menus rendered in portals (on document.body)
+  // These .bp3-menu.rm-data-table__settings pop up in .bp3-portal outside .roam-app
+  datomicMenuObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        // Check if the added node is or contains a :q settings menu
+        const menu = node.matches?.(".rm-data-table__settings")
+          ? node
+          : node.querySelector?.(".rm-data-table__settings");
+        if (menu) {
+          insertDatomicQueryChatMenuItem(menu);
+        }
+      }
+    }
+  });
+
+  datomicMenuObserver.observe(document.body, {
     childList: true,
     subtree: true,
   });
@@ -907,6 +1013,10 @@ export function disconnectQueryObserver() {
   if (queryObserver) {
     queryObserver.disconnect();
     queryObserver = null;
+  }
+  if (datomicMenuObserver) {
+    datomicMenuObserver.disconnect();
+    datomicMenuObserver = null;
   }
   if (queryObserverDebounceTimer) {
     clearTimeout(queryObserverDebounceTimer);

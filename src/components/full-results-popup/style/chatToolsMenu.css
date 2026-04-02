@@ -237,3 +237,251 @@
 .bp3-dark .chat-query-badge {
   color: #abb3bf;
 }
+
+/* Vector Store Section */
+.vector-store-section {
+  padding: 8px;
+  background-color: rgba(177, 178, 191, 0.1);
+  border-left: 3px solid #634dbf;
+}
+
+.vector-store-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.vector-store-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.vector-store-header-left span {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.vector-store-content {
+  padding: 8px 0 0 0;
+}
+
+.vector-store-info {
+  font-size: 11px;
+  color: #5c7080;
+  margin-bottom: 8px;
+}
+
+.vector-store-progress {
+  margin-bottom: 8px;
+}
+
+.vector-store-progress .bp3-progress-bar {
+  height: 4px;
+}
+
+.vector-store-progress-text {
+  font-size: 10px;
+  color: #5c7080;
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+/* Database List */
+.vector-db-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.vector-db-item {
+  border: 1px solid rgba(167, 182, 194, 0.25);
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.vector-db-item.disabled {
+  opacity: 0.6;
+}
+
+.vector-db-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.vector-db-item-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.vector-db-item-left .bp3-control.bp3-switch {
+  margin-bottom: 0;
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.vector-db-name {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.vector-db-rename-input {
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #634dbf;
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  width: 120px;
+  background: transparent;
+}
+
+.vector-db-item-right {
+  flex-shrink: 0;
+}
+
+.vector-db-item-actions {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  /* padding-left: 32px; */
+}
+
+.vector-db-item-actions .bp3-button {
+  font-size: 10px;
+}
+
+/* Create new database */
+.vector-db-create {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.vector-db-create-input {
+  flex: 1;
+  font-size: 12px;
+  border: 1px solid rgba(167, 182, 194, 0.4);
+  border-radius: 3px;
+  padding: 4px 8px;
+  outline: none;
+  background: transparent;
+}
+
+.vector-db-create-input:focus {
+  border-color: #634dbf;
+}
+
+/* Dark mode */
+.bp3-dark .vector-store-section {
+  background-color: rgba(99, 77, 191, 0.1);
+}
+
+.bp3-dark .vector-store-info,
+.bp3-dark .vector-store-progress-text {
+  color: #abb3bf;
+}
+
+.bp3-dark .vector-db-item {
+  border-color: rgba(167, 182, 194, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bp3-dark .vector-db-rename-input,
+.bp3-dark .vector-db-create-input {
+  color: #f5f8fa;
+  border-color: rgba(167, 182, 194, 0.3);
+}
+
+.bp3-dark .vector-db-create-input:focus,
+.bp3-dark .vector-db-rename-input:focus {
+  border-color: #634dbf;
+}
+
+/* Vector Store - Get Started (no databases) */
+.vs-get-started {
+  padding: 6px 0;
+}
+
+.vs-get-started-text {
+  font-size: 11px;
+  color: #5c7080;
+  margin: 0 0 8px;
+}
+
+.vs-get-started-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.vs-get-started-warning {
+  font-size: 11px;
+  color: #c23030;
+  margin: 8px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bp3-dark .vs-get-started-text {
+  color: #abb3bf;
+}
+
+/* Vector Search Settings */
+.vs-search-settings {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(167, 182, 194, 0.2);
+  margin-top: 8px;
+}
+
+.vs-search-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vs-search-settings-label {
+  font-size: 11px;
+  color: #5c7080;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.vs-search-settings-input {
+  width: 48px;
+  padding: 2px 4px;
+  font-size: 11px;
+  border: 1px solid rgba(167, 182, 194, 0.4);
+  border-radius: 3px;
+  text-align: center;
+  background: transparent;
+}
+
+.vs-search-settings-input:focus {
+  border-color: #634dbf;
+  outline: none;
+}
+
+.bp3-dark .vs-search-settings-label {
+  color: #abb3bf;
+}
+
+.bp3-dark .vs-search-settings-input {
+  color: #f5f8fa;
+  border-color: rgba(167, 182, 194, 0.3);
+}

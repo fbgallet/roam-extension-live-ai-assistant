@@ -18,11 +18,20 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### 🆕 New in v.29 (April 2026)
+
+- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). Switch with `/council`. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
+- **Vector Search tool**: search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
+- **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table
+- **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
+- **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat
+- **Public API for developers** (`window.LiveAI_API`): other Roam extensions can now leverage Live AI's generative AI capabilities. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
+
 ### 🆕 New in v.27 (February 2026)
 
 - New button to instantly Chat with native query results (similar to Chat with linked references).
 - Models menu & customization entirely revamped
-- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeekSeek models are back.
+- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeepSeek models are back.
 - New button and dropdown to handle thinking effort of reasoning models.
 - New tools for Chat agent (in chat panel):
   - Edition: create Page or blocks, update or detele blocks (with human validation)
@@ -31,7 +40,6 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - New context options in Context menu: 'Siblings', 'Path' (ancestors) and Queries (Roam querie and :q queries)
 - Generate PDF/DOCX/PPTX documents (Anthropic API Key requested)
 - Any message in Chat panel is editable (rendered as Roam blocks)
-- Fixed a lot of bugs
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -40,7 +48,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 1. [GETTING STARTED](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#1-getting-started)
 2. [Model-Specific Features (Voice, Web search, Image, PDF)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#2-model-specific-features-voice-web-search-image)
 3. [Going further to get better answers](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#3-going-further-to-get-better-answers)
-4. [Agents (Query agents, Ask Your Graph and Live Outliner)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
+4. [Agents (Query agents, Ask Your Graph, Live Outliner and LLM Council)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#4-agents)
 5. [Security concerns](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#5-security-concerns)
 6. [Detailed documentation and advanced uses](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#6-detailed-documentation-for-advanced-uses)
 
@@ -65,7 +73,7 @@ Obtaining an API key is a simple operation, accessible to any user. Follow the [
 
 ### Your first prompts using the Chat panel
 
-🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! Just write your request and press Enter!
+🆕 You can simply click on the Chat icon in the left sidebar to start an ephemeral conversation right away in the new **Chat panel**! Just write your request and press Enter! Or focus on a given block containing your prompt and click on Chat icon.
 
 See the demo .gif [in the introduction section](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/README.md#live-ai). N.B.: in this demo the Live AI buttons are in the top bar instead of left sidebar (you can switch in the extension settings)
 
@@ -76,6 +84,8 @@ Since v.22, it's the easiest entry point to Live AI. You can set hotkeys via Roa
 > You can even be guided by the Chat Agent to discover all the new features! Verify that 'Get help' tool is enabled, and just ask questions. The agent will rely on this help file and other Live AI detailed help file support you in learning how to use this extension!
 
 <img width="595" height="706" alt="image" src="https://github.com/user-attachments/assets/e8bb7b43-ed80-4017-9b1c-bbea53af5504" />
+
+You can easily add blocks to the context by a simple drag & drop of any block or selection of blocks to the Chat panel. If context handling tools are enabled, you can simply ask in natural language to add to the context some [[page]], current page or date interval of daily notes. You can easily switch to the Context panel (mouse over the left border) to filter, sort or add any blocks or page to the context manually or with natural language queries.
 
 ### Your first prompts using buttons
 
@@ -422,7 +432,8 @@ Examples of request:
 - <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
 
 - A button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results (reproducing the current filters), allowing to filter/select some of them and chat with them!
-- You can also chat with the results of an existing query thanks to a new chat button (v.27) or ask to generate a :q query directly in the Chat panel (via Natural language :q query buil-in prompt), and the results will be loaded in the context.
+- You can also chat with the results of an existing query thanks to a new chat button (v.27) or ask to generate a :q query directly in the Chat panel (via Natural language :q query built-in prompt), and the results will be loaded in the context.
+- **New in v.29**: For `:q` Datomic query tables, a "Chat with results" option is available in the three-dots menu of the query table. It executes the query, resolves both string UIDs and numeric entity IDs from the results, and opens the Chat panel with those results as context.
 - Each user query can be saved for further exploration and the 3 most recents queries remain available. Each query can also be combined with other queries or completed by specific pages or blocks. Run "Open results view" command to load and chat with saved queries.
 
 #### **Control the privacy level of your agent usage**:
@@ -478,6 +489,11 @@ With Live AI, you generally have control over what you decide to send or not to 
 3. [MCP Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/mcp-agent.md)
 4. [Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/chat-agent.md)
 5. [Skills for Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md)
+6. [LLM Council](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
+
+- **For Developers**
+
+1. [Public API for Roam extensions (`window.LiveAI_API`)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md) — Allow other Roam extensions to use Live AI models programmatically
 
 - **LLM Providers**
 
