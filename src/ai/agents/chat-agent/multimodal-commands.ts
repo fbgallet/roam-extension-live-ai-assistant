@@ -752,7 +752,11 @@ export async function handleVideoAnalysisRequest(
 export function hasPdfContent(
   userPrompt: string,
   resultsContext: any[] | undefined,
+  includePdfOverride?: boolean,
 ): boolean {
+  // Use per-session override if provided, otherwise fall back to global setting
+  const effectiveAlwaysExtractPdf = includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
+
   // Check if user prompt contains PDF in Roam format: {{[[pdf]]: url}} or direct PDF URL
   pdfLinkRegex.lastIndex = 0;
   const pdfInPrompt = pdfLinkRegex.test(userPrompt);
@@ -765,7 +769,7 @@ export function hasPdfContent(
 
   // Check if resultsContext contains PDF files
   // When alwaysExtractPdf is enabled, check context even without explicit mention
-  if (resultsContext && resultsContext.length > 0 && (mentionsPdf || alwaysExtractPdf)) {
+  if (resultsContext && resultsContext.length > 0 && (mentionsPdf || effectiveAlwaysExtractPdf)) {
     for (const result of resultsContext) {
       const content = result.content || result.text || "";
 
@@ -790,7 +794,11 @@ export function hasPdfContent(
 function extractPdfUrls(
   userPrompt: string,
   resultsContext: any[] | undefined,
+  includePdfOverride?: boolean,
 ): string[] {
+  // Use per-session override if provided, otherwise fall back to global setting
+  const effectiveAlwaysExtractPdf = includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
+
   const pdfUrls: string[] = [];
 
   // Extract from user prompt - Roam format {{[[pdf]]: url}} or direct PDF URLs
@@ -803,7 +811,7 @@ function extractPdfUrls(
 
   // Extract from resultsContext if user mentions PDF or alwaysExtractPdf is enabled
   const mentionsPdf = /\b(pdf|document|paper)\b/i.test(userPrompt);
-  if (resultsContext && resultsContext.length > 0 && (mentionsPdf || alwaysExtractPdf)) {
+  if (resultsContext && resultsContext.length > 0 && (mentionsPdf || effectiveAlwaysExtractPdf)) {
     for (const result of resultsContext) {
       const content = result.content || result.text || "";
 
@@ -837,6 +845,7 @@ export async function handlePdfAnalysisRequest(
   modelId: string,
   resultsContext: any[] | undefined,
   currentMessages: any[],
+  includePdfOverride?: boolean,
 ): Promise<MultimodalCommandResult & { isAnalysisOnly?: boolean }> {
   // Check if Gemini model is being used (required for PDF)
   if (!modelId.toLowerCase().includes("gemini")) {
@@ -863,7 +872,7 @@ export async function handlePdfAnalysisRequest(
   }
 
   // Extract PDF URLs from prompt and context
-  const pdfUrls = extractPdfUrls(originalUserPrompt, resultsContext);
+  const pdfUrls = extractPdfUrls(originalUserPrompt, resultsContext, includePdfOverride);
 
   if (pdfUrls.length === 0) {
     // No PDF found - return without modification

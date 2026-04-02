@@ -34,6 +34,10 @@ import { BUILTIN_STYLES } from "../../../../ai/styleConstants";
 import { getDisplayName } from "../../../../ai/modelRegistry";
 import { CouncilConfig } from "../../../../ai/agents/council-agent/council-types";
 import {
+  AdvancedOptionsMenu,
+  AdvancedOptionsState,
+} from "./AdvancedOptionsMenu";
+import {
   isThinkingModel,
   hasThinkingDefault,
 } from "../../../../ai/modelRegistry";
@@ -96,6 +100,9 @@ interface ChatInputAreaProps {
   councilConfig?: CouncilConfig;
   onCouncilConfigChange?: (config: CouncilConfig) => void;
   onChatModeSetCouncil?: () => void;
+  // Advanced options
+  advancedOptions?: AdvancedOptionsState;
+  onAdvancedOptionsChange?: (options: AdvancedOptionsState) => void;
 }
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -141,6 +148,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   councilConfig,
   onCouncilConfigChange,
   onChatModeSetCouncil,
+  advancedOptions,
+  onAdvancedOptionsChange,
 }) => {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCommandSuggestOpen, setIsCommandSuggestOpen] = useState(false);
@@ -1100,6 +1109,20 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             }}
           />
         </Tooltip>
+        {advancedOptions && onAdvancedOptionsChange && (
+          <div style={{ marginLeft: "auto" }}>
+            <Tooltip
+              content="Advanced options"
+              openOnTargetFocus={false}
+            >
+              <AdvancedOptionsMenu
+                options={advancedOptions}
+                onOptionsChange={onAdvancedOptionsChange}
+                selectedModel={selectedModel}
+              />
+            </Tooltip>
+          </div>
+        )}
       </div>
 
       {/* Future evolution: Chat Mode vs Deep Analysis - currently hidden

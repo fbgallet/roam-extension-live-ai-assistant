@@ -59,6 +59,13 @@ import {
 import { generateNLQuery } from "../../../../ai/agents/nl-query";
 import { generateNLDatomicQuery } from "../../../../ai/agents/nl-datomic-query";
 import { isFileExportRequest } from "../../../../ai/agents/chat-agent/multimodal-commands";
+import {
+  AdvancedOptionsState,
+  getDefaultAdvancedOptions,
+  getActiveAdvancedParams,
+  getIncludePdfOverride,
+} from "./AdvancedOptionsMenu";
+import { alwaysExtractPdf } from "../../../..";
 
 interface FullResultsChatProps {
   isOpen: boolean;
@@ -1308,6 +1315,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
     return hasThinkingDefault(selectedModel);
   });
+
+  // Advanced options (per-session, reset on new chat)
+  const [advancedOptions, setAdvancedOptions] = useState<AdvancedOptionsState>(
+    () => getDefaultAdvancedOptions(alwaysExtractPdf),
+  );
 
   // Track enabled/disabled state for each tool
   const [enabledTools, setEnabledTools] = useState<Set<string>>(() => {
@@ -3019,12 +3031,18 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         console.log(`🔧 [Chat] Force-enabling tool '${forcedToolName}' for this turn. Effective tools:`, Array.from(effectiveEnabledTools));
       }
 
-      // Invoke the chat agent (race with abort if available)
-      const agentInvocation = invokeChatAgent({
-        model: modelAccordingToProvider(
+      // Build model with per-session advanced params
+      const modelForInvocation = {
+        ...modelAccordingToProvider(
           commandModelFromCall || selectedModel,
           thinkingEnabled,
         ),
+        advancedParams: getActiveAdvancedParams(advancedOptions),
+      };
+
+      // Invoke the chat agent (race with abort if available)
+      const agentInvocation = invokeChatAgent({
+        model: modelForInvocation,
         userMessage: message,
 
         // Chat session ID for multi-turn image editing
@@ -3047,6 +3065,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           contentAccess: chatAccessMode === "Full Access",
           noTruncation,
         },
+
+        // Per-session PDF extraction override
+        includePdf: getIncludePdfOverride(advancedOptions),
 
         // Conversation state from previous turns
         conversationHistory: currentConversationHistory,
@@ -3814,6 +3835,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onCouncilConfigChange={handleCouncilConfigChange}
         onSaveChat={() => insertConversationInRoam()}
         onSaveChatDNP={() => insertConversationInRoam(true)}
+        advancedOptions={advancedOptions}
+        onAdvancedOptionsChange={setAdvancedOptions}
       />
     </div>
   );

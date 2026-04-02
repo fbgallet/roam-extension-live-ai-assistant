@@ -4339,6 +4339,21 @@ textarea.bp3-input.full-results-chat-input::-webkit-scrollbar-thumb:hover {
   flex-shrink: 0;
 }
 
+/* Advanced options menu */
+.advanced-options-menu .advanced-option-row {
+  padding: 4px 0;
+}
+.advanced-options-menu .bp3-switch {
+  margin-bottom: 0;
+  font-size: 12px;
+}
+.advanced-options-menu .bp3-slider {
+  min-width: 180px;
+}
+.advanced-options-menu .bp3-numeric-input {
+  max-width: 140px;
+}
+
 /* Enhanced modal layout for chat */
 .full-results-modal {
   border-radius: 8px;

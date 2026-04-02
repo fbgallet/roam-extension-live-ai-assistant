@@ -1427,7 +1427,7 @@ export default {
     if (extensionAPI.settings.get("defaultImageModel") === null)
       await extensionAPI.settings.set(
         "defaultImageModel",
-        "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image-preview",
       );
     defaultImageModel = extensionAPI.settings.get("defaultImageModel");
     // Removed: webModel is now automatically determined based on default model and configuration

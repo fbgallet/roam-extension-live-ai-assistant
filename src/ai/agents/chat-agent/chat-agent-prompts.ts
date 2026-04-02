@@ -25,6 +25,7 @@ export const buildChatSystemPrompt = async ({
   style,
   toolsEnabled,
   conversationContext,
+  maxTokensLimit,
   resultsContext,
   activeSkillInstructions,
   enabledTools,
@@ -45,6 +46,7 @@ export const buildChatSystemPrompt = async ({
   hasAudioContent?: boolean;
   hasVideoContent?: boolean;
   hasPdfContent?: boolean;
+  maxTokensLimit?: number;
 }): Promise<string> => {
   // Different base prompt depending on whether we have search results context
   // Add results context if available
@@ -295,7 +297,10 @@ When the user provides PDF files (either directly in their message or in the con
     systemPrompt += `\n\n## Response Style\n\n${await getStylePrompt(style)}`;
   }
 
-  // console.log("Complete systemPrompt :>> ", systemPrompt);
+  if (maxTokensLimit) {
+    const approxChars = Math.round(maxTokensLimit * 3.5);
+    systemPrompt += `\n\n## Response Length Constraint\nYour response is limited to a maximum of **${maxTokensLimit} tokens** (approximately **${approxChars} characters** in English). You MUST keep your response concise enough to fit within this limit. Prioritize completeness over detail — deliver a full, coherent answer rather than a detailed one that gets cut off. If the topic is too broad, summarize key points and offer to elaborate.`;
+  }
 
   return systemPrompt;
 };

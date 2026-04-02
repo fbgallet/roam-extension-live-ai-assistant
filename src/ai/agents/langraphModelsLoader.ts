@@ -8,6 +8,13 @@ import { updateTokenCounter } from "../modelsInfo";
 import { modelTemperature, reasoningEffort } from "../..";
 import { usesAdaptiveThinking, getMaxOutput } from "../modelRegistry";
 
+export interface AdvancedModelParams {
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
+  presencePenalty?: number;
+}
+
 export interface LlmInfos {
   provider: string;
   prefix: string;
@@ -15,6 +22,7 @@ export interface LlmInfos {
   name: string;
   library: any;
   thinking?: boolean;
+  advancedParams?: AdvancedModelParams;
 }
 
 export interface TokensUsage {
@@ -57,7 +65,10 @@ export function modelViaLanggraph(
   });
 
   let options: any = {
-    callbackManager: !llmInfos.thinking ? tokensUsageCallback : null,
+    callbackManager:
+      !llmInfos.thinking && llmInfos.provider !== "Google"
+        ? tokensUsageCallback
+        : null,
     maxRetries: 2,
   };
   if (llmInfos.provider !== "ollama") options.apiKey = llmInfos.library?.apiKey;
@@ -76,7 +87,22 @@ export function modelViaLanggraph(
   //     callbackManager: tokensUsageCallback,
   //   };
 
-  // console.log("llmInfos in langgraphModelsLoader :>> ", llmInfos);
+  // Apply per-session advanced parameters (override globals) — except maxTokens which is applied after provider setup
+  const adv = llmInfos.advancedParams;
+  if (adv) {
+    // Anthropic throws if temperature or topP are set when thinking is enabled
+    const isAnthropicThinking =
+      llmInfos.provider === "Anthropic" && llmInfos.thinking;
+    if (adv.temperature !== undefined && !isAnthropicThinking)
+      options.temperature = adv.temperature;
+    if (adv.topP !== undefined && !isAnthropicThinking)
+      options.topP = adv.topP;
+    // presencePenalty: only supported by OpenAI-compatible providers (OpenAI, Ollama, DeepSeek)
+    // Silently ignored by Anthropic/Google, so safe to set unconditionally
+    if (adv.presencePenalty !== undefined)
+      options.presencePenalty = adv.presencePenalty;
+    // maxTokens is applied after LLM construction — see below
+  }
 
   if (
     llmInfos.provider === "OpenAI" ||
@@ -187,7 +213,34 @@ export function modelViaLanggraph(
       baseUrl: llmInfos.library.baseURL,
     });
   }
-  // console.log("options :>> ", options);
+  // Apply per-session maxTokens override after LLM construction
+  // (must be done after provider-specific setup which may set its own maxTokens)
+  if (adv?.maxTokens !== undefined && llm) {
+    const isOpenAILike =
+      llmInfos.provider === "OpenAI" ||
+      llmInfos.provider === "custom" ||
+      llmInfos.provider === "groq" ||
+      llmInfos.provider === "Grok" ||
+      llmInfos.provider === "openRouter";
+    if (isOpenAILike) {
+      // Newer OpenAI models reject max_tokens and require max_completion_tokens.
+      // LangChain only maps to max_completion_tokens for o1/o3, so we:
+      // 1. Set maxTokens = -1 to suppress LangChain's max_tokens param
+      // 2. Inject max_completion_tokens via modelKwargs (spread into API params)
+      (llm as any).maxTokens = -1;
+      (llm as any).modelKwargs = {
+        ...(llm as any).modelKwargs,
+        max_completion_tokens: adv.maxTokens,
+      };
+    } else if (llmInfos.provider === "Google") {
+      // Google GenAI uses maxOutputTokens
+      (llm as any).maxOutputTokens = adv.maxTokens;
+    } else {
+      // Anthropic, DeepSeek, Ollama: override maxTokens directly
+      (llm as any).maxTokens = adv.maxTokens;
+    }
+  }
+
   return llm;
 }
 

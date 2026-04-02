@@ -21,11 +21,11 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ### 🆕 New in v.29 (April 2026)
 
 - **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). Switch with `/council`. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
-- **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat — e.g., "run Sb Daily on today's page". Supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.
 - **Vector Search tool**: search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
+- **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table
 - **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
-- **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table, opening the Chat panel with query results loaded as context. The `:q` query NL interpreter in Chat now also supports Roam-specific variables (`current/*`, `ms/*`, `dnp/*`) and rules (`refs-page`, `created-by`, etc.).
-- Improved tool feedback in chat: human-readable summaries instead of raw parameters.
+- **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat
+- **Public API for developers** (`window.LiveAI_API`): other Roam extensions can now leverage Live AI's generative AI capabilities. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
 
 ### 🆕 New in v.27 (February 2026)
 

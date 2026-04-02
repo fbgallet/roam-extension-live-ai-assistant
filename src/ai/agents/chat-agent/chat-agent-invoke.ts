@@ -114,6 +114,9 @@ export interface ChatAgentOptions {
 
   // Previous state for continuation
   previousState?: Partial<ChatAgentStateType>;
+
+  // Per-session PDF extraction override (independent of global alwaysExtractPdf)
+  includePdf?: boolean;
 }
 
 export interface ChatAgentResult {
@@ -242,6 +245,9 @@ export async function invokeChatAgent(
     imageEditionMode: options.imageEditionMode ?? false,
     imageGenerationModelId: options.imageGenerationModelId,
     lastGeneratedImageUrl: options.lastGeneratedImageUrl,
+
+    // Per-session PDF extraction override
+    includePdf: options.includePdf,
 
     // Merge previous state if provided
     ...(options.previousState || {}),

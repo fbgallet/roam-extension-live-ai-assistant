@@ -98,6 +98,9 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.29 🎉
 #### **Improved Tool Feedback**
 - Tool usage display now shows human-readable summaries instead of raw parameters (e.g., "1 daily note(s)" instead of "dailynotes_count: 1")
 
+#### **Public API for Developers**
+- **LiveAI API** (\`window.LiveAI_API\`): other Roam extensions can now leverage Live AI's generative AI capabilities — generate text, parse to Roam blocks, insert content, stream responses, and use Roam context — all without needing their own API keys. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
+
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
 #### **How to support my work ?**
