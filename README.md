@@ -491,6 +491,10 @@ With Live AI, you generally have control over what you decide to send or not to 
 5. [Skills for Chat Agent](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md)
 6. [LLM Council](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
 
+- **For Developers**
+
+1. [Public API for Roam extensions (`window.LiveAI_API`)](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md) — Allow other Roam extensions to use Live AI models programmatically
+
 - **LLM Providers**
 
 1. [Get API Keys](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/api-keys-and-pricing.md#get-api-keys)

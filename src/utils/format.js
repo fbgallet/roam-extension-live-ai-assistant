@@ -84,6 +84,360 @@ export const splitParagraphs = (str) => {
   return str.split(`\n\n`);
 };
 
+/**
+ * Pure function: parse markdown/LLM text into a Roam block tree structure.
+ * Returns an array of { string, children: [] } objects without creating Roam blocks.
+ * Used by the Public API (window.LiveAI_API) for the "blocks" output mode.
+ */
+export function textToBlockTree(text) {
+  if (!text || typeof text !== "string") return [];
+
+  const lines = text.split("\n");
+  let inCodeBlock = false;
+  let blockType = null;
+  let codeBlockContent = "";
+  let codeBlockBaseIndent = 0;
+  let isInListCodeBlock = false;
+  let inCallout = false;
+  let calloutContent = "";
+  let calloutIndentLevel = 0;
+  let minTitleLevel = null;
+
+  // Root node that holds all top-level blocks
+  const root = { string: "", children: [] };
+  // Stack tracks current nesting: each entry is { level, node }
+  let stack = [{ level: 0, node: root }];
+  const hierarchyTracker = new Map();
+
+  // First pass: find minimum heading level
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine && !inCodeBlock) continue;
+    const headerMatch = trimmedLine.match(/^(#{1,6})\s+/);
+    if (headerMatch) {
+      const headerLevel = headerMatch[1].length;
+      minTitleLevel =
+        minTitleLevel === null
+          ? headerLevel
+          : Math.min(minTitleLevel, headerLevel);
+    }
+  }
+  minTitleLevel = minTitleLevel || 1;
+  inCodeBlock = false;
+
+  function addChildToParent(parentNode, content) {
+    const newNode = { string: content, children: [] };
+    parentNode.children.push(newNode);
+    return newNode;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Code block accumulation
+    if (inCodeBlock) {
+      const trimmedLine = line.trim();
+      if (
+        (blockType === "code" && trimmedLine.startsWith("```")) ||
+        (blockType === "katex" &&
+          (trimmedLine === "$$" || trimmedLine.endsWith("$$")))
+      ) {
+        inCodeBlock = false;
+        blockType = null;
+        isInListCodeBlock = false;
+        codeBlockContent += "\n" + trimmedLine;
+
+        const parentNode =
+          stack.length > 0 ? stack[stack.length - 1].node : root;
+        const newNode = addChildToParent(parentNode, codeBlockContent);
+        const level = stack.length > 0 ? stack[stack.length - 1].level + 1 : 1;
+        hierarchyTracker.set(i, {
+          level,
+          node: newNode,
+          isHeader: false,
+          headerLevel: null,
+          indentLevel: Math.floor(line.match(/^ */)[0].length / 2),
+          isCodeBlock: true,
+        });
+        codeBlockContent = "";
+        continue;
+      } else {
+        if (!line.trim()) {
+          codeBlockContent += "\n";
+        } else {
+          const leadingSpaces = line.match(/^ */)[0].length;
+          const relativeIndent = Math.max(0, leadingSpaces - codeBlockBaseIndent);
+          const adjustedLine = " ".repeat(relativeIndent) + line.trimStart();
+          codeBlockContent += "\n" + adjustedLine;
+        }
+        continue;
+      }
+    }
+
+    // Callout accumulation
+    if (inCallout) {
+      const trimmedForCallout = line.trimStart();
+      const isNewCallout = trimmedForCallout.match(calloutRegex);
+      const isIndentedListItem =
+        line.match(/^ /) && trimmedForCallout.match(/^[-•*\d]/);
+      if (!line.trim() || isNewCallout || isIndentedListItem) {
+        inCallout = false;
+        while (
+          stack.length > 1 &&
+          stack[stack.length - 1].level > calloutIndentLevel
+        ) {
+          stack.pop();
+        }
+        const parentNode =
+          stack.length > 0 ? stack[stack.length - 1].node : root;
+        const newNode = addChildToParent(parentNode, calloutContent);
+        const calloutLevel = calloutIndentLevel + 1;
+        stack.push({ level: calloutLevel, node: newNode });
+        hierarchyTracker.set(i - 1, {
+          level: calloutLevel,
+          node: newNode,
+          indentLevel: calloutIndentLevel,
+          isHeader: false,
+          headerLevel: null,
+          isList: false,
+          listMatchType: null,
+          isCodeBlock: false,
+          isCallout: true,
+        });
+        calloutContent = "";
+        if (!line.trim()) continue;
+      } else {
+        calloutContent += "\n" + line.trimStart();
+        continue;
+      }
+    }
+
+    if (!line.trim()) continue;
+
+    const leadingSpaces = line.match(/^ */)[0].length;
+    const indentLevel = Math.floor(leadingSpaces / 2);
+    let trimmedLine = line.trimStart();
+
+    // Callout start
+    if (trimmedLine.match(calloutRegex)) {
+      while (stack.length > 1 && stack[stack.length - 1].level > indentLevel) {
+        stack.pop();
+      }
+      inCallout = true;
+      calloutContent = trimmedLine;
+      calloutIndentLevel = indentLevel;
+      continue;
+    }
+
+    // Code/KaTeX block start
+    if (
+      trimmedLine.startsWith("```") ||
+      trimmedLine.startsWith("$$") ||
+      (trimmedLine.includes("$$") &&
+        !trimmedLine.match(/\$\$.*\$\$/) &&
+        !trimmedLine.endsWith("$$"))
+    ) {
+      if (
+        trimmedLine.includes("$$") &&
+        trimmedLine.match(/\$\$.*\$\$/) &&
+        !trimmedLine.includes("\\begin")
+      ) {
+        // Single-line Katex, treat as normal
+      } else {
+        inCodeBlock = true;
+        isInListCodeBlock = false;
+        if (trimmedLine.startsWith("```")) {
+          blockType = "code";
+          codeBlockContent = trimmedLine;
+          codeBlockBaseIndent = leadingSpaces;
+        } else {
+          blockType = "katex";
+          if (trimmedLine.includes("$$") && !trimmedLine.startsWith("$$")) {
+            const katexStart = trimmedLine.indexOf("$$");
+            codeBlockContent = trimmedLine.substring(katexStart);
+          } else {
+            codeBlockContent = trimmedLine;
+          }
+          codeBlockBaseIndent = leadingSpaces;
+        }
+        continue;
+      }
+    }
+
+    // Line analysis
+    let content = trimmedLine;
+    let hierarchyLevel = indentLevel;
+    let isHeader = false;
+    let headerLevel = null;
+    let isList = false;
+    let listMatchType = null;
+
+    const headerMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+    if (headerMatch) {
+      headerLevel = headerMatch[1].length;
+      content = headerMatch[2].trim();
+      hierarchyLevel = headerLevel - minTitleLevel;
+      isHeader = true;
+    } else if (trimmedLine.match(/^\d+[.)]\s+/)) {
+      content = trimmedLine.replace(/^\d+[.)]\s+/, "");
+      listMatchType = "numeric";
+      isList = true;
+    } else if (trimmedLine.match(/^[a-zA-Z][.)]\s+/)) {
+      content = trimmedLine.replace(/^[a-zA-Z][.)]\s+/, "");
+      listMatchType = "alpha";
+      isList = true;
+    } else if (trimmedLine.match(/^[ivx]+[.)]\s+|^[IVX]+[.)]\s+/i)) {
+      content = trimmedLine.replace(/^[ivx]+[.)]\s+|^[IVX]+[.)]\s+/i, "");
+      listMatchType = "roman";
+      isList = true;
+    } else if (
+      trimmedLine.match(/^[-•*]\s+/) &&
+      !trimmedLine.match(/^[-•*]\s+```/)
+    ) {
+      content = trimmedLine.replace(/^[-•*]\s+/, "");
+      listMatchType = "bullet";
+      isList = true;
+    } else if (trimmedLine.match(/^[-•*]\s+```/)) {
+      const codeStart = trimmedLine.replace(/^[-•*]\s+/, "");
+      inCodeBlock = true;
+      blockType = "code";
+      codeBlockContent = codeStart;
+      isInListCodeBlock = true;
+      codeBlockBaseIndent = leadingSpaces + 2;
+      continue;
+    }
+
+    // Determine correct parent
+    if (isHeader) {
+      while (
+        stack.length > 1 &&
+        stack[stack.length - 1].level >= hierarchyLevel
+      ) {
+        stack.pop();
+      }
+    } else {
+      let targetLevel = hierarchyLevel;
+      let foundParent = false;
+
+      for (let j = i - 1; j >= 0; j--) {
+        const prevInfo = hierarchyTracker.get(j);
+        if (!prevInfo) continue;
+
+        if (indentLevel > 0) {
+          if (prevInfo.indentLevel < indentLevel) {
+            targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
+          }
+        } else {
+          if (prevInfo.isHeader) {
+            targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
+          } else if (
+            prevInfo.indentLevel === 0 &&
+            !prevInfo.isList &&
+            !isList
+          ) {
+            targetLevel = prevInfo.level;
+            foundParent = true;
+            break;
+          } else if (prevInfo.indentLevel === 0 && prevInfo.isList && isList) {
+            targetLevel = prevInfo.level;
+            foundParent = true;
+            break;
+          } else if (prevInfo.indentLevel === 0 && !prevInfo.isList && isList) {
+            targetLevel = prevInfo.level + 1;
+            foundParent = true;
+            break;
+          } else if (prevInfo.indentLevel === 0 && prevInfo.isList && !isList) {
+            let beforeListLevel = 1;
+            for (let k = j - 1; k >= 0; k--) {
+              const beforeInfo = hierarchyTracker.get(k);
+              if (
+                beforeInfo &&
+                beforeInfo.indentLevel === 0 &&
+                !beforeInfo.isList
+              ) {
+                beforeListLevel = beforeInfo.level;
+                break;
+              }
+            }
+            targetLevel = beforeListLevel;
+            foundParent = true;
+            break;
+          }
+        }
+      }
+
+      if (!foundParent) {
+        targetLevel = stack.length > 0 ? stack[stack.length - 1].level + 1 : 1;
+      }
+
+      hierarchyLevel = targetLevel;
+
+      while (
+        stack.length > 1 &&
+        stack[stack.length - 1].level >= hierarchyLevel
+      ) {
+        stack.pop();
+      }
+    }
+
+    // Handle list prefixes (keep them in content like parseAndCreateBlocks does)
+    if (isList) {
+      let listPrefix = "";
+      if (listMatchType === "numeric") {
+        const numMatch = trimmedLine.match(/^(\d+[.)])\s+/);
+        listPrefix = numMatch ? numMatch[1] + " " : "";
+      } else if (listMatchType === "alpha") {
+        const alphaMatch = trimmedLine.match(/^([a-zA-Z][.)])\s+/);
+        listPrefix = alphaMatch ? alphaMatch[1] + " " : "";
+      } else if (listMatchType === "roman") {
+        const romanMatch = trimmedLine.match(
+          /^([ivx]+[.]|[IVX]+[.]|[ivx]+[)]|[IVX]+[)])\s+/i
+        );
+        listPrefix = romanMatch ? romanMatch[1] + " " : "";
+      }
+      if (listPrefix) {
+        content = listPrefix + content;
+      }
+    }
+
+    // Add block to tree
+    const parentNode = stack[stack.length - 1].node;
+    const newNode = addChildToParent(parentNode, content);
+
+    stack.push({ level: hierarchyLevel, node: newNode });
+
+    hierarchyTracker.set(i, {
+      level: hierarchyLevel,
+      node: newNode,
+      indentLevel,
+      isHeader,
+      headerLevel,
+      isList,
+      listMatchType,
+      isCodeBlock: false,
+    });
+  }
+
+  // Flush any pending callout
+  if (inCallout && calloutContent) {
+    while (
+      stack.length > 1 &&
+      stack[stack.length - 1].level > calloutIndentLevel
+    ) {
+      stack.pop();
+    }
+    const parentNode =
+      stack.length > 0 ? stack[stack.length - 1].node : root;
+    addChildToParent(parentNode, calloutContent);
+  }
+
+  return root.children;
+}
+
 export const parseAndCreateBlocks = async (
   parentBlockRef,
   text,

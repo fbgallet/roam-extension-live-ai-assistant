@@ -66,6 +66,7 @@ import "./components/full-results-popup/index.tsx"; // Register window.LiveAI.op
 import { initializeHelpDepot } from "./ai/agents/chat-agent/tools/helpDepotUtils";
 import { AppToaster } from "./components/Toaster";
 import { cleanupAllWindowStorage } from "./components/full-results-popup/utils/windowStorage";
+import { initPublicApi, cleanupPublicApi } from "./api/publicApi";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -693,30 +694,6 @@ function getPanelConfig() {
         },
       },
       {
-        id: "alwaysExtractPdf",
-        name: "Always extract PDF content",
-        description:
-          "Automatically extract and include PDF content found in the prompt or context, without needing to check the PDF checkbox each time",
-        action: {
-          type: "switch",
-          onChange: () => {
-            alwaysExtractPdf = !alwaysExtractPdf;
-          },
-        },
-      },
-      {
-        id: "alwaysExtractQuery",
-        name: "Always extract query results",
-        description:
-          "Automatically execute Roam queries and Datomic :q queries found in prompt/context and add results, without needing to check the Queries checkbox each time",
-        action: {
-          type: "switch",
-          onChange: () => {
-            alwaysExtractQuery = !alwaysExtractQuery;
-          },
-        },
-      },
-      {
         id: "defaultStyle",
         name: "Default AI Style",
         description:
@@ -1005,6 +982,30 @@ function getPanelConfig() {
         },
       },
       {
+        id: "alwaysExtractPdf",
+        name: "Always extract PDF content",
+        description:
+          "Automatically extract and include PDF content found in the prompt or context, without needing to check the PDF checkbox each time",
+        action: {
+          type: "switch",
+          onChange: () => {
+            alwaysExtractPdf = !alwaysExtractPdf;
+          },
+        },
+      },
+      {
+        id: "alwaysExtractQuery",
+        name: "Always extract query results",
+        description:
+          "Automatically execute Roam queries and Datomic :q queries found in prompt/context and add results, without needing to check the Queries checkbox each time",
+        action: {
+          type: "switch",
+          onChange: () => {
+            alwaysExtractQuery = !alwaysExtractQuery;
+          },
+        },
+      },
+      {
         id: "uidsInPrompt",
         name: "Uids of blocks in promt/context",
         description:
@@ -1178,6 +1179,22 @@ function getPanelConfig() {
             displayMCPConfigDialog();
           },
           content: "Configure MCP Servers...",
+        },
+      },
+      {
+        id: "enableLiveAI_API",
+        name: "Enable Public API (window.LiveAI_API)",
+        description:
+          "Allow other Roam extensions to use Live AI models via window.LiveAI_API. API keys are never exposed.",
+        action: {
+          type: "switch",
+          onChange: (evt) => {
+            if (evt.target.checked) {
+              initPublicApi();
+            } else {
+              cleanupPublicApi();
+            }
+          },
         },
       },
     ],
@@ -1525,6 +1542,11 @@ export default {
     // Initialize window.LiveAI if it doesn't exist (don't overwrite existing functions)
     if (!window.LiveAI) window.LiveAI = {};
 
+    // Initialize public API if enabled in settings
+    if (extensionAPI.settings.get("enableLiveAI_API")) {
+      initPublicApi();
+    }
+
     initializeContextMenu();
 
     // Add navigation listeners for Ask Linked References button
@@ -1553,6 +1575,9 @@ export default {
 
     // Disconnect all MCP servers (close WebSocket/SSE connections)
     await mcpManager.disconnectAll();
+
+    // Clean up public API
+    cleanupPublicApi();
 
     // Clean up all window object properties (prevent memory leaks)
     cleanupAllWindowStorage();

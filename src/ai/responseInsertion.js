@@ -103,6 +103,9 @@ export async function aiCompletion({
   isButtonToInsert = true,
   includePdfInContext = false,
   thinkingEnabled = undefined,
+  silent = false,
+  onChunk = undefined,
+  streamTo = undefined,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;
@@ -110,7 +113,7 @@ export async function aiCompletion({
   // Pass thinkingEnabled to modelAccordingToProvider so it can update model ID for thinking variants
   const llm = modelAccordingToProvider(model, thinkingEnabled);
   if (!llm) return "";
-  if (isAPIKeyNeeded(llm)) return "";
+  if (isAPIKeyNeeded(llm, silent)) return "";
 
   const lastTurn = Array.isArray(prompt) ? prompt.at(-1).content : prompt;
 
@@ -143,6 +146,8 @@ export async function aiCompletion({
     isButtonToInsert,
     thinking: effectiveThinking,
     includePdfInContext,
+    onChunk,
+    streamTo,
   };
 
   if (llm.provider === "Google") {
