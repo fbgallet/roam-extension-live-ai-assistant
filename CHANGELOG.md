@@ -14,6 +14,7 @@
 - Anthropic models have now 1M context window
 - Stop button in Chat panel
 - Slash commands to force-use tools in Chat panel
+- /clear slash command -> then just press enter to confirm
 - Tool usage display shows more human-readable summaries
 - Advanced parameters in '...' menu in Chat panel (including temperature, top_p, presence_penalty)
 - "What's new" more visible until first click
