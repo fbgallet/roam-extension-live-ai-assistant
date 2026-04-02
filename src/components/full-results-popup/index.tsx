@@ -674,6 +674,148 @@ export const chatWithQuery = async ({
   }
 };
 
+/**
+ * Opens FullResultsPopup with results from a Datomic :q query block.
+ * Reads the block content, extracts the Datomic query, executes it via
+ * roamAlphaAPI.q(), resolves entity IDs to UIDs, and opens the chat popup.
+ *
+ * @param options.queryBlockUid - UID of the :q query block
+ * @param options.model - AI model to use for chat
+ */
+export const chatWithDatomicQuery = async ({
+  queryBlockUid,
+  model,
+}: {
+  queryBlockUid: string;
+  model?: string;
+}) => {
+  try {
+    if (!queryBlockUid) {
+      throw new Error("No query block UID provided");
+    }
+
+    // Read block content to get the :q query
+    const blockContent = getBlockContentByUid(queryBlockUid);
+    if (!blockContent) {
+      throw new Error("Could not read block content");
+    }
+
+    // Extract the Datomic query ([:find ... :where ...])
+    const queryMatch = blockContent.match(/(\[:find[\s\S]*\])/);
+    if (!queryMatch) {
+      throw new Error("Could not find a valid Datomic query in this block");
+    }
+    const datomicQuery = queryMatch[1];
+
+    console.log(
+      `🚀 [chatWithDatomicQuery] Executing :q query from block ${queryBlockUid}`
+    );
+
+    // Execute the query
+    let rawResults;
+    try {
+      rawResults = (window as any).roamAlphaAPI.q(datomicQuery);
+    } catch (queryError: any) {
+      throw new Error(
+        `Query execution failed: ${queryError.message || "Unknown error"}`
+      );
+    }
+
+    if (!rawResults || !Array.isArray(rawResults) || rawResults.length === 0) {
+      console.warn("[chatWithDatomicQuery] Query returned no results");
+      // Still open the popup with empty results
+      await openFullResultsPopup({
+        results: [],
+        rootUid: queryBlockUid,
+        targetUid: queryBlockUid,
+        viewMode: "chat-only",
+        initialChatModel: model,
+        userQuery: `Datomic query results from ((${queryBlockUid}))`,
+      });
+      return;
+    }
+
+    // Resolve raw results to Result objects
+    // Each row may contain string UIDs or numeric entity IDs
+    const results: any[] = [];
+    const seenUids = new Set<string>();
+
+    for (const row of rawResults) {
+      const cells = Array.isArray(row) ? row : [row];
+      for (const cell of cells) {
+        let uid: string | null = null;
+
+        if (
+          typeof cell === "string" &&
+          /^[a-zA-Z0-9_-]{9,12}$/.test(cell)
+        ) {
+          uid = cell;
+        } else if (
+          typeof cell === "number" &&
+          Number.isInteger(cell) &&
+          cell > 0
+        ) {
+          try {
+            const pulled = (window as any).roamAlphaAPI.pull(
+              "[:block/uid]",
+              cell
+            );
+            uid = pulled?.[":block/uid"] || null;
+          } catch {
+            // skip unresolvable entity IDs
+          }
+        }
+
+        if (uid && !seenUids.has(uid)) {
+          seenUids.add(uid);
+          const data = (window as any).roamAlphaAPI.pull(
+            "[:block/uid :block/string :node/title :block/page {:block/page [:block/uid :node/title]}]",
+            [":block/uid", uid]
+          );
+          if (data) {
+            const pageInfo = data[":block/page"];
+            const title = data[":node/title"];
+            results.push(
+              title
+                ? {
+                    uid,
+                    content: title,
+                    text: title,
+                    pageUid: uid,
+                    pageTitle: title,
+                  }
+                : {
+                    uid,
+                    content: data[":block/string"] || "",
+                    text: data[":block/string"] || "",
+                    pageUid: pageInfo?.[":block/uid"] || "",
+                    pageTitle: pageInfo?.[":node/title"] || "",
+                  }
+            );
+            break; // One result per row
+          }
+        }
+      }
+    }
+
+    console.log(
+      `🚀 [chatWithDatomicQuery] Resolved ${results.length} results from ${rawResults.length} rows`
+    );
+
+    await openFullResultsPopup({
+      results,
+      rootUid: queryBlockUid,
+      targetUid: queryBlockUid,
+      viewMode: "chat-only",
+      initialChatModel: model,
+      userQuery: `Datomic query results from ((${queryBlockUid}))`,
+    });
+  } catch (error) {
+    console.error("Error in chatWithDatomicQuery:", error);
+    throw error;
+  }
+};
+
 // Make it globally accessible for command palette
 if (typeof window !== "undefined") {
   if (!(window as any).LiveAI) (window as any).LiveAI = {};
@@ -683,5 +825,6 @@ if (typeof window !== "undefined") {
     prepareFullResultsOrChatOpening;
   (window as any).LiveAI.chatWithLinkedRefs = chatWithLinkedRefs;
   (window as any).LiveAI.chatWithQuery = chatWithQuery;
+  (window as any).LiveAI.chatWithDatomicQuery = chatWithDatomicQuery;
   console.log("✅ Full Results Popup functions registered on window.LiveAI");
 }

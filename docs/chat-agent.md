@@ -491,6 +491,12 @@ The agent can enrich context on-the-fly:
 - Can load daily notes for temporal analysis
 - Executes complex queries when simple tools are insufficient (if `ask_your_graph` is enabled)
 
+**Query results as context**:
+
+- **Native queries**: Click the chat button next to any `{{[[query]]:}}` title to open Chat with the query results as context
+- **Datomic :q queries**: Open the three-dots menu of any `:q` query table and select "Chat with results" to load the query results into a Chat session
+- **NL :q query in Chat**: Use the "Natural language :q Datomic query" built-in command to generate and execute a `:q` query directly in Chat — results are automatically loaded as context. The query supports Roam-specific variables (`current/*`, `ms/*`, `dnp/*`) and rules (`refs-page`, `created-by`, `created-between`, etc.)
+
 **Context View**:
 
 - Switch to context view to see exactly what's in the agent's context

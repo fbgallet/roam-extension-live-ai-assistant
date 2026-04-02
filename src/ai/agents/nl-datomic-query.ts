@@ -51,49 +51,6 @@ const QueryAgentState = Annotation.Root({
   // period: Annotation<PeriodType>,
 });
 
-// const RoamRelativeDates = [
-//   "last month",
-//   "last week",
-//   "yesterday",
-//   "today",
-//   "tomorrow",
-//   "next week",
-//   "next month",
-// ] as const;
-// const querySchema = z.object({
-//   datomicQuery: z
-//     .string()
-//     .describe(
-//       "The query following the precise Roam Research native queries syntax."
-//     ),
-//   period: z
-//     .object({
-//       begin: z
-//         .string()
-//         .describe(
-//           "Date of the beginning of the period, in the format yyyy/mm/dd"
-//         ),
-//       end: z
-//         .string()
-//         .describe("Date of the end of the period, in the format yyyy/mm/dd"),
-//       relative: z
-//         .object({
-//           begin: z.enum(RoamRelativeDates).catch(undefined),
-//           end: z.enum(RoamRelativeDates).catch(undefined),
-//         })
-//         .optional()
-//         .nullable()
-//         .describe(
-//           "Relative dates, only if corresponding to one the available item"
-//         ),
-//     })
-//     .optional()
-//     .nullable()
-//     .describe(
-//       "Restricted period of the request, only if mentioned by the user"
-//     ),
-// });
-
 let llm: StructuredOutputType;
 let turnTokensUsage: TokensUsage;
 
@@ -112,7 +69,7 @@ const interpreter = async (state: typeof QueryAgentState.State) => {
   // const structuredLlm = llm.withStructuredOutput(querySchema, rawOption);
   const sysMsgStr = datomicQuerySystemPrompt.replace(
     "<CURRENT_DATE>",
-    currentDate
+    currentDate,
   );
   const sys_msg = new SystemMessage({
     content: sysMsgStr,
@@ -143,7 +100,7 @@ The user is requesting a new and, if possible, better transcription. Do it by me
       response = await streamClaudeThinkingModel(
         llm,
         messages,
-        turnTokensUsage
+        turnTokensUsage,
       );
     }
   } catch (error) {
@@ -159,68 +116,12 @@ The user is requesting a new and, if possible, better transcription. Do it by me
 
 const formatChecker = async (state: typeof QueryAgentState.State) => {
   let query = state.datomicQuery;
-  // const isClaudeModel = state.model.toLowerCase().includes("claude");
-  // if (isClaudeModel && state.llmResponse.raw?.content) {
-  //   const raw = state.llmResponse.raw.content[0];
-  //   if (!state.llmResponse.parsed) {
-  //     console.log("raw: ", raw);
-  //     if (raw?.input?.period && raw?.input?.datomicQuery) {
-  //       // console.log("raw period: ", raw?.input?.period);
-  //       state.llmResponse.period = JSON.parse(
-  //         balanceBraces(sanitizeClaudeJSON(raw.input.period))
-  //       );
-  //       query = raw?.input?.datomicQuery;
-  //     }
-  //   } else {
-  //     state.llmResponse = state.llmResponse.parsed;
-  //   }
-  // }
   const correctedQuery = balanceBraces(query);
   // console.log("Query after correction :>> ", correctedQuery);
   return {
     datomicQuery: correctedQuery,
   };
 };
-
-// const periodFormater = async (state: typeof QueryAgentState.State) => {
-//   const relative = state.period.relative;
-//   let begin =
-//     relative &&
-//     relative.begin &&
-//     RoamRelativeDates.includes(
-//       state.period.begin as (typeof RoamRelativeDates)[number]
-//     )
-//       ? relative.begin
-//       : getDNPTitleFromDate(new Date(state.period.begin));
-//   let end =
-//     relative &&
-//     relative.end &&
-//     RoamRelativeDates.includes(
-//       state.period.end as (typeof RoamRelativeDates)[number]
-//     )
-//       ? relative.end
-//       : getDNPTitleFromDate(new Date(state.period.end));
-//   let datomicQuery = state.datomicQuery;
-
-//   if (
-//     (begin === "last week" && end === "last week") ||
-//     (begin === "last month" && end === "last month")
-//   ) {
-//     end = "today";
-//   } else if (
-//     (begin === "next week" && end === "next week") ||
-//     (begin === "next month" && end === "next month")
-//   ) {
-//     begin = "today";
-//   }
-//   // if (begin && !RoamRelativeDates.includes(begin)) begin = state.begin;
-//   const formatedQuery = datomicQuery
-//     .replace("<begin>", begin)
-//     .replace("<end>", end);
-//   return {
-//     datomicQuery: formatedQuery,
-//   };
-// };
 
 const insertQuery = async (state: typeof QueryAgentState.State) => {
   console.log("state.datomicQuery :>> ", state.datomicQuery);
@@ -233,7 +134,7 @@ const insertQuery = async (state: typeof QueryAgentState.State) => {
     state.targetUid = await createChildBlock(
       state.rootUid,
       state.datomicQuery,
-      "last"
+      "last",
     );
   }
   return {
@@ -244,16 +145,6 @@ const insertQuery = async (state: typeof QueryAgentState.State) => {
 /*********/
 // EDGES //
 /*********/
-
-// const hasPeriod = (state: typeof QueryAgentState.State) => {
-//   if (state.period) return "periodFormater";
-//   return "insertQuery";
-// };
-
-// const isToCheck = (state: typeof QueryAgentState.State) => {
-//   if (state.period) return "formatChecker";
-//   return "insertQuery";
-// };
 
 // Build graph
 const builder = new StateGraph(QueryAgentState);
@@ -299,13 +190,10 @@ export const generateNLDatomicQuery = async ({
   previousResponse?: string;
 }): Promise<{ datomicQuery: string } | null> => {
   const llmModel: LlmInfos = modelAccordingToProvider(model || defaultModel);
-  // Add restriction for chat mode: the query will be executed programmatically,
-  // so Roam-specific variables and rules are not available
-  const chatPrompt = `${prompt}\n\nIMPORTANT: Don't use Roam-specific database variables (current/*, ms/*, dnp/*) or Roam-specific rules (refs-page, created-by, edited-by, created-between, etc.). Use only pure standard Datomic syntax with direct attribute comparisons.`;
   const response = await NLDatomicQueryInterpreterChatMode.invoke({
     model: llmModel,
     rootUid: rootUid || "",
-    userNLQuery: chatPrompt,
+    userNLQuery: prompt,
     datomicQuery: previousResponse || "",
   });
   if (response?.datomicQuery) {

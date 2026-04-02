@@ -2687,8 +2687,100 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   /**
+   * Parse the :find clause of a Datomic query to extract projected variable names.
+   * Returns an array of variable info objects with name and whether it's an aggregate.
+   */
+  const parseFindClause = (
+    query: string,
+  ): Array<{ name: string; isAggregate: boolean }> => {
+    const findMatch = query.match(
+      /:find\s+(.*?)(?:\s*:(?:where|in|with)|\s*\])/s,
+    );
+    if (!findMatch) return [];
+
+    const findClause = findMatch[1].trim();
+    const variables: Array<{ name: string; isAggregate: boolean }> = [];
+
+    // Match aggregates like (count ?x), (sum ?x), (sample 5 ?x) and plain ?variables
+    const tokenRegex =
+      /\((?:count|sum|avg|min|max|sample\s+\d+|distinct)\s+(\?[\w-]+)\)(?:\s*\.)?|\?[\w-]+/g;
+    let match;
+    while ((match = tokenRegex.exec(findClause)) !== null) {
+      if (match[1]) {
+        // Aggregate — the inner variable
+        variables.push({ name: match[1].substring(1), isAggregate: true });
+      } else {
+        // Plain variable
+        variables.push({
+          name: match[0].substring(1),
+          isAggregate: false,
+        });
+      }
+    }
+    return variables;
+  };
+
+  /**
+   * Resolve a cell value (string UID or numeric entity ID) to a block UID.
+   * Returns the UID string, or null if unresolvable.
+   */
+  const resolveToUid = (cell: unknown): string | null => {
+    if (typeof cell === "string" && /^[a-zA-Z0-9_-]{9,12}$/.test(cell)) {
+      // Already looks like a UID (9-char standard, up to 12 for some edge cases)
+      return cell;
+    }
+    if (typeof cell === "number" && Number.isInteger(cell) && cell > 0) {
+      // Numeric entity ID — resolve via pull
+      try {
+        const pulled = (window as any).roamAlphaAPI.pull(
+          "[:block/uid]",
+          cell,
+        );
+        return pulled?.[":block/uid"] || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Enrich a UID into a full Result object by pulling block/page data.
+   */
+  const enrichUidToResult = (uid: string): Result | null => {
+    const data = (window as any).roamAlphaAPI.pull(
+      "[:block/uid :block/string :node/title :block/page {:block/page [:block/uid :node/title]}]",
+      [":block/uid", uid],
+    );
+    if (!data) return null;
+
+    const pageInfo = data[":block/page"];
+    const title = data[":node/title"];
+
+    if (title) {
+      // This is a page
+      return {
+        uid,
+        content: title,
+        text: title,
+        pageUid: uid,
+        pageTitle: title,
+      };
+    }
+    // This is a block
+    return {
+      uid,
+      content: data[":block/string"] || "",
+      text: data[":block/string"] || "",
+      pageUid: pageInfo?.[":block/uid"] || "",
+      pageTitle: pageInfo?.[":node/title"] || "",
+    };
+  };
+
+  /**
    * Execute a Datomic :q query directly using roamAlphaAPI.q()
-   * Extracts block UIDs from the query results.
+   * Parses the :find clause to understand projected variables, resolves
+   * both string UIDs and numeric entity IDs, and skips aggregates.
    */
   const executeChatDatomicQuery = async (
     queryString: string,
@@ -2704,8 +2796,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         cleanQuery = cleanQuery.substring(2).trim();
       }
 
+      // Remove optional description string (e.g. :q "description"\n[:find ...])
+      cleanQuery = cleanQuery.replace(/^"[^"]*"\s*/, "");
+
       // Extract just the Datomic query part (starts with [:find)
-      // The LLM might include description text before the query
       const queryMatch = cleanQuery.match(/(\[:find[\s\S]*\])/);
       if (queryMatch) {
         cleanQuery = queryMatch[1];
@@ -2715,16 +2809,31 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         );
       }
 
-      console.log("Executing Datomic query:", cleanQuery);
+      // Parse :find clause to understand what each column represents
+      const findVars = parseFindClause(cleanQuery);
+      const isScalarResult = cleanQuery.match(/:find\s+.*\.\s*(?::|\])/s);
+
+      console.log(
+        "Executing Datomic query:",
+        cleanQuery,
+        "| find vars:",
+        findVars.map((v) => (v.isAggregate ? `(agg ${v.name})` : v.name)),
+      );
 
       let rawResults;
       try {
         rawResults = (window as any).roamAlphaAPI.q(cleanQuery);
-      } catch (queryError) {
+      } catch (queryError: any) {
         console.error("Datomic query execution error:", queryError);
         throw new Error(
           `Query execution failed: ${queryError.message || "Unknown error"}`,
         );
+      }
+
+      // Scalar result (e.g. (count ?x) .) — not extractable to context
+      if (isScalarResult && !Array.isArray(rawResults?.[0])) {
+        console.log("Query returned scalar result:", rawResults);
+        return [];
       }
 
       if (!rawResults || !Array.isArray(rawResults)) {
@@ -2733,37 +2842,34 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }
 
       console.log(`Query returned ${rawResults.length} rows`);
+      if (rawResults.length === 0) return [];
 
-      if (rawResults.length === 0) {
-        return [];
-      }
+      // Identify which columns contain resolvable entities (non-aggregate)
+      const resolvableIndices = findVars
+        .map((v, i) => (v.isAggregate ? -1 : i))
+        .filter((i) => i >= 0);
 
       const results: Result[] = [];
       const seenUids = new Set<string>();
 
       for (const row of rawResults) {
-        // Each row is an array; look for UIDs (9-character alphanumeric strings)
         const cells = Array.isArray(row) ? row : [row];
-        for (const cell of cells) {
-          const uid =
-            typeof cell === "string" && /^[a-zA-Z0-9_-]{9}$/.test(cell)
-              ? cell
-              : null;
+
+        // Try resolvable columns first (based on :find clause parsing)
+        const indicesToTry =
+          resolvableIndices.length > 0
+            ? resolvableIndices
+            : cells.map((_, i) => i);
+
+        for (const idx of indicesToTry) {
+          if (idx >= cells.length) continue;
+          const uid = resolveToUid(cells[idx]);
           if (uid && !seenUids.has(uid)) {
             seenUids.add(uid);
-            const blockData = (window as any).roamAlphaAPI.pull(
-              "[:block/uid :block/string :block/page {:block/page [:block/uid :node/title]}]",
-              [":block/uid", uid],
-            );
-            if (blockData) {
-              const pageInfo = blockData[":block/page"];
-              results.push({
-                uid,
-                content: blockData[":block/string"] || "",
-                text: blockData[":block/string"] || "",
-                pageUid: pageInfo?.[":block/uid"] || "",
-                pageTitle: pageInfo?.[":node/title"] || "",
-              });
+            const result = enrichUidToResult(uid);
+            if (result) {
+              results.push(result);
+              break; // One result per row to avoid duplicates from multi-column projections
             }
           }
         }

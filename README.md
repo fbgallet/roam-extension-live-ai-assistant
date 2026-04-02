@@ -24,6 +24,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat — e.g., "run Sb Daily on today's page". Supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.
 - **Vector Search tool**: search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
 - **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
+- **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table, opening the Chat panel with query results loaded as context. The `:q` query NL interpreter in Chat now also supports Roam-specific variables (`current/*`, `ms/*`, `dnp/*`) and rules (`refs-page`, `created-by`, etc.).
 - Improved tool feedback in chat: human-readable summaries instead of raw parameters.
 
 ### 🆕 New in v.27 (February 2026)
@@ -431,7 +432,8 @@ Examples of request:
 - <img width="800" alt="chat with results" src="https://github.com/user-attachments/assets/cfc9aff7-bf4c-4475-8032-f9872ded5ddd" />
 
 - A button on top-right of linked references allow to ""**Ask Linked References of current page**" (or if no block is focused, clicking on Ask Your Graph icon or running the corresponding command from the context menu): it opens linked references in the full view results (reproducing the current filters), allowing to filter/select some of them and chat with them!
-- You can also chat with the results of an existing query thanks to a new chat button (v.27) or ask to generate a :q query directly in the Chat panel (via Natural language :q query buil-in prompt), and the results will be loaded in the context.
+- You can also chat with the results of an existing query thanks to a new chat button (v.27) or ask to generate a :q query directly in the Chat panel (via Natural language :q query built-in prompt), and the results will be loaded in the context.
+- **New in v.29**: For `:q` Datomic query tables, a "Chat with results" option is available in the three-dots menu of the query table. It executes the query, resolves both string UIDs and numeric entity IDs from the results, and opens the Chat panel with those results as context.
 - Each user query can be saved for further exploration and the 3 most recents queries remain available. Each query can also be combined with other queries or completed by specific pages or blocks. Run "Open results view" command to load and chat with saved queries.
 
 #### **Control the privacy level of your agent usage**:
