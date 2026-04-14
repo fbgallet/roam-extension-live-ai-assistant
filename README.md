@@ -25,6 +25,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 - **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table
 - **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
 - **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat
+- **New models support**: Grok 4.20, GPT-5.4-mini, Gemini 3.1 Flash Lite, Nano Banana 2
 - **Advanced parameters** in Chat panel for LLMs: max_tokens, temperature, top_p, presence_penalty (not available for all providers)
 - **Public API for developers** (`window.LiveAI_API`): other Roam extensions can now leverage Live AI's generative AI capabilities. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
 

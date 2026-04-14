@@ -10,7 +10,7 @@
 
 **Updates**
 
-- New models support: GPT-5.4-mini, Gemini 3.1 Flash Lite, Nano Banana 2
+- New models support: GPT-5.4-mini, Gemini 3.1 Flash Lite, Nano Banana 2, Grok 4.20
 - Anthropic models have now 1M context window
 - Stop button in Chat panel
 - Slash commands to force-use tools in Chat panel

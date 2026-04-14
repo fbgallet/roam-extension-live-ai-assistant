@@ -637,6 +637,41 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Grok Models ====================
+
+  "grok-4.20": {
+    id: "grok-4.20",
+    name: "Grok 4.20",
+    provider: "Grok",
+    contextLength: 2000000,
+    pricing: { input: 2, output: 6 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingIdSuffix: { on: "-reasoning", off: "-non-reasoning" },
+    visibleByDefault: true,
+    aliases: [],
+  },
+
+  "grok-4.20-multi-agent": {
+    id: "grok-4.20-multi-agent",
+    name: "Grok 4.20 Multi-agent",
+    provider: "Grok",
+    contextLength: 2000000,
+    pricing: { input: 2, output: 6 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingIdSuffix: { on: "-reasoning", off: "-non-reasoning" },
+    visibleByDefault: false,
+    aliases: [],
+  },
+
   "grok-4": {
     id: "grok-4",
     name: "Grok-4",
@@ -650,7 +685,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
