@@ -107,10 +107,18 @@ export const useContextMenuState = () => {
   const includePdfInContextRef = useRef(includePdfInContext);
   const includeQueryInContextRef = useRef(includeQueryInContext);
 
-  // Update isChildrenTreeToIncludeRef when isChildrenTreeToInclude changes
-  useEffect(() => {
-    isChildrenTreeToIncludeRef.current = isChildrenTreeToInclude;
-  }, [isChildrenTreeToInclude]);
+  // Synchronous setter wrapper: updates the ref immediately so call sites
+  // reading .current in the same event tick see the user's latest choice.
+  // Why: a plain useEffect sync runs after commit, which loses the value
+  // when a checkbox toggle and a command click happen in the same batch.
+  const setIsChildrenTreeToIncludeSync = (value) => {
+    const resolved =
+      typeof value === "function"
+        ? value(isChildrenTreeToIncludeRef.current)
+        : value;
+    isChildrenTreeToIncludeRef.current = resolved;
+    setIsChildrenTreeToInclude(resolved);
+  };
 
   // Update roamContextRef when roamContext changes
   useEffect(() => {
@@ -161,7 +169,7 @@ export const useContextMenuState = () => {
       setRoamContext({ ...voidRoamContext });
     }
 
-    setIsChildrenTreeToInclude(includeChildrenByDefault);
+    setIsChildrenTreeToIncludeSync(includeChildrenByDefault);
     setIncludePdfInContext(false);
     setIncludeQueryInContext(false);
     // Reset thinking to default model's setting
@@ -207,7 +215,7 @@ export const useContextMenuState = () => {
 
     // User Preferences
     isChildrenTreeToInclude,
-    setIsChildrenTreeToInclude,
+    setIsChildrenTreeToInclude: setIsChildrenTreeToIncludeSync,
     isChildrenTreeToIncludeRef,
     targetBlock,
     setTargetBlock,

@@ -67,6 +67,7 @@ import { initializeHelpDepot } from "./ai/agents/chat-agent/tools/helpDepotUtils
 import { AppToaster } from "./components/Toaster";
 import { cleanupAllWindowStorage } from "./components/full-results-popup/utils/windowStorage";
 import { initPublicApi, cleanupPublicApi } from "./api/publicApi";
+import { disposeLocal } from "./ai/vectorStore/providers/local/localProvider";
 
 export let OPENAI_API_KEY = "";
 export let ANTHROPIC_API_KEY = "";
@@ -1581,6 +1582,9 @@ export default {
 
     // Clean up all window object properties (prevent memory leaks)
     cleanupAllWindowStorage();
+
+    // Terminate local embedding worker and release model memory
+    await disposeLocal();
 
     console.log("Extension unloaded");
   },

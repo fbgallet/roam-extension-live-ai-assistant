@@ -9,6 +9,7 @@ import {
   getTreeByUid,
   getBlockContentByUid,
   getParentBlock,
+  hasBlockChildren,
 } from "../../utils/roamAPI.js";
 import { RoamContext } from "../../ai/agents/types";
 import { loadResultsFromRoamContext } from "./utils/roamContextLoader";
@@ -394,6 +395,24 @@ export const openChatPopup = async ({
           // Store the cleaned prompt without context metadata
           cleanedBlockContent = inlineContext.updatedPrompt;
         }
+      }
+    }
+
+    // If the focused block has children and isn't a [[liveai/chat]] conversation,
+    // inject it into roamContext.block so its subtree is loaded as prompt context.
+    // The chat-marker case is handled downstream via extractConversationFromLiveAIChat.
+    if (
+      rootUid &&
+      hasBlockChildren(rootUid) &&
+      !extractConversationFromLiveAIChat(rootUid)
+    ) {
+      const existingBlocks = effectiveRoamContext.blockArgument || [];
+      if (!existingBlocks.includes(rootUid)) {
+        effectiveRoamContext = {
+          ...effectiveRoamContext,
+          block: true,
+          blockArgument: [...existingBlocks, rootUid],
+        };
       }
     }
 

@@ -91,7 +91,10 @@ function createInlineWorker(modelName: string): Worker {
   `;
 
   const blob = new Blob([workerCode], { type: "application/javascript" });
-  return new Worker(URL.createObjectURL(blob), { type: "module" });
+  const url = URL.createObjectURL(blob);
+  const w = new Worker(url, { type: "module" });
+  URL.revokeObjectURL(url);
+  return w;
 }
 
 /** Get or initialize the worker for a specific model */
