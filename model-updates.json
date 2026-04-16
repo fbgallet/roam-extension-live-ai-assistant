@@ -1,66 +1,21 @@
 {
   "models": {
-    "gpt-5.4": {
-      "id": "gpt-5.4",
-      "name": "GPT 5.4",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
+    "claude-opus-4-7": {
+      "id": "claude-opus-4-7",
+      "name": "Claude Opus 4.7",
+      "provider": "Anthropic",
+      "contextLength": 1000000,
       "maxOutput": 128000,
-      "pricing": { "input": 2.5, "output": 15 },
+      "pricing": { "input": 5, "output": 25 },
       "capabilities": {
         "thinking": true,
         "imageInput": true,
         "webSearch": true,
         "fileInput": true
       },
+      "thinkingDefault": true,
       "visibleByDefault": true,
-      "aliases": ["GPT 5.4", "gpt-5-4"]
-    },
-    "gpt-5.4-mini": {
-      "id": "gpt-5.4-mini",
-      "name": "GPT-5.4 mini",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 0.5, "output": 4 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "aliases": ["gpt5.4-mini", "gpt-5-4-mini"]
-    },
-    "gemini-3.1-flash-image-preview": {
-      "id": "gemini-3.1-flash-image-preview",
-      "name": "Nano Banana 2",
-      "provider": "Google",
-      "pricing": { "input": 0.3, "inputImage": 0.3, "output": 39 },
-      "capabilities": {
-        "imageInput": true,
-        "imageOutput": true,
-        "editImage": true
-      },
-      "modelType": "image-generation",
-      "visibleByDefault": true,
-      "aliases": ["nano-banana-2"]
-    },
-    "gemini-3.1-flash-lite-preview": {
-      "id": "gemini-3.1-flash-lite-preview",
-      "name": "Gemini 3.1 Flash lite",
-      "provider": "Google",
-      "contextLength": 1048576,
-      "pricing": { "input": 0.1, "output": 0.4 },
-      "capabilities": {
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true,
-        "videoInput": true,
-        "audioInput": true
-      },
-      "visibleByDefault": true,
-      "aliases": ["gemini-3.1-flash-lite"]
+      "aliases": ["claude-4.7-opus", "claude opus 4.7"]
     }
   }
 }
