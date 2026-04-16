@@ -917,7 +917,11 @@ export function usesAdaptiveThinking(identifier) {
   // Strip +thinking suffix used by Claude models
   const cleanId = identifier.replace(/\+thinking/i, "").trim();
   const model = getModelByIdentifier(cleanId);
-  return model?.id === "claude-opus-4-6" || model?.id === "claude-sonnet-4-6";
+  return (
+    model?.id === "claude-opus-4-6" ||
+    model?.id === "claude-sonnet-4-6" ||
+    model?.id === "claude-opus-4-7"
+  );
 }
 
 /**

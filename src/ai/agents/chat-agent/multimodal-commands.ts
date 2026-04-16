@@ -755,7 +755,8 @@ export function hasPdfContent(
   includePdfOverride?: boolean,
 ): boolean {
   // Use per-session override if provided, otherwise fall back to global setting
-  const effectiveAlwaysExtractPdf = includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
+  const effectiveAlwaysExtractPdf =
+    includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
 
   // Check if user prompt contains PDF in Roam format: {{[[pdf]]: url}} or direct PDF URL
   pdfLinkRegex.lastIndex = 0;
@@ -769,7 +770,11 @@ export function hasPdfContent(
 
   // Check if resultsContext contains PDF files
   // When alwaysExtractPdf is enabled, check context even without explicit mention
-  if (resultsContext && resultsContext.length > 0 && (mentionsPdf || effectiveAlwaysExtractPdf)) {
+  if (
+    resultsContext &&
+    resultsContext.length > 0 &&
+    (mentionsPdf || effectiveAlwaysExtractPdf)
+  ) {
     for (const result of resultsContext) {
       const content = result.content || result.text || "";
 
@@ -797,7 +802,8 @@ function extractPdfUrls(
   includePdfOverride?: boolean,
 ): string[] {
   // Use per-session override if provided, otherwise fall back to global setting
-  const effectiveAlwaysExtractPdf = includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
+  const effectiveAlwaysExtractPdf =
+    includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
 
   const pdfUrls: string[] = [];
 
@@ -811,7 +817,11 @@ function extractPdfUrls(
 
   // Extract from resultsContext if user mentions PDF or alwaysExtractPdf is enabled
   const mentionsPdf = /\b(pdf|document|paper)\b/i.test(userPrompt);
-  if (resultsContext && resultsContext.length > 0 && (mentionsPdf || effectiveAlwaysExtractPdf)) {
+  if (
+    resultsContext &&
+    resultsContext.length > 0 &&
+    (mentionsPdf || effectiveAlwaysExtractPdf)
+  ) {
     for (const result of resultsContext) {
       const content = result.content || result.text || "";
 
@@ -872,7 +882,11 @@ export async function handlePdfAnalysisRequest(
   }
 
   // Extract PDF URLs from prompt and context
-  const pdfUrls = extractPdfUrls(originalUserPrompt, resultsContext, includePdfOverride);
+  const pdfUrls = extractPdfUrls(
+    originalUserPrompt,
+    resultsContext,
+    includePdfOverride,
+  );
 
   if (pdfUrls.length === 0) {
     // No PDF found - return without modification
@@ -1204,7 +1218,7 @@ export async function handleFileExportCommand(
     type: "radio",
     choices: [
       { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-      { value: "claude-opus-4-6", label: "Opus 4.6" },
+      { value: "claude-opus-4-7", label: "Opus 4.7" },
       { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
     ],
     defaultValue: "claude-sonnet-4-6",

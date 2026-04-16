@@ -8,12 +8,12 @@
       "maxOutput": 128000,
       "pricing": { "input": 5, "output": 25 },
       "capabilities": {
-        "thinking": true,
+        "thinking": false,
         "imageInput": true,
         "webSearch": true,
         "fileInput": true
       },
-      "thinkingDefault": true,
+      "thinkingDefault": false,
       "visibleByDefault": true,
       "aliases": ["claude-4.7-opus", "claude opus 4.7"]
     }
