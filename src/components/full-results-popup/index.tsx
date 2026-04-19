@@ -4,7 +4,9 @@ import FullResultsPopupComponent from "./FullResultsPopup";
 import { ChatMessage, PopupViewMode } from "./types/types";
 import {
   getMainViewUid,
+  getMainPageUid,
   getPageNameByPageUid,
+  getPageUidByBlockUid,
   getUidAndTitleOfMentionedPagesInBlock,
   getTreeByUid,
   getBlockContentByUid,
@@ -694,6 +696,76 @@ export const chatWithQuery = async ({
 };
 
 /**
+ * Rewrites a Datomic query to replace `current/*` context variables with
+ * `:in` parameters. Roam auto-binds these symbols only when a :q block is
+ * rendered on a page — when executed via `roamAlphaAPI.q()` programmatically,
+ * the query engine errors with "current/... cannot be resolved in this context".
+ *
+ * Returns the rewritten query plus the ordered list of values to pass as
+ * extra arguments to `roamAlphaAPI.q()`.
+ */
+const rewriteCurrentVarsForProgrammaticExec = async (
+  query: string,
+  queryBlockUid: string
+): Promise<{ query: string; args: any[] }> => {
+  const entityIdFor = (uid: string | null | undefined): number | null => {
+    if (!uid) return null;
+    const r = (window as any).roamAlphaAPI.pull("[:db/id]", [":block/uid", uid]);
+    return r?.[":db/id"] ?? null;
+  };
+
+  const resolvers: Record<string, () => Promise<any> | any> = {
+    "current/block-uid": () => queryBlockUid,
+    "current/page-uid": () => getPageUidByBlockUid(queryBlockUid) || null,
+    "current/page-title": () => {
+      const pageUid = getPageUidByBlockUid(queryBlockUid);
+      return pageUid ? getPageNameByPageUid(pageUid) ?? null : null;
+    },
+    "current/block-id": () => entityIdFor(queryBlockUid),
+    "current/page-id": () => entityIdFor(getPageUidByBlockUid(queryBlockUid)),
+    "current/main-window-block-uid": async () => (await getMainViewUid()) || null,
+    "current/main-window-page-uid": async () => (await getMainPageUid()) || null,
+    "current/main-window-page-title": async () => {
+      const uid = await getMainPageUid();
+      return uid ? getPageNameByPageUid(uid) ?? null : null;
+    },
+    "current/main-window-block-id": async () => entityIdFor(await getMainViewUid()),
+    "current/main-window-page-id": async () => entityIdFor(await getMainPageUid()),
+  };
+
+  const found = new Set<string>();
+  const varRegex = /:?\bcurrent\/[a-z][a-z-]*/g;
+  let m: RegExpExecArray | null;
+  while ((m = varRegex.exec(query)) !== null) {
+    const name = m[0].replace(/^:/, "");
+    if (name in resolvers) found.add(name);
+  }
+  if (found.size === 0) return { query, args: [] };
+
+  const orderedNames = Array.from(found);
+  const args: any[] = [];
+  for (const name of orderedNames) args.push(await resolvers[name]());
+
+  const symbolFor = (name: string) => `?__${name.replace(/\//g, "-")}`;
+
+  let rewritten = query;
+  for (const name of orderedNames) {
+    const esc = name.replace(/[\/\-]/g, (c) => "\\" + c);
+    const re = new RegExp(`:?\\b${esc}\\b`, "g");
+    rewritten = rewritten.replace(re, symbolFor(name));
+  }
+
+  const inParams = orderedNames.map(symbolFor).join(" ");
+  if (/:in\s+\$/.test(rewritten)) {
+    rewritten = rewritten.replace(/:in\s+\$/, `:in $ ${inParams}`);
+  } else {
+    rewritten = rewritten.replace(/:where\b/, `:in $ ${inParams} :where`);
+  }
+
+  return { query: rewritten, args };
+};
+
+/**
  * Opens FullResultsPopup with results from a Datomic :q query block.
  * Reads the block content, extracts the Datomic query, executes it via
  * roamAlphaAPI.q(), resolves entity IDs to UIDs, and opens the chat popup.
@@ -726,6 +798,11 @@ export const chatWithDatomicQuery = async ({
     }
     const datomicQuery = queryMatch[1];
 
+    // Roam's :q block rendering auto-binds `current/*` symbols, but
+    // `roamAlphaAPI.q()` does not — rewrite them into :in parameters.
+    const { query: execQuery, args: execArgs } =
+      await rewriteCurrentVarsForProgrammaticExec(datomicQuery, queryBlockUid);
+
     console.log(
       `🚀 [chatWithDatomicQuery] Executing :q query from block ${queryBlockUid}`
     );
@@ -733,7 +810,7 @@ export const chatWithDatomicQuery = async ({
     // Execute the query
     let rawResults;
     try {
-      rawResults = (window as any).roamAlphaAPI.q(datomicQuery);
+      rawResults = (window as any).roamAlphaAPI.q(execQuery, ...execArgs);
     } catch (queryError: any) {
       throw new Error(
         `Query execution failed: ${queryError.message || "Unknown error"}`
