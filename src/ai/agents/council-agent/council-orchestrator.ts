@@ -48,27 +48,39 @@ import { ChatMessage } from "../../../components/full-results-popup/types/types"
 function instantiateModel(
   modelId: string,
   tokensUsage: TokensUsage,
+  temperature?: number,
 ): { llm: any; llmInfos: LlmInfos } | null {
-  const llmInfos = modelAccordingToProvider(modelId, false);
-  if (isAPIKeyNeeded(llmInfos)) return null;
+  const baseLlmInfos = modelAccordingToProvider(modelId, false);
+  if (isAPIKeyNeeded(baseLlmInfos)) return null;
+  const llmInfos: LlmInfos =
+    temperature !== undefined
+      ? {
+          ...baseLlmInfos,
+          advancedParams: {
+            ...(baseLlmInfos.advancedParams || {}),
+            temperature,
+          },
+        }
+      : baseLlmInfos;
   const llm = modelViaLanggraph(llmInfos, tokensUsage);
   return { llm, llmInfos };
 }
 
 // ==================== HELPER: Call LLM for generation ====================
 
-async function generateResponse(
+export async function generateResponse(
   modelId: string,
   systemPrompt: string,
   userPrompt: string,
   streamingCallback?: (content: string) => void,
+  temperature?: number,
 ): Promise<{
   content: string;
   tokensIn: number;
   tokensOut: number;
 } | null> {
   const tokensUsage: TokensUsage = { input_tokens: 0, output_tokens: 0 };
-  const instance = instantiateModel(modelId, tokensUsage);
+  const instance = instantiateModel(modelId, tokensUsage, temperature);
   if (!instance) return null;
 
   const { llm, llmInfos } = instance;

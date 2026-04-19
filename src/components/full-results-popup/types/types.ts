@@ -59,6 +59,9 @@ export interface ChatMessage {
   queryResultCount?: number; // Number of results from executing the query
   // Council-specific fields (for LLM Council intermediate steps)
   councilStep?: import("../../../ai/agents/council-agent/council-types").CouncilStepInfo;
+  // Debate state snapshot — attached to the last council message when the debate
+  // pauses (round limit or awaiting human), so Continue / speaker-picker can resume.
+  debateState?: import("../../../ai/agents/council-agent/council-types").DebateState;
 }
 
 export interface FullResultsPopupProps {

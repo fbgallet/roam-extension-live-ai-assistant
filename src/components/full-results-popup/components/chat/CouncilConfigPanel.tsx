@@ -13,8 +13,8 @@ import {
   Slider,
   NumericInput,
   TextArea,
-  RadioGroup,
-  Radio,
+  Tabs,
+  Tab,
   Collapse,
   Icon,
   Switch,
@@ -25,6 +25,7 @@ import {
   CouncilConfig,
   CouncilMode,
 } from "../../../../ai/agents/council-agent/council-types";
+import { DebateConfigPanel } from "./DebateConfigPanel";
 
 interface CouncilConfigPanelProps {
   config: CouncilConfig;
@@ -162,25 +163,20 @@ export const CouncilConfigPanel: React.FC<CouncilConfigPanelProps> = ({
 
       <Collapse isOpen={isExpanded}>
         {/* Mode selector */}
-        <div className="council-config-section">
-          <RadioGroup
-            inline
-            selectedValue={config.mode}
-            onChange={(e) =>
-              updateConfig({
-                mode: (e.target as HTMLInputElement).value as CouncilMode,
-              })
+        <div className="council-config-section council-config-mode-tabs">
+          <Tabs
+            id="council-mode-tabs"
+            selectedTabId={config.mode}
+            onChange={(newMode) =>
+              updateConfig({ mode: newMode as CouncilMode })
             }
+            animate={false}
+            renderActiveTabPanelOnly
           >
-            <Radio
-              label="Iterative Refinement"
-              value="iterative"
-            />
-            <Radio
-              label="Parallel Competition"
-              value="parallel"
-            />
-          </RadioGroup>
+            <Tab id="iterative" title="Iterative Refinement" />
+            <Tab id="parallel" title="Parallel Competition" />
+            <Tab id="debate" title="Debate" />
+          </Tabs>
         </div>
 
         {/* Iterative mode config */}
@@ -335,40 +331,53 @@ export const CouncilConfigPanel: React.FC<CouncilConfigPanelProps> = ({
           </>
         )}
 
-        {/* Evaluation word limit (both modes) */}
-        <div className="council-config-section">
-          <div className="council-config-row">
-            <label>Evaluation word limit:</label>
-            <Slider
-              min={100}
-              max={800}
-              stepSize={50}
-              value={config.evaluationWordLimit || 400}
-              onChange={(val) => updateConfig({ evaluationWordLimit: val })}
-              labelStepSize={200}
-            />
-            <Tag minimal round>
-              {config.evaluationWordLimit || 400}
-            </Tag>
-          </div>
-        </div>
-
-        {/* Evaluation instructions (both modes) */}
-        <div className="council-config-section">
-          <div className="council-config-section-label">
-            Evaluation Instructions (optional)
-          </div>
-          <TextArea
-            className="council-config-criteria-textarea"
-            value={config.evaluationCriteria}
-            onChange={(e) =>
-              updateConfig({ evaluationCriteria: e.target.value })
-            }
-            placeholder="Custom instructions for the evaluation process. Any criteria you define here will replace the defaults. You can also provide general guidance to the evaluators. Leave empty to use the default criteria (accuracy, completeness & relevance, reasoning robustness, unexamined assumptions)."
-            small
-            fill
+        {/* Debate mode config */}
+        {config.mode === "debate" && (
+          <DebateConfigPanel
+            config={config}
+            onConfigChange={onConfigChange}
+            defaultModel={defaultModel}
           />
-        </div>
+        )}
+
+        {/* Evaluation word limit (iterative + parallel) */}
+        {config.mode !== "debate" && (
+          <div className="council-config-section">
+            <div className="council-config-row">
+              <label>Evaluation word limit:</label>
+              <Slider
+                min={100}
+                max={800}
+                stepSize={50}
+                value={config.evaluationWordLimit || 400}
+                onChange={(val) => updateConfig({ evaluationWordLimit: val })}
+                labelStepSize={200}
+              />
+              <Tag minimal round>
+                {config.evaluationWordLimit || 400}
+              </Tag>
+            </div>
+          </div>
+        )}
+
+        {/* Evaluation instructions (iterative + parallel) */}
+        {config.mode !== "debate" && (
+          <div className="council-config-section">
+            <div className="council-config-section-label">
+              Evaluation Instructions (optional)
+            </div>
+            <TextArea
+              className="council-config-criteria-textarea"
+              value={config.evaluationCriteria}
+              onChange={(e) =>
+                updateConfig({ evaluationCriteria: e.target.value })
+              }
+              placeholder="Custom instructions for the evaluation process. Any criteria you define here will replace the defaults. You can also provide general guidance to the evaluators. Leave empty to use the default criteria (accuracy, completeness & relevance, reasoning robustness, unexamined assumptions)."
+              small
+              fill
+            />
+          </div>
+        )}
       </Collapse>
     </div>
   );

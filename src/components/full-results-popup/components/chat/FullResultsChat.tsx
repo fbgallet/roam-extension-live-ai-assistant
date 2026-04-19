@@ -28,6 +28,7 @@ import {
   updateBlock,
   isExistingBlock,
   getDNPTitleFromDate,
+  getRoamUserDisplayName,
 } from "../../../../utils/roamAPI";
 import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../../../utils/format";
@@ -1345,9 +1346,36 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   });
   const councilAbortRef = useRef<AbortController | null>(null);
 
+  // Debate mode state (persisted across Continue / human-in-loop turns)
+  const [debateState, setDebateState] =
+    useState<import("../../../../ai/agents/council-agent/council-types").DebateState | null>(
+      null
+    );
+  const debateStateRef = useRef<
+    | import("../../../../ai/agents/council-agent/council-types").DebateState
+    | null
+  >(null);
+  useEffect(() => {
+    debateStateRef.current = debateState;
+  }, [debateState]);
+
+  // Human-in-loop: participant index the human's next typed message targets.
+  // null = no explicit addressee (auto-pick via pickNextSpeaker).
+  const [humanDebateTarget, setHumanDebateTarget] = useState<number | null>(
+    null,
+  );
+  const humanDebateTargetRef = useRef<number | null>(null);
+  useEffect(() => {
+    humanDebateTargetRef.current = humanDebateTarget;
+  }, [humanDebateTarget]);
+
   const handleCouncilConfigChange = (newConfig: CouncilConfig) => {
     setCouncilConfig(newConfig);
     extensionStorage.set("councilConfig", JSON.stringify(newConfig));
+    // Reset any in-flight debate state if config changed materially (mode switch, participants).
+    if (newConfig.mode !== "debate") {
+      setDebateState(null);
+    }
   };
 
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
@@ -1561,8 +1589,27 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
 
     try {
-      // Get only NEW messages (exclude initial messages that came from Roam)
-      const newMessages = chatMessages.slice(currentInsertedCount);
+      // Get only NEW messages (exclude initial messages that came from Roam).
+      // Filter out debate meta messages (status / continue button / speaker picker)
+      // — they're UI-only and shouldn't be persisted to Roam. Keep track of the
+      // original chatMessages index so we can write back roamBlockUid correctly.
+      const newMessagesWithIndex: Array<{
+        msg: ChatMessage;
+        originalIndex: number;
+      }> = [];
+      for (let k = currentInsertedCount; k < chatMessages.length; k += 1) {
+        const m = chatMessages[k];
+        const t = m.councilStep?.type;
+        if (
+          t === "status" ||
+          t === "debate-continue" ||
+          t === "debate-speaker-picker"
+        ) {
+          continue;
+        }
+        newMessagesWithIndex.push({ msg: m, originalIndex: k });
+      }
+      const newMessages = newMessagesWithIndex.map((x) => x.msg);
 
       if (newMessages.length === 0) {
         const alreadySavedTitle = loadedChatTitle || loadedChatUid;
@@ -1647,16 +1694,37 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         roleBlockUid: string;
       }> = [];
 
-      for (let i = 0; i < newMessages.length; i++) {
-        const msg = newMessages[i];
-        // Calculate the original index in chatMessages
-        const originalIndex = currentInsertedCount + i;
+      for (let i = 0; i < newMessagesWithIndex.length; i++) {
+        const { msg, originalIndex } = newMessagesWithIndex[i];
 
-        // Use the model stored in the message, or fall back to selectedModel
-        const messageModel =
-          msg.role === "assistant" && msg.model ? msg.model : selectedModel;
+        // Resolve the per-message model. For debate turns this is the
+        // participant's model, not the currently-selected chat model.
+        const stepType = msg.councilStep?.type;
+        const isDebateTurn =
+          stepType === "debate-turn" || stepType === "debate-reaction";
+        const messageModel = isDebateTurn
+          ? msg.councilStep?.model || msg.model || selectedModel
+          : msg.role === "assistant" && msg.model
+            ? msg.model
+            : selectedModel;
         const assistantRole = getInstantAssistantRole(messageModel);
-        const rolePrefix = msg.role === "user" ? chatRoles.user : assistantRole;
+        // Debate speaker header: "<assistant role> — [↪] R<n> · <Speaker Name>"
+        // so each turn is clearly attributed when re-read in Roam.
+        let rolePrefix: string;
+        if (isDebateTurn) {
+          const step = msg.councilStep!;
+          if (step.isHuman) {
+            rolePrefix = chatRoles.user;
+          } else {
+            const speakerName = step.speakerName || "Participant";
+            const roundPrefix = step.round ? `R${step.round} · ` : "";
+            const reactionPrefix =
+              stepType === "debate-reaction" ? "↪ " : "";
+            rolePrefix = `${assistantRole} — ${reactionPrefix}${roundPrefix}${speakerName}`;
+          }
+        } else {
+          rolePrefix = msg.role === "user" ? chatRoles.user : assistantRole;
+        }
 
         // Build the full content including command name if present
         const shouldShowCommandName =
@@ -2081,7 +2149,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const copyFullConversation = async () => {
     const assistantRole = getInstantAssistantRole(selectedModel);
     const conversationText = chatMessages
-      .map((msg, index) => {
+      .map((msg) => {
+        // Skip debate meta messages (status / continue / speaker picker) — not real content.
+        const stepType = msg.councilStep?.type;
+        if (
+          stepType === "status" ||
+          stepType === "debate-continue" ||
+          stepType === "debate-speaker-picker"
+        ) {
+          return null;
+        }
+
         // Build the full content including command name if present
         const shouldShowCommandName =
           msg.role === "user" &&
@@ -2114,9 +2192,31 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           .map((line) => `  ${line}`)
           .join("\n");
 
-        const role = msg.role === "user" ? chatRoles.user : assistantRole;
+        // Debate turn / reaction: use speaker name (+ round) as the role, and
+        // resolve the assistant role from the per-turn model rather than the
+        // currently-selected chat model.
+        let role: string;
+        if (stepType === "debate-turn" || stepType === "debate-reaction") {
+          const step = msg.councilStep!;
+          const speakerName = step.speakerName || "Participant";
+          const turnModel = step.model || msg.model;
+          if (step.isHuman) {
+            role = chatRoles.user;
+          } else {
+            const turnAssistantRole = turnModel
+              ? getInstantAssistantRole(turnModel)
+              : assistantRole;
+            const roundPrefix = step.round ? `R${step.round} · ` : "";
+            const reactionPrefix =
+              stepType === "debate-reaction" ? "↪ " : "";
+            role = `${turnAssistantRole} — ${reactionPrefix}${roundPrefix}${speakerName}`;
+          }
+        } else {
+          role = msg.role === "user" ? chatRoles.user : assistantRole;
+        }
         return `${role}\n${indentedContent}`;
       })
+      .filter((v): v is string => v !== null)
       .join("\n\n");
 
     await copyToClipboard(conversationText);
@@ -2344,7 +2444,306 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
    * Invokes the council orchestrator which handles multi-LLM deliberation
    * and pushes intermediate steps via callback.
    */
+  // Shared update/finalize helpers for debate per-turn streaming.
+  const handleDebateTurnUpdate = (turnId: string, content: string) => {
+    setChatMessages((prev) =>
+      prev.map((m) =>
+        m.councilStep?.turnId === turnId ? { ...m, content } : m
+      )
+    );
+  };
+  const handleDebateTurnFinalize = (
+    turnId: string,
+    content: string,
+    tokensIn: number,
+    tokensOut: number,
+    concluded: boolean,
+    extras?: { isPass?: boolean }
+  ) => {
+    setChatMessages((prev) =>
+      prev.map((m) =>
+        m.councilStep?.turnId === turnId
+          ? {
+              ...m,
+              content,
+              tokensIn,
+              tokensOut,
+              councilStep: {
+                ...m.councilStep,
+                isComplete: true,
+                isConclusion: concluded,
+                isPass: extras?.isPass,
+              },
+            }
+          : m
+      )
+    );
+  };
+
+  const appendDebateControlMessage = (
+    state: import("../../../../ai/agents/council-agent/council-types").DebateState
+  ) => {
+    if (state.status === "paused-round-limit") {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "",
+          timestamp: new Date(),
+          debateState: state,
+          councilStep: {
+            type: "debate-continue",
+            councilMode: "debate",
+            isIntermediate: false,
+          },
+        },
+      ]);
+    } else if (state.status === "paused-human") {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "",
+          timestamp: new Date(),
+          debateState: state,
+          councilStep: {
+            type: "debate-speaker-picker",
+            councilMode: "debate",
+            isIntermediate: false,
+          },
+        },
+      ]);
+    } else if (state.status === "concluded") {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "*Debate concluded by participant agreement.*",
+          timestamp: new Date(),
+          debateState: state,
+        },
+      ]);
+    }
+  };
+
+  const runDebateInvocation = async (args: {
+    message?: string;
+    resume?: boolean;
+    additionalRounds?: number;
+    forcedNextParticipantIndex?: number;
+    humanMessage?: string;
+    singleTurnOnly?: boolean;
+  }) => {
+    const config = { ...councilConfig };
+    if (!config.generatorModel) config.generatorModel = selectedModel;
+    if (!config.synthesizerModel) config.synthesizerModel = selectedModel;
+    // Default the human's display name from Roam when the user hasn't set one.
+    // Snapshotted at debate init; `initDebateState` ultimately falls back to
+    // "Human" if Roam can't resolve a name either.
+    if (
+      config.debateSubMode === "human-in-loop" &&
+      !(config.debateHumanName && config.debateHumanName.trim())
+    ) {
+      config.debateHumanName = getRoamUserDisplayName() || "Human";
+    }
+
+    const contextResults = getSelectedResultsForChat();
+    const conversationContext = chatMessages
+      .filter(
+        (msg) =>
+          !msg.councilStep ||
+          (!msg.councilStep.isIntermediate &&
+            msg.councilStep.type !== "debate-turn" &&
+            msg.councilStep.type !== "debate-continue" &&
+            msg.councilStep.type !== "debate-speaker-picker")
+      )
+      .map(
+        (msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`
+      )
+      .join("\n\n");
+
+    // Adaptive expansion: walk children of selected blocks up to a token-budget,
+    // so debate participants see Roam context the same way the normal chat
+    // agent does. Budget is sized against the SMALLEST participant context
+    // window — every participant must be able to ingest the result. Skip the
+    // whole step on resume (context was already expanded on the first turn and
+    // is embedded in state.referenceBlocks).
+    let expandedContextResults: Result[] | undefined = undefined;
+    if (!args.resume && contextResults.length > 0) {
+      const participantModels = config.debateParticipants
+        .map((p) => p.modelId)
+        .filter(Boolean);
+      const modelsToCheck =
+        participantModels.length > 0 ? participantModels : [selectedModel];
+      let minTokens = Number.POSITIVE_INFINITY;
+      for (const mid of modelsToCheck) {
+        const info = modelAccordingToProvider(mid);
+        const limit = info?.tokensLimit || 32000;
+        if (limit < minTokens) minTokens = limit;
+      }
+      if (!Number.isFinite(minTokens)) minTokens = 32000;
+      // Same character-budget scaling as normal chat (FullResultsChat.tsx:3298).
+      // Debate allocates a smaller slice than normal chat because each turn
+      // also carries the growing transcript + peer prompts — don't burn the
+      // whole window on block context.
+      const expansionBudget =
+        chatAccessMode === "Full Access" ? minTokens * 2.5 : minTokens * 1.5;
+      try {
+        expandedContextResults = await performAdaptiveExpansion(
+          contextResults.map((r) => ({ ...r })),
+          expansionBudget,
+          0,
+          chatAccessMode,
+        );
+      } catch (err) {
+        console.warn(
+          "[Debate] adaptive expansion failed, falling back to raw results:",
+          err,
+        );
+        expandedContextResults = contextResults;
+      }
+    }
+
+    const abortController = new AbortController();
+    councilAbortRef.current = abortController;
+
+    try {
+      const result = await invokeCouncil({
+        config,
+        userMessage:
+          args.message ?? debateStateRef.current?.topic ?? "",
+        conversationContext: conversationContext || undefined,
+        resultsContext:
+          expandedContextResults && expandedContextResults.length > 0
+            ? expandedContextResults
+            : contextResults.length > 0
+              ? contextResults
+              : undefined,
+        style: selectedStyle !== "Normal" ? selectedStyle : undefined,
+        intermediateCallback: (intermediateMessage: ChatMessage) => {
+          setChatMessages((prev) => [...prev, intermediateMessage]);
+        },
+        updateTurnCallback: handleDebateTurnUpdate,
+        finalizeTurnCallback: handleDebateTurnFinalize,
+        abortSignal: abortController.signal,
+        resumeState: args.resume ? debateStateRef.current || undefined : undefined,
+        additionalRounds: args.additionalRounds,
+        forcedNextParticipantIndex: args.forcedNextParticipantIndex,
+        humanMessage: args.humanMessage,
+        singleTurnOnly: args.singleTurnOnly,
+      });
+
+      setIsStreaming(false);
+      setStreamingContent("");
+
+      if ("state" in result && result.state) {
+        setDebateState(result.state);
+        appendDebateControlMessage(result.state);
+      }
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "*Debate was stopped.*",
+            timestamp: new Date(),
+          },
+        ]);
+      } else {
+        throw error;
+      }
+    } finally {
+      councilAbortRef.current = null;
+    }
+  };
+
+  // Strip any pending debate control cards (speaker-picker, continue) from the
+  // chat history. They're meaningful only while the debate is paused awaiting
+  // the user — once the user has acted, the card is obsolete chrome and
+  // clutters the transcript. A fresh card is re-appended by
+  // appendDebateControlMessage when the next pause occurs.
+  const stripDebateControlMessages = () => {
+    setChatMessages((prev) =>
+      prev.filter(
+        (m) =>
+          m.councilStep?.type !== "debate-speaker-picker" &&
+          m.councilStep?.type !== "debate-continue",
+      ),
+    );
+  };
+
+  // Exposed to the chat UI: extend the debate by another round-limit's worth.
+  const handleContinueDebate = async () => {
+    if (!debateStateRef.current) return;
+    stripDebateControlMessages();
+    setIsTyping(true);
+    setIsStreaming(true);
+    try {
+      await runDebateInvocation({
+        resume: true,
+        additionalRounds: councilConfig.debateMaxRounds,
+      });
+    } finally {
+      setIsTyping(false);
+      setIsStreaming(false);
+    }
+  };
+
+  // Human-in-loop: user picks a specific speaker for one turn.
+  const handlePickDebateSpeaker = async (participantIndex: number) => {
+    if (!debateStateRef.current) return;
+    stripDebateControlMessages();
+    setIsTyping(true);
+    setIsStreaming(true);
+    try {
+      await runDebateInvocation({
+        resume: true,
+        forcedNextParticipantIndex: participantIndex,
+        singleTurnOnly: true,
+      });
+    } finally {
+      setIsTyping(false);
+      setIsStreaming(false);
+    }
+  };
+
+  // Human-in-loop: user speaks as themselves, then auto-advances to next LLM speaker.
+  const handleHumanDebateMessage = async (text: string) => {
+    if (!debateStateRef.current) return;
+    const target = humanDebateTargetRef.current;
+    stripDebateControlMessages();
+    setIsTyping(true);
+    setIsStreaming(true);
+    try {
+      await runDebateInvocation({
+        resume: true,
+        humanMessage: text,
+        singleTurnOnly: true,
+        forcedNextParticipantIndex:
+          target != null && target >= 0 ? target : undefined,
+      });
+    } finally {
+      // Consume the target so the next typed message re-defaults to "Anyone"
+      // unless the user re-picks.
+      setHumanDebateTarget(null);
+      setIsTyping(false);
+      setIsStreaming(false);
+    }
+  };
+
   const processCouncilMessage = async (message: string) => {
+    // Dispatch debate mode separately — it uses per-turn streaming + resumable state.
+    if (councilConfig.mode === "debate") {
+      setDebateState(null);
+      debateStateRef.current = null;
+      await runDebateInvocation({
+        message,
+        singleTurnOnly: councilConfig.debateSubMode === "human-in-loop",
+      });
+      return;
+    }
+
     // Build conversation context from prior messages (only final answers, not intermediate steps)
     const conversationContext = chatMessages
       .filter((msg) => !msg.councilStep || !msg.councilStep.isIntermediate)
@@ -2431,6 +2830,20 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   const handleChatSubmit = async () => {
     if (!chatInput.trim() || isTyping) return;
+
+    // Debate human-in-loop: when paused awaiting the user, route the input
+    // as a human turn instead of starting a new chat thread.
+    if (
+      chatMode === "council" &&
+      councilConfig.mode === "debate" &&
+      councilConfig.debateSubMode === "human-in-loop" &&
+      debateStateRef.current?.status === "paused-human"
+    ) {
+      const text = chatInput.trim();
+      setChatInput("");
+      await handleHumanDebateMessage(text);
+      return;
+    }
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -3811,6 +4224,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onCancelEdit={handleCancelEdit}
         statusMessage={statusMessage}
         onAddResults={onAddResults}
+        onContinueDebate={handleContinueDebate}
+        onPickDebateSpeaker={handlePickDebateSpeaker}
+        onHumanDebateMessage={handleHumanDebateMessage}
+        humanDebateTarget={humanDebateTarget}
+        onHumanDebateTargetChange={setHumanDebateTarget}
       />
 
       <ChatInputArea

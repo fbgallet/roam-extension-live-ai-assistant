@@ -1173,7 +1173,14 @@ export const getOrderedCustomPromptBlocks = (tag) => {
             .replace(customTagRegex[tag], "")
             .trim()
             .split(" ")
-            .slice(0, tag.includes("style") ? 4 : 6)
+            .slice(
+              0,
+              tag.includes("style") ||
+                tag.includes("role") ||
+                tag.includes("preset")
+                ? 4
+                : 6
+            )
             .join(" "),
         };
       })

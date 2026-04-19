@@ -294,7 +294,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       isChatCommand: true,
       keyWords: `${name} tool ${info.category} use force`,
       category: "TOOLS",
-      icon: info.category === "edit" ? "edit" : info.category === "context" ? "add-to-artifact" : "wrench",
+      icon:
+        info.category === "edit"
+          ? "edit"
+          : info.category === "context"
+            ? "add-to-artifact"
+            : "wrench",
     })),
     // Individual skill slash commands: /skillname forces use of that specific skill
     ...availableSkills.map((skill) => ({
@@ -332,7 +337,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     if (command.isChatCommand) {
       // Tool commands: insert "Use 'tool_name': " prefix instead of clearing
       // Skill commands: insert "Use 'live_ai_skills': skill_name: " prefix
-      if (typeof command.id === "string" && (command.id.startsWith("chat-tool-") || command.id.startsWith("chat-skill-"))) {
+      if (
+        typeof command.id === "string" &&
+        (command.id.startsWith("chat-tool-") ||
+          command.id.startsWith("chat-skill-"))
+      ) {
         let prefix: string;
         if (command.id.startsWith("chat-tool-")) {
           const toolName = command.id.replace("chat-tool-", "");
@@ -348,8 +357,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           const beforeSlash = chatInput.substring(0, slashStartIndex);
           const afterSlash = chatInput.substring(slashStartIndex + 1);
           const spaceIndex = afterSlash.indexOf(" ");
-          const afterSlashCommand = spaceIndex === -1 ? "" : afterSlash.substring(spaceIndex + 1);
-          remainingText = (beforeSlash.trimEnd() + " " + afterSlashCommand.trimStart()).trim();
+          const afterSlashCommand =
+            spaceIndex === -1 ? "" : afterSlash.substring(spaceIndex + 1);
+          remainingText = (
+            beforeSlash.trimEnd() +
+            " " +
+            afterSlashCommand.trimStart()
+          ).trim();
         }
         onChatInputChange(remainingText ? `${prefix}${remainingText}` : prefix);
         setIsCommandSuggestOpen(false);
@@ -451,10 +465,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const handleInputChange = (value: string, cursorPosition?: number) => {
     // Update parent state first
     onChatInputChange(value);
-    const textBeforeCursor = value.substring(
-      0,
-      cursorPosition ?? value.length,
-    );
+    const textBeforeCursor = value.substring(0, cursorPosition ?? value.length);
 
     // If already in slash mode, track changes relative to the slash start position
     if (slashCommandMode && slashStartIndex !== -1) {
@@ -568,7 +579,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
     if (hasDoubleBracket) {
       // Extract the part after the last "[["
-      const afterBrackets = textBeforeCursor.substring(lastDoubleBracketIndex + 2);
+      const afterBrackets = textBeforeCursor.substring(
+        lastDoubleBracketIndex + 2,
+      );
       const hasClosingBracket = afterBrackets.includes("]]");
       const hasSpace = afterBrackets.startsWith(" ");
 
@@ -1180,7 +1193,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           content={
             chatMode === "council"
               ? "Exit council mode"
-              : "LLM Council (multi-model deliberation)"
+              : "LLM Council (multi-model deliberation/debate)"
           }
           openOnTargetFocus={false}
         >
@@ -1201,10 +1214,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         </Tooltip>
         {advancedOptions && onAdvancedOptionsChange && (
           <div style={{ marginLeft: "auto" }}>
-            <Tooltip
-              content="Advanced options"
-              openOnTargetFocus={false}
-            >
+            <Tooltip content="Advanced options" openOnTargetFocus={false}>
               <AdvancedOptionsMenu
                 options={advancedOptions}
                 onOptionsChange={onAdvancedOptionsChange}
@@ -1347,7 +1357,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     // Handle chat-specific commands directly
                     if (matchingCommand.isChatCommand) {
                       // Tool/skill commands: insert prefix via handleCommandSelect
-                      if (typeof matchingCommand.id === "string" && (matchingCommand.id.startsWith("chat-tool-") || matchingCommand.id.startsWith("chat-skill-"))) {
+                      if (
+                        typeof matchingCommand.id === "string" &&
+                        (matchingCommand.id.startsWith("chat-tool-") ||
+                          matchingCommand.id.startsWith("chat-skill-"))
+                      ) {
                         handleCommandSelect(matchingCommand, true);
                         return;
                       }

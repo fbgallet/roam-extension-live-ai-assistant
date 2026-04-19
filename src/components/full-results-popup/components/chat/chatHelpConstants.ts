@@ -12,7 +12,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Ephemeral** conversations by default - nothing saved unless you click "Insert in Roam"
 - **Save & Continue**: Tag blocks with #liveai/chat to save conversations and reload them later
 - **Flexible Layout**: Position as right/left/bottom panel or modal - preferences auto-saved
-- **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt) and styles (#liveai/style)
+- **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt), styles (#liveai/style) and roles (#liveai/role, used in Debate mode)
 - **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
 - Support images, .pdf (with most models) and even audio or video analysis (with Gemini models)
 - **Slash Commands**: Type / to access quick commands (clear, close, change mode, save, switch model) or force-use any tool for a single turn
@@ -25,10 +25,11 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 #### **Chat Agent: Intelligent Context & Tools**
 - **Agent/Chat Modes**: Switch between Agent mode (with tools) and simple Chat mode (no tools) anytime
+- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Vector Search, Get Help, Skills, Edition tools (create/update/delete blocks & pages, Run SmartBlock), Interaction tools (Ask User Choice, Random Pick)
+- **LLMs Council**: Iterative Refinement, Parallel Competition or Debate (LLMs play their own role or persona).
 - **Access Modes**: adaptative depth of pages/blocks in the context
   - 🛡️ **Balanced**: 50% context window, faster responses, adaptive depth (0-4 levels for blocks, 4 for pages)
   - 🔓 **Full Access**: 90% context window, deeper analysis, unlimited depth + "No truncation" option
-- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Vector Search, Get Help, Skills, Edition tools (create/update/delete blocks & pages, Run SmartBlock), Interaction tools (Ask User Choice, Random Pick)
 - **Smart Context**: Agent loads pages/blocks dynamically based on mentions and needs
 - **Query Integration**: Run queries, compose searches, manage results directly in the panel
 
@@ -53,7 +54,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.27 (Feb 2026) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.30 (May 2026) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
@@ -76,30 +77,39 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 - 💬 **Chat with query results**: Instantly chat with native query results or linked references
 
 #### **Supported LLM Providers:**
-OpenAI (GPT-5.2), Anthropic (Claude Opus 4.6, Sonnet 4.6), Google (Gemini 3), xAI (Grok), DeepSeek, Ollama (local models), and more via OpenRouter!
+All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official API or via OpenRouter, or Ollama or custom endpoint for local models !
 
 #### **How to support my work ?**
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "29";
+export const WHATS_NEW_VERSION = "30";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.29 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.30 (May 2026) 🎉
 
-#### **LLM Council Mode**
-- **Multi-LLM Deliberation**: Switch to Council mode (/council) to have multiple LLMs discuss and synthesize responses together
-- Get richer, more balanced answers by combining perspectives from different models
+#### **Debate mode in LLM Council**
+A third Council mode where **2–6 participants take turns in a live, oral-style conversation**. Each participant gets a model, a role, optionally a display name, and an optional per-participant temperature.
 
-#### **Chat Agent Tools**
-- **Vector Search**: Search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser) or OpenAI's vector store
-- **Slash Commands for Tools**: Type / followed by a tool name to force-use any tool for a single turn, even if it's disabled — e.g., \`/vector\` to trigger a one-off semantic search without permanently enabling the tool
-- **Run SmartBlock**: New tool to trigger SmartBlock workflows directly from chat — just say "run Sb Daily on today's page" and the agent handles the rest (supports relative dates like today, tomorrow, etc.)
+- **Built-in roles**:
+  - **Characters** — Socrates (probing questions), Devil's Advocate (steelman opposition), Synthesizer (find convergence), Pragmatist (actionable now), Visionary (long horizon)
+  - **De Bono's Six Thinking Hats** — White (facts), Red (feelings), Black (risks), Yellow (benefits), Green (creativity), Blue (process)
+- **Name-driven personas**: pick "No preset role" and give the participant a name. If the name refers to a known thinker or fictional character (e.g., Nietzsche, Spock, Hannah Arendt), the model will **embody** that figure — adopt their style, concerns, and habits of thought. Neutral names like "Alice" are treated as plain labels. Toggle with the **In-character** switch next to the name.
+- **Custom roles from your graph**: tag any block with \`#liveai/role\` and it becomes a selectable role in the debate menu
+- **Custom styles from your graph**: tag any block with \`#liveai/style\` and it's also selectable as a role (style = way of writing; role = position to adopt — both work as system fragments)
+- **Custom inline role**: write the role description directly in the panel
 
-#### **Improved Tool Feedback**
-- Tool usage display now shows human-readable summaries instead of raw parameters (e.g., "1 daily note(s)" instead of "dailynotes_count: 1")
+**Dynamics**:
+- **Fixed or Random** speaker order
+- **Short reactions**: optionally invite 1–2 participants for a one-liner (\`>>> react: Name\`) before the next full turn
+- **Pass** (\`[PASS]\`) when a participant has nothing new to add
+- **Conclude** (\`[CONCLUDE]\`) when genuine convergence is reached — others are asked to confirm
+- **Human-in-the-loop**: inject messages between turns to steer the debate
 
-#### **Public API for Developers**
-- **LiveAI API** (\`window.LiveAI_API\`): other Roam extensions can now leverage Live AI's generative AI capabilities — generate text, parse to Roam blocks, insert content, stream responses, and use Roam context — all without needing their own API keys. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
+[See full documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
+
+#### **New models**
+- **Claude Opus 4.7**
+- **Grok 4.20**
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
@@ -132,7 +142,7 @@ export const CHAT_TIPS = [
   "**Skills with Records**: Skills can now write output directly to your graph using Records — define a target page or block, and the agent will create or update content there. Use relative dates like \\`[[today]]\\` or \\`[[last week]]\\` for dynamic targets ([doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))",
   "**Skills via SmartBlocks**: Trigger specific skills from SmartBlocks with \\`<%LIVEAIGEN:prompt,context,{chat:skill:skill_name}%>\\` — great for automated workflows and repeatable processes!",
   "**Edit images**: Once you generate an image, you can choose to switch to Edit image mode (available with Gemini, GPT 1.5 Image & Grok Imagine): any further prompt will be used to apply modification to the previously generated image! Use /exit-edit to come back to conversation mode.",
-  "**Council mode**: Switch to /council mode to have multiple LLMs deliberate together on your question — great for getting diverse perspectives and more balanced, well-rounded answers!",
+  "**Council mode**: Switch to /council mode to have multiple LLMs deliberate together on your question — with three sub-modes: Iterative Refinement (generate→critique→improve), Parallel Competition (independent answers merged) or Debate (2-6 participants take turns in a live dialogue, each with their own role or persona).",
   "**Run SmartBlocks from chat**: Ask the agent to run any SmartBlock workflow — e.g., 'run Sb Daily on today's page'. It supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.",
   "**Vector search**: Enable the vector_search tool to search your Roam graph and uploaded files by meaning, not just keywords. Choose a free local provider (all in your browser) or OpenAI's vector store for uploaded documents.",
   "**Force any tool with /**: Type / followed by a tool name (e.g., /vector, /ask_your_graph, /run_smartblock) to use it for a single turn — even if it's disabled in your tools menu. Your persistent settings stay unchanged.",

@@ -34,7 +34,14 @@ function getScoreIntent(
 
 function getStepIcon(
   type: CouncilStepInfo["type"],
-): "document" | "comparison" | "merge-columns" | "info-sign" {
+):
+  | "document"
+  | "comparison"
+  | "merge-columns"
+  | "info-sign"
+  | "chat"
+  | "people"
+  | "comment" {
   switch (type) {
     case "generation":
       return "document";
@@ -44,7 +51,27 @@ function getStepIcon(
       return "merge-columns";
     case "status":
       return "info-sign";
+    case "debate-turn":
+      return "chat";
+    case "debate-reaction":
+      return "comment";
+    case "debate-continue":
+    case "debate-speaker-picker":
+      return "people";
   }
+}
+
+function debateDisplayName(step: CouncilStepInfo): string {
+  const speaker = step.speakerName;
+  if (!speaker) return "Participant";
+  if (
+    step.roleLabel &&
+    speaker.startsWith(`${step.roleLabel} (`) &&
+    speaker.endsWith(")")
+  ) {
+    return step.roleLabel;
+  }
+  return speaker.replace(/\s+\([^()]*\)(\s*#\d+)?$/, "");
 }
 
 function getStepLabel(step: CouncilStepInfo): string {
@@ -60,6 +87,14 @@ function getStepLabel(step: CouncilStepInfo): string {
       return "Final Synthesis";
     case "status":
       return "Status";
+    case "debate-turn":
+      return `R${step.round || 1} · ${debateDisplayName(step)}`;
+    case "debate-reaction":
+      return `↪ ${debateDisplayName(step)} reacts`;
+    case "debate-continue":
+      return "Continue debate";
+    case "debate-speaker-picker":
+      return "Pick next speaker";
   }
 }
 

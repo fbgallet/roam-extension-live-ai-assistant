@@ -455,7 +455,7 @@ The chat input supports several slash commands for quick actions:
 - `/exit` — Close the chat panel
 - `/chat` — Switch to simple chat mode (no tools)
 - `/agent` — Switch to agent mode (with tools)
-- `/council` — Switch to council mode (multi-LLM deliberation)
+- `/council` — Switch to council mode (multi-LLM deliberation: Iterative Refinement, Parallel Competition, or Debate). See [LLM Council docs](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md).
 - `/save` — Save the conversation to Roam
 - `/save-dnp` — Save the conversation to today's Daily Note Page
 - `/image-edit` — Enter image edition mode (when an image has been generated)

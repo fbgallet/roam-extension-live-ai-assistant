@@ -31,6 +31,8 @@ export const customTagRegex = {
   "liveai/style": /\#?\[?\[?liveai\/style\]?\]?/i,
   "liveai/outline": /\#?\[?\[?liveai\/outline\]?\]?/i,
   "liveai/template": /\#?\[?\[?liveai\/template\]?\]?/i,
+  "liveai/role": /\#?\[?\[?liveai\/role\]?\]?/i,
+  "liveai/debate-preset": /\#?\[?\[?liveai\/debate-preset\]?\]?/i,
 };
 export const builtInPromptRegex = /<built-in:([^>:]+)(?::([^>:]+))?>/i;
 export const suggestionsComponentRegex = /\{\{or:\s?([^|]*)\|.*\}\}/;

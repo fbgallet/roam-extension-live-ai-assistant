@@ -18,6 +18,11 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### 🆕 New in v.30 (April 2026)
+
+- **Debate mode** in LLM Council: 2–6 participants take turns in a live, oral-style conversation. Configure each with a model, a role (De Bono's Six Thinking Hats, characters like Socrates or Devil's Advocate, custom roles and styles…) and optionally a name — including named thinkers or fictional characters the model will embody. Presets included. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
+- **Remote Opus 4.7** and **Grok 4.20** support, with adaptive thinking for Opus 4.7.
+
 ### 🆕 New in v.29 (April 2026)
 
 - **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). Switch with `/council`. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)

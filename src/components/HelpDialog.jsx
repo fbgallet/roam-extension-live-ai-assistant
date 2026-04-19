@@ -54,6 +54,10 @@ const HelpDialog = ({ isOpen, onClose }) => {
             custom styles: <code>#liveai/style</code>
           </li>
           <li>
+            custom roles (for Debate in LLM Council):{" "}
+            <code>#liveai/role</code>
+          </li>
+          <li>
             stored chats: <code>#liveai/chat</code>
           </li>
           <li>

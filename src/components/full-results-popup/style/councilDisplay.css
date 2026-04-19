@@ -216,7 +216,11 @@
 }
 
 .council-config-section {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+
+.council-config-section label {
+  font-weight: 500;
 }
 
 .council-config-section-label {
@@ -310,4 +314,140 @@
 
 .bp3-dark .council-deliberation-header:hover {
   color: #48aff0;
+}
+
+.debate-participant-row .bp3-slider {
+  flex: 1;
+  max-width: 200px;
+  margin: 0 10px;
+}
+
+/* ==================== Debate turn header ==================== */
+
+/* The participant identification strip at the top of each debate bubble.
+   Visually distinct from **bold** name mentions inside the body: colored
+   background band + divider line + larger, letter-spaced speaker name. */
+
+.debate-turn-bubble .debate-turn-header,
+.debate-reaction-bubble .debate-turn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -12px -14px 10px -14px; /* cancel bubble padding so the strip is flush */
+  padding: 6px 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(19, 124, 189, 0.14) 0%,
+    rgba(19, 124, 189, 0.04) 100%
+  );
+  border-bottom: 1px solid rgba(19, 124, 189, 0.28);
+  border-radius: 15px 15px 0 0; /* match the bubble's top corners */
+}
+
+.bp3-dark .debate-turn-bubble .debate-turn-header,
+.bp3-dark .debate-reaction-bubble .debate-turn-header {
+  background: linear-gradient(
+    90deg,
+    rgba(72, 175, 240, 0.18) 0%,
+    rgba(72, 175, 240, 0.05) 100%
+  );
+  border-bottom-color: rgba(72, 175, 240, 0.35);
+}
+
+.debate-turn-round {
+  font-size: 10px;
+  font-weight: 700;
+  background: #137cbd;
+  color: white;
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.bp3-dark .debate-turn-round {
+  background: #48aff0;
+  color: #1c2127;
+}
+
+.debate-turn-speaker {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #106ba3;
+  text-transform: none;
+}
+
+.bp3-dark .debate-turn-speaker {
+  color: #48aff0;
+}
+
+.debate-turn-rolelabel {
+  font-size: 11px;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.debate-turn-model {
+  font-size: 10px;
+  opacity: 0.6;
+  font-weight: 400;
+  font-family: var(--pt-font-family-monospace, monospace);
+  letter-spacing: 0;
+  margin-left: -4px;
+}
+
+.debate-reaction-bubble .debate-turn-model {
+  font-size: 9px;
+}
+
+.debate-turn-badge {
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: white;
+}
+
+.debate-turn-badge-concluded {
+  background: #0f9960;
+}
+
+.debate-turn-badge-pass {
+  background: #8a9ba8;
+}
+
+/* Reactions: same strip but slightly compressed + different accent */
+
+.debate-reaction-bubble .debate-turn-header {
+  padding: 4px 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(168, 167, 168, 0.14) 0%,
+    rgba(168, 167, 168, 0.04) 100%
+  );
+  border-bottom-color: rgba(138, 155, 168, 0.28);
+}
+
+.debate-reaction-bubble .debate-turn-speaker {
+  font-size: 12px;
+  color: #5c7080;
+}
+
+.bp3-dark .debate-reaction-bubble .debate-turn-speaker {
+  color: #a7b6c2;
+}
+
+.debate-reaction-label {
+  font-size: 10px;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.debate-reaction-target {
+  font-size: 10px;
+  opacity: 0.55;
 }

@@ -25,6 +25,25 @@ import {
 import { textToSpeech } from "../../../../ai/multimodalAI";
 import { CouncilStepDisplay } from "./CouncilStepDisplay";
 
+// Strips the auto-appended " (model)" suffix from a debate speaker name so the
+// header can show the role once and the model once (as a separate tag) instead
+// of both inline. `buildSpeakerName` appends `(shortModel)` when the
+// participant has no customName; this unwinds that for display.
+const getDebateDisplayName = (
+  speakerName?: string,
+  roleLabel?: string,
+): string => {
+  if (!speakerName) return "Participant";
+  if (
+    roleLabel &&
+    speakerName.startsWith(`${roleLabel} (`) &&
+    speakerName.endsWith(")")
+  ) {
+    return roleLabel;
+  }
+  return speakerName.replace(/\s+\([^()]*\)(\s*#\d+)?$/, "");
+};
+
 // Helper function to detect if content contains KaTeX formulas
 const containsKaTeX = (content: string): boolean => {
   return /\$\$.+?\$\$/s.test(content);
@@ -918,6 +937,16 @@ interface ChatMessagesDisplayProps {
   statusMessage?: string;
   // Callback to add results to context
   onAddResults?: (results: Result[]) => void;
+  // Debate mode control callbacks
+  onContinueDebate?: () => void;
+  onPickDebateSpeaker?: (participantIndex: number) => void;
+  onHumanDebateMessage?: (text: string) => void;
+  // Human-in-loop: which participant the human's next typed message is
+  // directed at (−1 / null = no specific addressee, next speaker picked
+  // automatically). Lives in the parent so it's visible from both the
+  // speaker-picker card and the chat input area.
+  humanDebateTarget?: number | null;
+  onHumanDebateTargetChange?: (targetIndex: number | null) => void;
 }
 
 export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
@@ -949,6 +978,11 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onCancelEdit,
   statusMessage,
   onAddResults,
+  onContinueDebate,
+  onPickDebateSpeaker,
+  onHumanDebateMessage,
+  humanDebateTarget,
+  onHumanDebateTargetChange,
 }) => {
   // Memoize the initial random tip so it doesn't change on every render
   const [initialTip] = React.useState(() => getRandomTip("chat"));
@@ -1225,6 +1259,319 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
               ? `**[${message.commandName}]**\n\n${message.content}`
               : `**[${message.commandName}]**`
             : message.content;
+
+          // Debate mode: per-turn message, rendered as a chat bubble with speaker header.
+          if (message.councilStep?.type === "debate-turn") {
+            const step = message.councilStep;
+            const stableKey = step.turnId || `debate-turn-${index}`;
+            const isStreaming = !step.isComplete;
+            // Use the same chat-bubble classes as normal user/assistant messages so
+            // participants visually match the rest of the chat. Only the header
+            // (round + speaker name) is debate-specific.
+            const roleClass = step.isHuman ? "user" : "assistant";
+            return (
+              <div
+                key={stableKey}
+                className={`full-results-chat-message ${roleClass} debate-turn-message`}
+              >
+                <div className="full-results-chat-avatar">
+                  {step.isHuman ? "👤" : "🤖"}
+                </div>
+                <div className="full-results-chat-content">
+                  <div className="full-results-chat-text debate-turn-bubble">
+                    <div className="debate-turn-header">
+                      <span className="debate-turn-round">
+                        R{step.round || 1}
+                      </span>
+                      {(() => {
+                        const displayName = getDebateDisplayName(
+                          step.speakerName,
+                          step.roleLabel,
+                        );
+                        return (
+                          <>
+                            <span className="debate-turn-speaker">
+                              {displayName}
+                            </span>
+                            {!step.isHuman && step.modelDisplayName && (
+                              <span className="debate-turn-model">
+                                ({step.modelDisplayName})
+                              </span>
+                            )}
+                            {step.roleLabel &&
+                              step.roleLabel !== displayName &&
+                              step.roleLabel !== "Participant" && (
+                                <span className="debate-turn-rolelabel">
+                                  {step.roleLabel}
+                                </span>
+                              )}
+                          </>
+                        );
+                      })()}
+                      {step.isConclusion && (
+                        <span className="debate-turn-badge debate-turn-badge-concluded">
+                          CONCLUDED
+                        </span>
+                      )}
+                      {step.isPass && (
+                        <span className="debate-turn-badge debate-turn-badge-pass">
+                          PASS
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: renderMarkdown(message.content || ""),
+                      }}
+                    />
+                    {isStreaming && (
+                      <span
+                        style={{
+                          marginLeft: 2,
+                          opacity: 0.6,
+                          fontSize: 14,
+                        }}
+                      >
+                        ▍
+                      </span>
+                    )}
+                  </div>
+                  {step.isComplete &&
+                    message.tokensIn !== undefined &&
+                    message.tokensOut !== undefined && (
+                      <div
+                        className="full-results-chat-tokens"
+                        style={{ fontSize: 10, marginTop: 4, opacity: 0.6 }}
+                      >
+                        in: {message.tokensIn.toLocaleString()}, out:{" "}
+                        {message.tokensOut.toLocaleString()}
+                      </div>
+                    )}
+                </div>
+              </div>
+            );
+          }
+
+          // Debate: short reaction — smaller indented bubble.
+          if (message.councilStep?.type === "debate-reaction") {
+            const step = message.councilStep;
+            const stableKey = step.turnId || `debate-reaction-${index}`;
+            const isStreaming = !step.isComplete;
+            return (
+              <div
+                key={stableKey}
+                className="full-results-chat-message assistant debate-reaction-message"
+                style={{
+                  marginLeft: 32,
+                  marginTop: -2,
+                  marginBottom: 4,
+                  opacity: 0.92,
+                }}
+              >
+                <div
+                  className="full-results-chat-avatar"
+                  style={{ opacity: 0.65, fontSize: 14 }}
+                >
+                  ↪
+                </div>
+                <div className="full-results-chat-content">
+                  <div className="full-results-chat-text debate-reaction-bubble">
+                    <div className="debate-turn-header debate-reaction-header">
+                      <span className="debate-reaction-label">reacts:</span>
+                      <span className="debate-turn-speaker">
+                        {getDebateDisplayName(step.speakerName, step.roleLabel)}
+                      </span>
+                      {step.modelDisplayName && (
+                        <span className="debate-turn-model">
+                          ({step.modelDisplayName})
+                        </span>
+                      )}
+                      {step.reactorOf && (
+                        <span className="debate-reaction-target">
+                          → {getDebateDisplayName(step.reactorOf)}
+                        </span>
+                      )}
+                      {step.isPass && (
+                        <span className="debate-turn-badge debate-turn-badge-pass">
+                          PASS
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{ fontSize: 12, fontStyle: step.isPass ? "italic" : undefined }}
+                      dangerouslySetInnerHTML={{
+                        __html: renderMarkdown(message.content || ""),
+                      }}
+                    />
+                    {isStreaming && (
+                      <span
+                        style={{
+                          marginLeft: 2,
+                          opacity: 0.6,
+                          fontSize: 12,
+                        }}
+                      >
+                        ▍
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Debate: "Continue" button posted when round limit reached.
+          if (message.councilStep?.type === "debate-continue") {
+            return (
+              <div
+                key={index}
+                className="full-results-chat-message assistant debate-continue-message"
+              >
+                <div className="full-results-chat-avatar">🏛️</div>
+                <div className="full-results-chat-content">
+                  <div style={{ fontSize: 12, marginBottom: 6, opacity: 0.8 }}>
+                    Round limit reached. Continue the debate, or start a new
+                    topic.
+                  </div>
+                  <Button
+                    small
+                    icon="play"
+                    intent="primary"
+                    disabled={!onContinueDebate || isTyping}
+                    onClick={() => onContinueDebate && onContinueDebate()}
+                  >
+                    Continue debate
+                  </Button>
+                </div>
+              </div>
+            );
+          }
+
+          // Debate: speaker picker strip (human-in-loop).
+          if (message.councilStep?.type === "debate-speaker-picker") {
+            const state = message.debateState;
+            if (!state) return null;
+            // Compute suggestion hints: addressee from last main turn + fair-rotation pick.
+            let addresseeIdx = -1;
+            for (let k = state.turns.length - 1; k >= 0; k -= 1) {
+              if (state.turns[k].isReaction) continue;
+              const sugg = state.turns[k].nextSuggestion;
+              if (sugg) {
+                const idx = state.speakerNames.indexOf(sugg);
+                if (idx >= 0 && idx !== state.turns[k].participantIndex) {
+                  addresseeIdx = idx;
+                }
+                break;
+              }
+              break;
+            }
+            const showFairPickHint = state.ordering === "random";
+            return (
+              <div
+                key={index}
+                className="full-results-chat-message assistant debate-speaker-picker"
+              >
+                <div className="full-results-chat-avatar">🎙️</div>
+                <div className="full-results-chat-content">
+                  <div style={{ fontSize: 12, marginBottom: 6, opacity: 0.8 }}>
+                    Who speaks next?
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                    }}
+                  >
+                    {state.speakerNames.map((name, i) => {
+                      const isNext =
+                        !showFairPickHint &&
+                        addresseeIdx < 0 &&
+                        i === state.nextParticipantIndex;
+                      const isAddressed = i === addresseeIdx;
+                      const isFairPickHint =
+                        showFairPickHint &&
+                        !isAddressed &&
+                        i === state.nextParticipantIndex;
+                      const highlighted =
+                        isAddressed || isNext || isFairPickHint;
+                      const suffix = isAddressed
+                        ? " (addressed)"
+                        : isNext
+                          ? " (next)"
+                          : isFairPickHint
+                            ? " (fair pick)"
+                            : "";
+                      return (
+                        <Button
+                          key={i}
+                          small
+                          icon="chat"
+                          intent={highlighted ? "primary" : undefined}
+                          disabled={!onPickDebateSpeaker || isTyping}
+                          onClick={() =>
+                            onPickDebateSpeaker && onPickDebateSpeaker(i)
+                          }
+                        >
+                          {name}
+                          {suffix}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      marginTop: 8,
+                      opacity: 0.8,
+                    }}
+                  >
+                    Or type a message in the chat input below to speak
+                    yourself. {addresseeIdx >= 0 && "Hint: the last speaker addressed someone directly."}
+                  </div>
+                  {onHumanDebateTargetChange && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 6,
+                        marginTop: 6,
+                        fontSize: 11,
+                      }}
+                    >
+                      <span style={{ opacity: 0.7 }}>Address to:</span>
+                      <Button
+                        small
+                        minimal
+                        intent={
+                          humanDebateTarget == null ? "primary" : undefined
+                        }
+                        active={humanDebateTarget == null}
+                        onClick={() => onHumanDebateTargetChange(null)}
+                      >
+                        Anyone
+                      </Button>
+                      {state.speakerNames.map((name, i) => (
+                        <Button
+                          key={i}
+                          small
+                          minimal
+                          intent={
+                            humanDebateTarget === i ? "primary" : undefined
+                          }
+                          active={humanDebateTarget === i}
+                          onClick={() => onHumanDebateTargetChange(i)}
+                        >
+                          {name}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
 
           // Council step messages get their own rendering
           if (message.councilStep) {

@@ -16,6 +16,24 @@ import {
   uidRegex,
 } from "./regex";
 
+// Returns the current Roam user's :user/display-name, or null if it can't be
+// resolved (new graph, API shape changed, etc.). Used as a default "human
+// name" for features where the user speaks as themselves (e.g. debate mode's
+// human-in-loop sub-mode).
+export function getRoamUserDisplayName() {
+  try {
+    const userUid = window.roamAlphaAPI?.user?.uid?.();
+    if (!userUid) return null;
+    const res = window.roamAlphaAPI.q(
+      `[:find ?name :where [?u :user/uid "${userUid}"] [?u :user/display-name ?name]]`,
+    );
+    const name = res?.[0]?.[0];
+    return typeof name === "string" && name.trim() ? name.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getTreeByUid(uid) {
   if (uid)
     return window.roamAlphaAPI.q(`[:find (pull ?page
