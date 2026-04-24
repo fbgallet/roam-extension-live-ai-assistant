@@ -1,5 +1,21 @@
 {
   "models": {
+    "gpt-5.4": {
+      "id": "gpt-5.5",
+      "name": "GPT 5.5",
+      "provider": "OpenAI",
+      "contextLength": 1050000,
+      "maxOutput": 128000,
+      "pricing": { "input": 5, "output": 30 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "visibleByDefault": true,
+      "aliases": ["GPT 5.5", "gpt-5-5"]
+    },
     "claude-opus-4-7": {
       "id": "claude-opus-4-7",
       "name": "Claude Opus 4.7",
@@ -16,6 +32,39 @@
       "thinkingDefault": false,
       "visibleByDefault": true,
       "aliases": ["claude-4.7-opus", "claude opus 4.7"]
+    },
+    "deepseek-v4-pro": {
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek-V4 Pro",
+      "provider": "DeepSeek",
+      "contextLength": 1000000,
+      "maxOutput": 384000,
+      "pricing": { "input": 1.74, "output": 3.48 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": false,
+        "fileInput": true
+      },
+      "thinkingDefault": true,
+      "visibleByDefault": true,
+      "aliases": ["deepseek-v4 pro", "deepseek v4 pro"]
+    },
+
+    "deepseek-v4-flash": {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek-V4 Flash",
+      "provider": "DeepSeek",
+      "contextLength": 1000000,
+      "maxOutput": 384000,
+      "pricing": { "input": 0.14, "output": 0.28 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": false,
+        "fileInput": true
+      },
+      "thinkingDefault": true,
+      "visibleByDefault": true,
+      "aliases": ["deepseek v4 flash", "deepseek-v4"]
     }
   }
 }

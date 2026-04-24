@@ -24,6 +24,23 @@
 export const MODEL_REGISTRY = {
   // ==================== OpenAI Models ====================
   "gpt-5.4": {
+    id: "gpt-5.5",
+    name: "GPT 5.5",
+    provider: "OpenAI",
+    contextLength: 1050000,
+    maxOutput: 128000,
+    pricing: { input: 5, output: 30 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    aliases: ["GPT 5.5", "gpt-5-5"],
+  },
+
+  "gpt-5.4": {
     id: "gpt-5.4",
     name: "GPT 5.4",
     provider: "OpenAI",
@@ -624,6 +641,40 @@ export const MODEL_REGISTRY = {
   // },
 
   // ==================== DeepSeek Models ====================
+  "deepseek-v4-pro": {
+    id: "deepseek-v4-pro",
+    name: "DeepSeek-V4 Pro",
+    provider: "DeepSeek",
+    contextLength: 1000000,
+    maxOutput: 384000,
+    pricing: { input: 1.74, output: 3.48 },
+    capabilities: {
+      thinking: true,
+      imageInput: false,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["deepseek-v4 pro", "deepseek v4 pro"],
+  },
+
+  "deepseek-v4-flash": {
+    id: "deepseek-v4-flash",
+    name: "DeepSeek-V4 Flash",
+    provider: "DeepSeek",
+    contextLength: 1000000,
+    maxOutput: 384000,
+    pricing: { input: 0.14, output: 0.28 },
+    capabilities: {
+      thinking: true,
+      imageInput: false,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["deepseek v4 flash", "deepseek-v4"],
+  },
+
   "deepseek-chat": {
     id: "deepseek-chat",
     name: "DeepSeek-V3.2",
@@ -634,7 +685,7 @@ export const MODEL_REGISTRY = {
       imageInput: false,
       fileInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["deepseek-v3.2", "deepseek v3.2", "deepseek-v3"],
   },
 
@@ -650,7 +701,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["deepseek-v3.2 thinking", "deepseek v3.2 thinking"],
   },
 
