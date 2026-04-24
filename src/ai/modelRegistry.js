@@ -23,7 +23,7 @@
 
 export const MODEL_REGISTRY = {
   // ==================== OpenAI Models ====================
-  "gpt-5.4": {
+  "gpt-5.5": {
     id: "gpt-5.5",
     name: "GPT 5.5",
     provider: "OpenAI",
