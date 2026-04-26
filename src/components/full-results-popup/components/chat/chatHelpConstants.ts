@@ -91,17 +91,14 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.30 (April 27th, 2
 A third Council mode where **2–6 participants take turns in a live, oral-style conversation**. Each participant gets a model, a role, optionally a display name, and an optional per-participant temperature.
 
 - **Built-in roles**:
-  - **Characters** — Socrates (probing questions), Devil's Advocate (steelman opposition), Synthesizer (find convergence), Pragmatist (actionable now), Visionary (long horizon)
+  - **Characters** — Socrates, Devil's Advocate, Synthesizer, Pragmatist (actionable now), Visionary
   - **De Bono's Six Thinking Hats** — White (facts), Red (feelings), Black (risks), Yellow (benefits), Green (creativity), Blue (process)
-- **Name-driven personas**: pick "No preset role" and give the participant a name. If the name refers to a known thinker or fictional character (e.g., Nietzsche, Spock, Hannah Arendt), the model will **embody** that figure — adopt their style, concerns, and habits of thought. Neutral names like "Alice" are treated as plain labels. Toggle with the **In-character** switch next to the name.
-- **Custom roles from your graph**: tag any block with \`#liveai/role\` and it becomes a selectable role in the debate menu
-- **Custom styles from your graph**: tag any block with \`#liveai/style\` and it's also selectable as a role (style = way of writing; role = position to adopt — both work as system fragments)
+- **Name-driven personas**: pick "No preset role" and give the participant a name. If the name refers to a known thinker or fictional character (e.g., Nietzsche, Spock), the model will **embody** that figure — adopt their style, concerns, and habits of thought. Neutral names like "Alice" are treated as plain labels.
+- **Custom roles from your graph**: tag any block with \`#liveai/role\` and it becomes a selectable role in the debate menu (also compatible with #liveai/style)
 - **Custom inline role**: write the role description directly in the panel
 
 **Dynamics**:
 - **Fixed or Random** speaker order
-- **Short reactions**: optionally invite 1–2 participants for a one-liner (\`>>> react: Name\`) before the next full turn
-- **Pass** (\`[PASS]\`) when a participant has nothing new to add
 - **Conclude** (\`[CONCLUDE]\`) when genuine convergence is reached — others are asked to confirm
 - **Human-in-the-loop**: inject messages between turns to steer the debate
 
