@@ -1007,8 +1007,22 @@ export async function openaiCompletionLegacy({
       model.includes("o4") ||
       (model.includes("gpt-5") && thinking)
     ) {
-      if (withPdf) options["reasoning"] = { effort: reasoningEffort };
-      else options["reasoning_effort"] = reasoningEffort;
+      // OpenAI reasoning APIs accept minimal/low/medium/high — map "max" to "high"
+      const effort = reasoningEffort === "max" ? "high" : reasoningEffort;
+      if (withPdf) options["reasoning"] = { effort };
+      else options["reasoning_effort"] = effort;
+    }
+
+    // DeepSeek V4 models (deepseek-v4-pro, deepseek-v4-flash) have thinking
+    // enabled by default at the API level. Strict equality so undefined
+    // (no user preference) falls through to the API default (thinking on).
+    if (model.includes("deepseek-v4")) {
+      if (thinking === false) {
+        options["thinking"] = { type: "disabled" };
+      } else if (thinking === true) {
+        // DeepSeek V4 supports the full effort range including "max".
+        options["thinking"] = { type: "enabled", effort: reasoningEffort };
+      }
     }
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.

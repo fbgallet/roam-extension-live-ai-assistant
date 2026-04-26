@@ -111,9 +111,11 @@ export function modelViaLanggraph(
     llmInfos.provider === "Grok"
   ) {
     if (llmInfos.thinking) {
-      // GPT-5 and Grok models use reasoning parameter
+      // GPT-5 and Grok models use reasoning parameter.
+      // OpenAI/xAI accept minimal/low/medium/high — map "max" to "high".
       if (llmInfos.id.includes("gpt-5") || llmInfos.provider === "Grok") {
-        options["reasoning"] = { effort: reasoningEffort, summary: "auto" };
+        const effort = reasoningEffort === "max" ? "high" : reasoningEffort;
+        options["reasoning"] = { effort, summary: "auto" };
       }
     }
     // if (llmInfos.provider === "OpenAI") options["useResponsesApi"] = true;
@@ -163,6 +165,7 @@ export function modelViaLanggraph(
           low: 2500,
           medium: 4096,
           high: 8000,
+          max: 16000,
         };
         options.thinking = {
           type: "enabled",
@@ -183,8 +186,23 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "DeepSeek") {
-    // DeepSeek reasoner models don't need special thinking parameters
-    // The model itself handles reasoning internally
+    // DeepSeek V4 models (deepseek-v4-pro, deepseek-v4-flash) have thinking
+    // enabled by default at the API. Strict equality so undefined falls
+    // through to the API default (thinking on).
+    if (llmInfos.id.includes("deepseek-v4")) {
+      if (llmInfos.thinking === false) {
+        options.modelKwargs = {
+          ...options.modelKwargs,
+          thinking: { type: "disabled" },
+        };
+      } else if (llmInfos.thinking === true) {
+        // DeepSeek V4 supports the full effort range including "max".
+        options.modelKwargs = {
+          ...options.modelKwargs,
+          thinking: { type: "enabled", effort: reasoningEffort },
+        };
+      }
+    }
     llm = new ChatDeepSeek({
       model: llmInfos.id,
       ...options,
@@ -194,7 +212,9 @@ export function modelViaLanggraph(
     });
   } else if (llmInfos.provider === "Google") {
     if (llmInfos.thinking && llmInfos.id.includes("gemini-3")) {
-      options["thinkingLevel"] = reasoningEffort;
+      // Gemini accepts low/medium/high — map "max" to "high".
+      options["thinkingLevel"] =
+        reasoningEffort === "max" ? "high" : reasoningEffort;
       if (
         llmInfos.id === "gemini-3-pro-preview" &&
         (reasoningEffort === "minimal" || reasoningEffort === "medium")

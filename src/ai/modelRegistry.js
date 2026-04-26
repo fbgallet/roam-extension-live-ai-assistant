@@ -204,69 +204,6 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  // "gpt-4o": {
-  //   id: "gpt-4o",
-  //   name: "GPT-4o",
-  //   provider: "OpenAI",
-  //   contextLength: 131073,
-  //   pricing: { input: 2.5, output: 10 },
-  //   capabilities: {
-  //     imageInput: true,
-  //     webSearch: true,
-  //     fileInput: true,
-  //   },
-  //   visibleByDefault: false,
-  //   aliases: ["gpt-4o-2024-08-06"],
-  // },
-
-  // "gpt-4o-mini-search": {
-  //   id: "gpt-4o-mini-search-preview",
-  //   name: "gpt-4o-mini-search",
-  //   provider: "OpenAI",
-  //   contextLength: 128000,
-  //   pricing: { input: 0.15, output: 0.6 },
-  //   capabilities: {
-  //     imageInput: true,
-  //     webSearch: true,
-  //     fileInput: true,
-  //   },
-  //   visibleByDefault: true,
-  //   aliases: ["gpt-4o-mini-search-preview"],
-  // },
-
-  // "gpt-4o-search": {
-  //   id: "gpt-4o-search-preview",
-  //   name: "gpt-4o-search",
-  //   provider: "OpenAI",
-  //   contextLength: 128000,
-  //   pricing: { input: 2.5, output: 10 },
-  //   capabilities: {
-  //     imageInput: true,
-  //     webSearch: true,
-  //     fileInput: true,
-  //   },
-  //   visibleByDefault: false,
-  //   aliases: ["gpt-4o-search-preview"],
-  // },
-
-  // o1: {
-  //   id: "o1",
-  //   name: "o1",
-  //   provider: "OpenAI",
-  //   contextLength: 200000,
-  //   pricing: { input: 15, output: 60 },
-  //   capabilities: {
-  //     thinking: true,
-  //     imageInput: true,
-  //     fileInput: true,
-  //   },
-  //   thinkingDefault: true,
-  //   visibleByDefault: false,
-  //   noStreaming: true,
-  //   systemRole: "user",
-  //   aliases: ["o1-preview"],
-  // },
-
   "o4-mini": {
     id: "o4-mini",
     name: "o4 mini",
@@ -340,11 +277,11 @@ export const MODEL_REGISTRY = {
   },
 
   // OpenAI Image Generation Models
-  "gpt-image-1.5": {
-    id: "gpt-image-1.5",
-    name: "GPT Image 1.5",
+  "gpt-image-2": {
+    id: "gpt-image-2",
+    name: "GPT Image 2",
     provider: "OpenAI",
-    pricing: { input: 5, inputImage: 8, output: 32 },
+    pricing: { input: 5, inputImage: 8, output: 30 },
     capabilities: {
       imageInput: true,
       imageOutput: true,
@@ -355,15 +292,15 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  "gpt-image-1": {
-    id: "gpt-image-1",
-    name: "GPT Image 1",
+  "gpt-image-1.5": {
+    id: "gpt-image-1.5",
+    name: "GPT Image 1.5",
     provider: "OpenAI",
-    pricing: { input: 5, inputImage: 10, output: 40 },
+    pricing: { input: 5, inputImage: 8, output: 32 },
     capabilities: {
       imageInput: true,
       imageOutput: true,
-      // editImage: true,
+      editImage: true,
     },
     modelType: "image-generation",
     visibleByDefault: false,
@@ -614,32 +551,6 @@ export const MODEL_REGISTRY = {
   //   aliases: [],
   // },
 
-  // "imagen-4.0-fast-generate-001": {
-  //   id: "imagen-4.0-fast-generate-001",
-  //   name: "imagen-4.0 Fast",
-  //   provider: "Google",
-  //   pricing: { input: 0, output: 20000 },
-  //   capabilities: {
-  //     imageOutput: true,
-  //   },
-  //   modelType: "image-generation",
-  //   visibleByDefault: false,
-  //   aliases: [],
-  // },
-
-  // "imagen-4.0-ultra-generate-001": {
-  //   id: "imagen-4.0-ultra-generate-001",
-  //   name: "imagen-4.0 Ultra",
-  //   provider: "Google",
-  //   pricing: { input: 0, output: 60000 },
-  //   capabilities: {
-  //     imageOutput: true,
-  //   },
-  //   modelType: "image-generation",
-  //   visibleByDefault: false,
-  //   aliases: [],
-  // },
-
   // ==================== DeepSeek Models ====================
   "deepseek-v4-pro": {
     id: "deepseek-v4-pro",
@@ -653,7 +564,7 @@ export const MODEL_REGISTRY = {
       imageInput: false,
       fileInput: true,
     },
-    thinkingDefault: true,
+    thinkingDefault: false,
     visibleByDefault: true,
     aliases: ["deepseek-v4 pro", "deepseek v4 pro"],
   },
@@ -670,7 +581,7 @@ export const MODEL_REGISTRY = {
       imageInput: false,
       fileInput: true,
     },
-    thinkingDefault: true,
+    thinkingDefault: false,
     visibleByDefault: true,
     aliases: ["deepseek v4 flash", "deepseek-v4"],
   },
@@ -996,7 +907,9 @@ export function usesAdaptiveThinking(identifier) {
 /**
  * Get the effort options for a model's thinking mode.
  * Adaptive thinking models use: low, medium, high, max
- * Legacy thinking models use: minimal, low, medium, high
+ * Legacy thinking models use: minimal, low, medium, high, max
+ * "max" is mapped per-provider to the highest supported effort/budget
+ * (capped at "high" for APIs that don't accept "max" as a discrete level).
  * @param {string} identifier - Model identifier
  * @returns {string[]} Array of effort level strings
  */
@@ -1004,7 +917,7 @@ export function getThinkingEffortOptions(identifier) {
   if (usesAdaptiveThinking(identifier)) {
     return ["low", "medium", "high", "max"];
   }
-  return ["minimal", "low", "medium", "high"];
+  return ["minimal", "low", "medium", "high", "max"];
 }
 
 /**
