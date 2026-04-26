@@ -1,3 +1,17 @@
+### v.30 (April 27th, 2026) Debate mode
+
+**New features**
+
+- **Debate mode** in LLM Council: autonomous or human-in-the-loop
+
+**Updates**
+
+- New models support: GPT 5.5, Opus 4.7, DeepSeek V4, GPT Image 2.
+
+**Fixed**
+
+- Chat with :q query works with relative variables (like current-page...)
+
 ### v.29 (April 2026) LLM council & Vector search (experimental)
 
 **New features**

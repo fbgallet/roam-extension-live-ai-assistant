@@ -85,7 +85,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 // Update this version each time you update WHATS_NEW_RESPONSE content
 export const WHATS_NEW_VERSION = "30";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.30 (May 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.30 (April 27th, 2026) 🎉
 
 #### **Debate mode in LLM Council**
 A third Council mode where **2–6 participants take turns in a live, oral-style conversation**. Each participant gets a model, a role, optionally a display name, and an optional per-participant temperature.
@@ -108,8 +108,10 @@ A third Council mode where **2–6 participants take turns in a live, oral-style
 [See full documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
 
 #### **New models**
-- **Claude Opus 4.7**
-- **Grok 4.20**
+- GPT 5.5
+- Claude Opus 4.7
+- DeepSeek V4
+- GPT Image 2
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 

@@ -18,14 +18,14 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.30 (April 2026)
+### 🆕 New in v.30 (April 27th, 2026)
 
-- **Debate mode** in LLM Council: 2–6 participants take turns in a live, oral-style conversation. Configure each with a model, a role (De Bono's Six Thinking Hats, characters like Socrates or Devil's Advocate, custom roles and styles…) and optionally a name — including named thinkers or fictional characters the model will embody. Presets included. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
-- **Remote Opus 4.7** and **Grok 4.20** support, with adaptive thinking for Opus 4.7.
+- **Debate mode** in LLM Council: 2–6 participants take turns in a live. Configure each with a model, a role and optionally a name (the model will automatically embody named thinkers or fictional characters). Presets included. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
+- **New models support**: GPT 5.5, Opus 4.7, DeepSeek V4, GPT Image 2.
 
 ### 🆕 New in v.29 (April 2026)
 
-- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers — two modes available: Iterative Refinement (generate→critique→improve loop) and Parallel Competition (multiple models compete, best elements synthesized). Switch with `/council`. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md)
+- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers. Switch with `/council`.
 - **Vector Search tool** (experimental): search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
 - **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table
 - **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
