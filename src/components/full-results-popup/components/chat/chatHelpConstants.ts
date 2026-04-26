@@ -88,7 +88,7 @@ export const WHATS_NEW_VERSION = "30";
 export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.30 (April 27th, 2026) 🎉
 
 #### **Debate mode in LLM Council**
-A third Council mode where **2–6 participants take turns in a live, oral-style conversation**. Each participant gets a model, a role, optionally a display name, and an optional per-participant temperature.
+A third Council mode where **2–6 participants take turns in a live, oral-style conversation**. Each participant gets a model, a role, optionally a display name, and an optional per-participant temperature. Autonomous or Human-in-the-loop modes. Fixed or Random speaker order.
 
 - **Built-in roles**:
   - **Characters** — Socrates, Devil's Advocate, Synthesizer, Pragmatist (actionable now), Visionary
@@ -97,18 +97,10 @@ A third Council mode where **2–6 participants take turns in a live, oral-style
 - **Custom roles from your graph**: tag any block with \`#liveai/role\` and it becomes a selectable role in the debate menu (also compatible with #liveai/style)
 - **Custom inline role**: write the role description directly in the panel
 
-**Dynamics**:
-- **Fixed or Random** speaker order
-- **Conclude** (\`[CONCLUDE]\`) when genuine convergence is reached — others are asked to confirm
-- **Human-in-the-loop**: inject messages between turns to steer the debate
-
 [See full documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
 
 #### **New models**
-- GPT 5.5
-- Claude Opus 4.7
-- DeepSeek V4
-- GPT Image 2
+- GPT 5.5, Claude Opus 4.7, DeepSeek V4, GPT Image 2
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
