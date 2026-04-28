@@ -92,6 +92,14 @@ export const BUILTIN_LIVEAI_TOPICS: HelpTopic[] = [
     category: "extension-liveai",
   },
   {
+    id: "llm-council",
+    topic: "llm-council",
+    author: "fbgallet",
+    url: "https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md",
+    shortDescription: "Live AI LLMs Council & debate feature",
+    category: "extension-liveai",
+  },
+  {
     id: "skills",
     topic: "Skills",
     author: "fbgallet",
@@ -132,7 +140,7 @@ export async function fetchHelpDepot(): Promise<HelpDepot> {
     const response = await fetch(HELP_DEPOT_URL);
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch help depot: ${response.status} ${response.statusText}`
+        `Failed to fetch help depot: ${response.status} ${response.statusText}`,
       );
     }
     const depot: HelpDepot = await response.json();
@@ -210,7 +218,7 @@ export function getEnabledTopics(): HelpTopic[] {
  * @returns Promise resolving to help depot
  */
 export async function loadDepot(
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
 ): Promise<HelpDepot> {
   // Try to load from cache first (unless forcing refresh)
   if (!forceRefresh) {
@@ -234,7 +242,7 @@ export async function loadDepot(
   } catch (error) {
     console.warn(
       "Failed to fetch help depot from GitHub, using built-in topics only:",
-      error
+      error,
     );
 
     // If fetch fails, return depot with only built-in topics
@@ -258,14 +266,14 @@ export async function loadDepot(
  * @returns Promise resolving to the documentation content
  */
 export async function fetchTopicDocumentation(
-  topic: HelpTopic
+  topic: HelpTopic,
 ): Promise<string> {
   const rawUrl = convertGithubUrlToRaw(topic.url);
   const response = await fetch(rawUrl);
 
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch documentation: ${response.status} ${response.statusText}`
+      `Failed to fetch documentation: ${response.status} ${response.statusText}`,
     );
   }
 
