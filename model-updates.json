@@ -15,7 +15,7 @@
         "videoInput": true,
         "audioInput": true
       },
-      "thinkingDefault": true,
+      "thinkingDefault": false,
       "visibleByDefault": true,
       "aliases": ["gemini-3-5-flash"]
     },
@@ -31,7 +31,6 @@
         "webSearch": true,
         "fileInput": true
       },
-      "thinkingIdSuffix": { "on": "-reasoning", "off": "-non-reasoning" },
       "visibleByDefault": true,
       "aliases": ["grok-4-3", "grok-4", "grok-4-1-fast"]
     }
