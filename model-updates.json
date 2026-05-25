@@ -1,3 +1,39 @@
 {
-  "models": {}
+  "models": {
+    "gemini-3.5-flash": {
+      "id": "gemini-3.5-flash",
+      "name": "Gemini 3.5 Flash",
+      "provider": "Google",
+      "contextLength": 1048576,
+      "maxOutput": 65536,
+      "pricing": { "input": 1.5, "output": 9 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true,
+        "videoInput": true,
+        "audioInput": true
+      },
+      "thinkingDefault": true,
+      "visibleByDefault": true,
+      "aliases": ["gemini-3-5-flash"]
+    },
+    "grok-4.3": {
+      "id": "grok-4.3",
+      "name": "Grok 4.3",
+      "provider": "Grok",
+      "contextLength": 1000000,
+      "pricing": { "input": 1.5, "output": 2.5 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "thinkingIdSuffix": { "on": "-reasoning", "off": "-non-reasoning" },
+      "visibleByDefault": true,
+      "aliases": ["grok-4-3", "grok-4", "grok-4-1-fast"]
+    }
+  }
 }

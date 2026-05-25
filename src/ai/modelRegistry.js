@@ -447,6 +447,26 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3.1-pro"],
   },
 
+  "gemini-3.5-flash": {
+    id: "gemini-3.5-flash",
+    name: "Gemini 3.5 Flash",
+    provider: "Google",
+    contextLength: 1048576,
+    maxOutput: 65536,
+    pricing: { input: 1.5, output: 9 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+      videoInput: true,
+      audioInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["gemini-3-5-flash"],
+  },
+
   "gemini-3-flash-preview": {
     id: "gemini-3-flash-preview",
     name: "Gemini 3 Flash",
@@ -463,12 +483,12 @@ export const MODEL_REGISTRY = {
       audioInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["gemini-3-flash"],
   },
 
-  "gemini-3.1-flash-lite-preview": {
-    id: "gemini-3.1-flash-lite-preview",
+  "gemini-3.1-flash-lite": {
+    id: "gemini-3.1-flash-lite",
     name: "Gemini 3.1 Flash Lite",
     provider: "Google",
     contextLength: 1048576,
@@ -482,7 +502,7 @@ export const MODEL_REGISTRY = {
       audioInput: true,
     },
     visibleByDefault: true,
-    aliases: ["gemini-3.1-flash-lite"],
+    aliases: ["gemini-3.1-flash-lite-preview"],
   },
 
   // Google Image Generation Models
@@ -618,12 +638,12 @@ export const MODEL_REGISTRY = {
 
   // ==================== Grok Models ====================
 
-  "grok-4.20": {
-    id: "grok-4.20",
-    name: "Grok 4.20",
+  "grok-4.3": {
+    id: "grok-4.3",
+    name: "Grok 4.3",
     provider: "Grok",
-    contextLength: 2000000,
-    pricing: { input: 2, output: 6 },
+    contextLength: 1000000,
+    pricing: { input: 1.5, output: 2.5 },
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -632,8 +652,25 @@ export const MODEL_REGISTRY = {
     },
     thinkingIdSuffix: { on: "-reasoning", off: "-non-reasoning" },
     visibleByDefault: true,
-    aliases: [],
+    aliases: ["grok-4-3", "grok-4.20", "grok-4", "grok-4-1-fast"],
   },
+
+  // "grok-4.20": {
+  //   id: "grok-4.20",
+  //   name: "Grok 4.20",
+  //   provider: "Grok",
+  //   contextLength: 2000000,
+  //   pricing: { input: 2, output: 6 },
+  //   capabilities: {
+  //     thinking: true,
+  //     imageInput: true,
+  //     webSearch: true,
+  //     fileInput: true,
+  //   },
+  //   thinkingIdSuffix: { on: "-reasoning", off: "-non-reasoning" },
+  //   visibleByDefault: false,
+  //   aliases: [],
+  // },
 
   "grok-4.20-multi-agent": {
     id: "grok-4.20-multi-agent",
@@ -651,56 +688,6 @@ export const MODEL_REGISTRY = {
     visibleByDefault: false,
     aliases: [],
   },
-
-  "grok-4": {
-    id: "grok-4",
-    name: "Grok-4",
-    provider: "Grok",
-    contextLength: 256000,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-    aliases: [],
-  },
-
-  "grok-4-1-fast": {
-    id: "grok-4-1-fast",
-    name: "Grok-4-1-fast",
-    provider: "Grok",
-    contextLength: 2000000,
-    pricing: { input: 0.2, output: 0.5 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingIdSuffix: { on: "-reasoning", off: "-non-reasoning" },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  // "grok-3-mini": {
-  //   id: "grok-3-mini",
-  //   name: "Grok-3-mini",
-  //   provider: "Grok",
-  //   contextLength: 131072,
-  //   pricing: { input: 0.3, output: 0.5 },
-  //   capabilities: {
-  //     thinking: true,
-  //     imageInput: true,
-  //     webSearch: true,
-  //     fileInput: true,
-  //   },
-  //   visibleByDefault: false,
-  //   aliases: [],
-  // },
 
   // Grok Image Generation Model
   "grok-imagine-image": {
