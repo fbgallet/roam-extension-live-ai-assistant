@@ -1055,6 +1055,17 @@ export async function openaiCompletionLegacy({
         options["reasoning_effort"] =
           reasoningEffort === "high" ? "high" : "low";
       }
+      // grok-4.3 controls reasoning via reasoning_effort (no ID suffix).
+      // "none" disables reasoning; otherwise low (default)/medium/high.
+      if (model === "grok-4.3") {
+        options["reasoning_effort"] = !thinking
+          ? "none"
+          : reasoningEffort === "max" || reasoningEffort === "high"
+            ? "high"
+            : reasoningEffort === "medium"
+              ? "medium"
+              : "low";
+      }
     }
 
     console.log("options :>> ", options);

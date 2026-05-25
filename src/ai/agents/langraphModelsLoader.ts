@@ -110,7 +110,21 @@ export function modelViaLanggraph(
     llmInfos.provider === "groq" ||
     llmInfos.provider === "Grok"
   ) {
-    if (llmInfos.thinking) {
+    // grok-4.3 controls reasoning via reasoning_effort (no ID suffix).
+    // "none" disables reasoning; otherwise low (default)/medium/high.
+    if (llmInfos.id === "grok-4.3") {
+      const effort = !llmInfos.thinking
+        ? "none"
+        : reasoningEffort === "max" || reasoningEffort === "high"
+          ? "high"
+          : reasoningEffort === "medium"
+            ? "medium"
+            : "low";
+      options.modelKwargs = {
+        ...options.modelKwargs,
+        reasoning_effort: effort,
+      };
+    } else if (llmInfos.thinking) {
       // GPT-5 and Grok models use reasoning parameter.
       // OpenAI/xAI accept minimal/low/medium/high — map "max" to "high".
       if (llmInfos.id.includes("gpt-5") || llmInfos.provider === "Grok") {
