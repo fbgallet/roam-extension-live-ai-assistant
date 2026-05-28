@@ -323,6 +323,24 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Anthropic Models ====================
+  "claude-opus-4-8": {
+    id: "claude-opus-4-8",
+    name: "Claude Opus 4.8",
+    provider: "Anthropic",
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 5, output: 25 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["claude-4.8-opus", "claude opus", "claude opus 4.8"],
+  },
+
   "claude-opus-4-7": {
     id: "claude-opus-4-7",
     name: "Claude Opus 4.7",
@@ -337,8 +355,8 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
-    aliases: ["claude-4.7-opus", "claude opus", "claude opus 4.7"],
+    visibleByDefault: false,
+    aliases: ["claude-4.7-opus", "claude opus 4.7"],
   },
 
   "claude-opus-4-6": {
