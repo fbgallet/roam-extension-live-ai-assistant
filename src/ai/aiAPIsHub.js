@@ -641,7 +641,9 @@ export async function claudeCompletion({
                   ? 2500
                   : reasoningEffort === "medium"
                     ? 4096
-                    : 8000,
+                    : reasoningEffort === "max"
+                      ? 16000
+                      : 8000,
           };
         }
       }

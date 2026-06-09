@@ -910,7 +910,9 @@ export function hasThinkingDefault(identifier) {
 /**
  * Check if model uses adaptive thinking (type: "adaptive" + effort parameter)
  * instead of legacy thinking (type: "enabled" + budget_tokens).
- * Currently only Claude Opus 4.6+ uses adaptive thinking.
+ * Claude Opus 4.6+ and Claude Fable/Mythos 5 use adaptive thinking.
+ * For Fable/Mythos 5, adaptive is the ONLY supported mode — type: "enabled"
+ * and type: "disabled" both return 400 from the API.
  * @param {string} identifier - Model identifier
  * @returns {boolean}
  */
@@ -922,7 +924,10 @@ export function usesAdaptiveThinking(identifier) {
   return (
     model?.id === "claude-opus-4-6" ||
     model?.id === "claude-sonnet-4-6" ||
-    model?.id === "claude-opus-4-7"
+    model?.id === "claude-opus-4-7" ||
+    model?.id === "claude-opus-4-8" ||
+    model?.id === "claude-fable-5" ||
+    model?.id === "claude-mythos-5"
   );
 }
 
