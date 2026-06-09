@@ -323,6 +323,24 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Anthropic Models ====================
+  "claude-fable-5": {
+    id: "claude-fable-5",
+    name: "Claude Fable 5",
+    provider: "Anthropic",
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 10, output: 50 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["claude-fable", "claude fable"],
+  },
+
   "claude-opus-4-8": {
     id: "claude-opus-4-8",
     name: "Claude Opus 4.8",
