@@ -37,6 +37,13 @@ import { AppToaster } from "../../../Toaster";
 import { extractConversationFromLiveAIChat } from "../../index";
 import { getChatTitleFromUid } from "../../utils/chatStorage";
 import {
+  loadCurrentChat,
+  loadAutoRestoreChat,
+  getStoredChatInfo,
+  saveCurrentChat,
+  clearCurrentChat,
+} from "../../utils/currentChatStorage";
+import {
   calculateTotalTokens,
   convertMarkdownToRoamFormat,
   hasRealMessages,
@@ -200,16 +207,24 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
   const [isStreaming, setIsStreaming] = useState(false);
   const [loadedChatTitle, setLoadedChatTitle] = useState<string | null>(() => {
-    // Restore from persisted state if available
+    // Restore from persisted state if available (window first, then the durable
+    // localStorage copy which survives a browser refresh).
     // Make sure to clean the title (remove #liveai/chat tag if present)
-    const persistedTitle = (window as any).lastLoadedChatTitle;
+    const persistedTitle =
+      (window as any).lastLoadedChatTitle ||
+      loadAutoRestoreChat()?.loadedChatTitle;
     return persistedTitle
       ? persistedTitle.replace(/#liveai\/chat/g, "").trim()
       : null;
   });
   const [loadedChatUid, setLoadedChatUid] = useState<string | null>(() => {
     // Restore from persisted state if available
-    return (window as any).lastLoadedChatUid || initialLoadedChatUid || null;
+    return (
+      (window as any).lastLoadedChatUid ||
+      initialLoadedChatUid ||
+      loadAutoRestoreChat()?.loadedChatUid ||
+      null
+    );
   });
   const [selectedStyle, setSelectedStyle] = useState<string>(() => {
     // Load style from window object (whether pinned or not), or use initialStyle/defaultStyle
@@ -384,7 +399,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [insertedMessagesCount, setInsertedMessagesCount] = useState<number>(
     () => {
       // Restore from persisted state if available
-      return (window as any).lastInsertedMessagesCount || 0;
+      return (
+        (window as any).lastInsertedMessagesCount ??
+        loadAutoRestoreChat()?.insertedMessagesCount ??
+        0
+      );
     },
   );
   // Token estimation state is now managed by parent component and passed as props
@@ -1379,13 +1398,25 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
+
+  // Previous-day ("stale") conversation available for on-demand restore.
+  // Captured once at mount; the landing screen offers a Restore/Dismiss banner
+  // instead of auto-loading it (so the welcome message still shows).
+  const [staleChatInfo] = useState(() => getStoredChatInfo());
+  const [staleRestoreDismissed, setStaleRestoreDismissed] = useState(false);
+
   const [hasExpandedResults, setHasExpandedResults] = useState(false); // Track if agent found additional results during conversation
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     [],
   ); // Track result selection changes
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     // Restore from persisted state if available, otherwise use initial or default
-    return (window as any).lastChatModel || initialChatModel || defaultModel;
+    return (
+      (window as any).lastChatModel ||
+      initialChatModel ||
+      loadAutoRestoreChat()?.selectedModel ||
+      defaultModel
+    );
   });
   const [modelTokensLimit, setModelTokensLimit] = useState<number>(
     modelAccordingToProvider(initialChatModel || defaultModel).tokensLimit ||
@@ -1515,6 +1546,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       (window as any).lastLoadedChatTitle = loadedChatTitle;
       (window as any).lastInsertedMessagesCount = insertedMessagesCount;
       (window as any).lastChatModel = selectedModel;
+      // Mirror into the durable localStorage copy (survives browser refresh).
+      // Merges with the messages slice written by useFullResultsState.
+      saveCurrentChat({
+        loadedChatUid,
+        loadedChatTitle,
+        insertedMessagesCount,
+        selectedModel,
+      });
     }
   }, [
     loadedChatUid,
@@ -1555,6 +1594,47 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     delete (window as any).lastLoadedChatTitle;
     delete (window as any).lastInsertedMessagesCount;
     delete (window as any).lastChatModel;
+    // Clear the durable localStorage copy too
+    clearCurrentChat();
+  };
+
+  // Whether to offer the "restore previous conversation" banner on the landing
+  // screen: a stale (previous-day) snapshot exists, hasn't been dismissed, and
+  // there's no real conversation in progress yet (auto-hides after restore /
+  // first message).
+  const showStaleRestore =
+    !!staleChatInfo &&
+    !staleChatInfo.isFromToday &&
+    !staleRestoreDismissed &&
+    !hasRealMessages(chatMessages);
+
+  // Load the stale snapshot into the chat on demand (full restore).
+  const handleRestorePreviousChat = () => {
+    const stored = loadCurrentChat();
+    if (!stored) {
+      setStaleRestoreDismissed(true);
+      return;
+    }
+    setChatMessages(stored.messages);
+    setChatAgentData(stored.agentData ?? null);
+    if (stored.accessMode) setChatAccessMode(stored.accessMode);
+    if (typeof stored.noTruncation === "boolean")
+      setNoTruncation(stored.noTruncation);
+    setLoadedChatUid(stored.loadedChatUid || null);
+    setLoadedChatTitle(
+      stored.loadedChatTitle
+        ? stored.loadedChatTitle.replace(/#liveai\/chat/g, "").trim()
+        : null,
+    );
+    if (typeof stored.insertedMessagesCount === "number")
+      setInsertedMessagesCount(stored.insertedMessagesCount);
+    if (stored.selectedModel) setSelectedModel(stored.selectedModel);
+  };
+
+  // Discard the stale snapshot (user doesn't want to continue it).
+  const handleDismissPreviousChat = () => {
+    clearCurrentChat();
+    setStaleRestoreDismissed(true);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -3537,9 +3617,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
         // Conversation state from previous turns
         conversationHistory: currentConversationHistory,
-        conversationSummary:
-          chatAgentData?.conversationSummary ||
-          loadedChatTitle?.replace("#liveai/chat", ""),
+        // Only a real agent-produced summary — never the chat title, which is
+        // not a conversation summary and would mislead the model.
+        conversationSummary: chatAgentData?.conversationSummary,
         exchangesSinceLastSummary:
           chatAgentData?.exchangesSinceLastSummary || 0,
 
@@ -4045,8 +4125,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         role: "assistant",
         content: finalContent,
         timestamp: new Date(),
-        tokensIn: agentResult.tokensUsage?.input_tokens,
-        tokensOut: agentResult.tokensUsage?.output_tokens,
+        // Per-message tokens = THIS turn's usage only (incl. summarization cost).
+        // The running cumulative total is shown in the chat header.
+        tokensIn: agentResult.turnTokensDelta?.input_tokens,
+        tokensOut: agentResult.turnTokensDelta?.output_tokens,
         model: selectedModel, // Store the model used for this response
         // Use ref to get the current tool usage (avoids stale closure)
         toolUsage:
@@ -4210,6 +4292,11 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onRetryMessage={handleRetryMessage}
         onSuggestionClick={setChatInput}
         onHelpButtonClick={handleHelpButtonClick}
+        showStaleRestore={showStaleRestore}
+        staleChatSavedAt={staleChatInfo?.savedAt}
+        staleChatMessageCount={staleChatInfo?.messageCount}
+        onRestorePreviousChat={handleRestorePreviousChat}
+        onDismissPreviousChat={handleDismissPreviousChat}
         messagesContainerRef={messagesContainerRef}
         pendingToolConfirmation={pendingToolConfirmation}
         onToolConfirmationResponse={handleToolConfirmationResponse}

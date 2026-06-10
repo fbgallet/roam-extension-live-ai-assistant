@@ -1,3 +1,17 @@
+### v.31 (June 10th, 2026)
+
+**Updates**
+
+- New models support: Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
+- Chat conversation is now saved locally and restored after a browser refresh (same-day auto-restore, with a button to restore a previous-day conversation)
+- Inline Context menu, new pin button for the context selection (keeps your context choices across runs instead of resetting each time)
+- Roam queries and :q queries nested in a Style are now executed automatically whenever the style is applied (dynamic, deterministic query context)
+
+**Fixed**
+
+- Roam tables shared as context (chat or inline) are now always read in full, all rows captured regardless of depth/access settings
+- Long chats: recent turns are now always kept verbatim when older history is summarized (less context loss), summarization cost is counted, and per-message token counts are accurate (running total shown in the header)
+
 ### v.30 (April 27th, 2026) Debate mode
 
 **New features**

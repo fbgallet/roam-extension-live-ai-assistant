@@ -914,6 +914,12 @@ interface ChatMessagesDisplayProps {
     type: "chat" | "liveai" | "tip" | "helpabout" | "whatsnew",
     promptOrContent: string,
   ) => void;
+  // Previous-day conversation restore banner (shown on the empty landing screen)
+  showStaleRestore?: boolean;
+  staleChatSavedAt?: number;
+  staleChatMessageCount?: number;
+  onRestorePreviousChat?: () => void;
+  onDismissPreviousChat?: () => void;
   messagesContainerRef: React.RefObject<HTMLDivElement>;
   // Tool confirmation props
   pendingToolConfirmation: PendingToolConfirmation | null;
@@ -964,6 +970,11 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
   onRetryMessage,
   onSuggestionClick,
   onHelpButtonClick,
+  showStaleRestore,
+  staleChatSavedAt,
+  staleChatMessageCount,
+  onRestorePreviousChat,
+  onDismissPreviousChat,
   messagesContainerRef,
   pendingToolConfirmation,
   onToolConfirmationResponse,
@@ -1132,6 +1143,66 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   />
                 </div>
                 {helpButtons}
+              </div>
+            </div>
+          )}
+
+          {/* Previous-day conversation: offer restore instead of auto-loading */}
+          {showStaleRestore && (
+            <div className="full-results-chat-welcome">
+              <div className="full-results-chat-help-avatar">
+                <Icon icon="warning-sign" size={18} intent="warning" />
+              </div>
+              <div className="full-results-chat-assistant-message chat-help">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "8px",
+                  }}
+                >
+                  <Icon
+                    icon="warning-sign"
+                    size={14}
+                    intent="warning"
+                    style={{ marginTop: "2px", flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    You have a previous conversation
+                    {staleChatSavedAt
+                      ? ` from ${new Date(
+                          staleChatSavedAt,
+                        ).toLocaleDateString()}`
+                      : ""}
+                    {staleChatMessageCount
+                      ? ` (${staleChatMessageCount} message${
+                          staleChatMessageCount > 1 ? "s" : ""
+                        })`
+                      : ""}
+                    . Continue it, or start fresh below.
+                  </div>
+                </div>
+                <div className="full-results-chat-suggestions">
+                  <button
+                    onClick={() => onRestorePreviousChat?.()}
+                    style={{
+                      borderColor: "#c87619",
+                      color: "#c87619",
+                    }}
+                  >
+                    <Icon
+                      icon="history"
+                      size={12}
+                      intent="warning"
+                      style={{ marginRight: "4px" }}
+                    />
+                    Restore conversation
+                  </button>
+                  <button onClick={() => onDismissPreviousChat?.()}>
+                    <Icon icon="cross" size={12} style={{ marginRight: "4px" }} />
+                    Dismiss
+                  </button>
+                </div>
               </div>
             </div>
           )}

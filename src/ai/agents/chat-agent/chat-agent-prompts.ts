@@ -292,9 +292,15 @@ When the user provides PDF files (either directly in their message or in the con
 - You can use callouts sparingly to highlight key elements (warnings, tips, important notes, quotes, etc.), relying on Roam specific format: \`> [[!KEYWORD]] Optional title\` on the first line, followed by content lines (simple line returns, no indentation); a blank line ends the callout. Supported keywords to be preceded by an exclamation mark '!': NOTE, INFO, SUMMARY (or ABSTRACT or TLDR), TIP (or HINT or IMPORTANT), SUCCESS, QUESTION (or HELP or FAQ), WARNING (or CAUTION or ATTENTION), FAILURE (or FAIL or MISSING), DANGER (or ERROR), BUG, EXAMPLE, QUOTE (for famous author quotes only). E.g.: '> [[!WARNING]]
 - If you write mathematical or LaTex formulas that require correctly formatted symbols, use the Katex format and insert them between two double dollar: '$$formula$$'. For multiline Katex, do not use environments only compatible with display-mode like {align}.`;
 
-  // Add style-specific formatting if provided
-  if (style !== "Normal") {
-    systemPrompt += `\n\n## Response Style\n\n${await getStylePrompt(style)}`;
+  // Add style-specific formatting if provided. This is appended near the END of
+  // the system prompt (most recent = best adhered to) and is rebuilt every turn,
+  // so it is NEVER affected by conversation summarization.
+  if (style && style !== "Normal") {
+    const stylePrompt = await getStylePrompt(style);
+    // Guard against an empty/undefined style resolving to the literal "undefined".
+    if (stylePrompt) {
+      systemPrompt += `\n\n## Response Style\n\n${stylePrompt}`;
+    }
   }
 
   if (maxTokensLimit) {

@@ -85,22 +85,19 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 // Update this version each time you update WHATS_NEW_RESPONSE content
 export const WHATS_NEW_VERSION = "30";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.30 (April 27th, 2026) 🎉
-
-#### **Debate mode in LLM Council**
-A third Council mode where **2–6 participants take turns in a live, oral-style conversation**. Each participant gets a model, a role, optionally a display name, and an optional per-participant temperature. Autonomous or Human-in-the-loop modes. Fixed or Random speaker order.
-
-- **Built-in roles**:
-  - **Characters** — Socrates, Devil's Advocate, Synthesizer, Pragmatist (actionable now), Visionary
-  - **De Bono's Six Thinking Hats** — White (facts), Red (feelings), Black (risks), Yellow (benefits), Green (creativity), Blue (process)
-- **Name-driven personas**: pick "No preset role" and give the participant a name. If the name refers to a known thinker or fictional character (e.g., Nietzsche, Spock), the model will **embody** that figure — adopt their style, concerns, and habits of thought. Neutral names like "Alice" are treated as plain labels.
-- **Custom roles from your graph**: tag any block with \`#liveai/role\` and it becomes a selectable role in the debate menu (also compatible with #liveai/style)
-- **Custom inline role**: write the role description directly in the panel
-
-[See full documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.31 (June 10th, 2026) 🎉
 
 #### **New models**
-- GPT 5.5, Claude Opus 4.7, DeepSeek V4, GPT Image 2
+- Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
+
+#### Chat agent updates
+- Conversation still available after browser refresh
+- Better long chat support (better summarization after 25 echanges & always keep last 6 messages verbatim)
+
+#### Inline Context Menu
+- New pin button for the context selection
+- Roam tables shared as context (chat or inline) are now always read in full, all rows captured regardless of depth/access settings
+- Roam queries and :q queries nested in a Style are now executed automatically
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 

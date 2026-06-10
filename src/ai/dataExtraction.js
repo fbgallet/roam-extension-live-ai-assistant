@@ -471,6 +471,14 @@ const getNChar = (char, nb, factor = 2) => {
   return str;
 };
 
+// Roam tables/kanban store their rows/cards as the children of a block whose
+// string is the component marker (e.g. `{{[[table]]}}`). Those children are the
+// data, so they must be captured in full even when the depth cap would stop the
+// traversal. Mirrors the chat-side handling in contextExpansion.ts.
+const TABULAR_COMPONENT_REGEX = /\{\{(\[\[)?(table|kanban)(\]\])?\}\}/i;
+const isTabularBlock = (content) =>
+  !!content && TABULAR_COMPONENT_REGEX.test(content);
+
 export function convertTreeToLinearArray(
   tree,
   maxCapturing = 99,
@@ -484,7 +492,7 @@ export function convertTreeToLinearArray(
   let allBlocksUids = [];
   let excludedUids = [];
 
-  function traverseArray(tree, leftShift = "", level = 1) {
+  function traverseArray(tree, leftShift = "", level = 1, unlimited = false) {
     if (!tree || !tree.length) return;
     if (tree[0].order) tree = tree.sort((a, b) => a.order - b.order);
     tree.forEach((element) => {
@@ -519,8 +527,16 @@ export function convertTreeToLinearArray(
         );
       }
       if (element.children && !toExcludeWithChildren) {
-        if (maxCapturing && level >= maxCapturing) return;
-        traverseArray(element.children, leftShift + "  ", level + 1);
+        // Once inside a table/kanban block, capture all descendants regardless
+        // of the depth cap (their children are the rows/cards).
+        const childUnlimited = unlimited || isTabularBlock(element.string);
+        if (!childUnlimited && maxCapturing && level >= maxCapturing) return;
+        traverseArray(
+          element.children,
+          leftShift + "  ",
+          level + 1,
+          childUnlimited
+        );
       }
     });
   }
@@ -1232,6 +1248,23 @@ export const getCustomStyleByUid = async (uid) => {
         context;
     }
   }
+
+  // Auto-execute Roam queries / :q queries nested in the style, so that applying
+  // the style always injects fresh query results as context. This is intentionally
+  // independent of the context-menu "Queries" toggle (which auto-disables after
+  // each run by design, since queries are heavy). Mirrors how {{embed}} nested in
+  // a style is resolved automatically. Dynamic import avoids a circular dependency
+  // (queryContextExtractor imports from this module).
+  try {
+    const { getContextFromQueries } = await import("./queryContextExtractor");
+    const queryContext = await getContextFromQueries({ prompt, context: "" });
+    if (queryContext) {
+      prompt += "\n\n" + queryContext;
+    }
+  } catch (error) {
+    console.warn("Failed to resolve queries nested in style:", error);
+  }
+
   return prompt;
 };
 

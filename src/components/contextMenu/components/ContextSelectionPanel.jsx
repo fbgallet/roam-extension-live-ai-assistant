@@ -137,6 +137,8 @@ const ContextSelectionPanel = ({
   setIncludePdfInContext,
   includeQueryInContext,
   setIncludeQueryInContext,
+  isPinnedContext,
+  setIsPinnedContext,
 }) => {
   return (
     <>
@@ -175,6 +177,27 @@ const ContextSelectionPanel = ({
         }}
       >
         <strong>Context: </strong>
+        <Tooltip
+          content={
+            <div>
+              Pin/unpin the context selection for this session
+              <br />
+              (keeps your context choices instead of resetting after each run)
+            </div>
+          }
+          openOnTargetFocus={false}
+          style={{ zIndex: "9999" }}
+        >
+          <Icon
+            icon={isPinnedContext ? "unpin" : "pin"}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsPinnedContext((prev) => !prev);
+            }}
+            intent={isPinnedContext ? "primary" : "none"}
+            style={{ marginRight: "4px" }}
+          />
+        </Tooltip>
         {(!isLogView() || mainViewUid.current) && (
           <Tooltip
             content={

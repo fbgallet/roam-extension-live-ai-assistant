@@ -21,6 +21,18 @@ const EXPANSION_BUDGETS = {
 };
 
 /**
+ * Roam renders tables and kanban boards from a block whose content is the
+ * component marker (e.g. `{{[[table]]}}`), with the actual rows/cards living in
+ * its (often deeply nested) children. For these blocks the children ARE the
+ * data, so the usual adaptive depth / children-count / budget limits would drop
+ * rows. When a block is detected as tabular we capture all of its descendants
+ * in full, bypassing those limits.
+ */
+const TABULAR_COMPONENT_REGEX = /\{\{(\[\[)?(table|kanban)(\]\])?\}\}/i;
+const isTabularBlock = (content?: string): boolean =>
+  !!content && TABULAR_COMPONENT_REGEX.test(content);
+
+/**
  * Performs adaptive context expansion based on result count and available budget
  */
 export async function performAdaptiveExpansion(
@@ -294,6 +306,10 @@ async function createExpandedBlocks(
         500
       );
 
+      // Tables/kanban: their children are the data rows/cards, so capture them
+      // all regardless of result count or access mode.
+      const isTable = isTabularBlock(originalContent);
+
       // ADAPTIVE DEPTH STRATEGY based on result count
       const resultCount = originalResults.length;
       let maxDepth: number;
@@ -331,6 +347,11 @@ async function createExpandedBlocks(
         }
       }
 
+      // Tables override the adaptive cap: extract every descendant level.
+      if (isTable) {
+        maxDepth = Number.MAX_SAFE_INTEGER;
+      }
+
       // Only expand children if we have budget and depth allowed
       // For pages, always try to expand children. For blocks, check hierarchy
       expandedBlock.childrenOutline =
@@ -343,7 +364,8 @@ async function createExpandedBlocks(
               1, // currentLevel
               "  ", // indent
               false, // isPageExpansion
-              noTruncation
+              noTruncation,
+              isTable // unlimited: capture all table rows without depth/children/budget caps
             )
           : ""; // No children expansion for >150 results
 
@@ -351,7 +373,8 @@ async function createExpandedBlocks(
       const stringifiedBlock = stringifyExpandedBlock(
         expandedBlock,
         budgetPerResult,
-        noTruncation
+        noTruncation,
+        isTable // don't truncate the children outline of a table block
       );
 
       expandedBlocks.push({
@@ -364,6 +387,7 @@ async function createExpandedBlocks(
           contextExpansion: true,
           originalLength: originalContent.length,
           expandedLength: stringifiedBlock.length,
+          isTable, // exempt from the cross-result truncation pass
         },
       });
     } catch (error) {
@@ -502,9 +526,10 @@ async function buildRecursiveChildrenOutline(
   currentLevel: number = 1,
   indent: string = "  ",
   isPageExpansion: boolean = false, // If true, use full content limits for pages
-  noTruncation: boolean = false
+  noTruncation: boolean = false,
+  unlimited: boolean = false // If true (table/kanban data), no depth/children/budget caps
 ): Promise<string> {
-  if (currentLevel > maxDepth) return ""; // Only check depth, not budget yet
+  if (!unlimited && currentLevel > maxDepth) return ""; // Only check depth, not budget yet
 
   // Query for direct children of the parent
   const childrenQuery = `
@@ -529,8 +554,13 @@ async function buildRecursiveChildrenOutline(
     // NEW STRATEGY: Extract ALL content first without truncation
     const outlineLines: string[] = [];
 
-    // Limit to reasonable number of children to prevent infinite expansion
-    const maxChildren = isPageExpansion ? 100 : 10; // Pages can have more children shown
+    // Limit to reasonable number of children to prevent infinite expansion.
+    // Tables/kanban (unlimited) must show every row/card.
+    const maxChildren = unlimited
+      ? Number.MAX_SAFE_INTEGER
+      : isPageExpansion
+      ? 100
+      : 10; // Pages can have more children shown
 
     for (const [childUid, childContent] of sortedChildren.slice(0, maxChildren)) {
       // Format child content + REFERENCE RESOLUTION
@@ -551,8 +581,12 @@ async function buildRecursiveChildrenOutline(
       // Add current level with indentation, including UID for referenceable blocks
       outlineLines.push(`${indent}- [${childUid}] ${formattedContent}`);
 
+      // Once we enter a table/kanban subtree, capture all of its descendants.
+      const childUnlimited = unlimited || isTabularBlock(childContent);
+
       // Recursively get children of this child if we have depth remaining
-      if (currentLevel < maxDepth) {
+      // (or unconditionally for table/kanban data).
+      if (childUnlimited || currentLevel < maxDepth) {
         const nestedOutline = await buildRecursiveChildrenOutline(
           childUid,
           budget, // Pass same budget (will be checked at the end)
@@ -561,7 +595,8 @@ async function buildRecursiveChildrenOutline(
           currentLevel + 1,
           indent + "  ", // Increase indentation
           isPageExpansion,
-          noTruncation
+          noTruncation,
+          childUnlimited
         );
 
         if (nestedOutline) {
@@ -575,7 +610,7 @@ async function buildRecursiveChildrenOutline(
     // NOW check if we need to truncate based on budget
     // For pages: no truncation unless budget is explicitly exceeded
     // For blocks: truncate if we exceed budget
-    if (!noTruncation && !isPageExpansion && fullContent.length > budget && budget > 0) {
+    if (!unlimited && !noTruncation && !isPageExpansion && fullContent.length > budget && budget > 0) {
       // Need to truncate - apply intelligent truncation
       const truncatedContent = fullContent.substring(0, budget) + "\n    ...[content truncated to fit budget]";
       console.log(
@@ -597,7 +632,8 @@ async function buildRecursiveChildrenOutline(
 function stringifyExpandedBlock(
   expandedBlock: any,
   budgetLimit: number,
-  noTruncation: boolean = false
+  noTruncation: boolean = false,
+  isTable: boolean = false // table/kanban: keep the full children outline
 ): string {
   const parts: string[] = [];
 
@@ -638,6 +674,12 @@ function stringifyExpandedBlock(
 
   // Add children outline if available (MAIN LINEAR ALLOCATION TARGET)
   if (expandedBlock.childrenOutline) {
+    // Tables/kanban: include every row — never truncate the children outline.
+    if (isTable) {
+      parts.push(`Children:\n${expandedBlock.childrenOutline}`);
+      return parts.join("\n");
+    }
+
     const parentUsed = expandedBlock.parent
       ? Math.min(500, Math.max(100, Math.floor(remainingBudget * 0.2)))
       : 0;
@@ -672,9 +714,14 @@ function applyIntelligentTruncation(
     return expandedBlocks;
   }
 
-  // Separate pages from blocks
-  const pages = expandedBlocks.filter((item) => item.isPage === true || item.metadata?.isPage === true);
-  const blocks = expandedBlocks.filter((item) => !(item.isPage === true || item.metadata?.isPage === true));
+  // Separate truncation-exempt items (pages, and table/kanban blocks whose rows
+  // must be kept intact) from regular blocks that can be truncated.
+  const isExempt = (item: any) =>
+    item.isPage === true ||
+    item.metadata?.isPage === true ||
+    item.metadata?.isTable === true;
+  const pages = expandedBlocks.filter(isExempt);
+  const blocks = expandedBlocks.filter((item) => !isExempt(item));
 
   // Calculate total content length for blocks only (pages are exempt)
   const blocksLength = blocks.reduce((sum, block) => sum + block.content.length, 0);

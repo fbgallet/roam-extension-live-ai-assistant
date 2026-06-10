@@ -152,8 +152,10 @@ const ChatAgentState = Annotation.Root({
   activeSkillInstructions: Annotation<string | undefined>,
   // Response tracking
   finalAnswer: Annotation<string | undefined>,
-  // Token usage tracking
+  // Token usage tracking (cumulative across the conversation)
   tokensUsage: Annotation<TokensUsage>,
+  // This turn's token usage only (for per-message display)
+  turnTokensDelta: Annotation<TokensUsage | undefined>,
   // Invalid tool call retry counter
   invalidToolCallRetries: Annotation<number>,
   // Audio transcription cache (URL -> transcription)
@@ -176,7 +178,11 @@ let sys_msg: SystemMessage;
 let originalUserMessageForHistory: string;
 
 // Conversation summarization threshold
-const SUMMARIZATION_THRESHOLD = 20;
+const SUMMARIZATION_THRESHOLD = 25;
+
+// Number of most recent turns ALWAYS kept verbatim (never summarized away), so
+// the model retains exact recent context even after summarization.
+const RECENT_TURNS_TO_KEEP = 6;
 
 // Nodes
 
@@ -309,20 +315,63 @@ const summarizeConversation = async (state: typeof ChatAgentState.State) => {
     return {};
   }
 
-  const conversationText = state.conversationHistory?.join("\n\n") || "";
-  const prompt = SUMMARIZATION_PROMPT.replace(
-    "{conversation}",
-    conversationText,
-  );
+  const history = state.conversationHistory || [];
+  // History holds ~2 entries per turn (<User>: …, <Assistant>: …). Keep the most
+  // recent turns verbatim and only summarize the OLDER ones — never discard the
+  // whole history (that was the cause of context being lost mid-chat).
+  const keepEntries = Math.min(RECENT_TURNS_TO_KEEP * 2, history.length);
+  const olderEntries = history.slice(0, history.length - keepEntries);
+  const recentEntries = history.slice(history.length - keepEntries);
 
-  const response = await llm.invoke([new HumanMessage({ content: prompt })]);
-  const summary = response.content.toString();
+  // Not enough old material to summarize yet: keep history, just reset counter.
+  if (olderEntries.length === 0) {
+    return {
+      conversationHistory: history,
+      exchangesSinceLastSummary: Math.ceil(recentEntries.length / 2),
+    };
+  }
+
+  // Fold the previous summary into the new one so context ACCUMULATES across
+  // successive summarizations instead of being repeatedly thrown away.
+  const priorSummary = state.conversationSummary
+    ? `Summary of earlier conversation (already condensed):\n${state.conversationSummary}\n\n`
+    : "";
+  const conversationText = priorSummary + olderEntries.join("\n\n");
+  const prompt = SUMMARIZATION_PROMPT.replace("{conversation}", conversationText);
+
+  // Fail safe: if summarization errors, keep the recent history and the prior
+  // summary rather than losing everything.
+  let summary = state.conversationSummary || "";
+  try {
+    const response = await llm.invoke([new HumanMessage({ content: prompt })]);
+    summary = response.content.toString();
+    // Account for the summarization call's cost. The token callback in
+    // modelViaLanggraph only fires for non-thinking, non-Google models; for
+    // thinking/Google models we must read usage_metadata here (as the assistant
+    // node does) so this extra LLM call isn't a hidden, uncounted cost.
+    if (
+      (response as any).usage_metadata &&
+      (state.model.thinking || state.model.provider === "Google")
+    ) {
+      turnTokensUsage.input_tokens +=
+        (response as any).usage_metadata.input_tokens || 0;
+      turnTokensUsage.output_tokens +=
+        (response as any).usage_metadata.output_tokens || 0;
+    }
+  } catch (error) {
+    console.warn(
+      "[ChatAgent] Conversation summarization failed; keeping recent history verbatim:",
+      error,
+    );
+  }
 
   return {
     conversationSummary: summary,
-    exchangesSinceLastSummary: 0,
-    // Clear old conversation history after summarization
-    conversationHistory: [],
+    // Recent turns remain un-summarized; count them so we only summarize again
+    // once enough NEW turns accumulate.
+    exchangesSinceLastSummary: Math.ceil(recentEntries.length / 2),
+    // Keep recent exchanges verbatim instead of clearing all history.
+    conversationHistory: recentEntries,
   };
 };
 
@@ -1107,7 +1156,11 @@ const finalize = async (state: typeof ChatAgentState.State) => {
     finalAnswer,
     conversationHistory: newHistory,
     exchangesSinceLastSummary: (state.exchangesSinceLastSummary || 0) + 1,
+    // Cumulative usage for the whole conversation (used to seed the next turn
+    // and for the running total shown in the chat header).
     tokensUsage: turnTokensUsage,
+    // This turn's usage only (incl. any summarization cost) — for per-message display.
+    turnTokensDelta: turnDelta,
     // Preserve state that should persist across turns
     activeSkillInstructions: state.activeSkillInstructions,
     toolResultsCache: state.toolResultsCache,

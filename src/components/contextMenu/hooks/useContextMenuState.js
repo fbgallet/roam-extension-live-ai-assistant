@@ -52,6 +52,9 @@ export const useContextMenuState = () => {
   const [targetBlock, setTargetBlock] = useState("auto");
   const [style, setStyle] = useState(defaultStyle);
   const [isPinnedStyle, setIsPinnedStyle] = useState(false);
+  // When pinned, the context selection (roamContext, children, PDF, Queries, DNP
+  // period) is preserved across runs instead of resetting on close.
+  const [isPinnedContext, setIsPinnedContext] = useState(false);
   const [customStyles, setCustomStyles] = useState([]);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [model, setModel] = useState(null);
@@ -162,16 +165,18 @@ export const useContextMenuState = () => {
     setIsOutlinerAgent(false);
     setIsHelpOpen(false);
     setIsMCPConfigOpen(false);
-    setDnpPeriod("0");
     if (!isPinnedStyle) setStyle(defaultStyle);
 
-    if (shouldResetContext) {
-      setRoamContext({ ...voidRoamContext });
+    // Preserve the whole context selection across runs when pinned.
+    if (!isPinnedContext) {
+      setDnpPeriod("0");
+      if (shouldResetContext) {
+        setRoamContext({ ...voidRoamContext });
+      }
+      setIsChildrenTreeToIncludeSync(includeChildrenByDefault);
+      setIncludePdfInContext(false);
+      setIncludeQueryInContext(false);
     }
-
-    setIsChildrenTreeToIncludeSync(includeChildrenByDefault);
-    setIncludePdfInContext(false);
-    setIncludeQueryInContext(false);
     // Reset thinking to default model's setting
     setThinkingEnabled(hasThinkingDefault(defaultModel));
     selectedBlocks.current = null;
@@ -225,6 +230,8 @@ export const useContextMenuState = () => {
     setCustomStyles,
     isPinnedStyle,
     setIsPinnedStyle,
+    isPinnedContext,
+    setIsPinnedContext,
     additionalPrompt,
     setAdditionalPrompt,
     model,

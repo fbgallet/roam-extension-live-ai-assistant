@@ -137,6 +137,9 @@ export interface ChatAgentResult {
   // Token usage (cumulative across the conversation)
   tokensUsage: TokensUsage;
 
+  // This turn's token usage only (incl. summarization cost), for per-message display
+  turnTokensDelta?: TokensUsage;
+
   // Image edition mode state
   imageEditionMode?: boolean;
   imageGenerationModelId?: string;
@@ -267,6 +270,9 @@ export async function invokeChatAgent(
     toolResultsCache: result.toolResultsCache || {},
     activeSkillInstructions: result.activeSkillInstructions,
     tokensUsage: result.tokensUsage || { input_tokens: 0, output_tokens: 0 },
+    // This turn's usage only (for per-message display); falls back to cumulative
+    // for command/multimodal paths that don't set a delta.
+    turnTokensDelta: result.turnTokensDelta || result.tokensUsage,
     imageEditionMode: result.imageEditionMode ?? false,
     imageGenerationModelId: result.imageGenerationModelId,
     lastGeneratedImageUrl: result.lastGeneratedImageUrl,

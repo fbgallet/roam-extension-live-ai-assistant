@@ -39,6 +39,11 @@ import { defaultModel, extensionStorage } from "../../..";
 import { handleDirectContentAdd as directContentHandler } from "../utils/directContentHandler";
 import { addRecentQuery } from "../utils/queryStorage";
 import { hasRealMessages } from "../utils/chatMessageUtils";
+import {
+  loadAutoRestoreChat,
+  saveCurrentChat,
+  clearCurrentChat,
+} from "../utils/currentChatStorage";
 
 export const useFullResultsState = (
   results: Result[],
@@ -142,9 +147,17 @@ export const useFullResultsState = (
   const [showChat, setShowChat] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
     const persistedMessages = (window as any).lastChatMessages;
-    return persistedMessages && Array.isArray(persistedMessages)
-      ? persistedMessages
-      : [];
+    if (
+      persistedMessages &&
+      Array.isArray(persistedMessages) &&
+      persistedMessages.length > 0
+    ) {
+      return persistedMessages;
+    }
+    // Fall back to localStorage so a same-day conversation survives a browser
+    // refresh. Older conversations are not auto-loaded (landing screen shows).
+    const stored = loadAutoRestoreChat();
+    return stored ? stored.messages : [];
   });
   const [chatAccessMode, setChatAccessMode] = useState<
     "Balanced" | "Full Access"
@@ -154,6 +167,11 @@ export const useFullResultsState = (
     if (persistedMode === "Balanced" || persistedMode === "Full Access") {
       return persistedMode;
     }
+    // Then from localStorage (same-day conversation, survives browser refresh)
+    const storedMode = loadAutoRestoreChat()?.accessMode;
+    if (storedMode === "Balanced" || storedMode === "Full Access") {
+      return storedMode;
+    }
     // Fall back to default mode from storage
     const defaultMode = extensionStorage.get("askGraphMode") || "Balanced";
     return defaultMode === "Private"
@@ -161,14 +179,37 @@ export const useFullResultsState = (
       : (defaultMode as "Balanced" | "Full Access");
   });
   const [noTruncation, setNoTruncation] = useState<boolean>(() => {
-    return (window as any).lastNoTruncation || false;
+    if (typeof (window as any).lastNoTruncation === "boolean") {
+      return (window as any).lastNoTruncation;
+    }
+    return loadAutoRestoreChat()?.noTruncation || false;
   });
   const [chatAgentData, setChatAgentData] = useState<any>(() => {
-    return (window as any).lastChatAgentData || null;
+    return (
+      (window as any).lastChatAgentData ||
+      loadAutoRestoreChat()?.agentData ||
+      null
+    );
   });
   const [chatExpandedResults, setChatExpandedResults] = useState<
     Result[] | null
   >(null);
+
+  // Durably persist the current conversation to localStorage so it survives a
+  // browser refresh (window.lastChat* is in-memory only). A single entry is
+  // kept. We only ever SAVE here (never auto-clear on empty): an empty array on
+  // mount must not wipe a previous-day snapshot that's still offered for
+  // restore. Clearing is explicit (reset buttons / dismiss).
+  useEffect(() => {
+    if (hasRealMessages(chatMessages)) {
+      saveCurrentChat({
+        messages: chatMessages,
+        agentData: chatAgentData,
+        accessMode: chatAccessMode,
+        noTruncation,
+      });
+    }
+  }, [chatMessages, chatAgentData, chatAccessMode, noTruncation]);
 
   // Token estimation state (persists across view switches)
   const [contextTokenEstimate, setContextTokenEstimate] = useState<number>(0);
@@ -224,8 +265,9 @@ export const useFullResultsState = (
       // Set chat state based on forceOpenChat flag or persisted messages
       // If there are persisted chat messages, automatically show the chat
       const hasPersistedMessages =
-        (window as any).lastChatMessages &&
-        (window as any).lastChatMessages.length > 0;
+        ((window as any).lastChatMessages &&
+          (window as any).lastChatMessages.length > 0) ||
+        !!loadAutoRestoreChat();
       setShowChat(forceOpenChat || hasPersistedMessages);
 
       // Reset references filters (but preserve initial values if provided)
@@ -678,6 +720,8 @@ export const useFullResultsState = (
     delete (window as any).lastChatMessages;
     delete (window as any).lastChatAgentData;
     delete (window as any).lastChatAccessMode;
+    // And the durable copy in localStorage
+    clearCurrentChat();
   };
 
   const handleExpandedToggle = () => {

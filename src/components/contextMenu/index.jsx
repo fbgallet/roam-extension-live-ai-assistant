@@ -106,6 +106,8 @@ export const StandaloneContextMenu = () => {
     setStyle,
     isPinnedStyle,
     setIsPinnedStyle,
+    isPinnedContext,
+    setIsPinnedContext,
     additionalPrompt,
     setAdditionalPrompt,
     setModel,
@@ -1425,6 +1427,8 @@ export const StandaloneContextMenu = () => {
               setIncludePdfInContext={setIncludePdfInContext}
               includeQueryInContext={includeQueryInContext}
               setIncludeQueryInContext={setIncludeQueryInContext}
+              isPinnedContext={isPinnedContext}
+              setIsPinnedContext={setIsPinnedContext}
             />
 
             <TokenEstimateDisplay
